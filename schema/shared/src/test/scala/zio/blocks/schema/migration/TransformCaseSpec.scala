@@ -22,8 +22,8 @@ import zio.test._
 
 object TransformCaseSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(Chunk("name" -> stringVal(name), "age" -> intVal(age)))
 
@@ -59,20 +59,20 @@ object TransformCaseSpec extends SchemaBaseSpec {
       assertTrue(result == new Right(original))
     },
     test("TransformCase.reverse == TransformCase(at, actions.reverse.map(_.reverse)) at depth 1") {
-      val at      = DynamicOptic.root.caseOf("Foo")
-      val a1      = MigrationAction.RenameCase(at, "X", "Y")
-      val a2      = MigrationAction.TransformValue(at, SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int]))
-      val action  = MigrationAction.TransformCase(at, Chunk(a1, a2))
+      val at       = DynamicOptic.root.caseOf("Foo")
+      val a1       = MigrationAction.RenameCase(at, "X", "Y")
+      val a2       = MigrationAction.TransformValue(at, SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int]))
+      val action   = MigrationAction.TransformCase(at, Chunk(a1, a2))
       val expected = MigrationAction.TransformCase(at, Chunk(a2.reverse, a1.reverse))
       assertTrue(action.reverse == expected)
     },
     test("reverseNestingDepth2: TransformCase containing TransformCase reverses recursively") {
-      val innerAt    = DynamicOptic.root.caseOf("Inner")
-      val outerAt    = DynamicOptic.root.caseOf("Outer")
+      val innerAt     = DynamicOptic.root.caseOf("Inner")
+      val outerAt     = DynamicOptic.root.caseOf("Outer")
       val innerAction = MigrationAction.RenameCase(innerAt, "A", "B")
-      val inner      = MigrationAction.TransformCase(innerAt, Chunk(innerAction))
-      val outerLeaf  = MigrationAction.TransformValue(outerAt, SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int]))
-      val outer      = MigrationAction.TransformCase(outerAt, Chunk(inner, outerLeaf))
+      val inner       = MigrationAction.TransformCase(innerAt, Chunk(innerAction))
+      val outerLeaf   = MigrationAction.TransformValue(outerAt, SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int]))
+      val outer       = MigrationAction.TransformCase(outerAt, Chunk(inner, outerLeaf))
       assertTrue(outer.reverse.reverse == outer)
     }
   )

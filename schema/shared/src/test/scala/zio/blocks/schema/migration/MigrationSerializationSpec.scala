@@ -27,17 +27,17 @@ import zio.test._
  *
  * Proves two things about the real derived migration schema:
  *   1. JSON round-trip: `JSON.decode(JSON.encode(m)) == Right(m)` over the
- *      exhaustive `genDynamicMigration` generator and over readable
- *      named fixtures.
+ *      exhaustive `genDynamicMigration` generator and over readable named
+ *      fixtures.
  *   2. The zero-`Schema[_]` invariant proven two ways:
- *        - direct payload scan over concrete `MigrationAction` instances
- *          (restates the existing `MigrationActionStructuralSpec` guardrail
- *          in the serialization context);
- *        - derived-schema walk over `Schema[DynamicMigration]` asserting no
- *          `zio.blocks.schema.Schema` appears as any encountered `TypeId`.
+ *      - direct payload scan over concrete `MigrationAction` instances
+ *        (restates the existing `MigrationActionStructuralSpec` guardrail in
+ *        the serialization context);
+ *      - derived-schema walk over `Schema[DynamicMigration]` asserting no
+ *        `zio.blocks.schema.Schema` appears as any encountered `TypeId`.
  *
- * JSON is the primary proof target; MessagePack and Toon are covered
- * by module-local smoke specs.
+ * JSON is the primary proof target; MessagePack and Toon are covered by
+ * module-local smoke specs.
  */
 object MigrationSerializationSpec extends SchemaBaseSpec {
 

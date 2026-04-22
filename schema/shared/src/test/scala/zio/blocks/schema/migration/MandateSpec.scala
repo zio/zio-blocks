@@ -22,8 +22,8 @@ import zio.test._
 
 object MandateSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(Chunk("name" -> stringVal(name), "age" -> intVal(age)))
 
@@ -58,8 +58,8 @@ object MandateSpec extends SchemaBaseSpec {
       )
     },
     test("Mandate(at, DefaultValue(_, S)).reverse == Optionalize(at, S) ( canonical branch)") {
-      val at          = DynamicOptic.root.field("x")
-      val s           = SchemaRepr.Primitive("int")
+      val at = DynamicOptic.root.field("x")
+      val s  = SchemaRepr.Primitive("int")
       // DefaultValue must use `at` (not root) so round-trip Optionalize.reverse produces the same DefaultValue(at, s)
       val defaultExpr = SchemaExpr.DefaultValue(at, s)
       val action      = MigrationAction.Mandate(at, defaultExpr)
@@ -67,9 +67,9 @@ object MandateSpec extends SchemaBaseSpec {
       assertTrue(action.reverse.reverse == action)
     },
     test("Mandate(at, non-DefaultValue).reverse == self ( fallback involutive branch)") {
-      val at                      = DynamicOptic.root.field("x")
+      val at                        = DynamicOptic.root.field("x")
       val literal: SchemaExpr[_, _] = SchemaExpr.Literal[DynamicValue, Int](42, Schema[Int])
-      val action                  = MigrationAction.Mandate(at, literal)
+      val action                    = MigrationAction.Mandate(at, literal)
       assertTrue(action.reverse eq action)
     }
   )

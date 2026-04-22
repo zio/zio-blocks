@@ -63,8 +63,8 @@ object MigrationErrorSpec extends SchemaBaseSpec {
     },
     test("Irreversible exposes path and cause; message includes base string and optional cause") {
       // No-cause form
-      val p      = DynamicOptic.root.field("fullName")
-      val eBare  = MigrationError.Irreversible(p)
+      val p     = DynamicOptic.root.field("fullName")
+      val eBare = MigrationError.Irreversible(p)
       assertTrue(eBare.path == p) &&
       assertTrue(eBare.cause.isEmpty) &&
       assertTrue(eBare.message == s"Irreversible action at ${p.toScalaString}") &&
@@ -79,27 +79,33 @@ object MigrationErrorSpec extends SchemaBaseSpec {
       //  golden-string: render a path like .addresses.each.streetNumber
       val deepPath = DynamicOptic.root.field("addresses").elements.field("streetNumber")
       // Verify the renderer format for each constructor using the deep-path.
-      val af  = MigrationError.ActionFailed(deepPath, "TransformValue", Some("some cause"))
-      val mf  = MigrationError.MissingField(deepPath, "streetNumber")
-      val sm  = MigrationError.SchemaMismatch(deepPath, "Int", "String")
-      val kc  = MigrationError.KeyCollision(deepPath, DynamicValue.Primitive(PrimitiveValue.String("k")))
-      val ir  = MigrationError.Irreversible(deepPath, Some("cannot invert"))
+      val af = MigrationError.ActionFailed(deepPath, "TransformValue", Some("some cause"))
+      val mf = MigrationError.MissingField(deepPath, "streetNumber")
+      val sm = MigrationError.SchemaMismatch(deepPath, "Int", "String")
+      val kc = MigrationError.KeyCollision(deepPath, DynamicValue.Primitive(PrimitiveValue.String("k")))
+      val ir = MigrationError.Irreversible(deepPath, Some("cannot invert"))
 
       // Golden-string assertions (exact `==` per , not `.contains`).
-      assertTrue(af.toScalaString == s"ActionFailed: Action TransformValue failed at ${deepPath.toScalaString}: some cause") &&
+      assertTrue(
+        af.toScalaString == s"ActionFailed: Action TransformValue failed at ${deepPath.toScalaString}: some cause"
+      ) &&
       assertTrue(mf.toScalaString == s"MissingField: Missing field 'streetNumber' at ${deepPath.toScalaString}") &&
-      assertTrue(sm.toScalaString == s"SchemaMismatch: Schema mismatch at ${deepPath.toScalaString}: expected Int, got String") &&
-      assertTrue(kc.toScalaString == s"KeyCollision: Key collision at ${deepPath.toScalaString}: key ${DynamicValue.Primitive(PrimitiveValue.String("k"))} collides with an existing entry") &&
+      assertTrue(
+        sm.toScalaString == s"SchemaMismatch: Schema mismatch at ${deepPath.toScalaString}: expected Int, got String"
+      ) &&
+      assertTrue(
+        kc.toScalaString == s"KeyCollision: Key collision at ${deepPath.toScalaString}: key ${DynamicValue.Primitive(PrimitiveValue.String("k"))} collides with an existing entry"
+      ) &&
       assertTrue(ir.toScalaString == s"Irreversible: Irreversible action at ${deepPath.toScalaString}: cannot invert")
     },
     test("every MigrationError constructor accepts path as first parameter (compile-time proof)") {
-      val p = DynamicOptic.root
+      val p                 = DynamicOptic.root
       val _: MigrationError = MigrationError.ActionFailed(p, "X")
       val _: MigrationError = MigrationError.MissingField(p, "f")
       val _: MigrationError = MigrationError.SchemaMismatch(p, "a", "b")
       val _: MigrationError = MigrationError.KeyCollision(p, DynamicValue.Primitive(PrimitiveValue.String("k")))
-      val _: MigrationError = MigrationError.Irreversible(p)                                                        // cause-less
-      val _: MigrationError = MigrationError.Irreversible(p, Some("reason"))                                        // cause-ful
+      val _: MigrationError = MigrationError.Irreversible(p)                 // cause-less
+      val _: MigrationError = MigrationError.Irreversible(p, Some("reason")) // cause-ful
       assertCompletes
     }
   )

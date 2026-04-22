@@ -373,7 +373,7 @@ object SchemaExpr {
       typeId = TypeId.of[DefaultValue[Any]],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DefaultValue[Any]] {
-          def usedRegisters: RegisterOffset                                    = 2
+          def usedRegisters: RegisterOffset                                       = 2
           def construct(in: Registers, offset: RegisterOffset): DefaultValue[Any] =
             new DefaultValue[Any](
               in.getObject(offset + 0).asInstanceOf[DynamicOptic],
@@ -381,7 +381,7 @@ object SchemaExpr {
             )
         },
         deconstructor = new Deconstructor[DefaultValue[Any]] {
-          def usedRegisters: RegisterOffset                                                 = 2
+          def usedRegisters: RegisterOffset                                                    = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: DefaultValue[Any]): Unit = {
             out.setObject(offset + 0, in.fieldPath)
             out.setObject(offset + 1, in.targetSchemaRepr)
@@ -401,7 +401,7 @@ object SchemaExpr {
       typeId = TypeId.of[Literal[Any, Any]],
       recordBinding = new Binding.Record(
         constructor = new Constructor[Literal[Any, Any]] {
-          def usedRegisters: RegisterOffset                                  = 2
+          def usedRegisters: RegisterOffset                                       = 2
           def construct(in: Registers, offset: RegisterOffset): Literal[Any, Any] = {
             val dv = in.getObject(offset + 0).asInstanceOf[DynamicValue]
             // schemaRepr is preserved for consumers that introspect the
@@ -416,7 +416,7 @@ object SchemaExpr {
           }
         },
         deconstructor = new Deconstructor[Literal[Any, Any]] {
-          def usedRegisters: RegisterOffset                                              = 2
+          def usedRegisters: RegisterOffset                                                    = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: Literal[Any, Any]): Unit = {
             // Project the typed `value` through its carried `schema` into a
             // serializable DynamicValue, and pair it with a structural repr
@@ -441,7 +441,7 @@ object SchemaExpr {
       typeId = TypeId.of[StringConcat[Any]],
       recordBinding = new Binding.Record(
         constructor = new Constructor[StringConcat[Any]] {
-          def usedRegisters: RegisterOffset                                 = 2
+          def usedRegisters: RegisterOffset                                       = 2
           def construct(in: Registers, offset: RegisterOffset): StringConcat[Any] =
             new StringConcat[Any](
               in.getObject(offset + 0).asInstanceOf[SchemaExpr[Any, String]],
@@ -449,7 +449,7 @@ object SchemaExpr {
             )
         },
         deconstructor = new Deconstructor[StringConcat[Any]] {
-          def usedRegisters: RegisterOffset                                             = 2
+          def usedRegisters: RegisterOffset                                                    = 2
           def deconstruct(out: Registers, offset: RegisterOffset, in: StringConcat[Any]): Unit = {
             out.setObject(offset + 0, in.left)
             out.setObject(offset + 1, in.right)
@@ -476,10 +476,10 @@ object SchemaExpr {
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[SchemaExpr[_, _]] {
           def discriminate(a: SchemaExpr[_, _]): Int = a match {
-            case _: DefaultValue[_]   => 0
-            case _: Literal[_, _]     => 1
-            case _: StringConcat[_]   => 2
-            case other                =>
+            case _: DefaultValue[_] => 0
+            case _: Literal[_, _]   => 1
+            case _: StringConcat[_] => 2
+            case other              =>
               throw new IllegalArgumentException(
                 s"SchemaExpr constructor not supported by the migration-used subset: ${other.getClass.getName}"
               )

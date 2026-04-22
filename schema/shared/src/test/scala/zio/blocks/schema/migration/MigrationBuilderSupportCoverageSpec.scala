@@ -56,7 +56,8 @@ object MigrationBuilderSupportCoverageSpec extends SchemaBaseSpec {
 
   // --- Fixtures -------------------------------------------------------------
 
-  /** Flat record holding one field per primitive `PrimitiveType`. Calling
+  /**
+   * Flat record holding one field per primitive `PrimitiveType`. Calling
    * `optionalizeField` on `AllPrims` (as a record-valued field) fans out to
    * every `primitiveName` arm via the Record branch of `schemaReprOf`.
    */
@@ -96,7 +97,8 @@ object MigrationBuilderSupportCoverageSpec extends SchemaBaseSpec {
     implicit val schema: Schema[AllPrims] = Schema.derived
   }
 
-  /** Small nominal wrapper — an `AnyVal` value class whose schema is produced
+  /**
+   * Small nominal wrapper — an `AnyVal` value class whose schema is produced
    * via `Schema[String].transform`. Its reflect does not match any of
    * `asPrimitive` / `isOption` / `asSequenceUnknown` / `asMapUnknown` /
    * `asRecord` / `asVariant`, so `schemaReprOf` falls through to the
@@ -114,16 +116,17 @@ object MigrationBuilderSupportCoverageSpec extends SchemaBaseSpec {
   object Shape {
     implicit val schema: Schema[Shape] = Schema.derived
   }
-  final case class Circle(radius: Int)        extends Shape
+  final case class Circle(radius: Int) extends Shape
   object Circle {
     implicit val schema: Schema[Circle] = Schema.derived
   }
-  final case class Square(side: Int)          extends Shape
+  final case class Square(side: Int) extends Shape
   object Square {
     implicit val schema: Schema[Square] = Schema.derived
   }
 
-  /** Source record containing one field per composite dispatch branch that
+  /**
+   * Source record containing one field per composite dispatch branch that
    * `schemaReprOf` handles, plus the `AllPrims` record.
    */
   final case class CompositesSource(
@@ -138,8 +141,9 @@ object MigrationBuilderSupportCoverageSpec extends SchemaBaseSpec {
     implicit val schema: Schema[CompositesSource] = Schema.derived
   }
 
-  /** Target record — same field names, each wrapped in `Option`. Required by
-   * the `optionalizeField[A, B, G]` macro signature
+  /**
+   * Target record — same field names, each wrapped in `Option`. Required by the
+   * `optionalizeField[A, B, G]` macro signature
    * `(source: A => G, target: B => Option[G])`.
    */
   final case class CompositesTarget(

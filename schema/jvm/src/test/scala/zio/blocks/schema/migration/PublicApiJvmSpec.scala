@@ -20,10 +20,10 @@ import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
 
 /**
- * JVM-only source-scan enforcement for migration public API guarantees
- *. Performs the repo-file inspection that shared specs must not
- * perform (Scala.js cannot link `scala.io.Source.fromFile`). Preserves the
- * three signature assertions originally in `PublicApiSpec`:
+ * JVM-only source-scan enforcement for migration public API guarantees .
+ * Performs the repo-file inspection that shared specs must not perform
+ * (Scala.js cannot link `scala.io.Source.fromFile`). Preserves the three
+ * signature assertions originally in `PublicApiSpec`:
  *
  *   - `MigrationBuilder` public signatures do not expose `DynamicOptic`
  *   - `Migration` public signatures do not expose `DynamicOptic`
@@ -104,7 +104,7 @@ object PublicApiJvmSpec extends SchemaBaseSpec {
 
           assertTrue(signatures.nonEmpty) &&
           assertTrue(violations.isEmpty)
-        case Left(err)    =>
+        case Left(err) =>
           assertTrue(false) && assertTrue(err.nonEmpty)
       }
     },
@@ -116,7 +116,7 @@ object PublicApiJvmSpec extends SchemaBaseSpec {
 
           assertTrue(signatures.nonEmpty) &&
           assertTrue(violations.isEmpty)
-        case Left(err)    =>
+        case Left(err) =>
           assertTrue(false) && assertTrue(err.nonEmpty)
       }
     },
@@ -127,7 +127,7 @@ object PublicApiJvmSpec extends SchemaBaseSpec {
 
           assertTrue(!scannedPaths.contains(migrationActionPath)) &&
           assertTrue(contents.contains("def at: DynamicOptic"))
-        case Left(err)    =>
+        case Left(err) =>
           assertTrue(false) && assertTrue(err.nonEmpty)
       }
     }

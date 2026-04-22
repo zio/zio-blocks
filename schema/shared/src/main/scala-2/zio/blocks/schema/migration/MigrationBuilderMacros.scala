@@ -192,7 +192,8 @@ private[migration] object MigrationBuilderMacros {
 
     val builder      = c.prefix.tree
     val targetOptic  = optic[B, F](c)(target, c.Expr[Schema[B]](q"$builder.targetSchema"))
-    val sourceOptics = seqSelectors(c)(sources).map(source => optic[A, Any](c)(source, c.Expr[Schema[A]](q"$builder.sourceSchema")))
+    val sourceOptics =
+      seqSelectors(c)(sources).map(source => optic[A, Any](c)(source, c.Expr[Schema[A]](q"$builder.sourceSchema")))
 
     q"_root_.zio.blocks.schema.migration.MigrationBuilderSupport.join($builder, $targetOptic, _root_.scala.Seq(..$sourceOptics), $combiner)"
   }
@@ -205,7 +206,8 @@ private[migration] object MigrationBuilderMacros {
 
     val builder      = c.prefix.tree
     val sourceOptic  = optic[A, F](c)(source, c.Expr[Schema[A]](q"$builder.sourceSchema"))
-    val targetOptics = seqSelectors(c)(targetPaths).map(target => optic[B, Any](c)(target, c.Expr[Schema[B]](q"$builder.targetSchema")))
+    val targetOptics =
+      seqSelectors(c)(targetPaths).map(target => optic[B, Any](c)(target, c.Expr[Schema[B]](q"$builder.targetSchema")))
 
     q"_root_.zio.blocks.schema.migration.MigrationBuilderSupport.split($builder, $sourceOptic, _root_.scala.Seq(..$targetOptics), $splitter)"
   }
@@ -256,7 +258,10 @@ private[migration] object MigrationBuilderMacros {
     """)
   }
 
-  /** Builder diagnostic-message template, byte-identical across Scala 2 and Scala 3. */
+  /**
+   * Builder diagnostic-message template, byte-identical across Scala 2 and
+   * Scala 3.
+   */
   private def summaryMessage(sourceName: String, targetName: String, missingFieldsSorted: List[String]): String =
     s"Migration from $sourceName to $targetName is incomplete. Missing target fields: ${missingFieldsSorted.mkString(", ")}."
 
@@ -274,7 +279,8 @@ private[migration] object MigrationBuilderMacros {
    * done on stable `Select(_, TermName("schema"))` trees.
    *
    * If summoning or evaluation fails, returns Nil (conservative fallback — no
-   * false positives). The caller always emits a valid Migration tree regardless.
+   * false positives). The caller always emits a valid Migration tree
+   * regardless.
    */
   private def checkCompleteness[A: c.WeakTypeTag, B: c.WeakTypeTag](
     c: whitebox.Context
@@ -330,7 +336,7 @@ private[migration] object MigrationBuilderMacros {
     // --- Step 2: evaluate target/source Schema[_] via implicit summoning ---
 
     try {
-      val schemaBTpe = appliedType(typeOf[_root_.zio.blocks.schema.Schema[_]].typeConstructor, c.weakTypeOf[B])
+      val schemaBTpe    = appliedType(typeOf[_root_.zio.blocks.schema.Schema[_]].typeConstructor, c.weakTypeOf[B])
       val tgtSchemaTree = c.inferImplicitValue(schemaBTpe, silent = true)
       if (tgtSchemaTree.isEmpty) return Nil
       val targetSchema = c.eval(c.Expr[_root_.zio.blocks.schema.Schema[B]](c.untypecheck(tgtSchemaTree.duplicate)))
@@ -346,20 +352,22 @@ private[migration] object MigrationBuilderMacros {
         if (srcSchemaTree.isEmpty) Map.empty
         else {
           try {
-            val sourceSchema = c.eval(c.Expr[_root_.zio.blocks.schema.Schema[A]](c.untypecheck(srcSchemaTree.duplicate)))
+            val sourceSchema =
+              c.eval(c.Expr[_root_.zio.blocks.schema.Schema[A]](c.untypecheck(srcSchemaTree.duplicate)))
             sourceSchema.reflect.asRecord
               .map(_.fields.iterator.map(f => (f.name, f.value)).toMap)
-              .getOrElse(Map.empty[String, _root_.zio.blocks.schema.Reflect[_root_.zio.blocks.schema.binding.Binding, _]])
+              .getOrElse(
+                Map.empty[String, _root_.zio.blocks.schema.Reflect[_root_.zio.blocks.schema.binding.Binding, _]]
+              )
           } catch {
             case _: Throwable =>
               Map.empty[String, _root_.zio.blocks.schema.Reflect[_root_.zio.blocks.schema.binding.Binding, _]]
           }
         }
 
-      targetFields
-        .filterNot { f =>
-          sourceByName.get(f.name).exists(_ == f.value) || accounted.contains(f.name)
-        }
+      targetFields.filterNot { f =>
+        sourceByName.get(f.name).exists(_ == f.value) || accounted.contains(f.name)
+      }
         .map(_.name)
         .toList
         .sorted
@@ -369,8 +377,9 @@ private[migration] object MigrationBuilderMacros {
   }
 
   /**
-   *  /  selector-path resolution check. Runs ONLY from buildPartialImpl.
-   * If schema summoning or action-tree evaluation fails, returns Nil (conservative).
+   * / selector-path resolution check. Runs ONLY from buildPartialImpl. If
+   * schema summoning or action-tree evaluation fails, returns Nil
+   * (conservative).
    */
   private def checkTypeAlignment[A: c.WeakTypeTag, B: c.WeakTypeTag](
     c: whitebox.Context
@@ -379,12 +388,12 @@ private[migration] object MigrationBuilderMacros {
     val _ = c.weakTypeOf[A]
 
     try {
-      val schemaBTpe = appliedType(typeOf[_root_.zio.blocks.schema.Schema[_]].typeConstructor, c.weakTypeOf[B])
+      val schemaBTpe    = appliedType(typeOf[_root_.zio.blocks.schema.Schema[_]].typeConstructor, c.weakTypeOf[B])
       val tgtSchemaTree = c.inferImplicitValue(schemaBTpe, silent = true)
       if (tgtSchemaTree.isEmpty) return Nil
       val targetSchema = c.eval(c.Expr[_root_.zio.blocks.schema.Schema[B]](c.untypecheck(tgtSchemaTree.duplicate)))
 
-      val actionsTree = q"$builder.actions"
+      val actionsTree  = q"$builder.actions"
       val actionsValue = c.eval(
         c.Expr[_root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.schema.migration.MigrationAction]](
           c.untypecheck(actionsTree)
@@ -394,7 +403,9 @@ private[migration] object MigrationBuilderMacros {
       actionsValue.toVector.iterator.flatMap { action =>
         val path = action.at
         if (path != _root_.zio.blocks.schema.DynamicOptic.root && targetSchema.reflect.get(path).isEmpty)
-          Iterator.single(s"Selector path ${path.toScalaString} does not resolve against target schema ${typeNameOf(c)(c.weakTypeOf[B])}")
+          Iterator.single(
+            s"Selector path ${path.toScalaString} does not resolve against target schema ${typeNameOf(c)(c.weakTypeOf[B])}"
+          )
         else
           Iterator.empty
       }.toList
@@ -405,11 +416,10 @@ private[migration] object MigrationBuilderMacros {
 
   private def optic[S: c.WeakTypeTag, A: c.WeakTypeTag](
     c: whitebox.Context
-  )(path: c.Expr[S => A], schema: c.Expr[Schema[S]]): c.Tree =
-    {
-      val _ = (c.weakTypeOf[S], c.weakTypeOf[A])
-      _root_.zio.blocks.schema.CompanionOptics.optic[S, A](c)(path)(schema)
-    }
+  )(path: c.Expr[S => A], schema: c.Expr[Schema[S]]): c.Tree = {
+    val _ = (c.weakTypeOf[S], c.weakTypeOf[A])
+    _root_.zio.blocks.schema.CompanionOptics.optic[S, A](c)(path)(schema)
+  }
 
   private def seqSelectors[S: c.WeakTypeTag](
     c: whitebox.Context
@@ -417,14 +427,14 @@ private[migration] object MigrationBuilderMacros {
     import c.universe._
 
     selectors.tree match {
-      case q"scala.this.Predef.Seq.apply[..$_](..$args)"             => args.map(arg => c.Expr[S](arg))
-      case q"_root_.scala.Seq.apply[..$_](..$args)"                  => args.map(arg => c.Expr[S](arg))
-      case q"_root_.scala.collection.Seq.apply[..$_](..$args)"       => args.map(arg => c.Expr[S](arg))
+      case q"scala.this.Predef.Seq.apply[..$_](..$args)"                 => args.map(arg => c.Expr[S](arg))
+      case q"_root_.scala.Seq.apply[..$_](..$args)"                      => args.map(arg => c.Expr[S](arg))
+      case q"_root_.scala.collection.Seq.apply[..$_](..$args)"           => args.map(arg => c.Expr[S](arg))
       case q"_root_.scala.collection.immutable.Seq.apply[..$_](..$args)" => args.map(arg => c.Expr[S](arg))
-      case q"Seq(..$args)"                                           => args.map(arg => c.Expr[S](arg))
-      case q"List(..$args)"                                          => args.map(arg => c.Expr[S](arg))
-      case Apply(_, args) if args.nonEmpty                           => args.map(arg => c.Expr[S](arg))
-      case _                                                         =>
+      case q"Seq(..$args)"                                               => args.map(arg => c.Expr[S](arg))
+      case q"List(..$args)"                                              => args.map(arg => c.Expr[S](arg))
+      case Apply(_, args) if args.nonEmpty                               => args.map(arg => c.Expr[S](arg))
+      case _                                                             =>
         CommonMacroOps.fail(c)("join/split require an explicit Seq(...) of selectors")
     }
   }

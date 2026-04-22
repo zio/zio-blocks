@@ -22,8 +22,8 @@ import zio.test._
 
 object TransformElementsSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(Chunk("name" -> stringVal(name), "age" -> intVal(age)))
 
@@ -32,12 +32,12 @@ object TransformElementsSpec extends SchemaBaseSpec {
 
   def spec: Spec[Any, Any] = suite("TransformElementsSpec")(
     test("TransformElements applies transform to each element of the sequence") {
-      val original  = seqVal(intVal(1), intVal(2), intVal(3))
-      val literal   = SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int])
-      val action    = MigrationAction.TransformElements(DynamicOptic.root, literal)
-      val m         = new DynamicMigration(Chunk.single(action))
-      val result    = m.apply(original)
-      val expected  = seqVal(intVal(99), intVal(99), intVal(99))
+      val original = seqVal(intVal(1), intVal(2), intVal(3))
+      val literal  = SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int])
+      val action   = MigrationAction.TransformElements(DynamicOptic.root, literal)
+      val m        = new DynamicMigration(Chunk.single(action))
+      val result   = m.apply(original)
+      val expected = seqVal(intVal(99), intVal(99), intVal(99))
       assertTrue(result == new Right(expected))
     },
     test("TransformElements per-element failure surfaces ActionFailed with path containing index marker") {
@@ -61,9 +61,10 @@ object TransformElementsSpec extends SchemaBaseSpec {
     },
     test("TransformElements on a non-Sequence yields SchemaMismatch") {
       val original = intVal(42)
-      val action   = MigrationAction.TransformElements(DynamicOptic.root, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-      val m        = new DynamicMigration(Chunk.single(action))
-      val result   = m.apply(original)
+      val action   =
+        MigrationAction.TransformElements(DynamicOptic.root, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+      val m      = new DynamicMigration(Chunk.single(action))
+      val result = m.apply(original)
       assertTrue(result.isLeft) &&
       assertTrue(result.swap.toOption.exists(_.isInstanceOf[MigrationError.SchemaMismatch]))
     }

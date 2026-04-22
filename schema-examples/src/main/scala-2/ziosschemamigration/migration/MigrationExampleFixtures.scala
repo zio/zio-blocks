@@ -40,7 +40,10 @@ object MigrationExampleFixtures {
 
   private final case class StructuralReaderRow(firstName: String, lastName: String)
 
-  /** Derives a schema for the record form and casts it to the structural-trait surface. */
+  /**
+   * Derives a schema for the record form and casts it to the structural-trait
+   * surface.
+   */
   val structuralReaderSchema: Schema[StructuralReader] =
     Schema.derived[StructuralReaderRow].asInstanceOf[Schema[StructuralReader]]
 }

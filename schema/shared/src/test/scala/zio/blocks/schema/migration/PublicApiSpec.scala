@@ -23,9 +23,9 @@ import zio.test._
  * JS-safe shared spec placeholder. The actual public-signature source-scan
  * assertions live in `schema/jvm/src/test/scala/.../PublicApiJvmSpec.scala`
  * because they rely on `scala.io.Source.fromFile` / `java.io.File`, which
- * cannot link on Scala.js. This shared object exists so the
- * cross-platform sbt preflight can reference the name on both platforms
- * without pulling JVM-only file APIs through the shared compile unit.
+ * cannot link on Scala.js. This shared object exists so the cross-platform sbt
+ * preflight can reference the name on both platforms without pulling JVM-only
+ * file APIs through the shared compile unit.
  */
 object PublicApiSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("PublicApiSpec")()

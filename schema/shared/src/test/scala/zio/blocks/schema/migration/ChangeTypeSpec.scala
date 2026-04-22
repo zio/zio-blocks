@@ -22,8 +22,8 @@ import zio.test._
 
 object ChangeTypeSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(
       Chunk(
@@ -43,7 +43,7 @@ object ChangeTypeSpec extends SchemaBaseSpec {
     },
     test("ChangeType with a String Literal replaces the value at `at` (type-changing shape)") {
       val original = personRecord("Alice", 30)
-      val action = MigrationAction.ChangeType(
+      val action   = MigrationAction.ChangeType(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[DynamicValue, String]("thirty", Schema[String])
       )
@@ -57,7 +57,7 @@ object ChangeTypeSpec extends SchemaBaseSpec {
     },
     test("ChangeType composes with TransformValue in a single DynamicMigration") {
       val original = personRecord("Alice", 30)
-      val ct = MigrationAction.ChangeType(
+      val ct       = MigrationAction.ChangeType(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[DynamicValue, String]("30", Schema[String])
       )

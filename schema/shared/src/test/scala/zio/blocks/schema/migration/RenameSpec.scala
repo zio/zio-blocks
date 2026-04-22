@@ -22,8 +22,8 @@ import zio.test._
 
 object RenameSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(
       Chunk(

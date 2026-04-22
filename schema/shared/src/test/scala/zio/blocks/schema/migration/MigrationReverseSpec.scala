@@ -24,11 +24,13 @@ import zio.test._
  * Structural-pair reverse spec for [[MigrationAction.Join]] and
  * [[MigrationAction.Split]] ( / ).
  *
- *  names this spec specifically. Pins:
+ * names this spec specifically. Pins:
  *   - Join.reverse == Split(at, sourcePaths, combiner) — same Chunk reference
  *   - Split.reverse == Join(at, targetPaths, splitter) — symmetric
- *   - Referential Chunk equality: `join.reverse.asInstanceOf[Split].targetPaths eq join.sourcePaths`
- *   - Involution: `a.reverse.reverse == a` for arbitrary Join/Split instances (>= 100 samples)
+ *   - Referential Chunk equality:
+ *     `join.reverse.asInstanceOf[Split].targetPaths eq join.sourcePaths`
+ *   - Involution: `a.reverse.reverse == a` for arbitrary Join/Split instances
+ *     (>= 100 samples)
  */
 object MigrationReverseSpec extends SchemaBaseSpec {
 
@@ -52,12 +54,18 @@ object MigrationReverseSpec extends SchemaBaseSpec {
   )
 
   private val genJoin: Gen[Any, MigrationAction.Join] =
-    for { at <- genDynamicOptic; paths <- genPaths; combiner <- genSchemaExpr }
-      yield MigrationAction.Join(at, paths, combiner)
+    for { at <- genDynamicOptic; paths <- genPaths; combiner <- genSchemaExpr } yield MigrationAction.Join(
+      at,
+      paths,
+      combiner
+    )
 
   private val genSplit: Gen[Any, MigrationAction.Split] =
-    for { at <- genDynamicOptic; paths <- genPaths; splitter <- genSchemaExpr }
-      yield MigrationAction.Split(at, paths, splitter)
+    for { at <- genDynamicOptic; paths <- genPaths; splitter <- genSchemaExpr } yield MigrationAction.Split(
+      at,
+      paths,
+      splitter
+    )
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationReverseSpec")(
     test("Join.reverse == Split(at, sourcePaths, combiner) — structural pair") {

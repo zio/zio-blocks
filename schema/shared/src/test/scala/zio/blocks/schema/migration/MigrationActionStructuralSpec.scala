@@ -21,14 +21,14 @@ import zio.blocks.schema._
 import zio.test._
 
 /**
- *  structural scan. Verifies ADT-shape invariants via direct field access
- * on concrete case class instances — zero platform-reflection imports.
- * Uses Contingency 2 path from the plan: `Schema.derived[MigrationAction]` was
+ * structural scan. Verifies ADT-shape invariants via direct field access on
+ * concrete case class instances — zero platform-reflection imports. Uses
+ * Contingency 2 path from the plan: `Schema.derived[MigrationAction]` was
  * skipped because `Schema[SchemaExpr[_, _]]` is not derivable here.
  *
- * Pins:
- *   (1) every case class has `at: DynamicOptic` as its first field (via trait accessor)
- *   (2) no payload field is a Function / PartialFunction / Schema closure
+ * Pins: (1) every case class has `at: DynamicOptic` as its first field (via
+ * trait accessor) (2) no payload field is a Function / PartialFunction / Schema
+ * closure
  *
  * Covers all 14 [[MigrationAction]] variants.
  */
@@ -73,17 +73,30 @@ object MigrationActionStructuralSpec extends SchemaBaseSpec {
 
   // All variants as the sealed trait (for the first-field trait accessor check)
   private val allVariants: List[MigrationAction] =
-    List(addField, dropField, rename, transformValue, changeType,
-         mandate, optionalize, renameCase, transformCase, transformElements, transformKeys, transformValues,
-         join, split)
+    List(
+      addField,
+      dropField,
+      rename,
+      transformValue,
+      changeType,
+      mandate,
+      optionalize,
+      renameCase,
+      transformCase,
+      transformElements,
+      transformKeys,
+      transformValues,
+      join,
+      split
+    )
 
   // Verify each concrete field's value type is not a function/schema closure
   private def isAllowedType(v: Any): Boolean = v match {
     case _: DynamicOptic     => true
     case _: String           => true
     case _: SchemaExpr[_, _] => true
-    case _: SchemaRepr       => true  // Optionalize.sourceSchemaRepr
-    case _: Chunk[_]         => true  // TransformCase.actions
+    case _: SchemaRepr       => true // Optionalize.sourceSchemaRepr
+    case _: Chunk[_]         => true // TransformCase.actions
     case _                   => false
   }
 
@@ -105,30 +118,30 @@ object MigrationActionStructuralSpec extends SchemaBaseSpec {
       assertTrue(addFieldAtOk && dropFieldAtOk && renameAtOk && transformValueAtOk && changeTypeAtOk) &&
       assertTrue(
         addFieldFirstName.contains("at") &&
-        dropFieldFirstName.contains("at") &&
-        renameFirstName.contains("at") &&
-        transformValueFirstName.contains("at") &&
-        changeTypeFirstName.contains("at")
+          dropFieldFirstName.contains("at") &&
+          renameFirstName.contains("at") &&
+          transformValueFirstName.contains("at") &&
+          changeTypeFirstName.contains("at")
       )
     },
     test("no MigrationAction case-class field has a Function / PartialFunction / Schema type") {
       // Only DynamicOptic, String, SchemaExpr[_,_], SchemaRepr, or Chunk[_] may appear as fields
       val addFieldOk = isAllowedType(addField.at) && isAllowedType(addField.fieldName) &&
-                       isAllowedType(addField.default)
+        isAllowedType(addField.default)
       val dropFieldOk = isAllowedType(dropField.at) && isAllowedType(dropField.fieldName) &&
-                        isAllowedType(dropField.defaultForReverse)
-      val renameOk = isAllowedType(rename.at) && isAllowedType(rename.to)
-      val transformValueOk = isAllowedType(transformValue.at) && isAllowedType(transformValue.transform)
-      val changeTypeOk = isAllowedType(changeType.at) && isAllowedType(changeType.converter)
-      val mandateOk = isAllowedType(mandate.at) && isAllowedType(mandate.default)
-      val optionalizeOk = isAllowedType(optionalize.at) && isAllowedType(optionalize.sourceSchemaRepr)
-      val renameCaseOk = isAllowedType(renameCase.at) && isAllowedType(renameCase.from) && isAllowedType(renameCase.to)
-      val transformCaseOk = isAllowedType(transformCase.at) && isAllowedType(transformCase.actions)
+        isAllowedType(dropField.defaultForReverse)
+      val renameOk            = isAllowedType(rename.at) && isAllowedType(rename.to)
+      val transformValueOk    = isAllowedType(transformValue.at) && isAllowedType(transformValue.transform)
+      val changeTypeOk        = isAllowedType(changeType.at) && isAllowedType(changeType.converter)
+      val mandateOk           = isAllowedType(mandate.at) && isAllowedType(mandate.default)
+      val optionalizeOk       = isAllowedType(optionalize.at) && isAllowedType(optionalize.sourceSchemaRepr)
+      val renameCaseOk        = isAllowedType(renameCase.at) && isAllowedType(renameCase.from) && isAllowedType(renameCase.to)
+      val transformCaseOk     = isAllowedType(transformCase.at) && isAllowedType(transformCase.actions)
       val transformElementsOk = isAllowedType(transformElements.at) && isAllowedType(transformElements.transform)
-      val transformKeysOk = isAllowedType(transformKeys.at) && isAllowedType(transformKeys.transform)
-      val transformValuesOk = isAllowedType(transformValues.at) && isAllowedType(transformValues.transform)
-      val joinOk = isAllowedType(join.at) && isAllowedType(join.sourcePaths) && isAllowedType(join.combiner)
-      val splitOk = isAllowedType(split.at) && isAllowedType(split.targetPaths) && isAllowedType(split.splitter)
+      val transformKeysOk     = isAllowedType(transformKeys.at) && isAllowedType(transformKeys.transform)
+      val transformValuesOk   = isAllowedType(transformValues.at) && isAllowedType(transformValues.transform)
+      val joinOk              = isAllowedType(join.at) && isAllowedType(join.sourcePaths) && isAllowedType(join.combiner)
+      val splitOk             = isAllowedType(split.at) && isAllowedType(split.targetPaths) && isAllowedType(split.splitter)
       assertTrue(addFieldOk && dropFieldOk && renameOk && transformValueOk && changeTypeOk) &&
       assertTrue(mandateOk && optionalizeOk && renameCaseOk && transformCaseOk) &&
       assertTrue(transformElementsOk && transformKeysOk && transformValuesOk) &&

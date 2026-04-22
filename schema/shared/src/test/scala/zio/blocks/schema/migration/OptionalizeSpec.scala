@@ -22,8 +22,8 @@ import zio.test._
 
 object OptionalizeSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(Chunk("name" -> stringVal(name), "age" -> intVal(age)))
 
@@ -31,7 +31,9 @@ object OptionalizeSpec extends SchemaBaseSpec {
     SchemaExpr.DefaultValue(DynamicOptic.root, SchemaRepr.Primitive("int"))
 
   def spec: Spec[Any, Any] = suite("OptionalizeSpec")(
-    test("Optionalize wraps T as Variant(\"Some\", Record(Chunk(\"value\" -> v))) per Pitfall #5 (Reflect.scala:1610-1620)") {
+    test(
+      "Optionalize wraps T as Variant(\"Some\", Record(Chunk(\"value\" -> v))) per Pitfall #5 (Reflect.scala:1610-1620)"
+    ) {
       val original = DynamicValue.Record(Chunk("x" -> intVal(7)))
       val action   = MigrationAction.Optionalize(DynamicOptic.root.field("x"), SchemaRepr.Primitive("int"))
       val m        = new DynamicMigration(Chunk.single(action))

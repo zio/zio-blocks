@@ -25,8 +25,8 @@ import zio.test._
  *
  * Each test constructs a minimal failing-migration fixture whose
  * [[DynamicValue]] / [[DynamicOptic]] / [[SchemaExpr]] combination forces a
- * specific arm (SchemaMismatch, MissingField, ActionFailed, Irreversible)
- * and transitively exercises the `dynamicValueKind`, `dynamicOpticNodeKind`,
+ * specific arm (SchemaMismatch, MissingField, ActionFailed, Irreversible) and
+ * transitively exercises the `dynamicValueKind`, `dynamicOpticNodeKind`,
  * `defaultForSchemaRepr`, and `defaultResolutionFailure` helpers.
  */
 object InterpreterErrorArmsSpec extends SchemaBaseSpec {
@@ -55,13 +55,15 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
   private def intDefaultAt(path: DynamicOptic): SchemaExpr[_, _] =
     SchemaExpr.DefaultValue(path, SchemaRepr.Primitive("int"))
 
-  /** A SchemaExpr whose `evalDynamic` always errors — used to drive the
+  /**
+   * A SchemaExpr whose `evalDynamic` always errors — used to drive the
    * `evalTransform`-Left paths in every action that composes through it.
    */
   private val failingExpr: SchemaExpr[_, _] =
     SchemaExpr.DefaultValue(DynamicOptic.root, SchemaRepr.Primitive("int"))
 
-  /** A DefaultValue expr pointing at an unsupported SchemaRepr — drives
+  /**
+   * A DefaultValue expr pointing at an unsupported SchemaRepr — drives
    * `defaultForSchemaRepr`'s fall-through arm and `defaultResolutionFailure`.
    */
   private val unsupportedDefault: SchemaExpr[_, _] =
@@ -74,8 +76,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     suite("AddField")(
       test("parent is not a Record — surfaces SchemaMismatch(expected=Record, actual=Primitive)") {
         // Root dv is a primitive — so the "parent" (root) is a Primitive kind.
-        val action = MigrationAction.AddField(DynamicOptic.root, "f", intDefaultAt(DynamicOptic.root))
-        val result = run(action, intVal(1))
+        val action  = MigrationAction.AddField(DynamicOptic.root, "f", intDefaultAt(DynamicOptic.root))
+        val result  = run(action, intVal(1))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == DynamicOptic.root && expected == "Record" && actual == "Primitive"
@@ -85,9 +87,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       },
       test("parent-path not addressable — surfaces ActionFailed") {
         // Nested addField where the parent path doesn't resolve.
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.AddField(at, "x", intDefaultAt(at.field("x")))
-        val result = run(action, record("existing" -> intVal(1)))
+        val at       = DynamicOptic.root.field("missing")
+        val action   = MigrationAction.AddField(at, "x", intDefaultAt(at.field("x")))
+        val result   = run(action, record("existing" -> intVal(1)))
         val isFailed = result match {
           case Left(MigrationError.ActionFailed(p, _, _)) => p == at.field("x")
           case _                                          => false
@@ -95,8 +97,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isFailed)
       },
       test("unsupported default — preserves resolution cause via ActionFailed(Some(msg))") {
-        val action = MigrationAction.AddField(DynamicOptic.root, "f", unsupportedDefault)
-        val result = run(action, record())
+        val action      = MigrationAction.AddField(DynamicOptic.root, "f", unsupportedDefault)
+        val result      = run(action, record())
         val isPreserved = result match {
           case Left(MigrationError.ActionFailed(_, "AddField", cause)) => cause.isDefined
           case _                                                       => false
@@ -107,8 +109,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- Rename error arms -------------------------------------
     suite("Rename")(
       test("empty-nodes path — surfaces ActionFailed(Rename)") {
-        val action = MigrationAction.Rename(DynamicOptic.root, "x")
-        val result = run(action, record("a" -> intVal(1)))
+        val action   = MigrationAction.Rename(DynamicOptic.root, "x")
+        val result   = run(action, record("a" -> intVal(1)))
         val isFailed = result match {
           case Left(MigrationError.ActionFailed(p, "Rename", _)) => p == DynamicOptic.root
           case _                                                 => false
@@ -116,9 +118,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isFailed)
       },
       test("last node is not a Field (Elements) — surfaces SchemaMismatch(expected=Field)") {
-        val at     = DynamicOptic.root.field("xs").elements
-        val action = MigrationAction.Rename(at, "y")
-        val result = run(action, record("xs" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("xs").elements
+        val action  = MigrationAction.Rename(at, "y")
+        val result  = run(action, record("xs" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "Elements"
@@ -127,8 +129,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("field missing — surfaces MissingField") {
-        val action = MigrationAction.Rename(DynamicOptic.root.field("missing"), "y")
-        val result = run(action, record("other" -> intVal(1)))
+        val action    = MigrationAction.Rename(DynamicOptic.root.field("missing"), "y")
+        val result    = run(action, record("other" -> intVal(1)))
         val isMissing = result match {
           case Left(MigrationError.MissingField(p, name)) =>
             p == DynamicOptic.root.field("missing") && name == "missing"
@@ -138,8 +140,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       },
       test("parent is not a Record — surfaces SchemaMismatch(expected=Record)") {
         // A non-root field target whose parent resolves to a Primitive.
-        val action = MigrationAction.Rename(DynamicOptic.root.field("a").field("b"), "c")
-        val result = run(action, record("a" -> intVal(1)))
+        val action  = MigrationAction.Rename(DynamicOptic.root.field("a").field("b"), "c")
+        val result  = run(action, record("a" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == DynamicOptic.root.field("a") && expected == "Record" && actual == "Primitive"
@@ -151,9 +153,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- TransformValue / ChangeType (applyTransformAt) --------
     suite("applyTransformAt")(
       test("TransformValue on a non-addressable path — SchemaMismatch(single value, no value...)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.TransformValue(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-        val result = run(action, record("present" -> intVal(1)))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.TransformValue(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+        val result  = run(action, record("present" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected == "single value"
@@ -162,9 +164,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("TransformValue with a failing expr — preserves cause via ActionFailed(Some(msg))") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.TransformValue(at, failingExpr)
-        val result = run(action, record("x" -> intVal(1)))
+        val at        = DynamicOptic.root.field("x")
+        val action    = MigrationAction.TransformValue(at, failingExpr)
+        val result    = run(action, record("x" -> intVal(1)))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(p, "TransformValue", cause)) =>
             p == at && cause.isDefined
@@ -173,9 +175,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(preserved)
       },
       test("ChangeType with a failing expr — preserves cause via ActionFailed(Some(msg))") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.ChangeType(at, failingExpr)
-        val result = run(action, record("x" -> intVal(1)))
+        val at        = DynamicOptic.root.field("x")
+        val action    = MigrationAction.ChangeType(at, failingExpr)
+        val result    = run(action, record("x" -> intVal(1)))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(p, "ChangeType", cause)) =>
             p == at && cause.isDefined
@@ -187,9 +189,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- Mandate error arms ------------------------------------
     suite("Mandate")(
       test("value is not Option (Some/None) — SchemaMismatch(expected=Option)") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.Mandate(at, intDefaultAt(at))
-        val result = run(action, record("x" -> intVal(1)))
+        val at      = DynamicOptic.root.field("x")
+        val action  = MigrationAction.Mandate(at, intDefaultAt(at))
+        val result  = run(action, record("x" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Option (Some/None)" && actual == "Primitive"
@@ -198,9 +200,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("path not addressable — SchemaMismatch(single value, no value...)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.Mandate(at, intDefaultAt(at))
-        val result = run(action, record("other" -> intVal(1)))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.Mandate(at, intDefaultAt(at))
+        val result  = run(action, record("other" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "single value" && actual.contains("no value")
@@ -224,9 +226,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- Optionalize error arms --------------------------------
     suite("Optionalize")(
       test("path not addressable — SchemaMismatch(single value, no value...)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.Optionalize(at, SchemaRepr.Primitive("int"))
-        val result = run(action, record("present" -> intVal(1)))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.Optionalize(at, SchemaRepr.Primitive("int"))
+        val result  = run(action, record("present" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "single value" && actual.contains("no value")
@@ -247,9 +249,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         // normal DynamicValue shape; the path falls through to the
         // \"no value (path not addressable)\" arm. Either outcome is acceptable
         // — the SchemaMismatch pin reflects observed behaviour.
-        val at     = DynamicOptic.root.caseOf("Foo")
-        val action = MigrationAction.RenameCase(at, "Foo", "Bar")
-        val result = run(action, variant("Other", DynamicValue.Record.empty))
+        val at      = DynamicOptic.root.caseOf("Foo")
+        val action  = MigrationAction.RenameCase(at, "Foo", "Bar")
+        val result  = run(action, variant("Other", DynamicValue.Record.empty))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected == "Variant"
@@ -258,9 +260,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("value at path is not a Variant — SchemaMismatch(expected=Variant)") {
-        val at     = DynamicOptic.root.caseOf("Foo")
-        val action = MigrationAction.RenameCase(at, "Foo", "Bar")
-        val result = run(action, intVal(42))
+        val at      = DynamicOptic.root.caseOf("Foo")
+        val action  = MigrationAction.RenameCase(at, "Foo", "Bar")
+        val result  = run(action, intVal(42))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected == "Variant"
@@ -272,9 +274,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- TransformCase error arms ------------------------------
     suite("TransformCase")(
       test("path does not end in Node.Case — SchemaMismatch(path ending in Case)") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.TransformCase(at, Chunk.empty)
-        val result = run(action, record("x" -> intVal(1)))
+        val at      = DynamicOptic.root.field("x")
+        val action  = MigrationAction.TransformCase(at, Chunk.empty)
+        val result  = run(action, record("x" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected.contains("Case")
@@ -286,9 +288,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- TransformElements error arms --------------------------
     suite("TransformElements")(
       test("value at path is not a Sequence — SchemaMismatch(expected=Sequence)") {
-        val at     = DynamicOptic.root.field("xs")
-        val action = MigrationAction.TransformElements(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-        val result = run(action, record("xs" -> intVal(1)))
+        val at      = DynamicOptic.root.field("xs")
+        val action  = MigrationAction.TransformElements(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+        val result  = run(action, record("xs" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected == "Sequence"
@@ -297,9 +299,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("path not addressable — SchemaMismatch(expected=Sequence, no value)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.TransformElements(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-        val result = run(action, record("other" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.TransformElements(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+        val result  = run(action, record("other" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Sequence" && actual.contains("no value")
@@ -308,9 +310,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("failing transform on an element — ActionFailed with indexed sub-path") {
-        val at     = DynamicOptic.root.field("xs")
-        val action = MigrationAction.TransformElements(at, failingExpr)
-        val result = run(action, record("xs" -> seqVal(intVal(1), intVal(2))))
+        val at       = DynamicOptic.root.field("xs")
+        val action   = MigrationAction.TransformElements(at, failingExpr)
+        val result   = run(action, record("xs" -> seqVal(intVal(1), intVal(2))))
         val isFailed = result match {
           case Left(MigrationError.ActionFailed(_, "TransformElements", cause)) => cause.isDefined
           case _                                                                => false
@@ -321,9 +323,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- TransformKeys / TransformValues error arms ------------
     suite("TransformKeys & TransformValues")(
       test("TransformKeys on non-Map — SchemaMismatch(expected=Map)") {
-        val at     = DynamicOptic.root.field("mp")
-        val action = MigrationAction.TransformKeys(at, SchemaExpr.Literal[DynamicValue, String]("k", Schema[String]))
-        val result = run(action, record("mp" -> intVal(1)))
+        val at      = DynamicOptic.root.field("mp")
+        val action  = MigrationAction.TransformKeys(at, SchemaExpr.Literal[DynamicValue, String]("k", Schema[String]))
+        val result  = run(action, record("mp" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, _)) =>
             p == at && expected == "Map"
@@ -332,9 +334,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("TransformKeys path not addressable — SchemaMismatch(Map, no value)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.TransformKeys(at, SchemaExpr.Literal[DynamicValue, String]("k", Schema[String]))
-        val result = run(action, record("other" -> mapVal(stringVal("a") -> intVal(1))))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.TransformKeys(at, SchemaExpr.Literal[DynamicValue, String]("k", Schema[String]))
+        val result  = run(action, record("other" -> mapVal(stringVal("a") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Map" && actual.contains("no value")
@@ -345,7 +347,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       test("TransformKeys collision — KeyCollision") {
         // Transform that collapses every key to the same constant → second
         // entry collides with first.
-        val at = DynamicOptic.root.field("mp")
+        val at                         = DynamicOptic.root.field("mp")
         val constKey: SchemaExpr[_, _] =
           SchemaExpr.Literal[DynamicValue, String]("constant", Schema[String])
         val action = MigrationAction.TransformKeys(at, constKey)
@@ -360,9 +362,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isCollision)
       },
       test("TransformKeys with failing transform — ActionFailed(TransformKeys, Some(msg))") {
-        val at     = DynamicOptic.root.field("mp")
-        val action = MigrationAction.TransformKeys(at, failingExpr)
-        val result = run(action, record("mp" -> mapVal(stringVal("a") -> intVal(1))))
+        val at        = DynamicOptic.root.field("mp")
+        val action    = MigrationAction.TransformKeys(at, failingExpr)
+        val result    = run(action, record("mp" -> mapVal(stringVal("a") -> intVal(1))))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(_, "TransformKeys", cause)) => cause.isDefined
           case _                                                            => false
@@ -370,9 +372,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(preserved)
       },
       test("TransformValues on non-Map — SchemaMismatch(expected=Map)") {
-        val at     = DynamicOptic.root.field("mp")
-        val action = MigrationAction.TransformValues(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-        val result = run(action, record("mp" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("mp")
+        val action  = MigrationAction.TransformValues(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+        val result  = run(action, record("mp" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Map" && actual == "Sequence"
@@ -381,9 +383,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("TransformValues path not addressable — SchemaMismatch(Map, no value)") {
-        val at     = DynamicOptic.root.field("missing")
-        val action = MigrationAction.TransformValues(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
-        val result = run(action, record("other" -> mapVal(stringVal("a") -> intVal(1))))
+        val at      = DynamicOptic.root.field("missing")
+        val action  = MigrationAction.TransformValues(at, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+        val result  = run(action, record("other" -> mapVal(stringVal("a") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Map" && actual.contains("no value")
@@ -392,9 +394,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("TransformValues with failing transform — ActionFailed(TransformValues, Some(msg))") {
-        val at     = DynamicOptic.root.field("mp")
-        val action = MigrationAction.TransformValues(at, failingExpr)
-        val result = run(action, record("mp" -> mapVal(stringVal("a") -> intVal(1))))
+        val at        = DynamicOptic.root.field("mp")
+        val action    = MigrationAction.TransformValues(at, failingExpr)
+        val result    = run(action, record("mp" -> mapVal(stringVal("a") -> intVal(1))))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(_, "TransformValues", cause)) => cause.isDefined
           case _                                                              => false
@@ -405,9 +407,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // ---------------- Join error arms ---------------------------------------
     suite("Join")(
       test("failing combiner — ActionFailed(Join, Some(msg))") {
-        val at     = DynamicOptic.root.field("out")
-        val action = MigrationAction.Join(at, Chunk.empty, failingExpr)
-        val result = run(action, record("out" -> intVal(0)))
+        val at        = DynamicOptic.root.field("out")
+        val action    = MigrationAction.Join(at, Chunk.empty, failingExpr)
+        val result    = run(action, record("out" -> intVal(0)))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(_, "Join", cause)) => cause.isDefined
           case _                                                   => false
@@ -421,9 +423,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         val at = DynamicOptic.root.field("x")
         // Literal int — splitter returns a primitive, not a Record → shape mismatch.
         val splitter: SchemaExpr[_, _] = SchemaExpr.Literal[DynamicValue, Int](42, Schema[Int])
-        val action = MigrationAction.Split(at, Chunk.empty, splitter)
-        val result = run(action, record("x" -> intVal(1)))
-        val isIrreversible = result match {
+        val action                     = MigrationAction.Split(at, Chunk.empty, splitter)
+        val result                     = run(action, record("x" -> intVal(1)))
+        val isIrreversible             = result match {
           case Left(MigrationError.Irreversible(p, cause)) =>
             p == at && cause.contains("split result shape mismatch")
           case _ => false
@@ -432,8 +434,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       },
       test("splitter returns a Record with mismatched arity — Irreversible") {
         // targetPaths has length 2; Literal Record has one field → arity mismatch.
-        val at       = DynamicOptic.root
-        val oneField = DynamicValue.Record(Chunk("only" -> intVal(1)))
+        val at                         = DynamicOptic.root
+        val oneField                   = DynamicValue.Record(Chunk("only" -> intVal(1)))
         val splitter: SchemaExpr[_, _] =
           SchemaExpr.Literal[DynamicValue, DynamicValue](oneField, Schema[DynamicValue])
         val action = MigrationAction.Split(
@@ -441,7 +443,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
           Chunk(DynamicOptic.root.field("a"), DynamicOptic.root.field("b")),
           splitter
         )
-        val result = run(action, record("a" -> intVal(1), "b" -> intVal(2)))
+        val result         = run(action, record("a" -> intVal(1), "b" -> intVal(2)))
         val isIrreversible = result match {
           case Left(_: MigrationError.Irreversible) => true
           case _                                    => false
@@ -449,9 +451,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isIrreversible)
       },
       test("failing splitter — ActionFailed(Split, Some(msg))") {
-        val at     = DynamicOptic.root
-        val action = MigrationAction.Split(at, Chunk.empty, failingExpr)
-        val result = run(action, record("x" -> intVal(1)))
+        val at        = DynamicOptic.root
+        val action    = MigrationAction.Split(at, Chunk.empty, failingExpr)
+        val result    = run(action, record("x" -> intVal(1)))
         val preserved = result match {
           case Left(MigrationError.ActionFailed(_, "Split", cause)) => cause.isDefined
           case _                                                    => false
@@ -467,9 +469,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // (MapKeys, MapValues, Case, AtIndex) that aren't otherwise exercised.
     suite("helper-arm coverage via SchemaMismatch messages")(
       test("dynamicValueKind: Record arm (via Mandate on a record)") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.Mandate(at, intDefaultAt(at))
-        val result = run(action, record("x" -> record("inner" -> intVal(1))))
+        val at      = DynamicOptic.root.field("x")
+        val action  = MigrationAction.Mandate(at, intDefaultAt(at))
+        val result  = run(action, record("x" -> record("inner" -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(_, _, actual)) => actual == "Record"
           case _                                                 => false
@@ -477,9 +479,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicValueKind: Sequence arm (via Mandate on a sequence)") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.Mandate(at, intDefaultAt(at))
-        val result = run(action, record("x" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("x")
+        val action  = MigrationAction.Mandate(at, intDefaultAt(at))
+        val result  = run(action, record("x" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(_, _, actual)) => actual == "Sequence"
           case _                                                 => false
@@ -487,9 +489,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicValueKind: Map arm (via Mandate on a map)") {
-        val at     = DynamicOptic.root.field("x")
-        val action = MigrationAction.Mandate(at, intDefaultAt(at))
-        val result = run(action, record("x" -> mapVal(stringVal("k") -> intVal(1))))
+        val at      = DynamicOptic.root.field("x")
+        val action  = MigrationAction.Mandate(at, intDefaultAt(at))
+        val result  = run(action, record("x" -> mapVal(stringVal("k") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(_, _, actual)) => actual == "Map"
           case _                                                 => false
@@ -499,8 +501,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       test("dynamicValueKind: Variant arm (via AddField where parent is a Variant)") {
         // AddField's non-Record parent arm calls `dynamicValueKind(parent)`.
         // A top-level variant value hits the `case _: Variant => \"Variant\"` arm.
-        val action = MigrationAction.AddField(DynamicOptic.root, "f", intDefaultAt(DynamicOptic.root))
-        val result = run(action, variant("Some", record("v" -> intVal(1))))
+        val action  = MigrationAction.AddField(DynamicOptic.root, "f", intDefaultAt(DynamicOptic.root))
+        val result  = run(action, variant("Some", record("v" -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(_, _, actual)) => actual == "Variant"
           case _                                                 => false
@@ -509,8 +511,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
       },
       test("dynamicValueKind: Null arm (via AddField on Null)") {
         // DynamicValue.Null flows through addField's non-Record parent arm.
-        val action = MigrationAction.AddField(DynamicOptic.root, "x", intDefaultAt(DynamicOptic.root))
-        val result = run(action, DynamicValue.Null)
+        val action  = MigrationAction.AddField(DynamicOptic.root, "x", intDefaultAt(DynamicOptic.root))
+        val result  = run(action, DynamicValue.Null)
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(_, _, actual)) => actual == "Null"
           // Null may also not be a resolvable parent path — in that case the
@@ -522,9 +524,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: Case arm (via Rename on a caseOf path)") {
-        val at     = DynamicOptic.root.caseOf("Foo")
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, variant("Foo", record("v" -> intVal(1))))
+        val at      = DynamicOptic.root.caseOf("Foo")
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, variant("Foo", record("v" -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "Case"
@@ -533,9 +535,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: MapKeys arm (via Rename on a mapKeys path)") {
-        val at     = DynamicOptic.root.field("mp").mapKeys
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
+        val at      = DynamicOptic.root.field("mp").mapKeys
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "MapKeys"
@@ -544,9 +546,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: MapValues arm (via Rename on a mapValues path)") {
-        val at     = DynamicOptic.root.field("mp").mapValues
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
+        val at      = DynamicOptic.root.field("mp").mapValues
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "MapValues"
@@ -555,9 +557,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: AtIndex arm (via Rename on an at(_) path)") {
-        val at     = DynamicOptic.root.field("xs").at(0)
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("xs" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("xs").at(0)
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("xs" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "AtIndex"
@@ -566,9 +568,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: AtIndices arm (via Rename on an atIndices path)") {
-        val at     = DynamicOptic.root.field("xs").atIndices(0, 1)
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("xs" -> seqVal(intVal(1), intVal(2))))
+        val at      = DynamicOptic.root.field("xs").atIndices(0, 1)
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("xs" -> seqVal(intVal(1), intVal(2))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "AtIndices"
@@ -577,9 +579,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: AtMapKey arm (via Rename on an atKey path)") {
-        val at     = DynamicOptic.root.field("mp").atKey("k")(Schema[String])
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
+        val at      = DynamicOptic.root.field("mp").atKey("k")(Schema[String])
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "AtMapKey"
@@ -588,9 +590,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: AtMapKeys arm (via Rename on an atKeys path)") {
-        val at     = DynamicOptic.root.field("mp").atKeys("k", "j")(Schema[String])
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
+        val at      = DynamicOptic.root.field("mp").atKeys("k", "j")(Schema[String])
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("mp" -> mapVal(stringVal("k") -> intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "AtMapKeys"
@@ -599,9 +601,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: Elements arm (via Rename on an elements path)") {
-        val at     = DynamicOptic.root.field("xs").elements
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("xs" -> seqVal(intVal(1))))
+        val at      = DynamicOptic.root.field("xs").elements
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("xs" -> seqVal(intVal(1))))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "Elements"
@@ -610,9 +612,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: Wrapped arm (via Rename on a wrapped path)") {
-        val at     = DynamicOptic.root.field("w").wrapped
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, record("w" -> intVal(1)))
+        val at      = DynamicOptic.root.field("w").wrapped
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, record("w" -> intVal(1)))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "Wrapped"
@@ -621,9 +623,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: TypeSearch arm (via Rename on a search path)") {
-        val at     = DynamicOptic.root.search[Int]
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, intVal(1))
+        val at      = DynamicOptic.root.search[Int]
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, intVal(1))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "TypeSearch"
@@ -632,9 +634,9 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isMatch)
       },
       test("dynamicOpticNodeKind: SchemaSearch arm (via Rename on a searchSchema path)") {
-        val at     = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
-        val action = MigrationAction.Rename(at, "Bar")
-        val result = run(action, intVal(1))
+        val at      = DynamicOptic.root.searchSchema(SchemaRepr.Primitive("int"))
+        val action  = MigrationAction.Rename(at, "Bar")
+        val result  = run(action, intVal(1))
         val isMatch = result match {
           case Left(MigrationError.SchemaMismatch(p, expected, actual)) =>
             p == at && expected == "Field" && actual == "SchemaSearch"
@@ -650,96 +652,96 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
     // SchemaRepr dispatch. Each test below triggers one arm.
     suite("defaultForSchemaRepr")(
       test("Primitive(int) arm — Mandate(None, DefaultValue(int)) yields int zero") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("int")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("int")))
+        val result   = run(action, record("x" -> none))
         val expected = intVal(0)
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(long) arm — yields 0L") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("long")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("long")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Long(0L))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(double) arm — yields 0.0") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("double")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("double")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Double(0.0))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(float) arm — yields 0.0f") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("float")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("float")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Float(0.0f))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(short) arm — yields 0.toShort") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("short")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("short")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Short(0.toShort))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(byte) arm — yields 0.toByte") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("byte")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("byte")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Byte(0.toByte))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(boolean) arm — yields false") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("boolean")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("boolean")))
+        val result   = run(action, record("x" -> none))
         val expected = DynamicValue.Primitive(PrimitiveValue.Boolean(false))
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
         assertTrue(isOk)
       },
       test("Primitive(string) arm — yields empty string") {
-        val at     = DynamicOptic.root.field("x")
-        val none   = variant("None", DynamicValue.Record.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("string")))
-        val result = run(action, record("x" -> none))
+        val at       = DynamicOptic.root.field("x")
+        val none     = variant("None", DynamicValue.Record.empty)
+        val action   = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, SchemaRepr.Primitive("string")))
+        val result   = run(action, record("x" -> none))
         val expected = stringVal("")
-        val isOk = result match {
+        val isOk     = result match {
           case Right(dv) => dv.get(at).values.flatMap(_.headOption).contains(expected)
           case _         => false
         }
@@ -753,7 +755,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
           SchemaExpr.DefaultValue(at, SchemaRepr.Sequence(SchemaRepr.Primitive("int")))
         )
         val result = run(action, record("x" -> none))
-        val isOk = result match {
+        val isOk   = result match {
           case Right(dv) =>
             dv.get(at).values.flatMap(_.headOption) match {
               case Some(_: DynamicValue.Sequence) => true
@@ -774,7 +776,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
           )
         )
         val result = run(action, record("x" -> none))
-        val isOk = result match {
+        val isOk   = result match {
           case Right(dv) =>
             dv.get(at).values.flatMap(_.headOption) match {
               case Some(_: DynamicValue.Map) => true
@@ -792,7 +794,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
           SchemaExpr.DefaultValue(at, SchemaRepr.Optional(SchemaRepr.Primitive("int")))
         )
         val result = run(action, record("x" -> none))
-        val isOk = result match {
+        val isOk   = result match {
           case Right(dv) =>
             dv.get(at).values.flatMap(_.headOption) match {
               case Some(DynamicValue.Variant("None", _)) => true
@@ -810,7 +812,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
           SchemaExpr.DefaultValue(at, SchemaRepr.Record(IndexedSeq.empty))
         )
         val result = run(action, record("x" -> none))
-        val isOk = result match {
+        val isOk   = result match {
           case Right(dv) =>
             dv.get(at).values.flatMap(_.headOption) match {
               case Some(r: DynamicValue.Record) => r.fields.isEmpty
@@ -821,8 +823,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isOk)
       },
       test("Variant arm (non-empty cases) — yields first-case empty-record Variant") {
-        val at   = DynamicOptic.root.field("x")
-        val none = variant("None", DynamicValue.Record.empty)
+        val at          = DynamicOptic.root.field("x")
+        val none        = variant("None", DynamicValue.Record.empty)
         val variantRepr = SchemaRepr.Variant(
           IndexedSeq(
             "FirstCase"  -> SchemaRepr.Record(IndexedSeq.empty),
@@ -831,7 +833,7 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         )
         val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, variantRepr))
         val result = run(action, record("x" -> none))
-        val isOk = result match {
+        val isOk   = result match {
           case Right(dv) =>
             dv.get(at).values.flatMap(_.headOption) match {
               case Some(DynamicValue.Variant("FirstCase", _)) => true
@@ -842,11 +844,11 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isOk)
       },
       test("Variant arm (empty cases) — falls through to unsupported") {
-        val at   = DynamicOptic.root.field("x")
-        val none = variant("None", DynamicValue.Record.empty)
+        val at          = DynamicOptic.root.field("x")
+        val none        = variant("None", DynamicValue.Record.empty)
         val variantRepr = SchemaRepr.Variant(IndexedSeq.empty)
-        val action = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, variantRepr))
-        val result = run(action, record("x" -> none))
+        val action      = MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, variantRepr))
+        val result      = run(action, record("x" -> none))
         // Empty cases hit the fall-through "unsupported" arm → ActionFailed.
         val isFailed = result match {
           case Left(MigrationError.ActionFailed(_, "Mandate", cause)) => cause.isDefined
@@ -855,13 +857,13 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(isFailed)
       },
       test("Nominal fall-through arm — unsupported SchemaRepr yields ActionFailed with cause") {
-        val at   = DynamicOptic.root.field("x")
-        val none = variant("None", DynamicValue.Record.empty)
+        val at     = DynamicOptic.root.field("x")
+        val none   = variant("None", DynamicValue.Record.empty)
         val action = MigrationAction.Mandate(
           at,
           SchemaExpr.DefaultValue(at, SchemaRepr.Nominal("com.example.Unknown"))
         )
-        val result = run(action, record("x" -> none))
+        val result   = run(action, record("x" -> none))
         val isFailed = result match {
           case Left(MigrationError.ActionFailed(_, "Mandate", cause)) => cause.isDefined
           case _                                                      => false
@@ -886,8 +888,8 @@ object InterpreterErrorArmsSpec extends SchemaBaseSpec {
         assertTrue(inserted == Some(stringVal("")))
       },
       test("AddField(Sequence) inserts empty sequence") {
-        val at       = DynamicOptic.root
-        val action   = MigrationAction.AddField(
+        val at     = DynamicOptic.root
+        val action = MigrationAction.AddField(
           at,
           "xs",
           SchemaExpr.DefaultValue(at, SchemaRepr.Sequence(SchemaRepr.Primitive("int")))

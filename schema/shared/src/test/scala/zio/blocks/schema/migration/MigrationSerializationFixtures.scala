@@ -31,8 +31,8 @@ import zio.test.Gen
  *   - the full migration-used `SchemaExpr` subset (DefaultValue, Literal,
  *     StringConcat) bridged by `SchemaExpr.migrationSchema`.
  *
- * Also exports a curated named-fixture catalog so JSON round-trip failures
- * are diagnosable without relying solely on generator shrinking.
+ * Also exports a curated named-fixture catalog so JSON round-trip failures are
+ * diagnosable without relying solely on generator shrinking.
  *
  * Literal roundtrip note: `SchemaExpr.Literal` round-trip is intentionally
  * lossy — the reconstructed `Literal` is always
@@ -83,9 +83,8 @@ object MigrationSerializationFixtures {
   /**
    * `SchemaExpr.Literal` is intentionally reconstructed as
    * `Literal[Any, DynamicValue](dv, Schema[DynamicValue])` by the migration
-   * schema bridge. This generator emits values in exactly that canonical
-   * shape so the shared JSON round-trip property check is a strict equality
-   * proof.
+   * schema bridge. This generator emits values in exactly that canonical shape
+   * so the shared JSON round-trip property check is a strict equality proof.
    */
   val genLiteralExpr: Gen[Any, SchemaExpr[_, _]] =
     for {
@@ -96,9 +95,9 @@ object MigrationSerializationFixtures {
    * Recursive `StringConcat` over the non-recursive migration-used leaves. The
    * StringConcat field types are `SchemaExpr[A, String]`, but at runtime the
    * interpreter / migrationSchema bridge carries arbitrary `SchemaExpr[_, _]`
-   * leaves and projects them through `Schema[DynamicValue]`. The property
-   * suite only checks *structural* round-trip of the persisted data, so
-   * injecting canonical leaves here is safe.
+   * leaves and projects them through `Schema[DynamicValue]`. The property suite
+   * only checks *structural* round-trip of the persisted data, so injecting
+   * canonical leaves here is safe.
    */
   val genStringConcatExpr: Gen[Any, SchemaExpr[_, _]] =
     for {
@@ -121,16 +120,20 @@ object MigrationSerializationFixtures {
   // -- MigrationAction leaf generators (11 of 14) ----------------------------
 
   private val genAddField: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; n <- Gen.alphaNumericStringBounded(1, 8); d <- genSchemaExpr }
-      yield MigrationAction.AddField(at, n, d)
+    for {
+      at <- genDynamicOpticLeaf; n <- Gen.alphaNumericStringBounded(1, 8); d <- genSchemaExpr
+    } yield MigrationAction.AddField(at, n, d)
 
   private val genDropField: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; n <- Gen.alphaNumericStringBounded(1, 8); d <- genSchemaExpr }
-      yield MigrationAction.DropField(at, n, d)
+    for {
+      at <- genDynamicOpticLeaf; n <- Gen.alphaNumericStringBounded(1, 8); d <- genSchemaExpr
+    } yield MigrationAction.DropField(at, n, d)
 
   private val genRename: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; s <- Gen.alphaNumericStringBounded(1, 8) }
-      yield MigrationAction.Rename(at.field("orig"), s)
+    for { at <- genDynamicOpticLeaf; s <- Gen.alphaNumericStringBounded(1, 8) } yield MigrationAction.Rename(
+      at.field("orig"),
+      s
+    )
 
   private val genTransformValue: Gen[Any, MigrationAction] =
     for { at <- genDynamicOpticLeaf; d <- genSchemaExpr } yield MigrationAction.TransformValue(at, d)
@@ -139,15 +142,20 @@ object MigrationSerializationFixtures {
     for { at <- genDynamicOpticLeaf; d <- genSchemaExpr } yield MigrationAction.ChangeType(at, d)
 
   private val genMandate: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; s <- genSchemaRepr }
-      yield MigrationAction.Mandate(at, SchemaExpr.DefaultValue(at, s))
+    for { at <- genDynamicOpticLeaf; s <- genSchemaRepr } yield MigrationAction.Mandate(
+      at,
+      SchemaExpr.DefaultValue(at, s)
+    )
 
   private val genOptionalize: Gen[Any, MigrationAction] =
     for { at <- genDynamicOpticLeaf; s <- genSchemaRepr } yield MigrationAction.Optionalize(at, s)
 
   private val genRenameCase: Gen[Any, MigrationAction] =
-    for { at <- genCaseOptic; from <- Gen.alphaNumericStringBounded(1, 6) }
-      yield MigrationAction.RenameCase(at, from, from + "New")
+    for { at <- genCaseOptic; from <- Gen.alphaNumericStringBounded(1, 6) } yield MigrationAction.RenameCase(
+      at,
+      from,
+      from + "New"
+    )
 
   private val genTransformElements: Gen[Any, MigrationAction] =
     for { at <- genDynamicOpticLeaf; d <- genSchemaExpr } yield MigrationAction.TransformElements(at, d)
@@ -167,12 +175,10 @@ object MigrationSerializationFixtures {
     } yield Chunk(p1, p2, p3)
 
   private val genJoin: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; paths <- gen3Paths; d <- genSchemaExpr }
-      yield MigrationAction.Join(at, paths, d)
+    for { at <- genDynamicOpticLeaf; paths <- gen3Paths; d <- genSchemaExpr } yield MigrationAction.Join(at, paths, d)
 
   private val genSplit: Gen[Any, MigrationAction] =
-    for { at <- genDynamicOpticLeaf; paths <- gen3Paths; d <- genSchemaExpr }
-      yield MigrationAction.Split(at, paths, d)
+    for { at <- genDynamicOpticLeaf; paths <- gen3Paths; d <- genSchemaExpr } yield MigrationAction.Split(at, paths, d)
 
   /**
    * All non-recursive `MigrationAction` leaf variants. `TransformCase` is
@@ -195,9 +201,9 @@ object MigrationSerializationFixtures {
   )
 
   /**
-   * Recursive `TransformCase` generator parameterized on nesting depth. Depth
-   * 2 is enough to satisfy 's "nested >= 2" requirement; we cap recursion
-   * to keep property runs bounded.
+   * Recursive `TransformCase` generator parameterized on nesting depth. Depth 2
+   * is enough to satisfy 's "nested >= 2" requirement; we cap recursion to keep
+   * property runs bounded.
    */
   private def genTransformCase(depth: Int): Gen[Any, MigrationAction] =
     if (depth <= 0) {
@@ -211,19 +217,22 @@ object MigrationSerializationFixtures {
         at   <- genCaseOptic
         leaf <- Gen.listOfBounded(1, 2)(genLeafAction)
         // At least one inner TransformCase keeps nesting depth >= 2.
-        inner = genTransformCase(depth - 1)
+        inner   = genTransformCase(depth - 1)
         nested <- Gen.listOfBounded(1, 2)(inner)
       } yield MigrationAction.TransformCase(at, Chunk.from(leaf ++ nested))
     }
 
-  /** 14-variant `MigrationAction` generator (13 leaves + recursive TransformCase). */
+  /**
+   * 14-variant `MigrationAction` generator (13 leaves + recursive
+   * TransformCase).
+   */
   val genMigrationAction: Gen[Any, MigrationAction] =
     Gen.oneOf(genLeafAction, genTransformCase(2))
 
   /**
-   * Top-level `DynamicMigration` generator. Chunks 1..5 actions so every
-   * sample carries multiple action variants and exercises the `Chunk`
-   * envelope serialized by `Schema[DynamicMigration]`.
+   * Top-level `DynamicMigration` generator. Chunks 1..5 actions so every sample
+   * carries multiple action variants and exercises the `Chunk` envelope
+   * serialized by `Schema[DynamicMigration]`.
    */
   val genDynamicMigration: Gen[Any, DynamicMigration] =
     Gen.listOfBounded(1, 5)(genMigrationAction).map(xs => new DynamicMigration(Chunk.from(xs)))
@@ -291,12 +300,12 @@ object MigrationSerializationFixtures {
   private def genRecordDynamicValueAtLeast(minDepth: Int): Gen[Any, DynamicValue] =
     for {
       required <- genDynamicValueAtLeast(minDepth - 1)
-      extras <- Gen.listOfBounded(0, 2) {
-        for {
-          key   <- genFieldName.filter(_ != "required")
-          value <- genDynamicValueAtMost(minDepth - 1)
-        } yield key -> value
-      }
+      extras   <- Gen.listOfBounded(0, 2) {
+                  for {
+                    key   <- genFieldName.filter(_ != "required")
+                    value <- genDynamicValueAtMost(minDepth - 1)
+                  } yield key -> value
+                }
     } yield DynamicValue.Record(distinctFields(("required", required) :: extras))
 
   private def genVariantDynamicValueAtLeast(minDepth: Int): Gen[Any, DynamicValue] =
@@ -314,12 +323,13 @@ object MigrationSerializationFixtures {
   private def genMapDynamicValueAtLeast(minDepth: Int): Gen[Any, DynamicValue] =
     for {
       required <- genDynamicValueAtLeast(minDepth - 1)
-      extras <- Gen.listOfBounded(0, 2) {
-        for {
-          key   <- Gen.alphaNumericStringBounded(1, 8).map(s => DynamicValue.Primitive(PrimitiveValue.String(s)))
-          value <- genDynamicValueAtMost(minDepth - 1)
-        } yield key -> value
-      }
+      extras   <- Gen.listOfBounded(0, 2) {
+                  for {
+                    key <-
+                      Gen.alphaNumericStringBounded(1, 8).map(s => DynamicValue.Primitive(PrimitiveValue.String(s)))
+                    value <- genDynamicValueAtMost(minDepth - 1)
+                  } yield key -> value
+                }
     } yield {
       val requiredKey = DynamicValue.Primitive(PrimitiveValue.String("required"))
       DynamicValue.Map(distinctEntries((requiredKey, required) :: extras))
@@ -356,8 +366,8 @@ object MigrationSerializationFixtures {
   )
 
   def dynamicValueDepth(value: DynamicValue): Int = value match {
-    case _: DynamicValue.Primitive => 0
-    case DynamicValue.Null         => 0
+    case _: DynamicValue.Primitive   => 0
+    case DynamicValue.Null           => 0
     case DynamicValue.Record(fields) =>
       if (fields.isEmpty) 1
       else 1 + fields.iterator.map(_._2).map(dynamicValueDepth).max
@@ -369,8 +379,7 @@ object MigrationSerializationFixtures {
     case DynamicValue.Map(entries) =>
       if (entries.isEmpty) 1
       else
-        1 + entries.iterator
-          .flatMap { case (key, value) => Iterator(key, value) }
+        1 + entries.iterator.flatMap { case (key, value) => Iterator(key, value) }
           .map(dynamicValueDepth)
           .max
   }
@@ -540,8 +549,8 @@ object MigrationSerializationFixtures {
   )
 
   /**
-   * Fixture 2: a nested TransformCase at depth 2 — outer TransformCase wraps
-   * an inner TransformCase that wraps a concrete Rename. Diagnoses
+   * Fixture 2: a nested TransformCase at depth 2 — outer TransformCase wraps an
+   * inner TransformCase that wraps a concrete Rename. Diagnoses
    * recursive-Reflect.Deferred round-trip regressions.
    */
   val nestedTransformCase: DynamicMigration = new DynamicMigration(
@@ -562,9 +571,8 @@ object MigrationSerializationFixtures {
 
   /**
    * Fixture 3: Join + Split with a 3-path vector and a non-trivial combiner /
-   * splitter expression. Diagnoses `Chunk[DynamicOptic]` round-trip
-   * regressions and SchemaExpr-field serialization for both multi-path
-   * actions.
+   * splitter expression. Diagnoses `Chunk[DynamicOptic]` round-trip regressions
+   * and SchemaExpr-field serialization for both multi-path actions.
    */
   val joinSplit3Paths: DynamicMigration = {
     val paths = Chunk(
@@ -622,8 +630,8 @@ object MigrationSerializationFixtures {
   )
 
   /**
-   * Curated named-fixture catalog used by both the shared JSON round-trip
-   * spec and downstream codec-module smoke tests.
+   * Curated named-fixture catalog used by both the shared JSON round-trip spec
+   * and downstream codec-module smoke tests.
    */
   val namedFixtures: List[(String, DynamicMigration)] = List(
     "simpleRenameAndAdd"    -> simpleRenameAndAdd,

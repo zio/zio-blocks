@@ -22,19 +22,18 @@ import zio.blocks.schema._
 /**
  * Interprets a single [[MigrationAction]] against a [[DynamicValue]].
  *
- * Centralized single exhaustive `match` — adding a new
- * [[MigrationAction]] variant without an arm here fails compilation under
- * `-Werror`.
+ * Centralized single exhaustive `match` — adding a new [[MigrationAction]]
+ * variant without an arm here fails compilation under `-Werror`.
  */
 private[migration] object Interpreter {
 
   def apply(action: MigrationAction, dv: DynamicValue): Either[MigrationError, DynamicValue] =
     action match {
-      case a: MigrationAction.AddField          => addField(a, dv)
-      case a: MigrationAction.DropField         => dropField(a, dv)
-      case a: MigrationAction.Rename            => rename(a, dv)
-      case a: MigrationAction.TransformValue    => transformValue(a, dv)
-      case a: MigrationAction.ChangeType        => changeType(a, dv)
+      case a: MigrationAction.AddField       => addField(a, dv)
+      case a: MigrationAction.DropField      => dropField(a, dv)
+      case a: MigrationAction.Rename         => rename(a, dv)
+      case a: MigrationAction.TransformValue => transformValue(a, dv)
+      case a: MigrationAction.ChangeType     => changeType(a, dv)
       // --- Option / Enum / Collection / Map ---
       case a: MigrationAction.Mandate           => mandate(a, dv)
       case a: MigrationAction.Optionalize       => optionalize(a, dv)
@@ -44,8 +43,8 @@ private[migration] object Interpreter {
       case a: MigrationAction.TransformKeys     => transformKeys(a, dv)
       case a: MigrationAction.TransformValues   => transformValues(a, dv)
       // --- Join / Split ---
-      case a: MigrationAction.Join              => join(a, dv)
-      case a: MigrationAction.Split             => split(a, dv)
+      case a: MigrationAction.Join  => join(a, dv)
+      case a: MigrationAction.Split => split(a, dv)
     }
 
   // --- Arm bodies ------------------------------------------------------------
@@ -217,7 +216,7 @@ private[migration] object Interpreter {
         new DynamicValue.Variant(a.to, v.value)
     } match {
       case r: Right[_, _] => r.asInstanceOf[Either[MigrationError, DynamicValue]]
-      case _ =>
+      case _              =>
         currentDv.get(a.at).values match {
           case Some(values) if values.nonEmpty =>
             values.head match {
@@ -276,24 +275,26 @@ private[migration] object Interpreter {
       case Some(values) if values.nonEmpty =>
         values.head match {
           case s: DynamicValue.Sequence =>
-            val builder             = ChunkBuilder.make[DynamicValue](s.elements.length)
-            val len                 = s.elements.length
-            var idx                 = 0
+            val builder                         = ChunkBuilder.make[DynamicValue](s.elements.length)
+            val len                             = s.elements.length
+            var idx                             = 0
             var failure: Option[MigrationError] = None
             while (idx < len && failure.isEmpty) {
               evalTransform(a.transform, s.elements(idx)) match {
-                case Right(v) => builder.addOne(v)
+                case Right(v)    => builder.addOne(v)
                 case Left(check) =>
                   val errPath = new DynamicOptic(
                     a.at.nodes.appended(DynamicOptic.Node.Elements).appended(new DynamicOptic.Node.AtIndex(idx))
                   )
-                  failure = new Some(new MigrationError.ActionFailed(errPath, "TransformElements", new Some(check.message)))
+                  failure = new Some(
+                    new MigrationError.ActionFailed(errPath, "TransformElements", new Some(check.message))
+                  )
               }
               idx += 1
             }
             failure match {
               case Some(err) => new Left(err)
-              case _ =>
+              case _         =>
                 currentDv.setOrFail(a.at, new DynamicValue.Sequence(builder.result())) match {
                   case r: Right[_, _] => r.asInstanceOf[Either[MigrationError, DynamicValue]]
                   case _              => new Left(new MigrationError.ActionFailed(a.at, "TransformElements"))
@@ -314,10 +315,10 @@ private[migration] object Interpreter {
       case Some(values) if values.nonEmpty =>
         values.head match {
           case m: DynamicValue.Map =>
-            val builder  = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
-            val seenKeys = new java.util.HashSet[DynamicValue](m.entries.length << 1)
-            val len      = m.entries.length
-            var idx      = 0
+            val builder                         = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
+            val seenKeys                        = new java.util.HashSet[DynamicValue](m.entries.length << 1)
+            val len                             = m.entries.length
+            var idx                             = 0
             var failure: Option[MigrationError] = None
             while (idx < len && failure.isEmpty) {
               val (srcKey, value) = m.entries(idx)
@@ -342,7 +343,7 @@ private[migration] object Interpreter {
             }
             failure match {
               case Some(err) => new Left(err)
-              case _ =>
+              case _         =>
                 currentDv.setOrFail(a.at, new DynamicValue.Map(builder.result())) match {
                   case r: Right[_, _] => r.asInstanceOf[Either[MigrationError, DynamicValue]]
                   case _              => new Left(new MigrationError.ActionFailed(a.at, "TransformKeys"))
@@ -363,9 +364,9 @@ private[migration] object Interpreter {
       case Some(values) if values.nonEmpty =>
         values.head match {
           case m: DynamicValue.Map =>
-            val builder = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
-            val len     = m.entries.length
-            var idx     = 0
+            val builder                         = ChunkBuilder.make[(DynamicValue, DynamicValue)](m.entries.length)
+            val len                             = m.entries.length
+            var idx                             = 0
             var failure: Option[MigrationError] = None
             while (idx < len && failure.isEmpty) {
               val (k, v) = m.entries(idx)
@@ -375,13 +376,15 @@ private[migration] object Interpreter {
                   val errPath = new DynamicOptic(
                     a.at.nodes.appended(DynamicOptic.Node.MapValues).appended(new DynamicOptic.Node.AtMapKey(k))
                   )
-                  failure = new Some(new MigrationError.ActionFailed(errPath, "TransformValues", new Some(check.message)))
+                  failure = new Some(
+                    new MigrationError.ActionFailed(errPath, "TransformValues", new Some(check.message))
+                  )
               }
               idx += 1
             }
             failure match {
               case Some(err) => new Left(err)
-              case _ =>
+              case _         =>
                 currentDv.setOrFail(a.at, new DynamicValue.Map(builder.result())) match {
                   case r: Right[_, _] => r.asInstanceOf[Either[MigrationError, DynamicValue]]
                   case _              => new Left(new MigrationError.ActionFailed(a.at, "TransformValues"))
@@ -452,9 +455,9 @@ private[migration] object Interpreter {
   // --- Shared helpers --------------------------------------------------------
 
   /**
-   * TransformValue and ChangeType share the same interpretation shape
-   * (the semantic distinction is compile-time-only in the builder
-   * macros — the interpreter treats them identically).
+   * TransformValue and ChangeType share the same interpretation shape (the
+   * semantic distinction is compile-time-only in the builder macros — the
+   * interpreter treats them identically).
    */
   private def applyTransformAt(
     at: DynamicOptic,
@@ -522,18 +525,18 @@ private[migration] object Interpreter {
   /** Resolves the zero-value of a [[SchemaRepr]] for the primitive scope. */
   private def defaultForSchemaRepr(repr: SchemaRepr): Either[OpticCheck, DynamicValue] =
     repr match {
-      case SchemaRepr.Primitive("int")     => new Right(new DynamicValue.Primitive(new PrimitiveValue.Int(0)))
-      case SchemaRepr.Primitive("long")    => new Right(new DynamicValue.Primitive(new PrimitiveValue.Long(0L)))
-      case SchemaRepr.Primitive("double")  => new Right(new DynamicValue.Primitive(new PrimitiveValue.Double(0.0)))
-      case SchemaRepr.Primitive("float")   => new Right(new DynamicValue.Primitive(new PrimitiveValue.Float(0.0f)))
-      case SchemaRepr.Primitive("short")   => new Right(new DynamicValue.Primitive(new PrimitiveValue.Short(0.toShort)))
-      case SchemaRepr.Primitive("byte")    => new Right(new DynamicValue.Primitive(new PrimitiveValue.Byte(0.toByte)))
-      case SchemaRepr.Primitive("boolean") => new Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(false)))
-      case SchemaRepr.Primitive("string")  => new Right(new DynamicValue.Primitive(new PrimitiveValue.String("")))
-      case SchemaRepr.Sequence(_)          => new Right(DynamicValue.Sequence.empty)
-      case SchemaRepr.Map(_, _)            => new Right(DynamicValue.Map.empty)
-      case SchemaRepr.Optional(_)          => new Right(new DynamicValue.Variant("None", DynamicValue.Record.empty))
-      case SchemaRepr.Record(_)            => new Right(DynamicValue.Record.empty)
+      case SchemaRepr.Primitive("int")                 => new Right(new DynamicValue.Primitive(new PrimitiveValue.Int(0)))
+      case SchemaRepr.Primitive("long")                => new Right(new DynamicValue.Primitive(new PrimitiveValue.Long(0L)))
+      case SchemaRepr.Primitive("double")              => new Right(new DynamicValue.Primitive(new PrimitiveValue.Double(0.0)))
+      case SchemaRepr.Primitive("float")               => new Right(new DynamicValue.Primitive(new PrimitiveValue.Float(0.0f)))
+      case SchemaRepr.Primitive("short")               => new Right(new DynamicValue.Primitive(new PrimitiveValue.Short(0.toShort)))
+      case SchemaRepr.Primitive("byte")                => new Right(new DynamicValue.Primitive(new PrimitiveValue.Byte(0.toByte)))
+      case SchemaRepr.Primitive("boolean")             => new Right(new DynamicValue.Primitive(new PrimitiveValue.Boolean(false)))
+      case SchemaRepr.Primitive("string")              => new Right(new DynamicValue.Primitive(new PrimitiveValue.String("")))
+      case SchemaRepr.Sequence(_)                      => new Right(DynamicValue.Sequence.empty)
+      case SchemaRepr.Map(_, _)                        => new Right(DynamicValue.Map.empty)
+      case SchemaRepr.Optional(_)                      => new Right(new DynamicValue.Variant("None", DynamicValue.Record.empty))
+      case SchemaRepr.Record(_)                        => new Right(DynamicValue.Record.empty)
       case SchemaRepr.Variant(cases) if cases.nonEmpty =>
         new Right(new DynamicValue.Variant(cases.head._1, DynamicValue.Record.empty))
       case _ =>

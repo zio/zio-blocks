@@ -58,8 +58,8 @@ object MigrationError {
   }
 
   /**
-   * A value's primitive type contradicts the expected input signature
-   * (e.g., TransformValue / ChangeType receiving the wrong primitive).
+   * A value's primitive type contradicts the expected input signature (e.g.,
+   * TransformValue / ChangeType receiving the wrong primitive).
    */
   final case class SchemaMismatch(path: DynamicOptic, expected: String, actual: String) extends MigrationError {
     lazy val message: String = s"Schema mismatch at ${path.toScalaString}: expected $expected, got $actual"
@@ -76,8 +76,8 @@ object MigrationError {
 
   /**
    * A reversed multi-path action (`Join` / `Split`) could not invert the
-   * underlying combiner/splitter at apply time. The optional `cause` carries
-   * a short structured reason folded into [[message]] when present.
+   * underlying combiner/splitter at apply time. The optional `cause` carries a
+   * short structured reason folded into [[message]] when present.
    */
   final case class Irreversible(
     path: DynamicOptic,

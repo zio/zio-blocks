@@ -32,9 +32,7 @@ object MigrationLawsSpec extends SchemaBaseSpec {
         check(genDynamicValueDepth3)(value => assertTrue(dynamicValueDepth(value) >= 3))
       } @@ TestAspect.samples(100),
       test("deep generator produces nested record shapes") {
-        check(genRecordDynamicValueDepth3)(value =>
-          assertTrue(dynamicValueDepth(value) >= 3 && containsRecord(value))
-        )
+        check(genRecordDynamicValueDepth3)(value => assertTrue(dynamicValueDepth(value) >= 3 && containsRecord(value)))
       } @@ TestAspect.samples(25),
       test("deep generator produces nested sequence shapes") {
         check(genSequenceDynamicValueDepth3)(value =>
@@ -42,9 +40,7 @@ object MigrationLawsSpec extends SchemaBaseSpec {
         )
       } @@ TestAspect.samples(25),
       test("deep generator produces nested map shapes") {
-        check(genMapDynamicValueDepth3)(value =>
-          assertTrue(dynamicValueDepth(value) >= 3 && containsMap(value))
-        )
+        check(genMapDynamicValueDepth3)(value => assertTrue(dynamicValueDepth(value) >= 3 && containsMap(value)))
       } @@ TestAspect.samples(25),
       test("deep generator produces nested variant shapes") {
         check(genVariantDynamicValueDepth3)(value =>
@@ -54,9 +50,7 @@ object MigrationLawsSpec extends SchemaBaseSpec {
     ),
     suite("identity")(
       test("Migration.identity[DynamicValue] preserves deep values") {
-        check(genDynamicValueDepth3)(value =>
-          assertTrue(Migration.identity[DynamicValue].apply(value) == Right(value))
-        )
+        check(genDynamicValueDepth3)(value => assertTrue(Migration.identity[DynamicValue].apply(value) == Right(value)))
       } @@ TestAspect.samples(100)
     ),
     suite("associativity")(

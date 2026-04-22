@@ -25,8 +25,8 @@ import zio.test._
  *   - : `Migration[A, B].apply` delegation through
  *     `sourceSchema.toDynamicValue(a) -> dynamic.apply -> targetSchema.fromDynamicValue`
  *     — verified by end-to-end round-trip (Schema[Int] identity) AND by a
- *     dynamic-injection test that asserts the `DynamicMigration` sees the
- *     exact DynamicValue produced by `toDynamicValue`.
+ *     dynamic-injection test that asserts the `DynamicMigration` sees the exact
+ *     DynamicValue produced by `toDynamicValue`.
  *   - : `Migration.identity[Int]` round-trips any Int.
  *   - `++` / `andThen` / `reverse` structural behaviour.
  */
@@ -50,10 +50,10 @@ object MigrationSpec extends SchemaBaseSpec {
         val result  = m.apply(42)
         assertTrue(result.isLeft) &&
         assertTrue(result.swap.toOption.exists {
-          case af: MigrationError.ActionFailed => af.actionName != "decode"
-          case _: MigrationError.MissingField  => true
+          case af: MigrationError.ActionFailed  => af.actionName != "decode"
+          case _: MigrationError.MissingField   => true
           case _: MigrationError.SchemaMismatch => true
-          case _                               => false
+          case _                                => false
         })
       },
       test("apply wraps decode-step SchemaError into ActionFailed(root, \"decode\", cause) ( decode-step error)") {
@@ -68,8 +68,9 @@ object MigrationSpec extends SchemaBaseSpec {
         val result            = m.apply(42)
         assertTrue(result.isLeft) &&
         assertTrue(result.swap.toOption.exists {
-          case af: MigrationError.ActionFailed => af.actionName == "decode" && af.path == DynamicOptic.root && af.cause.isDefined
-          case _                               => false
+          case af: MigrationError.ActionFailed =>
+            af.actionName == "decode" && af.path == DynamicOptic.root && af.cause.isDefined
+          case _ => false
         })
       }
     ),
@@ -83,8 +84,8 @@ object MigrationSpec extends SchemaBaseSpec {
     ),
     suite("++ / andThen / reverse")(
       test("++ composes source -> target -> target2 pipelines") {
-        val m1: Migration[Int, Int] = Migration.identity[Int]
-        val m2: Migration[Int, Int] = Migration.identity[Int]
+        val m1: Migration[Int, Int]       = Migration.identity[Int]
+        val m2: Migration[Int, Int]       = Migration.identity[Int]
         val combined: Migration[Int, Int] = m1 ++ m2
         assertTrue(combined.sourceSchema eq m1.sourceSchema) &&
         assertTrue(combined.targetSchema eq m2.targetSchema) &&
@@ -96,9 +97,9 @@ object MigrationSpec extends SchemaBaseSpec {
         assertTrue(m1.andThen(m2).dynamic.actions == (m1 ++ m2).dynamic.actions)
       },
       test("reverse swaps source/target schemas and reverses the underlying DynamicMigration") {
-        val dm    = new DynamicMigration(Chunk.single(MigrationAction.Rename(DynamicOptic.root.field("a"), "b")))
-        val m     = new Migration(Schema[Int], Schema[Int], dm)
-        val rev   = m.reverse
+        val dm  = new DynamicMigration(Chunk.single(MigrationAction.Rename(DynamicOptic.root.field("a"), "b")))
+        val m   = new Migration(Schema[Int], Schema[Int], dm)
+        val rev = m.reverse
         assertTrue(rev.sourceSchema eq m.targetSchema) &&
         assertTrue(rev.targetSchema eq m.sourceSchema) &&
         assertTrue(rev.dynamic == dm.reverse)

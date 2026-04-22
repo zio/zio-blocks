@@ -27,17 +27,17 @@ import zio.blocks.schema.migration._
  * exercises every operation a representative migration is expected to
  * demonstrate:
  *
- *   - `renameField`       (lastName -> familyName)
- *   - `addField`          with an explicit `SchemaExpr.DefaultValue` default
+ *   - `renameField` (lastName -> familyName)
+ *   - `addField` with an explicit `SchemaExpr.DefaultValue` default
  *   - `optionalizeField` + `mandateField` round-trip in composed form
  *   - `transformElements` on a `Vector` of scalars
- *   - `renameCase`        on a sealed-trait `Role`
+ *   - `renameCase` on a sealed-trait `Role`
  *   - explicit `Join(..., Seq(...), SchemaExpr.StringConcat(...))` for the
  *     `firstName + lastName -> fullName` concatenation.
  *
  * The Scala 2 / Scala 3 split is intentionally minimal: the shared file here
- * carries the builder narrative, and anything version-shaped (trait-shaped
- * vs. anonymous-refinement structural fixture) lives in the per-version
+ * carries the builder narrative, and anything version-shaped (trait-shaped vs.
+ * anonymous-refinement structural fixture) lives in the per-version
  * [[MigrationExampleFixtures]] companion under `src/main/scala-2/` and
  * `src/main/scala-3/`.
  */
@@ -74,11 +74,11 @@ object MigrationExample {
    * Target domain shape — V1 of the employee directory record.
    *
    *   - `familyName` renames `lastName`.
-   *   - `nickname`   is mandated (`Option[String]` -> `String`) with a default.
-   *   - `scores`     stays a `Vector[Int]` but each element is normalised.
-   *   - `fullName`   is derived from `firstName + " " + lastName` via Join.
+   *   - `nickname` is mandated (`Option[String]` -> `String`) with a default.
+   *   - `scores` stays a `Vector[Int]` but each element is normalised.
+   *   - `fullName` is derived from `firstName + " " + lastName` via Join.
    *   - `department` is a new record field added with an explicit default.
-   *   - `role`       stays a `Role` but `Engineer` is renamed to `LeadEngineer`.
+   *   - `role` stays a `Role` but `Engineer` is renamed to `LeadEngineer`.
    */
   final case class EmployeeV1(
     firstName: String,
@@ -95,7 +95,10 @@ object MigrationExample {
 
   // ─── Intermediate shape used by the optionalize/mandate round-trip ──────
 
-  /** Identical to [[EmployeeV0]] except `nickname` is already flattened to `String`. */
+  /**
+   * Identical to [[EmployeeV0]] except `nickname` is already flattened to
+   * `String`.
+   */
   final case class EmployeeV0Mandated(
     firstName: String,
     lastName: String,
@@ -109,7 +112,10 @@ object MigrationExample {
 
   // ─── SchemaExprs used by the migrations ────────────────────────────────
 
-  /** Default fill for the `nickname` mandate: empty string when the source is `None`. */
+  /**
+   * Default fill for the `nickname` mandate: empty string when the source is
+   * `None`.
+   */
   val nicknameDefault: SchemaExpr[EmployeeV0, String] =
     SchemaExpr.Literal[EmployeeV0, String]("", Schema[String])
 
@@ -125,10 +131,10 @@ object MigrationExample {
     SchemaExpr.Literal[EmployeeV0, Int](0, Schema[Int])
 
   /**
-   * Explicit  Join combiner for `firstName + lastName -> fullName`.
+   * Explicit Join combiner for `firstName + lastName -> fullName`.
    *
-   * The plan spells the join out as a literal [[SchemaExpr.StringConcat]] rather
-   * than relying on a shortcut — the `Join` action carries the concrete
+   * The plan spells the join out as a literal [[SchemaExpr.StringConcat]]
+   * rather than relying on a shortcut — the `Join` action carries the concrete
    * expression so the resulting `DynamicMigration` stays fully serialisable.
    */
   val fullNameCombiner: SchemaExpr[EmployeeV0, String] =
@@ -162,7 +168,8 @@ object MigrationExample {
   /**
    * `EmployeeV0` -> `EmployeeV1` composed as two typed builders with `++`:
    *
-   *   1. `mandateField` drops the `Option` around `nickname` (via `EmployeeV0Mandated`).
+   *   1. `mandateField` drops the `Option` around `nickname` (via
+   *      `EmployeeV0Mandated`).
    *   2. `renameField` renames `lastName` to `familyName`.
    *
    * The remaining V0 -> V1 operations (`transformElements`, explicit `join`,
@@ -218,9 +225,10 @@ object MigrationExample {
     MigrationExampleFixtures.structuralReaderSchema
 
   /**
-   * End-to-end illustration the example can be run via `sbt "schema-examples/runMain ..."`.
-   * The main method only prints a summary — the example's real contract is
-   * the `schema-examples/compile` proof on both Scala 2.13 and Scala 3.
+   * End-to-end illustration the example can be run via
+   * `sbt "schema-examples/runMain ..."`. The main method only prints a summary
+   * — the example's real contract is the `schema-examples/compile` proof on
+   * both Scala 2.13 and Scala 3.
    */
   def main(args: Array[String]): Unit = {
     val v0 = EmployeeV0(

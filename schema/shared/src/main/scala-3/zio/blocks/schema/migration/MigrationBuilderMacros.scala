@@ -206,7 +206,8 @@ private[migration] object MigrationBuilderMacros {
     combiner: Expr[SchemaExpr[A, F]]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val targetOptic  = CompanionOptics.optic[B, F](target, '{ $builder.targetSchema })
-    val sourceOptics = Expr.ofSeq(seqElements(sources).map(source => CompanionOptics.optic[A, Any](source, '{ $builder.sourceSchema })))
+    val sourceOptics =
+      Expr.ofSeq(seqElements(sources).map(source => CompanionOptics.optic[A, Any](source, '{ $builder.sourceSchema })))
 
     '{ MigrationBuilderSupport.join($builder, $targetOptic, $sourceOptics, $combiner) }
   }
@@ -218,7 +219,9 @@ private[migration] object MigrationBuilderMacros {
     splitter: Expr[SchemaExpr[A, G]]
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     val sourceOptic  = CompanionOptics.optic[A, F](source, '{ $builder.sourceSchema })
-    val targetOptics = Expr.ofSeq(seqElements(targetPaths).map(target => CompanionOptics.optic[B, Any](target, '{ $builder.targetSchema })))
+    val targetOptics = Expr.ofSeq(
+      seqElements(targetPaths).map(target => CompanionOptics.optic[B, Any](target, '{ $builder.targetSchema }))
+    )
 
     '{ MigrationBuilderSupport.split($builder, $sourceOptic, $targetOptics, $splitter) }
   }
@@ -266,7 +269,10 @@ private[migration] object MigrationBuilderMacros {
     }
   }
 
-  /** Builder diagnostic-message template, byte-identical across Scala 2 and Scala 3. */
+  /**
+   * Builder diagnostic-message template, byte-identical across Scala 2 and
+   * Scala 3.
+   */
   private def summaryMessage(sourceName: String, targetName: String, missingFieldsSorted: List[String]): String =
     s"Migration from $sourceName to $targetName is incomplete. Missing target fields: ${missingFieldsSorted.mkString(", ")}."
 
@@ -277,13 +283,14 @@ private[migration] object MigrationBuilderMacros {
   }
 
   /**
-   * Quotes-reflect tree walker completeness diff. Walks `builder.asTerm` syntactically
-   * to collect accounted-for target field names, then compares against summoned
-   * `Schema[B]` target field set.
+   * Quotes-reflect tree walker completeness diff. Walks `builder.asTerm`
+   * syntactically to collect accounted-for target field names, then compares
+   * against summoned `Schema[B]` target field set.
    *
-   * CRITICAL: does NOT evaluate `builder.actions` at compile time (the Chunk is a
-   * runtime Expr and Expr-eval on it silently fails). Instead, pattern-matches the
-   * builder Term left-associatively via `quotes.reflect` primitives —  canonical.
+   * CRITICAL: does NOT evaluate `builder.actions` at compile time (the Chunk is
+   * a runtime Expr and Expr-eval on it silently fails). Instead,
+   * pattern-matches the builder Term left-associatively via `quotes.reflect`
+   * primitives — canonical.
    */
   private def checkCompleteness[A: Type, B: Type](
     builder: Expr[MigrationBuilder[A, B]]
@@ -344,11 +351,11 @@ private[migration] object MigrationBuilderMacros {
     // `caseFields` (the case-class primary-constructor params). This preserves the
     // "implicit-copy same-type source field" rule by comparing TypeReprs with `=:=`.
     try {
-      val tgtSym   = TypeRepr.of[B].typeSymbol
+      val tgtSym = TypeRepr.of[B].typeSymbol
       if (!tgtSym.isClassDef || !tgtSym.flags.is(Flags.Case)) return Nil
       val tgtCaseFields = tgtSym.caseFields
 
-      val srcSym = TypeRepr.of[A].typeSymbol
+      val srcSym                           = TypeRepr.of[A].typeSymbol
       val srcByName: Map[String, TypeRepr] =
         if (srcSym.isClassDef && srcSym.flags.is(Flags.Case))
           srcSym.caseFields.iterator.map(s => (s.name, TypeRepr.of[A].memberType(s))).toMap
@@ -356,10 +363,9 @@ private[migration] object MigrationBuilderMacros {
 
       def tgtType(s: Symbol): TypeRepr = TypeRepr.of[B].memberType(s)
 
-      tgtCaseFields
-        .filterNot { f =>
-          srcByName.get(f.name).exists(_ =:= tgtType(f)) || accounted.contains(f.name)
-        }
+      tgtCaseFields.filterNot { f =>
+        srcByName.get(f.name).exists(_ =:= tgtType(f)) || accounted.contains(f.name)
+      }
         .map(_.name)
         .sorted
     } catch {
@@ -368,7 +374,7 @@ private[migration] object MigrationBuilderMacros {
   }
 
   /**
-   *  /  shallow selector-path resolution check. Scala 3 mirror of Scala 2
+   * / shallow selector-path resolution check. Scala 3 mirror of Scala 2
    * checkTypeAlignment. Runs ONLY from buildPartial ( exclusive scope).
    */
   private def checkTypeAlignment[A: Type, B: Type](
@@ -399,7 +405,8 @@ private[migration] object MigrationBuilderMacros {
     def recordSelector(method: String, args: List[Term], acc: List[String]): List[String] = method match {
       case "addField" | "join" if args.nonEmpty =>
         selectorFieldName(args.head).fold(acc)(_ :: acc)
-      case "renameField" | "transformField" | "changeFieldType" | "mandateField" | "optionalizeField" if args.size >= 2 =>
+      case "renameField" | "transformField" | "changeFieldType" | "mandateField" | "optionalizeField"
+          if args.size >= 2 =>
         selectorFieldName(args(1)).fold(acc)(_ :: acc)
       case _ => acc
     }
@@ -426,16 +433,16 @@ private[migration] object MigrationBuilderMacros {
 
     def loop(term: Term): List[Expr[S]] =
       term match {
-        case Inlined(_, _, inner)         => loop(inner)
-        case Typed(inner, _)              => loop(inner)
-        case Repeated(args, _)            => args.map(_.asExprOf[S])
+        case Inlined(_, _, inner)              => loop(inner)
+        case Typed(inner, _)                   => loop(inner)
+        case Repeated(args, _)                 => args.map(_.asExprOf[S])
         case Apply(_, List(Repeated(args, _))) => args.map(_.asExprOf[S])
-        case Apply(_, args) if args.nonEmpty =>
+        case Apply(_, args) if args.nonEmpty   =>
           args.toList match {
             case single :: Nil => loop(single)
             case many          => many.map(_.asExprOf[S])
           }
-        case _                            =>
+        case _ =>
           report.errorAndAbort("join/split require an explicit Seq(...) of selectors")
       }
 

@@ -22,8 +22,8 @@ import zio.test._
 
 object TransformValuesSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(Chunk("name" -> stringVal(name), "age" -> intVal(age)))
 
@@ -32,13 +32,13 @@ object TransformValuesSpec extends SchemaBaseSpec {
 
   def spec: Spec[Any, Any] = suite("TransformValuesSpec")(
     test("TransformValues applies transform to each value of the map, preserving keys") {
-      val k0      = stringVal("a")
-      val k1      = stringVal("b")
-      val mapDv   = mapVal(k0 -> intVal(1), k1 -> intVal(2))
-      val literal = SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int])
-      val action  = MigrationAction.TransformValues(DynamicOptic.root, literal)
-      val m       = new DynamicMigration(Chunk.single(action))
-      val result  = m.apply(mapDv)
+      val k0       = stringVal("a")
+      val k1       = stringVal("b")
+      val mapDv    = mapVal(k0 -> intVal(1), k1 -> intVal(2))
+      val literal  = SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int])
+      val action   = MigrationAction.TransformValues(DynamicOptic.root, literal)
+      val m        = new DynamicMigration(Chunk.single(action))
+      val result   = m.apply(mapDv)
       val expected = mapVal(k0 -> intVal(0), k1 -> intVal(0))
       assertTrue(result == new Right(expected))
     },
@@ -62,7 +62,8 @@ object TransformValuesSpec extends SchemaBaseSpec {
       assertTrue(action.reverse eq action)
     },
     test("TransformValues on a non-Map yields SchemaMismatch") {
-      val action = MigrationAction.TransformValues(DynamicOptic.root, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
+      val action =
+        MigrationAction.TransformValues(DynamicOptic.root, SchemaExpr.Literal[DynamicValue, Int](0, Schema[Int]))
       val m      = new DynamicMigration(Chunk.single(action))
       val result = m.apply(intVal(42))
       assertTrue(result.isLeft) &&

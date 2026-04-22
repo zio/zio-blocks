@@ -25,8 +25,8 @@ import zio.test._
  * Drives the 14 anonymous [[Matcher]]s wired into [[MigrationAction.schema]]'s
  * variantBinding — one per [[MigrationAction]] constructor. Each `Matcher`
  * implementation has two arms:
- *   - `case x: T => x`                (happy path — recorded by existing
- *     serialization / discriminator tests)
+ *   - `case x: T => x` (happy path — recorded by existing serialization /
+ *     discriminator tests)
  *   - `case _ => null.asInstanceOf[T]` (null-arm — previously uncovered)
  *
  * This spec targets the null-arm by asking every matcher to downcast every
@@ -42,7 +42,8 @@ object MigrationActionDiscriminatorSpec extends SchemaBaseSpec {
   private val defaultExpr: SchemaExpr[_, _] =
     SchemaExpr.DefaultValue(DynamicOptic.root, SchemaRepr.Primitive("int"))
 
-  /** Instances declared in the same positional order as
+  /**
+   * Instances declared in the same positional order as
    * [[MigrationAction.schema]]'s `cases` / `discriminator` / `matchers`.
    */
   private val variantInstances: IndexedSeq[(String, MigrationAction)] = IndexedSeq(
@@ -83,7 +84,7 @@ object MigrationActionDiscriminatorSpec extends SchemaBaseSpec {
       // 14 × 14 = 196 downcasts; 14 succeed, 182 hit the `case _ => null` arm.
       val outcomes: IndexedSeq[(Int, Int, Boolean)] =
         for {
-          (matcherIdx, matcher) <- matchers.zipWithIndex.map(_.swap)
+          (matcherIdx, matcher)        <- matchers.zipWithIndex.map(_.swap)
           (instanceIdx, (_, instance)) <- variantInstances.zipWithIndex.map(_.swap)
         } yield {
           val result = matcher.downcastOrNull(instance)
@@ -106,7 +107,7 @@ object MigrationActionDiscriminatorSpec extends SchemaBaseSpec {
       // Passing arbitrary non-MigrationAction values also exercises the
       // `case _ => null` arm and guards against accidental widening.
       val foreignValues: List[Any] = List("string", 42, 3.14, (), Nil, Map.empty[String, Int])
-      val allNull = matchers.forall { m =>
+      val allNull                  = matchers.forall { m =>
         foreignValues.forall(v => m.downcastOrNull(v) == null)
       }
       assertTrue(allNull)
@@ -120,10 +121,9 @@ object MigrationActionDiscriminatorSpec extends SchemaBaseSpec {
       assertTrue(pairs.forall { case (expected, actual) => expected == actual })
     },
     test("each Matcher returns the original instance (reference-eq) on its own variant (happy arm)") {
-      val diagonal = matchers.zipWithIndex.zip(variantInstances).forall {
-        case ((matcher, idx), (_, instance)) =>
-          val out = matcher.downcastOrNull(instance)
-          out != null && (out.asInstanceOf[AnyRef] eq instance.asInstanceOf[AnyRef])
+      val diagonal = matchers.zipWithIndex.zip(variantInstances).forall { case ((matcher, idx), (_, instance)) =>
+        val out = matcher.downcastOrNull(instance)
+        out != null && (out.asInstanceOf[AnyRef] eq instance.asInstanceOf[AnyRef])
       }
       assertTrue(diagonal)
     }

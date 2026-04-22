@@ -25,8 +25,8 @@ import zio.test._
  *
  * Exercises the curated migration matrix from the shared
  * `MigrationSerializationFixtures` catalog through the official
- * `MessagePackFormat` deriver. Smoke-only by design: three fixtures, one
- * codec derivation, one round-trip assertion per fixture.
+ * `MessagePackFormat` deriver. Smoke-only by design: three fixtures, one codec
+ * derivation, one round-trip assertion per fixture.
  *
  * The shared JSON property suite (`MigrationSerializationSpec`) remains the
  * authoritative exhaustive proof; this spec only proves the derived

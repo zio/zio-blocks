@@ -24,8 +24,8 @@ import zio.blocks.typeid.TypeId
 
 /**
  * Ordered sequence of [[MigrationAction]]s applied left-to-right to a
- * [[DynamicValue]]. Pure data — no closures, no `Schema[_]` fields — so the
- * ADT round-trips through its own [[DynamicMigration.schema]].
+ * [[DynamicValue]]. Pure data — no closures, no `Schema[_]` fields — so the ADT
+ * round-trips through its own [[DynamicMigration.schema]].
  */
 final case class DynamicMigration(actions: Chunk[MigrationAction]) {
 
@@ -81,12 +81,12 @@ object DynamicMigration {
       typeId = TypeId.of[DynamicMigration],
       recordBinding = new Binding.Record(
         constructor = new Constructor[DynamicMigration] {
-          def usedRegisters: RegisterOffset                                    = 1
+          def usedRegisters: RegisterOffset                                      = 1
           def construct(in: Registers, offset: RegisterOffset): DynamicMigration =
             new DynamicMigration(in.getObject(offset + 0).asInstanceOf[Chunk[MigrationAction]])
         },
         deconstructor = new Deconstructor[DynamicMigration] {
-          def usedRegisters: RegisterOffset                                                 = 1
+          def usedRegisters: RegisterOffset                                                   = 1
           def deconstruct(out: Registers, offset: RegisterOffset, in: DynamicMigration): Unit =
             out.setObject(offset + 0, in.actions)
         }

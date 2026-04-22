@@ -31,8 +31,8 @@ final case class Migration[A, B](
 ) {
 
   /**
-   * Applies this migration to `a`. Encodes `a` through `sourceSchema`, runs
-   * the dynamic actions, then decodes through `targetSchema`. Decode failures
+   * Applies this migration to `a`. Encodes `a` through `sourceSchema`, runs the
+   * dynamic actions, then decodes through `targetSchema`. Decode failures
    * surface as [[MigrationError.ActionFailed]] at [[DynamicOptic.root]].
    */
   def apply(a: A): Either[MigrationError, B] = {
@@ -64,8 +64,8 @@ object Migration {
 
   /**
    * Identity migration at `Schema[A]`. Source and target schemas coincide and
-   * the underlying dynamic migration is empty, so `apply(a)` returns
-   * `Right(a)` whenever `fromDynamicValue(toDynamicValue(a))` round-trips.
+   * the underlying dynamic migration is empty, so `apply(a)` returns `Right(a)`
+   * whenever `fromDynamicValue(toDynamicValue(a))` round-trips.
    */
   def identity[A](implicit s: Schema[A]): Migration[A, A] =
     new Migration(s, s, DynamicMigration.empty)

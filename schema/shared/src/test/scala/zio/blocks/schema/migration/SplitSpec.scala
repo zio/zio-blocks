@@ -27,8 +27,9 @@ import zio.test._
  *   - Happy path: splitter.evalDynamic returns a DynamicValue.Record whose
  *     fields align positionally with targetPaths; each field dispatched via
  *     setOrFail.
- *   - Shape-mismatch emission: arity or type mismatch → MigrationError.Irreversible.
- *   -  structural pair: `Split.reverse == Join(at, targetPaths, splitter)`.
+ *   - Shape-mismatch emission: arity or type mismatch →
+ *     MigrationError.Irreversible.
+ *   - structural pair: `Split.reverse == Join(at, targetPaths, splitter)`.
  */
 object SplitSpec extends SchemaBaseSpec {
 
@@ -74,7 +75,7 @@ object SplitSpec extends SchemaBaseSpec {
       val at          = DynamicOptic.root.field("fullName")
       val targetPaths = Chunk(DynamicOptic.root.field("firstName"), DynamicOptic.root.field("lastName"))
       val action      = MigrationAction.Split(at, targetPaths, stringSplitter)
-      val original = DynamicValue.Record(
+      val original    = DynamicValue.Record(
         Chunk(
           "fullName"  -> stringVal("Jane Smith"),
           "firstName" -> stringVal(""),

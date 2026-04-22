@@ -26,7 +26,8 @@ import zio.blocks.schema.migration._
  * JMH benchmark suite for [[DynamicMigration]] hot paths.
  *
  * Scenario coverage:
- *   - 14 single-action `apply()` benchmarks (one per [[MigrationAction]] variant).
+ *   - 14 single-action `apply()` benchmarks (one per [[MigrationAction]]
+ *     variant).
  *   - One realistic 5-action composed `apply()`.
  *   - One 10-action structural `reverse`.
  *   - One 10-action JSON round-trip (encode + decode).
@@ -43,63 +44,63 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
 
   // 14 single-action fixtures: migration + representative input DynamicValue
 
-  var addFieldMigration: DynamicMigration    = scala.compiletime.uninitialized
-  var addFieldInput: DynamicValue            = scala.compiletime.uninitialized
+  var addFieldMigration: DynamicMigration = scala.compiletime.uninitialized
+  var addFieldInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var dropFieldMigration: DynamicMigration   = scala.compiletime.uninitialized
-  var dropFieldInput: DynamicValue           = scala.compiletime.uninitialized
+  var dropFieldMigration: DynamicMigration = scala.compiletime.uninitialized
+  var dropFieldInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var renameMigration: DynamicMigration      = scala.compiletime.uninitialized
-  var renameInput: DynamicValue              = scala.compiletime.uninitialized
+  var renameMigration: DynamicMigration = scala.compiletime.uninitialized
+  var renameInput: DynamicValue         = scala.compiletime.uninitialized
 
   var transformValueMigration: DynamicMigration = scala.compiletime.uninitialized
   var transformValueInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var changeTypeMigration: DynamicMigration  = scala.compiletime.uninitialized
-  var changeTypeInput: DynamicValue          = scala.compiletime.uninitialized
+  var changeTypeMigration: DynamicMigration = scala.compiletime.uninitialized
+  var changeTypeInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var mandateMigration: DynamicMigration     = scala.compiletime.uninitialized
-  var mandateInput: DynamicValue             = scala.compiletime.uninitialized
+  var mandateMigration: DynamicMigration = scala.compiletime.uninitialized
+  var mandateInput: DynamicValue         = scala.compiletime.uninitialized
 
   var optionalizeMigration: DynamicMigration = scala.compiletime.uninitialized
   var optionalizeInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var renameCaseMigration: DynamicMigration  = scala.compiletime.uninitialized
-  var renameCaseInput: DynamicValue          = scala.compiletime.uninitialized
+  var renameCaseMigration: DynamicMigration = scala.compiletime.uninitialized
+  var renameCaseInput: DynamicValue         = scala.compiletime.uninitialized
 
   var transformCaseMigration: DynamicMigration = scala.compiletime.uninitialized
-  var transformCaseInput: DynamicValue          = scala.compiletime.uninitialized
+  var transformCaseInput: DynamicValue         = scala.compiletime.uninitialized
 
   var transformElementsMigration: DynamicMigration = scala.compiletime.uninitialized
-  var transformElementsInput: DynamicValue          = scala.compiletime.uninitialized
+  var transformElementsInput: DynamicValue         = scala.compiletime.uninitialized
 
   var transformKeysMigration: DynamicMigration = scala.compiletime.uninitialized
-  var transformKeysInput: DynamicValue          = scala.compiletime.uninitialized
+  var transformKeysInput: DynamicValue         = scala.compiletime.uninitialized
 
   var transformValuesMigration: DynamicMigration = scala.compiletime.uninitialized
-  var transformValuesInput: DynamicValue          = scala.compiletime.uninitialized
+  var transformValuesInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var joinMigration: DynamicMigration        = scala.compiletime.uninitialized
-  var joinInput: DynamicValue                = scala.compiletime.uninitialized
+  var joinMigration: DynamicMigration = scala.compiletime.uninitialized
+  var joinInput: DynamicValue         = scala.compiletime.uninitialized
 
-  var splitMigration: DynamicMigration       = scala.compiletime.uninitialized
-  var splitInput: DynamicValue               = scala.compiletime.uninitialized
+  var splitMigration: DynamicMigration = scala.compiletime.uninitialized
+  var splitInput: DynamicValue         = scala.compiletime.uninitialized
 
   // Composed 5-action apply fixture
-  var composed5Migration: DynamicMigration   = scala.compiletime.uninitialized
-  var composed5Input: DynamicValue           = scala.compiletime.uninitialized
+  var composed5Migration: DynamicMigration = scala.compiletime.uninitialized
+  var composed5Input: DynamicValue         = scala.compiletime.uninitialized
 
   // Structural reverse fixture: 10-action migration
-  var reverse10Migration: DynamicMigration   = scala.compiletime.uninitialized
+  var reverse10Migration: DynamicMigration = scala.compiletime.uninitialized
 
   // JSON round-trip fixture: 10-action migration + prebuilt codec + encoded payload
-  var jsonRoundTrip10Migration: DynamicMigration = scala.compiletime.uninitialized
-  var encoded: String                            = scala.compiletime.uninitialized
+  var jsonRoundTrip10Migration: DynamicMigration                            = scala.compiletime.uninitialized
+  var encoded: String                                                       = scala.compiletime.uninitialized
   private var jsonCodec: zio.blocks.schema.json.JsonCodec[DynamicMigration] = scala.compiletime.uninitialized
 
   // No-op fixture for hot-path discipline allocation-discipline evidence
-  var noopMigration: DynamicMigration        = scala.compiletime.uninitialized
-  var noopInput: DynamicValue                = scala.compiletime.uninitialized
+  var noopMigration: DynamicMigration = scala.compiletime.uninitialized
+  var noopInput: DynamicValue         = scala.compiletime.uninitialized
 
   // -----------------------------------------------------------------------
   // @Setup – precompute all fixtures once
@@ -373,11 +374,11 @@ class DynamicMigrationBenchmark extends BaseBenchmark {
       )
     )
     jsonCodec = Schema[DynamicMigration].deriving(JsonCodecDeriver).derive
-    encoded   = jsonCodec.encodeToString(jsonRoundTrip10Migration)
+    encoded = jsonCodec.encodeToString(jsonRoundTrip10Migration)
 
     // --- No-op: empty migration ---
     noopMigration = DynamicMigration.empty
-    noopInput     = DynamicValue.Primitive(PrimitiveValue.Int(0))
+    noopInput = DynamicValue.Primitive(PrimitiveValue.Int(0))
   }
 
   // -----------------------------------------------------------------------

@@ -22,8 +22,8 @@ import zio.test._
 
 object TransformValueSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                       = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                 = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(name: String, age: Int): DynamicValue =
     DynamicValue.Record(
       Chunk(
@@ -43,7 +43,7 @@ object TransformValueSpec extends SchemaBaseSpec {
     },
     test("TransformValue with a Literal SchemaExpr replaces the value at `at`") {
       val original = personRecord("Alice", 30)
-      val action = MigrationAction.TransformValue(
+      val action   = MigrationAction.TransformValue(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[DynamicValue, Int](99, Schema[Int])
       )
@@ -57,7 +57,7 @@ object TransformValueSpec extends SchemaBaseSpec {
     },
     test("two TransformValues compose — run in order") {
       val original = personRecord("Alice", 30)
-      val t1 = MigrationAction.TransformValue(
+      val t1       = MigrationAction.TransformValue(
         DynamicOptic.root.field("age"),
         SchemaExpr.Literal[DynamicValue, Int](50, Schema[Int])
       )

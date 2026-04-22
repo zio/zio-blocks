@@ -51,9 +51,9 @@ final case class MigrationBuilder[A, B](
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
   /**
-   * Nests a builder scoped to case `CaseA` of the source variant, producing
-   * a [[MigrationAction.TransformCase]] that runs only when the variant
-   * selects `CaseA`.
+   * Nests a builder scoped to case `CaseA` of the source variant, producing a
+   * [[MigrationAction.TransformCase]] that runs only when the variant selects
+   * `CaseA`.
    */
   def transformCase[CaseA <: A, CaseB <: B](
     caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]
@@ -76,10 +76,10 @@ final case class MigrationBuilder[A, B](
 /**
  * Public helper object that the Scala 2 and Scala 3 [[MigrationBuilder]] macros
  * emit direct calls to at the call site. The methods are intentionally not
- * `private[migration]` because macro-expanded user code (in whatever package the
- * caller lives in — `schema-examples/...`, user applications, etc.) must be able
- * to resolve them by name. Users should not call these directly; they are the
- * erased target of the selector-based builder API on [[MigrationBuilder]].
+ * `private[migration]` because macro-expanded user code (in whatever package
+ * the caller lives in — `schema-examples/...`, user applications, etc.) must be
+ * able to resolve them by name. Users should not call these directly; they are
+ * the erased target of the selector-based builder API on [[MigrationBuilder]].
  */
 object MigrationBuilderSupport {
 
@@ -88,7 +88,7 @@ object MigrationBuilderSupport {
     targetOptic: Any,
     default: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
-    val targetPath             = toDynamic(targetOptic, "addField")
+    val targetPath              = toDynamic(targetOptic, "addField")
     val (recordPath, fieldName) = parentAndField(targetPath, "addField")
 
     builder.append(new MigrationAction.AddField(recordPath, fieldName, default))
@@ -99,7 +99,7 @@ object MigrationBuilderSupport {
     sourceOptic: Any,
     defaultForReverse: SchemaExpr[_, _]
   ): MigrationBuilder[A, B] = {
-    val sourcePath             = toDynamic(sourceOptic, "dropField")
+    val sourcePath              = toDynamic(sourceOptic, "dropField")
     val (recordPath, fieldName) = parentAndField(sourcePath, "dropField")
 
     builder.append(new MigrationAction.DropField(recordPath, fieldName, defaultForReverse))
@@ -263,21 +263,23 @@ object MigrationBuilderSupport {
           reflect.asSequenceUnknown match {
             case Some(sequence) =>
               SchemaRepr.Sequence(schemaReprOf(sequence.sequence.element))
-            case None           =>
+            case None =>
               reflect.asMapUnknown match {
                 case Some(map) =>
                   SchemaRepr.Map(schemaReprOf(map.map.key), schemaReprOf(map.map.value))
-                case None      =>
+                case None =>
                   reflect.asRecord match {
                     case Some(record) =>
-                      SchemaRepr.Record(record.fields.map(field => (field.name, schemaReprOf(field.value))).toIndexedSeq)
-                    case None         =>
+                      SchemaRepr.Record(
+                        record.fields.map(field => (field.name, schemaReprOf(field.value))).toIndexedSeq
+                      )
+                    case None =>
                       reflect.asVariant match {
                         case Some(variant) =>
                           SchemaRepr.Variant(
                             variant.cases.map(case_ => (case_.name, schemaReprOf(case_.value))).toIndexedSeq
                           )
-                        case None          =>
+                        case None =>
                           SchemaRepr.Nominal(reflect.typeId.name)
                       }
                   }

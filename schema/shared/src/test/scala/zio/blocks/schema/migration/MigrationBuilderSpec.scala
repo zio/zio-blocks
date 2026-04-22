@@ -65,7 +65,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       assertTrue(builder.actions.isEmpty)
     },
     test("addField stores AddField with target record path and field name") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .addField(_.middleName, addFieldDefault)
 
       assertTrue(
@@ -75,7 +76,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("dropField stores DropField with source record path and field name") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .dropField(_.lastName, dropFieldDefault)
 
       assertTrue(
@@ -85,7 +87,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("renameField stores Rename with the source path and target field name") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .renameField(_.lastName, _.familyName)
 
       assertTrue(
@@ -95,7 +98,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("transformField stores TransformValue on the shared selector path") {
-      val builder = Migration.builder[SourcePerson, SourcePerson]
+      val builder = Migration
+        .builder[SourcePerson, SourcePerson]
         .transformField(_.firstName, _.firstName, transformLiteral)
 
       assertTrue(
@@ -105,7 +109,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("changeFieldType stores ChangeType on the shared selector path") {
-      val builder = Migration.builder[SourcePerson, AgeStringPerson]
+      val builder = Migration
+        .builder[SourcePerson, AgeStringPerson]
         .changeFieldType(_.age, _.age, converterLiteral)
 
       assertTrue(
@@ -115,7 +120,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("mandateField stores Mandate on the shared selector path") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .mandateField(_.nickname, _.nickname, mandateDefault)
 
       assertTrue(
@@ -125,7 +131,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("optionalizeField stores Optionalize with the source schema repr") {
-      val builder = Migration.builder[SourcePerson, OptionalNamePerson]
+      val builder = Migration
+        .builder[SourcePerson, OptionalNamePerson]
         .optionalizeField(_.firstName, _.firstName)
 
       assertTrue(
@@ -135,7 +142,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("renameCase stores RenameCase at the case path") {
-      val builder = Migration.builder[Role, Role]
+      val builder = Migration
+        .builder[Role, Role]
         .renameCase("Engineer", "LeadEngineer")
 
       assertTrue(
@@ -145,7 +153,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("transformCase stores nested actions under the selected case") {
-      val builder = Migration.builder[Role, Role]
+      val builder = Migration
+        .builder[Role, Role]
         .transformCase[Engineer, Engineer](_.transformField(_.level, _.level, caseLiteral))
 
       assertTrue(
@@ -158,7 +167,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("transformElements stores TransformElements at the collection path") {
-      val builder = Migration.builder[SourcePerson, SourcePerson]
+      val builder = Migration
+        .builder[SourcePerson, SourcePerson]
         .transformElements(_.scores, elementLiteral)
 
       assertTrue(
@@ -168,7 +178,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("transformKeys stores TransformKeys at the map path") {
-      val builder = Migration.builder[SourcePerson, SourcePerson]
+      val builder = Migration
+        .builder[SourcePerson, SourcePerson]
         .transformKeys(_.labels, keyLiteral)
 
       assertTrue(
@@ -178,7 +189,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("transformValues stores TransformValues at the map path") {
-      val builder = Migration.builder[SourcePerson, SourcePerson]
+      val builder = Migration
+        .builder[SourcePerson, SourcePerson]
         .transformValues(_.labels, valueLiteral)
 
       assertTrue(
@@ -188,7 +200,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("join stores target path and source paths in declared order") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .join(_.fullName, Seq(_.firstName, _.lastName), joinCombiner)
 
       assertTrue(
@@ -202,7 +215,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("split stores source path and target paths in declared order") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .split(_.fullName, Seq(_.firstName, _.familyName), splitter)
 
       assertTrue(
@@ -216,7 +230,8 @@ object MigrationBuilderSpec extends SchemaBaseSpec {
       )
     },
     test("build and buildPartial stay equivalent for the covered builder surface") {
-      val builder = Migration.builder[SourcePerson, TargetPerson]
+      val builder = Migration
+        .builder[SourcePerson, TargetPerson]
         .renameField(_.lastName, _.familyName)
         .addField(_.middleName, addFieldDefault)
 

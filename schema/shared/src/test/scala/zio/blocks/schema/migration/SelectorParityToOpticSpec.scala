@@ -37,7 +37,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("SelectorParityToOpticSpec")(
     test("parity: field selectors match CompanionOptics") {
       val expected = Company.optic(_.featured.name).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.featured.name, _.featured.name, stringLiteral)
         .actions
         .last
@@ -47,7 +48,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: case selectors match CompanionOptics") {
       val expected = Company.optic(_.role.when[Engineer].level).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.role.when[Engineer].level, _.role.when[Engineer].level, intLiteral)
         .actions
         .last
@@ -57,7 +59,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: at(index) selectors match CompanionOptics") {
       val expected = Company.optic(_.teams.at(0).name).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.teams.at(0).name, _.teams.at(0).name, stringLiteral)
         .actions
         .last
@@ -67,7 +70,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: atKey selectors match CompanionOptics") {
       val expected = Company.optic(_.directory.atKey("core").name).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.directory.atKey("core").name, _.directory.atKey("core").name, stringLiteral)
         .actions
         .last
@@ -77,7 +81,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: atIndices selectors match CompanionOptics") {
       val expected = Company.optic(_.teams.atIndices(0, 1).lead.firstName).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.teams.atIndices(0, 1).lead.firstName, _.teams.atIndices(0, 1).lead.firstName, stringLiteral)
         .actions
         .last
@@ -87,7 +92,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: atKeys selectors match CompanionOptics") {
       val expected = Company.optic(_.directory.atKeys("core", "ops").lead.firstName).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(
           _.directory.atKeys("core", "ops").lead.firstName,
           _.directory.atKeys("core", "ops").lead.firstName,
@@ -101,7 +107,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: each selectors match CompanionOptics") {
       val expected = Company.optic(_.teams.each.lead.firstName).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.teams.each.lead.firstName, _.teams.each.lead.firstName, stringLiteral)
         .actions
         .last
@@ -111,7 +118,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: eachKey selectors match CompanionOptics") {
       val expected = Company.optic(_.labels.eachKey).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.labels.eachKey, _.labels.eachKey, stringLiteral)
         .actions
         .last
@@ -121,7 +129,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: eachValue selectors match CompanionOptics") {
       val expected = Company.optic(_.labels.eachValue).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.labels.eachValue, _.labels.eachValue, intLiteral)
         .actions
         .last
@@ -131,7 +140,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: wrapped selectors match CompanionOptics") {
       val expected = Company.optic(_.id.wrapped[String]).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(_.id.wrapped[String], _.id.wrapped[String], stringLiteral)
         .actions
         .last
@@ -141,7 +151,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: search selectors match CompanionOptics across version-specific fixtures") {
       val expected = Company.optic(_.teams.searchFor[SearchPerson]).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(
           _.teams.searchFor[SearchPerson],
           _.teams.searchFor[SearchPerson],
@@ -155,7 +166,8 @@ object SelectorParityToOpticSpec extends SchemaBaseSpec {
     },
     test("parity: deep composite selectors match CompanionOptics") {
       val expected = Company.optic(_.teams.atIndices(0, 1).members.at(0).skills.atKeys("scala", "zio").score).toDynamic
-      val actual   = Migration.builder[Company, Company]
+      val actual   = Migration
+        .builder[Company, Company]
         .transformField(
           _.teams.atIndices(0, 1).members.at(0).skills.atKeys("scala", "zio").score,
           _.teams.atIndices(0, 1).members.at(0).skills.atKeys("scala", "zio").score,

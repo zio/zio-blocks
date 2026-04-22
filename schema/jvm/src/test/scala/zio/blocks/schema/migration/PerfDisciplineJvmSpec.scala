@@ -30,12 +30,11 @@ import zio.test._
  *   2. `Interpreter.scala` has ZERO `java.lang.reflect` calls — reflection is
  *      forbidden on the hot path.
  *   3. `Interpreter.scala` and `DynamicMigration.scala` have ZERO
- *      `Chunk.empty ++` concatenation patterns — intermediate Chunk
- *      allocations are forbidden on the hot path.
+ *      `Chunk.empty ++` concatenation patterns — intermediate Chunk allocations
+ *      are forbidden on the hot path.
  *
  * All error-side interpolation lives in `new Left(new MigrationError.*(...))`
- * branches and behind `lazy val message` — the success path never
- * interpolates.
+ * branches and behind `lazy val message` — the success path never interpolates.
  *
  * Moved here from shared because `scala.io.Source.fromFile` cannot link on
  * Scala.js. The shared `PerfDisciplineSpec` still carries the runtime no-op
@@ -56,9 +55,9 @@ object PerfDisciplineJvmSpec extends SchemaBaseSpec {
     s"$migrationDir/DynamicMigration.scala"
 
   /**
-   * Reads a source file's full contents into a List[String] of lines.
-   * If the file cannot be read the test fails with an explanatory assertion
-   * rather than silently passing.
+   * Reads a source file's full contents into a List[String] of lines. If the
+   * file cannot be read the test fails with an explanatory assertion rather
+   * than silently passing.
    */
   private def readLines(path: String): Either[String, List[String]] =
     try {
@@ -85,15 +84,17 @@ object PerfDisciplineJvmSpec extends SchemaBaseSpec {
 
   /**
    * Checks whether a line contains a `java.lang.reflect` call, which is
-   * forbidden in the migration hot path. Comments are deliberately not
-   * stripped — mentioning `java.lang.reflect` in a comment is allowed only in
-   * imported identifiers; actual usage would appear as a non-comment token on
-   * the same line, which this heuristic catches.
+   * forbidden in the migration hot path. Comments are deliberately not stripped
+   * — mentioning `java.lang.reflect` in a comment is allowed only in imported
+   * identifiers; actual usage would appear as a non-comment token on the same
+   * line, which this heuristic catches.
    */
   private def hasReflection(line: String): Boolean = {
     val t = line.trim
     !t.startsWith("//") && !t.startsWith("*") &&
-    (t.contains("java.lang.reflect.") || t.contains("Class.forName(") || t.contains(".getMethod(") || t.contains(".getDeclaredMethod("))
+    (t.contains("java.lang.reflect.") || t.contains("Class.forName(") || t.contains(".getMethod(") || t.contains(
+      ".getDeclaredMethod("
+    ))
   }
 
   /**
@@ -107,7 +108,9 @@ object PerfDisciplineJvmSpec extends SchemaBaseSpec {
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("PerfDisciplineJvmSpec")(
-    test("source-grep: Interpreter.scala has ZERO string-interpolation or MigrationError allocation inside success-arm Right(...) contexts") {
+    test(
+      "source-grep: Interpreter.scala has ZERO string-interpolation or MigrationError allocation inside success-arm Right(...) contexts"
+    ) {
       readLines(interpreterPath) match {
         case Right(lines) =>
           val violations = lines.zipWithIndex.collect {

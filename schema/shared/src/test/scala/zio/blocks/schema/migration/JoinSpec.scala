@@ -26,13 +26,13 @@ import zio.test._
  * Pins:
  *   - : 3-source [[SchemaExpr.StringConcat]] fixture (nested binary) combines
  *     into a single string written at `at` via `setOrFail`.
- *   -  structural pair: `Join.reverse == Split(at, sourcePaths, combiner)`.
+ *   - structural pair: `Join.reverse == Split(at, sourcePaths, combiner)`.
  *   - Combiner `evalDynamic` against root DV, not against `get(at)`.
  */
 object JoinSpec extends SchemaBaseSpec {
 
-  private def intVal(n: Int): DynamicValue       = DynamicValue.Primitive(PrimitiveValue.Int(n))
-  private def stringVal(s: String): DynamicValue = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intVal(n: Int): DynamicValue                            = DynamicValue.Primitive(PrimitiveValue.Int(n))
+  private def stringVal(s: String): DynamicValue                      = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def personRecord(first: String, last: String): DynamicValue =
     DynamicValue.Record(
       Chunk(
@@ -46,20 +46,20 @@ object JoinSpec extends SchemaBaseSpec {
     test("Join with 3-source nested StringConcat combines into a single string at `at` ( fixture)") {
       // 3-source fixture: StringConcat(StringConcat(Literal("a"), Literal("b")), Literal("c"))
       // yields concatenated DynamicValue.Primitive(String("abc")) written at `at`.
-      val p1       = SchemaExpr.Literal[DynamicValue, String]("a", Schema[String])
-      val p2       = SchemaExpr.Literal[DynamicValue, String]("b", Schema[String])
-      val p3       = SchemaExpr.Literal[DynamicValue, String]("c", Schema[String])
-      val inner    = SchemaExpr.StringConcat[DynamicValue](p1, p2)
-      val combiner = SchemaExpr.StringConcat[DynamicValue](inner, p3)
-      val at       = DynamicOptic.root.field("fullName")
+      val p1          = SchemaExpr.Literal[DynamicValue, String]("a", Schema[String])
+      val p2          = SchemaExpr.Literal[DynamicValue, String]("b", Schema[String])
+      val p3          = SchemaExpr.Literal[DynamicValue, String]("c", Schema[String])
+      val inner       = SchemaExpr.StringConcat[DynamicValue](p1, p2)
+      val combiner    = SchemaExpr.StringConcat[DynamicValue](inner, p3)
+      val at          = DynamicOptic.root.field("fullName")
       val sourcePaths = Chunk(
         DynamicOptic.root.field("firstName"),
         DynamicOptic.root.field("lastName"),
         DynamicOptic.root.field("middleName")
       )
-      val action   = MigrationAction.Join(at, sourcePaths, combiner)
-      val m        = new DynamicMigration(Chunk.single(action))
-      val result   = m.apply(personRecord("Jane", "Smith"))
+      val action = MigrationAction.Join(at, sourcePaths, combiner)
+      val m      = new DynamicMigration(Chunk.single(action))
+      val result = m.apply(personRecord("Jane", "Smith"))
       assertTrue(result.isRight) &&
       assertTrue(
         result.toOption.flatMap(_.get(at).values.flatMap(_.headOption))
@@ -67,26 +67,26 @@ object JoinSpec extends SchemaBaseSpec {
       )
     },
     test("Join.reverse == Split(at, sourcePaths, combiner) — structural pair") {
-      val at          = DynamicOptic.root.field("fullName")
-      val paths       = Chunk(DynamicOptic.root.field("a"), DynamicOptic.root.field("b"))
-      val combiner    = SchemaExpr.Literal[DynamicValue, String]("x", Schema[String])
-      val join        = MigrationAction.Join(at, paths, combiner)
-      val expected    = MigrationAction.Split(at, paths, combiner)
+      val at       = DynamicOptic.root.field("fullName")
+      val paths    = Chunk(DynamicOptic.root.field("a"), DynamicOptic.root.field("b"))
+      val combiner = SchemaExpr.Literal[DynamicValue, String]("x", Schema[String])
+      val join     = MigrationAction.Join(at, paths, combiner)
+      val expected = MigrationAction.Split(at, paths, combiner)
       assertTrue(join.reverse == expected) &&
       assertTrue(join.reverse.reverse == join)
     },
     test("Join composes within a DynamicMigration and runs left-to-right (apply happy path, reverse-involution)") {
-      val p1       = SchemaExpr.Literal[DynamicValue, String]("foo", Schema[String])
-      val p2       = SchemaExpr.Literal[DynamicValue, String]("bar", Schema[String])
-      val combiner = SchemaExpr.StringConcat[DynamicValue](p1, p2)
-      val at       = DynamicOptic.root.field("fullName")
+      val p1          = SchemaExpr.Literal[DynamicValue, String]("foo", Schema[String])
+      val p2          = SchemaExpr.Literal[DynamicValue, String]("bar", Schema[String])
+      val combiner    = SchemaExpr.StringConcat[DynamicValue](p1, p2)
+      val at          = DynamicOptic.root.field("fullName")
       val sourcePaths = Chunk(
         DynamicOptic.root.field("firstName"),
         DynamicOptic.root.field("lastName")
       )
-      val join     = MigrationAction.Join(at, sourcePaths, combiner)
-      val m        = new DynamicMigration(Chunk.single(join))
-      val result   = m.apply(personRecord("X", "Y"))
+      val join   = MigrationAction.Join(at, sourcePaths, combiner)
+      val m      = new DynamicMigration(Chunk.single(join))
+      val result = m.apply(personRecord("X", "Y"))
       assertTrue(result.isRight) &&
       assertTrue(join.reverse.reverse == join)
     }

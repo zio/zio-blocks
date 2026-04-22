@@ -32,42 +32,38 @@ import zio.test._
  * authoritative exhaustive proof; this spec only proves the derived
  * `Schema[DynamicMigration]` is format-agnostic for the Toon codec.
  *
- * == Known Toon codec blocker ==
+ * ==Known Toon codec blocker==
  *
- * The three fixture round-trips are captured openly below but currently do
- * not pass because of a pre-existing Toon codec bug in
+ * The three fixture round-trips are captured openly below but currently do not
+ * pass because of a pre-existing Toon codec bug in
  * `schema-toon/src/main/scala/zio/blocks/schema/toon/ToonWriter.scala` that
  * only surfaces with `Chunk[<variant>]` (or any `Reflect.Sequence[Variant]`)
  * shapes. Example encoded output for `simpleRenameAndAdd`:
  *
- *   actions[2]:
- *     - Rename:
- *       at:
- *         nodes[1]:
- *           - Field:
- *             name: orig
+ * actions[2]:
+ *   - Rename: at: nodes[1]:
+ *     - Field: name: orig
  *
- *         to: renamed        // <-- wrongly indented under `at:` instead of `Rename:`
+ * to: renamed // <-- wrongly indented under `at:` instead of `Rename:`
  *
- * On decode Toon reports `Missing required field: to` (or `combiner`, etc.)
- * for the variant-scoped fields because the writer misplaces their
- * indentation whenever a prior sibling field's value is a nested record
- * inside a list element. Both `DiscriminatorKind.Key` (default) and
- * `DiscriminatorKind.Field` reproduce the issue, because the bug is in the
- * writer indentation state, not the discriminator layer. The existing
- * `ToonCodecDeriverSpec` has no coverage for `List[Pet]` / `Chunk[Pet]`
- * shapes, which is why this bug has never surfaced before.
+ * On decode Toon reports `Missing required field: to` (or `combiner`, etc.) for
+ * the variant-scoped fields because the writer misplaces their indentation
+ * whenever a prior sibling field's value is a nested record inside a list
+ * element. Both `DiscriminatorKind.Key` (default) and `DiscriminatorKind.Field`
+ * reproduce the issue, because the bug is in the writer indentation state, not
+ * the discriminator layer. The existing `ToonCodecDeriverSpec` has no coverage
+ * for `List[Pet]` / `Chunk[Pet]` shapes, which is why this bug has never
+ * surfaced before.
  *
- * The three fixture round-trips are annotated with `TestAspect.ignore` and
- * this docstring acts as the visible open deviation note. Fixing Toon's
- * indentation state for `Chunk[Variant]` encoding belongs in a follow-up
- * change against `schema-toon` and is outside the scope of the migration
- * system itself.
+ * The three fixture round-trips are annotated with `TestAspect.ignore` and this
+ * docstring acts as the visible open deviation note. Fixing Toon's indentation
+ * state for `Chunk[Variant]` encoding belongs in a follow-up change against
+ * `schema-toon` and is outside the scope of the migration system itself.
  *
- * The derivation proof test below stays `unignored` and green, confirming
- * that `Schema[DynamicMigration]` is derivable through `ToonCodecDeriver`
- * (the derivation surface is format-agnostic), which is the property this
- * spec owns for the Toon codec module.
+ * The derivation proof test below stays `unignored` and green, confirming that
+ * `Schema[DynamicMigration]` is derivable through `ToonCodecDeriver` (the
+ * derivation surface is format-agnostic), which is the property this spec owns
+ * for the Toon codec module.
  */
 object ToonMigrationSmokeSpec extends ZIOSpecDefault {
   import MigrationSerializationFixtures._
