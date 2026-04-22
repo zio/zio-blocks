@@ -17,8 +17,11 @@
 package zio.blocks.schema.bson
 
 import org.bson.{BsonReader, BsonWriter, BsonValue}
+import org.bson.types.Decimal128
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Register, RegisterOffset, Registers}
+import zio.blocks.schema.json.Json
 
 object BsonSchemaCodec {
 
@@ -98,7 +101,11 @@ object BsonSchemaCodec {
       )
 
   // Cache for deferred codecs to handle recursion
-  private val codecCache = new java.util.concurrent.ConcurrentHashMap[Any, BsonCodec[Any]]()
+  private val codecCache       = new java.util.concurrent.ConcurrentHashMap[Any, BsonCodec[Any]]()
+  private val JsonTypeFullName = "zio.blocks.schema.json.Json"
+
+  private def isBuiltInJsonSchema[A](reflect: Reflect.Bound[A]): Boolean =
+    reflect.isVariant && reflect.typeId.fullName == JsonTypeFullName
 
   // Helper to recursively derive codec from Reflect structure
   private def deriveCodec[A](reflect: Reflect.Bound[A], config: Config): BsonCodec[A] =
@@ -157,29 +164,116 @@ object BsonSchemaCodec {
       }
     } else {
       // Non-deferred types
-      reflect.asPrimitive match {
-        case Some(primitive) =>
-          Codecs.primitiveCodec(primitive.primitiveType)
-        case None =>
-          if (reflect.isRecord) {
-            deriveRecordCodec(reflect.asRecord.get, config)
-          } else if (reflect.isSequence) {
-            val seq = reflect.asSequenceUnknown.get
-            deriveSequenceCodec(seq.sequence, config).asInstanceOf[BsonCodec[A]]
-          } else if (reflect.isMap) {
-            val m = reflect.asMapUnknown.get
-            deriveMapCodec(m.map, config).asInstanceOf[BsonCodec[A]]
-          } else if (reflect.isVariant) {
-            deriveVariantCodec(reflect.asVariant.get, config)
-          } else if (reflect.isWrapper) {
-            val w = reflect.asWrapperUnknown.get
-            deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
-          } else {
-            throw new UnsupportedOperationException(
-              s"BSON codec for ${reflect.typeId.fullName} (type: ${reflect.nodeType}) is not yet implemented."
-            )
-          }
+      if (isBuiltInJsonSchema(reflect)) {
+        deriveJsonCodec().asInstanceOf[BsonCodec[A]]
+      } else {
+        reflect.asPrimitive match {
+          case Some(primitive) =>
+            Codecs.primitiveCodec(primitive.primitiveType)
+          case None =>
+            if (reflect.isRecord) {
+              deriveRecordCodec(reflect.asRecord.get, config)
+            } else if (reflect.isSequence) {
+              val seq = reflect.asSequenceUnknown.get
+              deriveSequenceCodec(seq.sequence, config).asInstanceOf[BsonCodec[A]]
+            } else if (reflect.isMap) {
+              val m = reflect.asMapUnknown.get
+              deriveMapCodec(m.map, config).asInstanceOf[BsonCodec[A]]
+            } else if (reflect.isVariant) {
+              deriveVariantCodec(reflect.asVariant.get, config)
+            } else if (reflect.isWrapper) {
+              val w = reflect.asWrapperUnknown.get
+              deriveWrapperCodec(w.wrapper, config).asInstanceOf[BsonCodec[A]]
+            } else {
+              throw new UnsupportedOperationException(
+                s"BSON codec for ${reflect.typeId.fullName} (type: ${reflect.nodeType}) is not yet implemented."
+              )
+            }
+        }
       }
+    }
+
+  private def deriveJsonCodec(): BsonCodec[Json] = {
+    val encoder = new BsonEncoder[Json] {
+      def encode(writer: BsonWriter, value: Json, ctx: BsonEncoder.EncoderContext): Unit =
+        BsonEncoder.bsonValueEncoder.encode(writer, jsonToBsonValue(value), ctx)
+
+      def toBsonValue(value: Json): BsonValue =
+        jsonToBsonValue(value)
+    }
+
+    val decoder = new BsonDecoder[Json] {
+      private val bsonValueCodec = new org.bson.codecs.BsonValueCodec()
+      private val decoderContext = org.bson.codecs.DecoderContext.builder().build()
+
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Json =
+        bsonValueToJson(bsonValueCodec.decode(reader, decoderContext), trace)
+
+      def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Json =
+        bsonValueToJson(value, trace)
+    }
+
+    BsonCodec(encoder, decoder)
+  }
+
+  private def jsonToBsonValue(json: Json): BsonValue = json match {
+    case obj: Json.Object =>
+      val doc = new org.bson.BsonDocument()
+      obj.value.foreach { case (key, value) =>
+        doc.put(key, jsonToBsonValue(value))
+      }
+      doc
+    case arr: Json.Array =>
+      val bsonArray = new org.bson.BsonArray()
+      arr.value.foreach(value => bsonArray.add(jsonToBsonValue(value)))
+      bsonArray
+    case str: Json.String   => new org.bson.BsonString(str.value)
+    case bool: Json.Boolean => new org.bson.BsonBoolean(bool.value)
+    case num: Json.Number   => jsonNumberToBsonValue(num.value)
+    case Json.Null          => org.bson.BsonNull.VALUE
+  }
+
+  private def jsonNumberToBsonValue(value: BigDecimal): BsonValue =
+    if (value.isWhole && value.isValidInt) {
+      new org.bson.BsonInt32(value.toInt)
+    } else if (value.isWhole && value.isValidLong) {
+      new org.bson.BsonInt64(value.toLong)
+    } else {
+      new org.bson.BsonDecimal128(new Decimal128(value.bigDecimal))
+    }
+
+  private def bsonValueToJson(value: BsonValue, trace: List[BsonTrace]): Json =
+    value.getBsonType match {
+      case org.bson.BsonType.DOCUMENT =>
+        val doc    = value.asDocument()
+        val fields = scala.collection.mutable.ArrayBuffer.empty[(String, Json)]
+        val iter   = doc.entrySet().iterator()
+        while (iter.hasNext()) {
+          val entry = iter.next()
+          fields += entry.getKey -> bsonValueToJson(entry.getValue, BsonTrace.Field(entry.getKey) :: trace)
+        }
+        new Json.Object(Chunk.fromIterable(fields))
+      case org.bson.BsonType.ARRAY =>
+        val array    = value.asArray()
+        val elements = scala.collection.mutable.ArrayBuffer.empty[Json]
+        val iter     = array.iterator()
+        var idx      = 0
+        while (iter.hasNext()) {
+          elements += bsonValueToJson(iter.next(), BsonTrace.Array(idx) :: trace)
+          idx += 1
+        }
+        new Json.Array(Chunk.fromIterable(elements))
+      case org.bson.BsonType.STRING  => Json.String(value.asString().getValue)
+      case org.bson.BsonType.BOOLEAN => Json.Boolean(value.asBoolean().getValue)
+      case org.bson.BsonType.INT32   => Json.Number(value.asInt32().getValue)
+      case org.bson.BsonType.INT64   => Json.Number(value.asInt64().getValue)
+      case org.bson.BsonType.DOUBLE  =>
+        val doubleValue = value.asDouble().getValue
+        if (java.lang.Double.isFinite(doubleValue)) Json.Number(doubleValue)
+        else throw BsonDecoder.Error(trace, s"Unsupported non-finite DOUBLE for Json: $doubleValue")
+      case org.bson.BsonType.DECIMAL128 => Json.Number(BigDecimal(value.asDecimal128().getValue.bigDecimalValue()))
+      case org.bson.BsonType.NULL       => Json.Null
+      case other                        => throw BsonDecoder.Error(trace, s"Unsupported BSON type for Json: $other")
     }
 
   // Record (case class) codec derivation
