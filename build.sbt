@@ -1129,7 +1129,7 @@ lazy val `streams-benchmark` = project
 
 lazy val `schema-examples-macros` = project
   .in(file("schema-examples-macros"))
-  .settings(stdSettings("zio-blocks-schema-examples-macros", Seq(BuildHelper.Scala3)))
+  .settings(stdSettings("zio-blocks-schema-examples-macros", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
@@ -1139,7 +1139,7 @@ lazy val `schema-examples-macros` = project
 
 lazy val `schema-examples` = project
   .in(file("schema-examples"))
-  .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
+  .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
