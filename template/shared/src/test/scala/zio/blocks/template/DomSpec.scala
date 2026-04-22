@@ -478,6 +478,76 @@ object DomSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<div>hello</div>")
       }
     ),
+    suite("collection of attributes (AddEffects)")(
+      test("list of attributes is applied to element") {
+        val el    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val attrs = List[Dom.Attribute](
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main")),
+          Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("box"))
+        )
+        val result = el(attrs)
+        assertTrue(result.render == """<div id="main" class="box"></div>""")
+      },
+      test("seq of attributes is applied to element") {
+        val el    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val attrs = Seq[Dom.Attribute](
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")),
+          Dom.Attribute.BooleanAttribute("disabled")
+        )
+        val result = el(attrs)
+        assertTrue(result.render == """<div id="x" disabled></div>""")
+      },
+      test("chunk of attributes is applied to element") {
+        val el    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val attrs = Chunk[Dom.Attribute](
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("y"))
+        )
+        val result = el(attrs)
+        assertTrue(result.render == """<div id="y"></div>""")
+      },
+      test("array of attributes is applied to element") {
+        val el    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val attrs = Array[Dom.Attribute](
+          Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("z")),
+          Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("main"))
+        )
+        val result = el(attrs)
+        assertTrue(result.render == """<div id="z" class="main"></div>""")
+      },
+      test("mixed collection of children preserves all types") {
+        val el       = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val children = List[Dom](Dom.Text("hello"), Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("world"))))
+        val result   = el(children)
+        assertTrue(result.render == "<div>hello<span>world</span></div>")
+      }
+    ),
+    suite("indented rendering escaping")(
+      test("indented rendering escapes text in generic elements (single child)") {
+        val el = Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("<script>alert(1)</script>")))
+        assertTrue(el.render(2) == "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>")
+      },
+      test("indented rendering escapes text in generic elements (multi child)") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("<b>bold</b>"))),
+            Dom.Text("1 < 2 & 3 > 1")
+          )
+        )
+        assertTrue(
+          el.render(2) == "<div>\n  <p>&lt;b&gt;bold&lt;/b&gt;</p>\n  1 &lt; 2 &amp; 3 &gt; 1\n</div>"
+        )
+      },
+      test("indented rendering does not escape text in script elements") {
+        val el = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("if (a < b) { alert('xss'); }")))
+        assertTrue(el.render(2) == "<script>if (a < b) { alert('xss'); }</script>")
+      },
+      test("indented rendering does not escape text in style elements") {
+        val el = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("div > p { color: red; }")))
+        assertTrue(el.render(2) == "<style>div > p { color: red; }</style>")
+      }
+    ),
     suite("AttributeSeparator")(
       test("Space separator") {
         val attr = Dom.Attribute.KeyValue(

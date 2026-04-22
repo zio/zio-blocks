@@ -17,13 +17,14 @@
 package zio.blocks.template
 
 import scala.language.implicitConversions
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 sealed trait ModifierEffect extends Product with Serializable
 
 object ModifierEffect {
-  final case class AddAttr(attr: Dom.Attribute)      extends ModifierEffect
-  final case class AddChild(child: Dom)              extends ModifierEffect
-  final case class AddChildren(children: Chunk[Dom]) extends ModifierEffect
+  final case class AddAttr(attr: Dom.Attribute)               extends ModifierEffect
+  final case class AddChild(child: Dom)                       extends ModifierEffect
+  final case class AddChildren(children: Chunk[Dom])          extends ModifierEffect
+  final case class AddEffects(effects: Chunk[ModifierEffect]) extends ModifierEffect
 }
 
 trait ModifierEffectConversions {
@@ -157,16 +158,14 @@ object ToModifier {
     }
 
   private def buildFromCollection[A](iter: Iterator[A], sizeHint: Int, ev: ToModifier[A]): ModifierEffect = {
-    val childBuilder = Chunk.newBuilder[Dom]
-    if (sizeHint > 0) childBuilder.sizeHint(sizeHint)
+    val effectBuilder = Chunk.newBuilder[ModifierEffect]
+    if (sizeHint > 0) effectBuilder.sizeHint(sizeHint)
     while (iter.hasNext) {
-      ev.toModifier(iter.next()) match {
-        case ModifierEffect.AddChild(c)     => childBuilder += c
-        case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
-        case ModifierEffect.AddAttr(_)      => () // attrs in collections are skipped (unusual case)
-      }
+      effectBuilder += ev.toModifier(iter.next())
     }
-    ModifierEffect.AddChildren(childBuilder.result())
+    val result = effectBuilder.result()
+    if (result.length == 1) result(0)
+    else ModifierEffect.AddEffects(result)
   }
 
   /**
@@ -181,11 +180,7 @@ object ToModifier {
 
     var i = 0
     while (i < effects.length) {
-      effects(i) match {
-        case ModifierEffect.AddAttr(a)      => attrBuilder += a
-        case ModifierEffect.AddChild(c)     => childBuilder += c
-        case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
-      }
+      applyEffect(effects(i), attrBuilder, childBuilder)
       i += 1
     }
 
@@ -206,22 +201,31 @@ object ToModifier {
     attrBuilder ++= element.attributes
     childBuilder ++= element.children
 
-    first match {
-      case ModifierEffect.AddAttr(a)      => attrBuilder += a
-      case ModifierEffect.AddChild(c)     => childBuilder += c
-      case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
-    }
+    applyEffect(first, attrBuilder, childBuilder)
 
     var i = 0
     while (i < rest.length) {
-      rest(i) match {
-        case ModifierEffect.AddAttr(a)      => attrBuilder += a
-        case ModifierEffect.AddChild(c)     => childBuilder += c
-        case ModifierEffect.AddChildren(cs) => childBuilder ++= cs
-      }
+      applyEffect(rest(i), attrBuilder, childBuilder)
       i += 1
     }
 
     element.withAttributes(attrBuilder.result()).withChildren(childBuilder.result())
   }
+
+  private def applyEffect(
+    effect: ModifierEffect,
+    attrBuilder: ChunkBuilder[Dom.Attribute],
+    childBuilder: ChunkBuilder[Dom]
+  ): Unit =
+    effect match {
+      case ModifierEffect.AddAttr(a)       => attrBuilder += a
+      case ModifierEffect.AddChild(c)      => childBuilder += c
+      case ModifierEffect.AddChildren(cs)  => childBuilder ++= cs
+      case ModifierEffect.AddEffects(effs) =>
+        var k = 0
+        while (k < effs.length) {
+          applyEffect(effs(k), attrBuilder, childBuilder)
+          k += 1
+        }
+    }
 }

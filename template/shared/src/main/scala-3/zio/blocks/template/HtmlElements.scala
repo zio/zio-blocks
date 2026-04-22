@@ -22,33 +22,15 @@ trait HtmlElements {
 
   // --- Element constructors ---
 
-  private def elScript(effects: Seq[ModifierEffect]): Dom.Element.Script = {
-    var elem: Dom.Element.Script = Dom.Element.Script(Chunk.empty, Chunk.empty)
-    var i                        = 0
-    while (i < effects.length) {
-      effects(i) match {
-        case ModifierEffect.AddAttr(a)      => elem = elem.withAttributes(elem.attributes :+ a)
-        case ModifierEffect.AddChild(c)     => elem = elem.withChildren(elem.children :+ c)
-        case ModifierEffect.AddChildren(cs) => elem = elem.withChildren(elem.children ++ cs)
-      }
-      i += 1
-    }
-    elem
-  }
+  private def elScript(effects: Seq[ModifierEffect]): Dom.Element.Script =
+    ToModifier
+      .buildFromEffects(Dom.Element.Script(Chunk.empty, Chunk.empty), effects)
+      .asInstanceOf[Dom.Element.Script]
 
-  private def elStyle(effects: Seq[ModifierEffect]): Dom.Element.Style = {
-    var elem: Dom.Element.Style = Dom.Element.Style(Chunk.empty, Chunk.empty)
-    var i                       = 0
-    while (i < effects.length) {
-      effects(i) match {
-        case ModifierEffect.AddAttr(a)      => elem = elem.withAttributes(elem.attributes :+ a)
-        case ModifierEffect.AddChild(c)     => elem = elem.withChildren(elem.children :+ c)
-        case ModifierEffect.AddChildren(cs) => elem = elem.withChildren(elem.children ++ cs)
-      }
-      i += 1
-    }
-    elem
-  }
+  private def elStyle(effects: Seq[ModifierEffect]): Dom.Element.Style =
+    ToModifier
+      .buildFromEffects(Dom.Element.Style(Chunk.empty, Chunk.empty), effects)
+      .asInstanceOf[Dom.Element.Style]
 
   val html: Dom.Element                                                            = Dom.Element.Generic("html", Chunk.empty, Chunk.empty)
   val head: Dom.Element                                                            = Dom.Element.Generic("head", Chunk.empty, Chunk.empty)
