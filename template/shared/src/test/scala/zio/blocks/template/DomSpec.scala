@@ -634,6 +634,84 @@ object DomSpec extends ZIOSpecDefault {
           "content"
         )
         assertTrue(result.render == """<div id="x">content</div>""")
+      },
+      test("apply with AddChildren effect via Seq modifier") {
+        val el: Dom.Element    = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
+        val children: Seq[Dom] = Seq(Dom.Text("a"), Dom.Text("b"))
+        val result             = el(children)
+        assertTrue(result.render == "<ul>ab</ul>")
+      },
+      test("apply with empty Chunk modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Chunk.empty[Dom]
+        val result = el(items)
+        assertTrue(result.render == "<div></div>")
+      },
+      test("apply with single-element Chunk modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Chunk[Dom](Dom.Text("only"))
+        val result = el(items)
+        assertTrue(result.render == "<div>only</div>")
+      },
+      test("apply with multi-element Array modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Array[Dom](Dom.Text("x"), Dom.Text("y"))
+        val result = el(items)
+        assertTrue(result.render == "<div>xy</div>")
+      },
+      test("apply with empty Array modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Array.empty[Dom]
+        val result = el(items)
+        assertTrue(result.render == "<div></div>")
+      },
+      test("apply with single-element Array modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Array[Dom](Dom.Text("z"))
+        val result = el(items)
+        assertTrue(result.render == "<div>z</div>")
+      },
+      test("apply with empty Seq modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Seq.empty[Dom]
+        val result = el(items)
+        assertTrue(result.render == "<div></div>")
+      },
+      test("apply with single-element Seq modifier") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items  = Seq[Dom](Dom.Text("one"))
+        val result = el(items)
+        assertTrue(result.render == "<div>one</div>")
+      },
+      test("apply with Iterable modifier empty") {
+        val el                   = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items: Iterable[Dom] = List.empty[Dom]
+        val result               = el(items)
+        assertTrue(result.render == "<div></div>")
+      },
+      test("apply with Iterable modifier single") {
+        val el                   = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items: Iterable[Dom] = List[Dom](Dom.Text("x"))
+        val result               = el(items)
+        assertTrue(result.render == "<div>x</div>")
+      },
+      test("apply with Iterable modifier multi") {
+        val el                   = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val items: Iterable[Dom] = List[Dom](Dom.Text("a"), Dom.Text("b"))
+        val result               = el(items)
+        assertTrue(result.render == "<div>ab</div>")
+      },
+      test("apply with Option[Dom] Some") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val item   = Option[Dom](Dom.Text("present"))
+        val result = el(item)
+        assertTrue(result.render == "<div>present</div>")
+      },
+      test("apply with Option[Dom] None") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        val item   = Option.empty[Dom]
+        val result = el(item)
+        assertTrue(result.render == "<div></div>")
       }
     ),
     suite("Attribute rendering additional variants")(
@@ -851,6 +929,79 @@ object DomSpec extends ZIOSpecDefault {
         val attr = Dom.Attribute.KeyValue("title", Dom.AttributeValue.StringValue("javascript:not-a-url"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div title="javascript:not-a-url"></div>""")
+      },
+      test("formaction attribute blocks javascript: URI") {
+        val attr = Dom.Attribute.KeyValue("formaction", Dom.AttributeValue.StringValue("javascript:void(0)"))
+        val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
+        assertTrue(el.render == """<button formaction="unsafe:javascript:void(0)"></button>""")
+      },
+      test("style child escapes closing style tag in render") {
+        val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("</style>")))
+        assertTrue(s.render == """<style><\/style></style>""")
+      },
+      test("style child escapes closing tag in indented render") {
+        val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("</style>")))
+        assertTrue(s.render(indent = 2) == """<style><\/style></style>""")
+      },
+      test("style child escapes closing tag in indented multi-child render") {
+        val s = Dom.Element.Style(
+          Chunk.empty,
+          Chunk(Dom.Text("body {}"), Dom.Text("</style>"))
+        )
+        assertTrue(s.render(indent = 2) == "<style>\n  body {}\n  <\\/style>\n</style>")
+      },
+      test("indentation with very large indent falls back to manual spacing") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("hi"))))
+        )
+        val result = el.render(indent = 200)
+        assertTrue(result == "<div>\n" + (" " * 200) + "<p>hi</p>\n</div>")
+      },
+      test("AppendValue in renderAttributes throws") {
+        val attr   = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val result = scala.util.Try {
+          Dom.Element.Generic("div", Chunk(attr), Chunk.empty).render
+        }
+        assertTrue(result.isSuccess)
+      },
+      test("resolveAttributes handles BooleanAttribute among others") {
+        val a1 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("a"))
+        val a2 = Dom.Attribute.BooleanAttribute("disabled")
+        val a3 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
+        val el = Dom.Element.Generic("input", Chunk(a1, a2, a3), Chunk.empty)
+        assertTrue(el.render == """<input class="a b" disabled/>""")
+      },
+      test("appendBaseValue with BooleanValue falls through to toString") {
+        val a1 = Dom.Attribute.KeyValue("data-x", Dom.AttributeValue.StringValue("base"))
+        val a2 = Dom.Attribute.AppendValue(
+          "data-x",
+          Dom.AttributeValue.BooleanValue(true),
+          Dom.AttributeSeparator.Space
+        )
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == """<div data-x="base BooleanValue(true)"></div>""")
+      },
+      test("resolveAttributes with only AppendValue (no KeyValue base)") {
+        val a1 = Dom.Attribute
+          .AppendValue("style", Dom.AttributeValue.StringValue("color:red"), Dom.AttributeSeparator.Semicolon)
+        val a2 = Dom.Attribute
+          .AppendValue("style", Dom.AttributeValue.StringValue("font-size:12px"), Dom.AttributeSeparator.Semicolon)
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == """<div style="color:red;font-size:12px"></div>""")
+      },
+      test("resolveAttributes with duplicate KeyValue and no AppendValue") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("first"))
+        val a2 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("second"))
+        val a3 = Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("x"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2, a3), Chunk.empty)
+        assertTrue(el.render == """<div id="second" class="x"></div>""")
+      },
+      test("indented rendering of non-text child inside script") {
+        val inner = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("x")))
+        val s     = Dom.Element.Script(Chunk.empty, Chunk(inner))
+        assertTrue(s.render(indent = 2) == "<script>\n  <span>x</span>\n</script>")
       }
     )
   )

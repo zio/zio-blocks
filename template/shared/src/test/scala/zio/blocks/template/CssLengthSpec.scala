@@ -62,6 +62,12 @@ object CssLengthSpec extends ZIOSpecDefault {
     },
     test("Double extension vw") {
       assertTrue(66.6.vw == CssLength(66.6, "vw"))
+    },
+    test("NaN renders as 0 with unit") {
+      assertTrue(CssLength(Double.NaN, "px").render == "0px")
+    },
+    test("Infinity renders as 0 with unit") {
+      assertTrue(CssLength(Double.PositiveInfinity, "em").render == "0em")
     }
   )
 }

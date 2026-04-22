@@ -116,6 +116,17 @@ object ToJsSpec extends ZIOSpecDefault {
       }
       val result = ToJs[Wrap].toJs(Wrap("<b>"))
       assertTrue(result == "{\"v\":\"\\u003cb\\u003e\"}")
+    },
+    test("ToJs.fromSchema caches codec on second call") {
+      import zio.blocks.schema.Schema
+      case class Pt(x: Int)
+      object Pt {
+        implicit val schema: Schema[Pt] = Schema.derived
+      }
+      val toJs   = ToJs[Pt]
+      val first  = toJs.toJs(Pt(1))
+      val second = toJs.toJs(Pt(2))
+      assertTrue(first == """{"x":1}""", second == """{"x":2}""")
     }
   )
 }

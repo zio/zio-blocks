@@ -118,6 +118,10 @@ object EscapeSpec extends ZIOSpecDefault {
       test("cssString with all escape types at once") {
         val result = Escape.cssString("""\"'<>&""")
         assertTrue(result == """\\\"\'\3c \3e \26 """)
+      },
+      test("cssString escapes control characters") {
+        val result = Escape.cssString("a\u0001b")
+        assertTrue(result == "a\\1 b")
       }
     ),
     suite("sanitizeUrl")(
@@ -144,6 +148,18 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("allows data:image URLs") {
         assertTrue(Escape.sanitizeUrl("data:image/png;base64,abc") == "data:image/png;base64,abc")
+      },
+      test("blocks VBScript: with mixed case") {
+        assertTrue(Escape.sanitizeUrl("VBScript:Run") == "unsafe:VBScript:Run")
+      },
+      test("blocks Data:Text/Html with mixed case") {
+        assertTrue(Escape.sanitizeUrl("Data:Text/Html,<b>x</b>") == "unsafe:Data:Text/Html,<b>x</b>")
+      },
+      test("allows mailto: scheme") {
+        assertTrue(Escape.sanitizeUrl("mailto:user@example.com") == "mailto:user@example.com")
+      },
+      test("allows fragment-only URLs") {
+        assertTrue(Escape.sanitizeUrl("#section") == "#section")
       }
     )
   )

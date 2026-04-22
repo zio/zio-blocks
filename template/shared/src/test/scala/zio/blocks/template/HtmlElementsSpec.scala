@@ -838,6 +838,18 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result = style().inlineCss(css"body { margin: 0; }").render
         assertTrue(result == "<style>body { margin: 0; }</style>")
       }
+    ),
+    suite("script and style with AddChildren")(
+      test("script with Seq[Dom] children modifier") {
+        val children: Seq[Dom] = Seq(Dom.Text("var a = 1;"), Dom.Text("var b = 2;"))
+        val result             = script(children).render
+        assertTrue(result == "<script>var a = 1;var b = 2;</script>")
+      },
+      test("style with Seq[Dom] children modifier") {
+        val children: Seq[Dom] = Seq(Dom.Text("body {}"), Dom.Text("p {}"))
+        val result             = style(children).render
+        assertTrue(result == "<style>body {}p {}</style>")
+      }
     )
   )
 }

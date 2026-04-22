@@ -43,6 +43,9 @@ object CssColorSpec extends ZIOSpecDefault {
     },
     test("Named unsafe allows any string") {
       assertTrue(CssColor.Named.unsafe("anything").render == "anything")
+    },
+    test("Hex with # prefix strips the hash") {
+      assertTrue(CssColor.Hex("#00ff00").map(_.render) == Some("#00ff00"))
     }
   )
 }

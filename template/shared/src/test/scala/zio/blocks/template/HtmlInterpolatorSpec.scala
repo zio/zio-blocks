@@ -512,6 +512,56 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val result    = html"""<div class="${userInput}">text</div>"""
         assertTrue(result.render == """<div class="hello">text</div>""")
       }
+    ),
+    suite("parseHtml comment edge cases")(
+      test("empty comment is skipped") {
+        val result = InterpolatorRuntime.parseHtml("<!----><div>x</div>")
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("x")))))
+      },
+      test("comment with only whitespace is skipped") {
+        val result = InterpolatorRuntime.parseHtml("<!--  --><p>ok</p>")
+        assertTrue(result == Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("ok")))))
+      },
+      test("unclosed comment at exact boundary") {
+        val result = InterpolatorRuntime.parseHtml("<!--")
+        assertTrue(result == Chunk(Dom.Text("<!--")))
+      },
+      test("unclosed comment with content but no closing") {
+        val result = InterpolatorRuntime.parseHtml("<!-- partial --")
+        assertTrue(result == Chunk(Dom.Text("<!-- partial --")))
+      },
+      test("script closing tag is case insensitive") {
+        val result = InterpolatorRuntime.parseHtml("<script>code</SCRIPT>")
+        assertTrue(result == Chunk(Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("code")))))
+      },
+      test("style closing tag is case insensitive") {
+        val result = InterpolatorRuntime.parseHtml("<style>css</STYLE>")
+        assertTrue(result == Chunk(Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("css")))))
+      },
+      test("indexOfIgnoreCase with empty target returns from position") {
+        val result = InterpolatorRuntime.parseHtml("<div>text</div>")
+        assertTrue(result == Chunk(Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("text")))))
+      },
+      test("attribute with unquoted value at end of input") {
+        val result = InterpolatorRuntime.parseHtml("<div id=x")
+        assertTrue(
+          result == Chunk(
+            Dom.Element.Generic(
+              "div",
+              Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))),
+              Chunk.empty
+            )
+          )
+        )
+      },
+      test("second attr with unquoted value at end of input") {
+        val result = InterpolatorRuntime.parseHtml("""<div id="x" class=y""")
+        val el     = result.head.asInstanceOf[Dom.Element]
+        assertTrue(
+          el.attributes.length == 2,
+          el.attributes(1) == Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("y"))
+        )
+      }
     )
   )
 }
