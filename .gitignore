@@ -68,11 +68,9 @@ scope-examples/src/main/scala/scope/examples/MyApp.scala
 .ck/
 .ckignore
 .cqs/
-<<<<<<< HEAD
 website/docs/*
 website/node_modules/*
 website/build/*
 website/.docusaurus
-=======
 *.class
 *.tasty
