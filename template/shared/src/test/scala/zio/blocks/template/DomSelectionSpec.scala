@@ -425,6 +425,395 @@ object DomSelectionSpec extends ZIOSpecDefault {
         assertTrue(result.length == 2) &&
         assertTrue(result.texts == Chunk("hello", "again"))
       }
+    ),
+    suite("selectorMatches fallthrough branches")(
+      test("PseudoElement matches inner selector") {
+        val dom    = div(p("a"))
+        val result = dom.select(CssSelector.PseudoElement(CssSelector.Element("p"), "before"))
+        assertTrue(result.length == 1) &&
+        assertTrue(result.texts == Chunk("a"))
+      },
+      test("Raw always returns false") {
+        val dom    = div(p("a"), span("b"))
+        val result = dom.select(CssSelector.Raw(".foo"))
+        assertTrue(result.isEmpty)
+      },
+      test("PseudoClass matches inner selector") {
+        val dom    = div(p("a"))
+        val result = dom.select(CssSelector.PseudoClass(CssSelector.Element("p"), "hover"))
+        assertTrue(result.length == 1)
+      },
+      test("AdjacentSibling returns false from selectorMatches") {
+        val dom    = div(p("a"), span("b"))
+        val result = dom.select(CssSelector.AdjacentSibling(CssSelector.Element("p"), CssSelector.Element("span")))
+        assertTrue(result.isEmpty)
+      },
+      test("GeneralSibling returns false from selectorMatches") {
+        val dom    = div(p("a"), span("b"))
+        val result = dom.select(CssSelector.GeneralSibling(CssSelector.Element("p"), CssSelector.Element("span")))
+        assertTrue(result.isEmpty)
+      },
+      test("Child selector returns false from selectorMatches for simple select") {
+        val el = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        assertTrue(
+          !DomSelection.selectorMatches(el, CssSelector.Child(CssSelector.Element("p"), CssSelector.Element("span")))
+        )
+      },
+      test("Descendant selector returns false from selectorMatches") {
+        val el = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        assertTrue(
+          !DomSelection
+            .selectorMatches(el, CssSelector.Descendant(CssSelector.Element("p"), CssSelector.Element("span")))
+        )
+      }
+    ),
+    suite("collectDescendants with non-element root")(
+      test("non-element nodes are skipped in collectDescendants") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text")))
+        val result = sel.select(CssSelector.Element("p"))
+        assertTrue(result.isEmpty)
+      },
+      test("select on Empty node") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Empty))
+        val result = sel.select(CssSelector.Element("p"))
+        assertTrue(result.isEmpty)
+      }
+    ),
+    suite("descendants with non-element nodes")(
+      test("descendants skips non-element nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), Dom.Empty))
+        val result = sel.descendants
+        assertTrue(result.isEmpty)
+      }
+    ),
+    suite("texts with Empty nodes")(
+      test("texts skips Empty nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("hello"), Dom.Empty, Dom.Text("world")))
+        val result = sel.texts
+        assertTrue(result == Chunk("hello", "world"))
+      }
+    ),
+    suite("attrs with non-element nodes")(
+      test("attrs skips non-element and no-attribute nodes") {
+        val sel = DomSelection.fromChunk(
+          Chunk(Dom.Text("text"), div(id := "x"), Dom.Empty)
+        )
+        val result = sel.attrs("id")
+        assertTrue(result == Chunk("x"))
+      },
+      test("attrs skips element without the attribute") {
+        val sel = DomSelection.fromChunk(
+          Chunk(div(className := "a"), div(id := "b"))
+        )
+        val result = sel.attrs("id")
+        assertTrue(result == Chunk("b"))
+      }
+    ),
+    suite("filter predicates with non-element nodes")(
+      test("withTag returns false for Text nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), div("a")))
+        val result = sel.withTag("div")
+        assertTrue(result.length == 1)
+      },
+      test("withClass returns false for Text nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), div(className := "active", "a")))
+        val result = sel.withClass("active")
+        assertTrue(result.length == 1)
+      },
+      test("withId returns false for Text nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), div(id := "main", "a")))
+        val result = sel.withId("main")
+        assertTrue(result.length == 1)
+      },
+      test("withAttribute returns false for Text nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), div(attr("data-x") := "1", "a")))
+        val result = sel.withAttribute("data-x")
+        assertTrue(result.length == 1)
+      },
+      test("withAttribute(name, value) returns false for Text nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("text"), div(attr("data-x") := "1", "a")))
+        val result = sel.withAttribute("data-x", "1")
+        assertTrue(result.length == 1)
+      }
+    ),
+    suite("matchesAttribute when attr not present")(
+      test("Attribute selector with Exact match returns false when attr missing") {
+        val dom = div(
+          div("no-attr"),
+          div(attr("data-x") := "y", "has-attr")
+        )
+        val result = dom.select(
+          CssSelector.Attribute(CssSelector.Universal, "data-x", Some(CssSelector.AttributeMatch.Exact("y")))
+        )
+        assertTrue(result.length == 1)
+      }
+    ),
+    suite("selectChild with non-element nodes")(
+      test("Child combinator skips non-element parent nodes") {
+        val sel    = DomSelection.fromChunk(Chunk(Dom.Text("ignore"), div(p("child"))))
+        val result = sel.select(CssSelector.Child(CssSelector.Element("div"), CssSelector.Element("p")))
+        assertTrue(result.length == 1) &&
+        assertTrue(result.texts == Chunk("child"))
+      },
+      test("Child combinator skips non-element children") {
+        val dom    = div(Dom.Text("text-child"), p("element-child"))
+        val result = dom.select(CssSelector.Child(CssSelector.Element("div"), CssSelector.Element("p")))
+        assertTrue(result.length == 1)
+      }
+    ),
+    suite("extractText with Empty and nested")(
+      test("extractText skips Empty children") {
+        val el     = Dom.Element.Generic("div", Chunk.empty, Chunk(Dom.Text("a"), Dom.Empty, Dom.Text("b")))
+        val result = DomSelection.extractText(el)
+        assertTrue(result == "ab")
+      }
+    ),
+    suite("hasClass with MultiValue and AppendValue")(
+      test("hasClass matches MultiValue class attribute") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute
+              .KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("foo", "bar"), Dom.AttributeSeparator.Space))
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasClass(el, "bar"))
+      },
+      test("hasClass returns false for non-matching MultiValue") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute
+              .KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("foo", "bar"), Dom.AttributeSeparator.Space))
+          ),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, "baz"))
+      },
+      test("hasClass matches AppendValue with StringValue") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute
+              .AppendValue("class", Dom.AttributeValue.StringValue("active extra"), Dom.AttributeSeparator.Space)
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasClass(el, "active"))
+      },
+      test("hasClass AppendValue StringValue returns false when not matching") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("other"), Dom.AttributeSeparator.Space)
+          ),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, "active"))
+      },
+      test("hasClass matches AppendValue with MultiValue") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.AppendValue(
+              "class",
+              Dom.AttributeValue.MultiValue(Chunk("foo", "active"), Dom.AttributeSeparator.Space),
+              Dom.AttributeSeparator.Space
+            )
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasClass(el, "active"))
+      },
+      test("hasClass AppendValue MultiValue returns false when not matching") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.AppendValue(
+              "class",
+              Dom.AttributeValue.MultiValue(Chunk("foo", "bar"), Dom.AttributeSeparator.Space),
+              Dom.AttributeSeparator.Space
+            )
+          ),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, "active"))
+      },
+      test("hasClass returns false when no class attribute present") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, "active"))
+      }
+    ),
+    suite("splitContains edge cases")(
+      test("splitContains returns false for empty target") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("active"))),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, ""))
+      },
+      test("splitContains returns false for empty attribute value") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue(""))),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasClass(el, "active"))
+      }
+    ),
+    suite("hasAttribute with BooleanAttribute and AppendValue")(
+      test("hasAttribute matches BooleanAttribute when enabled") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.BooleanAttribute("disabled", true)),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasAttribute(el, "disabled"))
+      },
+      test("hasAttribute returns false for BooleanAttribute when disabled") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.BooleanAttribute("disabled", false)),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasAttribute(el, "disabled"))
+      },
+      test("hasAttribute matches AppendValue by name") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("active"), Dom.AttributeSeparator.Space)
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasAttribute(el, "class"))
+      },
+      test("hasAttribute returns false when attribute not present") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasAttribute(el, "class"))
+      }
+    ),
+    suite("getAttributeValue with MultiValue, BooleanValue, JsValue")(
+      test("getAttributeValue reads MultiValue with separator") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute
+              .KeyValue("class", Dom.AttributeValue.MultiValue(Chunk("a", "b", "c"), Dom.AttributeSeparator.Space))
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "class") == Some("a b c"))
+      },
+      test("getAttributeValue reads MultiValue with comma separator") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.KeyValue(
+              "accept",
+              Dom.AttributeValue.MultiValue(Chunk("text/html", "text/plain"), Dom.AttributeSeparator.Comma)
+            )
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "accept") == Some("text/html,text/plain"))
+      },
+      test("getAttributeValue reads BooleanValue") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("data-active", Dom.AttributeValue.BooleanValue(true))),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "data-active") == Some("true"))
+      },
+      test("getAttributeValue reads JsValue") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("onclick", Dom.AttributeValue.JsValue(Js("alert('hi')")))),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "onclick") == Some("alert('hi')"))
+      },
+      test("getAttributeValue returns None when not found") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x"))),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "class") == None)
+      },
+      test("getAttributeValue skips non-matching KeyValue entries") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")),
+            Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("y"))
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "class") == Some("y"))
+      },
+      test("getAttributeValue skips AppendValue and BooleanAttribute") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(
+            Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space),
+            Dom.Attribute.BooleanAttribute("disabled", true),
+            Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))
+          ),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.getAttributeValue(el, "id") == Some("main"))
+      }
+    ),
+    suite("DomSelection.select class method")(
+      test("select from root Dom") {
+        val root   = div(p("hello"), span("world"))
+        val result = DomSelection.select(root, CssSelector.Element("p"))
+        assertTrue(result.length == 1) &&
+        assertTrue(result.texts == Chunk("hello"))
+      }
+    ),
+    suite("hasAttributeValue")(
+      test("hasAttributeValue returns true when value matches") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("main"))),
+          Chunk.empty
+        )
+        assertTrue(DomSelection.hasAttributeValue(el, "id", "main"))
+      },
+      test("hasAttributeValue returns false when value differs") {
+        val el = Dom.Element.Generic(
+          "div",
+          Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("other"))),
+          Chunk.empty
+        )
+        assertTrue(!DomSelection.hasAttributeValue(el, "id", "main"))
+      },
+      test("hasAttributeValue returns false when attr missing") {
+        val el = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
+        assertTrue(!DomSelection.hasAttributeValue(el, "id", "main"))
+      }
+    ),
+    suite("modifyAll with non-element")(
+      test("modifyAll preserves Text nodes unchanged") {
+        val sel      = DomSelection.fromChunk(Chunk(Dom.Text("keep"), Dom.Empty))
+        val modified = sel.modifyAll(_.withChildren(Chunk(Dom.Text("new"))))
+        assertTrue(modified.length == 2) &&
+        assertTrue(modified.toChunk(0) == Dom.Text("keep")) &&
+        assertTrue(modified.toChunk(1) == Dom.Empty)
+      }
     )
   )
 }
