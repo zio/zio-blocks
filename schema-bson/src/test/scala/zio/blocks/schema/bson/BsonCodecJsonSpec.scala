@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.bson
 
-import org.bson.{BsonDocument, BsonObjectId}
+import org.bson.{BsonDocument, BsonDouble, BsonObjectId}
 import org.bson.types.ObjectId
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -50,12 +50,28 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
     test("encodes Json numbers using BSON numeric types") {
       val intBson     = jsonCodec.encoder.toBsonValue(Json.Number(42))
       val longBson    = jsonCodec.encoder.toBsonValue(Json.Number(1234567890123L))
-      val decimalBson = jsonCodec.encoder.toBsonValue(Json.Number(BigDecimal("1.25")))
+      val doubleBson  = jsonCodec.encoder.toBsonValue(Json.Number(BigDecimal("1.25")))
+      val decimalBson = jsonCodec.encoder.toBsonValue(Json.Number(BigDecimal("0.1")))
 
       assertTrue(
         intBson.isInt32,
         longBson.isInt64,
+        doubleBson.isDouble,
         decimalBson.isDecimal128
+      )
+    },
+    test("preserves BSON DOUBLE values through Json round-trip") {
+      val bsonValues = List[BsonDouble](
+        new BsonDouble(1.25),
+        new BsonDouble(1.0)
+      )
+
+      assertTrue(
+        bsonValues.forall { bsonValue =>
+          val json      = jsonCodec.decoder.fromBsonValueUnsafe(bsonValue, Nil, BsonDecoder.BsonDecoderContext.default)
+          val reencoded = jsonCodec.encoder.toBsonValue(json)
+          reencoded.isDouble && reencoded == bsonValue
+        }
       )
     },
     test("round-trips Json values through toBsonValue/as path") {
@@ -64,6 +80,7 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
         Json.Number(42),
         Json.Number(1234567890123L),
         Json.Number(BigDecimal("1.25")),
+        Json.Number(BigDecimal("0.1")),
         Json.Boolean(true),
         Json.Null,
         Json.Array(Json.Number(1), Json.String("two"), Json.Object("nested" -> Json.False)),
@@ -78,6 +95,7 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
         Json.Number(42),
         Json.Number(1234567890123L),
         Json.Number(BigDecimal("1.25")),
+        Json.Number(BigDecimal("0.1")),
         Json.Boolean(false),
         Json.Null,
         Json.Array(Json.Object("name" -> Json.String("zio")), Json.Number(7)),
