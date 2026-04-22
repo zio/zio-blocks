@@ -61,7 +61,7 @@ trait CompanionOptics[S] {
   def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 }
 
-private object CompanionOptics {
+private[schema] object CompanionOptics {
   import scala.reflect.macros.whitebox
   import scala.reflect.NameTransformer
   import zio.blocks.schema.CommonMacroOps

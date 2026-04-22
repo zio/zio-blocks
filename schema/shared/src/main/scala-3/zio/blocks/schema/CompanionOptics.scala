@@ -53,7 +53,7 @@ transparent trait CompanionOptics[S] {
     ${ CompanionOptics.optic('path, 'schema) }
 }
 
-private object CompanionOptics {
+private[schema] object CompanionOptics {
   import scala.quoted._
 
   def optic[S: Type, A: Type](path: Expr[S => A], schema: Expr[Schema[S]])(using q: Quotes): Expr[Any] = {
