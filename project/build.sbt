@@ -26,7 +26,7 @@ lazy val root = (project in file("."))
       repoRoot / "golem" / "sbt" / "src" / "main" / "resources"
     },
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta"        % "4.16.0",
+      "org.scalameta" %% "scalameta"        % "4.16.1",
       "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
       "com.lihaoyi"   %% "ujson"            % "3.1.0"
     )
