@@ -16,7 +16,7 @@
 
 package zio.blocks.schema.bson
 
-import org.bson.{BsonReader, BsonWriter, BsonValue}
+import org.bson.{BsonDouble, BsonReader, BsonWriter, BsonValue}
 import org.bson.types.Decimal128
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema._
@@ -234,13 +234,21 @@ object BsonSchemaCodec {
   }
 
   private def jsonNumberToBsonValue(value: BigDecimal): BsonValue =
-    if (value.isWhole && value.isValidInt) {
+    if (value.isWhole && value.bigDecimal.scale <= 0 && value.isValidInt) {
       new org.bson.BsonInt32(value.toInt)
-    } else if (value.isWhole && value.isValidLong) {
+    } else if (value.isWhole && value.bigDecimal.scale <= 0 && value.isValidLong) {
       new org.bson.BsonInt64(value.toLong)
+    } else if (isExactlyRepresentableAsDouble(value)) {
+      // Preserve native BSON doubles for Json numbers that fit exactly in binary64.
+      new BsonDouble(value.toDouble)
     } else {
       new org.bson.BsonDecimal128(new Decimal128(value.bigDecimal))
     }
+
+  private def isExactlyRepresentableAsDouble(value: BigDecimal): Boolean = {
+    val doubleValue = value.toDouble
+    java.lang.Double.isFinite(doubleValue) && new java.math.BigDecimal(doubleValue).compareTo(value.bigDecimal) == 0
+  }
 
   private def bsonValueToJson(value: BsonValue, trace: List[BsonTrace]): Json =
     value.getBsonType match {
