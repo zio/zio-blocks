@@ -246,13 +246,11 @@ import zio.blocks.schema.migration._
 import zio.blocks.schema.json.JsonFormat
 import java.nio.ByteBuffer
 
-val migration: Migration[PersonV0, Person] = ???   // from above
-
-val dynamic: DynamicMigration = migration.dynamic
-val codec = Schema[DynamicMigration].derive(JsonFormat)
+val dynamic: DynamicMigration = DynamicMigration.empty
+val codec                     = Schema[DynamicMigration].derive(JsonFormat)
 
 val buf = ByteBuffer.allocate(4096)
-codec.encode(buf)(dynamic)
+codec.encode(dynamic, buf)
 buf.flip()
 val decoded: Either[SchemaError, DynamicMigration] = codec.decode(buf)
 ```

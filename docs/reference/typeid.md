@@ -2066,7 +2066,7 @@ Demonstrates deriving TypeIds for case classes, accessing their properties (name
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/typeid/TypeIdBasicExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdBasicExample.scala))
@@ -2082,7 +2082,7 @@ Demonstrates subtype checking with `isSubtypeOf`, `isSupertypeOf`, and `isEquiva
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/typeid/TypeIdSubtypingExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdSubtypingExample.scala))
@@ -2098,7 +2098,7 @@ Demonstrates type alias handling, normalization to underlying types, structural 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/typeid/TypeIdNormalizationExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/TypeIdNormalizationExample.scala))
@@ -2114,7 +2114,7 @@ Demonstrates how TypeId preserves the semantic distinction of opaque types, enab
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/typeid/OpaqueTypesExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/typeid/OpaqueTypesExample.scala))

@@ -31,7 +31,9 @@ import zio.blocks.schema._
  */
 object MigrationExampleFixtures {
 
-  /** Anonymous refinement-typed structural stand-in used by the shared example. */
+  /**
+   * Anonymous refinement-typed structural stand-in used by the shared example.
+   */
   type StructuralReader = {
     val firstName: String
     val lastName: String
@@ -39,7 +41,10 @@ object MigrationExampleFixtures {
 
   private final case class StructuralReaderRow(firstName: String, lastName: String)
 
-  /** Derives a schema for the record form and casts it to the refinement surface. */
+  /**
+   * Derives a schema for the record form and casts it to the refinement
+   * surface.
+   */
   val structuralReaderSchema: Schema[StructuralReader] =
     Schema.derived[StructuralReaderRow].asInstanceOf[Schema[StructuralReader]]
 }

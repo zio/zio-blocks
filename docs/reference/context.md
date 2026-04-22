@@ -510,7 +510,7 @@ cd zio-blocks
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/context/ContextConstructionExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/context/ContextConstructionExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextConstructionExample.scala))
@@ -524,7 +524,7 @@ sbt "schema-examples/runMain context.ContextConstructionExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/context/ContextRetrievalExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/context/ContextRetrievalExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextRetrievalExample.scala))
@@ -538,7 +538,7 @@ sbt "schema-examples/runMain context.ContextRetrievalExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/context/ContextModificationExample.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/context/ContextModificationExample.scala))

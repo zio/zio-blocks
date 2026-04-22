@@ -587,7 +587,7 @@ sbt "schema-examples/runMain comptime.AllowsCsvExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/AllowsCsvExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/AllowsCsvExample.scala")
 ```
 
 **Event bus with sealed trait auto-unwrap and nested hierarchies**
@@ -600,7 +600,7 @@ sbt "schema-examples/runMain comptime.AllowsEventBusExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/AllowsEventBusExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/AllowsEventBusExample.scala")
 ```
 
 **GraphQL / tree structures using Self for recursive grammars**
@@ -613,7 +613,7 @@ sbt "schema-examples/runMain comptime.AllowsGraphQLTreeExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/AllowsGraphQLTreeExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/AllowsGraphQLTreeExample.scala")
 ```
 
 **Sealed trait auto-unwrap with nested hierarchies and case objects**
@@ -626,7 +626,7 @@ sbt "schema-examples/runMain comptime.AllowsSealedTraitExample"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/AllowsSealedTraitExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/AllowsSealedTraitExample.scala")
 ```
 
 **RDBMS library with CREATE TABLE and INSERT using flat record constraints** (compile-only)
@@ -637,7 +637,7 @@ Demonstrates how Allows constraints are verified at compile time — the code be
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/RdbmsExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/RdbmsExample.scala")
 ```
 
 **JSON document store with specific primitives and recursive Self grammar** (compile-only)
@@ -648,5 +648,5 @@ Demonstrates how Allows enforces recursive schema constraints at compile time:
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/comptime/DocumentStoreExample.scala")
+SourceFile.print("schema-examples/src/main/scala-3/comptime/DocumentStoreExample.scala")
 ```
