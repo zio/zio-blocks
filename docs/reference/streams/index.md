@@ -11,6 +11,11 @@ ZIO Blocks Streams is built on three composable primitives: [Stream](./stream.md
 - [`Pipeline[-In, +Out]`](./pipeline.md) — a reusable, composable stream-to-stream transformation
 - [`Sink[+E, -A, +Z]`](./sink.md) — a stream consumer that produces a typed result `Z`
 
+|-----------------------|---------------------|-----------------------|
+| `Stream[+E, +A]`      | Source of elements  | `stream.via(pipe)`    |
+| `Pipeline[-In, +Out]` | Element transformer | `pipe.andThen(other)` |
+| `Sink[+E, -A, +Z]`    | Consumer → result   | `stream.run(sink)`    |
+
 ## Overview
 
 ZIO Blocks Streams is designed around three core principles:
@@ -20,26 +25,6 @@ ZIO Blocks Streams is designed around three core principles:
 **Pull-based evaluation.** Execution is driven from the consumer (Sink) backward through the pipeline to the source (Stream). This enables natural short-circuiting: if a sink only needs the first three elements, the stream stops producing after three elements — no work is wasted.
 
 **Resource safety via RAII.** Resources acquired during stream construction (file handles, database connections, etc.) are always released in `finally` blocks, whether the stream succeeds, fails, or is short-circuited.
-
-### The Three Primitives
-
-These types form a clean pipeline:
-
-```
-┌──────────────┐     ┌──────────────────┐     ┌───────────────┐
-│ Stream[E, A] │ ──→ │ Pipeline[A, B]   │ ──→ │ Sink[E, B, Z] │
-└──────────────┘     └──────────────────┘     └───────────────┘
-                                                       │
-                                               ┌───────▼──────┐
-                                               │ Either[E, Z] │
-                                               └──────────────┘
-```
-
-| Type                    | Role                    | Key operation           |
-| ----------------------- | ----------------------- | ----------------------- |
-| `Stream[+E, +A]`        | Source of elements      | `stream.via(pipe)`      |
-| `Pipeline[-In, +Out]`   | Element transformer     | `pipe.andThen(other)`   |
-| `Sink[+E, -A, +Z]`      | Consumer → result       | `stream.run(sink)`      |
 
 ### Execution Flow
 
