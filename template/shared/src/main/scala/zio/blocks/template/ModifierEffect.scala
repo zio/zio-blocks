@@ -34,7 +34,7 @@ sealed trait ModifierEffect extends Product with Serializable {
    * Applies this single effect to the given element, returning a new element
    * with the modification applied.
    *
-   * Unlike the batched [[ToModifier.buildFromEffects]], this method creates
+   * Unlike the batched `ToModifier.buildFromEffects`, this method creates
    * intermediate elements for each effect. Use `buildFromEffects` when applying
    * multiple effects for better performance.
    *
