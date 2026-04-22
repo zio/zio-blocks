@@ -140,10 +140,13 @@ Access headers by name or retrieve all headers:
 ```scala mdoc:compile-only
 import zio.http._
 
-val req: Request = ???
-val contentType = req.headers.get("content-type")  // Get header by name (case-insensitive)
+// Accessing headers in a request
+val url = URL.parse("https://example.com").toOption.get
+val req = Request.get(url).addHeader("content-type", "application/json")
+
 val allHeaders = req.headers.toList                // All headers as List[(String, String)]
-val headerCount = req.headers.toList.length        // Count headers
+val headerCount = allHeaders.length                // Count headers
+val contentTypeOpt = allHeaders.find(_._1.equalsIgnoreCase("content-type")).map(_._2) // Get specific header
 ```
 
 ### Creating Responses with Status and Content
@@ -210,19 +213,13 @@ import zio.http._
 val url = URL.parse("https://example.com/api").toOption.get
 
 // Request: send cookies to server
+val url = URL.parse("https://example.com").toOption.get
 val req = Request.get(url)
   .addHeader("cookie", "sessionId=abc123; userId=456")
 
 // Response: server sets cookies for client to store
-val setCookie = ResponseCookie(
-  name = "sessionId",
-  value = "abc123",
-  maxAge = Some(3600),  // 1 hour
-  isSecure = true,
-  isHttpOnly = true
-)
 val response = Response(Status.Ok)
-  .addHeader("set-cookie", setCookie.render)
+  .addHeader("set-cookie", "sessionId=abc123; Max-Age=3600; Secure; HttpOnly")
 ```
 
 ---
@@ -465,8 +462,8 @@ Create custom schemes (e.g., FTP):
 import zio.http.Scheme
 
 val ftp = Scheme.custom("ftp")
-ftp.text        // "ftp"
-ftp.isSecure    // false (custom schemes assumed insecure)
+val text = ftp.text              // "ftp"
+val isSecure = ftp.isSecure      // false (custom schemes assumed insecure)
 ```
 
 ---
@@ -502,19 +499,16 @@ URL.parse("https://api.example.com:8080/v1/users?page=1#results")
 
 ### Constructing URLs
 
-Build URLs programmatically:
+Build URLs by parsing strings:
 
 ```scala mdoc:compile-only
 import zio.http._
 
-val url = URL(
-  scheme = Some(Scheme.HTTPS),
-  host = Some("api.example.com"),
-  port = None,  // Uses default port 443 for HTTPS
-  path = Path("api", "users", "123"),
-  queryParams = QueryParams("filter" -> "active", "sort" -> "name"),
-  fragment = None
-)
+// Simplest approach: parse a URL string
+val url1 = URL.parse("https://api.example.com/users/123?filter=active&sort=name").toOption.get
+
+// Modify an existing URL by adding query parameters
+val url2 = url1.addQueryParam("page", "1")
 ```
 
 ### URL Operations
@@ -526,14 +520,14 @@ import zio.http.URL
 
 val url = URL.parse("https://example.com:8080/api/v1/users?page=1#section").toOption.get
 
-url.scheme                        // Some(Scheme.HTTPS)
-url.host                          // Some("example.com")
-url.port                          // Some(8080)
-url.path.segments                 // Chunk("api", "v1", "users")
-url.queryParams.get("page")       // Some("1")
-url.fragment                      // Some("section")
+val scheme = url.scheme                        // Some(Scheme.HTTPS)
+val host = url.host                            // Some("example.com")
+val port = url.port                            // Some(8080)
+val pathSegments = url.path.segments           // Chunk("api", "v1", "users")
+val pageParam = url.queryParams.get("page")   // Some("1")
+val fragment = url.fragment                    // Some("section")
 
-url.addQueryParam("sort", "name") // Add query parameter
+val urlWithSort = url.addQueryParam("sort", "name") // Add query parameter
 url.withFragment(Some("top"))     // Set fragment
 ```
 
@@ -558,9 +552,9 @@ Create paths from segments or parse from strings:
 ```scala mdoc:compile-only
 import zio.http.Path
 
-Path("api", "v1", "users")           // Path with segments (leading slash by default)
-Path.decode("/api/v1/users")         // Parse from string
-Path.root                             // Empty path "/"
+val path1 = Path("api", "v1", "users")     // Path with segments
+val path2 = Path.decode("/api/v1/users")   // Parse from string
+val root = Path.root                        // Empty path "/"
 ```
 
 ### Path Operations
@@ -572,13 +566,13 @@ import zio.http.Path
 
 val path = Path("api", "v1", "users")
 
-path.segments             // Chunk("api", "v1", "users")
-path.hasLeadingSlash      // true
-path.trailingSlash        // false
-path.encode               // "/api/v1/users" (encoded string)
+val segments = path.segments              // Chunk("api", "v1", "users")
+val hasLeadingSlash = path.hasLeadingSlash // true
+val hasTrailingSlash = path.trailingSlash  // false
+val encoded = path.encode                 // "/api/v1/users" (encoded string)
 
-path.append("123")        // Append segment: /api/v1/users/123
-path.dropRight(1)         // Remove last segment: /api/v1
+val appended = path.append("123")         // Append segment: /api/v1/users/123
+val dropped = path.dropRight(1)           // Remove last segment: /api/v1
 ```
 
 ---
@@ -598,9 +592,9 @@ Create query parameters from key-value pairs:
 ```scala mdoc:compile-only
 import zio.http.QueryParams
 
-QueryParams("page" -> "1", "limit" -> "10")
-QueryParams.empty
-QueryParams.fromChunk(Chunk(("page", "1"), ("limit", "10")))
+val params1 = QueryParams("page" -> "1", "limit" -> "10")
+val params2 = QueryParams.empty
+val params3 = QueryParams.fromChunk(zio.Chunk("page" -> "1", "limit" -> "10"))
 ```
 
 ### QueryParams Operations
@@ -609,17 +603,12 @@ Access and modify query parameters:
 
 ```scala mdoc:compile-only
 import zio.http.QueryParams
-import zio.blocks.chunk.Chunk
 
 val params = QueryParams("page" -> "1", "role" -> "admin", "role" -> "user")
 
-params.getFirst("page")         // Some("1") (first value for key)
-params.get("role")              // Some(Chunk("admin", "user")) (all values for key as Chunk)
-params.has("page")              // true (check if key exists)
-params.add("sort", "name")      // Add parameter (supports duplicates)
-params.remove("page")           // Remove all values for key
-params.toChunk                  // Chunk((key, value), ...) of all entries
-params.encode                   // "page=1&role=admin&role=user" (percent-encoded)
+val withSort = params.add("sort", "name")   // Add parameter
+val withoutPage = params.remove("page")     // Remove all values for key
+val encoded = params.encode                 // "page=1&role=admin&role=user"
 ```
 
 ### Multi-Value Parameters
@@ -628,11 +617,10 @@ params.encode                   // "page=1&role=admin&role=user" (percent-encode
 
 ```scala mdoc:compile-only
 import zio.http.QueryParams
-import zio.blocks.chunk.Chunk
 
 val params = QueryParams("id" -> "1", "id" -> "2", "id" -> "3")
-params.getFirst("id")  // Some("1") (first value)
-params.get("id")       // Some(Chunk("1", "2", "3")) (all values as Chunk)
+val firstId = params.getFirst("id")   // Some("1") (first value)
+val allIds = params.get("id")         // Some(Chunk("1", "2", "3"))
 ```
 
 ---
@@ -652,9 +640,8 @@ Create header collections:
 ```scala mdoc:compile-only
 import zio.http.Headers
 
-Headers("content-type" -> "application/json", "authorization" -> "Bearer token123")
-Headers.empty
-Headers.fromChunk(Chunk(("content-type", "application/json")))
+val headers1 = Headers("content-type" -> "application/json", "authorization" -> "Bearer token123")
+val headers2 = Headers.empty
 ```
 
 ### Headers Operations
@@ -666,25 +653,9 @@ import zio.http.Headers
 
 val headers = Headers("content-type" -> "application/json", "cache-control" -> "no-cache")
 
-headers.get("content-type")       // Some("application/json") (case-insensitive key lookup)
-headers.get("Content-Type")       // Some("application/json") (case-insensitive)
-headers.has("cache-control")      // true
-headers.add("authorization", "Bearer token") // Add header
-headers.remove("cache-control")   // Remove header
-headers.toList                    // List[(String, String)] of all headers
-```
-
-### Typed Headers
-
-`Headers` supports lazy parsing and caching of typed headers for efficient, type-safe header access:
-
-```scala mdoc:compile-only
-import zio.http.{Headers, Header}
-
-val headers = Headers("content-type" -> "application/json; charset=utf-8")
-
-// Access typed header (if Header.ContentType is defined)
-// headers.header(Header.ContentType)  // Lazily parsed and cached
+// Headers can be queried and modified using methods
+val withAuth = headers.add("authorization", "Bearer token") // Add header
+val asList = headers.toList                                 // All headers as List
 ```
 
 ---
@@ -699,30 +670,26 @@ final class Body private (val data: Chunk[Byte], val contentType: ContentType)
 
 ### Creating Bodies
 
-Create bodies from strings, bytes, or files:
+Create bodies from strings:
 
 ```scala mdoc:compile-only
 import zio.http._
 
-Body.fromString("""{"message":"ok"}""", Charset.UTF8)
-Body.empty
-Body.fromBytes(bytes: Chunk[Byte])
-Body.fromFile("path/to/file.txt")
+val jsonBody = Body.fromString("""{"message":"ok"}""", Charset.UTF8)
+val textBody = Body.fromString("Hello World", Charset.UTF8)
+val emptyBody = Body.empty
 ```
 
-### Body Operations
+### Body Properties
 
-Access body content and metadata:
+Access body properties:
 
 ```scala mdoc:compile-only
 import zio.http._
 
 val body = Body.fromString("Hello World", Charset.UTF8)
 
-body.data              // Chunk[Byte] raw content
-body.contentType       // ContentType metadata
-body.asString          // "Hello World" (if UTF8)
-body.asBytes           // Chunk[Byte] data
+val contentType = body.contentType   // ContentType metadata
 ```
 
 ---
@@ -739,36 +706,34 @@ final case class ContentType(
 )
 ```
 
-### Predefined Content Types
+### Setting Content Types
 
-Common MIME types are predefined:
-
-```scala mdoc:compile-only
-import zio.http.ContentType
-
-ContentType.ApplicationJson         // application/json
-ContentType.TextPlain               // text/plain; charset=utf-8
-ContentType.TextHtml                // text/html; charset=utf-8
-ContentType.ApplicationXml          // application/xml; charset=utf-8
-ContentType.ApplicationXmlUtf8      // application/xml; charset=utf-8
-ContentType.ImagePng                // image/png
-ContentType.ImageJpeg               // image/jpeg
-ContentType.ImageGif                // image/gif
-ContentType.ApplicationOctetStream  // application/octet-stream
-ContentType.ApplicationFormUrlEncoded // application/x-www-form-urlencoded
-ContentType.MultipartFormData       // multipart/form-data
-```
-
-### Creating Content Types
-
-Create custom content types:
+Content types are specified as header values in requests and responses:
 
 ```scala mdoc:compile-only
 import zio.http._
 
-ContentType(MediaType.ApplicationJson)
-ContentType(MediaType.TextPlain, charset = Some(Charset.UTF8))
-ContentType(MediaType.MultipartFormData, boundary = Some(Boundary.generate))
+// Common content type headers
+val jsonRequest = Request.post(
+  URL.parse("https://example.com/api").toOption.get,
+  Body.fromString("""{"key":"value"}""", Charset.UTF8)
+).addHeader("content-type", "application/json")
+
+val htmlResponse = Response.ok
+  .addHeader("content-type", "text/html; charset=utf-8")
+
+val xmlRequest = Request.post(
+  URL.parse("https://example.com/xml").toOption.get,
+  Body.fromString("<root/>", Charset.UTF8)
+).addHeader("content-type", "application/xml")
+
+val formRequest = Request.post(
+  URL.parse("https://example.com/form").toOption.get,
+  Body.fromString("username=alice&password=secret", Charset.UTF8)
+).addHeader("content-type", "application/x-www-form-urlencoded")
+
+val imageResponse = Response.ok
+  .addHeader("content-type", "image/png")
 ```
 
 ---
@@ -821,8 +786,8 @@ final case class RequestCookie(name: String, value: String)
 import zio.http.RequestCookie
 
 val cookie = RequestCookie("sessionId", "abc123xyz")
-cookie.name   // "sessionId"
-cookie.value  // "abc123xyz"
+val name = cookie.name       // "sessionId"
+val value = cookie.value     // "abc123xyz"
 ```
 
 ### Sending Cookies
@@ -832,11 +797,12 @@ Include cookies in requests:
 ```scala mdoc:compile-only
 import zio.http._
 
+val url = URL.parse("https://example.com").toOption.get
 val req = Request.get(url)
   .addHeader("cookie", "sessionId=abc123; userId=456")
 
 // Or build from RequestCookie objects
-val cookies = Chunk(
+val cookies = zio.Chunk(
   RequestCookie("sessionId", "abc123"),
   RequestCookie("userId", "456")
 )
@@ -881,13 +847,13 @@ val sessionCookie = ResponseCookie(
 
 ### Setting Cookies in Responses
 
-Include cookies in responses:
+Include cookies in responses by adding the Set-Cookie header:
 
 ```scala mdoc:compile-only
 import zio.http._
 
 val response = Response(Status.Ok)
-  .addHeader("set-cookie", sessionCookie.render)
+  .addHeader("set-cookie", "sessionId=abc123; Max-Age=3600; Secure; HttpOnly; SameSite=Strict")
 ```
 
 ### SameSite Attribute
@@ -897,9 +863,9 @@ Control cross-site request behavior:
 ```scala mdoc:compile-only
 import zio.http.SameSite
 
-SameSite.Strict  // Only same-site requests (default, safest)
-SameSite.Lax     // Top-level navigations allowed (links, forms)
-SameSite.None_   // Cross-site allowed (requires Secure flag)
+val strict = SameSite.Strict  // Only same-site requests (default, safest)
+val lax = SameSite.Lax        // Top-level navigations allowed (links, forms)
+val none = SameSite.None_     // Cross-site allowed (requires Secure flag)
 ```
 
 ---
@@ -919,13 +885,11 @@ Create forms with key-value pairs:
 ```scala mdoc:compile-only
 import zio.http.Form
 
-val form = Form(
-  Chunk(
-    ("username" -> "alice"),
-    ("email" -> "alice@example.com"),
-    ("subscribe" -> "true")
-  )
-)
+val form = Form(zio.Chunk(
+  "username" -> "alice",
+  "email" -> "alice@example.com",
+  "subscribe" -> "true"
+))
 ```
 
 ### Submitting Forms
@@ -935,9 +899,10 @@ Send forms as request body:
 ```scala mdoc:compile-only
 import zio.http._
 
-val form = Form(Chunk(("username", "alice"), ("password", "secret")))
+val form = Form(zio.Chunk(("username", "alice"), ("password", "secret")))
 val body = Body.fromString(form.encode, Charset.UTF8)
 
+val url = URL.parse("https://example.com/login").toOption.get
 val request = Request.post(url, body)
   .addHeader("content-type", "application/x-www-form-urlencoded")
 ```
@@ -948,12 +913,11 @@ Access and encode form data:
 
 ```scala mdoc:compile-only
 import zio.http.Form
-import zio.blocks.chunk.Chunk
 
-val form = Form(Chunk(("key1", "value1"), ("key2", "value2")))
+val form = Form(zio.Chunk(("key1", "value1"), ("key2", "value2")))
 
-form.entries      // Chunk[(String, String)] of all entries
-form.encode       // "key1=value1&key2=value2" (percent-encoded for URL)
+val entries = form.entries      // Chunk[(String, String)] of all entries
+val encoded = form.encode       // "key1=value1&key2=value2" (percent-encoded for URL)
 ```
 
 ---
@@ -976,16 +940,15 @@ Create fields for multipart form submissions:
 
 ```scala mdoc:compile-only
 import zio.http._
-import zio.blocks.chunk.Chunk
 
 val textField = FormField.Simple("username", "alice")
 
-val imageBytes = Chunk.empty[Byte]  // In real code, this would be actual image data
+val imageBytes = zio.Chunk.empty[Byte]  // In real code, this would be actual image data
 val fileField = FormField.Binary(
   name = "avatar",
   filename = Some("profile.png"),
   data = imageBytes,
-  contentType = Some(ContentType.ImagePng)
+  contentType = Some(zio.http.ContentType.parse("image/png").toOption.get)
 )
 ```
 
@@ -1007,28 +970,22 @@ final case class Request(
 
 ### Creating Requests
 
-Create requests using convenience methods or constructors:
+Create requests using convenience methods:
 
 ```scala mdoc:compile-only
 import zio.http._
 
-// Using convenience methods (recommended)
-Request.get(url)
-Request.post(url, body)
-Request.put(url, body)
-Request.delete(url)
-Request.patch(url, body)
-Request.head(url)
-Request.options(url)
+val url = URL.parse("https://api.example.com/users").toOption.get
+val body = Body.fromString("""{"name":"Alice"}""", Charset.UTF8)
 
-// Using constructor
-Request(
-  method = Method.POST,
-  url = URL.parse("https://api.example.com/users").toOption.get,
-  headers = Headers("content-type" -> "application/json"),
-  body = Body.fromString("""{"name":"Alice"}""", Charset.UTF8),
-  version = Version.`HTTP/1.1`
-)
+// Using convenience methods (recommended)
+val getReq = Request.get(url)
+val postReq = Request.post(url, body)
+val putReq = Request.put(url, body)
+val deleteReq = Request.delete(url)
+val patchReq = Request.patch(url, body)
+val headReq = Request.head(url)
+val optionsReq = Request.options(url)
 ```
 
 ### Request Operations
@@ -1038,16 +995,17 @@ Access and modify request components:
 ```scala mdoc:compile-only
 import zio.http._
 
+val url = URL.parse("https://api.example.com/users").toOption.get
 val req = Request.get(url)
 
-req.method              // Method.GET
-req.url                 // URL
-req.headers             // Headers collection
-req.body                // Body
-req.version             // Version
+val method = req.method              // Method.GET
+val reqUrl = req.url                 // URL
+val headers = req.headers            // Headers collection
+val body = req.body                  // Body
+val version = req.version            // Version
 
-req.addHeader("authorization", "Bearer token")  // Add header
-req.updateHeaders(_.add("x-custom", "value"))   // Transform headers
+val withAuth = req.addHeader("authorization", "Bearer token")  // Add header
+val transformed = req.updateHeaders(_.add("x-custom", "value")) // Transform headers
 ```
 
 ---
