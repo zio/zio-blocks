@@ -16,20 +16,7 @@
 
 package zio.blocks.template
 
-import scala.language.implicitConversions
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-sealed trait ModifierEffect extends Product with Serializable
-
-object ModifierEffect {
-  final case class AddAttr(attr: Dom.Attribute)               extends ModifierEffect
-  final case class AddChild(child: Dom)                       extends ModifierEffect
-  final case class AddChildren(children: Chunk[Dom])          extends ModifierEffect
-  final case class AddEffects(effects: Chunk[ModifierEffect]) extends ModifierEffect
-}
-
-trait ModifierEffectConversions {
-  implicit def toModifierEffect[A](a: A)(implicit ev: ToModifier[A]): ModifierEffect = ev.toModifier(a)
-}
 
 trait ToModifier[-A] {
   def toModifier(a: A): ModifierEffect

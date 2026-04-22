@@ -330,7 +330,7 @@ val count = 42
 val code = js"console.log($message); alert($count);"
 
 println(code.value)
-// console.log('Hello, world!'); alert(42);
+// console.log("Hello, world!"); alert(42);
 ```
 
 The interpolator protects against `</script>` injection:
@@ -501,7 +501,7 @@ val colorDecl = Css.Declaration("color", "blue")
 
 // Css.Declaration accepts ToCss types:
 val marginPx = Css.Declaration("margin", 10.px)     // CssLength
-val rgb = Css.Declaration("color", CssColor.rgb(255, 0, 0)) // CssColor
+val rgb = Css.Declaration("color", CssColor.Rgb(255, 0, 0)) // CssColor
 val opacity = Css.Declaration("opacity", "0.5")    // String
 
 // A CSS rule (selector + declarations)

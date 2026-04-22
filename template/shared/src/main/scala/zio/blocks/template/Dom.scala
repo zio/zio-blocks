@@ -551,11 +551,8 @@ object Dom {
     var m      = 0
     while (m < attrs.length) {
       attrs(m) match {
-        case Attribute.KeyValue(name, _)       => lastKV.put(name, m)
-        case Attribute.AppendValue(name, _, _) =>
-          if (!lastKV.containsKey(name) && !appends.containsKey(name))
-            lastKV.put(name, m)
-        case _ => ()
+        case Attribute.KeyValue(name, _) => lastKV.put(name, m)
+        case _                           => ()
       }
       m += 1
     }

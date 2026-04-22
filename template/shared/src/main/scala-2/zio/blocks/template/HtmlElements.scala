@@ -185,7 +185,7 @@ trait HtmlElements {
   val autofocus: Dom.Attribute.BooleanAttribute      = Dom.boolAttr("autofocus")
   val autoComplete: PartialAttribute                 = new PartialAttribute("autocomplete")
   val target: PartialAttribute                       = new PartialAttribute("target")
-  val rel: PartialAttribute                          = new PartialAttribute("rel")
+  val rel: PartialMultiAttribute                     = new PartialMultiAttribute("rel", Dom.AttributeSeparator.Space)
   val download: PartialAttribute                     = new PartialAttribute("download")
   val role: PartialAttribute                         = new PartialAttribute("role")
   val tabIndex: PartialAttribute                     = new PartialAttribute("tabindex")

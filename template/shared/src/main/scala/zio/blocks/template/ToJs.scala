@@ -18,9 +18,15 @@ package zio.blocks.template
 
 /**
  * Typeclass for values that can be safely interpolated into JavaScript via
- * `js"..."` .
+ * `js"..."`.
  *
- * Escaping rules:
+ * This is a '''templating''' typeclass, not a code generator. It converts Scala
+ * values into JavaScript '''expressions''' (value literals). Every JavaScript
+ * expression is also a valid statement, so `ToJs` output works in all template
+ * contexts: inline event handlers, script content, and variable assignments.
+ * For JavaScript control flow (`if`/`for`/`while`), use `Js("...")` directly.
+ *
+ * Instance behavior:
  *   - `String` is quoted with `"` and JS-escaped (including `</script>`
  *     protection)
  *   - Numeric types render as unquoted literals
