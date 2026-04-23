@@ -24,7 +24,7 @@ import zio.blocks.chunk.Chunk
  *
  * `ModifierEffect` values describe additions (attributes, children, or nested
  * effects) that are collected during element construction and then applied in
- * batch by [[ToModifier.buildFromEffects]].
+ * batch by `ToModifier.buildFromEffects`.
  *
  * Use [[ModifierEffect#applyTo]] for single-effect application to an element.
  */
