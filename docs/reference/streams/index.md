@@ -401,11 +401,11 @@ val ids:   Stream[Nothing, Long]   = Stream.fromIterable(List(1L, 2L, 3L))
 
 // Two-way zip
 val pairs = names && ages
-// pairs.runCollect // Right(Chunk(("Alice", 30), ("Bob", 25), ("Charlie", 35)))
+pairs.runCollect // Right(Chunk(("Alice", 30), ("Bob", 25), ("Charlie", 35)))
 
 // Three-way zip -- tuples flatten automatically
-// val triples = names && ages && ids
-// triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie", 35, 3L)))
+val triples = names && ages && ids
+triples.runCollect // Right(Chunk(("Alice", 30, 1L), ("Bob", 25, 2L), ("Charlie", 35, 3L)))
 ```
 
 When the error types differ, they widen via union:
