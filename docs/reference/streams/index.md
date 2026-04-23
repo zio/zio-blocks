@@ -315,13 +315,26 @@ This section shows practical examples of using streams in real-world scenarios. 
 
 Here are the most common ways to construct a stream. Choose the constructor that best fits your data source:
 
+```scala mdoc:invisible
+import zio.blocks.streams.*
+import zio.blocks.chunk.Chunk
+import java.io.*
+
+// Helper definitions for example code
+def someFallibleCall(): Int = if scala.util.Random.nextBoolean() then 42 else throw new Exception("failed")
+def riskyEffect(): Unit = if scala.util.Random.nextBoolean() then () else throw new Exception("effect failed")
+def expensiveStreamBuilder(): Stream[Nothing, Int] = Stream.range(1, 5)
+val inputStream: InputStream = new ByteArrayInputStream(Array[Byte](1, 2, 3))
+val javaReader: Reader = new StringReader("abc")
+```
+
 ```scala mdoc:silent
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
 
 // From explicit elements
-Stream.fromIterable(List(1, 2, 3))                              // Stream[Nothing, Int]
-Stream.fromIterable(List("a", "b", "c"))                        // Stream[Nothing, String]
+Stream.fromIterable(List(1, 2, 3))           // Stream[Nothing, Int]
+Stream.fromIterable(List("a", "b", "c"))     // Stream[Nothing, String]
 
 // From collections
 Stream.fromChunk(Chunk(1, 2, 3))             // Stream[Nothing, Int]
@@ -351,20 +364,20 @@ Stream.unfold(0)(n =>                        // 0, 1, 2, ..., 9
 )
 
 // Side-effects
-Stream.eval(println("hello"))               // prints, emits nothing
-// Stream.attempt(someFallibleCall())        // captures exceptions as typed errors
-// Stream.attemptEval(riskyEffect())         // same, for Unit-returning effects
+Stream.eval(println("hello"))                   // prints, emits nothing
+Stream.attempt(someFallibleCall())              // captures exceptions as typed errors
+Stream.attemptEval(riskyEffect())               // same, for Unit-returning effects
 
 // Deferred construction (useful for recursion)
-// Stream.suspend(expensiveStreamBuilder())
+Stream.suspend(expensiveStreamBuilder())
 
 // I/O sources (auto-closing) - JVM only
-// Stream.fromInputStream(inputStream)       // Stream[IOException, Int] (bytes as 0-255, auto-closes)
-// Stream.fromJavaReader(javaReader)         // Stream[IOException, Char] (auto-closes)
+Stream.fromInputStream(inputStream)             // Stream[IOException, Int] (bytes as 0-255, auto-closes)
+Stream.fromJavaReader(javaReader)               // Stream[IOException, Char] (auto-closes)
 
 // I/O sources (borrowing -- caller manages lifetime) - JVM only
-// Stream.fromInputStreamUnmanaged(inputStream) // Stream[IOException, Int] (does NOT close)
-// Stream.fromJavaReaderUnmanaged(javaReader)   // Stream[IOException, Char] (does NOT close)
+Stream.fromInputStreamUnmanaged(inputStream)    // Stream[IOException, Int] (does NOT close)
+Stream.fromJavaReaderUnmanaged(javaReader)      // Stream[IOException, Char] (does NOT close)
 ```
 
 ---
@@ -482,8 +495,9 @@ val safe =
 val recovered = safe.catchAll(_ => Stream.fromIterable(List(99))).runCollect
 // Right(Chunk(1, 2, 99))
 
-// Transform error type (see Stream reference for mapError examples)
-// Stream.fail("bad input").mapError(msg => new IllegalArgumentException(msg))
+// Transform error type by catching and converting
+val inputError: Stream[String, Int] = Stream.fail("bad input")
+val transformed = inputError.catchAll(msg => Stream.fail(new IllegalArgumentException(msg)))
 
 // Fallback stream
 val primary: Stream[String, Int] = Stream.fail("down")
