@@ -182,6 +182,7 @@ sealed trait Dom extends Product with Serializable {
     case Dom.Empty      => true
     case Dom.Text(c)    => c.isEmpty
     case _: Dom.Element => false
+    case _: Dom.Doctype => false
   }
 }
 
@@ -199,9 +200,9 @@ object Dom {
    * Elements support modifier chaining via `apply(effect, ...)` and
    * `when(condition)(...)` for fluent construction.
    *
-   * Import `ModifierEffectConversions._` (or use the `zio.blocks.template`
-   * package object) to enable implicit conversions from `String`, `Dom`,
-   * `Dom.Attribute`, etc. to [[ModifierEffect]].
+   * Import `DomModifierConversions._` (or use the `zio.blocks.template` package
+   * object) to enable implicit conversions from `String`, `Dom`,
+   * `Dom.Attribute`, etc. to [[DomModifier]].
    */
   sealed trait Element extends Dom with CssSelectable {
     def tag: String
@@ -212,14 +213,14 @@ object Dom {
     def withAttributes(attrs: Chunk[Attribute]): Element
     def withChildren(kids: Chunk[Dom]): Element
 
-    def apply(effect: ModifierEffect, effects: ModifierEffect*): Element =
+    def apply(effect: DomModifier, effects: DomModifier*): Element =
       ToModifier.buildFromEffects(this, effect, effects)
 
-    def when(condition: Boolean)(effects: ModifierEffect*): Element =
+    def when(condition: Boolean)(effects: DomModifier*): Element =
       if (condition) ToModifier.buildFromEffects(this, effects)
       else this
 
-    def whenSome[T](option: Option[T])(f: T => Seq[ModifierEffect]): Element =
+    def whenSome[T](option: Option[T])(f: T => Seq[DomModifier]): Element =
       option match {
         case Some(value) => ToModifier.buildFromEffects(this, f(value))
         case None        => this
@@ -268,7 +269,7 @@ object Dom {
         val escape = escapeText
         children(0) match {
           case Text(content) if !escape => sb.append(content.replace("</", "<\\/"))
-          case Text(content)            => sb.append(Escape.html(content))
+          case Text(content)            => Escape.htmlTo(content, sb)
           case _                        => children(0).renderIndented(sb, level, indent)
         }
         sb.append("</")
@@ -387,6 +388,28 @@ object Dom {
   }
 
   /**
+   * A document type declaration node.
+   *
+   * Renders as `<!DOCTYPE value>`, typically `<!DOCTYPE html>` for HTML5
+   * documents. Doctype nodes are always rendered without indentation and are
+   * treated as leaf nodes by tree operations.
+   *
+   * @param value
+   *   the doctype value (e.g., "html")
+   */
+  final case class Doctype(value: String) extends Dom {
+    private[template] def renderTo(sb: java.lang.StringBuilder): Unit = {
+      sb.append("<!DOCTYPE ")
+      sb.append(value)
+      sb.append('>')
+    }
+    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit =
+      renderTo(sb)
+    private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit =
+      renderTo(sb)
+  }
+
+  /**
    * A text node containing HTML content to be escaped during rendering.
    *
    * Text nodes are automatically HTML-escaped to prevent XSS attacks when
@@ -396,10 +419,10 @@ object Dom {
    *   the text content (will be HTML-escaped in output)
    */
   final case class Text(content: String) extends Dom {
-    private[template] def renderTo(sb: java.lang.StringBuilder): Unit                                = sb.append(Escape.html(content))
-    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit                        = sb.append(Escape.html(content))
+    private[template] def renderTo(sb: java.lang.StringBuilder): Unit                                = Escape.htmlTo(content, sb)
+    private[template] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit                        = Escape.htmlTo(content, sb)
     private[template] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit =
-      sb.append(Escape.html(content))
+      Escape.htmlTo(content, sb)
   }
 
   /**
@@ -418,7 +441,9 @@ object Dom {
   object Attribute {
     final case class KeyValue(name: String, value: AttributeValue)                                   extends Attribute
     final case class AppendValue(name: String, value: AttributeValue, separator: AttributeSeparator) extends Attribute
-    final case class BooleanAttribute(name: String, enabled: Boolean = true)                         extends Attribute
+    final case class BooleanAttribute(name: String, enabled: Boolean = true)                         extends Attribute {
+      def :=(value: Boolean): BooleanAttribute = copy(enabled = value)
+    }
   }
 
   sealed trait AttributeValue extends Product with Serializable
@@ -450,11 +475,11 @@ object Dom {
   def boolAttr(name: String, enabled: Boolean = true): Attribute.BooleanAttribute =
     Attribute.BooleanAttribute(name, enabled)
 
-  def multiAttr(name: String): PartialMultiAttribute =
-    new PartialMultiAttribute(name, AttributeSeparator.Space)
+  def multiAttr(name: String): MultiAttributeKey =
+    new MultiAttributeKey(name, AttributeSeparator.Space)
 
-  def multiAttr(name: String, separator: AttributeSeparator): PartialMultiAttribute =
-    new PartialMultiAttribute(name, separator)
+  def multiAttr(name: String, separator: AttributeSeparator): MultiAttributeKey =
+    new MultiAttributeKey(name, separator)
 
   def multiAttr(name: String, values: Iterable[String]): Attribute =
     Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), AttributeSeparator.Space))
@@ -627,7 +652,7 @@ object Dom {
         sb.append(name)
         sb.append("=\"")
         val sanitized = if (isUrlAttribute(name)) Escape.sanitizeUrl(v) else v
-        sb.append(Escape.html(sanitized))
+        Escape.htmlTo(sanitized, sb)
         sb.append('"')
 
       case AttributeValue.MultiValue(values, separator) =>
@@ -638,7 +663,7 @@ object Dom {
           var j = 0
           while (j < values.length) {
             if (j > 0) sb.append(separator.render)
-            sb.append(Escape.html(values(j)))
+            Escape.htmlTo(values(j), sb)
             j += 1
           }
           sb.append('"')
@@ -648,7 +673,7 @@ object Dom {
         sb.append(' ')
         sb.append(name)
         sb.append("=\"")
-        sb.append(Escape.html(js.value))
+        Escape.htmlTo(js.value, sb)
         sb.append('"')
     }
 

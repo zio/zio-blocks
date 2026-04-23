@@ -19,31 +19,31 @@ package zio.blocks.template
 import zio.blocks.chunk.Chunk
 import zio.test._
 
-object ModifierEffectSpec extends ZIOSpecDefault {
+object DomModifierSpec extends ZIOSpecDefault {
   private val emptyDiv: Dom.Element = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
 
-  def spec = suite("ModifierEffect")(
+  def spec = suite("DomModifier")(
     suite("applyTo")(
       test("AddAttr adds attribute") {
-        val effect = ModifierEffect.AddAttr(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")))
+        val effect = DomModifier.AddAttr(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("x")))
         val result = effect.applyTo(emptyDiv)
         assertTrue(result.render == """<div id="x"></div>""")
       },
       test("AddChild adds child") {
-        val effect = ModifierEffect.AddChild(Dom.Text("hello"))
+        val effect = DomModifier.AddChild(Dom.Text("hello"))
         val result = effect.applyTo(emptyDiv)
         assertTrue(result.render == "<div>hello</div>")
       },
       test("AddChildren adds multiple children") {
-        val effect = ModifierEffect.AddChildren(Chunk(Dom.Text("a"), Dom.Text("b")))
+        val effect = DomModifier.AddChildren(Chunk(Dom.Text("a"), Dom.Text("b")))
         val result = effect.applyTo(emptyDiv)
         assertTrue(result.render == "<div>ab</div>")
       },
       test("AddEffects applies nested effects sequentially") {
-        val effects = ModifierEffect.AddEffects(
+        val effects = DomModifier.AddEffects(
           Chunk(
-            ModifierEffect.AddAttr(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("box"))),
-            ModifierEffect.AddChild(Dom.Text("content"))
+            DomModifier.AddAttr(Dom.Attribute.KeyValue("class", Dom.AttributeValue.StringValue("box"))),
+            DomModifier.AddChild(Dom.Text("content"))
           )
         )
         val result = effects.applyTo(emptyDiv)
@@ -55,12 +55,12 @@ object ModifierEffectSpec extends ZIOSpecDefault {
           Chunk(Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("a"))),
           Chunk(Dom.Text("old"))
         )
-        val effect = ModifierEffect.AddChild(Dom.Text("new"))
+        val effect = DomModifier.AddChild(Dom.Text("new"))
         val result = effect.applyTo(existing)
         assertTrue(result.render == """<div id="a">oldnew</div>""")
       },
       test("AddChildren with empty chunk is a no-op") {
-        val effect = ModifierEffect.AddChildren(Chunk.empty)
+        val effect = DomModifier.AddChildren(Chunk.empty)
         val result = effect.applyTo(emptyDiv)
         assertTrue(result.render == "<div></div>")
       }

@@ -593,64 +593,64 @@ object DomSpec extends ZIOSpecDefault {
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="a b c"></div>""")
       },
-      test("PartialMultiAttribute := varargs") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey := varargs") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls.:=("foo", "bar", "baz")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="foo bar baz"></div>""")
       },
-      test("PartialMultiAttribute apply") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey apply") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls("foo", "bar")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="foo bar"></div>""")
       },
-      test("PartialMultiAttribute := single string") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey := single string") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls := "single"
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="single"></div>""")
       },
-      test("PartialMultiAttribute := Chunk[String]") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey := Chunk[String]") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls := Chunk("a", "b")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="a b"></div>""")
       },
-      test("PartialMultiAttribute apply with Iterable") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey apply with Iterable") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls(List("x", "y"))
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="x y"></div>""")
       },
-      test("PartialMultiAttribute apply with single value") {
-        val cls  = new PartialMultiAttribute("class", Dom.AttributeSeparator.Space)
+      test("MultiAttributeKey apply with single value") {
+        val cls  = new MultiAttributeKey("class", Dom.AttributeSeparator.Space)
         val attr = cls("single")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="single"></div>""")
       }
     ),
-    suite("PartialAttribute")(
+    suite("AttributeKey")(
       test(":= with Long") {
-        val pa   = new PartialAttribute("tabindex")
+        val pa   = new AttributeKey("tabindex")
         val attr = pa := 100L
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div tabindex="100"></div>""")
       },
       test(":= with Double") {
-        val pa   = new PartialAttribute("data-ratio")
+        val pa   = new AttributeKey("data-ratio")
         val attr = pa := 3.14
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div data-ratio="3.14"></div>""")
       },
       test(":= with Js") {
-        val pa   = new PartialAttribute("onclick")
+        val pa   = new AttributeKey("onclick")
         val attr = pa := Js("alert('hi')")
         val el   = Dom.Element.Generic("button", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<button onclick="alert(&#x27;hi&#x27;)"></button>""")
       },
       test("withSeparator") {
-        val pa   = new PartialAttribute("class")
+        val pa   = new AttributeKey("class")
         val attr = pa.withSeparator(Chunk("a", "b", "c"), Dom.AttributeSeparator.Comma)
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="a,b,c"></div>""")
@@ -852,33 +852,33 @@ object DomSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("PartialAttribute := variants")(
+    suite("AttributeKey := variants")(
       test(":= with Int") {
-        val pa   = new PartialAttribute("tabindex")
+        val pa   = new AttributeKey("tabindex")
         val attr = pa := 5
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div tabindex="5"></div>""")
       },
       test(":= with Boolean true creates BooleanValue") {
-        val pa   = new PartialAttribute("disabled")
+        val pa   = new AttributeKey("disabled")
         val attr = pa := true
         val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
         assertTrue(el.render == "<input disabled/>")
       },
       test(":= with Boolean false omits") {
-        val pa   = new PartialAttribute("disabled")
+        val pa   = new AttributeKey("disabled")
         val attr = pa := false
         val el   = Dom.Element.Generic("input", Chunk(attr), Chunk.empty)
         assertTrue(el.render == "<input/>")
       },
       test(":= with Chunk[String] creates MultiValue") {
-        val pa   = new PartialAttribute("class")
+        val pa   = new AttributeKey("class")
         val attr = pa := Chunk("x", "y")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="x y"></div>""")
       },
       test(":= with varargs creates MultiValue") {
-        val pa   = new PartialAttribute("class")
+        val pa   = new AttributeKey("class")
         val attr = pa.:=("a", "b", "c")
         val el   = Dom.Element.Generic("div", Chunk(attr), Chunk.empty)
         assertTrue(el.render == """<div class="a b c"></div>""")
@@ -1072,6 +1072,43 @@ object DomSpec extends ZIOSpecDefault {
         val inner = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("x")))
         val s     = Dom.Element.Script(Chunk.empty, Chunk(inner))
         assertTrue(s.render(indent = 2) == "<script>\n  <span>x</span>\n</script>")
+      }
+    ),
+    suite("Doctype")(
+      test("renders DOCTYPE html") {
+        assertTrue(Dom.Doctype("html").render == "<!DOCTYPE html>")
+      },
+      test("renders custom DOCTYPE") {
+        assertTrue(Dom.Doctype("svg").render == "<!DOCTYPE svg>")
+      },
+      test("doctype from HtmlElements") {
+        assertTrue(doctype.render == "<!DOCTYPE html>")
+      },
+      test("indented rendering same as minified") {
+        assertTrue(Dom.Doctype("html").render(indent = 2) == "<!DOCTYPE html>")
+      },
+      test("isEmpty returns false") {
+        assertTrue(!Dom.Doctype("html").isEmpty)
+      }
+    ),
+    suite("BooleanAttribute :=")(
+      test("disabled := false omits attribute") {
+        val result = button(disabled := false)
+        assertTrue(result.render == "<button></button>")
+      },
+      test("disabled := true renders attribute") {
+        val result = button(disabled := true)
+        assertTrue(result.render == "<button disabled></button>")
+      },
+      test(":= with false via BooleanAttribute") {
+        val ba = Dom.Attribute.BooleanAttribute("checked") := false
+        val el = Dom.Element.Generic("input", Chunk(ba), Chunk.empty)
+        assertTrue(el.render == "<input/>")
+      },
+      test(":= with true via BooleanAttribute") {
+        val ba = Dom.Attribute.BooleanAttribute("checked") := true
+        val el = Dom.Element.Generic("input", Chunk(ba), Chunk.empty)
+        assertTrue(el.render == "<input checked/>")
       }
     )
   )

@@ -36,7 +36,15 @@ private[template] object Escape {
     if (!needsEscape) return s
 
     val sb = new java.lang.StringBuilder(len + 16)
-    i = 0
+    htmlTo(s, sb)
+    sb.toString
+  }
+
+  def htmlTo(s: String, sb: java.lang.StringBuilder): Unit = {
+    val len = s.length
+    if (len == 0) return
+
+    var i = 0
     while (i < len) {
       val c = s.charAt(i)
       if (c == '&') sb.append("&amp;")
@@ -47,7 +55,6 @@ private[template] object Escape {
       else sb.append(c)
       i += 1
     }
-    sb.toString
   }
 
   def jsString(s: String): String = {
@@ -60,17 +67,20 @@ private[template] object Escape {
       if (
         c == '"' || c == '\'' || c == '\\' || c == '\n' || c == '\r' || c == '\t' || c == '\b' || c == '\f' || c == '<' || c == '>' || c == '&' || c == '\u2028' || c == '\u2029' || c < 32
       ) {
-        return jsStringEscape(s)
+        val sb = new java.lang.StringBuilder(len + 16)
+        jsStringTo(s, sb)
+        return sb.toString
       }
       i += 1
     }
     s
   }
 
-  private def jsStringEscape(s: String): String = {
+  def jsStringTo(s: String, sb: java.lang.StringBuilder): Unit = {
     val len = s.length
-    val sb  = new java.lang.StringBuilder(len + 16)
-    var i   = 0
+    if (len == 0) return
+
+    var i = 0
     while (i < len) {
       val c = s.charAt(i)
       if (c == '"') sb.append("\\\"")
@@ -96,7 +106,6 @@ private[template] object Escape {
       } else sb.append(c)
       i += 1
     }
-    sb.toString
   }
 
   private val dangerousUrlSchemes: Array[String] =

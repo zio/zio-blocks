@@ -124,6 +124,40 @@ object EscapeSpec extends ZIOSpecDefault {
         assertTrue(result == "a\\1 b")
       }
     ),
+    suite("htmlTo")(
+      test("writes escaped HTML to buffer") {
+        val sb = new java.lang.StringBuilder
+        Escape.htmlTo("<b>&\"'", sb)
+        assertTrue(sb.toString == "&lt;b&gt;&amp;&quot;&#x27;")
+      },
+      test("writes safe string to buffer unchanged") {
+        val sb = new java.lang.StringBuilder
+        Escape.htmlTo("safe text", sb)
+        assertTrue(sb.toString == "safe text")
+      },
+      test("empty string is no-op") {
+        val sb = new java.lang.StringBuilder
+        Escape.htmlTo("", sb)
+        assertTrue(sb.toString == "")
+      }
+    ),
+    suite("jsStringTo")(
+      test("writes escaped JS to buffer") {
+        val sb = new java.lang.StringBuilder
+        Escape.jsStringTo("a\"b\\c\n", sb)
+        assertTrue(sb.toString == "a\\\"b\\\\c\\n")
+      },
+      test("writes safe string to buffer unchanged") {
+        val sb = new java.lang.StringBuilder
+        Escape.jsStringTo("safe", sb)
+        assertTrue(sb.toString == "safe")
+      },
+      test("empty string is no-op") {
+        val sb = new java.lang.StringBuilder
+        Escape.jsStringTo("", sb)
+        assertTrue(sb.toString == "")
+      }
+    ),
     suite("sanitizeUrl")(
       test("blocks javascript: scheme") {
         assertTrue(Escape.sanitizeUrl("javascript:alert(1)") == "unsafe:javascript:alert(1)")

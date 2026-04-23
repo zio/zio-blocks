@@ -18,7 +18,7 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 
-final class PartialAttribute(val attrName: String) {
+final class AttributeKey(val attrName: String) {
 
   def :=(value: String): Dom.Attribute =
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(value))

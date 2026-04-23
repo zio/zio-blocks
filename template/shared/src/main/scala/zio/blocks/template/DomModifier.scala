@@ -22,13 +22,13 @@ import zio.blocks.chunk.Chunk
 /**
  * Represents a deferred modification to a [[Dom.Element]].
  *
- * `ModifierEffect` values describe additions (attributes, children, or nested
+ * `DomModifier` values describe additions (attributes, children, or nested
  * effects) that are collected during element construction and then applied in
  * batch by `ToModifier.buildFromEffects`.
  *
- * Use [[ModifierEffect#applyTo]] for single-effect application to an element.
+ * Use [[DomModifier#applyTo]] for single-effect application to an element.
  */
-sealed trait ModifierEffect extends Product with Serializable {
+sealed trait DomModifier extends Product with Serializable {
 
   /**
    * Applies this single effect to the given element, returning a new element
@@ -44,10 +44,10 @@ sealed trait ModifierEffect extends Product with Serializable {
    *   a new element with this effect applied
    */
   def applyTo(element: Dom.Element): Dom.Element = this match {
-    case ModifierEffect.AddAttr(attr)    => element.withAttributes(element.attributes :+ attr)
-    case ModifierEffect.AddChild(child)  => element.withChildren(element.children :+ child)
-    case ModifierEffect.AddChildren(cs)  => element.withChildren(element.children ++ cs)
-    case ModifierEffect.AddEffects(effs) =>
+    case DomModifier.AddAttr(attr)    => element.withAttributes(element.attributes :+ attr)
+    case DomModifier.AddChild(child)  => element.withChildren(element.children :+ child)
+    case DomModifier.AddChildren(cs)  => element.withChildren(element.children ++ cs)
+    case DomModifier.AddEffects(effs) =>
       var elem = element
       var i    = 0
       while (i < effs.length) {
@@ -58,13 +58,13 @@ sealed trait ModifierEffect extends Product with Serializable {
   }
 }
 
-object ModifierEffect {
-  final case class AddAttr(attr: Dom.Attribute)               extends ModifierEffect
-  final case class AddChild(child: Dom)                       extends ModifierEffect
-  final case class AddChildren(children: Chunk[Dom])          extends ModifierEffect
-  final case class AddEffects(effects: Chunk[ModifierEffect]) extends ModifierEffect
+object DomModifier {
+  final case class AddAttr(attr: Dom.Attribute)            extends DomModifier
+  final case class AddChild(child: Dom)                    extends DomModifier
+  final case class AddChildren(children: Chunk[Dom])       extends DomModifier
+  final case class AddEffects(effects: Chunk[DomModifier]) extends DomModifier
 }
 
-trait ModifierEffectConversions {
-  implicit def toModifierEffect[A](a: A)(implicit ev: ToModifier[A]): ModifierEffect = ev.toModifier(a)
+trait DomModifierConversions {
+  implicit def toDomModifier[A](a: A)(implicit ev: ToModifier[A]): DomModifier = ev.toModifier(a)
 }

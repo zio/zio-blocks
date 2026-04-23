@@ -18,7 +18,7 @@ package zio.blocks.template
 
 import zio.blocks.chunk.Chunk
 
-final class PartialMultiAttribute(val name: String, val separator: Dom.AttributeSeparator) {
+final class MultiAttributeKey(val name: String, val separator: Dom.AttributeSeparator) {
 
   def :=(value: String): Dom.Attribute =
     Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(value))
