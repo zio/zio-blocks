@@ -21,15 +21,57 @@ trait HtmlElements {
 
   // --- Element constructors ---
 
-  private def elScript(effects: Seq[DomModifier]): Dom.Element.Script =
-    ToModifier
-      .buildFromEffects(Dom.Element.Script(Chunk.empty, Chunk.empty), effects)
-      .asInstanceOf[Dom.Element.Script]
+  private def elScript(effects: Seq[DomModifier]): Dom.Element.Script = {
+    val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
+    val childBuilder = Chunk.newBuilder[Dom]
+    var i            = 0
+    while (i < effects.length) {
+      effects(i) match {
+        case DomModifier.AddAttr(a)       => attrBuilder += a
+        case DomModifier.AddChild(c)      => childBuilder += c
+        case DomModifier.AddChildren(cs)  => childBuilder ++= cs
+        case DomModifier.AddEffects(effs) =>
+          var j = 0
+          while (j < effs.length) {
+            effs(j) match {
+              case DomModifier.AddAttr(a)      => attrBuilder += a
+              case DomModifier.AddChild(c)     => childBuilder += c
+              case DomModifier.AddChildren(cs) => childBuilder ++= cs
+              case _                           => ()
+            }
+            j += 1
+          }
+      }
+      i += 1
+    }
+    Dom.Element.Script(attrBuilder.result(), childBuilder.result())
+  }
 
-  private def elStyle(effects: Seq[DomModifier]): Dom.Element.Style =
-    ToModifier
-      .buildFromEffects(Dom.Element.Style(Chunk.empty, Chunk.empty), effects)
-      .asInstanceOf[Dom.Element.Style]
+  private def elStyle(effects: Seq[DomModifier]): Dom.Element.Style = {
+    val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
+    val childBuilder = Chunk.newBuilder[Dom]
+    var i            = 0
+    while (i < effects.length) {
+      effects(i) match {
+        case DomModifier.AddAttr(a)       => attrBuilder += a
+        case DomModifier.AddChild(c)      => childBuilder += c
+        case DomModifier.AddChildren(cs)  => childBuilder ++= cs
+        case DomModifier.AddEffects(effs) =>
+          var j = 0
+          while (j < effs.length) {
+            effs(j) match {
+              case DomModifier.AddAttr(a)      => attrBuilder += a
+              case DomModifier.AddChild(c)     => childBuilder += c
+              case DomModifier.AddChildren(cs) => childBuilder ++= cs
+              case _                           => ()
+            }
+            j += 1
+          }
+      }
+      i += 1
+    }
+    Dom.Element.Style(attrBuilder.result(), childBuilder.result())
+  }
 
   val doctype: Dom.Doctype                                                   = Dom.Doctype("html")
   val html: Dom.Element                                                      = Dom.Element.Generic("html", Chunk.empty, Chunk.empty)
