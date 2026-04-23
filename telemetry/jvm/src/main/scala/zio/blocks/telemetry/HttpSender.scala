@@ -31,7 +31,12 @@ trait HttpSender {
   def shutdown(): Unit
 }
 
-final class JdkHttpSender(
+object HttpSender {
+  def jdk(timeout: Duration = Duration.ofSeconds(30)): HttpSender =
+    new JdkHttpSender(timeout)
+}
+
+private[telemetry] final class JdkHttpSender(
   timeout: Duration = Duration.ofSeconds(30)
 ) extends HttpSender {
   private val client = HttpClient

@@ -16,20 +16,9 @@
 
 package zio.blocks.telemetry
 
-trait LogRecordProcessor extends AutoCloseable {
-  def onEmit(logRecord: LogRecord): Unit
-  def shutdown(): Unit
-  def forceFlush(): Unit
-  override def close(): Unit = shutdown()
+sealed trait ExportResult
 
-  def minimumLevel: Int = 1
-}
-
-object LogRecordProcessor {
-
-  val noop: LogRecordProcessor = new LogRecordProcessor {
-    def onEmit(logRecord: LogRecord): Unit = ()
-    def shutdown(): Unit                   = ()
-    def forceFlush(): Unit                 = ()
-  }
+object ExportResult {
+  case object Success                                           extends ExportResult
+  final case class Failure(retryable: Boolean, message: String) extends ExportResult
 }

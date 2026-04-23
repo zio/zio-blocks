@@ -19,7 +19,7 @@ package zio.blocks.telemetry
 /**
  * Reads and collects metric data from all registered instruments.
  */
-trait MetricReader {
+trait MetricReader extends AutoCloseable {
 
   /**
    * Collects metric data from all registered instruments across all meters.
@@ -35,6 +35,8 @@ trait MetricReader {
    * Forces a flush of any buffered metric data.
    */
   def forceFlush(): Unit
+
+  override def close(): Unit = shutdown()
 }
 
 /**

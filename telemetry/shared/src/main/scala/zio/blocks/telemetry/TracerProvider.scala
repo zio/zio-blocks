@@ -16,12 +16,12 @@
 
 package zio.blocks.telemetry
 
-final class TracerProvider(
+final class TracerProvider private[telemetry] (
   resource: Resource,
   sampler: Sampler,
   processors: Seq[SpanProcessor],
   private[telemetry] val contextStorage: ContextStorage[Option[SpanContext]]
-) {
+) extends AutoCloseable {
 
   def get(name: String, version: String = ""): Tracer = {
     val scope = InstrumentationScope(
@@ -36,6 +36,8 @@ final class TracerProvider(
 
   def forceFlush(): Unit =
     processors.foreach(_.forceFlush())
+
+  override def close(): Unit = shutdown()
 }
 
 object TracerProvider {

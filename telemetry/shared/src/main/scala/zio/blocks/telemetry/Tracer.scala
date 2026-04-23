@@ -16,7 +16,7 @@
 
 package zio.blocks.telemetry
 
-final class Tracer(
+final class Tracer private[telemetry] (
   val instrumentationScope: InstrumentationScope,
   val resource: Resource,
   sampler: Sampler,

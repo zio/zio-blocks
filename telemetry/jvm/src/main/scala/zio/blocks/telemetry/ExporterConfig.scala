@@ -16,20 +16,13 @@
 
 package zio.blocks.telemetry
 
-trait LogRecordProcessor extends AutoCloseable {
-  def onEmit(logRecord: LogRecord): Unit
-  def shutdown(): Unit
-  def forceFlush(): Unit
-  override def close(): Unit = shutdown()
+import java.time.Duration
 
-  def minimumLevel: Int = 1
-}
-
-object LogRecordProcessor {
-
-  val noop: LogRecordProcessor = new LogRecordProcessor {
-    def onEmit(logRecord: LogRecord): Unit = ()
-    def shutdown(): Unit                   = ()
-    def forceFlush(): Unit                 = ()
-  }
-}
+final case class ExporterConfig(
+  endpoint: String = "http://localhost:4318",
+  headers: Map[String, String] = Map.empty,
+  timeout: Duration = Duration.ofSeconds(30),
+  maxQueueSize: Int = 2048,
+  maxBatchSize: Int = 512,
+  flushIntervalMillis: Long = 5000
+)

@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
 final class MeterProvider private[telemetry] (
   val resource: Resource,
   private val meterRegistry: MeterRegistry
-) {
+) extends AutoCloseable {
   private val meters = new ConcurrentHashMap[InstrumentationScope, Meter]()
 
   val reader: MetricReader = new MetricReaderImpl(meterRegistry)
@@ -51,6 +51,8 @@ final class MeterProvider private[telemetry] (
 
   def shutdown(): Unit =
     reader.shutdown()
+
+  override def close(): Unit = shutdown()
 }
 
 object MeterProvider {

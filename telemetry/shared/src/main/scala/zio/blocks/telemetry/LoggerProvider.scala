@@ -16,11 +16,11 @@
 
 package zio.blocks.telemetry
 
-final class LoggerProvider(
+final class LoggerProvider private[telemetry] (
   resource: Resource,
   private val processors: Array[LogRecordProcessor],
   contextStorage: ContextStorage[Option[SpanContext]]
-) {
+) extends AutoCloseable {
 
   def get(name: String, version: String = ""): Logger = {
     val scope = InstrumentationScope(
@@ -37,6 +37,8 @@ final class LoggerProvider(
       i += 1
     }
   }
+
+  override def close(): Unit = shutdown()
 }
 
 object LoggerProvider {

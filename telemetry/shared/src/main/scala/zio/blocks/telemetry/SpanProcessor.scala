@@ -16,11 +16,12 @@
 
 package zio.blocks.telemetry
 
-trait SpanProcessor {
+trait SpanProcessor extends AutoCloseable {
   def onStart(span: Span): Unit
   def onEnd(spanData: SpanData): Unit
   def shutdown(): Unit
   def forceFlush(): Unit
+  override def close(): Unit = shutdown()
 }
 
 object SpanProcessor {

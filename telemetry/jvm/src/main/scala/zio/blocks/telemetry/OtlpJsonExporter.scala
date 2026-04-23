@@ -16,18 +16,7 @@
 
 package zio.blocks.telemetry
 
-import java.time.Duration
-
-final case class ExporterConfig(
-  endpoint: String = "http://localhost:4318",
-  headers: Map[String, String] = Map.empty,
-  timeout: Duration = Duration.ofSeconds(30),
-  maxQueueSize: Int = 2048,
-  maxBatchSize: Int = 512,
-  flushIntervalMillis: Long = 5000
-)
-
-object OtlpJsonExporter {
+private[telemetry] object OtlpJsonExporter {
 
   private val retryableStatusCodes: Set[Int] = Set(429, 502, 503, 504)
 
@@ -39,103 +28,4 @@ object OtlpJsonExporter {
 
   private[telemetry] def mergeHeaders(config: ExporterConfig): Map[String, String] =
     config.headers + ("Content-Type" -> "application/json")
-}
-
-final class OtlpJsonTraceExporter(
-  config: ExporterConfig,
-  resource: Resource,
-  scope: InstrumentationScope,
-  httpSender: HttpSender,
-  platformExecutor: PlatformExecutor
-) extends SpanProcessor {
-
-  private val url     = config.endpoint + "/v1/traces"
-  private val headers = OtlpJsonExporter.mergeHeaders(config)
-
-  private val batchProcessor: BatchProcessor[SpanData] = new BatchProcessor[SpanData](
-    exportFn = { batch =>
-      val body     = OtlpJsonEncoder.encodeTraces(batch, resource, scope)
-      val response = httpSender.send(url, headers, body)
-      OtlpJsonExporter.mapResponse(response)
-    },
-    executor = platformExecutor.executor,
-    maxQueueSize = config.maxQueueSize,
-    maxBatchSize = config.maxBatchSize,
-    flushIntervalMillis = config.flushIntervalMillis
-  )
-
-  def onStart(span: Span): Unit = ()
-
-  def onEnd(spanData: SpanData): Unit =
-    batchProcessor.enqueue(spanData)
-
-  def shutdown(): Unit = {
-    batchProcessor.shutdown()
-    httpSender.shutdown()
-  }
-
-  def forceFlush(): Unit =
-    batchProcessor.forceFlush()
-}
-
-final class OtlpJsonLogExporter(
-  config: ExporterConfig,
-  resource: Resource,
-  scope: InstrumentationScope,
-  httpSender: HttpSender,
-  platformExecutor: PlatformExecutor
-) extends LogRecordProcessor {
-
-  private val url     = config.endpoint + "/v1/logs"
-  private val headers = OtlpJsonExporter.mergeHeaders(config)
-
-  private val batchProcessor: BatchProcessor[LogRecord] = new BatchProcessor[LogRecord](
-    exportFn = { batch =>
-      val body     = OtlpJsonEncoder.encodeLogs(batch, resource, scope)
-      val response = httpSender.send(url, headers, body)
-      OtlpJsonExporter.mapResponse(response)
-    },
-    executor = platformExecutor.executor,
-    maxQueueSize = config.maxQueueSize,
-    maxBatchSize = config.maxBatchSize,
-    flushIntervalMillis = config.flushIntervalMillis
-  )
-
-  def onEmit(logRecord: LogRecord): Unit =
-    batchProcessor.enqueue(logRecord)
-
-  def shutdown(): Unit = {
-    batchProcessor.shutdown()
-    httpSender.shutdown()
-  }
-
-  def forceFlush(): Unit =
-    batchProcessor.forceFlush()
-}
-
-final class OtlpJsonMetricExporter(
-  config: ExporterConfig,
-  resource: Resource,
-  scope: InstrumentationScope,
-  httpSender: HttpSender,
-  collectFn: () => Seq[NamedMetric]
-) {
-
-  private val url     = config.endpoint + "/v1/metrics"
-  private val headers = OtlpJsonExporter.mergeHeaders(config)
-
-  def exportMetrics(): ExportResult = {
-    val metrics = collectFn()
-    if (metrics.isEmpty) ExportResult.Success
-    else {
-      val body     = OtlpJsonEncoder.encodeMetrics(metrics, resource, scope)
-      val response = httpSender.send(url, headers, body)
-      OtlpJsonExporter.mapResponse(response)
-    }
-  }
-
-  def shutdown(): Unit =
-    httpSender.shutdown()
-
-  def forceFlush(): Unit = ()
 }

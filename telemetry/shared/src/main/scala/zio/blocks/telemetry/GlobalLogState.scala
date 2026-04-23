@@ -18,7 +18,7 @@ package zio.blocks.telemetry
 
 import java.util.concurrent.atomic.AtomicReference
 
-final class LogState(
+final class LogState private[telemetry] (
   val logger: Logger,
   val minSeverity: Int,
   val levelOverridesMap: Map[String, Int],

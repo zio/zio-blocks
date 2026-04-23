@@ -25,14 +25,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-sealed trait ExportResult
-
-object ExportResult {
-  case object Success                                           extends ExportResult
-  final case class Failure(retryable: Boolean, message: String) extends ExportResult
-}
-
-final class BatchProcessor[A](
+private[telemetry] final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
   executor: ScheduledExecutorService,
   maxQueueSize: Int = 2048,
@@ -40,7 +33,7 @@ final class BatchProcessor[A](
   flushIntervalMillis: Long = 5000,
   maxRetries: Int = 5,
   retryBaseMillis: Long = 1000L
-) {
+) extends AutoCloseable {
   private val queue: ConcurrentLinkedQueue[A] = new ConcurrentLinkedQueue[A]()
   private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
@@ -82,6 +75,8 @@ final class BatchProcessor[A](
       doFlush()
       exportExecutor.shutdown()
     }
+
+  override def close(): Unit = shutdown()
 
   private def doFlush(): Unit = {
     var hasMore = true

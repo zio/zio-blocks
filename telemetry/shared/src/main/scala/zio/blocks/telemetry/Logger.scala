@@ -16,7 +16,7 @@
 
 package zio.blocks.telemetry
 
-final class Logger(
+final class Logger private[telemetry] (
   private[telemetry] val instrumentationScope: InstrumentationScope,
   private[telemetry] val resource: Resource,
   private[telemetry] val processors: Array[LogRecordProcessor],
