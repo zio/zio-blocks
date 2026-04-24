@@ -50,6 +50,8 @@ trait SeqConstructor[C[_]] {
 }
 
 object SeqConstructor {
+  class ArrayBuilder[A](var buffer: Array[A], var size: Int, val ct: ClassTag[A])
+
   given setConstructor: SeqConstructor[Set] with {
     type Builder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
@@ -87,8 +89,6 @@ object SeqConstructor {
   }
 
   private[binding] abstract class PrimitiveArraySeqConstructor[C[_]] extends SeqConstructor[C] {
-    class ArrayBuilder[A](var buffer: Array[A], var size: Int, val ct: ClassTag[A])
-
     type Builder[A] = ArrayBuilder[A]
 
     def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =

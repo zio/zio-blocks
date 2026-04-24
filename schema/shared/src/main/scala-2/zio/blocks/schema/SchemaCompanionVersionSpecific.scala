@@ -516,32 +516,30 @@ private object SchemaCompanionVersionSpecific {
                    typeId = seqTypeId,
                    seqBinding = new Binding.Seq(
                      constructor = new SeqConstructor[Array] {
-                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                       type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                       type Builder[A] = ArrayBuilder[A]
+                       def newBuilder[A](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[A]): Builder[A] =
+                         new SeqConstructor.ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0, ct)
 
-                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                       def add[B](builder: Builder[B], a: B): Unit = {
+                       def add[A](builder: Builder[A], a: A): Unit = {
                          var buf = builder.buffer
                          val idx = builder.size
                          if (buf.length == idx) {
-                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[A]]
                            builder.buffer = buf
                          }
                          buf(idx) = a
                          builder.size = idx + 1
                        }
 
-                       def result[B](builder: Builder[B]): Array[B] = {
+                       def result[A](builder: Builder[A]): Array[A] = {
                          val buf  = builder.buffer
                          val size = builder.size
                          if (buf.length == size) buf
-                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[A]]
                        }
 
-                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
+                       def empty[A](implicit ct: scala.reflect.ClassTag[A]): Array[A] = Array.empty[$elementTpe].asInstanceOf[Array[A]]
                      },
                      deconstructor = SeqDeconstructor.arrayDeconstructor
                    )
@@ -566,32 +564,30 @@ private object SchemaCompanionVersionSpecific {
                    typeId = seqTypeId,
                    seqBinding = new Binding.Seq(
                      constructor = new SeqConstructor[ArraySeq] {
-                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                       type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                       type Builder[A] = ArrayBuilder[A]
+                       def newBuilder[A](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[A]): Builder[A] =
+                         new SeqConstructor.ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0, ct)
 
-                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                       def add[B](builder: Builder[B], a: B): Unit = {
+                       def add[A](builder: Builder[A], a: A): Unit = {
                          var buf = builder.buffer
                          val idx = builder.size
                          if (buf.length == idx) {
-                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[A]]
                            builder.buffer = buf
                          }
                          buf(idx) = a
                          builder.size = idx + 1
                        }
 
-                       def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                       def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
                          val buf  = builder.buffer
                          val size = builder.size
                          if (buf.length == size) buf
-                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[A]]
                        }
 
-                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
+                       def empty[A](implicit ct: scala.reflect.ClassTag[A]): ArraySeq[A] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[A]]
                      },
                      deconstructor = SeqDeconstructor.arraySeqDeconstructor
                    )
