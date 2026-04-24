@@ -453,7 +453,7 @@ Create custom schemes (e.g., FTP):
 ```scala mdoc:compile-only
 import zio.http.Scheme
 
-val ftp = Scheme.custom("ftp")
+val ftp = Scheme.Custom("ftp")
 val text = ftp.text              // "ftp"
 val isSecure = ftp.isSecure      // false (custom schemes assumed insecure)
 ```
@@ -500,7 +500,7 @@ import zio.http._
 val url1 = URL.parse("https://api.example.com/users/123?filter=active&sort=name").toOption.get
 
 // Modify an existing URL by adding query parameters
-val url2 = url1.addQueryParam("page", "1")
+val url2 = url1.??("page", "1")
 ```
 
 ### URL Operations
@@ -562,9 +562,6 @@ val segments = path.segments              // Chunk("api", "v1", "users")
 val hasLeadingSlash = path.hasLeadingSlash // true
 val hasTrailingSlash = path.trailingSlash  // false
 val encoded = path.encode                 // "/api/v1/users" (encoded string)
-
-val appended = path.append("123")         // Append segment: /api/v1/users/123
-val dropped = path.dropRight(1)           // Remove last segment: /api/v1
 ```
 
 ---
@@ -878,11 +875,11 @@ Create forms with key-value pairs:
 ```scala mdoc:compile-only
 import zio.http.Form
 
-val form = Form(zio.Chunk(
+val form = Form(
   "username" -> "alice",
   "email" -> "alice@example.com",
   "subscribe" -> "true"
-))
+)
 ```
 
 ### Submitting Forms
@@ -892,7 +889,7 @@ Send forms as request body:
 ```scala mdoc:compile-only
 import zio.http._
 
-val form = Form(zio.Chunk(("username", "alice"), ("password", "secret")))
+val form = Form("username" -> "alice", "password" -> "secret")
 val body = Body.fromString(form.encode, Charset.UTF8)
 
 val url = URL.parse("https://example.com/login").toOption.get
@@ -907,7 +904,7 @@ Access and encode form data:
 ```scala mdoc:compile-only
 import zio.http.Form
 
-val form = Form(zio.Chunk(("key1", "value1"), ("key2", "value2")))
+val form = Form("key1" -> "value1", "key2" -> "value2")
 
 val entries = form.entries      // Chunk[(String, String)] of all entries
 val encoded = form.encode       // "key1=value1&key2=value2" (percent-encoded for URL)
@@ -933,15 +930,16 @@ Create fields for multipart form submissions:
 
 ```scala mdoc:compile-only
 import zio.http._
+import zio.blocks.chunk.Chunk
 
 val textField = FormField.Simple("username", "alice")
 
-val imageBytes = zio.Chunk.empty[Byte]  // In real code, this would be actual image data
+val imageBytes = Chunk.fromArray("...image data...".getBytes)
 val fileField = FormField.Binary(
   name = "avatar",
   filename = Some("profile.png"),
   data = imageBytes,
-  contentType = Some(zio.http.ContentType.parse("image/png").toOption.get)
+  contentType = zio.http.ContentType.parse("image/png").toOption.get
 )
 ```
 
