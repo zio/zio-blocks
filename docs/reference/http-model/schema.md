@@ -1,5 +1,5 @@
 ---
-id: http-model/schema
+id: schema
 title: "Schema-Based Typed Access"
 ---
 

@@ -1,5 +1,5 @@
 ---
-id: http-model/model
+id: model
 title: "HTTP Model"
 ---
 
