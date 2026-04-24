@@ -120,7 +120,7 @@ const sidebars = {
          {
            type: "category",
            label: "HTTP Model",
-           link: { type: "doc", id: "reference/http-model" },
+           link: { type: "doc", id: "reference/http-model/index" },
            items: [
              "reference/http-model/model",
              "reference/http-model/schema",

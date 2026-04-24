@@ -1,5 +1,5 @@
 ---
-id: http-model
+id: index
 title: "HTTP Model"
 ---
 
