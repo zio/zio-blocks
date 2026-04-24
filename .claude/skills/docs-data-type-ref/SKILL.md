@@ -7,7 +7,9 @@ allowed-tools: Read, Glob, Grep, Bash(sbt:*), Bash(sbt gh-query*)
 
 # Write Data Type Reference Page
 
-**REQUIRED BACKGROUND:** Use `docs-writing-style` for prose conventions and `docs-mdoc-conventions` for code block syntax throughout.
+**REQUIRED BACKGROUND:** Import the following skill files before starting:
+- `.claude/skills/docs-writing-style/SKILL.md` for prose conventions
+- `.claude/skills/docs-mdoc-conventions/SKILL.md` for code block syntax throughout the document
 
 ## Target Type
 
@@ -54,9 +56,8 @@ Then list key properties as bullet points if applicable:
 
 ```
 `TypeName`:
-- is purely functional and referentially transparent
-- is concurrent-safe and lock-free
-- updates and modifies atomically
+- Lock-Free — safely shared across fibers with no synchronization overhead
+- Atomic — no observer can witness a partially updated state
 ```
 
 The definition should be concise but informative, with enough detail about type parameters and variance. For example, the `Chunk[A]` is an immutable, indexed sequence of elements of type `A`, optimized for high-performance operations.
@@ -66,29 +67,33 @@ After the definition paragraph, include the source definition of the data type i
 - Show only the structural shape — the trait/class declaration with type parameters, variance annotations, and extends clauses
 - Strip method bodies, private members, and extra keywords like `final`; show only the structural shape of the type
 
-After the structural definition, follow immediately with a section header (e.g., `## Overview`, `## Introduction`) to continue the document.
+After the structural definition, follow immediately with a section header (e.g., `## Quick Showcase`) for the next section.
 
 #### 2. Motivation / Use Case (if applicable)
 
-Answer: What problem does it solve? Why use it over alternatives? Include ASCII art for structure, bullet points for advantages, and a "hello world" example.
+Please write what the problem is and why this type is the solution in storytelling style by describing a realistic scenario.
 
-#### 3. Installation (if applicable)
+#### 3. Quick Showcase (required)
+
+Show core capabilities through examples. For simple types (e.g., `Writer`, `Reader`), one example suffices. For rich types (e.g., `Chunk`), combine 2–3 scenarios in a single `mdoc:reset` block (10–20 lines). Goal: readers grasp the core idea without reading further.
+
+#### 4. Installation (if applicable)
 
 Only include this for top-level module types (e.g., `Chunk`, `Context`, `TypeId`). Skip for internal types that come as part of a larger module.
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-<module>" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-<module>" % "@VERSION@"
 ```
 
 For cross-platform (Scala.js):
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-<module>" % "@VERSION@"
 ```
 
 Note supported Scala versions: 2.13.x and 3.x.
 
-#### 4. Construction / Creating Instances (required)
+#### 5. Construction / Creating Instances (required)
 
 Document all ways to create values of the type, organized by method:
 
@@ -100,11 +105,11 @@ Document all ways to create values of the type, organized by method:
 
 Each method gets its own Markdown subsection with a short explanation and a code example.
 
-#### 5. Predefined Instances (if applicable)
+#### 6. Predefined Instances (if applicable)
 
 List predefined instances (like `TypeId.int`, `TypeId.string`) organized by category in a table or code block.
 
-#### 6. Core Operations (Required)
+#### 7. Core Operations (Required)
 
 Document the primary API organized by category. Group related methods under markdown subsections:
 
@@ -181,11 +186,11 @@ d. **Show a usage example** using the Setup + Evaluated Output pattern:
 
 e. **Note important caveats** using [Docusaurus admonitions](#docusaurus-admonitions)
 
-#### 7. Subtypes / Variants (if applicable)
+#### 8. Subtypes / Variants (if applicable)
 
 Document important subtypes (e.g., `NonEmptyChunk` for `Chunk`) with: when to use, how to create, operations that differ, and conversion examples.
 
-#### 8. Comparison Sections (when applicable)
+#### 9. Comparison Sections (when applicable)
 
 Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when it adds clarity. Examples:
 - "Ref vs AtomicReference in Java"
@@ -197,11 +202,11 @@ Compare with analogous concepts from Java, Scala stdlib, or theoretical CS when 
 
 Use padded table columns for readability (see **`docs-writing-style`** for table formatting rules).
 
-#### 9. Advanced Usage / Building Blocks (when applicable)
+#### 10. Advanced Usage / Building Blocks (when applicable)
 
 Show how the type composes with other types or how it can be used to build higher-level abstractions.
 
-#### 10. Integration (if applicable)
+#### 11. Integration (if applicable)
 
 Show how this type integrates with other ZIO Blocks data types and module. For example:
 - How `TypeId` is used in `Schema`
@@ -210,7 +215,7 @@ Show how this type integrates with other ZIO Blocks data types and module. For e
 
 Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](./reflect.md)`) after explaining the integration of each related type.
 
-#### 11. Running the Examples (required when examples exist)
+#### 12. Running the Examples (required when examples exist)
 
 Add this section at the very end of the page, after Integration. For each `App` example, embed the full source using `SourceFile.print`, then show the command to run it. Use this template verbatim:
 
@@ -251,13 +256,13 @@ sbt "schema-examples/runMain <package>.<ObjectName>"
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/<package>/<ObjectName2>.scala")
+SourceFile.print("<module_name>-examples/src/main/scala/<package>/<ObjectName2>.scala")
 ```
 
 ([source](https://github.com/zio/zio-blocks/blob/main/schema-examples/src/main/scala/<package>/<ObjectName2>.scala))
 
 ```bash
-sbt "schema-examples/runMain <package>.<ObjectName2>"
+sbt "<module_name>-examples/runMain <package>.<ObjectName2>"
 ```
 
 Rules for this section:
@@ -270,7 +275,7 @@ Rules for this section:
 
 ### Embedding Example Files with `SourceFile`
 
-**Required for "Running the Examples" section:** Use `SourceFile.print` to embed full source from `schema-examples/` for each example.
+**Required for "Running the Examples" section:** Use `SourceFile.print` to embed full source from `<module_name>-examples/` for each example.
 
 `SourceFile.print` reads the file at mdoc compile time and emits a fenced code block with the file path shown as the title. This keeps docs and examples in sync automatically.
 
@@ -279,7 +284,7 @@ Rules for this section:
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("schema-examples/src/main/scala/<package>/<ExampleFile>.scala")
+SourceFile.print("<module_name>-examples/src/main/scala/<package>/<ExampleFile>.scala")
 ```
 
 **Important:** Import as `import docs.SourceFile` and call `SourceFile.print(...)` — do NOT use `import docs.SourceFile._` with bare `print(...)` because `print` conflicts with `Predef.print` inside mdoc sessions.
@@ -301,17 +306,22 @@ Run `/docs-verify-compliance` skill.
 
 ## Step 3.5: Verify Method Coverage
 
-Check that all public methods are documented:
+Use **`docs-data-type-list-members`** to extract members, then **`docs-report-method-coverage`** to verify coverage:
 
 ```bash
-./.claude/skills/docs-data-type-ref/check-method-coverage.sh <TypeName> docs/reference/<type-name>.md
+/docs-data-type-list-members <TypeName> | /docs-report-method-coverage <TypeName> docs/reference/<type-name>.md
 ```
 
-Exit codes: 0=complete, 1=missing, 2=source not found. Verify results manually.
+Or save members to file first, then report:
+```bash
+/docs-report-method-coverage <TypeName> docs/reference/<type-name>.md members.txt
+```
+
+Coverage report shows completeness by category: Companion Object, Public API, Inherited Methods.
 
 ## Step 4: Write Examples
 
-Create focused `App` objects in `schema-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
+Create focused `App` objects in `<module_name>-examples/src/main/scala/<type-name-lowercase>/`. Each demonstrates one use case — one `App` per concept.
 
 - **Package**: matches directory name (e.g., `package into` for `into/`)
 - **Object**: extends `App` for independent execution

@@ -190,6 +190,7 @@ lazy val root = project
     `streams-benchmark`,
     docs,
     `schema-examples`,
+    `streams-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
@@ -1030,11 +1031,10 @@ lazy val zioGolemIntegrationTests = project
 lazy val zioGolemBuildCodegen = project
   .in(file("golem/codegen"))
   .settings(
-    publish / skip     := true,
-    name               := "zio-golem-build-codegen",
-    organization       := "dev.zio",
-    crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
-    scalaVersion       := BuildHelper.Scala33,
+    publish / skip := true,
+    name           := "zio-golem-build-codegen",
+    organization   := "dev.zio",
+    scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
       "org.scalameta" %% "scalameta" % "4.16.1",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
@@ -1145,7 +1145,9 @@ lazy val `schema-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4")
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
   .dependsOn(`schema-examples-macros`)
   .dependsOn(
@@ -1159,6 +1161,24 @@ lazy val `schema-examples` = project
     `schema-avro`,
     `schema-thrift`,
     `schema-bson`
+  )
+
+lazy val `streams-examples` = project
+  .in(file("streams-examples"))
+  .settings(stdSettings("zio-blocks-streams-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
+  )
+  .dependsOn(
+    streams.jvm,
+    chunk.jvm,
+    `schema-examples-macros`
   )
 
 lazy val docs = project
@@ -1192,6 +1212,7 @@ lazy val docs = project
     context.jvm,
     scope.jvm,
     ringbuffer.jvm,
+    streams.jvm,
     `schema-toon`.jvm,
     `schema-avro`,
     `schema-messagepack`.jvm,
