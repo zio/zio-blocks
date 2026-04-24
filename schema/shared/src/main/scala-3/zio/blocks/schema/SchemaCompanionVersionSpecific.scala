@@ -727,37 +727,39 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[Array] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): Array[B] = {
+                      def result[A](builder: Builder[A]): Array[A] = {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): Array[B] = Array.empty[et].asInstanceOf[Array[B]]
+                      def empty[A](implicit ct: ClassTag[A]): Array[A] = Array.empty[et].asInstanceOf[Array[A]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -786,38 +788,40 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[IArray] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): IArray[B] = IArray.unsafeFromArray {
+                      def result[A](builder: Builder[A]): IArray[A] = IArray.unsafeFromArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): IArray[B] =
-                        IArray.unsafeFromArray(Array.empty[et]).asInstanceOf[IArray[B]]
+                      def empty[A](implicit ct: ClassTag[A]): IArray[A] =
+                        IArray.unsafeFromArray(Array.empty[et]).asInstanceOf[IArray[A]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -846,37 +850,39 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[ArraySeq] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                      def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
+                      def empty[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[et].asInstanceOf[ArraySeq[A]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )
