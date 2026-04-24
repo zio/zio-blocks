@@ -25,7 +25,7 @@ Where `<examples-module>` is one of:
 
 ### Step 2: Example File Structure
 
-Create **one Scala file per major step/concept/use case**, plus a final file for the complete example. Each file should be a standalone runnable `object` extending `App`.
+Create **one Scala file per major step/concept/use case**, plus a final file for the complete example. Each file should be a standalone runnable program, either an `object` extending `App` or a Scala 3 `@main def` function.
 
 **Naming convention depends on document type:**
 
@@ -42,11 +42,31 @@ Create 3-5 files total (feel free to write more examples if number of concepts w
 
 Each example file follows this pattern:
 
+For Scala 3:
+
 ```scala
 package <packagename>
 
-import zio.blocks.schema._
-// ... other imports as needed
+import <requiredImports>
+
+/**
+ * <Documentation Title> — Step/Concept/Pattern: <Title>
+ *
+ * <1-2 sentence description of what this example demonstrates.>
+ *
+ * Run with: sbt "<examples-module>/runMain <packagename>.<FunctionName>"
+ */
+@main def <FunctionName>(): Unit = {
+   // Example code
+}
+```
+
+For Scala 2.13:
+
+```scala
+package <packagename>
+
+import <requiredImports>
 
 /**
  * <Documentation Title> — Step/Concept/Pattern: <Title>
@@ -62,7 +82,7 @@ object <ObjectName> extends App {
 
 ### Step 4: The Complete Example
 
-The final example file (`CompleteExample.scala` or descriptively-named equivalent like `CompleteHttpRequest.scala`) must contain the **entire "Putting It Together" or most complex code block** from the document, wrapped in a runnable `object`. This is the most important example file.
+The final example file (`CompleteExample.scala` or descriptively-named equivalent like `CompleteHttpRequest.scala`) must contain the **entire "Putting It Together" or most complex code block** from the document, wrapped in a runnable program (either a Scala 3 `@main def` function or a Scala 2.13 `object` extending `App`). This is the most important example file.
 
 ### Step 5: Verify Examples Compile
 

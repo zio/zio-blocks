@@ -34,8 +34,8 @@ import zio.http._
   println(s"URL: $url")
   println(s"Query Parameters:")
   val params = url.queryParams
-  params.toList.foreach { case (key, values) =>
-    println(s"  $key: ${values.headOption}")
+  params.toList.foreach { case (key, value) =>
+    println(s"  $key: $value")
   }
   println()
 

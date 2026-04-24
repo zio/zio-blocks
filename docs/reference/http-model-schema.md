@@ -32,7 +32,6 @@ The solution is to use schema-based extraction for clean, declarative code:
 ```scala mdoc:compile-only
 import zio.http.QueryParams
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val params = QueryParams("userId" -> "550e8400-e29b-41d4-a716-446655440000")
 val userId = params.query[java.util.UUID]("userId")  // 1 line, automatic UUID parsing + errors
@@ -102,7 +101,6 @@ Setting up and extracting query parameters with type safety:
 ```scala mdoc
 import zio.http.{Request, URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val url = URL.parse("/api/users?page=2&limit=50&sort=name").toOption.get
 val request = Request.get(url)
@@ -146,7 +144,6 @@ When a query parameter is required, use `query[T]` and handle the error:
 ```scala mdoc
 import zio.http.{URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val url = URL.parse("/search?q=zio").toOption.get
 val params = url.queryParams
@@ -176,7 +173,6 @@ When a query parameter appears multiple times (e.g., `?tag=scala&tag=fp`), use `
 ```scala mdoc
 import zio.http.{URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val url = URL.parse("/search?tag=scala&tag=functional&tag=zio").toOption.get
 val params = url.queryParams
@@ -212,7 +208,6 @@ When a query parameter is optional with a sensible default, use `queryOrElse`:
 ```scala mdoc
 import zio.http.{URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val url = URL.parse("/api/items?page=2").toOption.get
 val params = url.queryParams
@@ -247,7 +242,6 @@ Here's how to use `header[T]`:
 ```scala mdoc
 import zio.http.Headers
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val headers = Headers("x-user-id" -> "42", "x-api-version" -> "2")
 ```
@@ -287,7 +281,6 @@ Here's how to extract multiple headers:
 ```scala mdoc
 import zio.http.Headers
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val headers = Headers("x-tag" -> "scala", "x-tag" -> "functional", "x-tag" -> "zio")
 ```
@@ -319,7 +312,6 @@ Use `headerOrElse[T]` when a header is optional with a sensible default:
 ```scala mdoc
 import zio.http.Headers
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val headers = Headers("x-count" -> "5")
 ```
@@ -351,7 +343,6 @@ Query parameters and headers are extracted identically; just use `header[T]` or 
 ```scala mdoc
 import zio.http.{Request, URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val request = Request.get(URL.parse("/").toOption.get)
   .addHeader("x-user-id", "42")
@@ -381,7 +372,6 @@ Exposes all header methods from `HeadersSchemaOps` directly on `Response` — th
 ```scala mdoc
 import zio.http.Response
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val response = Response.ok
   .addHeader("x-request-id", "req-12345")
@@ -411,7 +401,6 @@ Extract multiple parameters or headers in a single operation using `Either`'s mo
 ```scala mdoc
 import zio.http.{Request, URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val request = Request.get(URL.parse("/api/posts?userId=5&page=2").toOption.get)
 ```
@@ -515,7 +504,6 @@ Pattern-match on error type to distinguish "missing" from "malformed":
 ```scala mdoc
 import zio.http.{Request, URL}
 import zio.http.schema._
-import zio.blocks.schema.Schema
 
 val request = Request.get(URL.parse("/").toOption.get)
   .addHeader("x-token", "invalid-token")

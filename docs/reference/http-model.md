@@ -146,7 +146,7 @@ val req = Request.get(url).addHeader("content-type", "application/json")
 
 val allHeaders = req.headers.toList                // All headers as List[(String, String)]
 val headerCount = allHeaders.length                // Count headers
-val contentTypeOpt = allHeaders.find(_._1.equalsIgnoreCase("content-type")).map(_._2) // Get specific header
+val contentType = req.headers.rawGet("content-type") // Get raw string header value (case-insensitive lookup)
 ```
 
 ### Creating Responses with Status and Content
@@ -179,7 +179,7 @@ url.host                             // Some("example.com")
 url.port                             // None (defaults to 443 for HTTPS)
 url.path.segments                    // Chunk("api", "v1", "users")
 url.queryParams.getFirst("page")     // Some("1") (first value for key)
-url ?? ("filter", "active")          // Add parameter using ?? operator
+url.??("filter", "active")           // Add parameter using ?? operator
 ```
 
 ### Form Data Submission
@@ -188,16 +188,9 @@ Submit a form with key-value pairs:
 
 ```scala mdoc:compile-only
 import zio.http._
-import zio.blocks.chunk.Chunk
 
 val url = URL.parse("https://example.com/login").toOption.get
-val form = Form(
-  Chunk(
-    ("username" -> "alice"),
-    ("password" -> "secret123"),
-    ("remember" -> "true")
-  )
-)
+val form = Form("username" -> "alice", "password" -> "secret123", "remember" -> "true")
 val body = Body.fromString(form.encode, Charset.UTF8)
 val req = Request.post(url, body)
   .addHeader("content-type", "application/x-www-form-urlencoded")
@@ -210,15 +203,14 @@ Send cookies to server and receive cookies from server:
 ```scala mdoc:compile-only
 import zio.http._
 
-val url = URL.parse("https://example.com/api").toOption.get
+val url = URL.parse("https://example.com").toOption.get
 
 // Request: send cookies to server
-val url = URL.parse("https://example.com").toOption.get
 val req = Request.get(url)
   .addHeader("cookie", "sessionId=abc123; userId=456")
 
 // Response: server sets cookies for client to store
-val response = Response(Status.Ok)
+val response = Response.ok
   .addHeader("set-cookie", "sessionId=abc123; Max-Age=3600; Secure; HttpOnly")
 ```
 
@@ -524,11 +516,11 @@ val scheme = url.scheme                        // Some(Scheme.HTTPS)
 val host = url.host                            // Some("example.com")
 val port = url.port                            // Some(8080)
 val pathSegments = url.path.segments           // Chunk("api", "v1", "users")
-val pageParam = url.queryParams.get("page")   // Some("1")
+val pageParam = url.queryParams.getFirst("page") // Some("1") (first value for key)
 val fragment = url.fragment                    // Some("section")
 
-val urlWithSort = url.addQueryParam("sort", "name") // Add query parameter
-url.withFragment(Some("top"))     // Set fragment
+val urlWithSort = url.??("sort", "name")      // Add query parameter using ?? operator
+val urlWithNewFragment = url.copy(fragment = Some("top")) // Set fragment
 ```
 
 ---
@@ -552,9 +544,9 @@ Create paths from segments or parse from strings:
 ```scala mdoc:compile-only
 import zio.http.Path
 
-val path1 = Path("api", "v1", "users")     // Path with segments
-val path2 = Path.decode("/api/v1/users")   // Parse from string
-val root = Path.root                        // Empty path "/"
+val path1 = Path.apply("/api/v1/users")    // Parse from decoded path string
+val path2 = Path.fromEncoded("%2Fapi%2Fv1%2Fusers") // Parse from percent-encoded string
+val root = Path.root                       // Empty path "/"
 ```
 
 ### Path Operations
@@ -564,7 +556,7 @@ Access path segments and build modified paths:
 ```scala mdoc:compile-only
 import zio.http.Path
 
-val path = Path("api", "v1", "users")
+val path = Path.apply("/api/v1/users")
 
 val segments = path.segments              // Chunk("api", "v1", "users")
 val hasLeadingSlash = path.hasLeadingSlash // true
@@ -594,7 +586,7 @@ import zio.http.QueryParams
 
 val params1 = QueryParams("page" -> "1", "limit" -> "10")
 val params2 = QueryParams.empty
-val params3 = QueryParams.fromChunk(zio.Chunk("page" -> "1", "limit" -> "10"))
+val params3 = QueryParams.fromEncoded("page=1&limit=10") // Parse from encoded query string
 ```
 
 ### QueryParams Operations
@@ -820,10 +812,10 @@ final case class ResponseCookie(
   name: String,
   value: String,
   domain: Option[String] = None,
-  path: Option[String] = None,
+  path: Option[Path] = None,
   maxAge: Option[Long] = None,
-  secure: Boolean = false,
-  httpOnly: Boolean = false,
+  isSecure: Boolean = false,
+  isHttpOnly: Boolean = false,
   sameSite: Option[SameSite] = None
 )
 ```
@@ -838,9 +830,10 @@ import zio.http._
 val sessionCookie = ResponseCookie(
   name = "sessionId",
   value = "abc123xyz",
-  maxAge = Some(3600),          // 1 hour (in seconds)
-  isSecure = true,              // HTTPS only (prevents transmission over HTTP)
-  isHttpOnly = true,            // No JavaScript access (prevents XSS theft)
+  path = Some(Path.apply("/")),  // Apply to root path
+  maxAge = Some(3600),           // 1 hour (in seconds)
+  isSecure = true,               // HTTPS only (prevents transmission over HTTP)
+  isHttpOnly = true,             // No JavaScript access (prevents XSS theft)
   sameSite = Some(SameSite.Strict) // Prevent CSRF attacks
 )
 ```
@@ -1038,19 +1031,17 @@ Response(
 )
 ```
 
-### Response Convenience Methods
+### Response Convenience Constructors
 
 Quick constructors for common responses:
 
 ```scala mdoc:compile-only
 import zio.http._
 
-Response.ok(body)              // 200 OK with body
-Response.text("Hello")         // 200 OK with text body
-Response.json(jsonString)      // 200 OK with JSON content type
-Response.redirect(url)         // 302 Found redirect
-Response.notFound              // 404 Not Found
-Response.internalServerError   // 500 Internal Server Error
+Response.ok                                              // 200 OK response value
+Response.ok.addHeader("content-type", "application/json") // With headers
+Response(Status.NotFound)                              // 404 Not Found
+Response(Status.InternalServerError)                   // 500 Internal Server Error
 ```
 
 ### Response Operations
@@ -1060,15 +1051,16 @@ Access and modify response components:
 ```scala mdoc:compile-only
 import zio.http._
 
-val resp = Response.ok(body)
+val body = Body.fromString("""{"data":"example"}""", Charset.UTF8)
+val resp = Response.ok.addHeader("content-type", "application/json")
 
 resp.status                     // Status.Ok
 resp.headers                    // Headers
 resp.body                       // Body
 resp.version                    // Version
 
-resp.withStatus(Status.Created) // Change status code
-resp.addHeader("cache-control", "no-cache") // Add header
+val modified = resp.copy(status = Status.Created) // Change status code
+modified.addHeader("cache-control", "no-cache")  // Add header
 ```
 
 ---
@@ -1332,12 +1324,12 @@ final class Body(
 // That's it. No effects, no streaming, no surprises.
 val body = Body(
   data = Chunk.fromArray(myBytes),
-  contentType = ContentType.ApplicationJson
+  contentType = ContentType.`application/json`
 )
 
 // Reading the body is a pure operation:
-val bytes: Chunk[Byte] = body.data  // No IO, no effect system needed
-val asString: String = body.asString(Charset.UTF8)  // Pure
+val bytes: Chunk[Byte] = body.data      // No IO, no effect system needed
+val contentType = body.contentType       // Content type metadata
 ```
 
 Think of http-model as a **pure data layer** and streaming libraries as the **I/O layer**:

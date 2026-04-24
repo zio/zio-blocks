@@ -46,7 +46,7 @@ import zio.http._
   println(s"Form Request:")
   println(s"  Method: ${formRequest.method}")
   println(s"  URL: ${formRequest.url}")
-  println(s"  Body size: ${formBody.asString(Charset.UTF8).length} bytes")
+  println(s"  Body size: ${formBody.data.length} bytes")
   println()
 
   // Create response with cookies
