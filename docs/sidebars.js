@@ -118,10 +118,22 @@ const sidebars = {
          "reference/docs",
          "reference/media-type",
          "reference/http-model",
-         "reference/streams",
          "reference/chunk",
          "path-interpolator",
          "reference/ringbuffer",
+         {
+           type: "category",
+           label: "Streams",
+           link: { type: "doc", id: "reference/streams/index" },
+           items: [
+             "reference/streams/stream",
+             "reference/streams/pipeline",
+             "reference/streams/sink",
+             "reference/streams/reader",
+             "reference/streams/writer",
+             "reference/streams/zero-boxing",
+           ]
+         },
       ]
     },
     {

@@ -10,8 +10,9 @@
 #   Rule 11: No bare subheaders (### or #### immediately after ## or ###)
 #   Rule 12: Provide narrative introduction before subheaders
 #   Rule 13: Code block preceded by prose sentence ending with ":"
-#   Rule 15: No "var" in Scala code blocks
-#   Rule 16: No hardcoded result comments in Scala blocks
+#   Rule 15: Consecutive code blocks must have bridging prose
+#   Rule 18: No "var" in Scala code blocks
+#   Rule 19: All Scala code blocks must have mdoc modifiers
 
 set -euo pipefail
 
@@ -150,7 +151,42 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 15: "var" in Scala code blocks
+# Rule 15 (Part 1): Consecutive code blocks without bridging prose
+count_violations "$(awk '
+  /^```/ {
+    if (in_code) {
+      in_code = 0
+      last_code_end = NR
+    } else {
+      # Entering a code block
+      if (last_code_end > 0 && NR - last_code_end <= 2) {
+        # Check if there is prose (non-empty, non-header) between blocks
+        # If last_code_end was within 2 lines, only blank lines or headers between blocks
+        if (!had_prose_since_last_code) {
+          print FILENAME ":" NR ": [Rule 15] consecutive code blocks without bridging prose (add sentence ending with \":\" between blocks)"
+        }
+      }
+      in_code = 1
+      had_prose_since_last_code = 0
+    }
+    next
+  }
+  in_code { next }
+  /^[[:space:]]*$/ { next }
+  /^(#+)[[:space:]]/ { next }
+  {
+    had_prose_since_last_code = 1
+  }
+' "$FILE")"
+
+# Rule 21: Missing mdoc modifiers on Scala code blocks
+count_violations "$(awk '
+  /^```scala$/ {
+    print FILENAME ":" NR ": [Rule 19] Scala code block missing mdoc modifier (use ```scala mdoc:compile-only or appropriate modifier)"
+  }
+' "$FILE")"
+
+# Rule 18: "var" in Scala code blocks
 count_violations "$(awk '
   /^```scala/ {
     in_scala = 1
@@ -161,7 +197,7 @@ count_violations "$(awk '
     next
   }
   in_scala && /var[^a-zA-Z0-9_]|^var[[:space:]]|[[:space:]]var[[:space:]]/ {
-    print FILENAME ":" NR ": [Rule 15] \"var\" in Scala code block"
+    print FILENAME ":" NR ": [Rule 18] \"var\" in Scala code block"
   }
 ' "$FILE")"
 
@@ -179,6 +215,90 @@ count_violations "$(awk '
     print FILENAME ":" NR ": [Rule 16] hardcoded result comment"
   }
 ' "$FILE")"
+
+# Rule 8: Unqualified method/constructor names
+# Detects unqualified method references in backticks by checking against: Known API methods extracted from Scala source files for the topic
+# To extract methods: scala extract-methods.scala <source-file> [TypeName]
+if command -v python3 >/dev/null 2>&1; then
+  count_violations "$(python3 - "$FILE" << 'PYTHON_EOF'
+import sys, re
+
+# Known safe names (variables, parameters, constants, type names)
+SAFE_NAMES = {
+    # Variables and parameters
+    "f", "z", "g", "x", "y", "n", "i", "j", "k", "v", "a", "b", "c",
+    "buf", "buffer", "reader", "sink", "stream", "result", "value",
+    "e", "err", "error", "ex", "exception", "cause",
+    # Type names (capitalized or special)
+    "Sink", "Stream", "Reader", "Pipeline", "Chunk", "Any", "Unit",
+    "List", "Option", "Either", "Right", "Left", "Some", "None",
+    "Boolean", "Int", "Long", "Double", "Float", "String", "Byte",
+    "EndOfStream", "Throwable", "Exception", "IOException", "Error",
+    # Constants
+    "MaxValue", "MinValue", "Infinity",
+    # Common values
+    "null", "true", "false", "this", "super", "self",
+    # Common Scala/functional terms
+    "pred", "predicate", "init", "default", "Interpreted",
+    # Common variable names
+    "next", "release", "sentinel", "jvmType",
+}
+
+in_code = False
+qualified_methods = set()
+
+# First pass: collect all qualified method names to supplement detection
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        content = f.read()
+        # Find all Qualified methods: Type#method or Type.method
+        for m in re.finditer(r'[A-Z][a-zA-Z0-9_]*[#.]([a-z][a-zA-Z0-9_]*)', content):
+            qualified_methods.add(m.group(1))
+except:
+    pass
+
+# Second pass: detect unqualified methods
+try:
+    with open(sys.argv[1], encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            s = line.rstrip()
+            if s.lstrip().startswith("```"):
+                in_code = not in_code
+                continue
+            if in_code:
+                continue
+
+            # Find all backtick-quoted identifiers
+            for m in re.finditer(r'`([a-z][a-zA-Z0-9_]*)`', s):
+                name = m.group(1)
+                start = m.start()
+
+                # Skip if name is in safe list
+                if name in SAFE_NAMES:
+                    continue
+
+                # Skip if preceded by # or . (already qualified)
+                if start > 0 and s[start-1] in '#.':
+                    continue
+
+                # Skip very short names (likely variables)
+                if len(name) <= 2:
+                    continue
+
+                # Skip if in a markdown link or reference
+                if '[' in s[:start] and ']' in s[start:]:
+                    continue
+
+                # Flag if it appears qualified elsewhere in the document
+                # This catches methods used both ways (qualified and unqualified)
+                if name in qualified_methods:
+                    print(f"{sys.argv[1]}:{lineno}: [Rule 8] unqualified method `{name}` (use Type#{name} or Type.{name})")
+except Exception as e:
+    print(f"Error in Rule 8: {e}", file=sys.stderr)
+    sys.exit(1)
+PYTHON_EOF
+)"
+fi
 
 # Report summary
 echo ""
