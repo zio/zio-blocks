@@ -117,7 +117,15 @@ const sidebars = {
          "reference/combinators",
          "reference/docs",
          "reference/media-type",
-         "reference/http-model",
+         {
+           type: "category",
+           label: "HTTP Model",
+           link: { type: "doc", id: "reference/http-model/index" },
+           items: [
+             "reference/http-model/model",
+             "reference/http-model/schema",
+           ]
+         },
          "reference/chunk",
          "path-interpolator",
          "reference/ringbuffer",

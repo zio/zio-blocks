@@ -217,8 +217,14 @@ Add cross-references to related docs (e.g., `[Schema](./schema.md)`, `[Reflect](
 
 #### 12. Running the Examples (required when examples exist)
 
-Add this section at the very end of the page, after Integration. For each `App` example, embed the full source using `SourceFile.print`, then show the command to run it. Use this template verbatim:
+Use the **`docs-examples`** skill for complete guidance on:
+- Creating example files in the appropriate examples module
+- Structuring and naming examples
+- Verifying compilation and formatting
+- Embedding examples with `SourceFile.print`
+- Documenting the "Running the Examples" section
 
+**Briefly:** If substantial standalone examples exist, add a "Running the Examples" section at the very end of the page (after Integration). Each example should be embedded using `SourceFile.print` with a description paragraph, source link, and run command. If only inline examples within the documentation adequately cover the type, omit this section.
 ```markdown
 ## Running the Examples
 
