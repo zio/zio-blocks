@@ -578,8 +578,7 @@ lazy val `schema-avro` = project
   )
 
 lazy val codegen = project
-  .settings(stdSettings("zio-blocks-codegen")
-)
+  .settings(stdSettings("zio-blocks-codegen"))
 
 lazy val html = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
