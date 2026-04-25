@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
+
+import zio.blocks.telemetry._
 
 /**
  * A propagator extracts and injects SpanContext from/into a carrier using

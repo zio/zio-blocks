@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
+
+import zio.blocks.telemetry._
 
 /**
  * A named metric descriptor pairing metric metadata with its data.
@@ -50,8 +52,8 @@ final case class NamedMetric(
 object OtlpJsonEncoder {
 
   // Re-export for test convenience
-  type NamedMetric = zio.blocks.telemetry.NamedMetric
-  val NamedMetric: zio.blocks.telemetry.NamedMetric.type = zio.blocks.telemetry.NamedMetric
+  type NamedMetric = zio.blocks.telemetry.otel.NamedMetric
+  val NamedMetric: zio.blocks.telemetry.otel.NamedMetric.type = zio.blocks.telemetry.otel.NamedMetric
 
   def encodeTraces(spans: Seq[SpanData], resource: Resource, scope: InstrumentationScope): Array[Byte] = {
     val sb = new StringBuilder(256)

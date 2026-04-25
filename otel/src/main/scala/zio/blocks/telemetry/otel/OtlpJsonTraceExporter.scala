@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
-private[telemetry] final class OtlpJsonLogExporter(
+import zio.blocks.telemetry._
+
+private[otel] final class OtlpJsonTraceExporter(
   config: ExporterConfig,
   resource: Resource,
   scope: InstrumentationScope,
   httpSender: HttpSender,
   platformExecutor: PlatformExecutor
-) extends LogRecordProcessor {
+) extends SpanProcessor {
 
-  private val url     = config.endpoint + "/v1/logs"
+  private val url     = config.endpoint + "/v1/traces"
   private val headers = OtlpJsonExporter.mergeHeaders(config)
 
-  private val batchProcessor: BatchProcessor[LogRecord] = new BatchProcessor[LogRecord](
+  private val batchProcessor: BatchProcessor[SpanData] = new BatchProcessor[SpanData](
     exportFn = { batch =>
-      val body     = OtlpJsonEncoder.encodeLogs(batch, resource, scope)
+      val body     = OtlpJsonEncoder.encodeTraces(batch, resource, scope)
       val response = httpSender.send(url, headers, body)
       OtlpJsonExporter.mapResponse(response)
     },
@@ -39,8 +41,10 @@ private[telemetry] final class OtlpJsonLogExporter(
     flushIntervalMillis = config.flushIntervalMillis
   )
 
-  def onEmit(logRecord: LogRecord): Unit =
-    batchProcessor.enqueue(logRecord)
+  def onStart(span: Span): Unit = ()
+
+  def onEnd(spanData: SpanData): Unit =
+    batchProcessor.enqueue(spanData)
 
   def shutdown(): Unit = {
     batchProcessor.shutdown()

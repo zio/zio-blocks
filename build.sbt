@@ -184,6 +184,7 @@ lazy val root = project
     telemetry.jvm,
     telemetry.js,
     telemetryBenchmarks,
+    otel,
     smithy
   )
 
@@ -421,6 +422,37 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
     }
   )
   .jsSettings(jsSettings)
+
+lazy val otel = project
+  .in(file("otel"))
+  .settings(stdSettings("zio-blocks-telemetry-otel"))
+  .dependsOn(telemetry.jvm)
+  .settings(buildInfoSettings("zio.blocks.telemetry.otel"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .settings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      // Target JDK 25 for direct ScopedValue and virtual thread API access
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if (opt == "11" && i > 0 && base(i - 1) == "-release") Seq("25")
+        else Seq(opt)
+      }
+    }
+  )
 
 lazy val telemetryBenchmarks = project
   .in(file("telemetry-benchmarks"))

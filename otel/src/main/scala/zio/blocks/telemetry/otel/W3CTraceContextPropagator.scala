@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
+
+import zio.blocks.telemetry._
 
 /**
  * W3C TraceContext propagator implementing the traceparent/tracestate headers.

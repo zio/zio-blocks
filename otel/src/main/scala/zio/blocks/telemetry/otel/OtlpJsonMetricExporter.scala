@@ -14,41 +14,38 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
-private[telemetry] final class OtlpJsonTraceExporter(
+import zio.blocks.telemetry._
+
+private[otel] final class OtlpJsonMetricExporter(
   config: ExporterConfig,
   resource: Resource,
   scope: InstrumentationScope,
   httpSender: HttpSender,
-  platformExecutor: PlatformExecutor
-) extends SpanProcessor {
+  collectFn: () => Seq[NamedMetric]
+) extends MetricReader {
 
-  private val url     = config.endpoint + "/v1/traces"
+  private val url     = config.endpoint + "/v1/metrics"
   private val headers = OtlpJsonExporter.mergeHeaders(config)
 
-  private val batchProcessor: BatchProcessor[SpanData] = new BatchProcessor[SpanData](
-    exportFn = { batch =>
-      val body     = OtlpJsonEncoder.encodeTraces(batch, resource, scope)
+  def exportMetrics(): ExportResult = {
+    val metrics = collectFn()
+    if (metrics.isEmpty) ExportResult.Success
+    else {
+      val body     = OtlpJsonEncoder.encodeMetrics(metrics, resource, scope)
       val response = httpSender.send(url, headers, body)
       OtlpJsonExporter.mapResponse(response)
-    },
-    executor = platformExecutor.executor,
-    maxQueueSize = config.maxQueueSize,
-    maxBatchSize = config.maxBatchSize,
-    flushIntervalMillis = config.flushIntervalMillis
-  )
-
-  def onStart(span: Span): Unit = ()
-
-  def onEnd(spanData: SpanData): Unit =
-    batchProcessor.enqueue(spanData)
-
-  def shutdown(): Unit = {
-    batchProcessor.shutdown()
-    httpSender.shutdown()
+    }
   }
 
-  def forceFlush(): Unit =
-    batchProcessor.forceFlush()
+  override def collectAllMetrics(): Seq[MetricData] = {
+    val metrics = collectFn()
+    metrics.map(_.data)
+  }
+
+  def shutdown(): Unit =
+    httpSender.shutdown()
+
+  def forceFlush(): Unit = ()
 }

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
+import zio.blocks.telemetry._
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -25,7 +26,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-private[telemetry] final class BatchProcessor[A](
+private[otel] final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
   executor: ScheduledExecutorService,
   maxQueueSize: Int = 2048,

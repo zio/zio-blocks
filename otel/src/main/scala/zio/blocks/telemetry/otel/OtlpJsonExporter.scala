@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
-private[telemetry] object OtlpJsonExporter {
+import zio.blocks.telemetry._
+
+private[otel] object OtlpJsonExporter {
 
   private val retryableStatusCodes: Set[Int] = Set(429, 502, 503, 504)
 
@@ -26,6 +28,6 @@ private[telemetry] object OtlpJsonExporter {
       ExportResult.Failure(retryable = true, message = "HTTP " + response.statusCode)
     else ExportResult.Failure(retryable = false, message = "HTTP " + response.statusCode)
 
-  private[telemetry] def mergeHeaders(config: ExporterConfig): Map[String, String] =
+  private[otel] def mergeHeaders(config: ExporterConfig): Map[String, String] =
     config.headers + ("Content-Type" -> "application/json")
 }

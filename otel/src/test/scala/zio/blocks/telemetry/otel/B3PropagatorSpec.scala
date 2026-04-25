@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
+import zio.blocks.telemetry._
 import zio.test._
 
 object B3PropagatorSpec extends ZIOSpecDefault {

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
+
+import zio.blocks.telemetry._
 
 /**
  * B3 propagation format (Zipkin's trace context standard).
@@ -45,7 +47,7 @@ object B3Propagator {
    * Normalizes a trace ID hex string. Accepts 16 or 32 hex characters. 16-char
    * IDs are left-padded with zeros to 32 characters.
    */
-  private[telemetry] def normalizeTraceId(hex: String): Option[(Long, Long)] = {
+  private[otel] def normalizeTraceId(hex: String): Option[(Long, Long)] = {
     val lower  = hex.toLowerCase
     val padded =
       if (lower.length == 16) "0000000000000000" + lower
