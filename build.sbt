@@ -579,32 +579,6 @@ lazy val `schema-avro` = project
 
 lazy val codegen = project
   .settings(stdSettings("zio-blocks-codegen"))
-
-lazy val html = crossProject(JSPlatform, JVMPlatform)
-  .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-html"))
-  .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks.html"))
-  .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
-  .dependsOn(chunk, schema)
-  .settings(
-    libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
-      case _ => Seq()
-    }),
-    coverageExcludedFiles := Seq(
-      ".*TemplateInterpolators.*",
-      ".*BuildInfo.*"
-    ).mkString(";"),
-    coverageMinimumStmtTotal   := 90,
-    coverageMinimumBranchTotal := 90
-  )
   .settings(buildInfoSettings("zio.blocks.codegen"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -1252,3 +1226,29 @@ lazy val docs = project
     `http-model-schema`.jvm
   )
   .enablePlugins(WebsitePlugin)
+
+lazy val html = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-html"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.html"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(chunk, schema)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Seq()
+    }),
+    coverageExcludedFiles := Seq(
+      ".*TemplateInterpolators.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    coverageMinimumStmtTotal   := 90,
+    coverageMinimumBranchTotal := 90
+  )
