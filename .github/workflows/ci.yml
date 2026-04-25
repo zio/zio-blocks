@@ -94,7 +94,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Lint code
-        run: sbt "++2.13; check; headerCheckAll; ++3.7; check; headerCheckAll"
+        run: sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"
 
   testJVM:
     runs-on: ubuntu-latest
@@ -104,7 +104,7 @@ jobs:
       matrix:
         java: [17, 25]
         platform: ['JVM']
-        scala: ['2.13.x', '3.3.x', '3.7.x']
+        scala: ['2.13.x', '3.3.x', '3.8.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
@@ -132,10 +132,10 @@ jobs:
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
-        if: ${{ matrix.scala == '3.7.x' }}
-        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
+        if: ${{ matrix.scala == '3.8.x' }}
+        run: sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test
       - name: Compile example project
-        if: ${{ matrix.scala == '3.7.x' }}
+        if: ${{ matrix.scala == '3.8.x' }}
         run: sbt ++${{ matrix.scala }} schema-examples/compile
 
   testJS:
@@ -146,8 +146,7 @@ jobs:
       matrix:
         java: [17]
         platform: ['JS']
-        # Note: 3.7.x excluded due to Scala.js compiler bug (URISyntaxException in genSJSIR)
-        scala: ['2.13.x', '3.3.x']
+        scala: ['2.13.x', '3.3.x', '3.8.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
