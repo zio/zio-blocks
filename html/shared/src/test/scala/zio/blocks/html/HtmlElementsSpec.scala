@@ -648,10 +648,10 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         }
         assertTrue(el.render == "<div></div>")
       },
-      test("when true with zero modifiers returns same element") {
+      test("when true with one modifier applies it") {
         val el = div("content")
-        val r  = el.when(true)()
-        assertTrue(r.render == "<div>content</div>")
+        val r  = el.when(true)(id := "test")
+        assertTrue(r.render == """<div id="test">content</div>""")
       },
       test("whenSome with Some and multiple modifiers") {
         val el = span.whenSome(Some("cls")) { cls =>

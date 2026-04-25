@@ -216,8 +216,8 @@ object Dom {
     def apply(effect: DomModifier, effects: DomModifier*): Element =
       ToModifier.buildFromEffects(this, effect, effects)
 
-    def when(condition: Boolean)(effects: DomModifier*): Element =
-      if (condition) ToModifier.buildFromEffects(this, effects)
+    def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Element =
+      if (condition) ToModifier.buildFromEffects(this, effect, effects)
       else this
 
     def whenSome[T](option: Option[T])(f: T => Seq[DomModifier]): Element =
@@ -484,8 +484,8 @@ object Dom {
   def multiAttr(name: String, values: Iterable[String]): Attribute =
     Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), AttributeSeparator.Space))
 
-  def multiAttr(name: String, separator: AttributeSeparator, values: String*): Attribute =
-    Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(values), separator))
+  def multiAttr(name: String, separator: AttributeSeparator, value: String, rest: String*): Attribute =
+    Attribute.KeyValue(name, AttributeValue.MultiValue(Chunk.from(value +: rest), separator))
 
   // --- Rendering ---
 

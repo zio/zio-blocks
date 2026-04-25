@@ -317,11 +317,11 @@ trait HtmlElements {
     new MultiAttributeKey("aria-describedby", Dom.AttributeSeparator.Space)
   val ariaLabelledby: MultiAttributeKey = new MultiAttributeKey("aria-labelledby", Dom.AttributeSeparator.Space)
 
-  def multiAttr(name: String): MultiAttributeKey                                                 = Dom.multiAttr(name)
-  def multiAttr(name: String, separator: Dom.AttributeSeparator): MultiAttributeKey              = Dom.multiAttr(name, separator)
-  def multiAttr(name: String, values: Iterable[String]): Dom.Attribute                           = Dom.multiAttr(name, values)
-  def multiAttr(name: String, separator: Dom.AttributeSeparator, values: String*): Dom.Attribute =
-    Dom.multiAttr(name, separator, values: _*)
+  def multiAttr(name: String): MultiAttributeKey                                                              = Dom.multiAttr(name)
+  def multiAttr(name: String, separator: Dom.AttributeSeparator): MultiAttributeKey                           = Dom.multiAttr(name, separator)
+  def multiAttr(name: String, values: Iterable[String]): Dom.Attribute                                        = Dom.multiAttr(name, values)
+  def multiAttr(name: String, separator: Dom.AttributeSeparator, value: String, rest: String*): Dom.Attribute =
+    Dom.multiAttr(name, separator, value, rest: _*)
 
   // --- DOM helper functions ---
 

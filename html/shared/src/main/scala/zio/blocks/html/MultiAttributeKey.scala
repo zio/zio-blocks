@@ -42,9 +42,9 @@ final class MultiAttributeKey(val name: String, val separator: Dom.AttributeSepa
   def +=(values: Chunk[String]): Dom.Attribute.AppendValue =
     Dom.Attribute.AppendValue(name, Dom.AttributeValue.MultiValue(values, separator), separator)
 
-  def apply(values: String*): Dom.Attribute =
-    if (values.length == 1) Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(values.head))
-    else Dom.Attribute.KeyValue(name, Dom.AttributeValue.MultiValue(Chunk.from(values), separator))
+  def apply(value: String, rest: String*): Dom.Attribute =
+    if (rest.isEmpty) Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(value))
+    else Dom.Attribute.KeyValue(name, Dom.AttributeValue.MultiValue(Chunk.from(value +: rest), separator))
 
   def apply(values: Iterable[String]): Dom.Attribute =
     Dom.Attribute.KeyValue(name, Dom.AttributeValue.MultiValue(Chunk.from(values), separator))
