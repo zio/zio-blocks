@@ -19,6 +19,42 @@ package zio.blocks.streams.internal
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 /**
+ * A fixed-size, non-concurrent circular buffer specialized for unboxed `Byte`
+ * values. Used internally by the `sliding` combinator to avoid O(n) array
+ * copies on each step.
+ */
+private[streams] final class CircularBufferByte(capacity: Int) {
+  private val arr  = new Array[Byte](capacity)
+  private var head = 0
+  private var len  = 0
+
+  def size: Int       = len
+  def isFull: Boolean = len == capacity
+
+  def add(a: Byte): Unit = {
+    val idx = (head + len) % capacity
+    arr(idx) = a
+    if (len == capacity) head = (head + 1) % capacity
+    else len += 1
+  }
+
+  def get(i: Int): Byte = arr((head + i) % capacity)
+
+  def shift(n: Int): Unit = {
+    val drop = math.min(n, len)
+    head = (head + drop) % capacity
+    len -= drop
+  }
+
+  def toChunk: Chunk[Byte] = {
+    val b = new ChunkBuilder.Byte()
+    var i = 0
+    while (i < len) { b.addOne(get(i)); i += 1 }
+    b.result()
+  }
+}
+
+/**
  * A fixed-size, non-concurrent circular buffer specialized for unboxed `Int`
  * values. Used internally by the `sliding` combinator to avoid O(n) array
  * copies on each step.
