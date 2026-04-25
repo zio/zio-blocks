@@ -414,53 +414,53 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     ),
     suite("Response mapping")(
       test("200 maps to Success") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(200, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(200, Array.empty, Map.empty))
         assertTrue(result == ExportResult.Success)
       },
       test("429 maps to retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(429, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(429, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("502 maps to retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(502, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(502, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("503 maps to retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(503, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(503, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("504 maps to retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(504, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(504, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("400 maps to non-retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(400, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(400, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(!retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("500 maps to non-retryable Failure") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(500, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(500, Array.empty, Map.empty))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(!retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("201 maps to Success") {
-        val result = OtlpJsonExporter.mapResponse(HttpResponse(201, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(201, Array.empty, Map.empty))
         assertTrue(result == ExportResult.Success)
       }
     ),

@@ -21,6 +21,14 @@ import zio.blocks.telemetry._
 sealed trait ExportResult
 
 object ExportResult {
+  private val retryableStatusCodes: Set[Int] = Set(429, 502, 503, 504)
+
+  def fromHttpResponse(response: HttpResponse): ExportResult =
+    if (response.statusCode >= 200 && response.statusCode < 300) ExportResult.Success
+    else if (retryableStatusCodes.contains(response.statusCode))
+      ExportResult.Failure(retryable = true, message = "HTTP " + response.statusCode)
+    else ExportResult.Failure(retryable = false, message = "HTTP " + response.statusCode)
+
   case object Success                                           extends ExportResult
   final case class Failure(retryable: Boolean, message: String) extends ExportResult
 }

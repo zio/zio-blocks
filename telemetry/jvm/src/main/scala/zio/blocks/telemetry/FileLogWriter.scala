@@ -39,7 +39,7 @@ import java.nio.file.{Files, Path, Paths}
  * bufferSize = 16384) val emitter = new FormattedLogEmitter(JsonLogFormatter,
  * jsonWriter)
  */
-final class FileLogWriter private (
+private[telemetry] final class FileLogWriter private (
   private val channel: FileChannel,
   private val bufferSize: Int
 ) extends LogWriter {

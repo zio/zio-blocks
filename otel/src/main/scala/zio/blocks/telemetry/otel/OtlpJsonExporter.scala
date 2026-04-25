@@ -20,14 +20,6 @@ import zio.blocks.telemetry._
 
 private[otel] object OtlpJsonExporter {
 
-  private val retryableStatusCodes: Set[Int] = Set(429, 502, 503, 504)
-
-  def mapResponse(response: HttpResponse): ExportResult =
-    if (response.statusCode >= 200 && response.statusCode < 300) ExportResult.Success
-    else if (retryableStatusCodes.contains(response.statusCode))
-      ExportResult.Failure(retryable = true, message = "HTTP " + response.statusCode)
-    else ExportResult.Failure(retryable = false, message = "HTTP " + response.statusCode)
-
   private[otel] def mergeHeaders(config: ExporterConfig): Map[String, String] =
     config.headers + ("Content-Type" -> "application/json")
 }
