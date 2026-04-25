@@ -104,16 +104,9 @@ addCommandAlias(
 )
 
 addCommandAlias(
-  "testJS1",
-  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test"
-)
-addCommandAlias(
-  "testJS2",
-  "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
-)
-addCommandAlias(
   "testJS",
-  "testJS1; testJS2"
+  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test"
 )
 addCommandAlias(
   "docJVM",
@@ -122,16 +115,9 @@ addCommandAlias(
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc"
 )
 addCommandAlias(
-  "docJS1",
-  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
-)
-addCommandAlias(
-  "docJS2",
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc"
-)
-addCommandAlias(
   "docJS",
-  "docJS1; docJS2"
+  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc"
 )
 
 lazy val root = project
@@ -808,6 +794,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
     ),
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
+    coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
   )
@@ -844,6 +831,7 @@ lazy val benchmarks = project
     assembly / mainClass       := Some("org.openjdk.jmh.Main"),
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
+    coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
     coverageMinimumStmtTotal   := 30,
     coverageMinimumBranchTotal := 42
   )
