@@ -16,7 +16,6 @@
 
 package zio.blocks.telemetry.otel
 
-import zio.blocks.telemetry._
 import java.time.Duration
 
 final case class ExporterConfig(
@@ -26,4 +25,7 @@ final case class ExporterConfig(
   maxQueueSize: Int = 2048,
   maxBatchSize: Int = 512,
   flushIntervalMillis: Long = 5000
-)
+) {
+  override def toString: String =
+    s"ExporterConfig(endpoint=$endpoint, headers=<redacted:${headers.size}>, timeout=$timeout, maxQueueSize=$maxQueueSize, maxBatchSize=$maxBatchSize, flushIntervalMillis=$flushIntervalMillis)"
+}

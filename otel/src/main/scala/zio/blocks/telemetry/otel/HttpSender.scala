@@ -16,7 +16,6 @@
 
 package zio.blocks.telemetry.otel
 
-import zio.blocks.telemetry._
 import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse => JdkHttpResponse}
 import java.time.Duration

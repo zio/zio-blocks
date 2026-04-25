@@ -38,9 +38,11 @@ final class Counter private[telemetry] (
     }
 
   def add(value: Long, attrs: (String, Any)*): Unit =
-    if (value >= 0 && attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      var adder      = adders.get(attributes)
+    if (value >= 0) {
+      val attributes =
+        if (attrs.isEmpty) Attributes.empty
+        else SyncInstrumentsHelper.buildPooledAttributes(attrs)
+      var adder = adders.get(attributes)
       if (adder == null) {
         adder = new LongAdder()
         val existing = adders.putIfAbsent(attributes, adder)

@@ -33,7 +33,7 @@ private[otel] final class OtlpJsonLogExporter(
     exportFn = { batch =>
       val body     = OtlpJsonEncoder.encodeLogs(batch, resource, scope)
       val response = httpSender.send(url, headers, body)
-      OtlpJsonExporter.mapResponse(response)
+      ExportResult.fromHttpResponse(response)
     },
     executor = platformExecutor.executor,
     maxQueueSize = config.maxQueueSize,

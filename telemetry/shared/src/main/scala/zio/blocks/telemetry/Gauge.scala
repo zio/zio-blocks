@@ -36,17 +36,18 @@ final class Gauge private[telemetry] (
     ref.set(java.lang.Double.doubleToRawLongBits(value))
   }
 
-  def record(value: Double, attrs: (String, Any)*): Unit =
-    if (attrs.nonEmpty) {
-      val attributes = SyncInstrumentsHelper.buildPooledAttributes(attrs)
-      var ref        = values.get(attributes)
-      if (ref == null) {
-        ref = new AtomicLong(0L)
-        val existing = values.putIfAbsent(attributes, ref)
-        if (existing != null) ref = existing
-      }
-      ref.set(java.lang.Double.doubleToRawLongBits(value))
+  def record(value: Double, attrs: (String, Any)*): Unit = {
+    val attributes =
+      if (attrs.isEmpty) Attributes.empty
+      else SyncInstrumentsHelper.buildPooledAttributes(attrs)
+    var ref = values.get(attributes)
+    if (ref == null) {
+      ref = new AtomicLong(0L)
+      val existing = values.putIfAbsent(attributes, ref)
+      if (existing != null) ref = existing
     }
+    ref.set(java.lang.Double.doubleToRawLongBits(value))
+  }
 
   def bind(attributes: Attributes): BoundGauge = {
     var ref = values.get(attributes)

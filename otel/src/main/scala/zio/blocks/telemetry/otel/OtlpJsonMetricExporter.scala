@@ -35,7 +35,7 @@ private[otel] final class OtlpJsonMetricExporter(
     else {
       val body     = OtlpJsonEncoder.encodeMetrics(metrics, resource, scope)
       val response = httpSender.send(url, headers, body)
-      OtlpJsonExporter.mapResponse(response)
+      ExportResult.fromHttpResponse(response)
     }
   }
 
