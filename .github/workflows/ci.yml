@@ -125,9 +125,9 @@ jobs:
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage and docs (JDK 17)
+      - name: Run Scala 3 tests and docs (JDK 17)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 17 }}
-        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
@@ -160,18 +160,8 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala 2 JS tests (batch 1)
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt "++${{ matrix.scala }}; testJS1; docJS1"
-      - name: Run Scala 2 JS tests (batch 2)
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt "++${{ matrix.scala }}; testJS2; docJS2"
-      - name: Run Scala 3 JS tests (batch 1)
-        if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt "++${{ matrix.scala }}; testJS1"
-      - name: Run Scala 3 JS tests (batch 2)
-        if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt "++${{ matrix.scala }}; testJS2"
+      - name: Run Scala JS tests
+        run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:
     name: Test Golem (Scala 3.8.x / 2.13.x)
