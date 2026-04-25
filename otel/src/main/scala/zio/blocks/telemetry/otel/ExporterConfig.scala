@@ -14,11 +14,16 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
-sealed trait ExportResult
+import zio.blocks.telemetry._
+import java.time.Duration
 
-object ExportResult {
-  case object Success                                           extends ExportResult
-  final case class Failure(retryable: Boolean, message: String) extends ExportResult
-}
+final case class ExporterConfig(
+  endpoint: String = "http://localhost:4318",
+  headers: Map[String, String] = Map.empty,
+  timeout: Duration = Duration.ofSeconds(30),
+  maxQueueSize: Int = 2048,
+  maxBatchSize: Int = 512,
+  flushIntervalMillis: Long = 5000
+)

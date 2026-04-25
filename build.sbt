@@ -99,12 +99,14 @@ addCommandAlias(
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
+    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -129,12 +131,14 @@ lazy val testJS2Scala3Command =
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
@@ -155,6 +159,11 @@ lazy val docJSScala3Batch1Command =
 
 lazy val docJSScala3Batch2Command =
   "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
+
+def whenJdkAtLeast(minVersion: Int, command: String): String = {
+  val currentVersion = System.getProperty("java.specification.version", "17").toInt
+  if (currentVersion >= minVersion) s"; $command" else ""
+}
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>

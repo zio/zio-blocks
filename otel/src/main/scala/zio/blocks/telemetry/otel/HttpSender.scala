@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.telemetry
+package zio.blocks.telemetry.otel
 
+import zio.blocks.telemetry._
 import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse => JdkHttpResponse}
 import java.time.Duration
@@ -31,7 +32,12 @@ trait HttpSender {
   def shutdown(): Unit
 }
 
-final class JdkHttpSender(
+object HttpSender {
+  def jdk(timeout: Duration = Duration.ofSeconds(30)): HttpSender =
+    new JdkHttpSender(timeout)
+}
+
+private[otel] final class JdkHttpSender(
   timeout: Duration = Duration.ofSeconds(30)
 ) extends HttpSender {
   private val client = HttpClient
