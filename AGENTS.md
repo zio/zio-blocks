@@ -34,13 +34,13 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 
 # <command> examples:
-#   "++3.7.4; <project>/test"                             — fast loop, Scala 3
+#   "++3.8.3; <project>/test"                             — fast loop, Scala 3
 #   "++<scala2>; <project>/test"                          — fast loop, Scala 2
-#   "++3.7.4; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
+#   "++3.8.3; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
 #   "++<scala2>; project <project>; coverage; test; coverageReport"  — coverage, Scala 2
-#   "++3.7.4; <project>/test; ++<scala2>; <project>/test" — cross-Scala
-#   "++3.7.4; fmtDirty"                                  — format main sources
-#   "++3.7.4; project <project>; fmtDirty"               — format sources in specific project
+#   "++3.8.3; <project>/test; ++<scala2>; <project>/test" — cross-Scala
+#   "++3.8.3; fmtDirty"                                  — format main sources
+#   "++3.8.3; project <project>; fmtDirty"               — format sources in specific project
 #   scalafmtSbt                                           — format build files
 #
 # IMPORTANT: --client mode preserves Scala version across invocations.

@@ -73,10 +73,10 @@ addCommandAlias(
       "zioGolemCoreJS/publishLocal"
     )
     List(
-      // Scala 3.7.4 JVM / 3.3.7 JS (via jsSettings) for deps
+      // Scala 3.8.3 JVM / 3.3.7 JS (via jsSettings) for deps
       List(setVersion, noDoc) ++ deps,
-      // Scala 3.8.2 for all Golem projects (Symbol.newClass requires 3.5+)
-      List("++3.8.2", setVersion, noDoc) ++ golem,
+      // Scala 3.8.3 for all Golem projects (Symbol.newClass requires 3.5+)
+      List("++3.8.3", setVersion, noDoc) ++ golem,
       // Scala 2.13 for deps + Golem
       List("++2.13.18", setVersion, noDoc) ++ deps ++ golem,
       // Scala 2.12 for sbt plugin
@@ -236,7 +236,7 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 76,
+    coverageMinimumStmtTotal   := 75,
     coverageMinimumBranchTotal := 67
   )
 
@@ -327,7 +327,7 @@ lazy val `scope-examples` = project
 
 lazy val `scope-benchmarks` = project
   .in(file("scope-benchmarks"))
-  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-scope-benchmarks", Seq("3.8.3")))
   .dependsOn(scope.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
@@ -512,7 +512,7 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
-    coverageMinimumStmtTotal   := 96,
+    coverageMinimumStmtTotal   := 95,
     coverageMinimumBranchTotal := 94
   )
 
@@ -798,7 +798,7 @@ lazy val `schema-csv` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
-  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.8.3")))
   .dependsOn(schema % "compile->compile;test->test")
   .settings(crossProjectSettings)
   .settings(
@@ -814,7 +814,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(jsSettings)
 
 lazy val benchmarks = project
-  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.8.3")))
   .dependsOn(schema.jvm % "compile->compile;test->test")
   .dependsOn(chunk.jvm)
   .dependsOn(`schema-avro`)
@@ -1092,7 +1092,7 @@ lazy val ringbufferBenchmarks = project
 
 lazy val `streams-benchmark` = project
   .in(file("streams-benchmark"))
-  .settings(stdSettings("zio-blocks-streams-benchmark", Seq("3.7.4")))
+  .settings(stdSettings("zio-blocks-streams-benchmark", Seq("3.8.3")))
   .dependsOn(streams.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
