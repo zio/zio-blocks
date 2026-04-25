@@ -18,6 +18,10 @@ package zio.blocks.html
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
+/**
+ * Typeclass for converting values to `DomModifier` for use in element
+ * construction.
+ */
 trait ToModifier[-A] {
   def toModifier(a: A): DomModifier
 }

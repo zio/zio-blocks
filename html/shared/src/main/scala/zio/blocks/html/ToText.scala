@@ -16,6 +16,7 @@
 
 package zio.blocks.html
 
+/** Typeclass for converting values to plain text strings. */
 trait ToText[-A] {
   def toText(a: A): String
 }

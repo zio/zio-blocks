@@ -18,6 +18,10 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
+/**
+ * Key for multi-valued HTML attributes (e.g., `class`, `rel`). Use `:=` to
+ * override, `+=` to append.
+ */
 final class MultiAttributeKey(val name: String, val separator: Dom.AttributeSeparator) {
 
   def :=(value: String): Dom.Attribute =

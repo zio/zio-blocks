@@ -18,6 +18,7 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
+/** Typeclass for converting values to sequences of DOM elements. */
 trait ToElements[-A] {
   def toElements(a: A): Chunk[Dom]
 }

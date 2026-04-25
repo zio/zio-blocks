@@ -16,6 +16,10 @@
 
 package zio.blocks.html
 
+/**
+ * Typeclass for converting values to HTML attribute values with proper
+ * escaping.
+ */
 trait ToAttrValue[-A] {
   def toAttrValue(a: A): String
 }

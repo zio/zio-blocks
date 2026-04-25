@@ -16,6 +16,10 @@
 
 package zio.blocks.html
 
+/**
+ * Typeclass for converting values to CSS strings for use in `css"..."` and
+ * `selector"..."` interpolators.
+ */
 trait ToCss[-A] {
   def toCss(a: A): String
 }
@@ -64,6 +68,10 @@ object ToCss {
   }
 }
 
+/**
+ * A CSS length value with a numeric value and unit (e.g., `10px`, `2em`,
+ * `50%`).
+ */
 final case class CssLength(value: Double, unit: String) {
   require(CssLength.validUnits.contains(unit), s"Invalid CSS unit: $unit")
 
@@ -98,6 +106,7 @@ object CssLength {
   }
 }
 
+/** A CSS color value (hex, RGB, HSL, or named color). */
 sealed trait CssColor extends Product with Serializable {
   def render: String
 }

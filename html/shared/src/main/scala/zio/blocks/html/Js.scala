@@ -16,6 +16,10 @@
 
 package zio.blocks.html
 
+/**
+ * A wrapper for raw JavaScript code. Use `js"..."` to create instances with
+ * proper escaping.
+ */
 sealed abstract case class Js(value: String) {
   override def toString: String = value
   def stripMargin: Js           = Js(value.stripMargin)

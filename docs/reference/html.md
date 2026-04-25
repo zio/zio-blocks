@@ -1,5 +1,5 @@
 ---
-id: template
+id: html
 title: "HTML"
 ---
 

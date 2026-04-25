@@ -22,27 +22,28 @@ trait HtmlElements {
 
   // --- Element constructors ---
 
+  private def collectEffects(
+    effect: DomModifier,
+    attrBuilder: zio.blocks.chunk.ChunkBuilder[Dom.Attribute],
+    childBuilder: zio.blocks.chunk.ChunkBuilder[Dom]
+  ): Unit = effect match {
+    case DomModifier.AddAttr(a)       => attrBuilder += a
+    case DomModifier.AddChild(c)      => childBuilder += c
+    case DomModifier.AddChildren(cs)  => childBuilder ++= cs
+    case DomModifier.AddEffects(effs) =>
+      var i = 0
+      while (i < effs.length) {
+        collectEffects(effs(i), attrBuilder, childBuilder)
+        i += 1
+      }
+  }
+
   private def elScript(effects: Seq[DomModifier]): Dom.Element.Script = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
     var i            = 0
     while (i < effects.length) {
-      effects(i) match {
-        case DomModifier.AddAttr(a)       => attrBuilder += a
-        case DomModifier.AddChild(c)      => childBuilder += c
-        case DomModifier.AddChildren(cs)  => childBuilder ++= cs
-        case DomModifier.AddEffects(effs) =>
-          var j = 0
-          while (j < effs.length) {
-            effs(j) match {
-              case DomModifier.AddAttr(a)      => attrBuilder += a
-              case DomModifier.AddChild(c)     => childBuilder += c
-              case DomModifier.AddChildren(cs) => childBuilder ++= cs
-              case _                           => ()
-            }
-            j += 1
-          }
-      }
+      collectEffects(effects(i), attrBuilder, childBuilder)
       i += 1
     }
     Dom.Element.Script(attrBuilder.result(), childBuilder.result())
@@ -53,22 +54,7 @@ trait HtmlElements {
     val childBuilder = Chunk.newBuilder[Dom]
     var i            = 0
     while (i < effects.length) {
-      effects(i) match {
-        case DomModifier.AddAttr(a)       => attrBuilder += a
-        case DomModifier.AddChild(c)      => childBuilder += c
-        case DomModifier.AddChildren(cs)  => childBuilder ++= cs
-        case DomModifier.AddEffects(effs) =>
-          var j = 0
-          while (j < effs.length) {
-            effs(j) match {
-              case DomModifier.AddAttr(a)      => attrBuilder += a
-              case DomModifier.AddChild(c)     => childBuilder += c
-              case DomModifier.AddChildren(cs) => childBuilder ++= cs
-              case _                           => ()
-            }
-            j += 1
-          }
-      }
+      collectEffects(effects(i), attrBuilder, childBuilder)
       i += 1
     }
     Dom.Element.Style(attrBuilder.result(), childBuilder.result())

@@ -18,6 +18,7 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
+/** Key for single-valued HTML attributes. Use `:=` to set the value. */
 final class AttributeKey(val attrName: String) {
 
   def :=(value: String): Dom.Attribute =
