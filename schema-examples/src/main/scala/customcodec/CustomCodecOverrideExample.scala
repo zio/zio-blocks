@@ -31,7 +31,8 @@ import java.time.format.DateTimeFormatter
  * pre-configured deriver once and derive codecs for any schema that contains
  * the overridden type.
  *
- * Run with: sbt "schema-examples/runMain customcodec.CustomCodecOverrideExample"
+ * Run with: sbt "schema-examples/runMain
+ * customcodec.CustomCodecOverrideExample"
  */
 object CustomCodecOverrideExample extends App {
 

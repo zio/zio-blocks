@@ -22,8 +22,26 @@ import zio.test._
 
 import java.nio.CharBuffer
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import scala.util.control.NonFatal
 
 object DeriverWithInstanceCsvSpec extends SchemaBaseSpec {
+
+  private val basicIsoFmt = DateTimeFormatter.BASIC_ISO_DATE
+
+  private val yyyymmddLocalDateCodec: CsvCodec[LocalDate] = new CsvCodec[LocalDate] {
+    val headerNames: IndexedSeq[String] = IndexedSeq("value")
+
+    def encode(value: LocalDate, output: CharBuffer): Unit =
+      output.put(value.format(basicIsoFmt))
+
+    def decode(input: CharBuffer): Either[SchemaError, LocalDate] = {
+      val str = input.toString
+      input.position(input.limit())
+      try Right(LocalDate.parse(str, basicIsoFmt))
+      catch { case NonFatal(e) => Left(SchemaError(e.getMessage)) }
+    }
+  }
 
   case class Meeting(title: String, date: LocalDate)
   object Meeting {
@@ -37,8 +55,22 @@ object DeriverWithInstanceCsvSpec extends SchemaBaseSpec {
     codec.decode(CharBuffer.wrap(buf.toString))
   }
 
+  private def csvEncode(codec: CsvCodec[Meeting], value: Meeting): String = {
+    val buf = CharBuffer.allocate(4096)
+    codec.encode(value, buf)
+    buf.flip()
+    buf.toString
+  }
+
   def spec = suite("DeriverWithInstanceCsvSpec")(
-    test("withInstance wraps CsvCodecDeriver and still roundtrips") {
+    test("withInstance overrides LocalDate codec") {
+      val deriver = CsvCodecDeriver.withInstance[LocalDate](yyyymmddLocalDateCodec)
+      val codec   = Schema[Meeting].deriving(deriver).derive
+      val meeting = Meeting("retro", LocalDate.of(2025, 8, 1))
+      val csv     = csvEncode(codec, meeting)
+      assertTrue(csv.contains("20250801"))
+    },
+    test("withModifier wraps CsvCodecDeriver and still roundtrips") {
       val deriver = CsvCodecDeriver.withModifier(
         TypeId.of[Meeting],
         "title",

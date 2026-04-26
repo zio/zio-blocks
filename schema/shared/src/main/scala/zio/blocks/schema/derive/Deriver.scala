@@ -106,6 +106,21 @@ trait Deriver[TC[_]] { self =>
    * Returns a new deriver that pre-registers a type-level instance override.
    * During derivation, every occurrence of type `A` will use the supplied
    * instance instead of deriving one.
+   *
+   * When the returned deriver is passed to `DerivationBuilder`, overrides
+   * registered here take precedence over builder-level overrides for the same
+   * target because `DerivationBuilder.derive` merges them as
+   * `builderOverrides ++ deriver.instanceOverrides` and later entries win in
+   * the resulting `.toMap`.
+   *
+   * @tparam A
+   *   the type whose derived instance should be replaced
+   * @param instance
+   *   the custom type-class instance (evaluated lazily)
+   * @param typeId
+   *   implicit identifier for `A`, used to match occurrences during derivation
+   * @return
+   *   a new `Deriver` that wraps this deriver with the additional override
    */
   final def withInstance[A](instance: => TC[A])(implicit typeId: TypeId[A]): Deriver[TC] =
     new DeriverWithOverrides[TC](
@@ -116,13 +131,34 @@ trait Deriver[TC[_]] { self =>
 
   /**
    * Returns a new deriver that pre-registers a field-level instance override.
-   * During derivation, the field named `termName` inside the parent type
-   * identified by `typeId` will use the supplied instance.
+   * During derivation, the field named `termName` inside the parent
+   * record/variant identified by `typeId` will use the supplied instance
+   * instead of deriving one.
+   *
+   * This is a medium-precision override between optic-based (exact path) and
+   * type-based (all occurrences).
+   *
+   * @tparam A
+   *   the parent record or variant type that owns the field
+   * @tparam B
+   *   the type of the field being overridden. Note that `B` is not statically
+   *   checked against the actual field type; a mismatch will surface as a
+   *   runtime error during codec use, not at derivation time.
+   * @param typeId
+   *   identifier for the parent type `A`
+   * @param termName
+   *   the name of the field (or variant case) to override. If no field with
+   *   this name exists in the target type, the override is silently ignored
+   *   during derivation (matching `DerivationBuilder.instance` behaviour).
+   * @param instance
+   *   the custom type-class instance for the field (evaluated lazily)
+   * @return
+   *   a new `Deriver` that wraps this deriver with the additional override
    */
-  final def withInstance[A](typeId: TypeId[A], termName: String, instance: => TC[Any]): Deriver[TC] =
+  final def withInstance[A, B](typeId: TypeId[A], termName: String, instance: => TC[B]): Deriver[TC] =
     new DeriverWithOverrides[TC](
       self,
-      Chunk(new InstanceOverrideByTypeAndTermName[TC, A, Any](typeId, termName, Lazy(instance))),
+      Chunk(new InstanceOverrideByTypeAndTermName[TC, A, B](typeId, termName, Lazy(instance))),
       Chunk.empty
     )
 
@@ -130,6 +166,15 @@ trait Deriver[TC[_]] { self =>
    * Returns a new deriver that pre-registers a reflect-level modifier override.
    * During derivation, every occurrence of the type identified by `typeId` will
    * have the modifier prepended to its modifiers.
+   *
+   * @tparam A
+   *   the type to attach the modifier to
+   * @param typeId
+   *   identifier for `A`
+   * @param modifier
+   *   the reflect-level modifier to prepend
+   * @return
+   *   a new `Deriver` that wraps this deriver with the additional override
    */
   final def withModifier[A](typeId: TypeId[A], modifier: Modifier.Reflect): Deriver[TC] =
     new DeriverWithOverrides[TC](
@@ -142,6 +187,18 @@ trait Deriver[TC[_]] { self =>
    * Returns a new deriver that pre-registers a term-level modifier override.
    * During derivation, the field named `termName` inside the parent type
    * identified by `typeId` will have the modifier applied.
+   *
+   * @tparam A
+   *   the parent record or variant type that owns the field
+   * @param typeId
+   *   identifier for `A`
+   * @param termName
+   *   the name of the field (or variant case) to modify. If no field with this
+   *   name exists in the target type, the override is silently ignored.
+   * @param modifier
+   *   the term-level modifier to apply
+   * @return
+   *   a new `Deriver` that wraps this deriver with the additional override
    */
   final def withModifier[A](typeId: TypeId[A], termName: String, modifier: Modifier.Term): Deriver[TC] =
     new DeriverWithOverrides[TC](
