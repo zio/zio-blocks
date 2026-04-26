@@ -100,24 +100,24 @@ addCommandAlias(
   "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; scheduleJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test"
 )
 
 addCommandAlias(
   "testJS",
   "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; htmlJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; scheduleJS/test; htmlJS/test; datastarJS/test"
 )
 addCommandAlias(
   "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; scheduleJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc"
 )
 addCommandAlias(
   "docJS",
   "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; scheduleJS/doc; htmlJS/doc; datastarJS/doc"
 )
 
 lazy val root = project
@@ -164,10 +164,14 @@ lazy val root = project
     `http-model-schema`.jvm,
     `http-model-schema`.js,
     `http-model-examples`,
+    endpoint.jvm,
+    endpoint.js,
     markdown.jvm,
     markdown.js,
     html.jvm,
     html.js,
+    datastar.jvm,
+    datastar.js,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCoreJS,
@@ -558,6 +562,37 @@ lazy val `http-model-examples` = project
     coverageMinimumBranchTotal := 0
   )
   .dependsOn(`http-model`.jvm)
+
+lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-endpoint"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.endpoint"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(`http-model`, schema, combinators)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    // Depends on http-model which is Scala 3 only.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
+  )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -1277,4 +1312,24 @@ lazy val html = crossProject(JSPlatform, JVMPlatform)
     ).mkString(";"),
     coverageMinimumStmtTotal   := 90,
     coverageMinimumBranchTotal := 90
+  )
+
+lazy val datastar = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-datastar"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.datastar"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(html)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Seq()
+    })
   )
