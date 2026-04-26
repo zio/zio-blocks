@@ -1076,7 +1076,8 @@ lazy val ringbufferBenchmarks = project
     coverageMinimumStmtTotal   := 99,
     coverageMinimumBranchTotal := 99,
     libraryDependencies ++= Seq(
-      "org.jctools" % "jctools-core" % "4.0.6"
+      "org.jctools" % "jctools-core" % "4.0.6",
+      "com.lmax"    % "disruptor"    % "3.4.4"
     )
   )
 
