@@ -42,6 +42,26 @@ abstract class Stream[+E, +A] {
   /** Renders this stream as a human-readable description of its pipeline. */
   def render: String
 
+  /**
+   * Returns the underlying [[Chunk]] if this stream wraps a known, materialized
+   * chunk, `None` otherwise. O(1).
+   *
+   * Only streams created via [[Stream.fromChunk]], [[Stream.fromArray]], or
+   * [[Stream.empty]] return `Some`. All combinators (map, filter, take, drop,
+   * concat, etc.) return `None` because the chunk identity is lost after
+   * transformation.
+   */
+  def knownChunk: Option[Chunk[A]] = None
+
+  /**
+   * Returns the number of elements if known without consuming the stream,
+   * `None` otherwise. O(1).
+   *
+   * Element-preserving combinators like `map` propagate the count.
+   * Element-filtering combinators like `filter` invalidate it.
+   */
+  def knownLength: Option[Long] = None
+
   /** Returns [[render]]. */
   final override def toString: String = render
 
@@ -136,7 +156,23 @@ abstract class Stream[+E, +A] {
       () => {
         val source = Stream.compileToReader(this)
         val et     = source.jvmType
-        if (et eq JvmType.Int) {
+        if (et eq JvmType.Byte) {
+          new Reader[Chunk[A]] {
+            def isClosed                               = source.isClosed
+            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
+              val builder = new ChunkBuilder.Byte()
+              var i       = 0
+              var v       = source.readInt(Long.MinValue)(using unsafeEvidence)
+              while (v != Long.MinValue && i < n) {
+                builder.addOne(v.toByte)
+                i += 1
+                if (i < n) v = source.readInt(Long.MinValue)(using unsafeEvidence)
+              }
+              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
+            }
+            def close() = source.close()
+          }
+        } else if (et eq JvmType.Int) {
           new Reader[Chunk[A]] {
             def isClosed                               = source.isClosed
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
@@ -346,7 +382,30 @@ abstract class Stream[+E, +A] {
         val source  = Stream.compileToReader(this)
         val srcType = source.jvmType
         val outType = jtS.jvmType
-        if ((srcType eq JvmType.Int) && (outType eq JvmType.Int)) {
+        if ((srcType eq JvmType.Byte) && (outType eq JvmType.Byte)) {
+          val fB = f.asInstanceOf[(Byte, Byte) => Byte]
+          new Reader[S] {
+            private var state: Byte             = init.asInstanceOf[Byte]
+            private var emittedInit             = false
+            override def jvmType: JvmType       = JvmType.Byte
+            def isClosed: Boolean               = source.isClosed
+            def read[S1 >: S](sentinel: S1): S1 =
+              if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
+              else {
+                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                if (v == Long.MinValue) sentinel
+                else { state = fB(state, v.toByte); state.asInstanceOf[S1] }
+              }
+            override def readInt(sentinel: Long)(using S <:< Int): Long =
+              if (!emittedInit) { emittedInit = true; init.asInstanceOf[Byte].toLong }
+              else {
+                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                if (v == Long.MinValue) sentinel
+                else { state = fB(state, v.toByte); state.toLong }
+              }
+            def close(): Unit = source.close()
+          }
+        } else if ((srcType eq JvmType.Int) && (outType eq JvmType.Int)) {
           val fI = f.asInstanceOf[(Int, Int) => Int]
           new Reader[S] {
             private var state: Int              = init.asInstanceOf[Int]
@@ -475,7 +534,11 @@ abstract class Stream[+E, +A] {
          */
         def skipElements(count: Int): Boolean = {
           var i = 0
-          if (et eq JvmType.Int) {
+          if (et eq JvmType.Byte) {
+            while (i < count) {
+              if (source.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue) return false; i += 1
+            }
+          } else if (et eq JvmType.Int) {
             while (i < count) {
               if (source.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue) return false; i += 1
             }
@@ -499,7 +562,37 @@ abstract class Stream[+E, +A] {
           true
         }
 
-        if (et eq JvmType.Int) {
+        if (et eq JvmType.Byte) {
+          new Reader[Chunk[A]] {
+            private val buf                            = new internal.CircularBufferByte(n)
+            private var firstWindow                    = true
+            private var done                           = false
+            def isClosed: Boolean                      = source.isClosed || done
+            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
+              if (done) return sentinel
+              if (!firstWindow) {
+                if (step <= n) {
+                  buf.shift(step)
+                } else {
+                  buf.shift(n)
+                  if (!skipElements(step - n)) { done = true; return sentinel }
+                }
+              }
+              firstWindow = false
+              val sizeBeforeFill = buf.size
+              while (buf.size < n) {
+                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                if (v == Long.MinValue) {
+                  if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
+                  else { done = true; return buf.toChunk.asInstanceOf[A1] }
+                }
+                buf.add(v.toByte)
+              }
+              buf.toChunk.asInstanceOf[A1]
+            }
+            def close(): Unit = { done = true; source.close() }
+          }
+        } else if (et eq JvmType.Int) {
           new Reader[Chunk[A]] {
             private val buf                            = new internal.CircularBufferInt(n)
             private var firstWindow                    = true
@@ -753,7 +846,10 @@ object Stream {
     new FromReader(() => new DyingReader(t), "Stream.die(...)")
 
   /** The empty stream that emits no elements. */
-  val empty: Stream[Nothing, Nothing] = new FromReader(() => Reader.closed, "Stream.empty")
+  val empty: Stream[Nothing, Nothing] = new FromReader(() => Reader.closed, "Stream.empty") {
+    override def knownChunk: Option[Chunk[Nothing]] = Some(Chunk.empty)
+    override def knownLength: Option[Long]          = Some(0L)
+  }
 
   /** An empty stream that executes `f` for its side-effect when pulled. */
   def eval(f: => Any): Stream[Nothing, Nothing] =
@@ -774,9 +870,16 @@ object Stream {
   )(use: R => Stream[E, A]): Stream[E, A] =
     new FromAcquireRelease(acquire, release, use)
 
+  /**
+   * Creates a stream from an array. The array is wrapped via `Chunk.fromArray`
+   * without copying.
+   */
+  def fromArray[A](array: Array[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
+    fromChunk(Chunk.fromArray(array))
+
   /** Creates a stream backed by a [[Chunk]]. */
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
-    new FromReader(() => Reader.fromChunk[A](chunk)(jt), "Stream.fromChunk(...)")
+    new FromChunkStream(chunk, jt)
 
   /**
    * Wraps a [[java.io.InputStream]] as a stream of bytes widened to Int
@@ -798,9 +901,19 @@ object Stream {
   def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Int] =
     new FromReader(() => Reader.fromInputStream(is), "Stream.fromInputStreamUnmanaged(...)")
 
-  /** Creates a stream backed by an [[Iterable]]. */
-  def fromIterable[A](it: Iterable[A]): Stream[Nothing, A] =
-    new FromReader(() => Reader.fromIterable[A](it), "Stream.fromIterable(...)")
+  /**
+   * Creates a stream backed by an [[Iterable]]. If the iterable has a known
+   * size, `knownLength` is set.
+   */
+  def fromIterable[A](it: Iterable[A]): Stream[Nothing, A] = {
+    val size = it.knownSize
+    if (size >= 0)
+      new FromReader(() => Reader.fromIterable[A](it), "Stream.fromIterable(...)") {
+        override def knownLength: Option[Long] = Some(size.toLong)
+      }
+    else
+      new FromReader(() => Reader.fromIterable[A](it), "Stream.fromIterable(...)")
+  }
 
   /** Creates a stream from a lazily-evaluated [[Iterator]]. */
   def fromIterator[A](it: => Iterator[A]): Stream[Nothing, A] =
@@ -838,9 +951,14 @@ object Stream {
   def fromJavaReaderUnmanaged(r: java.io.Reader): Stream[java.io.IOException, Char] =
     new FromReader(() => Reader.fromReader(r), "Stream.fromJavaReaderUnmanaged(...)")
 
-  /** Creates a stream of integers from a Scala [[Range]]. */
+  /**
+   * Creates a stream of integers from a Scala [[Range]]. The `knownLength` is
+   * set from the range size.
+   */
   def fromRange(range: Range): Stream[Nothing, Int] =
-    new FromReader(() => Reader.fromRange(range), "Stream.fromRange(...)")
+    new FromReader(() => Reader.fromRange(range), "Stream.fromRange(...)") {
+      override def knownLength: Option[Long] = Some(range.size.toLong)
+    }
 
   /** Creates a stream from a lazily-evaluated [[Reader]] (advanced API). */
   def fromReader[E, A](mkReader: => Reader[A]): Stream[E, A] =
@@ -865,36 +983,61 @@ object Stream {
 
   /** Creates a stream that emits a single Boolean. */
   def succeed(a: Boolean): Stream[Nothing, Boolean] =
-    new FromReader(() => Reader.singleBoolean(a), "Stream.succeed(...)")
+    new FromReader(() => Reader.singleBoolean(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /**
    * Creates a stream that emits a single Byte. Returns `Stream[Nothing, Int]`
    * because Byte is represented as Int internally to avoid boxing, matching the
    * convention of [[fromInputStream]].
    */
-  def succeed(a: Byte): Stream[Nothing, Int] = new FromReader(() => Reader.singleByte(a), "Stream.succeed(...)")
+  def succeed(a: Byte): Stream[Nothing, Int] =
+    new FromReader(() => Reader.singleByte(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Char. */
-  def succeed(a: Char): Stream[Nothing, Char] = new FromReader(() => Reader.singleChar(a), "Stream.succeed(...)")
+  def succeed(a: Char): Stream[Nothing, Char] =
+    new FromReader(() => Reader.singleChar(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Double. */
-  def succeed(a: Double): Stream[Nothing, Double] = new FromReader(() => Reader.singleDouble(a), "Stream.succeed(...)")
+  def succeed(a: Double): Stream[Nothing, Double] =
+    new FromReader(() => Reader.singleDouble(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Float. */
-  def succeed(a: Float): Stream[Nothing, Float] = new FromReader(() => Reader.singleFloat(a), "Stream.succeed(...)")
+  def succeed(a: Float): Stream[Nothing, Float] =
+    new FromReader(() => Reader.singleFloat(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Int. */
-  def succeed(a: Int): Stream[Nothing, Int] = new FromReader(() => Reader.singleInt(a), "Stream.succeed(...)")
+  def succeed(a: Int): Stream[Nothing, Int] =
+    new FromReader(() => Reader.singleInt(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Long. */
-  def succeed(a: Long): Stream[Nothing, Long] = new FromReader(() => Reader.singleLong(a), "Stream.succeed(...)")
+  def succeed(a: Long): Stream[Nothing, Long] =
+    new FromReader(() => Reader.singleLong(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single Short. */
-  def succeed(a: Short): Stream[Nothing, Short] = new FromReader(() => Reader.singleShort(a), "Stream.succeed(...)")
+  def succeed(a: Short): Stream[Nothing, Short] =
+    new FromReader(() => Reader.singleShort(a), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /** Creates a stream that emits a single element `a`, then closes. */
   def succeed[A](a: A): Stream[Nothing, A] =
-    new FromReader(() => Reader.single[A](a)(JvmType.Infer.anyRef), "Stream.succeed(...)")
+    new FromReader(() => Reader.single[A](a)(JvmType.Infer.anyRef), "Stream.succeed(...)") {
+      override def knownLength: Option[Long] = Some(1L)
+    }
 
   /**
    * Defers stream construction until run-time. Useful for recursive streams.
@@ -1058,7 +1201,9 @@ object Stream {
 
   /** Emits all elements of `self` followed by all elements of `that`. */
   private[streams] final class Concatenated[E, A](self: Stream[E, A], that: Stream[E, A]) extends Stream[E, A] {
-    def render: String                                                   = s"${self.render} ++ ${that.render}"
+    def render: String                     = s"${self.render} ++ ${that.render}"
+    override def knownLength: Option[Long] =
+      for { a <- self.knownLength; b <- that.knownLength } yield a + b
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead { src =>
@@ -1081,6 +1226,7 @@ object Stream {
   /** Skips the first `n` elements. */
   private[streams] final class Dropped[E, A](self: Stream[E, A], n: Long) extends Stream[E, A] {
     def render: String                                                   = s"${self.render}.drop($n)"
+    override def knownLength: Option[Long]                               = self.knownLength.map(l => math.max(0L, l - math.max(0L, n)))
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead { r => if (!r.setSkip(n)) r.skip(n); r }
@@ -1104,6 +1250,7 @@ object Stream {
   /** Wraps a stream with a finalizer that runs on close. */
   private[streams] final class Ensuring[E, A](self: Stream[E, A], finalizer: => Unit) extends Stream[E, A] {
     def render: String                                                   = s"${self.render}.ensuring(...)"
+    override def knownLength: Option[Long]                               = self.knownLength
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(src =>
@@ -1125,6 +1272,7 @@ object Stream {
   /** Transforms the error channel with `f`. */
   private[streams] final class ErrorMapped[E, E2, A](self: Stream[E, A], f: E => E2) extends Stream[E2, A] {
     def render: String                                                   = s"${self.render}.mapError(...)"
+    override def knownLength: Option[Long]                               = self.knownLength
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => new ErrorMappedReader[E, A](r.asInstanceOf[Reader[A]], f))
@@ -1332,8 +1480,22 @@ object Stream {
     }
   }
 
+  /** Leaf stream backed by a known, materialized [[Chunk]]. */
+  private[streams] final class FromChunkStream[A](
+    chunk: Chunk[A],
+    jt: JvmType.Infer[A]
+  ) extends Stream[Nothing, A] {
+    def render: String                                                   = "Stream.fromChunk(...)"
+    override def knownChunk: Option[Chunk[A]]                            = Some(chunk)
+    override def knownLength: Option[Long]                               = Some(chunk.length.toLong)
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit =
+      pipeline.appendRead(Reader.fromChunk(chunk)(jt))
+    override private[streams] def compile(depth: Int): Reader[A] =
+      Reader.fromChunk(chunk)(jt)
+  }
+
   /** Leaf stream backed by a lazily-created [[Reader]]. */
-  private[streams] final class FromReader[E, A](
+  private[streams] class FromReader[E, A](
     mkReader: () => Reader[A],
     val renderLabel: String = "Stream.fromReader(...)"
   ) extends Stream[E, A] {
@@ -1397,6 +1559,7 @@ object Stream {
     jtB: JvmType.Infer[B]
   ) extends Stream[E, B] {
     def render: String                                                   = s"${self.render}.map(...)"
+    override def knownLength: Option[Long]                               = self.knownLength
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.addMap(Interpreter.laneOf(jtA.jvmType), Interpreter.outLaneOf(jtB.jvmType))(f)
@@ -1440,6 +1603,7 @@ object Stream {
   /** Emits at most the first `n` elements. */
   private[streams] final class Taken[E, A](self: Stream[E, A], n: Long) extends Stream[E, A] {
     def render: String                                                   = s"${self.render}.take($n)"
+    override def knownLength: Option[Long]                               = self.knownLength.map(l => math.max(0L, math.min(n, l)))
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => if (!r.setLimit(n)) Reader.withSkipLimit(r, 0, n) else r)

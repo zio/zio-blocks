@@ -28,7 +28,7 @@ sealed trait Scheme
 // Headers and body
 final class Headers(...)
 sealed trait Header
-final class Body(val data: Chunk[Byte], val contentType: ContentType)
+final class Body(val stream: Stream[Nothing, Byte], val contentType: ContentType)
 ```
 
 ## Motivation
@@ -651,34 +651,90 @@ val asList = headers.toList                                 // All headers as Li
 
 ## Body
 
-`Body` represents HTTP message content as immutable bytes with content type metadata:
+`Body` wraps a `Stream[Nothing, Byte]` with a content type:
 
 ```scala
-final class Body private (val data: Chunk[Byte], val contentType: ContentType)
+final class Body private (
+  val stream: Stream[Nothing, Byte],
+  val contentType: ContentType
+)
 ```
 
 ### Creating Bodies
 
-Create bodies from strings:
+`Body.empty` provides an empty body with default `application/octet-stream` content type:
 
 ```scala mdoc:compile-only
-import zio.http._
+import zio.http.Body
 
-val jsonBody = Body.fromString("""{"message":"ok"}""", Charset.UTF8)
-val textBody = Body.fromString("Hello World", Charset.UTF8)
-val emptyBody = Body.empty
+val empty = Body.empty
+// Body(stream = Stream.fromChunk(Chunk.empty[Byte]), contentType = application/octet-stream)
 ```
 
-### Body Properties
-
-Access body properties:
+`Body.fromString` creates a body with `text/plain` content type:
 
 ```scala mdoc:compile-only
-import zio.http._
+import zio.http.{Body, Charset}
 
-val body = Body.fromString("Hello World", Charset.UTF8)
+val fromString = Body.fromString("Hello, World!", Charset.UTF8)
+// Content-Type: text/plain; charset=UTF-8
+```
 
-val contentType = body.contentType   // ContentType metadata
+`Body.fromArray` creates a body with default `application/octet-stream` content type:
+
+```scala mdoc:compile-only
+import zio.http.Body
+
+val fromBytes = Body.fromArray(Array[Byte](1, 2, 3))
+// Content-Type: application/octet-stream
+```
+
+`Body.fromChunk` creates a body from a `Chunk[Byte]` with optional content type:
+
+```scala mdoc:compile-only
+import zio.http.{Body, ContentType}
+import zio.blocks.chunk.Chunk
+import zio.blocks.mediatype.MediaTypes
+
+val chunk = Chunk[Byte](1, 2, 3, 4, 5)
+val body = Body.fromChunk(chunk)
+// Content-Type: application/octet-stream (default)
+
+val jsonBody = Body.fromChunk(chunk, ContentType(MediaTypes.application.`json`))
+// Content-Type: application/json
+```
+
+`Body.fromStream` creates a body from a `Stream[Nothing, Byte]` with optional content type:
+
+```scala mdoc:compile-only
+import zio.http.{Body, ContentType}
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.Stream
+import zio.blocks.mediatype.MediaTypes
+
+val stream = Stream.fromChunk(Chunk[Byte](1, 2, 3))
+val body = Body.fromStream(stream, ContentType(MediaTypes.application.`octet-stream`))
+// Content-Type: application/octet-stream
+```
+
+### Reading Bodies
+
+`Body` provides access to the stream, content type, and convenience methods:
+
+```scala mdoc:compile-only
+import zio.http.{Body, Charset}
+
+val body = Body.fromString("Hello!", Charset.UTF8)
+
+body.length           // Some(6)
+body.isEmpty          // false
+body.nonEmpty         // true
+body.asString()       // "Hello!" (UTF-8 default)
+body.asString(Charset.ASCII)  // "Hello!" (explicit charset)
+body.toChunk          // Chunk[Byte](72, 101, 108, 108, 111, 33)
+body.toStream         // Stream[Nothing, Byte]
+body.toArray          // Array[Byte](72, 101, 108, 108, 111, 33)
+body.contentType      // ContentType(text/plain; charset=UTF-8)
 ```
 
 ---
@@ -1309,28 +1365,32 @@ val testStream = Stream(
 // vs. just: Chunk(1, 2, 3, 4, 5, 6, 7, 8, 9)
 ```
 
-#### http-model's Choice: Pure, Materialized Bodies
+#### http-model's Choice: Stream-Backed Bodies
 
-http-model makes a different trade-off. A `Body` is just raw bytes — immutable, fully loaded, and effect-free:
+http-model wraps a `Stream[Nothing, Byte]` — a synchronous, pull-based stream with no effect system:
 
 ```scala
-final class Body(
-  val data: Chunk[Byte],
+final class Body private (
+  val stream: Stream[Nothing, Byte],
   val contentType: ContentType
 )
-
-// That's it. No effects, no streaming, no surprises.
-val body = Body(
-  data = Chunk.fromArray(myBytes),
-  contentType = ContentType.`application/json`
-)
-
-// Reading the body is a pure operation:
-val bytes: Chunk[Byte] = body.data      // No IO, no effect system needed
-val contentType = body.contentType       // Content type metadata
 ```
 
-Think of http-model as a **pure data layer** and streaming libraries as the **I/O layer**:
+Create bodies from chunks, arrays, strings, or streams:
+
+```scala
+val body = Body.fromChunk(
+  Chunk.fromArray(myBytes),
+  ContentType.`application/json`
+)
+
+// Accessing the data:
+val bytes: Chunk[Byte] = body.toChunk       // Materializes the stream (O(1) for chunk-backed bodies)
+val len: Option[Long]  = body.length        // Known length without materializing, if available
+val raw: Stream[Nothing, Byte] = body.toStream  // Access the underlying stream directly
+```
+
+For chunk-backed bodies, `toChunk` is O(1) and `length` returns `Some(n)`. For stream-backed bodies, `toChunk` runs the stream to collect all bytes and `length` returns `None`.
 
 ```
 Your Application Code
@@ -1345,12 +1405,12 @@ Your Application Code
     (wraps/unwraps)
         ↓
 ┌─────────────────────┐
-│  http-model Body    │ (pure, immutable, fully materialized)
-│  (no effects)       │
+│  http-model Body    │ (stream-backed, synchronous, no effects)
+│  (pull-based I/O)   │
 └─────────────────────┘
 ```
 
-When an HTTP request arrives, the client library reads the stream and constructs a `Body` with all bytes loaded. When you send a response, the client library takes the `Body` bytes and streams them to the network. http-model handles the "in-memory representation" part; the framework handles the "network I/O" part.
+Body is synchronous and effect-free — it uses ZIO Blocks' pull-based `Stream`, not an effectful stream type. When the body wraps a known `Chunk`, access is pure and immediate. When it wraps an opaque stream, `toChunk` pulls all bytes on demand.
 
 ## Running the Examples
 

@@ -494,14 +494,27 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
-  .dependsOn(chunk, mediatype)
+  .dependsOn(chunk, mediatype, streams)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 94
+    coverageMinimumBranchTotal := 94,
+    // HTTP model requires streams, which is Scala 3 only.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
   )
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
@@ -519,7 +532,20 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 67,
-    coverageMinimumBranchTotal := 51
+    coverageMinimumBranchTotal := 51,
+    // Depends on http-model which is Scala 3 only.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
   )
 
 lazy val `http-model-examples` = project

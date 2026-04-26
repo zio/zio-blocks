@@ -18,81 +18,103 @@ package zio.http
 
 import zio.test._
 import zio.blocks.chunk.Chunk
+import zio.blocks.streams.Stream
 
 object BodySpec extends HttpModelBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("Body")(
     suite("empty")(
-      test("has length 0") {
-        assertTrue(Body.empty.length == 0)
+      test("toChunk returns empty chunk") {
+        assertTrue(Body.empty.toChunk == Chunk.empty[Byte])
       },
-      test("is empty") {
+      test("length is Some(0L)") {
+        assertTrue(Body.empty.length == Some(0L))
+      },
+      test("isEmpty is true") {
         assertTrue(Body.empty.isEmpty)
       },
-      test("is not nonEmpty") {
+      test("nonEmpty is false") {
         assertTrue(!Body.empty.nonEmpty)
       },
       test("has default content type") {
         assertTrue(Body.empty.contentType == ContentType.`application/octet-stream`)
       },
-      test("toArray is empty array for empty body") {
+      test("toArray is empty array") {
         assertTrue(Body.empty.toArray.length == 0)
       }
     ),
+    suite("fromChunk")(
+      test("toChunk returns the chunk") {
+        val chunk = Chunk[Byte](10, 20, 30)
+        val body  = Body.fromChunk(chunk)
+        assertTrue(body.toChunk == chunk)
+      },
+      test("toStream.runCollect returns Right(chunk)") {
+        val chunk  = Chunk[Byte](10, 20, 30)
+        val body   = Body.fromChunk(chunk)
+        val result = body.toStream.runCollect
+        assertTrue(result == Right(chunk))
+      },
+      test("length returns Some(chunk.length.toLong)") {
+        val chunk = Chunk[Byte](1, 2, 3, 4, 5)
+        val body  = Body.fromChunk(chunk)
+        assertTrue(body.length == Some(5L))
+      },
+      test("preserves content type") {
+        val ct   = ContentType.`text/html`
+        val body = Body.fromChunk(Chunk[Byte](1), ct)
+        assertTrue(body.contentType == ct)
+      },
+      test("defaults to application/octet-stream") {
+        val body = Body.fromChunk(Chunk[Byte](1))
+        assertTrue(body.contentType == ContentType.`application/octet-stream`)
+      }
+    ),
     suite("fromArray")(
-      test("wraps bytes correctly") {
+      test("toChunk returns chunk with those bytes") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
-        assertTrue(
-          body.length == 3,
-          body.toArray(0) == 1.toByte,
-          body.toArray(1) == 2.toByte,
-          body.toArray(2) == 3.toByte
-        )
+        assertTrue(body.toChunk == Chunk[Byte](1, 2, 3))
       },
-      test("wraps array without defensive copy") {
+      test("toArray returns array matching bytes") {
+        val bytes = Array[Byte](1, 2, 3)
+        val body  = Body.fromArray(bytes)
+        val arr   = body.toArray
+        assertTrue(arr(0) == 1.toByte, arr(1) == 2.toByte, arr(2) == 3.toByte)
+      },
+      test("length returns Some(bytes.length.toLong)") {
+        val bytes = Array[Byte](1, 2, 3)
+        val body  = Body.fromArray(bytes)
+        assertTrue(body.length == Some(3L))
+      },
+      test("wraps array without defensive copy — mutation is visible") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte
-        assertTrue(body.data(0) == 99.toByte)
+        assertTrue(body.toChunk(0) == 99.toByte)
       },
       test("preserves content type") {
         val ct   = ContentType.`application/json`
         val body = Body.fromArray(Array[Byte](1), ct)
         assertTrue(body.contentType == ct)
       },
-      test("defaults to application/octet-stream content type") {
+      test("defaults to application/octet-stream") {
         val body = Body.fromArray(Array[Byte](1))
         assertTrue(body.contentType == ContentType.`application/octet-stream`)
       }
     ),
-    suite("fromChunk")(
-      test("stores chunk directly") {
-        val chunk = Chunk[Byte](10, 20, 30)
-        val body  = Body.fromChunk(chunk)
-        assertTrue(
-          body.length == 3,
-          body.toArray(0) == 10.toByte,
-          body.toArray(1) == 20.toByte,
-          body.toArray(2) == 30.toByte
-        )
-      },
-      test("preserves content type") {
-        val ct   = ContentType.`text/html`
-        val body = Body.fromChunk(Chunk[Byte](1), ct)
-        assertTrue(body.contentType == ct)
-      }
-    ),
     suite("fromString")(
-      test("encodes with UTF-8 by default") {
-        val body = Body.fromString("hello")
-        assertTrue(body.asString() == "hello")
+      test("asString returns the original string") {
+        assertTrue(Body.fromString("hello").asString() == "hello")
       },
-      test("sets content type to text/plain with charset") {
+      test("sets content type to text/plain with UTF-8 charset") {
         val body = Body.fromString("hello")
         assertTrue(
           body.contentType.mediaType == zio.blocks.mediatype.MediaTypes.text.`plain`,
           body.contentType.charset == Some(Charset.UTF8)
         )
+      },
+      test("length returns Some(5L) for 'hello'") {
+        assertTrue(Body.fromString("hello").length == Some(5L))
       },
       test("encodes with specified charset") {
         val body = Body.fromString("hello", Charset.ASCII)
@@ -100,64 +122,103 @@ object BodySpec extends HttpModelBaseSpec {
           body.asString(Charset.ASCII) == "hello",
           body.contentType.charset == Some(Charset.ASCII)
         )
-      }
-    ),
-    suite("asString")(
-      test("decodes bytes to string with default charset") {
-        val body = Body.fromString("hello world")
-        assertTrue(body.asString() == "hello world")
       },
-      test("round-trips with fromString") {
+      test("round-trips unicode") {
         val original = "Hello, 世界! 🌍"
         val body     = Body.fromString(original)
         assertTrue(body.asString() == original)
       }
     ),
-    suite("data")(
-      test("returns correct chunk") {
-        val bytes = Array[Byte](1, 2, 3)
-        val body  = Body.fromArray(bytes)
-        val chunk = body.data
-        assertTrue(
-          chunk.length == 3,
-          chunk(0) == 1.toByte,
-          chunk(1) == 2.toByte,
-          chunk(2) == 3.toByte
-        )
+    suite("fromStream")(
+      test("toStream returns the stream") {
+        val chunk  = Chunk[Byte](1, 2, 3)
+        val stream = Stream.fromChunk(chunk)
+        val body   = Body.fromStream(stream)
+        assertTrue(body.toStream eq stream)
+      },
+      test("toChunk collects stream contents") {
+        val chunk = Chunk[Byte](1, 2, 3)
+        val body  = Body.fromStream(Stream.fromChunk(chunk))
+        assertTrue(body.toChunk == chunk)
+      },
+      test("length delegates to stream.knownLength — Some for fromChunk") {
+        val chunk = Chunk[Byte](1, 2, 3)
+        val body  = Body.fromStream(Stream.fromChunk(chunk))
+        assertTrue(body.length == Some(3L))
+      },
+      test("length returns None for fromIterable") {
+        val body = Body.fromStream(Stream.fromIterable(List[Byte](1, 2, 3)))
+        assertTrue(body.length == None)
+      },
+      test("preserves content type") {
+        val ct   = ContentType.`application/json`
+        val body = Body.fromStream(Stream.fromChunk(Chunk[Byte](1)), ct)
+        assertTrue(body.contentType == ct)
+      },
+      test("defaults to application/octet-stream") {
+        val body = Body.fromStream(Stream.fromChunk(Chunk[Byte](1)))
+        assertTrue(body.contentType == ContentType.`application/octet-stream`)
       }
     ),
-    suite("length / isEmpty / nonEmpty")(
-      test("length returns correct size") {
-        val body = Body.fromArray(Array[Byte](1, 2, 3, 4, 5))
-        assertTrue(body.length == 5)
+    suite("accessors")(
+      test("toStream returns Stream[Nothing, Byte]") {
+        val body: Body                    = Body.fromChunk(Chunk[Byte](1, 2))
+        val stream: Stream[Nothing, Byte] = body.toStream
+        assertTrue(stream.runCollect == Right(Chunk[Byte](1, 2)))
       },
-      test("isEmpty for empty body") {
-        assertTrue(Body.empty.isEmpty)
+      test("toChunk returns Chunk[Byte]") {
+        val body: Body         = Body.fromChunk(Chunk[Byte](1, 2))
+        val chunk: Chunk[Byte] = body.toChunk
+        assertTrue(chunk == Chunk[Byte](1, 2))
       },
-      test("nonEmpty for non-empty body") {
-        val body = Body.fromArray(Array[Byte](1))
-        assertTrue(body.nonEmpty)
+      test("toArray returns Array[Byte]") {
+        val body: Body       = Body.fromChunk(Chunk[Byte](1, 2))
+        val arr: Array[Byte] = body.toArray
+        assertTrue(arr.length == 2, arr(0) == 1.toByte, arr(1) == 2.toByte)
       },
-      test("isEmpty is false for non-empty body") {
-        val body = Body.fromString("x")
-        assertTrue(!body.isEmpty)
+      test("asString decodes with charset") {
+        val body = Body.fromString("hello world")
+        assertTrue(body.asString() == "hello world")
+      },
+      test("isEmpty is correct") {
+        assertTrue(Body.empty.isEmpty, !Body.fromChunk(Chunk[Byte](1)).isEmpty)
+      },
+      test("nonEmpty is correct") {
+        assertTrue(!Body.empty.nonEmpty, Body.fromChunk(Chunk[Byte](1)).nonEmpty)
+      },
+      test("contentType accessor") {
+        val body = Body.fromChunk(Chunk[Byte](1), ContentType.`application/json`)
+        assertTrue(body.contentType == ContentType.`application/json`)
       }
     ),
     suite("equals and hashCode")(
-      test("two bodies with same bytes are equal") {
-        val a = Body.fromArray(Array[Byte](1, 2, 3))
-        val b = Body.fromArray(Array[Byte](1, 2, 3))
-        assertTrue(a == b)
+      test("empty body equality") {
+        assertTrue(Body.empty == Body.empty)
       },
-      test("two bodies with different bytes are not equal") {
-        val a = Body.fromArray(Array[Byte](1, 2, 3))
-        val b = Body.fromArray(Array[Byte](4, 5, 6))
+      test("fromChunk with same chunk and contentType are equal") {
+        val c1 = Chunk[Byte](1, 2, 3)
+        val ct = ContentType.`application/json`
+        assertTrue(Body.fromChunk(c1, ct) == Body.fromChunk(c1, ct))
+      },
+      test("different content types are not equal") {
+        val c1 = Chunk[Byte](1, 2, 3)
+        assertTrue(Body.fromChunk(c1, ContentType.`application/json`) != Body.fromChunk(c1, ContentType.`text/plain`))
+      },
+      test("fromChunk and fromArray with same bytes are equal") {
+        val c1 = Chunk[Byte](1, 2, 3)
+        val ct = ContentType.`application/json`
+        assertTrue(Body.fromChunk(c1, ct) == Body.fromArray(c1.toArray, ct))
+      },
+      test("fromStream(fromIterable) bodies are not equal even with same data") {
+        val ct = ContentType.`application/json`
+        val a  = Body.fromStream(Stream.fromIterable(List[Byte](1)), ct)
+        val b  = Body.fromStream(Stream.fromIterable(List[Byte](1)), ct)
         assertTrue(a != b)
       },
-      test("two bodies with same bytes but different content types are not equal") {
-        val a = Body.fromArray(Array[Byte](1, 2, 3), ContentType.`application/json`)
-        val b = Body.fromArray(Array[Byte](1, 2, 3), ContentType.`text/plain`)
-        assertTrue(a != b)
+      test("fromStream(fromChunk) equals fromChunk with same data") {
+        val c1 = Chunk[Byte](1, 2, 3)
+        val ct = ContentType.`application/json`
+        assertTrue(Body.fromStream(Stream.fromChunk(c1), ct) == Body.fromChunk(c1, ct))
       },
       test("equal bodies have same hashCode") {
         val a = Body.fromArray(Array[Byte](1, 2, 3))
@@ -170,22 +231,15 @@ object BodySpec extends HttpModelBaseSpec {
       }
     ),
     suite("toString")(
-      test("includes length and content type") {
+      test("includes length and content type for known-length body") {
         val body = Body.fromString("hello")
         val str  = body.toString
         assertTrue(str.contains("length=5"), str.contains("contentType="))
-      }
-    ),
-    suite("content type propagation")(
-      test("fromArray with content type propagates to body") {
-        val ct   = ContentType.`application/octet-stream`
-        val body = Body.fromArray(Array[Byte](0, 1), ct)
-        assertTrue(body.contentType == ct)
       },
-      test("fromChunk with content type propagates to body") {
-        val ct   = ContentType.`application/json`
-        val body = Body.fromChunk(Chunk[Byte](1, 2), ct)
-        assertTrue(body.contentType == ct)
+      test("shows unknown for stream without known length") {
+        val body = Body.fromStream(Stream.fromIterable(List[Byte](1)))
+        val str  = body.toString
+        assertTrue(str.contains("length=unknown"))
       }
     )
   )

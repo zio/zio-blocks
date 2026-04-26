@@ -69,7 +69,7 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = if (skipN > Int.MaxValue) Int.MaxValue else skipN.toInt
+    val clampedSkip = math.max(0, if (skipN > Int.MaxValue) Int.MaxValue else skipN.toInt)
     val startPos    = math.min(originalPosition + clampedSkip, originalLimit)
     buffer.limit(originalLimit)
     buffer.position(startPos)
@@ -87,7 +87,7 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
 
   override def setSkip(n: Long): Boolean = {
     skipN = n
-    val clampedN = if (n > Int.MaxValue) Int.MaxValue else n.toInt
+    val clampedN = math.max(0, if (n > Int.MaxValue) Int.MaxValue else n.toInt)
     val newPos   = math.min(buffer.position() + clampedN, buffer.limit())
     buffer.position(newPos)
     true
@@ -136,8 +136,9 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
 
   override def reset(): Unit = {
     done = false
-    val bytesSkip = if (skipN > Int.MaxValue / 4) Int.MaxValue else skipN.toInt * 4
-    val startPos  = math.min(originalPosition + bytesSkip, originalLimit)
+    val clampedSkip = math.max(0L, skipN)
+    val bytesSkip   = if (clampedSkip > Int.MaxValue / 4) Int.MaxValue else clampedSkip.toInt * 4
+    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
     buffer.limit(originalLimit)
     buffer.position(startPos)
     if (limitN != Long.MaxValue) {
@@ -155,7 +156,8 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
 
   override def setSkip(n: Long): Boolean = {
     skipN = n
-    val bytesSkip = if (n > Int.MaxValue / 4) Int.MaxValue else n.toInt * 4
+    val clamped   = math.max(0L, n)
+    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue else clamped.toInt * 4
     val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
     buffer.position(newPos)
     true
@@ -204,8 +206,9 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
 
   override def reset(): Unit = {
     done = false
-    val bytesSkip = if (skipN > Int.MaxValue / 8) Int.MaxValue else skipN.toInt * 8
-    val startPos  = math.min(originalPosition + bytesSkip, originalLimit)
+    val clampedSkip = math.max(0L, skipN)
+    val bytesSkip   = if (clampedSkip > Int.MaxValue / 8) Int.MaxValue else clampedSkip.toInt * 8
+    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
     buffer.limit(originalLimit)
     buffer.position(startPos)
     if (limitN != Long.MaxValue) {
@@ -223,7 +226,8 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
 
   override def setSkip(n: Long): Boolean = {
     skipN = n
-    val bytesSkip = if (n > Int.MaxValue / 8) Int.MaxValue else n.toInt * 8
+    val clamped   = math.max(0L, n)
+    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue else clamped.toInt * 8
     val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
     buffer.position(newPos)
     true
@@ -272,8 +276,9 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
 
   override def reset(): Unit = {
     done = false
-    val bytesSkip = if (skipN > Int.MaxValue / 8) Int.MaxValue else skipN.toInt * 8
-    val startPos  = math.min(originalPosition + bytesSkip, originalLimit)
+    val clampedSkip = math.max(0L, skipN)
+    val bytesSkip   = if (clampedSkip > Int.MaxValue / 8) Int.MaxValue else clampedSkip.toInt * 8
+    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
     buffer.limit(originalLimit)
     buffer.position(startPos)
     if (limitN != Long.MaxValue) {
@@ -291,7 +296,8 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
 
   override def setSkip(n: Long): Boolean = {
     skipN = n
-    val bytesSkip = if (n > Int.MaxValue / 8) Int.MaxValue else n.toInt * 8
+    val clamped   = math.max(0L, n)
+    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue else clamped.toInt * 8
     val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
     buffer.position(newPos)
     true
@@ -340,8 +346,9 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
 
   override def reset(): Unit = {
     done = false
-    val bytesSkip = if (skipN > Int.MaxValue / 4) Int.MaxValue else skipN.toInt * 4
-    val startPos  = math.min(originalPosition + bytesSkip, originalLimit)
+    val clampedSkip = math.max(0L, skipN)
+    val bytesSkip   = if (clampedSkip > Int.MaxValue / 4) Int.MaxValue else clampedSkip.toInt * 4
+    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
     buffer.limit(originalLimit)
     buffer.position(startPos)
     if (limitN != Long.MaxValue) {
@@ -359,7 +366,8 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
 
   override def setSkip(n: Long): Boolean = {
     skipN = n
-    val bytesSkip = if (n > Int.MaxValue / 4) Int.MaxValue else n.toInt * 4
+    val clamped   = math.max(0L, n)
+    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue else clamped.toInt * 4
     val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
     buffer.position(newPos)
     true
