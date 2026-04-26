@@ -101,4 +101,52 @@ trait Deriver[TC[_]] { self =>
   def instanceOverrides: IndexedSeq[InstanceOverride] = Chunk.empty
 
   def modifierOverrides: IndexedSeq[ModifierOverride] = Chunk.empty
+
+  /**
+   * Returns a new deriver that pre-registers a type-level instance override.
+   * During derivation, every occurrence of type `A` will use the supplied
+   * instance instead of deriving one.
+   */
+  final def withInstance[A](instance: => TC[A])(implicit typeId: TypeId[A]): Deriver[TC] =
+    new DeriverWithOverrides[TC](
+      self,
+      Chunk(new InstanceOverrideByType[TC, A](typeId, Lazy(instance))),
+      Chunk.empty
+    )
+
+  /**
+   * Returns a new deriver that pre-registers a field-level instance override.
+   * During derivation, the field named `termName` inside the parent type
+   * identified by `typeId` will use the supplied instance.
+   */
+  final def withInstance[A](typeId: TypeId[A], termName: String, instance: => TC[Any]): Deriver[TC] =
+    new DeriverWithOverrides[TC](
+      self,
+      Chunk(new InstanceOverrideByTypeAndTermName[TC, A, Any](typeId, termName, Lazy(instance))),
+      Chunk.empty
+    )
+
+  /**
+   * Returns a new deriver that pre-registers a reflect-level modifier override.
+   * During derivation, every occurrence of the type identified by `typeId` will
+   * have the modifier prepended to its modifiers.
+   */
+  final def withModifier[A](typeId: TypeId[A], modifier: Modifier.Reflect): Deriver[TC] =
+    new DeriverWithOverrides[TC](
+      self,
+      Chunk.empty,
+      Chunk(new ModifierReflectOverrideByType[A](typeId, modifier))
+    )
+
+  /**
+   * Returns a new deriver that pre-registers a term-level modifier override.
+   * During derivation, the field named `termName` inside the parent type
+   * identified by `typeId` will have the modifier applied.
+   */
+  final def withModifier[A](typeId: TypeId[A], termName: String, modifier: Modifier.Term): Deriver[TC] =
+    new DeriverWithOverrides[TC](
+      self,
+      Chunk.empty,
+      Chunk(new ModifierTermOverrideByType[A](typeId, termName, modifier))
+    )
 }
