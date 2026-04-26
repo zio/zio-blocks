@@ -1179,7 +1179,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1190,7 +1190,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit    = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: A](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; chunk(i).asInstanceOf[A1] }
       else sentinel
@@ -1199,7 +1200,7 @@ object Reader {
       else -1
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
-      idx = math.max(0, math.min(skipN.toInt, chunk.length))
+      idx = math.max(0, math.min(skipN, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1218,7 +1219,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1229,7 +1230,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit         = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: Double](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Double.box(chunk.double(i)).asInstanceOf[A1] }
       else sentinel
@@ -1242,7 +1244,7 @@ object Reader {
     }
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
-      idx = math.max(0, math.min(skipN.toInt, chunk.length))
+      idx = math.max(0, math.min(skipN, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1261,7 +1263,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1272,7 +1274,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit        = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: Float](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Float.box(chunk.float(i)).asInstanceOf[A1] }
       else sentinel
@@ -1285,7 +1288,7 @@ object Reader {
     }
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
-      idx = math.max(0, math.min(skipN.toInt, chunk.length))
+      idx = math.max(0, math.min(skipN, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1304,7 +1307,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1315,7 +1318,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit       = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: Byte](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Byte.box(chunk.byte(i)).asInstanceOf[A1] }
       else sentinel
@@ -1355,7 +1359,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1366,7 +1370,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit      = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: Int](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Int.box(chunk.int(i)).asInstanceOf[A1] }
       else sentinel
@@ -1379,7 +1384,7 @@ object Reader {
     }
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
-      idx = math.max(0, math.min(skipN.toInt, chunk.length))
+      idx = math.max(0, math.min(skipN, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1398,7 +1403,7 @@ object Reader {
     override def readable(): Boolean       = idx < effectiveLen
     override def setSkip(n: Long): Boolean = {
       skipN = n
-      idx = math.max(0, math.min(n.toInt, chunk.length))
+      idx = math.max(0, math.min(n, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))
@@ -1409,7 +1414,8 @@ object Reader {
       effectiveLen = math.min(originalLen, idx + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
       true
     }
-    override def skip(n: Long): Unit       = idx = math.min(idx + n.toInt, effectiveLen)
+    override def skip(n: Long): Unit = idx =
+      math.max(0, math.min(idx.toLong + math.max(0L, n), effectiveLen.toLong).toInt)
     def read[A1 >: Long](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Long.box(chunk.long(i)).asInstanceOf[A1] }
       else sentinel
@@ -1422,7 +1428,7 @@ object Reader {
     }
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
-      idx = math.max(0, math.min(skipN.toInt, chunk.length))
+      idx = math.max(0, math.min(skipN, chunk.length.toLong).toInt)
       effectiveLen =
         if (limitN == Long.MaxValue) originalLen
         else math.min(originalLen, idx + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt))

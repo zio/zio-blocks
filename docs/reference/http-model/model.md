@@ -668,7 +668,7 @@ final class Body private (
 import zio.http.Body
 
 val empty = Body.empty
-// Body(stream = Stream.empty, contentType = application/octet-stream)
+// Body(stream = Stream.fromChunk(Chunk.empty[Byte]), contentType = application/octet-stream)
 ```
 
 `Body.fromString` creates a body with `text/plain` content type:

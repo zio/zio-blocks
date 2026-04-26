@@ -46,9 +46,10 @@ abstract class Stream[+E, +A] {
    * Returns the underlying [[Chunk]] if this stream wraps a known, materialized
    * chunk, `None` otherwise. O(1).
    *
-   * Only streams created via [[Stream.fromChunk]] or [[Stream.empty]] return
-   * `Some`. All combinators (map, filter, take, drop, concat, etc.) return
-   * `None` because the chunk identity is lost after transformation.
+   * Only streams created via [[Stream.fromChunk]], [[Stream.fromArray]], or
+   * [[Stream.empty]] return `Some`. All combinators (map, filter, take, drop,
+   * concat, etc.) return `None` because the chunk identity is lost after
+   * transformation.
    */
   def knownChunk: Option[Chunk[A]] = None
 
