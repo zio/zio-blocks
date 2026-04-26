@@ -140,6 +140,10 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
     norm.owner == Owner.fromPackagePath("scala") && norm.name == "Option"
   }
 
+  final def isMaybe: Boolean =
+    (owner == Owner.fromPackagePath("zio.blocks.schema") ||
+      owner == Owner.fromPackagePath("zio.blocks.schema.package")) && name == "Maybe"
+
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
 

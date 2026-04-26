@@ -3327,6 +3327,22 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         decodeError[Option[Int]]("""08""", "illegal number with leading zero at: .when[Some].value") &&
         decodeError[Option[Int]]("""nuts""", "expected null at: .when[None]")
       },
+      test("maybe") {
+        val codec       = Schema[Maybe[String]].derive(JsonCodecDeriver)
+        val absentCheck = codec.decode("null".getBytes).exists(_.isAbsent)
+        assertTrue(new String(codec.encode(Maybe.present("hello"))) == """"hello"""") &&
+        assertTrue(new String(codec.encode(Maybe.absent[String])) == """null""") &&
+        assertTrue(codec.decode(""""hello"""".getBytes) == Right(Maybe.present("hello"))) &&
+        assertTrue(absentCheck)
+      },
+      test("maybe int") {
+        val codec      = Schema[Maybe[Int]].derive(JsonCodecDeriver)
+        val nullResult = codec.decode("null".getBytes)
+        assertTrue(new String(codec.encode(Maybe.present(42))) == """42""") &&
+        assertTrue(new String(codec.encode(Maybe.absent[Int])) == """null""") &&
+        assertTrue(codec.decode("42".getBytes) == Right(Maybe.present(42))) &&
+        assertTrue(nullResult.isRight)
+      },
       test("either") {
         roundTrip[Either[String, Int]](Right(42), """{"Right":{"value":42}}""") &&
         roundTrip[Either[String, Int]](Left("VVV"), """{"Left":{"value":"VVV"}}""") &&

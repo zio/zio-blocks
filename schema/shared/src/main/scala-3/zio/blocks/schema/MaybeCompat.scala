@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks
+package zio.blocks.schema
 
-package object schema extends PathInterpolator with SyntaxVersionSpecific with MaybeCompat {}
+// On Scala 3, Maybe is already a top-level opaque type, so no re-export is needed.
+trait MaybeCompat

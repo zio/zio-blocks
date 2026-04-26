@@ -60,10 +60,10 @@ object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
  *     validation errors.
  *   - `enumValuesAsStrings`: Specifies whether enumeration values are
  *     represented as strings.
- *   - `transientNone`: Excludes fields with a value of `None` during
- *     serialization.
- *   - `requireOptionFields`: Enforces the inclusion of optional fields in
- *     deserialization.
+ *   - `transientNone`: Excludes fields with a value of `None` (for `Option`) or
+ *     absent (for `Maybe`) during serialization.
+ *   - `requireOptionFields`: Enforces the inclusion of optional fields
+ *     (`Option` and `Maybe`) in deserialization.
  *   - `transientEmptyCollection`: Excludes empty collections during
  *     serialization.
  *   - `requireCollectionFields`: Enforces the inclusion of collection fields in
@@ -177,12 +177,13 @@ class JsonCodecDeriver private[json] (
 
   /**
    * Updates the `JsonCodecDeriver` instance to specify whether fields of type
-   * `Option` with a value of `None` should be excluded during encoding.
+   * `Option` with a value of `None` or `Maybe` with an absent value should be
+   * excluded during encoding.
    *
    * @param transientNone
    *   A boolean flag indicating whether to exclude fields of type `Option` with
-   *   a value of `None` during encoding. If `true`, such fields are omitted; if
-   *   `false`, they are included.
+   *   a value of `None` (or `Maybe` with an absent value) during encoding. If
+   *   `true`, such fields are omitted; if `false`, they are included.
    * @return
    *   A new instance of `JsonCodecDeriver` with the updated `transientNone`
    *   setting.
@@ -190,12 +191,12 @@ class JsonCodecDeriver private[json] (
   def withTransientNone(transientNone: Boolean): JsonCodecDeriver = copy(transientNone = transientNone)
 
   /**
-   * Sets the requirement for optional fields.
+   * Sets the requirement for optional fields (`Option` and `Maybe`).
    *
    * @param requireOptionFields
-   *   A boolean flag indicating whether optional fields are required. If true,
-   *   optional fields must be present and will not be treated as optional
-   *   during codec derivation.
+   *   A boolean flag indicating whether optional fields (`Option` and `Maybe`)
+   *   are required. If true, these fields must be present in the JSON input and
+   *   will not be treated as optional during codec derivation.
    * @return
    *   A new instance of JsonCodecDeriver with the updated setting for requiring
    *   optional fields.
@@ -602,7 +603,8 @@ class JsonCodecDeriver private[json] (
                 offset = offset,
                 typeTag = Reflect.typeTag(fieldReflect),
                 idx = idx,
-                isOptional = !requireOptionFields && fieldReflect.isOption
+                isOptional = !requireOptionFields && (fieldReflect.isOption || fieldReflect.isMaybe),
+                usesNullSentinel = fieldReflect.isMaybe
               )
               offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
               idx += 1
@@ -838,7 +840,8 @@ class JsonCodecDeriver private[json] (
                     val schema = fieldInfo.getCodec.toJsonSchema
                     val name   = fieldInfo.getName
                     properties.add(name, schema)
-                    val isRequired      = !(fieldInfo.hasDefault || fieldInfo.isOptional || fieldInfo.isCollection)
+                    val isRequired =
+                      !(fieldInfo.hasDefault || fieldInfo.isOptional || fieldInfo.isCollection)
                     var nameWithAliases = Chunk.empty[String]
                     field.modifiers.foreach {
                       case m: Modifier.alias =>
@@ -910,42 +913,58 @@ class JsonCodecDeriver private[json] (
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
-      if (typeId.isOption) {
+      if (typeId.isOption || typeId.isMaybe) {
+        val useNullSentinel = typeId.isMaybe
+        val absentCaseName  = if (useNullSentinel) "Absent" else "None"
+        val presentCaseName = if (useNullSentinel) "Present" else "Some"
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new JsonCodec[Option[Any]]() {
-            private[this] val valueCodec = codec.asInstanceOf[JsonCodec[Any]]
+          new JsonCodec[AnyRef]() {
+            private[this] val valueCodec  = codec.asInstanceOf[JsonCodec[Any]]
+            private[this] val nullDefault = if (useNullSentinel) new AnyRef else None
 
-            override def decodeValue(in: JsonReader): Option[Any] = {
+            @inline private[this] def isAbsent(x: AnyRef): Boolean =
+              if (useNullSentinel) x eq null else x eq None
+
+            @inline private[this] def wrapPresent(v: Any): AnyRef =
+              if (useNullSentinel) v.asInstanceOf[AnyRef] else new Some(v)
+
+            @inline private[this] def unwrapPresent(x: AnyRef): Any =
+              if (useNullSentinel) x else x.asInstanceOf[Option[Any]].get
+
+            @inline private[this] def absentValue: AnyRef =
+              if (useNullSentinel) null else None.asInstanceOf[AnyRef]
+
+            override def decodeValue(in: JsonReader): AnyRef = {
               val isNull = in.isNextToken('n')
               in.rollbackToken()
               try {
-                if (isNull) in.readNullOrError(None, "expected null")
-                else new Some(valueCodec.decodeValue(in))
+                if (isNull) { in.readNullOrError(nullDefault, "expected null"); absentValue }
+                else wrapPresent(valueCodec.decodeValue(in))
               } catch {
                 case err if NonFatal(err) => decodeError(err, isNull)
               }
             }
 
-            override def encodeValue(x: Option[Any], out: JsonWriter): Unit =
-              if (x eq None) out.writeNull()
-              else valueCodec.encodeValue(x.get, out)
+            override def encodeValue(x: AnyRef, out: JsonWriter): Unit =
+              if (isAbsent(x)) out.writeNull()
+              else valueCodec.encodeValue(unwrapPresent(x), out)
 
-            override def decodeValue(json: Json): Option[Any] =
-              if (json eq Json.Null) None
+            override def decodeValue(json: Json): AnyRef =
+              if (json eq Json.Null) absentValue
               else {
-                try new Some(valueCodec.decodeValue(json))
+                try wrapPresent(valueCodec.decodeValue(json))
                 catch {
                   case err if NonFatal(err) => decodeError(err, false)
                 }
               }
 
-            override def encodeValue(x: Option[Any]): Json =
-              if (x eq None) Json.Null
-              else valueCodec.encodeValue(x.get)
+            override def encodeValue(x: AnyRef): Json =
+              if (isAbsent(x)) Json.Null
+              else valueCodec.encodeValue(unwrapPresent(x))
 
             private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
-              if (isNull) error(new DynamicOptic.Node.Case("None"), err)
-              else error(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), err)
+              if (isNull) error(new DynamicOptic.Node.Case(absentCaseName), err)
+              else error(new DynamicOptic.Node.Case(presentCaseName), new DynamicOptic.Node.Field("value"), err)
 
             override lazy val toJsonSchema: JsonSchema = valueCodec.toJsonSchema.withNullable
           }
@@ -2946,7 +2965,8 @@ private class FieldInfo(
   offset: RegisterOffset = 0L,
   typeTag: Int,
   val idx: Int,
-  val isOptional: Boolean
+  val isOptional: Boolean,
+  val usesNullSentinel: Boolean = false
 ) {
   var nonTransient: Boolean                        = true
   private[this] var isPredefinedCodec: Boolean     = false
@@ -3071,7 +3091,7 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, None)
+    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) null else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
@@ -3091,7 +3111,7 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, None)
+    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) null else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else throw new JsonCodecError(Nil, s"missing required field \"$name\"")
 
@@ -3219,16 +3239,18 @@ private class FieldInfo(
   }
 
   def writeOptional(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
-    val value = out.registers.getObject(offset + baseOffset)
-    if (value ne None) {
+    val value    = out.registers.getObject(offset + baseOffset)
+    val isAbsent = if (usesNullSentinel) value eq null else value eq None
+    if (!isAbsent) {
       writeKey(out)
       codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value, out)
     }
   }
 
   def writeOptional(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
-    val value = regs.getObject(offset)
-    if (value ne None) {
+    val value    = regs.getObject(offset)
+    val isAbsent = if (usesNullSentinel) value eq null else value eq None
+    if (!isAbsent) {
       builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
     }
   }
