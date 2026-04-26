@@ -28,11 +28,10 @@ import java.time.format.DateTimeFormatter
 /**
  * Tests for `Deriver.withInstance` and `Deriver.withModifier`.
  *
- * Verifies that pre-registering overrides on a deriver produces correct
- * results across JSON derivation, including type-level, field-level,
- * modifier, chained, Option, and nested override scenarios. Also checks
- * backward compatibility with existing `Schema.derive` and
- * `DerivationBuilder` paths.
+ * Verifies that pre-registering overrides on a deriver produces correct results
+ * across JSON derivation, including type-level, field-level, modifier, chained,
+ * Option, and nested override scenarios. Also checks backward compatibility
+ * with existing `Schema.derive` and `DerivationBuilder` paths.
  */
 object DeriverWithInstanceSpec extends SchemaBaseSpec {
 
@@ -41,9 +40,8 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
   private val customDateFmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
   private val customLocalDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
-    def decodeValue(in: JsonReader): LocalDate = {
+    def decodeValue(in: JsonReader): LocalDate =
       LocalDate.parse(in.readString(), customDateFmt)
-    }
 
     def encodeValue(x: LocalDate, out: JsonWriter): Unit =
       out.writeVal(customDateFmt.format(x))
@@ -86,6 +84,11 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Named] = Schema.derived
   }
 
+  case class Scored(name: String, date: LocalDate, score: Int)
+  object Scored {
+    implicit val schema: Schema[Scored] = Schema.derived
+  }
+
   // -- Helpers ---
 
   private def jsonRoundTrip[A](codec: JsonCodec[A], value: A): (String, Either[SchemaError, A]) = {
@@ -106,9 +109,9 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("DeriverWithInstanceSpec")(
     suite("JSON withInstance")(
       test("type-level override replaces all occurrences of a type") {
-        val deriver = JsonCodecDeriver.withInstance[LocalDate](customLocalDateCodec)
-        val codec   = Schema[Event].deriving(deriver).derive
-        val event   = Event("launch", LocalDate.of(2025, 6, 15))
+        val deriver         = JsonCodecDeriver.withInstance[LocalDate](customLocalDateCodec)
+        val codec           = Schema[Event].deriving(deriver).derive
+        val event           = Event("launch", LocalDate.of(2025, 6, 15))
         val (json, decoded) = jsonRoundTrip(codec, event)
         assertTrue(
           json == """{"name":"launch","date":"15/06/2025"}""",
@@ -116,10 +119,10 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
         )
       },
       test("field-level override applies only to the specified field") {
-        val deriver = JsonCodecDeriver.withInstance[DateRange](
+        val deriver = JsonCodecDeriver.withInstance[DateRange, LocalDate](
           TypeId.of[DateRange],
           "start",
-          customLocalDateCodec.asInstanceOf[JsonCodec[Any]]
+          customLocalDateCodec
         )
         val codec = Schema[DateRange].deriving(deriver).derive
         val range = DateRange("q1", LocalDate.of(2025, 1, 1), LocalDate.of(2025, 3, 31))
@@ -147,9 +150,9 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
         )
       },
       test("nested record with type-level override") {
-        val deriver = JsonCodecDeriver.withInstance[LocalDate](customLocalDateCodec)
-        val codec   = Schema[Outer].deriving(deriver).derive
-        val outer   = Outer("wrapper", Event("inner-event", LocalDate.of(2024, 2, 29)))
+        val deriver         = JsonCodecDeriver.withInstance[LocalDate](customLocalDateCodec)
+        val codec           = Schema[Outer].deriving(deriver).derive
+        val outer           = Outer("wrapper", Event("inner-event", LocalDate.of(2024, 2, 29)))
         val (json, decoded) = jsonRoundTrip(codec, outer)
         assertTrue(
           json == """{"tag":"wrapper","inner":{"name":"inner-event","date":"29/02/2024"}}""",
@@ -164,8 +167,8 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
           "firstName",
           Modifier.rename("first_name")
         )
-        val codec = Schema[Named].deriving(deriver).derive
-        val named = Named("Alice", "Smith")
+        val codec           = Schema[Named].deriving(deriver).derive
+        val named           = Named("Alice", "Smith")
         val (json, decoded) = jsonRoundTrip(codec, named)
         assertTrue(
           json == """{"first_name":"Alice","lastName":"Smith"}""",
@@ -178,8 +181,8 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
         val deriver = JsonCodecDeriver
           .withInstance[LocalDate](customLocalDateCodec)
           .withModifier(TypeId.of[Event], "name", Modifier.rename("title"))
-        val codec = Schema[Event].deriving(deriver).derive
-        val event = Event("conf", LocalDate.of(2025, 9, 1))
+        val codec           = Schema[Event].deriving(deriver).derive
+        val event           = Event("conf", LocalDate.of(2025, 9, 1))
         val (json, decoded) = jsonRoundTrip(codec, event)
         assertTrue(
           json == """{"title":"conf","date":"01/09/2025"}""",
@@ -204,17 +207,19 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
           .withInstance[LocalDate](customLocalDateCodec)
           .withInstance[Int](stringifyInt)
 
-        val codec = Schema[Event].deriving(deriver).derive
-        val event = Event("test", LocalDate.of(2025, 1, 1))
-        val json  = jsonEncode(codec, event)
-        // LocalDate uses custom format, but Event has no Int field so just check date
-        assertTrue(json == """{"name":"test","date":"01/01/2025"}""")
+        val codec           = Schema[Scored].deriving(deriver).derive
+        val scored          = Scored("test", LocalDate.of(2025, 1, 1), 42)
+        val (json, decoded) = jsonRoundTrip(codec, scored)
+        assertTrue(
+          json == """{"name":"test","date":"01/01/2025","score":"42"}""",
+          decoded == Right(scored)
+        )
       }
     ),
     suite("backward compatibility")(
       test("Schema.derive(Format) still works") {
-        val codec = Schema[Event].derive(JsonFormat)
-        val event = Event("compat", LocalDate.of(2025, 6, 1))
+        val codec           = Schema[Event].derive(JsonFormat)
+        val event           = Event("compat", LocalDate.of(2025, 6, 1))
         val (json, decoded) = jsonRoundTrip(codec, event)
         assertTrue(
           json == """{"name":"compat","date":"2025-06-01"}""",
@@ -226,7 +231,7 @@ object DeriverWithInstanceSpec extends SchemaBaseSpec {
           .deriving(JsonCodecDeriver)
           .instance(TypeId.of[LocalDate], customLocalDateCodec)
           .derive
-        val event = Event("builder", LocalDate.of(2025, 3, 14))
+        val event           = Event("builder", LocalDate.of(2025, 3, 14))
         val (json, decoded) = jsonRoundTrip(codec, event)
         assertTrue(
           json == """{"name":"builder","date":"14/03/2025"}""",
