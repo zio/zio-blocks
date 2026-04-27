@@ -167,6 +167,68 @@ import zio.blocks.schema.json._
 val jsonCodec = Person.schema.derive(JsonFormat)
 ```
 
+## Customizing Derivation with Instance and Modifier Overrides
+
+By default, `Deriver` automatically derives codecs for all types. But sometimes you need to customize how specific types are encoded or decoded—for example, encoding `LocalDate` as `"dd/MM/yyyy"` instead of ISO format.
+
+ZIO Blocks provides three levels of customization, in progressive order:
+
+1. **Type-level override** (`Deriver.withInstance`) — Override the codec for ALL occurrences of a type. Configure once, use everywhere:
+
+```scala
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+// Create a custom JsonCodec for LocalDate
+val customDateCodec: JsonCodec[LocalDate] = new JsonCodec[LocalDate] {
+  private val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+  def decodeValue(in: JsonReader): LocalDate = LocalDate.parse(in.readString(), fmt)
+  def encodeValue(x: LocalDate, out: JsonWriter): Unit = out.writeVal(fmt.format(x))
+  // ... AST overrides ...
+}
+
+// Configure the deriver once
+val myDeriver = JsonCodecDeriver.withInstance[LocalDate](customDateCodec)
+
+// Use everywhere — all LocalDate fields use the custom codec
+val codec1 = Schema[Event].deriving(myDeriver).derive
+val codec2 = Schema[Meeting].deriving(myDeriver).derive
+```
+
+2. **Field-level override** (`Deriver.withInstance` with typeId + termName) — Override a specific field only:
+
+```scala
+// Only Event.date uses custom format; other LocalDate fields are unchanged
+val deriver = JsonCodecDeriver.withInstance[Event, LocalDate](
+  TypeId.of[Event], "date", customDateCodec
+)
+```
+
+3. **Modifier override** (`Deriver.withModifier`) — Rename fields, add aliases:
+
+```scala
+val deriver = JsonCodecDeriver.withModifier(
+  TypeId.of[Person], "firstName", Modifier.rename("first_name")
+)
+```
+
+### Chaining Overrides
+
+Overrides compose, allowing you to build complex derivers incrementally:
+
+```scala
+val myDeriver = JsonCodecDeriver
+  .withInstance[LocalDate](customDateCodec)
+  .withModifier(TypeId.of[Event], "name", Modifier.rename("title"))
+```
+
+### Important Notes
+
+- `withInstance` and `withModifier` return a NEW deriver (they are immutable).
+- When combined with `DerivationBuilder`, deriver-level overrides take precedence over builder-level ones.
+- Unknown `termName` values are silently ignored.
+- The `B` type parameter in field-level `withInstance` is not statically checked against the actual field type.
+
 ## Example 1: Deriving a `Show` Type Class Instance
 
 Let's say we want to derive a `Show` type class instance for any type of type `A`:
