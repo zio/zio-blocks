@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import zio.test._
+import zio.blocks.schema._
 
 object RepoSpec extends ZIOSpecDefault {
 
@@ -76,7 +77,6 @@ object RepoSpec extends ZIOSpecDefault {
     ),
     suite("Repo construction")(
       test("exposes table metadata") {
-        import zio.blocks.schema._
         case class Item(id: Int, name: String)
         object Item {
           implicit val schema: Schema[Item] = Schema.derived
@@ -95,6 +95,47 @@ object RepoSpec extends ZIOSpecDefault {
           repo.idColumn == "id",
           repo.table.columns == IndexedSeq("id", "name")
         )
+      }
+    ),
+    suite("derived with zero args")(
+      test("auto-detects unique Int ID field") {
+        case class Item(id: Int, name: String)
+        object Item {
+          implicit val schema: Schema[Item] = Schema.derived
+        }
+        val repo = Repo.derived[Item, Int]
+        assertTrue(
+          repo.idColumn == "id",
+          repo.table.name == "item",
+          repo.getId(Item(42, "widget")) == 42
+        )
+      },
+      test("auto-detects unique Long ID field") {
+        case class Article(title: String, articleId: Long)
+        object Article {
+          implicit val schema: Schema[Article] = Schema.derived
+        }
+        val repo = Repo.derived[Article, Long]
+        assertTrue(
+          repo.idColumn == "article_id",
+          repo.getId(Article("hello", 99L)) == 99L
+        )
+      },
+      test("fails for ambiguous ID type") {
+        case class TwoInts(id: Int, otherId: Int, name: String)
+        object TwoInts {
+          implicit val schema: Schema[TwoInts] = Schema.derived
+        }
+        val result = scala.util.Try(Repo.derived[TwoInts, Int])
+        assertTrue(result.isFailure)
+      },
+      test("fails for missing ID type") {
+        case class NoLong(id: Int, name: String)
+        object NoLong {
+          implicit val schema: Schema[NoLong] = Schema.derived
+        }
+        val result = scala.util.Try(Repo.derived[NoLong, Long])
+        assertTrue(result.isFailure)
       }
     )
   )

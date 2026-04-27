@@ -418,6 +418,42 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     ),
+    suite("derived with zero args")(
+      test("insert and findById roundtrip with auto-detected ID") {
+        case class Widget(id: Int, label: String)
+        object Widget {
+          implicit val schema: Schema[Widget] = Schema.derived
+        }
+        val widgetRepo = Repo.derived[Widget, Int]
+
+        val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
+        try {
+          val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+            override def connect[B](f: DbCon ?=> B): B = {
+              val dbConn       = new JdbcConnection(conn)
+              given con: DbCon = new DbCon {
+                val connection: DbConnection = dbConn
+                val dialect: SqlDialect      = SqlDialect.SQLite
+                val logger: SqlLogger        = SqlLogger.noop
+              }
+              f
+            }
+          }
+          tx.connect {
+            SqlOps.update(
+              Frag.literal("CREATE TABLE IF NOT EXISTS widget (id INTEGER NOT NULL, label TEXT NOT NULL)")
+            )
+            widgetRepo.insert(Widget(1, "Sprocket"))
+            val found = widgetRepo.findById(1)
+            assertTrue(
+              found.isDefined,
+              found.get.id == 1,
+              found.get.label == "Sprocket"
+            )
+          }
+        } finally conn.close()
+      }
+    ),
     suite("SqlLogger")(
       test("onSuccess is called for insert") {
         withFreshDbAndLogger { (tx, logger) =>
