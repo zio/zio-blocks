@@ -41,8 +41,8 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Task] = Schema.derived
   }
 
-  private val userTable = Table.derived[User](SqlDialect.SQLite)
-  private val taskTable = Table.derived[Task](SqlDialect.SQLite)
+  private val userTable = Table.derived[User]
+  private val taskTable = Table.derived[Task]
 
   private given DbCodec[User]     = User.schema.deriving(DbCodecDeriver).derive
   private given DbCodec[Task]     = Task.schema.deriving(DbCodecDeriver).derive
@@ -69,12 +69,12 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
     }
     tx.connect {
       SqlOps.update(
-        Frag.const(
+        Frag.literal(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
         )
       )
       SqlOps.update(
-        Frag.const(
+        Frag.literal(
           "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
         )
       )
@@ -98,12 +98,12 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
     }
     tx.connect {
       SqlOps.update(
-        Frag.const(
+        Frag.literal(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
         )
       )
       SqlOps.update(
-        Frag.const(
+        Frag.literal(
           "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
         )
       )
@@ -451,7 +451,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withFreshDbAndLogger { (tx, logger) =>
           tx.connect {
             try {
-              SqlOps.update(Frag.const("INSERT INTO nonexistent_table (id) VALUES (1)"))
+              SqlOps.update(Frag.literal("INSERT INTO nonexistent_table (id) VALUES (1)"))
             } catch {
               case _: Throwable => ()
             }
