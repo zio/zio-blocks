@@ -114,9 +114,8 @@ object DbParam {
   }
 }
 
-extension (sc: StringContext) {
-  def sql(args: DbValue*): Frag =
-    Frag(sc.parts.toIndexedSeq, args.toIndexedSeq)
+extension (inline sc: StringContext) {
+  inline def sql(args: DbValue*): Frag = ${ SqlMacros.sqlImpl('sc, 'args) }
 }
 
 given dbParamToDbValue[A](using p: DbParam[A]): Conversion[A, DbValue] = p.toDbValue(_)
