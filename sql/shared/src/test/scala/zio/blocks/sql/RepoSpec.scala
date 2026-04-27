@@ -30,7 +30,7 @@ object RepoSpec extends ZIOSpecDefault {
       test("builds INSERT Frag with no values") {
         val frag = Repo.buildInsertFrag("t", "", IndexedSeq.empty)
         assertTrue(
-          frag.sql(SqlDialect.SQLite) == "INSERT INTO t () VALUES ()",
+          frag.sql(SqlDialect.SQLite) == "INSERT INTO t DEFAULT VALUES",
           frag.queryParams.isEmpty
         )
       }

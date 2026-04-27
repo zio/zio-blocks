@@ -1,5 +1,13 @@
 package zio.blocks.sql
 
+/**
+ * Bidirectional codec between a Scala value `A` and one or more database
+ * columns.
+ *
+ * Column ordering matches the `columns` [[IndexedSeq]]. The `startIndex`
+ * parameter in `readValue` / `writeValue` is 1-based (JDBC convention): column
+ * 1 corresponds to `columns(0)`.
+ */
 trait DbCodec[A] {
   def columns: IndexedSeq[String]
   def readValue(reader: DbResultReader, startIndex: Int): A
@@ -12,6 +20,12 @@ object DbCodec {
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
 }
 
+/**
+ * Reads column values from a database result set.
+ *
+ * All `index` parameters are 1-based (JDBC convention). After any `get*` call,
+ * use `wasNull` to check whether the value was SQL NULL.
+ */
 trait DbResultReader {
   def getInt(index: Int): Int
   def getLong(index: Int): Long
@@ -32,6 +46,12 @@ trait DbResultReader {
   def wasNull: Boolean
 }
 
+/**
+ * Writes parameter values to a prepared statement.
+ *
+ * All `index` parameters are 1-based (JDBC convention). Use `setNull` to write
+ * SQL NULL for a given parameter index.
+ */
 trait DbParamWriter {
   def setInt(index: Int, value: Int): Unit
   def setLong(index: Int, value: Long): Unit
