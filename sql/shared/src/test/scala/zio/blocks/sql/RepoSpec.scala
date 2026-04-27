@@ -81,7 +81,7 @@ object RepoSpec extends ZIOSpecDefault {
         object Item {
           implicit val schema: Schema[Item] = Schema.derived
         }
-        val table                 = Table.derived[Item](SqlDialect.SQLite)
+        val table                 = Table.derived[Item]
         val idCodec: DbCodec[Int] = new DbCodec[Int] {
           val columns: IndexedSeq[String]                                          = IndexedSeq("value")
           def readValue(reader: DbResultReader, startIndex: Int): Int              = reader.getInt(startIndex)

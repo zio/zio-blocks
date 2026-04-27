@@ -16,6 +16,8 @@
 
 package zio.blocks.sql
 
+import zio.blocks.schema._
+
 class Repo[E, ID](
   val table: Table[E],
   val idColumn: String,
@@ -31,18 +33,10 @@ class Repo[E, ID](
   private val tbl: String       = table.name
   private val codec: DbCodec[E] = table.codec
 
-  private val longCodec: DbCodec[Long] = new DbCodec[Long] {
-    val columns: IndexedSeq[String]                                           = IndexedSeq("count")
-    def readValue(reader: DbResultReader, startIndex: Int): Long              = reader.getLong(startIndex)
-    def writeValue(writer: DbParamWriter, startIndex: Int, value: Long): Unit =
-      writer.setLong(startIndex, value)
-    def toDbValues(value: Long): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbLong(value))
-  }
-
   // === Read Operations ===
 
   def findAll(using con: DbCon): List[E] = {
-    val frag = Frag.const(s"SELECT $allCols FROM $tbl")
+    val frag = Frag.literal(s"SELECT $allCols FROM $tbl")
     SqlOps.query[E](frag)(using con, codec)
   }
 
@@ -58,8 +52,8 @@ class Repo[E, ID](
     findById(id).isDefined
 
   def count(using con: DbCon): Long = {
-    val frag = Frag.const(s"SELECT COUNT(*) FROM $tbl")
-    SqlOps.queryOne[Long](frag)(using con, longCodec).getOrElse(0L)
+    val frag = Frag.literal(s"SELECT COUNT(*) FROM $tbl")
+    SqlOps.queryOne[Long](frag)(using con, DbCodec.longCodec).getOrElse(0L)
   }
 
   // === Write Operations ===
@@ -129,7 +123,7 @@ class Repo[E, ID](
     deleteById(getId(entity))
 
   def truncate()(using con: DbCon): Int =
-    SqlOps.update(Frag.const(s"DELETE FROM $tbl"))(using con)
+    SqlOps.update(Frag.literal(s"DELETE FROM $tbl"))(using con)
 }
 
 object Repo {
@@ -141,12 +135,29 @@ object Repo {
     getId: E => ID
   ): Repo[E, ID] = new Repo(table, idColumn, idCodec, getId)
 
+  def derived[E, ID](
+    idColumn: String,
+    getId: E => ID
+  )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
+    val codec = schema.deriving(DbCodecDeriver).derive
+    new Repo(Table(Table.deriveTableName(schema), codec), idColumn, idCodec, getId)
+  }
+
+  def derived[E, ID](
+    tableName: String,
+    idColumn: String,
+    getId: E => ID
+  )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
+    val codec = schema.deriving(DbCodecDeriver).derive
+    new Repo(Table(tableName, codec), idColumn, idCodec, getId)
+  }
+
   private[sql] def buildInsertFrag(
     tableName: String,
     allColumns: String,
     values: IndexedSeq[DbValue]
   ): Frag =
-    if (values.isEmpty) Frag.const(s"INSERT INTO $tableName DEFAULT VALUES")
+    if (values.isEmpty) Frag.literal(s"INSERT INTO $tableName DEFAULT VALUES")
     else {
       val parts =
         IndexedSeq(s"INSERT INTO $tableName ($allColumns) VALUES (") ++

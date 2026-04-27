@@ -101,6 +101,17 @@ object DbParam {
       case None    => DbValue.DbNull
     }
   }
+
+  given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A] with {
+    def toDbValue(v: A): DbValue = {
+      val values = codec.toDbValues(v)
+      if (values.size == 1) values.head
+      else
+        throw new IllegalArgumentException(
+          s"Cannot use multi-column type as SQL parameter (got ${values.size} columns)"
+        )
+    }
+  }
 }
 
 extension (sc: StringContext) {

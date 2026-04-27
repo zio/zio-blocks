@@ -49,38 +49,38 @@ object TableSpec extends ZIOSpecDefault {
   def spec = suite("TableSpec")(
     suite("Table.derived")(
       test("derives simple_record from SimpleRecord") {
-        val table = Table.derived[SimpleRecord](SqlDialect.PostgreSQL)
+        val table = Table.derived[SimpleRecord]
         assertTrue(table.name == "simple_record")
       },
       test("derives user_profile from UserProfile") {
-        val table = Table.derived[UserProfile](SqlDialect.PostgreSQL)
+        val table = Table.derived[UserProfile]
         assertTrue(table.name == "user_profile")
       },
       test("derives category from Category") {
-        val table = Table.derived[Category](SqlDialect.SQLite)
+        val table = Table.derived[Category]
         assertTrue(table.name == "category")
       },
       test("derives address from Address") {
-        val table = Table.derived[Address](SqlDialect.PostgreSQL)
+        val table = Table.derived[Address]
         assertTrue(table.name == "address")
       },
       test("derives box from Box") {
-        val table = Table.derived[Box](SqlDialect.PostgreSQL)
+        val table = Table.derived[Box]
         assertTrue(table.name == "box")
       },
       test("table.columns matches codec.columns") {
-        val table = Table.derived[SimpleRecord](SqlDialect.PostgreSQL)
+        val table = Table.derived[SimpleRecord]
         assertTrue(
           table.columns == IndexedSeq("name", "age"),
           table.columns.size == 2
         )
       },
       test("derived with explicit table name uses it directly") {
-        val table = Table.derived[SimpleRecord]("my_custom_table", SqlDialect.PostgreSQL)
+        val table = Table.derived[SimpleRecord]("my_custom_table")
         assertTrue(table.name == "my_custom_table")
       },
       test("derived with explicit name ignores type name") {
-        val table = Table.derived[UserProfile]("profiles", SqlDialect.SQLite)
+        val table = Table.derived[UserProfile]("profiles")
         assertTrue(table.name == "profiles")
       }
     ),
@@ -124,20 +124,20 @@ object TableSpec extends ZIOSpecDefault {
     ),
     suite("Table.dropTable")(
       test("generates DROP TABLE IF EXISTS") {
-        val table = Table.derived[SimpleRecord](SqlDialect.PostgreSQL)
+        val table = Table.derived[SimpleRecord]
         val frag  = table.dropTable
         assertTrue(frag.sql(SqlDialect.PostgreSQL) == "DROP TABLE IF EXISTS simple_record")
       },
       test("works with SQLite dialect") {
-        val table = Table.derived[Category](SqlDialect.SQLite)
+        val table = Table.derived[Category]
         val frag  = table.dropTable
         assertTrue(frag.sql(SqlDialect.SQLite) == "DROP TABLE IF EXISTS category")
       }
     ),
     suite("Table.createTable")(
       test("generates CREATE TABLE IF NOT EXISTS") {
-        val table = Table.derived[SimpleRecord](SqlDialect.PostgreSQL)
-        val frag  = table.createTable
+        val table = Table.derived[SimpleRecord]
+        val frag  = table.createTable(SqlDialect.PostgreSQL)
         val sql   = frag.sql(SqlDialect.PostgreSQL)
         assertTrue(
           sql.contains("CREATE TABLE IF NOT EXISTS simple_record"),
@@ -146,14 +146,14 @@ object TableSpec extends ZIOSpecDefault {
         )
       },
       test("works with PostgreSQL dialect") {
-        val table = Table.derived[Category](SqlDialect.PostgreSQL)
-        val frag  = table.createTable
+        val table = Table.derived[Category]
+        val frag  = table.createTable(SqlDialect.PostgreSQL)
         val sql   = frag.sql(SqlDialect.PostgreSQL)
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS category"))
       },
       test("works with SQLite dialect") {
-        val table = Table.derived[Category](SqlDialect.SQLite)
-        val frag  = table.createTable
+        val table = Table.derived[Category]
+        val frag  = table.createTable(SqlDialect.SQLite)
         val sql   = frag.sql(SqlDialect.SQLite)
         assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS category"))
       }

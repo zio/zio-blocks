@@ -96,9 +96,9 @@ object FragSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Frag.const and Frag.empty")(
-      test("Frag.const creates parameterless fragment") {
-        val frag = Frag.const("ORDER BY id")
+    suite("Frag.literal and Frag.empty")(
+      test("Frag.literal creates parameterless fragment") {
+        val frag = Frag.literal("ORDER BY id")
         assertTrue(
           frag.parts == IndexedSeq("ORDER BY id"),
           frag.params.isEmpty,

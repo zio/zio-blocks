@@ -49,7 +49,7 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 object Frag {
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
-  def const(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
+  def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
 
   extension (frag: Frag) {
 

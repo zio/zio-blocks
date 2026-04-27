@@ -18,10 +18,10 @@ package zio.blocks.sql
 
 import zio.blocks.schema._
 
-final case class Table[A](name: String, codec: DbCodec[A], dialect: SqlDialect) {
+final case class Table[A](name: String, codec: DbCodec[A]) {
   def columns: IndexedSeq[String] = codec.columns
 
-  def createTable: Frag = {
+  def createTable(dialect: SqlDialect): Frag = {
     val columnDefs = codec.columns.map { col =>
       ColumnDef(col, dialect.typeName(DbValue.DbString("")), nullable = false)
     }
@@ -33,18 +33,18 @@ final case class Table[A](name: String, codec: DbCodec[A], dialect: SqlDialect) 
 
 object Table {
 
-  def derived[A](dialect: SqlDialect)(implicit schema: Schema[A]): Table[A] = {
+  def derived[A](implicit schema: Schema[A]): Table[A] = {
     val codec     = schema.deriving(DbCodecDeriver).derive
     val tableName = deriveTableName(schema)
-    Table(tableName, codec, dialect)
+    Table(tableName, codec)
   }
 
-  def derived[A](tableName: String, dialect: SqlDialect)(implicit schema: Schema[A]): Table[A] = {
+  def derived[A](tableName: String)(implicit schema: Schema[A]): Table[A] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    Table(tableName, codec, dialect)
+    Table(tableName, codec)
   }
 
-  private def deriveTableName[A](schema: Schema[A]): String = {
+  private[sql] def deriveTableName[A](schema: Schema[A]): String = {
     val configured = schema.reflect.modifiers.collectFirst { case Modifier.config("sql.table_name", value) =>
       value
     }

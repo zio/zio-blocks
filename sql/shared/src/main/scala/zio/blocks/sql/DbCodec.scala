@@ -34,6 +34,73 @@ trait DbCodec[A] {
 
 object DbCodec {
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
+
+  given intCodec: DbCodec[Int] = new DbCodec[Int] {
+    val columns: IndexedSeq[String]                                          = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Int              = reader.getInt(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Int): Unit = writer.setInt(startIndex, value)
+    def toDbValues(value: Int): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbInt(value))
+  }
+
+  given longCodec: DbCodec[Long] = new DbCodec[Long] {
+    val columns: IndexedSeq[String]                                           = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Long              = reader.getLong(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Long): Unit = writer.setLong(startIndex, value)
+    def toDbValues(value: Long): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbLong(value))
+  }
+
+  given stringCodec: DbCodec[String] = new DbCodec[String] {
+    val columns: IndexedSeq[String]                                             = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): String              = reader.getString(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: String): Unit = writer.setString(startIndex, value)
+    def toDbValues(value: String): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbString(value))
+  }
+
+  given booleanCodec: DbCodec[Boolean] = new DbCodec[Boolean] {
+    val columns: IndexedSeq[String]                                              = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Boolean              = reader.getBoolean(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Boolean): Unit = writer.setBoolean(startIndex, value)
+    def toDbValues(value: Boolean): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbBoolean(value))
+  }
+
+  given doubleCodec: DbCodec[Double] = new DbCodec[Double] {
+    val columns: IndexedSeq[String]                                             = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Double              = reader.getDouble(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Double): Unit = writer.setDouble(startIndex, value)
+    def toDbValues(value: Double): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbDouble(value))
+  }
+
+  given floatCodec: DbCodec[Float] = new DbCodec[Float] {
+    val columns: IndexedSeq[String]                                            = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Float              = reader.getFloat(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Float): Unit = writer.setFloat(startIndex, value)
+    def toDbValues(value: Float): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbFloat(value))
+  }
+
+  given shortCodec: DbCodec[Short] = new DbCodec[Short] {
+    val columns: IndexedSeq[String]                                            = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Short              = reader.getShort(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Short): Unit = writer.setShort(startIndex, value)
+    def toDbValues(value: Short): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbShort(value))
+  }
+
+  given byteCodec: DbCodec[Byte] = new DbCodec[Byte] {
+    val columns: IndexedSeq[String]                                           = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): Byte              = reader.getByte(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Byte): Unit = writer.setByte(startIndex, value)
+    def toDbValues(value: Byte): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbByte(value))
+  }
+
+  given bigDecimalCodec: DbCodec[BigDecimal] = new DbCodec[BigDecimal] {
+    val columns: IndexedSeq[String]                                    = IndexedSeq("value")
+    def readValue(reader: DbResultReader, startIndex: Int): BigDecimal = {
+      val jbd = reader.getBigDecimal(startIndex)
+      if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
+    }
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: BigDecimal): Unit =
+      writer.setBigDecimal(startIndex, value.bigDecimal)
+    def toDbValues(value: BigDecimal): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbBigDecimal(value))
+  }
 }
 
 /**
