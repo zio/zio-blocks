@@ -2,6 +2,7 @@ package zio.blocks.sql
 
 import java.time._
 import java.util.UUID
+import scala.language.implicitConversions
 
 trait DbParam[A] {
   def toDbValue(value: A): DbValue

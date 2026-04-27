@@ -25,8 +25,9 @@ class JdbcTransactor(
   }
 
   def transact[A](f: DbTx ?=> A): A = {
-    val conn   = connectionFactory()
-    val dbConn = new JdbcConnection(conn)
+    val conn           = connectionFactory()
+    val dbConn         = new JdbcConnection(conn)
+    val prevAutoCommit = conn.getAutoCommit
     conn.setAutoCommit(false)
     try {
       given tx: DbTx = new DbTx {
@@ -43,6 +44,8 @@ class JdbcTransactor(
         catch { case rb: Throwable => e.addSuppressed(rb) }
         throw e
     } finally {
+      try conn.setAutoCommit(prevAutoCommit)
+      catch { case _: Throwable => () }
       try dbConn.close()
       catch { case _: Throwable => () }
     }
