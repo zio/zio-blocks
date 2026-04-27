@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import zio.blocks.schema._
+import zio.blocks.schema.binding.Binding
 
 class Repo[E, ID](
   val table: Table[E],
@@ -150,6 +151,42 @@ object Repo {
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
     new Repo(Table(tableName, codec), idColumn, idCodec, getId)
+  }
+
+  def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] = {
+    val record = schema.reflect match {
+      case r: Reflect.Record[_, _] => r.asInstanceOf[Reflect.Record[Binding, E]]
+      case _                       =>
+        throw new IllegalArgumentException(
+          s"Repo.derived requires a record (case class) Schema, got ${schema.reflect}"
+        )
+    }
+
+    val targetTypeId   = idSchema.reflect.typeId
+    val matchingFields = record.fields.zipWithIndex.filter { case (field, _) =>
+      field.value.typeId == targetTypeId
+    }
+
+    matchingFields match {
+      case IndexedSeq((field, idx)) =>
+        val idColumn       = SqlNameMapper.SnakeCase(field.name)
+        val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
+        val codec          = schema.deriving(DbCodecDeriver).derive
+        new Repo(Table(Table.deriveTableName(schema), codec), idColumn, idCodec, getId)
+
+      case empty if empty.isEmpty =>
+        throw new IllegalArgumentException(
+          s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
+            "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+        )
+
+      case multiple =>
+        val names = multiple.map(_._1.name).mkString(", ")
+        throw new IllegalArgumentException(
+          s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
+            "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+        )
+    }
   }
 
   private[sql] def buildInsertFrag(
