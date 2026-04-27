@@ -6,6 +6,10 @@ class Repo[E, ID](
   val idCodec: DbCodec[ID],
   val getId: E => ID
 ) {
+  require(
+    idCodec.columnCount == 1,
+    s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
+  )
 
   private val allCols: String   = table.columns.mkString(", ")
   private val tbl: String       = table.name
@@ -88,9 +92,12 @@ class Repo[E, ID](
   }
 
   def update(entity: E)(using con: DbCon): Int = {
-    val entityValues = codec.toDbValues(entity)
-    val idValues     = idCodec.toDbValues(getId(entity))
-    val frag         = Repo.buildUpdateFrag(tbl, table.columns, entityValues, idColumn, idValues)
+    val entityValues  = codec.toDbValues(entity)
+    val idValues      = idCodec.toDbValues(getId(entity))
+    val updatePairs   = table.columns.zip(entityValues).filter(_._1 != idColumn)
+    val updateColumns = updatePairs.map(_._1)
+    val updateValues  = updatePairs.map(_._2)
+    val frag          = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, idColumn, idValues)
     SqlOps.update(frag)(using con)
   }
 
@@ -123,7 +130,7 @@ object Repo {
     allColumns: String,
     values: IndexedSeq[DbValue]
   ): Frag =
-    if (values.isEmpty) Frag.const(s"INSERT INTO $tableName ($allColumns) VALUES ()")
+    if (values.isEmpty) Frag.const(s"INSERT INTO $tableName DEFAULT VALUES")
     else {
       val parts =
         IndexedSeq(s"INSERT INTO $tableName ($allColumns) VALUES (") ++
@@ -139,6 +146,7 @@ object Repo {
     idColumn: String,
     idValues: IndexedSeq[DbValue]
   ): Frag = {
+    require(columns.nonEmpty, "Cannot build UPDATE with no columns to set")
     val allValues = entityValues ++ idValues
     val partsB    = IndexedSeq.newBuilder[String]
 

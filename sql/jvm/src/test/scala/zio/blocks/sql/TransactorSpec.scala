@@ -278,18 +278,26 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("multiple rows insert and select") {
         transactor.connect {
-          SqlOps.update(Frag.const("CREATE TABLE rt_multi (id INTEGER NOT NULL, name TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})")
-          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})")
-          SqlOps.update(sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")})")
+          SqlOps.update(
+            Frag.const("CREATE TABLE rt_multi (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)")
+          )
+          SqlOps.update(
+            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")}, ${DbValue.DbString("a@test.com")})"
+          )
+          SqlOps.update(
+            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")}, ${DbValue.DbString("b@test.com")})"
+          )
+          SqlOps.update(
+            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")}, ${DbValue.DbString("c@test.com")})"
+          )
           val results = SqlOps.query[User](
-            sql"SELECT id, name, name FROM rt_multi ORDER BY id"
+            sql"SELECT id, name, email FROM rt_multi ORDER BY id"
           )
           assertTrue(
             results.length == 3,
-            results(0).id == 1,
-            results(1).id == 2,
-            results(2).id == 3
+            results(0) == User(1, "a", "a@test.com"),
+            results(1) == User(2, "b", "b@test.com"),
+            results(2) == User(3, "c", "c@test.com")
           )
         }
       },

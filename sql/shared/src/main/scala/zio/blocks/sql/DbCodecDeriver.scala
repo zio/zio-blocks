@@ -208,6 +208,13 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       val innerField = someRecord.fields(0)
       val innerCodec = D.instance(innerField.value.metadata).force.asInstanceOf[DbCodec[Any]]
 
+      if (innerCodec.columnCount > 1) {
+        throw new UnsupportedOperationException(
+          s"Option[A] where A has ${innerCodec.columnCount} columns is not supported. " +
+            "Option is only supported for single-column types."
+        )
+      }
+
       new DbCodec[A] {
         val columns: IndexedSeq[String] = innerCodec.columns
 
