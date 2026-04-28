@@ -139,17 +139,17 @@ object SchemaIntegrationSpec extends ZIOSpecDefault {
       test("ToJs[SignalUpdate[Int]] renders Datastar expression format") {
         val count  = Signal[Int]("count")
         val update = count := 42
-        assertTrue(ToJs[SignalUpdate[Int]].toJs(update) == "{count: 42}")
+        assertTrue(ToJs[SignalUpdate[Int]].toJs(update) == "{\"count\": 42}")
       },
       test("ToJs[SignalUpdate[String]] renders Datastar expression format") {
         val query  = Signal[String]("query")
         val update = query := "hello"
-        assertTrue(ToJs[SignalUpdate[String]].toJs(update) == "{query: \"hello\"}")
+        assertTrue(ToJs[SignalUpdate[String]].toJs(update) == "{\"query\": \"hello\"}")
       },
       test("ToJs[SignalUpdate[Boolean]] renders Datastar expression format") {
         val visible = Signal[Boolean]("visible")
         val update  = visible := true
-        assertTrue(ToJs[SignalUpdate[Boolean]].toJs(update) == "{visible: true}")
+        assertTrue(ToJs[SignalUpdate[Boolean]].toJs(update) == "{\"visible\": true}")
       }
     ),
     suite("Multiple signals with onlyIfMissing")(
@@ -191,7 +191,7 @@ object SchemaIntegrationSpec extends ZIOSpecDefault {
         val pos    = Signal[Point]("pos")
         val update = pos := Point(5, 6)
         val jsExpr = ToJs[SignalUpdate[Point]].toJs(update)
-        assertTrue(jsExpr.startsWith("{pos: ")) &&
+        assertTrue(jsExpr.startsWith("{\"pos\": ")) &&
         assertTrue(jsExpr.endsWith("}"))
       }
     ),

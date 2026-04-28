@@ -18,6 +18,18 @@ package zio.blocks.datastar
 
 import zio.blocks.html.{Dom, ToJs}
 
+/**
+ * Entry point for building `data-on:*` event handler attributes.
+ *
+ * Obtained via `dataOn` from [[DatastarAttributes]]. Select an event (`click`,
+ * `submit`, `keydown`, etc.) to get a [[DataOn]] builder, then assign a handler
+ * with `:=`.
+ *
+ * {{{
+ * dataOn.click := Js("alert('hi')")
+ * dataOn("custom-event").debounce(500) := count.ref
+ * }}}
+ */
 final class PartialDataOn {
 
   def click: DataOn = new DataOn("click", None, CaseModifier.Kebab)
@@ -55,6 +67,14 @@ final class PartialDataOn {
   def apply(name: String): DataOn = new DataOn(name, None, CaseModifier.Kebab)
 }
 
+/**
+ * A `data-on:*` attribute builder with optional event modifiers.
+ *
+ * Chain modifiers like `debounce`, `throttle`, `once`, `prevent`, `stop`,
+ * `capture`, `passive`, `outside`, `window`, `document`, and `viewTransition`
+ * before assigning a handler with `:=`. Case modifiers (`camel`, `kebab`,
+ * `snake`, `pascal`) control attribute name casing.
+ */
 final class DataOn(val eventName: String, val modifier: Option[EventModifier], val caseModifier: CaseModifier) {
 
   def debounce(millis: Long): DataOn = withModifier(EventModifier.Debounce(millis, false))

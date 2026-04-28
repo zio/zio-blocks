@@ -19,6 +19,20 @@ package zio.blocks.datastar
 import zio.blocks.chunk.Chunk
 import zio.blocks.html.{CssSelector, Dom, Js}
 
+/**
+ * A Datastar SSE event that can be sent to the browser.
+ *
+ * Sealed trait with builder-style constructors in the companion object. Use
+ * [[DatastarEvent.patchElements]], [[DatastarEvent.patchSignals]],
+ * [[DatastarEvent.executeScript]], or [[DatastarEvent.removeElements]] to
+ * create events, then call `renderSSE` to produce the SSE wire format.
+ *
+ * {{{
+ * val sse = DatastarEvent
+ *   .patchSignals(count := 42)
+ *   .renderSSE
+ * }}}
+ */
 sealed trait DatastarEvent {
 
   def renderSSE: String
@@ -132,7 +146,8 @@ object DatastarEvent {
     while (i < updates.length) {
       if (i > 0) sb.append(',')
       val u = updates(i)
-      sb.append('"').append(u.name).append('"').append(':').append(u.serialized)
+      appendJsonString(sb, u.name)
+      sb.append(':').append(u.serialized)
       i += 1
     }
     sb.append('}')
@@ -146,9 +161,10 @@ object DatastarEvent {
     new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
 
   def executeScript(code: Js): PatchElementsBuilder = {
+    val escapedCode   = code.value.replace("</script>", "<\\/script>").replace("</Script>", "<\\/Script>")
     val scriptElement = Dom.Element.Script(
       Chunk(Dom.Attribute.KeyValue("data-effect", Dom.AttributeValue.StringValue("el.remove()"))),
-      Chunk(Dom.Text(code.value))
+      Chunk(Dom.Text(escapedCode))
     )
     new PatchElementsBuilder(
       scriptElement,
@@ -159,6 +175,24 @@ object DatastarEvent {
       None,
       None
     )
+  }
+
+  private def appendJsonString(sb: java.lang.StringBuilder, s: String): Unit = {
+    sb.append('"')
+    var i = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      c match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case _    => sb.append(c)
+      }
+      i += 1
+    }
+    sb.append('"')
   }
 
   private implicit class PipeOps[A](private val self: A) extends AnyVal {
