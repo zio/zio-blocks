@@ -913,60 +913,88 @@ class JsonCodecDeriver private[json] (
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
-      if (typeId.isOption || typeId.isMaybe) {
-        val useNullSentinel = typeId.isMaybe
-        val absentCaseName  = if (useNullSentinel) "Absent" else "None"
-        val presentCaseName = if (useNullSentinel) "Present" else "Some"
+      val isOption = typeId.isOption
+      if (isOption || typeId.isMaybe) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>
-          new JsonCodec[AnyRef]() {
-            private[this] val valueCodec  = codec.asInstanceOf[JsonCodec[Any]]
-            private[this] val nullDefault = if (useNullSentinel) new AnyRef else None
+          if (isOption) {
+            new JsonCodec[Option[Any]]() {
+              private[this] val valueCodec = codec.asInstanceOf[JsonCodec[Any]]
 
-            @inline private[this] def isAbsent(x: AnyRef): Boolean =
-              if (useNullSentinel) x eq null else x eq None
-
-            @inline private[this] def wrapPresent(v: Any): AnyRef =
-              if (useNullSentinel) v.asInstanceOf[AnyRef] else new Some(v)
-
-            @inline private[this] def unwrapPresent(x: AnyRef): Any =
-              if (useNullSentinel) x else x.asInstanceOf[Option[Any]].get
-
-            @inline private[this] def absentValue: AnyRef =
-              if (useNullSentinel) null else None.asInstanceOf[AnyRef]
-
-            override def decodeValue(in: JsonReader): AnyRef = {
-              val isNull = in.isNextToken('n')
-              in.rollbackToken()
-              try {
-                if (isNull) { in.readNullOrError(nullDefault, "expected null"); absentValue }
-                else wrapPresent(valueCodec.decodeValue(in))
-              } catch {
-                case err if NonFatal(err) => decodeError(err, isNull)
-              }
-            }
-
-            override def encodeValue(x: AnyRef, out: JsonWriter): Unit =
-              if (isAbsent(x)) out.writeNull()
-              else valueCodec.encodeValue(unwrapPresent(x), out)
-
-            override def decodeValue(json: Json): AnyRef =
-              if (json eq Json.Null) absentValue
-              else {
-                try wrapPresent(valueCodec.decodeValue(json))
-                catch {
-                  case err if NonFatal(err) => decodeError(err, false)
+              override def decodeValue(in: JsonReader): Option[Any] = {
+                val isNull = in.isNextToken('n')
+                in.rollbackToken()
+                try {
+                  if (isNull) in.readNullOrError(None, "expected null")
+                  else new Some(valueCodec.decodeValue(in))
+                } catch {
+                  case err if NonFatal(err) => decodeError(err, isNull)
                 }
               }
 
-            override def encodeValue(x: AnyRef): Json =
-              if (isAbsent(x)) Json.Null
-              else valueCodec.encodeValue(unwrapPresent(x))
+              override def encodeValue(x: Option[Any], out: JsonWriter): Unit =
+                if (x eq None) out.writeNull()
+                else valueCodec.encodeValue(x.get, out)
 
-            private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
-              if (isNull) error(new DynamicOptic.Node.Case(absentCaseName), err)
-              else error(new DynamicOptic.Node.Case(presentCaseName), new DynamicOptic.Node.Field("value"), err)
+              override def decodeValue(json: Json): Option[Any] =
+                if (json eq Json.Null) None
+                else {
+                  try new Some(valueCodec.decodeValue(json))
+                  catch {
+                    case err if NonFatal(err) => decodeError(err, false)
+                  }
+                }
 
-            override lazy val toJsonSchema: JsonSchema = valueCodec.toJsonSchema.withNullable
+              override def encodeValue(x: Option[Any]): Json =
+                if (x eq None) Json.Null
+                else valueCodec.encodeValue(x.get)
+
+              private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
+                if (isNull) error(new DynamicOptic.Node.Case("None"), err)
+                else error(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), err)
+
+              override lazy val toJsonSchema: JsonSchema = valueCodec.toJsonSchema.withNullable
+            }
+          } else {
+            new JsonCodec[AnyRef]() {
+              private[this] val valueCodec  = codec.asInstanceOf[JsonCodec[AnyRef]]
+              private[this] val nullDefault = new AnyRef
+
+              override def decodeValue(in: JsonReader): AnyRef = {
+                val isNull = in.isNextToken('n')
+                in.rollbackToken()
+                try {
+                  if (isNull) {
+                    in.readNullOrError(nullDefault, "expected null")
+                    null
+                  } else valueCodec.decodeValue(in)
+                } catch {
+                  case err if NonFatal(err) => decodeError(err, isNull)
+                }
+              }
+
+              override def encodeValue(x: AnyRef, out: JsonWriter): Unit =
+                if (x eq null) out.writeNull()
+                else valueCodec.encodeValue(x, out)
+
+              override def decodeValue(json: Json): AnyRef =
+                if (json eq Json.Null) null
+                else {
+                  try valueCodec.decodeValue(json)
+                  catch {
+                    case err if NonFatal(err) => decodeError(err, false)
+                  }
+                }
+
+              override def encodeValue(x: AnyRef): Json =
+                if (x eq null) Json.Null
+                else valueCodec.encodeValue(x)
+
+              private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
+                if (isNull) error(new DynamicOptic.Node.Case("Absent"), err)
+                else error(new DynamicOptic.Node.Case("Present"), new DynamicOptic.Node.Field("value"), err)
+
+              override lazy val toJsonSchema: JsonSchema = valueCodec.toJsonSchema.withNullable
+            }
           }
         }
       } else {
