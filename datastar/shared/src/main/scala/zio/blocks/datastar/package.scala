@@ -16,4 +16,21 @@
 
 package zio.blocks
 
-package object datastar extends DatastarAttributes
+package object datastar extends DatastarAttributes {
+
+  private[datastar] def toKebabCase(s: String): String = {
+    val sb = new java.lang.StringBuilder(s.length + 4)
+    var i  = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      if (Character.isUpperCase(c)) {
+        if (i > 0 && s.charAt(i - 1) != '-') sb.append('-')
+        sb.append(Character.toLowerCase(c))
+      } else {
+        sb.append(c)
+      }
+      i += 1
+    }
+    sb.toString
+  }
+}

@@ -20,39 +20,39 @@ import zio.blocks.html.{Dom, ToJs}
 
 final class PartialDataOn {
 
-  def click: DataOn = new DataOn("click", None, CaseModifier.Camel)
+  def click: DataOn = new DataOn("click", None, CaseModifier.Kebab)
 
-  def submit: DataOn = new DataOn("submit", None, CaseModifier.Camel)
+  def submit: DataOn = new DataOn("submit", None, CaseModifier.Kebab)
 
-  def input: DataOn = new DataOn("input", None, CaseModifier.Camel)
+  def input: DataOn = new DataOn("input", None, CaseModifier.Kebab)
 
-  def keydown: DataOn = new DataOn("keydown", None, CaseModifier.Camel)
+  def keydown: DataOn = new DataOn("keydown", None, CaseModifier.Kebab)
 
-  def keyup: DataOn = new DataOn("keyup", None, CaseModifier.Camel)
+  def keyup: DataOn = new DataOn("keyup", None, CaseModifier.Kebab)
 
-  def keypress: DataOn = new DataOn("keypress", None, CaseModifier.Camel)
+  def keypress: DataOn = new DataOn("keypress", None, CaseModifier.Kebab)
 
-  def change: DataOn = new DataOn("change", None, CaseModifier.Camel)
+  def change: DataOn = new DataOn("change", None, CaseModifier.Kebab)
 
-  def focus: DataOn = new DataOn("focus", None, CaseModifier.Camel)
+  def focus: DataOn = new DataOn("focus", None, CaseModifier.Kebab)
 
-  def blur: DataOn = new DataOn("blur", None, CaseModifier.Camel)
+  def blur: DataOn = new DataOn("blur", None, CaseModifier.Kebab)
 
-  def mouseover: DataOn = new DataOn("mouseover", None, CaseModifier.Camel)
+  def mouseover: DataOn = new DataOn("mouseover", None, CaseModifier.Kebab)
 
-  def mouseout: DataOn = new DataOn("mouseout", None, CaseModifier.Camel)
+  def mouseout: DataOn = new DataOn("mouseout", None, CaseModifier.Kebab)
 
-  def mouseenter: DataOn = new DataOn("mouseenter", None, CaseModifier.Camel)
+  def mouseenter: DataOn = new DataOn("mouseenter", None, CaseModifier.Kebab)
 
-  def mouseleave: DataOn = new DataOn("mouseleave", None, CaseModifier.Camel)
+  def mouseleave: DataOn = new DataOn("mouseleave", None, CaseModifier.Kebab)
 
-  def scroll: DataOn = new DataOn("scroll", None, CaseModifier.Camel)
+  def scroll: DataOn = new DataOn("scroll", None, CaseModifier.Kebab)
 
-  def resize: DataOn = new DataOn("resize", None, CaseModifier.Camel)
+  def resize: DataOn = new DataOn("resize", None, CaseModifier.Kebab)
 
-  def load: DataOn = new DataOn("load", None, CaseModifier.Camel)
+  def load: DataOn = new DataOn("load", None, CaseModifier.Kebab)
 
-  def apply(name: String): DataOn = new DataOn(name, None, CaseModifier.Camel)
+  def apply(name: String): DataOn = new DataOn(name, None, CaseModifier.Kebab)
 }
 
 final class DataOn(val eventName: String, val modifier: Option[EventModifier], val caseModifier: CaseModifier) {
@@ -95,8 +95,8 @@ final class DataOn(val eventName: String, val modifier: Option[EventModifier], v
 
   def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
-    val caseSuffix  = caseModifier.suffix(CaseModifier.Camel)
-    val attrName    = "data-on:" + eventName + modifierStr + caseSuffix
+    val caseSuffix  = caseModifier.suffix(CaseModifier.Kebab)
+    val attrName    = "data-on:" + toKebabCase(eventName) + modifierStr + caseSuffix
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
   }
 

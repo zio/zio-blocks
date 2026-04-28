@@ -183,17 +183,17 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         val result = div(dataOn.input.debounce(300) := js"search()").render
         assertTrue(result == """<div data-on:input__debounce.300ms="search()"></div>""")
       },
-      test("dataOn with case modifier camel (default, no suffix)") {
+      test("dataOn with case modifier camel") {
         val result = div(dataOn.click.camel := js"handler()").render
+        assertTrue(result == """<div data-on:click__case.camel="handler()"></div>""")
+      },
+      test("dataOn with case modifier kebab (default, no suffix)") {
+        val result = div(dataOn.click.kebab := js"handler()").render
         assertTrue(result == """<div data-on:click="handler()"></div>""")
       },
-      test("dataOn with case modifier kebab") {
-        val result = div(dataOn.click.kebab := js"handler()").render
-        assertTrue(result == """<div data-on:click__case.kebab="handler()"></div>""")
-      },
       test("dataOn with modifier and case modifier") {
-        val result = div(dataOn.click.debounce(300).kebab := js"handler()").render
-        assertTrue(result == """<div data-on:click__debounce.300ms__case.kebab="handler()"></div>""")
+        val result = div(dataOn.click.debounce(300).camel := js"handler()").render
+        assertTrue(result == """<div data-on:click__debounce.300ms__case.camel="handler()"></div>""")
       }
     ),
     suite("dataComputed")(
@@ -218,7 +218,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
     suite("dataRef")(
       test("dataRef(name) produces boolean attribute") {
         val result = div(dataRef("myEl")).render
-        assertTrue(result == """<div data-ref:myEl></div>""")
+        assertTrue(result == """<div data-ref:my-el></div>""")
       }
     ),
     suite("dataInit")(

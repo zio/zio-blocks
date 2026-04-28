@@ -26,7 +26,7 @@ trait DatastarAttributes {
   def dataSignals: DatastarAttrKey = DatastarAttrKey("data-signals")
 
   def dataBind(signal: Signal[_]): Dom.Attribute =
-    Dom.Attribute.BooleanAttribute("data-bind:" + signal.name, true)
+    Dom.Attribute.BooleanAttribute("data-bind:" + toKebabCase(signal.name), true)
 
   def dataText: DatastarAttrKey = DatastarAttrKey("data-text")
 
@@ -46,15 +46,15 @@ trait DatastarAttributes {
 
   def dataOn: PartialDataOn = new PartialDataOn
 
-  def dataComputed(signal: Signal[_]): DatastarAttrKey = DatastarAttrKey("data-computed:" + signal.name)
+  def dataComputed(signal: Signal[_]): DatastarAttrKey = DatastarAttrKey("data-computed:" + toKebabCase(signal.name))
 
   def dataEffect: DatastarAttrKey = DatastarAttrKey("data-effect")
 
   def dataIndicator(signal: Signal[_]): Dom.Attribute =
-    Dom.Attribute.BooleanAttribute("data-indicator:" + signal.name, true)
+    Dom.Attribute.BooleanAttribute("data-indicator:" + toKebabCase(signal.name), true)
 
   def dataRef(name: String): Dom.Attribute =
-    Dom.Attribute.BooleanAttribute("data-ref:" + name, true)
+    Dom.Attribute.BooleanAttribute("data-ref:" + toKebabCase(name), true)
 
   def dataInit: DataInit = new DataInit(None)
 

@@ -78,8 +78,8 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
       }
     ),
     suite("CaseModifier")(
-      test("Camel renders empty string") {
-        assertTrue(CaseModifier.Camel.render == "")
+      test("Camel renders __case.camel") {
+        assertTrue(CaseModifier.Camel.render == "__case.camel")
       },
       test("Kebab renders __case.kebab") {
         assertTrue(CaseModifier.Kebab.render == "__case.kebab")
