@@ -375,6 +375,70 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         assertTrue(result == """<div data-preserve-attr="id"></div>""")
       }
     ),
+    suite("dataOn remaining event methods")(
+      test("dataOn.keyup produces correct attribute") {
+        val result = div(dataOn.keyup := js"handler()").render
+        assertTrue(result == """<div data-on:keyup="handler()"></div>""")
+      },
+      test("dataOn.keypress produces correct attribute") {
+        val result = div(dataOn.keypress := js"handler()").render
+        assertTrue(result == """<div data-on:keypress="handler()"></div>""")
+      },
+      test("dataOn.change produces correct attribute") {
+        val result = div(dataOn.change := js"handler()").render
+        assertTrue(result == """<div data-on:change="handler()"></div>""")
+      },
+      test("dataOn.focus produces correct attribute") {
+        val result = div(dataOn.focus := js"handler()").render
+        assertTrue(result == """<div data-on:focus="handler()"></div>""")
+      },
+      test("dataOn.blur produces correct attribute") {
+        val result = div(dataOn.blur := js"handler()").render
+        assertTrue(result == """<div data-on:blur="handler()"></div>""")
+      },
+      test("dataOn.mouseover produces correct attribute") {
+        val result = div(dataOn.mouseover := js"handler()").render
+        assertTrue(result == """<div data-on:mouseover="handler()"></div>""")
+      },
+      test("dataOn.mouseout produces correct attribute") {
+        val result = div(dataOn.mouseout := js"handler()").render
+        assertTrue(result == """<div data-on:mouseout="handler()"></div>""")
+      },
+      test("dataOn.mouseenter produces correct attribute") {
+        val result = div(dataOn.mouseenter := js"handler()").render
+        assertTrue(result == """<div data-on:mouseenter="handler()"></div>""")
+      },
+      test("dataOn.mouseleave produces correct attribute") {
+        val result = div(dataOn.mouseleave := js"handler()").render
+        assertTrue(result == """<div data-on:mouseleave="handler()"></div>""")
+      },
+      test("dataOn.scroll produces correct attribute") {
+        val result = div(dataOn.scroll := js"handler()").render
+        assertTrue(result == """<div data-on:scroll="handler()"></div>""")
+      },
+      test("dataOn.resize produces correct attribute") {
+        val result = div(dataOn.resize := js"handler()").render
+        assertTrue(result == """<div data-on:resize="handler()"></div>""")
+      },
+      test("dataOn.load produces correct attribute") {
+        val result = div(dataOn.load := js"handler()").render
+        assertTrue(result == """<div data-on:load="handler()"></div>""")
+      },
+      test("dataOn.click.snake produces correct attribute") {
+        val result = div(dataOn.click.snake := js"handler()").render
+        assertTrue(result == """<div data-on:click__case.snake="handler()"></div>""")
+      },
+      test("dataOn.click.pascal produces correct attribute") {
+        val result = div(dataOn.click.pascal := js"handler()").render
+        assertTrue(result == """<div data-on:click__case.pascal="handler()"></div>""")
+      }
+    ),
+    suite("toKebabCase edge cases")(
+      test("signal with dash-before-uppercase does not double-insert dash") {
+        val result = div(dataRef("data-Url")).render
+        assertTrue(result == """<div data-ref:data-url></div>""")
+      }
+    ),
     suite("package object integration")(
       test("package object provides all attribute methods") {
         val result = div(dataSignals(count) := js"0", dataBind(count), dataText := count).render

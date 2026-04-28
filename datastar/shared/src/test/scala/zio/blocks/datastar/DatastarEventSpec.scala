@@ -229,6 +229,33 @@ object DatastarEventSpec extends ZIOSpecDefault {
             "\n"
         )
       }
+    ),
+    suite("patchSignals special character escaping")(
+      test("signal name with double-quote is escaped") {
+        val key    = Signal[Int]("has\"quote")
+        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        assertTrue(result.contains("has\\\"quote"))
+      },
+      test("signal name with backslash is escaped") {
+        val key    = Signal[Int]("back\\slash")
+        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        assertTrue(result.contains("back\\\\slash"))
+      },
+      test("signal name with newline is escaped") {
+        val key    = Signal[Int]("line\nnewline")
+        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        assertTrue(result.contains("line\\nnewline"))
+      },
+      test("signal name with carriage return is escaped") {
+        val key    = Signal[Int]("cr\rname")
+        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        assertTrue(result.contains("cr\\rname"))
+      },
+      test("signal name with tab is escaped") {
+        val key    = Signal[Int]("tab\tname")
+        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        assertTrue(result.contains("tab\\tname"))
+      }
     )
   )
 }
