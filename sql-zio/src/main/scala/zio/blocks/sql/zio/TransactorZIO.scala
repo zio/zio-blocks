@@ -18,22 +18,82 @@ package zio.blocks.sql.zio
 
 import zio._
 import zio.blocks.sql._
+import java.sql.Connection
 
-class TransactorZIO(underlying: Transactor) {
+class TransactorZIO(
+  connectionFactory: () => Connection,
+  val dialect: SqlDialect,
+  val logger: SqlLogger = SqlLogger.noop
+) {
+
+  // Keep the synchronous wrappers for compatibility
+  private val underlying = new JdbcTransactor(connectionFactory, dialect, logger)
 
   def connect[A](f: DbCon ?=> A): Task[A] =
     ZIO.attemptBlocking(underlying.connect(f))
 
   def transact[A](f: DbTx ?=> A): Task[A] =
     ZIO.attemptBlocking(underlying.transact(f))
+
+  // NEW: Effect-aware ZIO connection management
+  def connectZIO[R, E, A](f: DbCon ?=> ZIO[R, E, A]): ZIO[R, E | Throwable, A] =
+    ZIO.scoped[R] {
+      ZIO
+        .acquireRelease(ZIO.attemptBlocking {
+          val conn   = connectionFactory()
+          val dbConn = new JdbcConnection(conn)
+          (conn, dbConn)
+        }) { case (_, dbConn) =>
+          ZIO.succeed {
+            try dbConn.close()
+            catch { case _: Throwable => () }
+          }
+        }
+        .flatMap { case (_, dbConn) =>
+          val con = new DbCon {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = TransactorZIO.this.dialect
+            val logger: SqlLogger        = TransactorZIO.this.logger
+          }
+          f(using con)
+        }
+    }
+
+  // NEW: Effect-aware ZIO transaction management
+  def transactZIO[R, E, A](f: DbTx ?=> ZIO[R, E, A]): ZIO[R, E | Throwable, A] =
+    ZIO.scoped[R] {
+      ZIO
+        .acquireRelease(ZIO.attemptBlocking {
+          val conn           = connectionFactory()
+          val dbConn         = new JdbcConnection(conn)
+          val prevAutoCommit = conn.getAutoCommit
+          conn.setAutoCommit(false)
+          (conn, dbConn, prevAutoCommit)
+        }) { case (conn, dbConn, prevAutoCommit) =>
+          ZIO.succeed {
+            try conn.setAutoCommit(prevAutoCommit)
+            catch { case _: Throwable => () }
+            try dbConn.close()
+            catch { case _: Throwable => () }
+          }
+        }
+        .flatMap { case (conn, dbConn, _) =>
+          val tx = new DbTx {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = TransactorZIO.this.dialect
+            val logger: SqlLogger        = TransactorZIO.this.logger
+          }
+          f(using tx)
+            .tapErrorCause(_ => ZIO.attemptBlocking(conn.rollback()).ignore)
+            .tap(_ => ZIO.attemptBlocking(conn.commit()))
+        }
+    }
 }
 
 object TransactorZIO {
-  def fromTransactor(transactor: Transactor): TransactorZIO =
-    new TransactorZIO(transactor)
 
   def fromUrl(url: String, dialect: SqlDialect): TransactorZIO =
-    new TransactorZIO(JdbcTransactor.fromUrl(url, dialect))
+    new TransactorZIO(() => java.sql.DriverManager.getConnection(url), dialect)
 
   def fromUrl(
     url: String,
@@ -41,10 +101,10 @@ object TransactorZIO {
     password: String,
     dialect: SqlDialect
   ): TransactorZIO =
-    new TransactorZIO(JdbcTransactor.fromUrl(url, user, password, dialect))
+    new TransactorZIO(() => java.sql.DriverManager.getConnection(url, user, password), dialect)
 
   def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): TransactorZIO =
-    new TransactorZIO(JdbcTransactor.fromDataSource(dataSource, dialect))
+    new TransactorZIO(() => dataSource.getConnection, dialect)
 
   // ZLayer for dependency injection
   def layer(url: String, dialect: SqlDialect): ZLayer[Any, Nothing, TransactorZIO] =
