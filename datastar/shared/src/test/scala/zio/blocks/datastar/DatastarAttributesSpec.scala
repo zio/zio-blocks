@@ -439,6 +439,33 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         assertTrue(result == """<div data-ref:data-url></div>""")
       }
     ),
+    suite("SignalUpdate.escapeJsKey special character escaping")(
+      test("signal name with double-quote is escaped in dataSignals") {
+        val key    = Signal[Int]("has\"quote")
+        val result = div(dataSignals := (key := 1)).render
+        assertTrue(result.contains("has\\&quot;quote"))
+      },
+      test("signal name with backslash is escaped in dataSignals") {
+        val key    = Signal[Int]("back\\slash")
+        val result = div(dataSignals := (key := 1)).render
+        assertTrue(result.contains("back\\\\slash"))
+      },
+      test("signal name with newline is escaped in dataSignals") {
+        val key    = Signal[Int]("line\nnewline")
+        val result = div(dataSignals := (key := 1)).render
+        assertTrue(result.contains("line\\nnewline"))
+      },
+      test("signal name with carriage return is escaped in dataSignals") {
+        val key    = Signal[Int]("cr\rname")
+        val result = div(dataSignals := (key := 1)).render
+        assertTrue(result.contains("cr\\rname"))
+      },
+      test("signal name with tab is escaped in dataSignals") {
+        val key    = Signal[Int]("tab\tname")
+        val result = div(dataSignals := (key := 1)).render
+        assertTrue(result.contains("tab\\tname"))
+      }
+    ),
     suite("package object integration")(
       test("package object provides all attribute methods") {
         val result = div(dataSignals(count) := js"0", dataBind(count), dataText := count).render
