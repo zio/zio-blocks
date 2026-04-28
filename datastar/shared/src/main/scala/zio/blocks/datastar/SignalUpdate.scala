@@ -18,11 +18,39 @@ package zio.blocks.datastar
 
 import zio.blocks.html.ToJs
 
+/**
+ * A signal name paired with its JSON-serialized value.
+ *
+ * Created via `Signal.:=`. The `name` is the signal identifier and `serialized`
+ * is the JSON string produced by the signal's schema codec. Used by
+ * [[DatastarEvent.patchSignals]] to build SSE payloads and by the `ToJs`
+ * instance to render inline JavaScript object literals.
+ */
 final class SignalUpdate[A](val name: String, val serialized: String)
 
 object SignalUpdate {
 
   implicit def signalUpdateToJs[A]: ToJs[SignalUpdate[A]] = new ToJs[SignalUpdate[A]] {
-    def toJs(u: SignalUpdate[A]): String = "{" + u.name + ": " + u.serialized + "}"
+    def toJs(u: SignalUpdate[A]): String = "{" + escapeJsKey(u.name) + ": " + u.serialized + "}"
+  }
+
+  private def escapeJsKey(s: String): String = {
+    val sb = new java.lang.StringBuilder(s.length + 2)
+    sb.append('"')
+    var i = 0
+    while (i < s.length) {
+      val c = s.charAt(i)
+      c match {
+        case '"'  => sb.append("\\\"")
+        case '\\' => sb.append("\\\\")
+        case '\n' => sb.append("\\n")
+        case '\r' => sb.append("\\r")
+        case '\t' => sb.append("\\t")
+        case _    => sb.append(c)
+      }
+      i += 1
+    }
+    sb.append('"')
+    sb.toString
   }
 }

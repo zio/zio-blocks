@@ -18,15 +18,26 @@ package zio.blocks.datastar
 
 import zio.blocks.html.ToJs
 import zio.blocks.schema.Schema
-import zio.blocks.schema.json.JsonFormat
 
+/**
+ * A named reactive signal for the Datastar frontend framework.
+ *
+ * Represents a client-side signal identified by `name`. The name must be a
+ * valid JavaScript identifier (Datastar uses it as an object key). Use `:=` to
+ * create a [[SignalUpdate]] that pairs this signal with a JSON-serialized
+ * value.
+ *
+ * {{{
+ * val count = Signal[Int]("count")
+ * count := 0  // SignalUpdate ready for patchSignals
+ * }}}
+ */
 final class Signal[A](val name: String) {
 
   def ref: String = "$" + name
 
   def :=(value: A)(implicit schema: Schema[A]): SignalUpdate[A] = {
-    val codec      = schema.derive(JsonFormat)
-    val serialized = codec.encodeToString(value)
+    val serialized = schema.jsonCodec.encodeToString(value)
     new SignalUpdate[A](name, serialized)
   }
 }

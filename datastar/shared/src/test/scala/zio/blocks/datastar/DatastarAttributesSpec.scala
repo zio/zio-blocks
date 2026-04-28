@@ -57,7 +57,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
     suite("dataSignals (unsuffixed)")(
       test("dataSignals := SignalUpdate produces correct attribute") {
         val result = div(dataSignals := (count := 0)).render
-        assertTrue(result == """<div data-signals="{count: 0}"></div>""")
+        assertTrue(result == """<div data-signals="{&quot;count&quot;: 0}"></div>""")
       }
     ),
     suite("dataBind")(
@@ -263,7 +263,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test(":= with SignalUpdate value uses ToJs[SignalUpdate]") {
         val key    = DatastarAttrKey("data-signals")
         val result = div(key := (count := 0)).render
-        assertTrue(result == """<div data-signals="{count: 0}"></div>""")
+        assertTrue(result == """<div data-signals="{&quot;count&quot;: 0}"></div>""")
       }
     ),
     suite("dataOnIntersect")(

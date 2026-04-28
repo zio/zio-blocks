@@ -85,10 +85,17 @@ final case class ServerSentEvent private (
     id.foreach(idValue => sb.append("id: ").append(idValue).append('\n'))
     retryMillis.foreach(millis => sb.append("retry: ").append(millis).append('\n'))
 
-    val lines = data.split("\n", -1)
-    for (line <- lines) {
-      sb.append("data: ").append(line).append('\n')
+    var start  = 0
+    var index  = 0
+    val length = data.length
+    while (index < length) {
+      if (data.charAt(index) == '\n') {
+        sb.append("data: ").append(data, start, index).append('\n')
+        start = index + 1
+      }
+      index += 1
     }
+    sb.append("data: ").append(data, start, length).append('\n')
     sb.append('\n')
   }
 }

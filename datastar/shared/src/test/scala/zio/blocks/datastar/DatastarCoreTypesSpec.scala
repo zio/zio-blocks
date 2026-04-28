@@ -68,13 +68,13 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
         import zio.blocks.schema.Schema
         val count  = Signal[Int]("count")
         val update = count := 42
-        assertTrue(ToJs[SignalUpdate[Int]].toJs(update) == "{count: 42}")
+        assertTrue(ToJs[SignalUpdate[Int]].toJs(update) == "{\"count\": 42}")
       },
       test("ToJs[SignalUpdate[String]] produces Datastar expression format with serialized value") {
         import zio.blocks.schema.Schema
         val query  = Signal[String]("query")
         val update = query := "hello"
-        assertTrue(ToJs[SignalUpdate[String]].toJs(update) == "{query: \"hello\"}")
+        assertTrue(ToJs[SignalUpdate[String]].toJs(update) == "{\"query\": \"hello\"}")
       }
     ),
     suite("CaseModifier")(

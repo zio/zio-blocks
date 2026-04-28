@@ -18,6 +18,14 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Mixin providing Datastar `data-*` attribute constructors for the HTML DSL.
+ *
+ * Import via the package object (`import zio.blocks.datastar._`) which extends
+ * this trait. Provides methods for all Datastar attributes: `dataSignals`,
+ * `dataBind`, `dataOn`, `dataText`, `dataShow`, `dataClass`, `dataComputed`,
+ * `dataEffect`, `dataInit`, `dataRef`, and more.
+ */
 trait DatastarAttributes {
 
   def dataSignals(signal: Signal[_]): DataSignalsBuilder =
