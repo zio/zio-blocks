@@ -89,8 +89,12 @@ final case class ServerSentEvent private (
     var index  = 0
     val length = data.length
     while (index < length) {
-      if (data.charAt(index) == '\n') {
+      val c = data.charAt(index)
+      if (c == '\n' || c == '\r') {
         sb.append("data: ").append(data, start, index).append('\n')
+        if (c == '\r' && index + 1 < length && data.charAt(index + 1) == '\n') {
+          index += 1
+        }
         start = index + 1
       }
       index += 1

@@ -30,27 +30,25 @@ final class SignalUpdate[A](val name: String, val serialized: String)
 
 object SignalUpdate {
 
-  implicit def signalUpdateToJs[A]: ToJs[SignalUpdate[A]] = new ToJs[SignalUpdate[A]] {
-    def toJs(u: SignalUpdate[A]): String = "{" + escapeJsKey(u.name) + ": " + u.serialized + "}"
-  }
-
-  private def escapeJsKey(s: String): String = {
-    val sb = new java.lang.StringBuilder(s.length + 2)
-    sb.append('"')
+  def objectExpression(update: SignalUpdate[_], updates: SignalUpdate[_]*): String = {
+    val all = update +: updates
+    val sb  = new java.lang.StringBuilder(32)
+    sb.append('{')
     var i = 0
-    while (i < s.length) {
-      val c = s.charAt(i)
-      c match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case _    => sb.append(c)
-      }
+    while (i < all.length) {
+      if (i > 0) sb.append(", ")
+      val current = all(i)
+      sb.append(escapeJsKey(current.name)).append(": ").append(current.serialized)
       i += 1
     }
-    sb.append('"')
+    sb.append('}')
     sb.toString
   }
+
+  implicit def signalUpdateToJs[A]: ToJs[SignalUpdate[A]] = new ToJs[SignalUpdate[A]] {
+    def toJs(u: SignalUpdate[A]): String = objectExpression(u)
+  }
+
+  private def escapeJsKey(s: String): String =
+    DatastarStringEscape.quotedString(s)
 }

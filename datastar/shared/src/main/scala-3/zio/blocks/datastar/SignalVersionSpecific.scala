@@ -16,15 +16,22 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.Dom
+import scala.quoted.*
 
-final class DatastarAttrKey(val name: String) {
-
-  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute =
-    Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
+private[datastar] trait SignalVersionSpecific {
+  inline def apply[A](inline name: String): Signal[A] =
+    ${ SignalMacros.applyImpl[A]('name) }
 }
 
-object DatastarAttrKey {
-
-  def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
+private[datastar] object SignalMacros {
+  def applyImpl[A: Type](name: Expr[String])(using Quotes): Expr[Signal[A]] =
+    name.value match {
+      case Some(signalName) =>
+        if (!Signal.isValidName(signalName)) {
+          quotes.reflect.report.errorAndAbort(Signal.invalidNameMessage(signalName))
+        }
+        '{ Signal.unsafeApply[A](${ Expr(signalName) }) }
+      case None             =>
+        '{ Signal.checkedApply[A]($name) }
+    }
 }

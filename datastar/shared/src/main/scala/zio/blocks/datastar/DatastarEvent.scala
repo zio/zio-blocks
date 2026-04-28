@@ -177,23 +177,8 @@ object DatastarEvent {
     )
   }
 
-  private def appendJsonString(sb: java.lang.StringBuilder, s: String): Unit = {
-    sb.append('"')
-    var i = 0
-    while (i < s.length) {
-      val c = s.charAt(i)
-      c match {
-        case '"'  => sb.append("\\\"")
-        case '\\' => sb.append("\\\\")
-        case '\n' => sb.append("\\n")
-        case '\r' => sb.append("\\r")
-        case '\t' => sb.append("\\t")
-        case _    => sb.append(c)
-      }
-      i += 1
-    }
-    sb.append('"')
-  }
+  private def appendJsonString(sb: java.lang.StringBuilder, s: String): Unit =
+    DatastarStringEscape.appendQuotedString(sb, s)
 
   private implicit class PipeOps[A](private val self: A) extends AnyVal {
     def pipe[B](f: A => B): B = f(self)

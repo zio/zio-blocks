@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseModifier) {
 
@@ -28,9 +28,9 @@ final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseMod
 
   def pascal: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Pascal)
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val suffix   = caseModifier.suffix(CaseModifier.Camel)
     val attrName = "data-signals:" + toKebabCase(signalName) + suffix
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 }

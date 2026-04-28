@@ -34,4 +34,30 @@ object InitModifier {
   final case class And(left: InitModifier, right: InitModifier) extends InitModifier {
     def render: String = left.render + right.render
   }
+
+  def normalize(existing: Option[InitModifier], next: InitModifier): Option[InitModifier] = {
+    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[InitModifier]) { (acc, modifier) =>
+      modifier match {
+        case d: Delay =>
+          acc.filter {
+            case _: Delay => false
+            case _        => true
+          } :+ d
+        case flag =>
+          if (acc.exists(_ == flag)) acc else acc :+ flag
+      }
+    }
+
+    normalized match {
+      case Nil          => None
+      case head :: Nil  => Some(head)
+      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+    }
+  }
+
+  private def flatten(modifiers: List[InitModifier]): List[InitModifier] =
+    modifiers.flatMap {
+      case And(left, right) => flatten(left :: right :: Nil)
+      case other            => other :: Nil
+    }
 }

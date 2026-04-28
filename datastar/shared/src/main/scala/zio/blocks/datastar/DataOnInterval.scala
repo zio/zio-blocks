@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
 
@@ -26,17 +26,12 @@ final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
 
   def viewTransition: DataOnInterval = withModifier(OnIntervalModifier.ViewTransition)
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-interval" + modifierStr
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 
-  private def withModifier(m: OnIntervalModifier): DataOnInterval = {
-    val combined = modifier match {
-      case None       => m
-      case Some(prev) => OnIntervalModifier.And(prev, m)
-    }
-    new DataOnInterval(Some(combined))
-  }
+  private def withModifier(m: OnIntervalModifier): DataOnInterval =
+    new DataOnInterval(OnIntervalModifier.normalize(modifier, m))
 }

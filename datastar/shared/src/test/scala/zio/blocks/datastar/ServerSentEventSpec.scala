@@ -36,6 +36,14 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       val event = ServerSentEvent("line1\nline2", "test")
       assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
     },
+    test("CRLF data: strips carriage returns and splits each line once") {
+      val event = ServerSentEvent("line1\r\nline2", "test")
+      assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
+    },
+    test("CR-only data: treats carriage returns as line breaks") {
+      val event = ServerSentEvent("line1\rline2", "test")
+      assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
+    },
     test("All options: renders event type, id, retry, and data") {
       val event = ServerSentEvent("data", "evt").withId("42").withRetry(3000)
       assertTrue(event.render == "event: evt\nid: 42\nretry: 3000\ndata: data\n\n")

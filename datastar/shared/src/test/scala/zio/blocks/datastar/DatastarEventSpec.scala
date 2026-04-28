@@ -218,7 +218,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
     ),
     suite("executeScript")(
       test("creates patchElements with script element, body selector, append mode, and data-effect") {
-        val code   = Js("console.log('hello')")
+        val code   = js"console.log('hello')"
         val result = DatastarEvent.executeScript(code).renderSSE
         assertTrue(
           result ==
@@ -232,29 +232,69 @@ object DatastarEventSpec extends ZIOSpecDefault {
     ),
     suite("patchSignals special character escaping")(
       test("signal name with double-quote is escaped") {
-        val key    = Signal[Int]("has\"quote")
-        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\"quote", "1")).renderSSE
         assertTrue(result.contains("has\\\"quote"))
       },
       test("signal name with backslash is escaped") {
-        val key    = Signal[Int]("back\\slash")
-        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("back\\slash", "1")).renderSSE
         assertTrue(result.contains("back\\\\slash"))
       },
       test("signal name with newline is escaped") {
-        val key    = Signal[Int]("line\nnewline")
-        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("line\nnewline", "1")).renderSSE
         assertTrue(result.contains("line\\nnewline"))
       },
       test("signal name with carriage return is escaped") {
-        val key    = Signal[Int]("cr\rname")
-        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("cr\rname", "1")).renderSSE
         assertTrue(result.contains("cr\\rname"))
       },
       test("signal name with tab is escaped") {
-        val key    = Signal[Int]("tab\tname")
-        val result = DatastarEvent.patchSignals(key := 1).renderSSE
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("tab\tname", "1")).renderSSE
         assertTrue(result.contains("tab\\tname"))
+      },
+      test("signal name with backspace is escaped") {
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\bbackspace", "1")).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals {\"has\\bbackspace\":1}\n" +
+            "\n"
+        )
+      },
+      test("signal name with form feed is escaped") {
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\fformfeed", "1")).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals {\"has\\fformfeed\":1}\n" +
+            "\n"
+        )
+      },
+      test("signal name with control character is unicode-escaped") {
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\u0001control", "1")).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals {\"has\\u0001control\":1}\n" +
+            "\n"
+        )
+      },
+      test("signal name with unicode line separator is escaped") {
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\u2028separator", "1")).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals {\"has\\u2028separator\":1}\n" +
+            "\n"
+        )
+      },
+      test("signal name with unicode paragraph separator is escaped") {
+        val result = DatastarEvent.patchSignals(new SignalUpdate[Int]("has\u2029separator", "1")).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-signals\n" +
+            "data: signals {\"has\\u2029separator\":1}\n" +
+            "\n"
+        )
       }
     )
   )

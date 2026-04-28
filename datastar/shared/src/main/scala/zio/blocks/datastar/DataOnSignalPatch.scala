@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
 
@@ -26,17 +26,12 @@ final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
 
   def throttle(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Throttle(millis))
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-signal-patch" + modifierStr
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 
-  private def withModifier(m: OnSignalPatchModifier): DataOnSignalPatch = {
-    val combined = modifier match {
-      case None       => m
-      case Some(prev) => OnSignalPatchModifier.And(prev, m)
-    }
-    new DataOnSignalPatch(Some(combined))
-  }
+  private def withModifier(m: OnSignalPatchModifier): DataOnSignalPatch =
+    new DataOnSignalPatch(OnSignalPatchModifier.normalize(modifier, m))
 }

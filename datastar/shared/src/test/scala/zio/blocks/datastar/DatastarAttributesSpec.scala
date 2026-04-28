@@ -54,6 +54,12 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataSignals := SignalUpdate produces correct attribute") {
         val result = div(dataSignals := (count := 0)).render
         assertTrue(result == """<div data-signals="{&quot;count&quot;: 0}"></div>""")
+      },
+      test("dataSignals(update, updates...) produces correct attribute") {
+        val result = div(dataSignals(count := 0, foo := 1, bar := 2)).render
+        assertTrue(
+          result == """<div data-signals="{&quot;count&quot;: 0, &quot;foo&quot;: 1, &quot;bar&quot;: 2}"></div>"""
+        )
       }
     ),
     suite("dataBind")(
@@ -70,6 +76,13 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataText := js expression produces correct attribute") {
         val result = div(dataText := js"$foo + $bar").render
         assertTrue(result == """<div data-text="$foo + $bar"></div>""")
+      },
+      test("dataText := raw String does not compile") {
+        typeCheck("""
+          import zio.blocks.datastar._
+          import zio.blocks.html._
+          div(dataText := "$count")
+        """).map(result => assertTrue(result.isLeft))
       }
     ),
     suite("dataShow")(
@@ -114,6 +127,13 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataOn.click := js expression produces correct attribute") {
         val result = div(dataOn.click := js"$count++").render
         assertTrue(result == """<div data-on:click="$count++"></div>""")
+      },
+      test("dataOn.click := raw String does not compile") {
+        typeCheck("""
+          import zio.blocks.datastar._
+          import zio.blocks.html._
+          div(dataOn.click := "$count++")
+        """).map(result => assertTrue(result.isLeft))
       },
       test("dataOn.click.debounce produces correct attribute") {
         val result = div(dataOn.click.debounce(300) := js"@get('/search')").render
@@ -190,6 +210,18 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataOn with modifier and case modifier") {
         val result = div(dataOn.click.debounce(300).camel := js"handler()").render
         assertTrue(result == """<div data-on:click__debounce.300ms__case.camel="handler()"></div>""")
+      },
+      test("dataOn deduplicates duplicate flags") {
+        val result = div(dataOn.click.prevent.prevent.once.once := js"handler()").render
+        assertTrue(result == """<div data-on:click__prevent__once="handler()"></div>""")
+      },
+      test("dataOn keeps last debounce modifier") {
+        val result = div(dataOn.click.debounce(100).debounce(200) := js"handler()").render
+        assertTrue(result == """<div data-on:click__debounce.200ms="handler()"></div>""")
+      },
+      test("dataOn keeps last global target modifier") {
+        val result = div(dataOn.click.window.document := js"handler()").render
+        assertTrue(result == """<div data-on:click__document="handler()"></div>""")
       }
     ),
     suite("dataComputed")(
@@ -222,6 +254,13 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         val result = div(dataInit := js"@get('/data')").render
         assertTrue(result == """<div data-init="@get(&#x27;/data&#x27;)"></div>""")
       },
+      test("dataInit := raw String does not compile") {
+        typeCheck("""
+          import zio.blocks.datastar._
+          import zio.blocks.html._
+          div(dataInit := "@get('/data')")
+        """).map(result => assertTrue(result.isLeft))
+      },
       test("dataInit.delay(500) := js expression produces correct attribute") {
         val result = div(dataInit.delay(500) := js"@get('/data')").render
         assertTrue(result == """<div data-init__delay.500ms="@get(&#x27;/data&#x27;)"></div>""")
@@ -229,6 +268,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataInit.delay(500).viewTransition := js expression produces correct attribute") {
         val result = div(dataInit.delay(500).viewTransition := js"@get('/data')").render
         assertTrue(result == """<div data-init__delay.500ms__viewTransition="@get(&#x27;/data&#x27;)"></div>""")
+      },
+      test("dataInit keeps last delay modifier") {
+        val result = div(dataInit.delay(100).delay(500).viewTransition.viewTransition := js"handler()").render
+        assertTrue(result == """<div data-init__delay.500ms__viewTransition="handler()"></div>""")
       }
     ),
     suite("dataIgnore")(
@@ -301,6 +344,14 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
           result == """<div data-on-intersect__once__threshold.0.75__viewTransition="handler()"></div>"""
         )
       },
+      test("dataOnIntersect keeps last visibility threshold modifier") {
+        val result = div(dataOnIntersect.half.threshold(0.75).full := js"handler()").render
+        assertTrue(result == """<div data-on-intersect__full="handler()"></div>""")
+      },
+      test("dataOnIntersect keeps last debounce modifier") {
+        val result = div(dataOnIntersect.debounce(100).debounce(300) := js"handler()").render
+        assertTrue(result == """<div data-on-intersect__debounce.300ms="handler()"></div>""")
+      },
       test("dataOnIntersect without modifiers produces correct attribute") {
         val result = div(dataOnIntersect := js"handler()").render
         assertTrue(result == """<div data-on-intersect="handler()"></div>""")
@@ -322,6 +373,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataOnInterval.duration(500).viewTransition produces correct chained modifiers") {
         val result = div(dataOnInterval.duration(500).viewTransition := js"handler()").render
         assertTrue(result == """<div data-on-interval__duration.500ms__viewTransition="handler()"></div>""")
+      },
+      test("dataOnInterval keeps last duration modifier") {
+        val result = div(dataOnInterval.duration(100).durationLeading(500) := js"handler()").render
+        assertTrue(result == """<div data-on-interval__duration.500ms.leading="handler()"></div>""")
       },
       test("dataOnInterval without modifiers produces correct attribute") {
         val result = div(dataOnInterval := js"handler()").render
@@ -346,6 +401,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         assertTrue(
           result == """<div data-on-signal-patch__delay.100ms__debounce.200ms__throttle.300ms="handler()"></div>"""
         )
+      },
+      test("dataOnSignalPatch keeps last debounce modifier") {
+        val result = div(dataOnSignalPatch.debounce(100).debounce(300) := js"handler()").render
+        assertTrue(result == """<div data-on-signal-patch__debounce.300ms="handler()"></div>""")
       },
       test("dataOnSignalPatch without modifiers produces correct attribute") {
         val result = div(dataOnSignalPatch := js"handler()").render
@@ -441,28 +500,23 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
     ),
     suite("SignalUpdate.escapeJsKey special character escaping")(
       test("signal name with double-quote is escaped in dataSignals") {
-        val key    = Signal[Int]("has\"quote")
-        val result = div(dataSignals := (key := 1)).render
+        val result = div(dataSignals := new SignalUpdate[Int]("has\"quote", "1")).render
         assertTrue(result.contains("has\\&quot;quote"))
       },
       test("signal name with backslash is escaped in dataSignals") {
-        val key    = Signal[Int]("back\\slash")
-        val result = div(dataSignals := (key := 1)).render
+        val result = div(dataSignals := new SignalUpdate[Int]("back\\slash", "1")).render
         assertTrue(result.contains("back\\\\slash"))
       },
       test("signal name with newline is escaped in dataSignals") {
-        val key    = Signal[Int]("line\nnewline")
-        val result = div(dataSignals := (key := 1)).render
+        val result = div(dataSignals := new SignalUpdate[Int]("line\nnewline", "1")).render
         assertTrue(result.contains("line\\nnewline"))
       },
       test("signal name with carriage return is escaped in dataSignals") {
-        val key    = Signal[Int]("cr\rname")
-        val result = div(dataSignals := (key := 1)).render
+        val result = div(dataSignals := new SignalUpdate[Int]("cr\rname", "1")).render
         assertTrue(result.contains("cr\\rname"))
       },
       test("signal name with tab is escaped in dataSignals") {
-        val key    = Signal[Int]("tab\tname")
-        val result = div(dataSignals := (key := 1)).render
+        val result = div(dataSignals := new SignalUpdate[Int]("tab\tname", "1")).render
         assertTrue(result.contains("tab\\tname"))
       }
     ),

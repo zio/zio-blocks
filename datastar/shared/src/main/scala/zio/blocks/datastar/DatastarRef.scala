@@ -16,15 +16,16 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.Dom
+import zio.blocks.html.ToJs
 
-final class DatastarAttrKey(val name: String) {
+final class DatastarRef private[datastar] (val signalName: String) {
+  val value: String = "$" + signalName
 
-  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute =
-    Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
+  override def toString: String = value
 }
 
-object DatastarAttrKey {
-
-  def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
+object DatastarRef {
+  implicit val datastarRefToJs: ToJs[DatastarRef] = new ToJs[DatastarRef] {
+    def toJs(ref: DatastarRef): String = ref.value
+  }
 }

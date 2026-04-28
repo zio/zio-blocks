@@ -62,4 +62,55 @@ object IntersectModifier {
   final case class And(left: IntersectModifier, right: IntersectModifier) extends IntersectModifier {
     def render: String = left.render + right.render
   }
+
+  def normalize(existing: Option[IntersectModifier], next: IntersectModifier): Option[IntersectModifier] = {
+    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[IntersectModifier]) { (acc, modifier) =>
+      modifier match {
+        case t: Threshold =>
+          acc.filter {
+            case _: Threshold | Half | Full => false
+            case _                          => true
+          } :+ t
+        case Half =>
+          acc.filter {
+            case _: Threshold | Half | Full => false
+            case _                          => true
+          } :+ Half
+        case Full =>
+          acc.filter {
+            case _: Threshold | Half | Full => false
+            case _                          => true
+          } :+ Full
+        case d: Delay =>
+          acc.filter {
+            case _: Delay => false
+            case _        => true
+          } :+ d
+        case d: Debounce =>
+          acc.filter {
+            case _: Debounce => false
+            case _           => true
+          } :+ d
+        case t: Throttle =>
+          acc.filter {
+            case _: Throttle => false
+            case _           => true
+          } :+ t
+        case flag =>
+          if (acc.exists(_ == flag)) acc else acc :+ flag
+      }
+    }
+
+    normalized match {
+      case Nil          => None
+      case head :: Nil  => Some(head)
+      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+    }
+  }
+
+  private def flatten(modifiers: List[IntersectModifier]): List[IntersectModifier] =
+    modifiers.flatMap {
+      case And(left, right) => flatten(left :: right :: Nil)
+      case other            => other :: Nil
+    }
 }

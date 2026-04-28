@@ -37,4 +37,30 @@ object OnIntervalModifier {
   final case class And(left: OnIntervalModifier, right: OnIntervalModifier) extends OnIntervalModifier {
     def render: String = left.render + right.render
   }
+
+  def normalize(existing: Option[OnIntervalModifier], next: OnIntervalModifier): Option[OnIntervalModifier] = {
+    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[OnIntervalModifier]) { (acc, modifier) =>
+      modifier match {
+        case d: Duration =>
+          acc.filter {
+            case _: Duration => false
+            case _           => true
+          } :+ d
+        case flag =>
+          if (acc.exists(_ == flag)) acc else acc :+ flag
+      }
+    }
+
+    normalized match {
+      case Nil          => None
+      case head :: Nil  => Some(head)
+      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+    }
+  }
+
+  private def flatten(modifiers: List[OnIntervalModifier]): List[OnIntervalModifier] =
+    modifiers.flatMap {
+      case And(left, right) => flatten(left :: right :: Nil)
+      case other            => other :: Nil
+    }
 }

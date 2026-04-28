@@ -80,4 +80,50 @@ object EventModifier {
   final case class And(left: EventModifier, right: EventModifier) extends EventModifier {
     def render: String = left.render + right.render
   }
+
+  def normalize(existing: Option[EventModifier], next: EventModifier): Option[EventModifier] = {
+    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[EventModifier]) { (acc, modifier) =>
+      modifier match {
+        case d: Debounce =>
+          acc.filter {
+            case _: Debounce => false
+            case _           => true
+          } :+ d
+        case t: Throttle =>
+          acc.filter {
+            case _: Throttle => false
+            case _           => true
+          } :+ t
+        case d: Delay =>
+          acc.filter {
+            case _: Delay => false
+            case _        => true
+          } :+ d
+        case Window =>
+          acc.filter {
+            case Window | Document => false
+            case _                 => true
+          } :+ Window
+        case Document =>
+          acc.filter {
+            case Window | Document => false
+            case _                 => true
+          } :+ Document
+        case flag =>
+          if (acc.exists(_ == flag)) acc else acc :+ flag
+      }
+    }
+
+    normalized match {
+      case Nil          => None
+      case head :: Nil  => Some(head)
+      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+    }
+  }
+
+  private def flatten(modifiers: List[EventModifier]): List[EventModifier] =
+    modifiers.flatMap {
+      case And(left, right) => flatten(left :: right :: Nil)
+      case other            => other :: Nil
+    }
 }

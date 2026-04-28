@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 /**
  * Entry point for building `data-on:*` event handler attributes.
@@ -26,7 +26,7 @@ import zio.blocks.html.{Dom, ToJs}
  * with `:=`.
  *
  * {{{
- * dataOn.click := Js("alert('hi')")
+ * dataOn.click := js"alert('hi')"
  * dataOn("custom-event").debounce(500) := count.ref
  * }}}
  */
@@ -113,18 +113,13 @@ final class DataOn(val eventName: String, val modifier: Option[EventModifier], v
 
   def pascal: DataOn = new DataOn(eventName, modifier, CaseModifier.Pascal)
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val caseSuffix  = caseModifier.suffix(CaseModifier.Kebab)
     val attrName    = "data-on:" + toKebabCase(eventName) + modifierStr + caseSuffix
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 
-  private def withModifier(m: EventModifier): DataOn = {
-    val combined = modifier match {
-      case None       => m
-      case Some(prev) => EventModifier.And(prev, m)
-    }
-    new DataOn(eventName, Some(combined), caseModifier)
-  }
+  private def withModifier(m: EventModifier): DataOn =
+    new DataOn(eventName, EventModifier.normalize(modifier, m), caseModifier)
 }

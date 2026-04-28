@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 final class DataInit(val modifier: Option[InitModifier]) {
 
@@ -24,17 +24,12 @@ final class DataInit(val modifier: Option[InitModifier]) {
 
   def viewTransition: DataInit = withModifier(InitModifier.ViewTransition)
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-init" + modifierStr
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 
-  private def withModifier(m: InitModifier): DataInit = {
-    val combined = modifier match {
-      case None       => m
-      case Some(prev) => InitModifier.And(prev, m)
-    }
-    new DataInit(Some(combined))
-  }
+  private def withModifier(m: InitModifier): DataInit =
+    new DataInit(InitModifier.normalize(modifier, m))
 }

@@ -38,4 +38,40 @@ object OnSignalPatchModifier {
   final case class And(left: OnSignalPatchModifier, right: OnSignalPatchModifier) extends OnSignalPatchModifier {
     def render: String = left.render + right.render
   }
+
+  def normalize(existing: Option[OnSignalPatchModifier], next: OnSignalPatchModifier): Option[OnSignalPatchModifier] = {
+    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[OnSignalPatchModifier]) { (acc, modifier) =>
+      modifier match {
+        case d: Delay =>
+          acc.filter {
+            case _: Delay => false
+            case _        => true
+          } :+ d
+        case d: Debounce =>
+          acc.filter {
+            case _: Debounce => false
+            case _           => true
+          } :+ d
+        case t: Throttle =>
+          acc.filter {
+            case _: Throttle => false
+            case _           => true
+          } :+ t
+        case other =>
+          if (acc.exists(_ == other)) acc else acc :+ other
+      }
+    }
+
+    normalized match {
+      case Nil          => None
+      case head :: Nil  => Some(head)
+      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+    }
+  }
+
+  private def flatten(modifiers: List[OnSignalPatchModifier]): List[OnSignalPatchModifier] =
+    modifiers.flatMap {
+      case And(left, right) => flatten(left :: right :: Nil)
+      case other            => other :: Nil
+    }
 }

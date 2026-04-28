@@ -28,7 +28,7 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
       },
       test("ref returns dollar-prefixed name") {
         val count = Signal[Int]("count")
-        assertTrue(count.ref == "$count")
+        assertTrue(count.ref.value == "$count")
       },
       test("ToJs[Signal[Int]] produces raw dollar-prefixed name") {
         val count = Signal[Int]("count")
@@ -61,6 +61,15 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
           import zio.blocks.schema.Schema
           Signal[Int]("count") := "hello"
         """).map(result => assertTrue(result.isLeft))
+      },
+      test("invalid literal signal name does not compile") {
+        typeCheck("""
+          Signal[Int]("foo-bar")
+        """).map(result => assertTrue(result.isLeft))
+      },
+      test("dynamic signal name is validated at runtime") {
+        val result = scala.util.Try(Signal.dynamic[Int]("foo-bar"))
+        assertTrue(result.isFailure)
       }
     ),
     suite("SignalUpdate")(

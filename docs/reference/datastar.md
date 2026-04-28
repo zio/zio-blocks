@@ -75,7 +75,7 @@ Run JavaScript on the client:
 
 ```scala
 val sse = DatastarEvent
-  .executeScript(Js("console.log('hello')"))
+  .executeScript(js"console.log('hello')")
   .renderSSE
 ```
 
@@ -100,19 +100,33 @@ import zio.blocks.datastar._
 val count = Signal[Int]("count")
 
 div(
-  dataSignals(count).value(0),
-  dataText := count.ref
+  dataSignals(count := 0),
+  dataText := count
 )(
   span()("Count: "),
-  button(dataOn.click := count.ref + " + 1")("Increment")
+  button(dataOn.click := js"$count++")("Increment")
 )
+```
+
+Datastar expression positions are intentionally stricter than generic HTML/JS templating.
+Raw `String` values are rejected in Datastar expression attributes; use `js"..."`
+for expressions, or typed values like `Signal`, `SignalUpdate`, and `DatastarRef`.
+
+```scala
+dataText := count
+dataText := count.ref
+dataOn.click := js"$count++"
+
+// does not compile:
+// dataOn.click := "$count++"
 ```
 
 ### Available Attributes
 
 | Method | Datastar Attribute | Description |
 |--------|-------------------|-------------|
-| `dataSignals(signal)` | `data-signals` | Declare signals with initial values |
+| `dataSignals(signal)` | `data-signals:name` | Declare one keyed signal with an initial value |
+| `dataSignals(update, updates...)` | `data-signals` | Patch multiple signals with one object expression |
 | `dataBind(signal)` | `data-bind:name` | Two-way bind an input to a signal |
 | `dataText` | `data-text` | Set element text content |
 | `dataShow` | `data-show` | Conditionally show/hide element |
@@ -130,13 +144,13 @@ Chain modifiers on `dataOn` before assigning a handler:
 
 ```scala
 // Debounce input by 300ms
-dataOn("input").debounce(300) := "$username"
+dataOn("input").debounce(300) := js"$username"
 
 // Click with prevent default, only once
-dataOn.click.prevent.once := Js("handleSubmit()")
+dataOn.click.prevent.once := js"handleSubmit()"
 
 // Throttle scroll, listen on window
-dataOn.scroll.throttle(100).window := Js("onScroll()")
+dataOn.scroll.throttle(100).window := js"onScroll()"
 ```
 
 Available modifiers: `debounce`, `debounceLeading`, `throttle`, `throttleLeading`, `delay`, `once`, `passive`, `capture`, `stop`, `prevent`, `outside`, `window`, `document`, `viewTransition`.

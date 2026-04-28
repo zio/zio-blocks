@@ -31,6 +31,12 @@ trait DatastarAttributes {
   def dataSignals(signal: Signal[_]): DataSignalsBuilder =
     new DataSignalsBuilder(signal.name, CaseModifier.Camel)
 
+  def dataSignals(update: SignalUpdate[_], updates: SignalUpdate[_]*): Dom.Attribute =
+    Dom.Attribute.KeyValue(
+      "data-signals",
+      Dom.AttributeValue.StringValue(SignalUpdate.objectExpression(update, updates: _*))
+    )
+
   def dataSignals: DatastarAttrKey = DatastarAttrKey("data-signals")
 
   def dataBind(signal: Signal[_]): Dom.Attribute =

@@ -127,13 +127,15 @@ const sidebars = {
             ]
           },
           "reference/endpoint",
+          "reference/openapi",
           "reference/chunk",
           "path-interpolator",
           "reference/ringbuffer",
-         "reference/html",
-         {
-           type: "category",
-           label: "Streams",
+          "reference/html",
+          "reference/datastar",
+          {
+            type: "category",
+            label: "Streams",
            link: { type: "doc", id: "reference/streams/index" },
            items: [
              "reference/streams/stream",

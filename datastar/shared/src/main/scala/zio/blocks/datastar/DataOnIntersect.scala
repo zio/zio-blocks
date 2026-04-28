@@ -16,7 +16,7 @@
 
 package zio.blocks.datastar
 
-import zio.blocks.html.{Dom, ToJs}
+import zio.blocks.html.Dom
 
 final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
 
@@ -38,17 +38,12 @@ final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
 
   def viewTransition: DataOnIntersect = withModifier(IntersectModifier.ViewTransition)
 
-  def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
+  def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-intersect" + modifierStr
-    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
+    Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
   }
 
-  private def withModifier(m: IntersectModifier): DataOnIntersect = {
-    val combined = modifier match {
-      case None       => m
-      case Some(prev) => IntersectModifier.And(prev, m)
-    }
-    new DataOnIntersect(Some(combined))
-  }
+  private def withModifier(m: IntersectModifier): DataOnIntersect =
+    new DataOnIntersect(IntersectModifier.normalize(modifier, m))
 }
