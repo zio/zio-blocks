@@ -30,7 +30,7 @@ final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseMod
 
   def :=[T](value: T)(implicit toJs: ToJs[T]): Dom.Attribute = {
     val suffix   = caseModifier.suffix(CaseModifier.Camel)
-    val attrName = "data-signals:" + signalName + suffix
+    val attrName = "data-signals:" + toKebabCase(signalName) + suffix
     Dom.Attribute.KeyValue(attrName, Dom.AttributeValue.StringValue(toJs.toJs(value)))
   }
 }

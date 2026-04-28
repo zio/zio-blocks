@@ -27,7 +27,7 @@ sealed trait CaseModifier extends Product with Serializable {
 object CaseModifier {
 
   case object Camel extends CaseModifier {
-    def render: String = ""
+    def render: String = "__case.camel"
   }
 
   case object Kebab extends CaseModifier {
