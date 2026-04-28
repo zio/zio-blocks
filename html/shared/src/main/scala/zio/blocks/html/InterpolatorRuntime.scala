@@ -18,7 +18,7 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
-private[html] object InterpolatorRuntime {
+object InterpolatorRuntime {
 
   def buildCss(sc: StringContext, args: Seq[String]): Css = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")
