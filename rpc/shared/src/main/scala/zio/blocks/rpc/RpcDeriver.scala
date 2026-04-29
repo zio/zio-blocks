@@ -21,19 +21,19 @@ package zio.blocks.rpc
  * Schema's `Deriver[TC[_]]`, but operates at service level.
  *
  * @tparam Protocol
- *   The protocol-specific type class to derive
+ *   The protocol-specific artifact to derive
  */
 trait RpcDeriver[Protocol[_]] {
 
   /**
-   * Derives a protocol-specific implementation from an RPC service descriptor.
+   * Derives a protocol-specific artifact from an RPC service descriptor.
    *
    * @tparam T
    *   The service trait type
    * @param rpc
    *   The RPC descriptor for the service
    * @return
-   *   A protocol-specific implementation for the service
+   *   A protocol-specific artifact for the service descriptor
    */
   def deriveService[T](rpc: RPC[T]): Protocol[T]
 }
