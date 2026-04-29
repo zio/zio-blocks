@@ -177,6 +177,16 @@ object CookieSpec extends HttpModelBaseSpec {
         test("parses cookie with empty value") {
           val result = Cookie.parseResponse("deleted=")
           assertTrue(result == Right(ResponseCookie("deleted", "")))
+        },
+        test("parses Priority=Low and Priority=Medium") {
+          assertTrue(
+            Cookie.parseResponse("a=b; Priority=Low") == Right(
+              ResponseCookie("a", "b", priority = Some(CookiePriority.Low))
+            ),
+            Cookie.parseResponse("a=b; Priority=Medium") == Right(
+              ResponseCookie("a", "b", priority = Some(CookiePriority.Medium))
+            )
+          )
         }
       ),
       suite("renderResponse")(
@@ -231,6 +241,13 @@ object CookieSpec extends HttpModelBaseSpec {
             )
           )
           assertTrue(rendered == "a=b; Expires=Wed, 21 Oct 2026 07:28:00 GMT; Secure; Partitioned; Priority=High")
+        },
+        test("renders Priority=Low and Priority=Medium") {
+          assertTrue(
+            Cookie.renderResponse(ResponseCookie("a", "b", priority = Some(CookiePriority.Low))) == "a=b; Priority=Low",
+            Cookie.renderResponse(ResponseCookie("a", "b", priority = Some(CookiePriority.Medium))) ==
+              "a=b; Priority=Medium"
+          )
         }
       ),
       suite("round-trip")(
@@ -292,6 +309,12 @@ object CookieSpec extends HttpModelBaseSpec {
           result == Right(ResponseCookie("a", "b", maxAge = None))
         )
       },
+      test("unknown Priority value is ignored") {
+        val result = Cookie.parseResponse("a=b; Priority=Urgent")
+        assertTrue(
+          result == Right(ResponseCookie("a", "b", priority = None))
+        )
+      },
       test("unknown SameSite value is ignored") {
         val result = Cookie.parseResponse("a=b; SameSite=Invalid")
         assertTrue(
@@ -308,6 +331,9 @@ object CookieSpec extends HttpModelBaseSpec {
       },
       test("invalid cookie name returns Left") {
         assertTrue(Cookie.parseResponse("bad name=value").isLeft)
+      },
+      test("empty cookie name after trimming returns Left") {
+        assertTrue(Cookie.parseResponse("   =value").isLeft)
       },
       test("cookie with only name-value no attributes") {
         val result = Cookie.parseResponse("simple=cookie")
@@ -339,6 +365,18 @@ object CookieSpec extends HttpModelBaseSpec {
       },
       test("rejects invalid cookie values") {
         assertTrue(scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b; c"))).isFailure)
+      },
+      test("rejects invalid cookie names") {
+        assertTrue(
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("", "b"))).isFailure,
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("bad name", "b"))).isFailure
+        )
+      },
+      test("rejects CRLF in cookie values") {
+        assertTrue(
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b\r"))).isFailure,
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b\n"))).isFailure
+        )
       }
     )
   )

@@ -348,14 +348,22 @@ object HeadersSpec extends HttpModelBaseSpec {
       },
       test("rejects invalid header names") {
         assertTrue(
+          scala.util.Try(Headers("" -> "value")).isFailure,
+          scala.util.Try(Headers("bad@name" -> "value")).isFailure,
           scala.util.Try(Headers("bad header" -> "value")).isFailure,
-          scala.util.Try(Headers.empty.add("bad\r\nname", "value")).isFailure
+          scala.util.Try(Headers.empty.add("bad\r\nname", "value")).isFailure,
+          scala.util.Try(Headers("ok" -> "value").rawGet("bad name")).isFailure,
+          scala.util.Try(Headers("ok" -> "value").rawGetAll("bad name")).isFailure,
+          scala.util.Try(Headers("ok" -> "value").remove("bad name")).isFailure,
+          scala.util.Try(Headers("ok" -> "value").has("bad name")).isFailure
         )
       },
       test("rejects CRLF in header values") {
         assertTrue(
           scala.util.Try(Headers("x-test" -> "ok\r\nInjected: yes")).isFailure,
-          scala.util.Try(Headers.empty.set("x-test", "ok\nInjected: yes")).isFailure
+          scala.util.Try(Headers.empty.add("x-test", "ok\rInjected: yes")).isFailure,
+          scala.util.Try(Headers.empty.set("x-test", "ok\nInjected: yes")).isFailure,
+          scala.util.Try(Headers.empty.set("x-test", "ok\rInjected: yes")).isFailure
         )
       }
     ),
