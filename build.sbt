@@ -13,7 +13,13 @@ inThisBuild(
     name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
-    licenses     := List(
+    scmInfo      := Some(
+      ScmInfo(
+        url("https://github.com/zio/zio-blocks"),
+        "scm:git:git@github.com:zio/zio-blocks.git"
+      )
+    ),
+    licenses := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
     startYear     := Some(2024),
@@ -488,7 +494,7 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model"))
+  .settings(stdSettings("zio-http-model", Seq(Scala3, Scala33)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http"))
   .enablePlugins(BuildInfoPlugin)
@@ -501,25 +507,12 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 94,
-    // HTTP model requires streams, which is Scala 3 only.
-    Compile / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Compile / sources).value
-      }
-    },
-    Test / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Test / sources).value
-      }
-    }
+    coverageMinimumBranchTotal := 94
   )
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model-schema"))
+  .settings(stdSettings("zio-http-model-schema", Seq(Scala3, Scala33)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http.schema"))
   .enablePlugins(BuildInfoPlugin)
@@ -532,20 +525,7 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 67,
-    coverageMinimumBranchTotal := 51,
-    // Depends on http-model which is Scala 3 only.
-    Compile / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Compile / sources).value
-      }
-    },
-    Test / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Test / sources).value
-      }
-    }
+    coverageMinimumBranchTotal := 51
   )
 
 lazy val `http-model-examples` = project
