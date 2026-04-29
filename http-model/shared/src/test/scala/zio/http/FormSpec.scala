@@ -74,6 +74,10 @@ object FormSpec extends HttpModelBaseSpec {
         val form = Form.fromString("key%20name=value%26special")
         assertTrue(form.get("key name") == Some("value&special"))
       },
+      test("decodes plus as space") {
+        val form = Form.fromString("first+name=John+Doe")
+        assertTrue(form.get("first name") == Some("John Doe"))
+      },
       test("handles empty string") {
         val form = Form.fromString("")
         assertTrue(form.isEmpty)
@@ -141,7 +145,7 @@ object FormSpec extends HttpModelBaseSpec {
         val form    = Form("key name" -> "value&special")
         val encoded = form.encode
         assertTrue(
-          encoded.contains("key%20name"),
+          encoded.contains("key+name"),
           encoded.contains("value%26special")
         )
       },
@@ -152,7 +156,7 @@ object FormSpec extends HttpModelBaseSpec {
       },
       test("encodes spaces in values") {
         val form = Form("msg" -> "hello world")
-        assertTrue(form.encode.contains("hello%20world"))
+        assertTrue(form.encode.contains("hello+world"))
       }
     ),
     suite("round-trip")(
