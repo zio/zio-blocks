@@ -24,7 +24,30 @@ import zio.blocks.chunk.Chunk
  * Each method has a unique `ordinal` for efficient array-based dispatch.
  */
 sealed abstract class Method(val name: String, val ordinal: Int) {
-  override def toString: String = name
+  def #|(that: Method): Method =
+    if (this == Method.ANY || that == Method.ANY) Method.ANY
+    else
+      (this, that) match {
+        case (Method.Methods(a), Method.Methods(b)) => Method.Methods(a ++ b)
+        case (Method.Methods(a), _)                 => Method.Methods(a + that)
+        case (_, Method.Methods(b))                 => Method.Methods(b + this)
+        case _ if this == that                      => this
+        case _                                      => Method.Methods(Set(this, that))
+      }
+
+  def matches(that: Method): Boolean =
+    if (this == Method.ANY || that == Method.ANY) true
+    else
+      this match {
+        case Method.Methods(methods) => methods.exists(_.matches(that))
+        case _                       =>
+          that match {
+            case Method.Methods(methods) => methods.exists(_.matches(this))
+            case _                       => this == that
+          }
+      }
+
+  override def toString: String = Method.render(this)
 }
 
 object Method {
@@ -37,12 +60,21 @@ object Method {
   case object OPTIONS extends Method("OPTIONS", 6)
   case object TRACE   extends Method("TRACE", 7)
   case object CONNECT extends Method("CONNECT", 8)
+  case object ANY     extends Method("GET", -1)
+
+  final case class Methods(methods: Set[Method])
+      extends Method(methods.toList.sortBy(Method.render).map(Method.render).mkString("#|"), -1)
 
   val values: Chunk[Method] = Chunk(GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT)
+
+  val standardMethods: Set[Method] = values.iterator.toSet
 
   private val byName: Map[String, Method] = values.iterator.map(m => m.name -> m).toMap
 
   def fromString(s: String): Option[Method] = byName.get(s)
 
-  def render(method: Method): String = method.name
+  def render(method: Method): String = method match {
+    case ANY => "*"
+    case _   => method.name
+  }
 }

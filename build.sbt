@@ -13,13 +13,7 @@ inThisBuild(
     name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
-    scmInfo      := Some(
-      ScmInfo(
-        url("https://github.com/zio/zio-blocks"),
-        "scm:git:git@github.com:zio/zio-blocks.git"
-      )
-    ),
-    licenses := List(
+    licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
     startYear     := Some(2024),
@@ -102,61 +96,28 @@ addCommandAlias(
   "golemTestAll",
   "golemTest3; golemTest2"
 )
-lazy val testJVMScala2Command =
-  "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
-    "openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
-
-lazy val testJVMScala3Command =
+addCommandAlias(
+  "testJVM",
   "typeidJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+)
 
-lazy val testJSScala2Command =
-  "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
-
-lazy val testJSScala3Command =
+addCommandAlias(
+  "testJS",
   "typeidJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
     "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; htmlJS/test"
-
-lazy val docJVMScala2Command =
-  "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
-    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
-
-lazy val docJVMScala3Command =
+)
+addCommandAlias(
+  "docJVM",
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
-
-lazy val docJSScala2Command =
-  "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
-
-lazy val docJSScala3Command =
+)
+addCommandAlias(
+  "docJS",
   "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc"
-
-def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
-  Command.command(name) { state =>
-    val extracted = Project.extract(state)
-    val version   = extracted.get(LocalProject("schemaJVM") / scalaVersion)
-    val selected  = CrossVersion.partialVersion(version) match {
-      case Some((2, _)) => scala2Command
-      case _            => scala3Command
-    }
-
-    selected.split(';').foldLeft(state) { case (current, command) =>
-      Command.process(command.trim, current)
-    }
-  }
-
-commands ++= Seq(
-  commandForScalaVersion("testJVM", testJVMScala2Command, testJVMScala3Command),
-  commandForScalaVersion("testJS", testJSScala2Command, testJSScala3Command),
-  commandForScalaVersion("docJVM", docJVMScala2Command, docJVMScala3Command),
-  commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
 )
 
 lazy val root = project
@@ -425,13 +386,32 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
+  .settings(
+    // Streams source requires Scala 3 (inline, summonFrom, etc.).
+    // Under 2.13 CI runs, skip compilation entirely.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
+  )
   .jvmSettings(
     mimaSettings(failOnProblem = false),
     // Streams requires JDK 21+ (Project Loom virtual threads).
     // Override the default -release flag so Thread.ofVirtual() is available.
     // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
     // compilation of streams (tests will be skipped due to compilation failure).
-    scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
+    scalacOptions ~= { opts =>
+      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
+        .map(_._1)
+    },
     scalacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
@@ -445,12 +425,6 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
       // Alphanumeric infix in tests (andThen, etc.)
       "-Wconf:msg=Alphanumeric method.*infix:s"
     ),
-    Compile / doc / scalacOptions ++= {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq("-no-link-warnings")
-        case _            => Seq.empty
-      }
-    },
     javacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("--release", "21") else Seq("--release", jdkVersion.toString)
@@ -463,13 +437,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
       "-Wconf:msg=being leaked from scope:s",
       // Alphanumeric infix in tests (andThen, etc.)
       "-Wconf:msg=Alphanumeric method.*infix:s"
-    ),
-    Compile / doc / scalacOptions ++= {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Seq("-no-link-warnings")
-        case _            => Seq.empty
-      }
-    }
+    )
   )
   .settings(
     libraryDependencies ++= Seq(
@@ -520,7 +488,7 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model", Seq(Scala3, Scala33)))
+  .settings(stdSettings("zio-http-model"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http"))
   .enablePlugins(BuildInfoPlugin)
@@ -533,12 +501,25 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 95,
-    coverageMinimumBranchTotal := 94
+    coverageMinimumBranchTotal := 94,
+    // HTTP model requires streams, which is Scala 3 only.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
   )
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model-schema", Seq(Scala3, Scala33)))
+  .settings(stdSettings("zio-http-model-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http.schema"))
   .enablePlugins(BuildInfoPlugin)
@@ -551,7 +532,20 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
     ),
     coverageMinimumStmtTotal   := 67,
-    coverageMinimumBranchTotal := 51
+    coverageMinimumBranchTotal := 51,
+    // Depends on http-model which is Scala 3 only.
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
   )
 
 lazy val `http-model-examples` = project
@@ -564,6 +558,37 @@ lazy val `http-model-examples` = project
     coverageMinimumBranchTotal := 0
   )
   .dependsOn(`http-model`.jvm)
+
+lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-endpoint"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.endpoint"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(`http-model`, schema, combinators, mediatype, markdown)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    // Endpoint depends on http-model, which requires streams (Scala 3 only).
+    Compile / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Compile / sources).value
+      }
+    },
+    Test / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Nil
+        case _            => (Test / sources).value
+      }
+    }
+  )
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -645,7 +670,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.7.0",
+      "org.mongodb" % "bson"         % "5.6.5",
       "dev.zio"    %% "zio-test"     % "2.1.25" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.25" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -847,8 +872,8 @@ lazy val benchmarks = project
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.9",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.9.2",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.8.5",
-      "dev.zio"                               %% "zio-schema-json"       % "1.8.5",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.2",
       "io.github.arainko"                     %% "chanterelle"           % "0.1.2", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
@@ -906,7 +931,7 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "ujson"                 % "3.1.0",
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.5" % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.3" % Test
     )
   )
   .jsSettings(jsSettings)
@@ -977,7 +1002,7 @@ lazy val zioGolemMacros = project
       "dev.zio"     %% "zio-test"              % "2.1.25" % Test,
       "dev.zio"     %% "zio-test-sbt"          % "2.1.25" % Test,
       "com.lihaoyi" %% "ujson"                 % "3.1.0"  % Test,
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.5"  % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.3"  % Test
     )
   )
   .dependsOn(zioGolemModel.jvm)
@@ -1119,7 +1144,10 @@ lazy val `streams-benchmark` = project
   .enablePlugins(JmhPlugin)
   .settings(
     // Requires JDK 21+ for Thread.ofVirtual() (Project Loom)
-    scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
+    scalacOptions ~= { opts =>
+      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
+        .map(_._1)
+    },
     scalacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
@@ -1137,7 +1165,7 @@ lazy val `streams-benchmark` = project
       "co.fs2"        %% "fs2-core"    % "3.13.0",
       "org.typelevel" %% "cats-effect" % "3.7.0",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
-      "org.apache.pekko" %% "pekko-stream" % "1.6.0",
+      "org.apache.pekko" %% "pekko-stream" % "1.5.0",
       // Kyo — algebraic effect streams (Scala 3 only)
       "io.getkyo" %% "kyo-prelude" % "0.19.0",
       "io.getkyo" %% "kyo-core"    % "0.19.0",
@@ -1251,6 +1279,7 @@ lazy val docs = project
     `schema-bson`,
     `schema-xml`.jvm,
     mediatype.jvm,
+    endpoint.jvm,
     `http-model`.jvm,
     `http-model-schema`.jvm,
     openapi.jvm

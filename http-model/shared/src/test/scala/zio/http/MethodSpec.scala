@@ -106,6 +106,46 @@ object MethodSpec extends HttpModelBaseSpec {
           Method.DELETE.toString == "DELETE"
         )
       }
+    ),
+    suite("matches")(
+      test("ANY matches every standard method") {
+        assertTrue(
+          Method.ANY.matches(Method.GET),
+          Method.GET.matches(Method.ANY),
+          Method.ANY.matches(Method.POST)
+        )
+      },
+      test("combined methods match any constituent method") {
+        val combined = Method.GET #| Method.POST
+        assertTrue(
+          combined.matches(Method.GET),
+          combined.matches(Method.POST),
+          !combined.matches(Method.DELETE)
+        )
+      }
+    ),
+    suite("#|")(
+      test("combines distinct methods into Methods") {
+        val combined = Method.GET #| Method.POST
+        assertTrue(combined == Method.Methods(Set(Method.GET, Method.POST)))
+      },
+      test("returns ANY when either side is ANY") {
+        assertTrue(
+          (Method.ANY #| Method.GET) == Method.ANY,
+          (Method.GET #| Method.ANY) == Method.ANY
+        )
+      },
+      test("deduplicates repeated methods") {
+        assertTrue((Method.GET #| Method.GET) == Method.GET)
+      }
+    ),
+    suite("special methods")(
+      test("render formats ANY as wildcard") {
+        assertTrue(Method.render(Method.ANY) == "*")
+      },
+      test("standardMethods contains all 9 standard methods") {
+        assertTrue(Method.standardMethods == Method.values.iterator.toSet)
+      }
     )
   )
 }
