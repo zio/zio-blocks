@@ -309,7 +309,7 @@ Use the **`docs-integrate`** skill for the full checklist:
 ```javascript
 {
   type: "doc",
-  id: "reference/http-model"
+  id: "reference/<module-name>"
 }
 ```
 
@@ -318,12 +318,11 @@ Use the **`docs-integrate`** skill for the full checklist:
 {
   type: "category",
   label: "HTTP Model",
-  link: { type: "doc", id: "reference/http-model/index" },
+  link: { type: "doc", id: "reference/<module-name>/index" },
   items: [
-    "reference/http-model/request",
-    "reference/http-model/response",
-    "reference/http-model/url",
-    "reference/http-model/headers",
+    "reference/<module-name>/<type-name-1>",
+    "reference/<module-name>/<type-name-2>",
+    "reference/<module-name>/<type-name-3>",
     // ... more types
   ]
 }
@@ -334,7 +333,7 @@ Use the **`docs-integrate`** skill for the full checklist:
 Add line under "Reference Documentation" section:
 
 ```markdown
-- [HTTP Model](./reference/http-model.md) — Pure, zero-dependency HTTP data model for requests, responses, and primitives.
+- [HTTP Model](./reference/<module-name>.md) — Pure, zero-dependency HTTP data model for requests, responses, and primitives.
 ```
 
 ---
@@ -355,12 +354,12 @@ sbt check
 
 **Single flat file:**
 ```bash
-sbt "docs/mdoc --in docs/reference/http-model.md"
+sbt "docs/mdoc --in docs/reference/<module-name>.md"
 ```
 
 **Hierarchical directory:**
 ```bash
-sbt "docs/mdoc --in docs/reference/http-model/"
+sbt "docs/mdoc --in docs/reference/<module-name>/"
 ```
 
 **Success criterion:** Zero `[error]` lines in output.
@@ -434,7 +433,7 @@ Use **`docs-data-type-ref`** when:
 
 ## Tools & Skills
 
-### Required Skills
+### Required Skills (Must use these for best results)
 - **`docs-research`** (Phase 1): Find types, tests, examples, usage patterns
 - **`docs-data-type-ref`** (reference): Use structure for type-level pages
 - **`docs-integrate`** (Phase 6): Integration checklist for sidebars, docs/index.md, links
