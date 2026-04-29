@@ -28,14 +28,15 @@ final case class Response(
 ) {
   def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
-  def contentType: Option[ContentType] = header(zio.http.headers.ContentType).map(_.value)
+  def contentType: Option[ContentType] =
+    header(zio.http.headers.ContentType).map(_.value).orElse(Some(body.contentType))
 
   def addHeader(name: String, value: String): Response = copy(headers = headers.add(name, value))
   def addHeaders(other: Headers): Response             = copy(headers = headers ++ other)
   def removeHeader(name: String): Response             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Response = copy(headers = headers.set(name, value))
 
-  def body(body: Body): Response          = copy(body = body)
+  def body(body: Body): Response          = copy(body = body, headers = headers.set("content-type", body.contentType.render))
   def status(status: Status): Response    = copy(status = status)
   def version(version: Version): Response = copy(version = version)
 
@@ -56,14 +57,16 @@ object Response {
   val internalServerError: Response = Response(Status.InternalServerError)
   val serviceUnavailable: Response  = Response(Status.ServiceUnavailable)
 
-  def text(body: String): Response =
-    Response(Status.Ok, Headers.empty, Body.fromString(body))
+  def text(body: String): Response = {
+    val responseBody = Body.fromString(body)
+    Response(Status.Ok, Headers("content-type" -> responseBody.contentType.render), responseBody)
+  }
 
   def json(body: String): Response =
     Response(
       Status.Ok,
       Headers("content-type" -> "application/json"),
-      Body.fromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
+      Body.unsafeFromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
     )
 
   def redirect(location: String, isPermanent: Boolean = false): Response =

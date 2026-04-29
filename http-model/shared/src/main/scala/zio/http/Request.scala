@@ -31,7 +31,8 @@ final case class Request(
 ) {
   def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
-  def contentType: Option[ContentType] = header(zio.http.headers.ContentType).map(_.value)
+  def contentType: Option[ContentType] =
+    header(zio.http.headers.ContentType).map(_.value).orElse(Some(body.contentType))
 
   def path: Path = url.path
 
@@ -42,7 +43,7 @@ final case class Request(
   def removeHeader(name: String): Request             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Request = copy(headers = headers.set(name, value))
 
-  def body(body: Body): Request          = copy(body = body)
+  def body(body: Body): Request          = copy(body = body, headers = headers.set("content-type", body.contentType.render))
   def url(url: URL): Request             = copy(url = url)
   def method(method: Method): Request    = copy(method = method)
   def version(version: Version): Request = copy(version = version)
