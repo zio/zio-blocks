@@ -26,14 +26,14 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | 🚧 In Development |
+| **Streams** | Pull-based streaming primitives | ✅ Available |
 
 ## Core Principles
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
 - **Modular**: Each block is a separate artifact. Import only what you need.
 - **Cross-Platform**: Full support for JVM and Scala.js.
-- **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
+- **Cross-Version**: Most blocks support Scala 2.13 and Scala 3.x with source compatibility, while Scala 3-only blocks document that requirement explicitly.
 - **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
 - **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
 
@@ -83,14 +83,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.35"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.31"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon" % "0.0.31"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.31"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "0.0.31"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "0.0.35"
 ```
 
 ### Example: Optics
@@ -145,7 +145,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.35"
 ```
 
 ### Example
@@ -234,7 +234,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.35"
 ```
 
 ### Example: Basic Resource Management
@@ -343,7 +343,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.35"
 ```
 
 ### Example
@@ -427,7 +427,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.35"
 ```
 
 ### Example
@@ -470,7 +470,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.35"
 ```
 
 ### Example
@@ -522,7 +522,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.31"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.35"
 ```
 
 ### Example
@@ -573,7 +573,7 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Scala & Platform Support
 
-ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
+Most ZIO Blocks modules support **Scala 2.13** and **Scala 3.x** with source compatibility. Modules that rely on Scala 3-only foundations document that requirement explicitly.
 
 | Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
 |----------|--------|-------|-------|------|--------|---------|-------------|---------|
@@ -584,36 +584,36 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Core Schema Concepts
 
-- [Schema](docs/./reference/schema.md) - Core schema definitions and derivation
-- [Allows](docs/./reference/allows.md) - Compile-time structural grammar constraints
-- [Reflect](docs/./reference/reflect.md) - Structural reflection API
-- [Binding](docs/./reference/binding.md) - Runtime constructors and deconstructors
+- [Schema](docs/./reference/schema/schema.md) - Core schema definitions and derivation
+- [Allows](docs/./reference/schema/allows.md) - Compile-time structural grammar constraints
+- [Reflect](docs/./reference/schema/reflect.md) - Structural reflection API
+- [Binding](docs/./reference/schema/binding.md) - Runtime constructors and deconstructors
 - [BindingResolver](docs/reference/schema/binding-resolver.md) - Binding lookup and schema rebinding
-- [Registers](docs/./reference/registers.md) - Register-based primitive storage
+- [Registers](docs/./reference/schema/registers.md) - Register-based primitive storage
 
 ### Optics & Navigation
 
-- [Optics](docs/./reference/optics.md) - Lenses, prisms, and traversals
-- [SchemaExpr](docs/./reference/schema-expr.md) - Schema-aware expressions for queries and validation
+- [Optics](docs/./reference/schema/optics.md) - Lenses, prisms, and traversals
+- [SchemaExpr](docs/./reference/schema/schema-expr.md) - Schema-aware expressions for queries and validation
 - [Path Interpolator](docs/./path-interpolator.md) - Type-safe path construction
-- [DynamicValue](docs/./reference/dynamic-value.md) - Schema-less dynamic values
-- [DynamicSchema](docs/./reference/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
+- [DynamicValue](docs/./reference/schema/dynamic-value.md) - Schema-less dynamic values
+- [DynamicSchema](docs/./reference/schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
-- [Codec & Format](docs/./reference/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](docs/./reference/json.md) - JSON codec and parsing
-- [JsonPatch](docs/./reference/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](docs/./reference/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](docs/./reference/json-schema.md) - JSON Schema generation and validation
-- [Formats](docs/./reference/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
-- [Extension Syntax](docs/./reference/syntax.md) - `.toJson`, `.fromJson`, and more
+- [Codec & Format](docs/./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
+- [JSON](docs/./reference/schema/json.md) - JSON codec and parsing
+- [JsonPatch](docs/./reference/schema/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](docs/./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
+- [JSON Schema](docs/./reference/schema/json-schema.md) - JSON Schema generation and validation
+- [Formats](docs/./reference/schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [Extension Syntax](docs/./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
 
-- [Patching](docs/./reference/patch.md) - Serializable data transformations
-- [SchemaError](docs/./reference/schema-error.md) - Structured error type for schema operations
-- [Validation](docs/./reference/validation.md) - Data validation and error handling
+- [Patching](docs/./reference/schema/patch.md) - Serializable data transformations
+- [SchemaError](docs/./reference/schema/schema-error.md) - Structured error type for schema operations
+- [Validation](docs/./reference/schema/validation.md) - Data validation and error handling
 - [Schema Evolution](docs/reference/schema/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
   - [Into](docs/reference/schema/schema-evolution/into.md) - One-way conversion with validation
   - [As](docs/reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
@@ -627,8 +627,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
-- [HTTP Model](docs/./reference/http-model.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
-- [Ring Buffer](docs/./ringbuffer.md) - High-performance bounded ring buffers
+- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
+- [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
+- [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
+- [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results
+- [Reader](docs/./reference/streams/reader.md) - Low-level pull-based sources for streaming
+- [Writer](docs/./reference/streams/writer.md) - Low-level push-based sinks for streaming
 
 ### Guides
 

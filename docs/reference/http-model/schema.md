@@ -63,7 +63,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-http-model-schema" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. Requires `zio-http-model` and `zio-blocks-schema` as dependencies.
+Supported Scala versions: Scala 3.x only. Requires `zio-http-model` and `zio-blocks-schema` as dependencies.
 
 ## How They Work Together
 
@@ -567,4 +567,3 @@ Expected single character but got ''
 ### Custom Types
 
 To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, manually create a `Schema[T]` using the schema module's derivation tools or manual construction.
-
