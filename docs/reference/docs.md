@@ -88,6 +88,8 @@ val terminal = TerminalRenderer.render(doc)  // ANSI-colored terminal output
 
 ## Common Patterns
 
+The markdown module provides several patterns for working with documents and types. Here are the most common usage scenarios:
+
 ### String Interpolation with Compile-Time Validation
 
 The `md"..."` interpolator validates markdown at compile time and supports interpolation of any type with a `ToMarkdown` instance:
