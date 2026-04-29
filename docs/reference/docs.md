@@ -70,7 +70,7 @@ Inline = Text | Code | Emphasis | Strong | Link | Image | ... (leaf nodes)
 
 **Example composition:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -83,10 +83,24 @@ val doc = Doc(Chunk(
     ListItem(Chunk(Paragraph(Chunk(Text("Item 2")))), None)
   ), tight = true)
 ))
+```
 
-val markdown = Renderer.render(doc)  // String in GFM format
-val html = HtmlRenderer.render(doc)  // Complete HTML5 document
-val terminal = TerminalRenderer.render(doc)  // ANSI-colored terminal output
+Rendering to GFM markdown:
+
+```scala mdoc
+Renderer.render(doc)
+```
+
+Rendering to HTML:
+
+```scala mdoc
+HtmlRenderer.render(doc)
+```
+
+Rendering to terminal:
+
+```scala mdoc
+TerminalRenderer.render(doc)
 ```
 
 ## Common Patterns
@@ -97,13 +111,16 @@ The markdown module provides several patterns for working with documents and typ
 
 The `md"..."` interpolator validates markdown at compile time and supports interpolation of any type with a `ToMarkdown` instance:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
 val name = "Alice"
 val count = 42
-val doc = md"# Welcome $name\nYou have $count items."
+```
+
+```scala mdoc
+md"# Welcome $name\nYou have $count items."
 ```
 
 ### Task Lists (GFM Feature)
@@ -116,7 +133,8 @@ import zio.blocks.docs._
 
 val tasks = BulletList(Chunk(
   ListItem(Chunk(Paragraph(Chunk(Text("Buy groceries")))), Some(true)),
-  ListItem(Chunk(Paragraph(Chunk(Text("Write docs")))), Some(false))
+  ListItem(Chunk(Paragraph(Chunk(Text("Write docs")))), Some(false)),
+  ListItem(Chunk(Paragraph(Chunk(Text("Call Alice")))), None)  // No checkbox
 ), tight = true)
 ```
 
@@ -130,7 +148,7 @@ Renderer.render(Doc(Chunk(tasks)))
 
 Tables require a header row, alignment specification, and data rows:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -154,6 +172,12 @@ val table = Table(
     ))
   )
 )
+```
+
+Rendering the table to markdown:
+
+```scala mdoc
+Renderer.render(Doc(Chunk(table)))
 ```
 
 ### Parsing with Error Handling
@@ -202,6 +226,8 @@ implicit val userToMarkdown: ToMarkdown[User] = { user =>
 val user = User("Alice", "Engineer")
 val doc = md"# Team\n$user"
 ```
+
+[//]: # (TODO: write a few more usecase for above feature)
 
 ## Integration Points
 
@@ -297,7 +323,7 @@ val terminal = doc.toTerminal
 
 **Normalization** (`normalize`) canonicalizes structure by merging adjacent `Text` nodes and removing empty blocks:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
