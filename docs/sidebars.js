@@ -117,34 +117,33 @@ const sidebars = {
          "reference/combinators",
          "reference/docs",
          "reference/media-type",
-         {
-           type: "category",
-           label: "HTTP Model",
-           link: { type: "doc", id: "reference/http-model/index" },
-           items: [
-             "reference/http-model/model",
-             "reference/http-model/schema",
-           ]
-         },
-         "reference/openapi",
-         "reference/chunk",
-         "path-interpolator",
-         "reference/ringbuffer",
-         "reference/html",
           {
             type: "category",
-            label: "Streams",
-            link: { type: "doc", id: "reference/streams/index" },
+            label: "HTTP Model",
+            link: { type: "doc", id: "reference/http-model/index" },
             items: [
-              "reference/streams/stream",
-              "reference/streams/pipeline",
-              "reference/streams/sink",
-              "reference/streams/reader",
-              "reference/streams/writer",
-              "reference/streams/zero-boxing",
-              "reference/streams/scala-2-compatibility",
+              "reference/http-model/model",
+              "reference/http-model/schema",
             ]
           },
+          "reference/endpoint",
+          "reference/chunk",
+          "path-interpolator",
+          "reference/ringbuffer",
+         "reference/html",
+         {
+           type: "category",
+           label: "Streams",
+           link: { type: "doc", id: "reference/streams/index" },
+           items: [
+             "reference/streams/stream",
+             "reference/streams/pipeline",
+             "reference/streams/sink",
+             "reference/streams/reader",
+             "reference/streams/writer",
+             "reference/streams/zero-boxing",
+           ]
+         },
       ]
     },
     {
