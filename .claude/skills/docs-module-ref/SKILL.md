@@ -93,19 +93,20 @@ Immediately after frontmatter, state what the module provides:
 - Scala code block showing structural shape of 2-3 main types (plain `` ```scala `` without mdoc)
 
 **Example:**
-```
-`zio-http-model` is a **pure, zero-dependency HTTP data model** for building clients and servers. 
-It provides immutable types representing requests, responses, headers, URLs, paths, and HTTP primitives.
-Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`.
 
-```scala
-final case class Request(method: Method, url: URL, headers: Headers, body: Body, version: Version)
-final case class Response(status: Status, headers: Headers, body: Body, version: Version)
-final case class URL(scheme: Option[Scheme], host: Option[String], port: Option[Int], ...)
+```
+    `zio-http-model` is a **pure, zero-dependency HTTP data model** for building clients and servers. 
+    It provides immutable types representing requests, responses, headers, URLs, paths, and HTTP primitives.
+    Core types: `Request`, `Response`, `URL`, `Headers`, `Body`, `Method`, `Status`.
+    
+    ```scala
+    final case class Request(method: Method, url: URL, headers: Headers, body: Body, version: Version)
+    final case class Response(status: Status, headers: Headers, body: Body, version: Version)
+    final case class URL(scheme: Option[Scheme], host: Option[String], port: Option[Int], ...)
+    ```
 ```
 
 Then continue with `## Introduction` or `## Motivation` heading.
-```
 
 #### 2. Introduction (if hierarchical) OR Motivation (if flat)
 
@@ -124,7 +125,7 @@ Answer: What problem does it solve? Why use it over alternatives?
 Standard format (same as `docs-data-type-ref`):
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-http-model" % "<version>"
+libraryDependencies += "dev.zio" %% "<module-name>" % "@VERSION@"
 ```
 
 For Scala.js: use `%%%` instead of `%%`.
