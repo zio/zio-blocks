@@ -5,8 +5,6 @@ title: "Docs (Markdown)"
 
 ZIO Blocks Markdown is a **pure, zero-dependency GitHub Flavored Markdown library** providing an immutable ADT for markdown documents, a strict parser with error handling, multiple renderers (GFM markdown, HTML, terminal), and a compile-time validated string interpolator. Core types: `Doc`, `Block`, `Inline`, `Parser`, `Renderer`, `ToMarkdown`.
 
-Here is the core definition of the `Doc` type:
-
 ```scala
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 
@@ -20,8 +18,6 @@ final case class Text(value: String) extends Inline
 final case class Code(value: String) extends Inline
 final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
 ```
-
-Here are the main block and inline types you'll work with:
 
 ## Motivation
 
@@ -37,13 +33,11 @@ Markdown is the de facto standard for documentation, READMEs, and formatted text
 
 ## Installation
 
-Add the dependency to your `build.sbt` file:
-
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "@VERSION@"
 ```
 
-For Scala.js, use the cross-platform variant:
+For Scala.js:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-docs" % "@VERSION@"
@@ -74,7 +68,7 @@ Inline = Text | Code | Emphasis | Strong | Link | Image | ... (leaf nodes)
 4. **Render to desired format** — GFM (`Renderer.render`), HTML (`HtmlRenderer.render`), terminal (`TerminalRenderer.render`)
 5. **Use interpolator** — `md"# Title with $interpolation"` validates markdown at compile time
 
-Here is an example of composing a complete document:
+**Example composition:**
 
 ```scala
 val doc = Doc(Chunk(
@@ -208,14 +202,12 @@ A complete GitHub Flavored Markdown document.
 
 ### Construction
 
-Create an empty document:
-
+**Empty document:**
 ```scala
 val empty = Doc.empty
 ```
 
-Construct a document from blocks:
-
+**From blocks:**
 ```scala
 val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("Title"))),
@@ -223,8 +215,7 @@ val doc = Doc(Chunk(
 ))
 ```
 
-Parse markdown to construct a Doc:
-
+**By parsing:**
 ```scala
 Parser.parse("# Title\n\nContent") match {
   case Right(doc) => // use doc
@@ -234,7 +225,7 @@ Parser.parse("# Title\n\nContent") match {
 
 ### Core Operations
 
-Merge two documents together using concatenation:
+**Concatenation** (`++`) merges blocks and metadata:
 
 ```scala
 val doc1 = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Part 1")))))
@@ -242,35 +233,35 @@ val doc2 = Doc(Chunk(Paragraph(Chunk(Text("Part 2")))))
 val combined = doc1 ++ doc2
 ```
 
-Render a document back to GitHub Flavored Markdown:
+**Rendering to GFM markdown:**
 
 ```scala
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val markdown: String = doc.toString  // Calls Renderer.render internally
 ```
 
-Render a document as a complete HTML5 document with DOCTYPE:
+**Rendering to HTML (full document with DOCTYPE):**
 
 ```scala
 val html = doc.toHtml
 // Returns: <!DOCTYPE html><html><head></head><body>...</body></html>
 ```
 
-Render a document as an HTML fragment without wrapper tags:
+**Rendering to HTML fragment (content only):**
 
 ```scala
 val fragment = doc.toHtmlFragment
 // Returns: <h1>Hello</h1><p>...</p> (no DOCTYPE or wrapper tags)
 ```
 
-Render a document to ANSI-colored terminal output:
+**Rendering to colorized terminal output:**
 
 ```scala
 val terminal = doc.toTerminal
 // Returns ANSI-colored string suitable for terminal display
 ```
 
-Normalize a document by merging adjacent text nodes and removing empty blocks:
+**Normalization** (`normalize`) canonicalizes structure by merging adjacent `Text` nodes and removing empty blocks:
 
 ```scala
 val doc = Doc(Chunk(
@@ -284,7 +275,7 @@ val normalized = doc.normalize
 
 ### Equality and Hashing
 
-Two documents are equal if their **normalized forms** are equal, as shown here:
+Two documents are equal if their **normalized forms** are equal. This means:
 
 ```scala
 val doc1 = Doc(Chunk(Paragraph(Chunk(Text("Hello"), Text(" "), Text("World")))))
@@ -302,14 +293,14 @@ A block-level markdown element. Block is a sealed trait with the following concr
 
 ### Paragraph
 
-A paragraph containing inline content. Construct a paragraph with inline content:
+A paragraph containing inline content.
 
+**Construction:**
 ```scala
 Paragraph(content: Chunk[Inline])
 ```
 
-Here is an example paragraph containing mixed inline elements:
-
+**Example:**
 ```scala
 val para = Paragraph(Chunk(
   Text("Hello "),
@@ -319,14 +310,14 @@ val para = Paragraph(Chunk(
 
 ### Heading
 
-An ATX-style heading (# to ######) with a level and inline content. Construct a heading with a level and inline content:
+An ATX-style heading (# to ######) with a level and inline content.
 
+**Construction:**
 ```scala
 Heading(level: HeadingLevel, content: Chunk[Inline])
 ```
 
-Create headings at different levels:
-
+**Example:**
 ```scala
 val h1 = Heading(HeadingLevel.H1, Chunk(Text("Title")))
 val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
@@ -334,14 +325,14 @@ val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 
 ### CodeBlock
 
-A fenced code block with optional language/info string. Construct a code block with optional language specification:
+A fenced code block with optional language/info string.
 
+**Construction:**
 ```scala
 CodeBlock(info: Option[String], code: String)
 ```
 
-Create code blocks with and without language specification:
-
+**Examples:**
 ```scala
 // Scala code block
 val scalaBlock = CodeBlock(Some("scala"), "val x = 42\nprintln(x)")
@@ -352,24 +343,25 @@ val plainBlock = CodeBlock(None, "some code")
 
 ### ThematicBreak
 
-A thematic break (horizontal rule) represented as `case object ThematicBreak`. Create a thematic break:
+A thematic break (horizontal rule) represented as `case object ThematicBreak`.
 
+**Construction:**
 ```scala
 val break = ThematicBreak
 ```
 
-This renders as `---\n` (or `***` or `___`).
+**Renders as:** `---\n` (or `***` or `___`)
 
 ### BlockQuote
 
-A block quote containing nested blocks. Construct a block quote:
+A block quote containing nested blocks.
 
+**Construction:**
 ```scala
 BlockQuote(content: Chunk[Block])
 ```
 
-Here is an example block quote:
-
+**Example:**
 ```scala
 val quote = BlockQuote(Chunk(
   Paragraph(Chunk(Text("This is a famous quote.")))
@@ -378,14 +370,16 @@ val quote = BlockQuote(Chunk(
 
 ### BulletList
 
-An unordered list with bullet markers (-, *, +). Construct an unordered list:
+An unordered list with bullet markers (-, *, +).
 
+**Construction:**
 ```scala
 BulletList(items: Chunk[ListItem], tight: Boolean)
 ```
 
-The `tight` parameter controls spacing: `true` removes blank lines between items for compact rendering. Create a bullet list:
+The `tight` parameter controls spacing: `true` removes blank lines between items for compact rendering.
 
+**Example:**
 ```scala
 val list = BulletList(Chunk(
   ListItem(Chunk(Paragraph(Chunk(Text("Item 1")))), None),
@@ -395,14 +389,16 @@ val list = BulletList(Chunk(
 
 ### OrderedList
 
-An ordered list with numeric markers (1., 2., etc.). Construct an ordered list:
+An ordered list with numeric markers (1., 2., etc.).
 
+**Construction:**
 ```scala
 OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean)
 ```
 
-The `start` parameter specifies the starting number (typically 1). Create an ordered list:
+The `start` parameter specifies the starting number (typically 1).
 
+**Example:**
 ```scala
 val list = OrderedList(
   start = 1,
@@ -416,14 +412,16 @@ val list = OrderedList(
 
 ### ListItem
 
-A list item, optionally a task list item. Construct a list item:
+A list item, optionally a task list item.
 
+**Construction:**
 ```scala
 ListItem(content: Chunk[Block], checked: Option[Boolean])
 ```
 
-The `checked` parameter: `Some(true)` renders as `[x]`, `Some(false)` renders as `[ ]`, `None` for regular list items. Create different types of list items:
+The `checked` parameter: `Some(true)` renders as `[x]`, `Some(false)` renders as `[ ]`, `None` for regular list items.
 
+**Examples:**
 ```scala
 // Regular list item
 val item = ListItem(Chunk(Paragraph(Chunk(Text("Task")))), None)
@@ -437,28 +435,28 @@ val incomplete = ListItem(Chunk(Paragraph(Chunk(Text("TODO")))), Some(false))
 
 ### HtmlBlock
 
-Raw HTML block content. Construct an HTML block:
+Raw HTML block content.
 
+**Construction:**
 ```scala
 HtmlBlock(content: String)
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 ```
 
 ### Table
 
-A GitHub Flavored Markdown table with aligned columns. Construct a table:
+A GitHub Flavored Markdown table with aligned columns.
 
+**Construction:**
 ```scala
 Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow])
 ```
 
-Here is an example table:
-
+**Example:**
 ```scala
 val table = Table(
   header = TableRow(Chunk(Chunk(Text("Name")), Chunk(Text("Age")))),
@@ -478,48 +476,48 @@ An inline-level markdown element. Inline is a sealed trait with concrete subtype
 
 ### Text
 
-Plain text content. Construct plain text:
+Plain text content.
 
+**Construction:**
 ```scala
 Text(value: String)
 // or
 Inline.Text(value: String)
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val text = Text("Hello world")
 ```
 
 ### Code
 
-Inline code span (backtick-delimited). Construct inline code:
+Inline code span (backtick-delimited).
 
+**Construction:**
 ```scala
 Code(value: String)
 // or
 Inline.Code(value: String)
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val code = Code("val x = 42")
 ```
 
 ### Emphasis
 
-Emphasized (italic) text. Construct emphasized text:
+Emphasized (italic) text.
 
+**Construction:**
 ```scala
 Emphasis(content: Chunk[Inline])
 // or
 Inline.Emphasis(content: Chunk[Inline])
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val emphasis = Emphasis(Chunk(Text("italic")))
 // Renders as: *italic*
@@ -527,16 +525,16 @@ val emphasis = Emphasis(Chunk(Text("italic")))
 
 ### Strong
 
-Strong (bold) text. Construct strong text:
+Strong (bold) text.
 
+**Construction:**
 ```scala
 Strong(content: Chunk[Inline])
 // or
 Inline.Strong(content: Chunk[Inline])
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val strong = Strong(Chunk(Text("bold")))
 // Renders as: **bold**
@@ -544,16 +542,16 @@ val strong = Strong(Chunk(Text("bold")))
 
 ### Strikethrough
 
-Strikethrough text (GFM feature). Construct strikethrough text:
+Strikethrough text (GFM feature).
 
+**Construction:**
 ```scala
 Strikethrough(content: Chunk[Inline])
 // or
 Inline.Strikethrough(content: Chunk[Inline])
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val struck = Strikethrough(Chunk(Text("deprecated")))
 // Renders as: ~~deprecated~~
@@ -561,16 +559,18 @@ val struck = Strikethrough(Chunk(Text("deprecated")))
 
 ### Link
 
-A hyperlink. Construct a link:
+A hyperlink.
 
+**Construction:**
 ```scala
 Link(text: Chunk[Inline], url: String, title: Option[String])
 // or
 Inline.Link(text: Chunk[Inline], url: String, title: Option[String])
 ```
 
-The `title` parameter is optional link title text. Create links with and without titles:
+The `title` parameter is optional link title text.
 
+**Examples:**
 ```scala
 // Simple link
 val link = Link(Chunk(Text("Click here")), "https://example.com", None)
@@ -581,16 +581,16 @@ val titled = Link(Chunk(Text("Docs")), "/docs", Some("Documentation"))
 
 ### Image
 
-An image reference. Construct an image:
+An image reference.
 
+**Construction:**
 ```scala
 Image(alt: String, url: String, title: Option[String])
 // or
 Inline.Image(alt: String, url: String, title: Option[String])
 ```
 
-Here are examples:
-
+**Examples:**
 ```scala
 val img = Image(alt = "Logo", url = "/logo.png", None)
 val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
@@ -598,56 +598,58 @@ val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
 
 ### HtmlInline
 
-Raw HTML inline content. Construct HTML inline content:
+Raw HTML inline content.
 
+**Construction:**
 ```scala
 HtmlInline(content: String)
 // or
 Inline.HtmlInline(content: String)
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val html = HtmlInline("<span class='highlight'>custom</span>")
 ```
 
 ### SoftBreak
 
-A soft line break (single newline, rendered as space or newline depending on context). Create a soft break:
+A soft line break (single newline, rendered as space or newline depending on context).
 
+**Construction:**
 ```scala
 SoftBreak
 // or
 Inline.SoftBreak
 ```
 
-This renders as `\n` (a single newline in output).
+**Renders as:** `\n` (a single newline in output)
 
 ### HardBreak
 
-A hard line break (two spaces or backslash before newline). Create a hard break:
+A hard line break (two spaces or backslash before newline).
 
+**Construction:**
 ```scala
 HardBreak
 // or
 Inline.HardBreak
 ```
 
-This renders as `  \n` (two spaces followed by newline).
+**Renders as:** `  \n` (two spaces followed by newline)
 
 ### Autolink
 
-An autolink (URL or email in angle brackets). Construct an autolink:
+An autolink (URL or email in angle brackets).
 
+**Construction:**
 ```scala
 Autolink(url: String, isEmail: Boolean)
 // or
 Inline.Autolink(url: String, isEmail: Boolean)
 ```
 
-Here are examples:
-
+**Examples:**
 ```scala
 val urlLink = Autolink("https://example.com", isEmail = false)
 val emailLink = Autolink("user@example.com", isEmail = true)
@@ -662,8 +664,6 @@ Heading levels from H1 to H6, with convenience constructors.
 
 ### Predefined Levels
 
-Use the predefined heading level constants:
-
 ```scala
 HeadingLevel.H1  // value = 1
 HeadingLevel.H2  // value = 2
@@ -675,23 +675,19 @@ HeadingLevel.H6  // value = 6
 
 ### Safe Construction
 
-Construct a heading level from an integer, which returns `Option`:
-
+**From integer (returns `Option`):**
 ```scala
 HeadingLevel.fromInt(2) == Some(HeadingLevel.H2)
 HeadingLevel.fromInt(7) == None  // Out of range
 ```
 
-Construct a heading level unsafely (throws on invalid input):
-
+**Unsafe construction (throws on invalid input):**
 ```scala
 HeadingLevel.unsafeFromInt(3)  // HeadingLevel.H3
 HeadingLevel.unsafeFromInt(7)  // Throws IllegalArgumentException
 ```
 
 ### Accessing Value
-
-Access the numeric value of a heading level:
 
 ```scala
 HeadingLevel.H1.value == 1
@@ -705,8 +701,6 @@ Table column alignment specification.
 
 ### Predefined Alignments
 
-Use the predefined alignment constants:
-
 ```scala
 Alignment.Left    // Renders as :---
 Alignment.Right   // Renders as ---:
@@ -715,8 +709,6 @@ Alignment.None    // Renders as ---
 ```
 
 ### Use in Tables
-
-Specify alignments when creating a table:
 
 ```scala
 val alignments = Chunk(Alignment.Left, Alignment.Center, Alignment.Right)
@@ -727,14 +719,16 @@ val table = Table(header, alignments, rows)
 
 ## TableRow
 
-A single row in a table, containing cells as inline content. Construct a table row:
+A single row in a table, containing cells as inline content.
 
+**Construction:**
 ```scala
 TableRow(cells: Chunk[Chunk[Inline]])
 ```
 
-Each cell is a `Chunk[Inline]`, allowing formatted content (text, links, emphasis, etc.). Here is an example table row:
+Each cell is a `Chunk[Inline]`, allowing formatted content (text, links, emphasis, etc.).
 
+**Example:**
 ```scala
 val row = TableRow(Chunk(
   Chunk(Text("Alice")),
@@ -751,14 +745,14 @@ Strict GitHub Flavored Markdown parser with position-aware error reporting.
 
 ### Parsing
 
-The main entry point for parsing markdown is:
-
+**Main entry point:**
 ```scala
 Parser.parse(input: String): Either[ParseError, Doc]
 ```
 
-Returns `Right(doc)` on success or `Left(error)` on parse failure. Parse markdown and handle the result:
+Returns `Right(doc)` on success or `Left(error)` on parse failure.
 
+**Example:**
 ```scala
 val result = Parser.parse("# Hello\n\nWorld")
 result match {
@@ -794,8 +788,9 @@ result match {
 
 ## ParseError
 
-Error information from parsing, with precise location data. Construct a parse error:
+Error information from parsing, with precise location data.
 
+**Construction:**
 ```scala
 ParseError(
   message: String,    // Human-readable error description
@@ -805,14 +800,12 @@ ParseError(
 )
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 ParseError("Unexpected token", line = 5, column = 12, input = "[invalid markdown]")
 ```
 
-Get the string representation of a parse error:
-
+**String representation:**
 ```scala
 err.toString
 // ParseError at line 5, column 12: Unexpected token
@@ -827,26 +820,28 @@ Renders markdown documents back to GitHub Flavored Markdown string format.
 
 ### Rendering
 
-Render an entire document to GFM markdown:
-
+**Render entire document:**
 ```scala
 Renderer.render(doc: Doc): String
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("Title"))),
   Paragraph(Chunk(Text("Content")))
 ))
 val markdown = Renderer.render(doc)
+// "# Title\n\nContent\n\n"
 ```
 
-Render individual blocks and inlines:
-
+**Render blocks:**
 ```scala
 Renderer.renderBlock(block: Block): String
+```
+
+**Render inlines:**
+```scala
 Renderer.renderInlines(inlines: Chunk[Inline]): String
 Renderer.renderInline(inline: Inline): String
 ```
@@ -857,8 +852,7 @@ The renderer does not normalize; use `doc.normalize` before rendering if normali
 
 ### Round-Trip Semantics
 
-Verify that rendered output can be re-parsed:
-
+Rendered output can be re-parsed:
 ```scala
 val original = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val markdown = Renderer.render(original)
@@ -874,14 +868,12 @@ Renders markdown documents to HTML5.
 
 ### Full Document Rendering
 
-Render a complete HTML5 document with DOCTYPE, html, head, body tags:
-
+**Render with DOCTYPE, html, head, body tags:**
 ```scala
 HtmlRenderer.render(doc: Doc): String
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val html = HtmlRenderer.render(doc)
@@ -890,14 +882,12 @@ val html = HtmlRenderer.render(doc)
 
 ### Fragment Rendering
 
-Render only the content without wrapper tags:
-
+**Render content only (no wrapper tags):**
 ```scala
 HtmlRenderer.renderFragment(doc: Doc): String
 ```
 
-Here is an example:
-
+**Example:**
 ```scala
 val fragment = HtmlRenderer.renderFragment(doc)
 // <h1>Title</h1>
@@ -931,12 +921,12 @@ Renders markdown to ANSI-colored terminal output optimized for console display.
 
 ### Rendering
 
-Render a document as ANSI-colored terminal output:
+**Render to terminal string:**
 ```scala
 TerminalRenderer.render(doc: Doc): String
 ```
 
-Here is an example:
+**Example:**
 ```scala
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val terminal = TerminalRenderer.render(doc)
@@ -970,8 +960,6 @@ Type class for converting Scala values to markdown inline elements, enabling int
 
 ### Definition
 
-The `ToMarkdown` type class is defined as:
-
 ```scala
 trait ToMarkdown[-A] {
   def toMarkdown(a: A): Inline
@@ -981,8 +969,6 @@ trait ToMarkdown[-A] {
 The type parameter is contravariant (`-A`), allowing supertype instances to be used for subtypes.
 
 ### Summon an Instance
-Summon a ToMarkdown instance using implicit resolution:
-
 
 ```scala
 ToMarkdown[String]  // Implicitly summons the ToMarkdown[String] instance
@@ -990,7 +976,7 @@ ToMarkdown[String]  // Implicitly summons the ToMarkdown[String] instance
 
 ### Built-In Instances
 
-See the built-in instances for primitive types:
+**Primitive types → plain text:**
 ```scala
 ToMarkdown[String]    // a: String => Text(a)
 ToMarkdown[Int]       // a: Int => Text(a.toString)
@@ -999,12 +985,12 @@ ToMarkdown[Double]    // a: Double => Text(a.toString)
 ToMarkdown[Boolean]   // a: Boolean => Text(a.toString)
 ```
 
-Inline values pass through unchanged:
+**Inline pass-through:**
 ```scala
 ToMarkdown[Inline]    // a: Inline => a (identity)
 ```
 
-Collections render as comma-separated text:
+**Collections → comma-separated text:**
 ```scala
 ToMarkdown[List[A]]    // as: List[A] => Text(as.map(...).mkString(", "))
 ToMarkdown[Chunk[A]]   // as: Chunk[A] => Text(as.map(...).mkString(", "))
@@ -1014,7 +1000,7 @@ ToMarkdown[Seq[A]]     // as: Seq[A] => Text(as.map(...).mkString(", "))
 
 For collection instances, each element is converted using its `ToMarkdown[A]` instance, then joined with ", ".
 
-Blocks render as their markdown representation:
+**Block → rendered markdown text:**
 ```scala
 ToMarkdown[Block]     // b: Block => Text(Renderer.render(Doc(Chunk(b))).trim)
 ```
