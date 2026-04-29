@@ -214,7 +214,7 @@ How types relate architecturally and integrate with other ZIO Blocks modules:
    - **Key Operations**: 2-3 main methods per functionality group
    - **Rendering** (if applicable): How to convert to string/wire format
 
-**Coverage:** Use `docs-data-type-ref` structure as reference, but lighter:
+**Coverage:** Load and call Skill(`docs-data-type-ref`) for structure as a reference, but lighter:
 - Document every public method, but group concisely
 - Show 1 example per operation group, not exhaustive edge cases
 - Performance notes inline where relevant (O(1), O(n), etc.)
