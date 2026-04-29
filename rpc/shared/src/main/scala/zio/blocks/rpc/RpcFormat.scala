@@ -23,7 +23,7 @@ package zio.blocks.rpc
  * {{{
  * // Example usage:
  * object JsonRpcFormat extends RpcFormat {
- *   type Protocol[T] = JsonRpcCodec[T]
+ *   type Protocol[T] = JsonRpcProtocol[T]
  *   def deriver: RpcDeriver[Protocol] = JsonRpcDeriver
  * }
  * }}}

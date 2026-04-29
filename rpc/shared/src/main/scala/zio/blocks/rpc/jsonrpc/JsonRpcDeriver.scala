@@ -17,27 +17,31 @@
 package zio.blocks.rpc.jsonrpc
 
 import zio.blocks.rpc._
-import zio.blocks.schema.json.Json
 
 /**
- * RpcDeriver that produces JsonRpcCodec instances from RPC descriptors.
+ * RpcDeriver that produces transport-neutral JSON-RPC contracts from RPC
+ * descriptors.
  */
-object JsonRpcDeriver extends RpcDeriver[JsonRpcCodec] {
+object JsonRpcDeriver extends RpcDeriver[JsonRpcProtocol] {
 
-  override def deriveService[T](rpc: RPC[T]): JsonRpcCodec[T] = {
-    val handlers = rpc.operations.foldLeft(Map.empty[String, JsonRpcCodec.OperationHandler]) { (acc, op) =>
-      acc + (op.name -> createHandler(op))
-    }
-    new JsonRpcCodec[T](handlers)
-  }
-
-  private def createHandler(op: RPC.Operation[?, ?]): JsonRpcCodec.OperationHandler =
-    new JsonRpcCodec.OperationHandler {
-      def handle(params: Json): Either[Throwable, Json] =
-        Left(
-          new UnsupportedOperationException(
-            s"Operation '${op.name}' handler not bound to a service implementation"
-          )
+  override def deriveService[T](rpc: RPC[T]): JsonRpcProtocol[T] =
+    JsonRpcProtocol[T](
+      serviceName = rpc.label,
+      serviceTypeId = rpc.typeId,
+      operations = rpc.operations.map { op =>
+        JsonRpcProtocol.Operation(
+          name = op.name,
+          inputSchema = op.inputSchema,
+          inputCodec = JsonRpcCodecs.derive(op.inputSchema),
+          outputSchema = op.outputSchema,
+          outputCodec = JsonRpcCodecs.derive(op.outputSchema),
+          errorSchema = op.errorSchema,
+          errorCodec = op.errorSchema.map(JsonRpcCodecs.derive),
+          parameterNames = op.parameterNames,
+          annotations = op.annotations,
+          parameterAnnotations = op.parameterAnnotations
         )
-    }
+      },
+      metadata = rpc.metadata
+    )
 }
