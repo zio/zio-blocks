@@ -80,12 +80,12 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("script element matches DSL") {
         val fromHtml = html"<script>alert('hi')</script>"
-        val fromDsl  = script("alert('hi')")
+        val fromDsl  = script(Js("alert('hi')"))
         assertTrue(fromHtml == fromDsl)
       },
       test("style element matches DSL") {
         val fromHtml = html"<style>body{color:red}</style>"
-        val fromDsl  = style("body{color:red}")
+        val fromDsl  = style(Css.Raw("body{color:red}"))
         assertTrue(fromHtml == fromDsl)
       },
       test("script with src attribute matches DSL") {
@@ -125,11 +125,12 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("script does not parse inner HTML") {
         val fromHtml = html"<script>if (a < b) { alert('<b>hi</b>') }</script>"
-        val fromDsl  = script("if (a < b) { alert('<b>hi</b>') }")
+        val fromDsl  = script(Js("if (a < b) { alert('<b>hi</b>') }"))
         assertTrue(fromHtml == fromDsl)
       },
-      test("multiple top-level elements throw error") {
-        val result = scala.util.Try(html"<p>one</p><p>two</p>")
+      test("dynamic multiple top-level elements throw error") {
+        val second = "two"
+        val result = scala.util.Try(html"<p>one</p><p>${second}</p>")
         assertTrue(
           result.isFailure,
           result.failed.get.isInstanceOf[IllegalArgumentException],

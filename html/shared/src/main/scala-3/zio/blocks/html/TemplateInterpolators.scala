@@ -131,7 +131,11 @@ private[html] object TemplateMacros {
     }
 
     if (argExprs.isEmpty)
-      return '{ InterpolatorRuntime.buildHtml($sc, Seq.empty) }
+      sc match {
+        case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } =>
+          validateStaticHtml(partLiterals.mkString)
+        case _ => ()
+      }
 
     val parts: Seq[String] = sc match {
       case '{ StringContext(${ Varargs(Exprs(partLiterals)) }*) } => partLiterals.toSeq
@@ -177,6 +181,17 @@ private[html] object TemplateMacros {
 
     val processedArgsExpr: Expr[Seq[Either[String, Chunk[Dom]]]] = Expr.ofSeq(processedArgs)
     '{ InterpolatorRuntime.buildHtml($sc, $processedArgsExpr) }
+  }
+
+  private def validateStaticHtml(input: String)(using Quotes): Unit = {
+    import quotes.reflect.report
+    val parsed = InterpolatorRuntime.parseHtml(input)
+    if (parsed.length != 1) {
+      report.errorAndAbort(
+        "html interpolator requires exactly one root node for static templates. " +
+          s"Found ${parsed.length} top-level nodes. Wrap them in a parent element."
+      )
+    }
   }
 
   def selectorImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[CssSelector] = {
