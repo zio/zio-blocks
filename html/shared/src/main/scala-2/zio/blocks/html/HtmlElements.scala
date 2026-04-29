@@ -17,43 +17,54 @@
 package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
+
+import scala.language.implicitConversions
+
 trait HtmlElements {
 
   // --- Element constructors ---
 
-  private def collectEffects(
-    effect: DomModifier,
-    attrBuilder: zio.blocks.chunk.ChunkBuilder[Dom.Attribute],
-    childBuilder: zio.blocks.chunk.ChunkBuilder[Dom]
-  ): Unit = effect match {
-    case DomModifier.AddAttr(a)       => attrBuilder += a
-    case DomModifier.AddChild(c)      => childBuilder += c
-    case DomModifier.AddChildren(cs)  => childBuilder ++= cs
-    case DomModifier.AddEffects(effs) =>
-      var i = 0
-      while (i < effs.length) {
-        collectEffects(effs(i), attrBuilder, childBuilder)
-        i += 1
-      }
+  sealed trait ScriptArg
+  object ScriptArg {
+    final case class Attribute(value: Dom.Attribute) extends ScriptArg
+    final case class Source(value: Js)                extends ScriptArg
+
+    implicit def fromAttribute(attribute: Dom.Attribute): ScriptArg = Attribute(attribute)
+    implicit def fromJs(js: Js): ScriptArg                         = Source(js)
   }
 
-  private def elScript(effects: Seq[DomModifier]): Dom.Element.Script = {
+  sealed trait StyleArg
+  object StyleArg {
+    final case class Attribute(value: Dom.Attribute) extends StyleArg
+    final case class Source(value: Css)              extends StyleArg
+
+    implicit def fromAttribute(attribute: Dom.Attribute): StyleArg = Attribute(attribute)
+    implicit def fromCss(css: Css): StyleArg                      = Source(css)
+  }
+
+  private def elScript(effects: Seq[ScriptArg]): Dom.Element.Script = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
     var i            = 0
     while (i < effects.length) {
-      collectEffects(effects(i), attrBuilder, childBuilder)
+      effects(i) match {
+        case ScriptArg.Attribute(attr) => attrBuilder += attr
+        case ScriptArg.Source(js)      => childBuilder += Dom.Text(js.value)
+      }
       i += 1
     }
     Dom.Element.Script(attrBuilder.result(), childBuilder.result())
   }
 
-  private def elStyle(effects: Seq[DomModifier]): Dom.Element.Style = {
+  private def elStyle(effects: Seq[StyleArg]): Dom.Element.Style = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
     var i            = 0
     while (i < effects.length) {
-      collectEffects(effects(i), attrBuilder, childBuilder)
+      effects(i) match {
+        case StyleArg.Attribute(attr) => attrBuilder += attr
+        case StyleArg.Source(css)     => childBuilder += Dom.Text(css.render)
+      }
       i += 1
     }
     Dom.Element.Style(attrBuilder.result(), childBuilder.result())
@@ -147,8 +158,8 @@ trait HtmlElements {
   val ruby: Dom.Element                                                      = Dom.Element.Generic("ruby", Chunk.empty, Chunk.empty)
   val s: Dom.Element                                                         = Dom.Element.Generic("s", Chunk.empty, Chunk.empty)
   val samp: Dom.Element                                                      = Dom.Element.Generic("samp", Chunk.empty, Chunk.empty)
-  def script(): Dom.Element.Script                                           = elScript(Seq.empty)
-  def script(effect: DomModifier, effects: DomModifier*): Dom.Element.Script = elScript(effect +: effects)
+  def script(): Dom.Element.Script                                             = elScript(Seq.empty)
+  def script(effect: ScriptArg, effects: ScriptArg*): Dom.Element.Script       = elScript(effect +: effects)
   val search: Dom.Element                                                    = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
   val section: Dom.Element                                                   = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
   val select: Dom.Element                                                    = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
@@ -156,8 +167,8 @@ trait HtmlElements {
   val small: Dom.Element                                                     = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
   val source: Dom.Element                                                    = Dom.Element.Generic("source", Chunk.empty, Chunk.empty)
   val strong: Dom.Element                                                    = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
-  def style(): Dom.Element.Style                                             = elStyle(Seq.empty)
-  def style(effect: DomModifier, effects: DomModifier*): Dom.Element.Style   = elStyle(effect +: effects)
+  def style(): Dom.Element.Style                                               = elStyle(Seq.empty)
+  def style(effect: StyleArg, effects: StyleArg*): Dom.Element.Style           = elStyle(effect +: effects)
   val sub: Dom.Element                                                       = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
   val summary: Dom.Element                                                   = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
   val sup: Dom.Element                                                       = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)

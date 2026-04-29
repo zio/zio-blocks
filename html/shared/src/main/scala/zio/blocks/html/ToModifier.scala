@@ -98,6 +98,14 @@ object ToModifier {
     def toModifier(a: Char): DomModifier = DomModifier.AddChild(Dom.Text(a.toString))
   }
 
+  implicit val jsToModifier: ToModifier[Js] = new ToModifier[Js] {
+    def toModifier(a: Js): DomModifier = DomModifier.AddChild(Dom.Text(a.value))
+  }
+
+  implicit val cssToModifier: ToModifier[Css] = new ToModifier[Css] {
+    def toModifier(a: Css): DomModifier = DomModifier.AddChild(Dom.Text(a.render))
+  }
+
   implicit val byteToModifier: ToModifier[Byte] = new ToModifier[Byte] {
     def toModifier(a: Byte): DomModifier = DomModifier.AddChild(Dom.Text(a.toString))
   }

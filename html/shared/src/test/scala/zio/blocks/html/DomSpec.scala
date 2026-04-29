@@ -152,8 +152,8 @@ object DomSpec extends ZIOSpecDefault {
         val s = Dom.Element.Script(Chunk.empty, Chunk(Dom.Text("var x = 1 < 2;")))
         assertTrue(s.render == "<script>var x = 1 < 2;</script>")
       },
-      test("inlineJs convenience method with String") {
-        val s = Dom.Element.Script(Chunk.empty, Chunk.empty).inlineJs("alert('hello')")
+      test("inlineJs convenience method with Js") {
+        val s = Dom.Element.Script(Chunk.empty, Chunk.empty).inlineJs(Js("alert('hello')"))
         assertTrue(s.render == "<script>alert('hello')</script>")
       },
       test("inlineJs convenience method with Js") {
@@ -178,8 +178,8 @@ object DomSpec extends ZIOSpecDefault {
         val s = Dom.Element.Style(Chunk.empty, Chunk(Dom.Text("div > p { color: red; }")))
         assertTrue(s.render == "<style>div > p { color: red; }</style>")
       },
-      test("inlineCss convenience method with String") {
-        val s = Dom.Element.Style(Chunk.empty, Chunk.empty).inlineCss("body { margin: 0; }")
+      test("inlineCss convenience method with Css") {
+        val s = Dom.Element.Style(Chunk.empty, Chunk.empty).inlineCss(Css.Raw("body { margin: 0; }"))
         assertTrue(s.render == "<style>body { margin: 0; }</style>")
       },
       test("inlineCss convenience method with Css") {
