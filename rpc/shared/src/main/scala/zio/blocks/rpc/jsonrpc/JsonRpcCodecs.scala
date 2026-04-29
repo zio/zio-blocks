@@ -16,12 +16,10 @@
 
 package zio.blocks.rpc.jsonrpc
 
-import zio.blocks.rpc._
+import zio.blocks.schema.Schema
+import zio.blocks.schema.json.{JsonCodec, JsonFormat}
 
-/**
- * RpcFormat for JSON-RPC 2.0 protocol.
- */
-object JsonRpcFormat extends RpcFormat {
-  type Protocol[T] = JsonRpcProtocol[T]
-  def deriver: RpcDeriver[JsonRpcProtocol] = JsonRpcDeriver
+private[jsonrpc] object JsonRpcCodecs {
+  def derive(schema: Schema[?]): JsonCodec[?] =
+    schema.asInstanceOf[Schema[Any]].derive(JsonFormat).asInstanceOf[JsonCodec[?]]
 }
