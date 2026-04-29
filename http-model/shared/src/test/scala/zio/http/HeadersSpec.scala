@@ -345,6 +345,18 @@ object HeadersSpec extends HttpModelBaseSpec {
         builder.add("Content-Type", "text/html")
         val h = builder.build()
         assertTrue(h.rawGet("content-type") == Some("text/html"))
+      },
+      test("rejects invalid header names") {
+        assertTrue(
+          scala.util.Try(Headers("bad header" -> "value")).isFailure,
+          scala.util.Try(Headers.empty.add("bad\r\nname", "value")).isFailure
+        )
+      },
+      test("rejects CRLF in header values") {
+        assertTrue(
+          scala.util.Try(Headers("x-test" -> "ok\r\nInjected: yes")).isFailure,
+          scala.util.Try(Headers.empty.set("x-test", "ok\nInjected: yes")).isFailure
+        )
       }
     ),
     suite("HeadersBuilder capacity growth")(
