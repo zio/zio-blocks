@@ -36,14 +36,14 @@ final case class RPC[T](
 ) {
 
   /**
-   * Derives a protocol-specific implementation from this RPC descriptor.
+   * Derives a protocol-specific artifact from this RPC descriptor.
    *
    * @tparam P
    *   The protocol type constructor
    * @param deriver
    *   The protocol-specific deriver
    * @return
-   *   A protocol-specific implementation for this service
+   *   A protocol-specific artifact for this service descriptor
    */
   def derive[P[_]](deriver: RpcDeriver[P]): P[T] = deriver.deriveService(this)
 }
