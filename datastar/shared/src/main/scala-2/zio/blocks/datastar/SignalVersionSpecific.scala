@@ -35,7 +35,7 @@ private[datastar] object SignalMacros {
           c.abort(c.enclosingPosition, Signal.invalidNameMessage(signalName))
         }
         c.Expr[Signal[A]](q"_root_.zio.blocks.datastar.Signal.unsafeApply[$aTpe]($signalName)")
-      case _                                   =>
+      case _ =>
         c.Expr[Signal[A]](q"_root_.zio.blocks.datastar.Signal.checkedApply[$aTpe]($name)")
     }
   }

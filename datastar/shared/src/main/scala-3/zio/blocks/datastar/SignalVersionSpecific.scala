@@ -31,7 +31,7 @@ private[datastar] object SignalMacros {
           quotes.reflect.report.errorAndAbort(Signal.invalidNameMessage(signalName))
         }
         '{ Signal.unsafeApply[A](${ Expr(signalName) }) }
-      case None             =>
+      case None =>
         '{ Signal.checkedApply[A]($name) }
     }
 }
