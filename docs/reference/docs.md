@@ -34,12 +34,13 @@ Markdown is the de facto standard for documentation, READMEs, and formatted text
 ## Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-markdown" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "@VERSION@"
 ```
 
 For Scala.js:
+
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-markdown" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-docs" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x
