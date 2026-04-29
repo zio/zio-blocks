@@ -129,6 +129,26 @@ object TransactorSpec extends ZIOSpecDefault {
         )
       }
     },
+    test("record decoding uses column labels instead of select order") {
+      transactor.connect {
+        SqlOps.update(
+          Frag.literal(
+            "CREATE TABLE IF NOT EXISTS users_by_label (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
+          )
+        )
+        SqlOps.update(
+          sql"INSERT INTO users_by_label (id, name, email) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("Alice")}, ${DbValue.DbString("alice@example.com")})"
+        )
+        val users = SqlOps.query[User](
+          Frag.literal(
+            "SELECT email AS email, id AS id, name AS name FROM users_by_label"
+          )
+        )
+        assertTrue(
+          users == List(User(1, "Alice", "alice@example.com"))
+        )
+      }
+    },
     test("queryOne returns first result") {
       transactor.connect {
         SqlOps.update(

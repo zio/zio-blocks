@@ -65,11 +65,11 @@ class Repo[E, ID](
     SqlOps.update(frag)(using con)
   }
 
-  // Inserts the entity and returns it by re-reading from the database using its ID.
-  // Note: for auto-generated IDs, use RETURNING clause or getGeneratedKeys instead.
   def insertReturning(entity: E)(using con: DbCon): E = {
-    insert(entity)
-    findById(getId(entity)).getOrElse(
+    val frag   = Repo.buildInsertFrag(tbl, allCols, codec.toDbValues(entity))
+    val keys   = SqlOps.updateReturningKeys[ID](frag)(using con, idCodec)
+    val result = keys.headOption.flatMap(findById(_)).orElse(findById(getId(entity)))
+    result.getOrElse(
       throw new NoSuchElementException(s"Entity not found after insert in table $tbl")
     )
   }
@@ -141,7 +141,7 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(Table.deriveTableName(schema), codec), idColumn, idCodec, getId)
+    new Repo(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
   }
 
   def derived[E, ID](
@@ -150,7 +150,7 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(tableName, codec), idColumn, idCodec, getId)
+    new Repo(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
   }
 
   def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] = {
@@ -172,7 +172,7 @@ object Repo {
         val idColumn       = SqlNameMapper.SnakeCase(field.name)
         val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
         val codec          = schema.deriving(DbCodecDeriver).derive
-        new Repo(Table(Table.deriveTableName(schema), codec), idColumn, idCodec, getId)
+        new Repo(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
 
       case empty if empty.isEmpty =>
         throw new IllegalArgumentException(

@@ -51,8 +51,9 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
 
   private val intCodec: DbCodec[Int] = summon[DbCodec[Int]]
 
-  private val userRepo = Repo(userTable, "id", intCodec, (_: User).id)
-  private val taskRepo = Repo(taskTable, "id", intCodec, (_: Task).id)
+  private val userRepo     = Repo(userTable, "id", intCodec, (_: User).id)
+  private val taskRepo     = Repo(taskTable, "id", intCodec, (_: Task).id)
+  private val autoUserRepo = Repo(userTable, "id", intCodec, (_: User).id)
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -110,6 +111,29 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
     }
     testLogger.clear()
     f(tx, testLogger)
+  }
+
+  private def withAutoIncrementDb[A](f: JdbcTransactor => A): A = {
+    val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
+    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+      override def connect[B](f: DbCon ?=> B): B = {
+        val dbConn       = new JdbcConnection(conn)
+        given con: DbCon = new DbCon {
+          val connection: DbConnection = dbConn
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        f
+      }
+    }
+    tx.connect {
+      SqlOps.update(
+        Frag.literal(
+          "CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL)"
+        )
+      )
+    }
+    f(tx)
   }
 
   private class CapturingLogger extends SqlLogger {
@@ -363,6 +387,52 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
             assertTrue(
               found.isDefined,
               found.get.name == "Bob"
+            )
+          }
+        }
+      },
+      test("getGeneratedKeys returns auto-generated IDs") {
+        withAutoIncrementDb { tx =>
+          tx.connect {
+            val insertFrag = Frag.literal("INSERT INTO user (name, email) VALUES ('Alice', 'alice@test.com')")
+            val keys       = SqlOps.updateReturningKeys[Int](insertFrag)
+            assertTrue(
+              keys == List(1)
+            )
+          }
+        }
+      },
+      test("getGeneratedKeys increments correctly") {
+        withAutoIncrementDb { tx =>
+          tx.connect {
+            val k1 =
+              SqlOps.updateReturningKeys[Int](
+                Frag.literal("INSERT INTO user (name, email) VALUES ('Alice', 'a@test.com')")
+              )
+            val k2 =
+              SqlOps.updateReturningKeys[Int](
+                Frag.literal("INSERT INTO user (name, email) VALUES ('Bob', 'b@test.com')")
+              )
+            val k3 =
+              SqlOps.updateReturningKeys[Int](
+                Frag.literal("INSERT INTO user (name, email) VALUES ('Charlie', 'c@test.com')")
+              )
+            assertTrue(
+              k1 == List(1),
+              k2 == List(2),
+              k3 == List(3)
+            )
+          }
+        }
+      },
+      test("insertReturning uses getGeneratedKeys for the lookup") {
+        withFreshDb { tx =>
+          tx.connect {
+            val returned = userRepo.insertReturning(User(42, "Alice", "alice@test.com"))
+            assertTrue(
+              returned.id == 42,
+              returned.name == "Alice",
+              returned.email == "alice@test.com"
             )
           }
         }

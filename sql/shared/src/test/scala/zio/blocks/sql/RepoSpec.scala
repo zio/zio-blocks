@@ -83,8 +83,10 @@ object RepoSpec extends ZIOSpecDefault {
         }
         val table                 = Table.derived[Item]
         val idCodec: DbCodec[Int] = new DbCodec[Int] {
-          val columns: IndexedSeq[String]                                          = IndexedSeq("value")
-          def readValue(reader: DbResultReader, startIndex: Int): Int              = reader.getInt(startIndex)
+          val columns: IndexedSeq[String]                                              = IndexedSeq("value")
+          def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Int =
+            reader.getInt(columnLabels.head)
+          override def readValue(reader: DbResultReader, startIndex: Int): Int     = reader.getInt(startIndex)
           def writeValue(writer: DbParamWriter, startIndex: Int, value: Int): Unit =
             writer.setInt(startIndex, value)
           def toDbValues(value: Int): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbInt(value))

@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import zio.test.*
+import zio.blocks.schema.Maybe
 
 import scala.language.implicitConversions
 import java.time._
@@ -120,6 +121,14 @@ object SqlInterpolatorSpec extends ZIOSpecDefault {
       test("Nested Option Some(None) produces DbNull") {
         val p = DbParam[Option[Option[String]]]
         assertTrue(p.toDbValue(Some(None)) == DbValue.DbNull)
+      },
+      test("Maybe present produces inner value") {
+        val p = DbParam[Maybe[Int]]
+        assertTrue(p.toDbValue(Maybe.present(42)) == DbValue.DbInt(42))
+      },
+      test("Maybe absent produces DbNull") {
+        val p = DbParam[Maybe[Int]]
+        assertTrue(p.toDbValue(Maybe.absent) == DbValue.DbNull)
       }
     ),
     suite("sql interpolator with DbValue params")(
@@ -183,6 +192,11 @@ object SqlInterpolatorSpec extends ZIOSpecDefault {
       test("Option None converts via DbParam") {
         val v: Option[Int] = None
         val frag           = sql"SELECT ${v}"
+        assertTrue(frag.queryParams == IndexedSeq(DbValue.DbNull))
+      },
+      test("Maybe absent converts via DbParam") {
+        val v: Maybe[Int] = Maybe.absent
+        val frag          = sql"SELECT ${v}"
         assertTrue(frag.queryParams == IndexedSeq(DbValue.DbNull))
       }
     )

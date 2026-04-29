@@ -23,6 +23,9 @@ class JdbcConnection(val underlying: Connection) extends DbConnection {
   def prepareStatement(sql: String): DbPreparedStatement =
     new JdbcPreparedStatement(underlying.prepareStatement(sql))
 
+  def prepareStatementReturningKeys(sql: String): DbPreparedStatement =
+    new JdbcPreparedStatement(underlying.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS))
+
   def close(): Unit = underlying.close()
 
   def isClosed: Boolean = underlying.isClosed
@@ -42,6 +45,11 @@ class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends 
     new JdbcResultSet(underlying.executeQuery())
 
   def executeUpdate(): Int = underlying.executeUpdate()
+
+  def executeUpdateReturningKeys(): DbResultSet = {
+    underlying.executeUpdate()
+    new JdbcResultSet(underlying.getGeneratedKeys)
+  }
 
   def close(): Unit = underlying.close()
 

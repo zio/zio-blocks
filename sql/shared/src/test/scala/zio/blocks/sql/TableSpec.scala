@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.test.*
 import zio.blocks.schema._
+import zio.blocks.schema.Maybe
 
 object TableSpec extends ZIOSpecDefault {
 
@@ -44,6 +45,11 @@ object TableSpec extends ZIOSpecDefault {
   case class Box(width: Int)
   object Box {
     implicit val schema: Schema[Box] = Schema.derived
+  }
+
+  case class OptionalRecord(id: Int, nickname: Option[String], alias: Maybe[String])
+  object OptionalRecord {
+    implicit val schema: Schema[OptionalRecord] = Schema.derived
   }
 
   def spec = suite("TableSpec")(
@@ -82,44 +88,21 @@ object TableSpec extends ZIOSpecDefault {
       test("derived with explicit name ignores type name") {
         val table = Table.derived[UserProfile]("profiles")
         assertTrue(table.name == "profiles")
+      },
+      test("plural naming policy pluralizes the derived name") {
+        val table = Table.derived[Category](TableNamingPolicy.Plural)
+        assertTrue(table.name == "categories")
       }
     ),
-    suite("pluralize")(
-      test("pluralizes user to users") {
-        assertTrue(Table.pluralize("user") == "users")
+    suite("TableNamingPolicy")(
+      test("plural naming policy pluralizes user") {
+        assertTrue(TableNamingPolicy.Plural.defaultName("User") == "users")
       },
-      test("pluralizes address to addresses") {
-        assertTrue(Table.pluralize("address") == "addresses")
+      test("plural naming policy pluralizes category") {
+        assertTrue(TableNamingPolicy.Plural.defaultName("Category") == "categories")
       },
-      test("pluralizes category to categories") {
-        assertTrue(Table.pluralize("category") == "categories")
-      },
-      test("pluralizes box to boxes") {
-        assertTrue(Table.pluralize("box") == "boxes")
-      },
-      test("pluralizes bus to buses") {
-        assertTrue(Table.pluralize("bus") == "buses")
-      },
-      test("pluralizes fox to foxes") {
-        assertTrue(Table.pluralize("fox") == "foxes")
-      },
-      test("pluralizes church to churches") {
-        assertTrue(Table.pluralize("church") == "churches")
-      },
-      test("pluralizes dish to dishes") {
-        assertTrue(Table.pluralize("dish") == "dishes")
-      },
-      test("pluralizes quiz to quizzes") {
-        assertTrue(Table.pluralize("quiz") == "quizzes")
-      },
-      test("pluralizes buzz to buzzes") {
-        assertTrue(Table.pluralize("buzz") == "buzzes")
-      },
-      test("pluralizes fuzz to fuzzes") {
-        assertTrue(Table.pluralize("fuzz") == "fuzzes")
-      },
-      test("empty string pluralizes to empty string") {
-        assertTrue(Table.pluralize("") == "")
+      test("singular naming policy keeps singular snake case") {
+        assertTrue(TableNamingPolicy.Singular.defaultName("UserProfile") == "user_profile")
       }
     ),
     suite("Table.dropTable")(
@@ -138,24 +121,33 @@ object TableSpec extends ZIOSpecDefault {
       test("generates CREATE TABLE IF NOT EXISTS") {
         val table = Table.derived[SimpleRecord]
         val frag  = table.createTable(SqlDialect.PostgreSQL)
-        val sql   = frag.sql(SqlDialect.PostgreSQL)
         assertTrue(
-          sql.contains("CREATE TABLE IF NOT EXISTS simple_record"),
-          sql.contains("name"),
-          sql.contains("age")
+          frag.sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS simple_record (\n  name TEXT NOT NULL,\n  age INTEGER NOT NULL\n)"
         )
       },
       test("works with PostgreSQL dialect") {
         val table = Table.derived[Category]
         val frag  = table.createTable(SqlDialect.PostgreSQL)
-        val sql   = frag.sql(SqlDialect.PostgreSQL)
-        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS category"))
+        assertTrue(
+          frag.sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS category (\n  name TEXT NOT NULL\n)"
+        )
       },
       test("works with SQLite dialect") {
         val table = Table.derived[Category]
         val frag  = table.createTable(SqlDialect.SQLite)
-        val sql   = frag.sql(SqlDialect.SQLite)
-        assertTrue(sql.contains("CREATE TABLE IF NOT EXISTS category"))
+        assertTrue(
+          frag.sql(SqlDialect.SQLite) ==
+            "CREATE TABLE IF NOT EXISTS category (\n  name TEXT NOT NULL\n)"
+        )
+      },
+      test("Option and Maybe columns are nullable in typed DDL") {
+        val table = Table.derived[OptionalRecord]
+        assertTrue(
+          table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS optional_record (\n  id INTEGER NOT NULL,\n  nickname TEXT,\n  alias TEXT\n)"
+        )
       }
     )
   )
