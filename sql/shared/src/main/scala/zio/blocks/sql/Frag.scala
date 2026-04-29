@@ -64,5 +64,8 @@ object Frag {
 
     def update(using DbCon): Int =
       SqlOps.update(frag)
+
+    def updateReturningKeys[A](using DbCon, DbCodec[A]): List[A] =
+      SqlOps.updateReturningKeys[A](frag)
   }
 }

@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 trait DbConnection extends AutoCloseable {
   def prepareStatement(sql: String): DbPreparedStatement
+  def prepareStatementReturningKeys(sql: String): DbPreparedStatement
   def close(): Unit
   def isClosed: Boolean
   def setAutoCommit(autoCommit: Boolean): Unit
@@ -29,6 +30,7 @@ trait DbConnection extends AutoCloseable {
 trait DbPreparedStatement extends AutoCloseable {
   def executeQuery(): DbResultSet
   def executeUpdate(): Int
+  def executeUpdateReturningKeys(): DbResultSet
   def close(): Unit
   def paramWriter: DbParamWriter
   def addBatch(): Unit

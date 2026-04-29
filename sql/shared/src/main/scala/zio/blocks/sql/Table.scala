@@ -18,12 +18,12 @@ package zio.blocks.sql
 
 import zio.blocks.schema._
 
-final case class Table[A](name: String, codec: DbCodec[A]) {
+final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedSeq[ColumnMeta]) {
   def columns: IndexedSeq[String] = codec.columns
 
   def createTable(dialect: SqlDialect): Frag = {
-    val columnDefs = codec.columns.map { col =>
-      ColumnDef(col, dialect.typeName(DbValue.DbString("")), nullable = false)
+    val columnDefs = columnsMeta.map { column =>
+      ColumnDef(column.name, dialect.typeName(column.dbValue), nullable = column.nullable)
     }
     Ddl.createTable(name, columnDefs)
   }
@@ -33,34 +33,32 @@ final case class Table[A](name: String, codec: DbCodec[A]) {
 
 object Table {
 
+  private val defaultNamingPolicy: TableNamingPolicy = TableNamingPolicy.Singular
+
   def derived[A](implicit schema: Schema[A]): Table[A] = {
-    val codec     = schema.deriving(DbCodecDeriver).derive
-    val tableName = deriveTableName(schema)
-    Table(tableName, codec)
+    derived[A](defaultNamingPolicy)
   }
 
   def derived[A](tableName: String)(implicit schema: Schema[A]): Table[A] = {
-    val codec = schema.deriving(DbCodecDeriver).derive
-    Table(tableName, codec)
+    val codec   = schema.deriving(DbCodecDeriver).derive
+    val columns = TableMetadata.columnsFor(schema)
+    Table(tableName, codec, columns)
   }
 
-  private[sql] def deriveTableName[A](schema: Schema[A]): String = {
+  def derived[A](namingPolicy: TableNamingPolicy)(implicit schema: Schema[A]): Table[A] = {
+    val codec     = schema.deriving(DbCodecDeriver).derive
+    val tableName = deriveTableName(schema, namingPolicy)
+    val columns   = TableMetadata.columnsFor(schema)
+    Table(tableName, codec, columns)
+  }
+
+  private[sql] def deriveTableName[A](schema: Schema[A], namingPolicy: TableNamingPolicy = defaultNamingPolicy): String = {
     val configured = schema.reflect.modifiers.collectFirst { case Modifier.config("sql.table_name", value) =>
       value
     }
     configured.getOrElse {
       val typeName = schema.reflect.typeId.name
-      SqlNameMapper.SnakeCase(typeName)
+      namingPolicy.defaultName(typeName)
     }
   }
-
-  def pluralize(s: String): String =
-    if (s.isEmpty) s
-    else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh") || s.endsWith("zz"))
-      s + "es"
-    else if (s.endsWith("z")) s + "zes" // quiz -> quizzes
-    else if (s.endsWith("y") && s.length > 1 && !isVowel(s.charAt(s.length - 2))) s.dropRight(1) + "ies"
-    else s + "s"
-
-  private def isVowel(c: Char): Boolean = "aeiouAEIOU".indexOf(c) >= 0
 }

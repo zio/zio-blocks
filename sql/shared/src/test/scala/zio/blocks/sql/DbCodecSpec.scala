@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.test._
 import zio.blocks.schema._
+import zio.blocks.schema.Maybe
 
 object DbCodecSpec extends ZIOSpecDefault {
 
@@ -29,6 +30,11 @@ object DbCodecSpec extends ZIOSpecDefault {
   case class WithOption(id: Int, nickname: Option[String])
   object WithOption {
     implicit val schema: Schema[WithOption] = Schema.derived
+  }
+
+  case class WithMaybe(id: Int, nickname: Maybe[String])
+  object WithMaybe {
+    implicit val schema: Schema[WithMaybe] = Schema.derived
   }
 
   case class WithTransient(
@@ -207,6 +213,27 @@ object DbCodecSpec extends ZIOSpecDefault {
       test("Option None produces DbNull") {
         val codec  = deriveCodec[WithOption]
         val values = codec.toDbValues(WithOption(1, None))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbNull)
+        )
+      },
+      test("Maybe field is nullable column") {
+        val codec = deriveCodec[WithMaybe]
+        assertTrue(
+          codec.columns == IndexedSeq("id", "nickname"),
+          codec.columnCount == 2
+        )
+      },
+      test("Maybe present produces inner value") {
+        val codec  = deriveCodec[WithMaybe]
+        val values = codec.toDbValues(WithMaybe(1, Maybe.present("nick")))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("nick"))
+        )
+      },
+      test("Maybe absent produces DbNull") {
+        val codec  = deriveCodec[WithMaybe]
+        val values = codec.toDbValues(WithMaybe(1, Maybe.absent))
         assertTrue(
           values == IndexedSeq(DbValue.DbInt(1), DbValue.DbNull)
         )

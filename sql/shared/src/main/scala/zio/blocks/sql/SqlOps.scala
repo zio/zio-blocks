@@ -18,6 +18,12 @@ package zio.blocks.sql
 
 object SqlOps {
 
+  private def selectLabels[A](reader: DbResultReader, codec: DbCodec[A]): IndexedSeq[String] =
+    codec.columns.zipWithIndex.map { case (expectedLabel, offset) =>
+      if (reader.hasColumn(expectedLabel)) expectedLabel
+      else reader.columnLabel(offset + 1)
+    }
+
   def query[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
@@ -31,7 +37,7 @@ object SqlOps {
           val builder = List.newBuilder[A]
           var count   = 0
           while (rs.next()) {
-            builder += codec.readValue(reader, 1)
+            builder += codec.readValue(reader, selectLabels(reader, codec))
             count += 1
           }
           val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -60,7 +66,7 @@ object SqlOps {
           val builder = List.newBuilder[A]
           var count   = 0
           while (count < limit && rs.next()) {
-            builder += codec.readValue(reader, 1)
+            builder += codec.readValue(reader, selectLabels(reader, codec))
             count += 1
           }
           val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -85,7 +91,7 @@ object SqlOps {
         writeParams(ps.paramWriter, frag.queryParams)
         val rs = ps.executeQuery()
         try {
-          val result   = if (rs.next()) Some(codec.readValue(rs.reader, 1)) else None
+          val result   = if (rs.next()) Some(codec.readValue(rs.reader, selectLabels(rs.reader, codec))) else None
           val count    = if (result.isDefined) 1 else 0
           val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
           con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
@@ -111,6 +117,36 @@ object SqlOps {
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
         con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
         count
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+        throw e
+    }
+  }
+
+  def updateReturningKeys[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): List[A] = {
+    val sqlStr = frag.sql(con.dialect)
+    val start  = System.nanoTime()
+    try {
+      val ps = con.connection.prepareStatementReturningKeys(sqlStr)
+      try {
+        writeParams(ps.paramWriter, frag.queryParams)
+        val rs = ps.executeUpdateReturningKeys()
+        try {
+          val reader  = rs.reader
+          val builder = List.newBuilder[A]
+          var count   = 0
+          while (rs.next()) {
+            builder += codec.readValue(reader, 1)
+            count += 1
+          }
+          val results  = builder.result()
+          val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+          con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+          results
+        } finally rs.close()
       } finally ps.close()
     } catch {
       case e: Throwable =>

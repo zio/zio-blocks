@@ -19,6 +19,7 @@ package zio.blocks.sql
 import java.time._
 import java.util.UUID
 import scala.language.implicitConversions
+import zio.blocks.schema.Maybe
 
 trait DbParam[A] {
   def toDbValue(value: A): DbValue
@@ -100,6 +101,12 @@ object DbParam {
       case Some(a) => inner.toDbValue(a)
       case None    => DbValue.DbNull
     }
+  }
+
+  given [A](using inner: DbParam[A]): DbParam[Maybe[A]] with {
+    def toDbValue(v: Maybe[A]): DbValue =
+      if (Maybe.isAbsent(v)) DbValue.DbNull
+      else inner.toDbValue(v.asInstanceOf[A])
   }
 
   given fromDbCodec[A](using codec: DbCodec[A]): DbParam[A] with {

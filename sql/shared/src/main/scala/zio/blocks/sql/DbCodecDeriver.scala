@@ -129,7 +129,32 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     new DbCodec[A] {
       val columns: IndexedSeq[String] = allColumns
 
-      def readValue(reader: DbResultReader, startIndex: Int): A = {
+      override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        val regs     = Registers(constructor.usedRegisters)
+        var labelIdx = 0
+        var fi       = 0
+        while (fi < activeFieldIndices.length) {
+          val i          = activeFieldIndices(fi)
+          val codec      = fieldCodecs(i)
+          val fieldValue = codec.readValue(reader, columnLabels.slice(labelIdx, labelIdx + codec.columnCount))
+          registers(i).set(regs, 0, fieldValue)
+          labelIdx += codec.columnCount
+          fi += 1
+        }
+        var ti = 0
+        while (ti < len) {
+          if (fieldTransient(ti)) {
+            fields(ti).value.getDefaultValue(F) match {
+              case Some(dv) => registers(ti).set(regs, 0, dv)
+              case None     =>
+            }
+          }
+          ti += 1
+        }
+        constructor.construct(regs, 0)
+      }
+
+      override def readValue(reader: DbResultReader, startIndex: Int): A = {
         val regs   = Registers(constructor.usedRegisters)
         var colIdx = startIndex
         var fi     = 0
@@ -198,7 +223,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       new DbCodec[A] {
         val columns: IndexedSeq[String] = wc.columns
 
-        def readValue(reader: DbResultReader, startIndex: Int): A =
+        def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A =
+          binding.wrap(wc.readValue(reader, columnLabels))
+
+        override def readValue(reader: DbResultReader, startIndex: Int): A =
           binding.wrap(wc.readValue(reader, startIndex))
 
         def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
@@ -218,7 +246,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[A]] = Lazy {
-    if (isOptionType(typeId, cases)) {
+    if (isOptionalType(typeId, cases)) {
       val someCase   = cases(1)
       val someRecord = someCase.value.asRecord.get
       val innerField = someRecord.fields(0)
@@ -234,19 +262,24 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       new DbCodec[A] {
         val columns: IndexedSeq[String] = innerCodec.columns
 
+        override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+          val innerValue  = innerCodec.readValue(reader, columnLabels)
+          val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
+          result.asInstanceOf[A]
+        }
+
         // Note: wasNull reflects the last column read by the inner codec.
         // For single-column types (the common case), this is correct.
         // For multi-column inner types, wasNull only reflects the last column,
         // so a NULL in an earlier column may not be detected.
-        def readValue(reader: DbResultReader, startIndex: Int): A = {
+        override def readValue(reader: DbResultReader, startIndex: Int): A = {
           val innerValue  = innerCodec.readValue(reader, startIndex)
-          val result: Any = if (reader.wasNull) None else Some(innerValue)
+          val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
           result.asInstanceOf[A]
         }
 
         def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit = {
-          val opt = value.asInstanceOf[Option[Any]]
-          opt match {
+          optionalPayload(typeId, value) match {
             case Some(v) => innerCodec.writeValue(writer, startIndex, v)
             case None    =>
               var i = 0
@@ -258,8 +291,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         }
 
         def toDbValues(value: A): IndexedSeq[DbValue] = {
-          val opt = value.asInstanceOf[Option[Any]]
-          opt match {
+          optionalPayload(typeId, value) match {
             case Some(v) => innerCodec.toDbValues(v)
             case None    =>
               val builder = IndexedSeq.newBuilder[DbValue]
@@ -281,7 +313,18 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       new DbCodec[A] {
         val columns: IndexedSeq[String] = IndexedSeq("value")
 
-        def readValue(reader: DbResultReader, startIndex: Int): A = {
+        override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+          val name = reader.getString(columnLabels.head)
+          constructorByName.get(name) match {
+            case Some(ctor) => ctor.construct(null, 0).asInstanceOf[A]
+            case None       =>
+              throw new IllegalArgumentException(
+                s"Unknown enum variant '${name}'. Expected one of: ${caseNamesJoined}"
+              )
+          }
+        }
+
+        override def readValue(reader: DbResultReader, startIndex: Int): A = {
           val name = reader.getString(startIndex)
           constructorByName.get(name) match {
             case Some(ctor) => ctor.construct(null, 0).asInstanceOf[A]
@@ -349,14 +392,32 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       )
     }
 
-  private def isOptionType[F[_, _], A](
+  private def isOptionalType[F[_, _], A](
     typeId: TypeId[A],
     cases: IndexedSeq[Term[F, A, ?]]
   ): Boolean =
-    typeId.owner == zio.blocks.typeid.Owner.fromPackagePath("scala") &&
+    (typeId.owner == zio.blocks.typeid.Owner.fromPackagePath("scala") &&
       typeId.name == "Option" &&
       cases.length == 2 &&
-      cases(1).name == "Some"
+      cases(1).name == "Some") ||
+      (typeId.isMaybe && cases.length == 2 && cases(1).name == "Present")
+
+  private def optionalValue[A](typeId: TypeId[A], innerValue: Any, wasNull: Boolean): Any =
+    if (wasNull) optionalEmpty(typeId)
+    else if (typeId.isMaybe) innerValue
+    else Some(innerValue)
+
+  private def optionalEmpty[A](typeId: TypeId[A]): Any =
+    if (typeId.isMaybe) Maybe.absent
+    else None
+
+  private def optionalPayload[A](typeId: TypeId[A], value: A): Option[Any] =
+    if (typeId.isMaybe) {
+      val maybe = value.asInstanceOf[Maybe[Any]]
+      if (Maybe.isAbsent(maybe)) None else Some(maybe.asInstanceOf[Any])
+    } else {
+      value.asInstanceOf[Option[Any]]
+    }
 
   private def isSimpleEnum[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
     cases.forall { case_ =>
@@ -432,16 +493,19 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val unitCodec: DbCodec[Unit] = new DbCodec[Unit] {
-    val columns: IndexedSeq[String]                                           = IndexedSeq.empty
-    def readValue(reader: DbResultReader, startIndex: Int): Unit              = ()
-    def writeValue(writer: DbParamWriter, startIndex: Int, value: Unit): Unit = ()
-    def toDbValues(value: Unit): IndexedSeq[DbValue]                          = IndexedSeq.empty
-    override def columnCount: Int                                             = 0
+    val columns: IndexedSeq[String]                                               = IndexedSeq.empty
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Unit = ()
+    override def readValue(reader: DbResultReader, startIndex: Int): Unit         = ()
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Unit): Unit     = ()
+    def toDbValues(value: Unit): IndexedSeq[DbValue]                              = IndexedSeq.empty
+    override def columnCount: Int                                                 = 0
   }
 
   private val booleanCodec: DbCodec[Boolean] = new DbCodec[Boolean] {
-    val columns: IndexedSeq[String]                                 = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Boolean =
+    val columns: IndexedSeq[String]                                                  = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Boolean =
+      reader.getBoolean(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Boolean =
       reader.getBoolean(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Boolean): Unit =
       writer.setBoolean(startIndex, value)
@@ -450,8 +514,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val byteCodec: DbCodec[Byte] = new DbCodec[Byte] {
-    val columns: IndexedSeq[String]                              = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Byte =
+    val columns: IndexedSeq[String]                                               = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Byte =
+      reader.getByte(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Byte =
       reader.getByte(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Byte): Unit =
       writer.setByte(startIndex, value)
@@ -460,8 +526,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val shortCodec: DbCodec[Short] = new DbCodec[Short] {
-    val columns: IndexedSeq[String]                               = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Short =
+    val columns: IndexedSeq[String]                                                = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Short =
+      reader.getShort(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Short =
       reader.getShort(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Short): Unit =
       writer.setShort(startIndex, value)
@@ -470,8 +538,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val intCodec: DbCodec[Int] = new DbCodec[Int] {
-    val columns: IndexedSeq[String]                             = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Int =
+    val columns: IndexedSeq[String]                                              = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Int =
+      reader.getInt(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Int =
       reader.getInt(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Int): Unit =
       writer.setInt(startIndex, value)
@@ -480,8 +550,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val longCodec: DbCodec[Long] = new DbCodec[Long] {
-    val columns: IndexedSeq[String]                              = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Long =
+    val columns: IndexedSeq[String]                                               = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Long =
+      reader.getLong(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Long =
       reader.getLong(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Long): Unit =
       writer.setLong(startIndex, value)
@@ -490,8 +562,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val floatCodec: DbCodec[Float] = new DbCodec[Float] {
-    val columns: IndexedSeq[String]                               = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Float =
+    val columns: IndexedSeq[String]                                                = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Float =
+      reader.getFloat(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Float =
       reader.getFloat(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Float): Unit =
       writer.setFloat(startIndex, value)
@@ -500,8 +574,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val doubleCodec: DbCodec[Double] = new DbCodec[Double] {
-    val columns: IndexedSeq[String]                                = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Double =
+    val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Double =
+      reader.getDouble(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Double =
       reader.getDouble(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Double): Unit =
       writer.setDouble(startIndex, value)
@@ -510,8 +586,12 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val charCodec: DbCodec[Char] = new DbCodec[Char] {
-    val columns: IndexedSeq[String]                              = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): Char = {
+    val columns: IndexedSeq[String]                                               = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Char = {
+      val s = reader.getString(columnLabels.head)
+      if (s != null && s.length > 0) s.charAt(0) else '\u0000'
+    }
+    override def readValue(reader: DbResultReader, startIndex: Int): Char = {
       val s = reader.getString(startIndex)
       if (s != null && s.length > 0) s.charAt(0) else '\u0000'
     }
@@ -522,8 +602,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val stringCodec: DbCodec[String] = new DbCodec[String] {
-    val columns: IndexedSeq[String]                                = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): String =
+    val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): String =
+      reader.getString(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): String =
       reader.getString(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: String): Unit =
       writer.setString(startIndex, value)
@@ -532,8 +614,12 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   }
 
   private val bigDecimalCodec: DbCodec[BigDecimal] = new DbCodec[BigDecimal] {
-    val columns: IndexedSeq[String]                                    = IndexedSeq("value")
-    def readValue(reader: DbResultReader, startIndex: Int): BigDecimal = {
+    val columns: IndexedSeq[String]                                                     = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): BigDecimal = {
+      val jbd = reader.getBigDecimal(columnLabels.head)
+      if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
+    }
+    override def readValue(reader: DbResultReader, startIndex: Int): BigDecimal = {
       val jbd = reader.getBigDecimal(startIndex)
       if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
     }
@@ -545,8 +631,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val durationCodec: DbCodec[java.time.Duration] =
     new DbCodec[java.time.Duration] {
-      val columns: IndexedSeq[String]                                            = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.time.Duration =
+      val columns: IndexedSeq[String]                                                             = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.Duration =
+        reader.getDuration(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.time.Duration =
         reader.getDuration(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.Duration): Unit =
         writer.setDuration(startIndex, value)
@@ -556,8 +644,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val instantCodec: DbCodec[java.time.Instant] =
     new DbCodec[java.time.Instant] {
-      val columns: IndexedSeq[String]                                           = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.time.Instant =
+      val columns: IndexedSeq[String]                                                            = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.Instant =
+        reader.getInstant(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.time.Instant =
         reader.getInstant(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.Instant): Unit =
         writer.setInstant(startIndex, value)
@@ -567,8 +657,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val localDateCodec: DbCodec[java.time.LocalDate] =
     new DbCodec[java.time.LocalDate] {
-      val columns: IndexedSeq[String]                                             = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalDate =
+      val columns: IndexedSeq[String]                                                              = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.LocalDate =
+        reader.getLocalDate(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalDate =
         reader.getLocalDate(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.LocalDate): Unit =
         writer.setLocalDate(startIndex, value)
@@ -578,8 +670,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val localDateTimeCodec: DbCodec[java.time.LocalDateTime] =
     new DbCodec[java.time.LocalDateTime] {
-      val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalDateTime =
+      val columns: IndexedSeq[String]                                                                  = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.LocalDateTime =
+        reader.getLocalDateTime(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalDateTime =
         reader.getLocalDateTime(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.LocalDateTime): Unit =
         writer.setLocalDateTime(startIndex, value)
@@ -589,8 +683,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val localTimeCodec: DbCodec[java.time.LocalTime] =
     new DbCodec[java.time.LocalTime] {
-      val columns: IndexedSeq[String]                                             = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalTime =
+      val columns: IndexedSeq[String]                                                              = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.LocalTime =
+        reader.getLocalTime(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.time.LocalTime =
         reader.getLocalTime(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.LocalTime): Unit =
         writer.setLocalTime(startIndex, value)
@@ -600,8 +696,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
 
   private val uuidCodec: DbCodec[java.util.UUID] =
     new DbCodec[java.util.UUID] {
-      val columns: IndexedSeq[String]                                        = IndexedSeq("value")
-      def readValue(reader: DbResultReader, startIndex: Int): java.util.UUID =
+      val columns: IndexedSeq[String]                                                         = IndexedSeq("value")
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.util.UUID =
+        reader.getUUID(columnLabels.head)
+      override def readValue(reader: DbResultReader, startIndex: Int): java.util.UUID =
         reader.getUUID(startIndex)
       def writeValue(writer: DbParamWriter, startIndex: Int, value: java.util.UUID): Unit =
         writer.setUUID(startIndex, value)

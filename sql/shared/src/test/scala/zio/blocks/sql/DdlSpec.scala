@@ -28,27 +28,20 @@ object DdlSpec extends ZIOSpecDefault {
           ColumnDef("email", "TEXT", true)
         )
         val frag = Ddl.createTable("users", columns)
-        val sql  = frag.sql(SqlDialect.PostgreSQL)
         assertTrue(
-          sql.contains("CREATE TABLE IF NOT EXISTS users"),
-          sql.contains("id INTEGER NOT NULL"),
-          sql.contains("name TEXT NOT NULL"),
-          sql.contains("email TEXT"),
-          !sql.contains("email TEXT NOT NULL")
+          frag.sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS users (\n  id INTEGER NOT NULL,\n  name TEXT NOT NULL,\n  email TEXT\n)"
         )
       },
       test("nullable columns omit NOT NULL") {
         val columns = IndexedSeq(ColumnDef("bio", "TEXT", true))
-        val sql     = Ddl.createTable("profiles", columns).sql(SqlDialect.PostgreSQL)
-        assertTrue(
-          sql.contains("bio TEXT"),
-          !sql.contains("NOT NULL")
-        )
+        assertTrue(Ddl.createTable("profiles", columns).sql(SqlDialect.PostgreSQL) ==
+          "CREATE TABLE IF NOT EXISTS profiles (\n  bio TEXT\n)")
       },
       test("non-nullable columns include NOT NULL") {
         val columns = IndexedSeq(ColumnDef("id", "INTEGER", false))
-        val sql     = Ddl.createTable("items", columns).sql(SqlDialect.PostgreSQL)
-        assertTrue(sql.contains("id INTEGER NOT NULL"))
+        assertTrue(Ddl.createTable("items", columns).sql(SqlDialect.PostgreSQL) ==
+          "CREATE TABLE IF NOT EXISTS items (\n  id INTEGER NOT NULL\n)")
       },
       test("multiple columns are comma-separated") {
         val columns = IndexedSeq(
@@ -56,11 +49,9 @@ object DdlSpec extends ZIOSpecDefault {
           ColumnDef("b", "TEXT", false),
           ColumnDef("c", "REAL", true)
         )
-        val sql = Ddl.createTable("t", columns).sql(SqlDialect.PostgreSQL)
         assertTrue(
-          sql.contains("a INTEGER NOT NULL,\n"),
-          sql.contains("b TEXT NOT NULL,\n"),
-          sql.contains("c REAL\n")
+          Ddl.createTable("t", columns).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS t (\n  a INTEGER NOT NULL,\n  b TEXT NOT NULL,\n  c REAL\n)"
         )
       },
       test("PostgreSQL type names in column definitions") {
@@ -69,11 +60,9 @@ object DdlSpec extends ZIOSpecDefault {
           ColumnDef("data", "BYTEA", false),
           ColumnDef("id", "UUID", false)
         )
-        val sql = Ddl.createTable("pg_table", columns).sql(SqlDialect.PostgreSQL)
         assertTrue(
-          sql.contains("active BOOLEAN NOT NULL"),
-          sql.contains("data BYTEA NOT NULL"),
-          sql.contains("id UUID NOT NULL")
+          Ddl.createTable("pg_table", columns).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS pg_table (\n  active BOOLEAN NOT NULL,\n  data BYTEA NOT NULL,\n  id UUID NOT NULL\n)"
         )
       },
       test("SQLite type names in column definitions") {
@@ -82,11 +71,9 @@ object DdlSpec extends ZIOSpecDefault {
           ColumnDef("data", "BLOB", false),
           ColumnDef("id", "TEXT", false)
         )
-        val sql = Ddl.createTable("sqlite_table", columns).sql(SqlDialect.SQLite)
         assertTrue(
-          sql.contains("active INTEGER NOT NULL"),
-          sql.contains("data BLOB NOT NULL"),
-          sql.contains("id TEXT NOT NULL")
+          Ddl.createTable("sqlite_table", columns).sql(SqlDialect.SQLite) ==
+            "CREATE TABLE IF NOT EXISTS sqlite_table (\n  active INTEGER NOT NULL,\n  data BLOB NOT NULL,\n  id TEXT NOT NULL\n)"
         )
       },
       test("result is a parameterless Frag") {
