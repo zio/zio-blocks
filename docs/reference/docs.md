@@ -70,7 +70,10 @@ Inline = Text | Code | Emphasis | Strong | Link | Image | ... (leaf nodes)
 
 **Example composition:**
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("My Document"))),
   Paragraph(Chunk(Text("This is a paragraph with "), Strong(Chunk(Text("bold"))), Text(" text."))),
@@ -94,7 +97,10 @@ The markdown module provides several patterns for working with documents and typ
 
 The `md"..."` interpolator validates markdown at compile time and supports interpolation of any type with a `ToMarkdown` instance:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val name = "Alice"
 val count = 42
 val doc = md"# Welcome $name\nYou have $count items."
@@ -104,23 +110,30 @@ val doc = md"# Welcome $name\nYou have $count items."
 
 Task list items use `ListItem` with `checked: Option[Boolean]`:
 
-```scala
+```scala mdoc:silent
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val tasks = BulletList(Chunk(
   ListItem(Chunk(Paragraph(Chunk(Text("Buy groceries")))), Some(true)),
   ListItem(Chunk(Paragraph(Chunk(Text("Write docs")))), Some(false))
 ), tight = true)
+```
 
+Rendering the task list:
+
+```scala mdoc
 Renderer.render(Doc(Chunk(tasks)))
-// Renders as:
-// - [x] Buy groceries
-// - [ ] Write docs
 ```
 
 ### Tables with Alignment
 
 Tables require a header row, alignment specification, and data rows:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val table = Table(
   header = TableRow(Chunk(
     Chunk(Text("Name")),
@@ -147,7 +160,10 @@ val table = Table(
 
 Parser returns `Either[ParseError, Doc]` with precise location information:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Parser.parse("# Hello\n[invalid link](") match {
   case Right(doc) => println("Parsed successfully")
   case Left(err) => println(s"Error at line ${err.line}, column ${err.column}: ${err.message}")
@@ -158,7 +174,10 @@ Parser.parse("# Hello\n[invalid link](") match {
 
 Parse-render-parse cycles preserve document meaning (normalized forms are equal):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val input = "# Hello\n\nWorld"
 val parsed1 = Parser.parse(input).toOption.get
 val rendered = Renderer.render(parsed1)
@@ -170,14 +189,14 @@ assert(parsed1 == parsed2)  // Equal after normalization
 
 Implement `ToMarkdown` for your types to enable interpolation:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case class User(name: String, role: String)
 
 implicit val userToMarkdown: ToMarkdown[User] = { user =>
-  Paragraph(Chunk(
-    Strong(Chunk(Text(user.name))),
-    Text(s" – ${user.role}")
-  ))
+  Strong(Chunk(Text(user.name), Text(s" – ${user.role}")))
 }
 
 val user = User("Alice", "Engineer")
@@ -203,12 +222,18 @@ A complete GitHub Flavored Markdown document.
 ### Construction
 
 **Empty document:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val empty = Doc.empty
 ```
 
 **From blocks:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("Title"))),
   Paragraph(Chunk(Text("Content")))
@@ -216,7 +241,10 @@ val doc = Doc(Chunk(
 ```
 
 **By parsing:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Parser.parse("# Title\n\nContent") match {
   case Right(doc) => // use doc
   case Left(err) => // handle error
@@ -227,7 +255,10 @@ Parser.parse("# Title\n\nContent") match {
 
 **Concatenation** (`++`) merges blocks and metadata:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc1 = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Part 1")))))
 val doc2 = Doc(Chunk(Paragraph(Chunk(Text("Part 2")))))
 val combined = doc1 ++ doc2
@@ -235,49 +266,60 @@ val combined = doc1 ++ doc2
 
 **Rendering to GFM markdown:**
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val markdown: String = doc.toString  // Calls Renderer.render internally
 ```
 
 **Rendering to HTML (full document with DOCTYPE):**
 
-```scala
+```scala mdoc:compile-only
 val html = doc.toHtml
 // Returns: <!DOCTYPE html><html><head></head><body>...</body></html>
 ```
 
 **Rendering to HTML fragment (content only):**
 
-```scala
+```scala mdoc:compile-only
 val fragment = doc.toHtmlFragment
 // Returns: <h1>Hello</h1><p>...</p> (no DOCTYPE or wrapper tags)
 ```
 
 **Rendering to colorized terminal output:**
 
-```scala
+```scala mdoc:compile-only
 val terminal = doc.toTerminal
 // Returns ANSI-colored string suitable for terminal display
 ```
 
 **Normalization** (`normalize`) canonicalizes structure by merging adjacent `Text` nodes and removing empty blocks:
 
-```scala
+```scala mdoc:silent
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(
   Paragraph(Chunk(Text("A"), Text("B"))),  // Adjacent text nodes
   Paragraph(Chunk()),                      // Empty paragraph
   Paragraph(Chunk(Text("C")))
 ))
+```
+
+```scala mdoc
 val normalized = doc.normalize
-// Result: Paragraph with Chunk(Text("AB")), and empty paragraph removed
 ```
 
 ### Equality and Hashing
 
 Two documents are equal if their **normalized forms** are equal. This means:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc1 = Doc(Chunk(Paragraph(Chunk(Text("Hello"), Text(" "), Text("World")))))
 val doc2 = Doc(Chunk(Paragraph(Chunk(Text("Hello World")))))
 assert(doc1 == doc2)  // Equal after normalization
@@ -301,7 +343,10 @@ Paragraph(content: Chunk[Inline])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val para = Paragraph(Chunk(
   Text("Hello "),
   Strong(Chunk(Text("world")))
@@ -318,7 +363,10 @@ Heading(level: HeadingLevel, content: Chunk[Inline])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val h1 = Heading(HeadingLevel.H1, Chunk(Text("Title")))
 val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 ```
@@ -333,7 +381,7 @@ CodeBlock(info: Option[String], code: String)
 ```
 
 **Examples:**
-```scala
+```scala mdoc:compile-only
 // Scala code block
 val scalaBlock = CodeBlock(Some("scala"), "val x = 42\nprintln(x)")
 
@@ -346,7 +394,7 @@ val plainBlock = CodeBlock(None, "some code")
 A thematic break (horizontal rule) represented as `case object ThematicBreak`.
 
 **Construction:**
-```scala
+```scala mdoc:compile-only
 val break = ThematicBreak
 ```
 
@@ -362,7 +410,10 @@ BlockQuote(content: Chunk[Block])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val quote = BlockQuote(Chunk(
   Paragraph(Chunk(Text("This is a famous quote.")))
 ))
@@ -380,7 +431,10 @@ BulletList(items: Chunk[ListItem], tight: Boolean)
 The `tight` parameter controls spacing: `true` removes blank lines between items for compact rendering.
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val list = BulletList(Chunk(
   ListItem(Chunk(Paragraph(Chunk(Text("Item 1")))), None),
   ListItem(Chunk(Paragraph(Chunk(Text("Item 2")))), None)
@@ -399,7 +453,10 @@ OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean)
 The `start` parameter specifies the starting number (typically 1).
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val list = OrderedList(
   start = 1,
   items = Chunk(
@@ -422,7 +479,7 @@ ListItem(content: Chunk[Block], checked: Option[Boolean])
 The `checked` parameter: `Some(true)` renders as `[x]`, `Some(false)` renders as `[ ]`, `None` for regular list items.
 
 **Examples:**
-```scala
+```scala mdoc:compile-only
 // Regular list item
 val item = ListItem(Chunk(Paragraph(Chunk(Text("Task")))), None)
 
@@ -443,7 +500,7 @@ HtmlBlock(content: String)
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
 val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 ```
 
@@ -457,7 +514,10 @@ Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val table = Table(
   header = TableRow(Chunk(Chunk(Text("Name")), Chunk(Text("Age")))),
   alignments = Chunk(Alignment.Left, Alignment.Right),
@@ -486,7 +546,10 @@ Inline.Text(value: String)
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val text = Text("Hello world")
 ```
 
@@ -502,7 +565,10 @@ Inline.Code(value: String)
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val code = Code("val x = 42")
 ```
 
@@ -518,7 +584,10 @@ Inline.Emphasis(content: Chunk[Inline])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val emphasis = Emphasis(Chunk(Text("italic")))
 // Renders as: *italic*
 ```
@@ -535,7 +604,10 @@ Inline.Strong(content: Chunk[Inline])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val strong = Strong(Chunk(Text("bold")))
 // Renders as: **bold**
 ```
@@ -552,7 +624,10 @@ Inline.Strikethrough(content: Chunk[Inline])
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val struck = Strikethrough(Chunk(Text("deprecated")))
 // Renders as: ~~deprecated~~
 ```
@@ -571,7 +646,7 @@ Inline.Link(text: Chunk[Inline], url: String, title: Option[String])
 The `title` parameter is optional link title text.
 
 **Examples:**
-```scala
+```scala mdoc:compile-only
 // Simple link
 val link = Link(Chunk(Text("Click here")), "https://example.com", None)
 
@@ -591,7 +666,10 @@ Inline.Image(alt: String, url: String, title: Option[String])
 ```
 
 **Examples:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val img = Image(alt = "Logo", url = "/logo.png", None)
 val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
 ```
@@ -608,7 +686,7 @@ Inline.HtmlInline(content: String)
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
 val html = HtmlInline("<span class='highlight'>custom</span>")
 ```
 
@@ -617,7 +695,7 @@ val html = HtmlInline("<span class='highlight'>custom</span>")
 A soft line break (single newline, rendered as space or newline depending on context).
 
 **Construction:**
-```scala
+```scala mdoc:compile-only
 SoftBreak
 // or
 Inline.SoftBreak
@@ -630,7 +708,7 @@ Inline.SoftBreak
 A hard line break (two spaces or backslash before newline).
 
 **Construction:**
-```scala
+```scala mdoc:compile-only
 HardBreak
 // or
 Inline.HardBreak
@@ -650,7 +728,7 @@ Inline.Autolink(url: String, isEmail: Boolean)
 ```
 
 **Examples:**
-```scala
+```scala mdoc:compile-only
 val urlLink = Autolink("https://example.com", isEmail = false)
 val emailLink = Autolink("user@example.com", isEmail = true)
 // Renders as: <https://example.com> and <user@example.com>
@@ -664,7 +742,10 @@ Heading levels from H1 to H6, with convenience constructors.
 
 ### Predefined Levels
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HeadingLevel.H1  // value = 1
 HeadingLevel.H2  // value = 2
 HeadingLevel.H3  // value = 3
@@ -676,20 +757,29 @@ HeadingLevel.H6  // value = 6
 ### Safe Construction
 
 **From integer (returns `Option`):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HeadingLevel.fromInt(2) == Some(HeadingLevel.H2)
 HeadingLevel.fromInt(7) == None  // Out of range
 ```
 
 **Unsafe construction (throws on invalid input):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HeadingLevel.unsafeFromInt(3)  // HeadingLevel.H3
 HeadingLevel.unsafeFromInt(7)  // Throws IllegalArgumentException
 ```
 
 ### Accessing Value
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HeadingLevel.H1.value == 1
 ```
 
@@ -701,7 +791,10 @@ Table column alignment specification.
 
 ### Predefined Alignments
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Alignment.Left    // Renders as :---
 Alignment.Right   // Renders as ---:
 Alignment.Center  // Renders as :---:
@@ -729,7 +822,10 @@ TableRow(cells: Chunk[Chunk[Inline]])
 Each cell is a `Chunk[Inline]`, allowing formatted content (text, links, emphasis, etc.).
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val row = TableRow(Chunk(
   Chunk(Text("Alice")),
   Chunk(Strong(Chunk(Text("30")))),
@@ -753,7 +849,10 @@ Parser.parse(input: String): Either[ParseError, Doc]
 Returns `Right(doc)` on success or `Left(error)` on parse failure.
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val result = Parser.parse("# Hello\n\nWorld")
 result match {
   case Right(doc) => println(s"Parsed ${doc.blocks.size} blocks")
@@ -801,15 +900,16 @@ ParseError(
 ```
 
 **Example:**
-```scala
-ParseError("Unexpected token", line = 5, column = 12, input = "[invalid markdown]")
+```scala mdoc:silent
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
+val err = ParseError("Unexpected token", line = 5, column = 12, input = "[invalid markdown]")
 ```
 
 **String representation:**
-```scala
+```scala mdoc
 err.toString
-// ParseError at line 5, column 12: Unexpected token
-//   [invalid markdown]
 ```
 
 ---
@@ -826,7 +926,10 @@ Renderer.render(doc: Doc): String
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("Title"))),
   Paragraph(Chunk(Text("Content")))
@@ -853,7 +956,10 @@ The renderer does not normalize; use `doc.normalize` before rendering if normali
 ### Round-Trip Semantics
 
 Rendered output can be re-parsed:
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val original = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val markdown = Renderer.render(original)
 val reparsed = Parser.parse(markdown).toOption.get
@@ -874,7 +980,10 @@ HtmlRenderer.render(doc: Doc): String
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val html = HtmlRenderer.render(doc)
 // <!DOCTYPE html><html><head></head><body><h1>Title</h1></body></html>
@@ -888,7 +997,10 @@ HtmlRenderer.renderFragment(doc: Doc): String
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val fragment = HtmlRenderer.renderFragment(doc)
 // <h1>Title</h1>
 ```
@@ -927,7 +1039,10 @@ TerminalRenderer.render(doc: Doc): String
 ```
 
 **Example:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Title")))))
 val terminal = TerminalRenderer.render(doc)
 // Returns ANSI-colored string: [31m[1mTitle[0m\n\n
@@ -970,14 +1085,20 @@ The type parameter is contravariant (`-A`), allowing supertype instances to be u
 
 ### Summon an Instance
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 ToMarkdown[String]  // Implicitly summons the ToMarkdown[String] instance
 ```
 
 ### Built-In Instances
 
 **Primitive types → plain text:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 ToMarkdown[String]    // a: String => Text(a)
 ToMarkdown[Int]       // a: Int => Text(a.toString)
 ToMarkdown[Long]      // a: Long => Text(a.toString)
@@ -986,7 +1107,10 @@ ToMarkdown[Boolean]   // a: Boolean => Text(a.toString)
 ```
 
 **Inline pass-through:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 ToMarkdown[Inline]    // a: Inline => a (identity)
 ```
 
@@ -1001,7 +1125,10 @@ ToMarkdown[Seq[A]]     // as: Seq[A] => Text(as.map(...).mkString(", "))
 For collection instances, each element is converted using its `ToMarkdown[A]` instance, then joined with ", ".
 
 **Block → rendered markdown text:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 ToMarkdown[Block]     // b: Block => Text(Renderer.render(Doc(Chunk(b))).trim)
 ```
 
@@ -1009,7 +1136,10 @@ ToMarkdown[Block]     // b: Block => Text(Renderer.render(Doc(Chunk(b))).trim)
 
 Define implicit instances for your types:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case class Person(name: String, age: Int)
 
 implicit val personToMarkdown: ToMarkdown[Person] = { person =>
@@ -1030,7 +1160,10 @@ The `md` string interpolator validates markdown at compile time and supports run
 
 Markdown syntax inside `md"..."` is validated at compile time:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val doc = md"# Valid heading"  // Compiles
 
 val invalid = md"# [unclosed link]("  // Compile error: Invalid markdown
@@ -1040,7 +1173,10 @@ val invalid = md"# [unclosed link]("  // Compile error: Invalid markdown
 
 Values are interpolated and converted to inline markdown using `ToMarkdown`:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val name = "Alice"
 val count = 42
 val doc = md"""
@@ -1055,7 +1191,10 @@ You have $count items.
 
 Any type with a `ToMarkdown` instance can be interpolated:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case class Tag(label: String)
 implicit val tagToMarkdown: ToMarkdown[Tag] = tag =>
   Code(tag.label)
