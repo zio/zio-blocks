@@ -16,13 +16,24 @@
 
 package zio.blocks.datastar
 
+/**
+ * Modifier ADT used by `data-on-interval` builders.
+ *
+ * Interval modifiers encode the polling duration and optional view transition.
+ * `Duration(..., leading = true)` represents Datastar's leading-edge interval
+ * variant.
+ */
 sealed trait OnIntervalModifier extends Product with Serializable {
 
+  /** Renders the Datastar modifier suffix for this interval modifier. */
   def render: String
 }
 
 object OnIntervalModifier {
 
+  /**
+   * Encodes a duration-based interval, optionally using the leading variant.
+   */
   final case class Duration(millis: Long, leading: Boolean) extends OnIntervalModifier {
 
     def render: String =
@@ -30,10 +41,12 @@ object OnIntervalModifier {
       else "__duration." + millis + "ms"
   }
 
+  /** Wraps the interval action in a view transition when supported. */
   case object ViewTransition extends OnIntervalModifier {
     def render: String = "__viewTransition"
   }
 
+  /** Concatenates two interval modifier suffixes in order. */
   final case class And(left: OnIntervalModifier, right: OnIntervalModifier) extends OnIntervalModifier {
     def render: String = left.render + right.render
   }

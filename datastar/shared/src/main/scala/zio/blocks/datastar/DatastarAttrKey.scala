@@ -18,13 +18,22 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Low-level key for constructing Datastar `data-*` attributes directly.
+ *
+ * Most callers should prefer higher-level `data*` helpers from
+ * [[DatastarAttributes]]. Use `DatastarAttrKey` when defining a custom Datastar
+ * attribute name or when no dedicated helper exists yet.
+ */
 final class DatastarAttrKey(val name: String) {
 
+  /** Builds a DOM attribute from this key and a Datastar expression value. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute =
     Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(toDatastarExpr.toDatastarExpr(value)))
 }
 
 object DatastarAttrKey {
 
+  /** Creates a low-level Datastar attribute key for the provided raw name. */
   def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
 }

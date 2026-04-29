@@ -161,7 +161,7 @@ object DatastarEvent {
     new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
 
   def executeScript(code: Js): PatchElementsBuilder = {
-    val escapedCode   = code.value.replace("</script>", "<\\/script>").replace("</Script>", "<\\/Script>")
+    val escapedCode   = code.value.replace("</", "<\\/")
     val scriptElement = Dom.Element.Script(
       Chunk(Dom.Attribute.KeyValue("data-effect", Dom.AttributeValue.StringValue("el.remove()"))),
       Chunk(Dom.Text(escapedCode))

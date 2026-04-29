@@ -16,13 +16,22 @@
 
 package zio.blocks.datastar
 
+/**
+ * Modifier ADT used by `dataOn` event bindings.
+ *
+ * Modifiers alter Datastar's event-handling semantics, such as debounce,
+ * throttle, delay, capture phase, and propagation/default handling. The
+ * rendered form is encoded directly into the attribute name.
+ */
 sealed trait EventModifier extends Product with Serializable {
 
+  /** Renders the Datastar modifier suffix for this modifier. */
   def render: String
 }
 
 object EventModifier {
 
+  /** Debounces event handling for the specified interval. */
   final case class Debounce(millis: Long, leading: Boolean) extends EventModifier {
 
     def render: String =
@@ -30,6 +39,7 @@ object EventModifier {
       else "__debounce." + millis + "ms"
   }
 
+  /** Throttles event handling for the specified interval. */
   final case class Throttle(millis: Long, leading: Boolean) extends EventModifier {
 
     def render: String =
@@ -37,50 +47,65 @@ object EventModifier {
       else "__throttle." + millis + "ms"
   }
 
+  /** Delays event handling by the specified interval. */
   final case class Delay(millis: Long) extends EventModifier {
     def render: String = "__delay." + millis + "ms"
   }
 
+  /** Handles the event at most once. */
   case object Once extends EventModifier {
     def render: String = "__once"
   }
 
+  /** Marks the listener as passive. */
   case object Passive extends EventModifier {
     def render: String = "__passive"
   }
 
+  /** Registers the listener during the capture phase. */
   case object Capture extends EventModifier {
     def render: String = "__capture"
   }
 
+  /** Calls `stopPropagation()` during event handling. */
   case object Stop extends EventModifier {
     def render: String = "__stop"
   }
 
+  /** Calls `preventDefault()` during event handling. */
   case object Prevent extends EventModifier {
     def render: String = "__prevent"
   }
 
+  /** Restricts handling to events originating outside the bound element. */
   case object Outside extends EventModifier {
     def render: String = "__outside"
   }
 
+  /** Attaches the listener to `window`. */
   case object Window extends EventModifier {
     def render: String = "__window"
   }
 
+  /** Attaches the listener to `document`. */
   case object Document extends EventModifier {
     def render: String = "__document"
   }
 
+  /** Wraps handling in a view transition when supported. */
   case object ViewTransition extends EventModifier {
     def render: String = "__viewTransition"
   }
 
+  /** Concatenates two modifier suffixes in left-to-right order. */
   final case class And(left: EventModifier, right: EventModifier) extends EventModifier {
     def render: String = left.render + right.render
   }
 
+  /**
+   * Normalizes repeated or conflicting modifiers into the final suffix set used
+   * by the DSL.
+   */
   def normalize(existing: Option[EventModifier], next: EventModifier): Option[EventModifier] = {
     val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[EventModifier]) { (acc, modifier) =>
       modifier match {

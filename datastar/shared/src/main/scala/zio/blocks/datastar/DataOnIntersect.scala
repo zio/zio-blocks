@@ -18,6 +18,13 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Builder for `data-on-intersect` Datastar attributes.
+ *
+ * Visibility, timing, and transition modifiers are encoded into the final
+ * attribute name. Repeated modifiers are normalized to a single effective
+ * suffix.
+ */
 final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
 
   def once: DataOnIntersect = withModifier(IntersectModifier.Once)
@@ -38,6 +45,7 @@ final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
 
   def viewTransition: DataOnIntersect = withModifier(IntersectModifier.ViewTransition)
 
+  /** Assigns the Datastar expression rendered for this intersect trigger. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-intersect" + modifierStr

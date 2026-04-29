@@ -48,7 +48,7 @@ final case class ServerSentEvent private (
    *   a new ServerSentEvent with the id set
    */
   def withId(id: String): ServerSentEvent =
-    copy(id = Some(id))
+    copy(id = Some(ServerSentEvent.validateSingleLineField(id, "id")))
 
   /**
    * Sets the retry interval in milliseconds.
@@ -117,5 +117,12 @@ object ServerSentEvent {
    *   a new ServerSentEvent
    */
   def apply(data: String, eventType: String): ServerSentEvent =
-    new ServerSentEvent(data, eventType, None, None)
+    new ServerSentEvent(data, validateSingleLineField(eventType, "eventType"), None, None)
+
+  private def validateSingleLineField(value: String, fieldName: String): String = {
+    if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) {
+      throw new IllegalArgumentException(s"SSE $fieldName must not contain CR or LF characters")
+    }
+    value
+  }
 }

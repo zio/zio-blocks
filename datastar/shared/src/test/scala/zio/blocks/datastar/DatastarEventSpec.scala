@@ -228,6 +228,18 @@ object DatastarEventSpec extends ZIOSpecDefault {
             "data: elements <script data-effect=\"el.remove()\">console.log('hello')</script>\n" +
             "\n"
         )
+      },
+      test("escapes every closing tag opener in script content") {
+        val code   = js"</sCrIpT><div></DIV>"
+        val result = DatastarEvent.executeScript(code).renderSSE
+        assertTrue(
+          result ==
+            "event: datastar-patch-elements\n" +
+            "data: selector body\n" +
+            "data: mode append\n" +
+            "data: elements <script data-effect=\"el.remove()\"><\\/sCrIpT><div><\\/DIV></script>\n" +
+            "\n"
+        )
       }
     ),
     suite("patchSignals special character escaping")(

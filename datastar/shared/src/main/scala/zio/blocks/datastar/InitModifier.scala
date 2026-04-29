@@ -16,21 +16,31 @@
 
 package zio.blocks.datastar
 
+/**
+ * Modifier ADT used by `data-init` builders.
+ *
+ * Init modifiers are encoded as `__...` suffixes and normalized so repeated
+ * delay or view-transition markers collapse to one effective form.
+ */
 sealed trait InitModifier extends Product with Serializable {
 
+  /** Renders the Datastar modifier suffix for this init modifier. */
   def render: String
 }
 
 object InitModifier {
 
+  /** Delays the init action by the specified interval. */
   final case class Delay(millis: Long) extends InitModifier {
     def render: String = "__delay." + millis + "ms"
   }
 
+  /** Wraps the init action in a view transition when supported. */
   case object ViewTransition extends InitModifier {
     def render: String = "__viewTransition"
   }
 
+  /** Concatenates two init modifier suffixes in order. */
   final case class And(left: InitModifier, right: InitModifier) extends InitModifier {
     def render: String = left.render + right.render
   }

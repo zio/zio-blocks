@@ -51,6 +51,14 @@ object ServerSentEventSpec extends ZIOSpecDefault {
     test("Empty data: renders event type and empty data line") {
       val event = ServerSentEvent("", "test")
       assertTrue(event.render == "event: test\ndata: \n\n")
+    },
+    test("eventType with newline is rejected") {
+      val result = scala.util.Try(ServerSentEvent("data", "bad\nname"))
+      assertTrue(result.isFailure)
+    },
+    test("id with carriage return is rejected") {
+      val result = scala.util.Try(ServerSentEvent("data", "evt").withId("bad\rid"))
+      assertTrue(result.isFailure)
     }
   )
 }

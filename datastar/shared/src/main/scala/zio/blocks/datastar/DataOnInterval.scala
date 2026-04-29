@@ -18,6 +18,13 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Builder for `data-on-interval` Datastar attributes.
+ *
+ * Duration modifiers describe how often the interval fires, and
+ * `durationLeading` encodes Datastar's leading-edge interval variant. Repeated
+ * modifiers are normalized to the last effective duration.
+ */
 final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
 
   def duration(millis: Long): DataOnInterval = withModifier(OnIntervalModifier.Duration(millis, false))
@@ -26,6 +33,7 @@ final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
 
   def viewTransition: DataOnInterval = withModifier(OnIntervalModifier.ViewTransition)
 
+  /** Assigns the Datastar expression rendered for this interval trigger. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-interval" + modifierStr

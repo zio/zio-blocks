@@ -18,6 +18,12 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Builder for `data-on-signal-patch` Datastar attributes.
+ *
+ * Delay, debounce, and throttle modifiers are encoded into the final attribute
+ * name. Repeated timing modifiers are normalized to the last effective value.
+ */
 final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
 
   def delay(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Delay(millis))
@@ -26,6 +32,7 @@ final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
 
   def throttle(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Throttle(millis))
 
+  /** Assigns the Datastar expression rendered for this signal-patch trigger. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-on-signal-patch" + modifierStr

@@ -16,18 +16,40 @@
 
 package zio.blocks.datastar
 
+/**
+ * Describes how Datastar should patch rendered content into the target element.
+ *
+ * `Outer` is the default patch mode and is omitted from SSE rendering.
+ */
 sealed trait ElementPatchMode extends Product with Serializable {
 
+  /** Renders the lowercase SSE value for this patch mode. */
   def render: String = productPrefix.toLowerCase
 }
 
 object ElementPatchMode {
-  case object Outer   extends ElementPatchMode
-  case object Inner   extends ElementPatchMode
+
+  /** Replaces the target element itself. */
+  case object Outer extends ElementPatchMode
+
+  /** Replaces the target element's children. */
+  case object Inner extends ElementPatchMode
+
+  /** Replaces the target element using replacement semantics. */
   case object Replace extends ElementPatchMode
+
+  /** Inserts content at the beginning of the target element's children. */
   case object Prepend extends ElementPatchMode
-  case object Append  extends ElementPatchMode
-  case object Before  extends ElementPatchMode
-  case object After   extends ElementPatchMode
-  case object Remove  extends ElementPatchMode
+
+  /** Inserts content at the end of the target element's children. */
+  case object Append extends ElementPatchMode
+
+  /** Inserts content immediately before the target element. */
+  case object Before extends ElementPatchMode
+
+  /** Inserts content immediately after the target element. */
+  case object After extends ElementPatchMode
+
+  /** Removes the target element. */
+  case object Remove extends ElementPatchMode
 }

@@ -18,12 +18,20 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Builder for the `data-init` Datastar attribute.
+ *
+ * Modifiers such as [[delay]] and [[viewTransition]] are encoded into the final
+ * attribute name and normalized so repeated modifiers collapse to the last
+ * effective value.
+ */
 final class DataInit(val modifier: Option[InitModifier]) {
 
   def delay(millis: Long): DataInit = withModifier(InitModifier.Delay(millis))
 
   def viewTransition: DataInit = withModifier(InitModifier.ViewTransition)
 
+  /** Assigns the Datastar expression rendered for this `data-init` builder. */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val modifierStr = modifier.fold("")(_.render)
     val attrName    = "data-init" + modifierStr

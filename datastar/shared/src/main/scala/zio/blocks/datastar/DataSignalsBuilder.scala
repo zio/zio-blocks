@@ -18,6 +18,13 @@ package zio.blocks.datastar
 
 import zio.blocks.html.Dom
 
+/**
+ * Builds `data-signals:<name>` attributes for a named signal key.
+ *
+ * The base key uses the kebab-cased `signalName`. Case modifier methods append
+ * a `__case.*` suffix when a non-default casing is requested. Values assigned
+ * with `:=` must be valid Datastar expressions.
+ */
 final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseModifier) {
 
   def kebab: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Kebab)
@@ -28,6 +35,9 @@ final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseMod
 
   def pascal: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Pascal)
 
+  /**
+   * Renders a `data-signals:<name>` attribute using the configured case mode.
+   */
   def :=[T](value: T)(implicit toDatastarExpr: ToDatastarExpr[T]): Dom.Attribute = {
     val suffix   = caseModifier.suffix(CaseModifier.Camel)
     val attrName = "data-signals:" + toKebabCase(signalName) + suffix

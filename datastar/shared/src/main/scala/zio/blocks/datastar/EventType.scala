@@ -16,17 +16,26 @@
 
 package zio.blocks.datastar
 
+/**
+ * Datastar event types emitted via the SSE `event:` field.
+ *
+ * The rendered string returned by [[render]] is the protocol-level event name
+ * sent on the wire.
+ */
 sealed trait EventType extends Product with Serializable {
 
+  /** Returns the exact SSE `event:` value emitted for this event type. */
   def render: String
 }
 
 object EventType {
 
+  /** Emits the `datastar-patch-elements` SSE event type. */
   case object PatchElements extends EventType {
     def render: String = "datastar-patch-elements"
   }
 
+  /** Emits the `datastar-patch-signals` SSE event type. */
   case object PatchSignals extends EventType {
     def render: String = "datastar-patch-signals"
   }
