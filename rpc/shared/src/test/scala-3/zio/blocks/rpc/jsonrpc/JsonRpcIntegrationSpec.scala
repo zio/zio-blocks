@@ -19,7 +19,8 @@ package zio.blocks.rpc.jsonrpc
 import zio.test._
 import zio.blocks.rpc._
 import zio.blocks.rpc.fixtures._
-import zio.blocks.schema.json.Json
+import zio.blocks.chunk.Chunk
+import zio.blocks.schema.json.{Json, JsonCodec}
 
 object JsonRpcIntegrationSpec extends ZIOSpecDefault {
 
@@ -38,7 +39,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       case Left(e)  => throw e
     }
 
-  private val greeterCodec = new JsonRpcCodec[GreeterService](
+  private val greeterCodec = new JsonRpcCodec(
     Map(
       "greet" -> new JsonRpcCodec.OperationHandler {
         def handle(params: Json): Either[Throwable, Json] = {
@@ -49,7 +50,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
     )
   )
 
-  private val failingCodec = new JsonRpcCodec[GreeterService](
+  private val failingCodec = new JsonRpcCodec(
     Map(
       "greet" -> new JsonRpcCodec.OperationHandler {
         def handle(params: Json): Either[Throwable, Json] =
@@ -168,36 +169,91 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       }
     ),
     suite("JsonRpcDeriver integration")(
-      test("deriveService creates codec from RPC descriptor") {
-        val rpc     = RPC.derived[GreeterService]
-        val codec   = JsonRpcDeriver.deriveService(rpc)
-        val request = """{"jsonrpc":"2.0","method":"unknown","params":{},"id":1}"""
-        val raw     = codec.handleRequest(request)
-        assertTrue(raw.exists(_.contains("-32601")))
-      },
-      test("derived codec returns internal error for unbound operations") {
+      test("deriveService creates protocol contract from RPC descriptor") {
         val rpc      = RPC.derived[GreeterService]
-        val codec    = JsonRpcDeriver.deriveService(rpc)
-        val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":1}"""
+        val protocol = JsonRpcDeriver.deriveService(rpc)
+        val op       = protocol.operations(0)
+
+        assertTrue(
+          protocol.serviceName == "GreeterService",
+          protocol.serviceTypeId == rpc.typeId,
+          protocol.metadata == rpc.metadata,
+          protocol.operations.length == 1,
+          op.name == "greet",
+          op.parameterNames == Chunk("name")
+        )
+      },
+      test("derived contract can be bound once into an executable codec") {
+        val protocol = JsonRpcDeriver.deriveService(RPC.derived[GreeterService])
+        val codec    = protocol
+          .bindHandlers(
+            Chunk(
+              JsonRpcProtocol.BoundOperation(
+                name = "greet",
+                handle = params => {
+                  val name = extractString(params, "name").getOrElse("unknown")
+                  Right(Json.String(s"Hello, $name!"))
+                }
+              )
+            )
+          )
+          .fold(message => throw new RuntimeException(message), identity)
+
+        val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"bound"},"id":1}"""
         val raw      = codec.handleRequest(request).get
         val response = parseResponse(raw)
-        val error    = extractField(response, "error")
-        val code     = error.flatMap(e => extractNumber(e, "code"))
-        assertTrue(code.contains(BigDecimal(-32603)))
+        val result   = extractField(response, "result")
+
+        assertTrue(
+          result.exists {
+            case s: Json.String => s.value == "Hello, bound!"
+            case _              => false
+          }
+        )
+      },
+      test("binding rejects missing handlers") {
+        val protocol = JsonRpcDeriver.deriveService(RPC.derived[GreeterService])
+        val result   = protocol.bindHandlers(Chunk.empty)
+
+        assertTrue(result.left.exists(_.contains("Missing JSON-RPC handlers")))
+      },
+      test("binding rejects unknown handlers") {
+        val protocol = JsonRpcDeriver.deriveService(RPC.derived[GreeterService])
+        val result   = protocol.bindHandlers(
+          Chunk(
+            JsonRpcProtocol.BoundOperation(
+              name = "unknown",
+              handle = _ => Right(Json.String("ignored"))
+            )
+          )
+        )
+
+        assertTrue(result.left.exists(_.contains("Unknown JSON-RPC handlers")))
+      },
+      test("derived contract includes JSON codecs for output and errors") {
+        val protocol = JsonRpcDeriver.deriveService(RPC.derived[TodoService])
+        val getTodo  = protocol.operations.find(_.name == "getTodo").get
+        val output   = getTodo.outputCodec.asInstanceOf[JsonCodec[Todo]].encodeValue(Todo(1, "write tests"))
+        val error    = getTodo.errorCodec.get.asInstanceOf[JsonCodec[ServiceError]].encodeValue(ServiceError(500, "boom"))
+
+        assertTrue(
+          getTodo.errorCodec.isDefined,
+          output.isInstanceOf[Json.Object],
+          error.isInstanceOf[Json.Object]
+        )
       }
     ),
     suite("JsonRpcFormat integration")(
       test("deriver returns JsonRpcDeriver") {
         assertTrue(JsonRpcFormat.deriver == JsonRpcDeriver)
       },
-      test("RPC.derive with JsonRpcFormat produces codec") {
+      test("RPC.derive with JsonRpcFormat produces protocol contract") {
         val rpc      = RPC.derived[GreeterService]
-        val codec    = rpc.derive(JsonRpcFormat.deriver)
-        val request  = """{"jsonrpc":"2.0","method":"greet","params":{"name":"test"},"id":1}"""
-        val raw      = codec.handleRequest(request).get
-        val response = parseResponse(raw)
-        val error    = extractField(response, "error")
-        assertTrue(error.isDefined)
+        val protocol = rpc.derive(JsonRpcFormat.deriver)
+        assertTrue(
+          protocol.serviceName == "GreeterService",
+          protocol.operations.map(_.name) == Chunk("greet")
+        )
       }
     )
   )

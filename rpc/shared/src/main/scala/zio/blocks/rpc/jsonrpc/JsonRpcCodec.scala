@@ -21,10 +21,13 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.Json
 
 /**
- * A JSON-RPC 2.0 handler derived from an RPC service descriptor.
- * Transport-agnostic: operates on `String => Option[String]`.
+ * A low-level JSON-RPC 2.0 dispatcher over raw operation handlers.
+ *
+ * This type is transport-agnostic and executable, but intentionally unaware of
+ * RPC descriptors or dependency injection. Higher-level runtimes can construct
+ * it from a derived protocol contract plus concrete handlers.
  */
-final class JsonRpcCodec[T](
+final class JsonRpcCodec(
   private val operationHandlers: Map[String, JsonRpcCodec.OperationHandler]
 ) {
 
