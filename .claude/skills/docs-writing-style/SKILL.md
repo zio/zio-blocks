@@ -114,4 +114,28 @@ Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key e
 - ✅ "Splitting creates two chunks from a single index:"
 
 
+## Examples
+
+### Very Concise Sections (Bad)
+
+```
+### HTML Feature Mapping
+
+- Headings → `<h1>` through `<h6>`
+- Paragraphs → `<p>`
+- Code blocks → `<pre><code class="language-...">` (language from info string)
+- Thematic breaks → `<hr>`
+```
+
+### Contextualized Descriptions (Good)
+
+```
+HTML elements map directly to Markdown constructs by semantic role:
+
+- **Headings** use `<h1>` through `<h6>` to preserve document hierarchy.
+- **Paragraphs** become `<p>` tags, wrapping each block of continuous text.
+- **Code blocks** render as `<pre><code class="language-...">`, where the language
+  class is derived from the info string (e.g. ```python → `language-python`).
+```
+
 ---
