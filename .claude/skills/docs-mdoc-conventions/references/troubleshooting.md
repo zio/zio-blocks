@@ -337,12 +337,3 @@ val req = Request("123", "pending")
 val updated = req.copy(status = "completed")
 println(updated)
 ```
-
----
-
-## Still stuck?
-
-- Run locally: `sbt docs` to see error messages with line numbers
-- Check the **Quick Reference** for modifier summary
-- Look at examples in `/docs/reference/*.md` and `/docs/guides/*.md` from ZIO Blocks
-- Post an issue with the error message and the mdoc block
