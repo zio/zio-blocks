@@ -41,18 +41,11 @@ This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, 19, and 23 for mechanical v
 
 ## Referencing Types, Operations, and Constructors
 
-8. **Always qualify method/constructor names**: Never refer to a method or constructor by its bare name. Write `BindingResolver.empty`, not `empty`; write `ZIO#map`, not `map`. The type name is essential context for the reader. This rule applies everywhere: in prose, headings, comparative phrases ("use `Context#add` vs. `Context.apply`", not "use `add` vs. `apply`"), and bullet points. Method/operation references must be wrapped in backticks (inline code blocks) to make them searchable and visually distinct as code, ensuring consistency across all contexts (including subsection headings at ### and #### levels).
+8. **Always qualify method/constructor names**: Never use bare names like `map` or `empty`. Always write `Chunk#map` (instance methods) or `BindingResolver.empty` (companion methods). Use backticks everywhere: prose, headings, comparative phrases. This ensures readers understand the context.
 
-   **Examples:**
-   - **Instance methods** — use `TypeName#methodName`: `As#from`, `As#into`, `As#reverse`, `Into#into`
-   - **Companion object/static members** — use `TypeName.methodName`: `As.derived`, `As.apply`, `Into.derived`, `Into.apply`
-   - **In headings** — same rules apply: `### Context#add`, `#### Wire.shared[T]` (always in backticks)
-   
    **Bad vs. Good:**
-   - ❌ "Call `map` to transform elements"  
-     ✅ "Call `Chunk#map` to transform elements"
-   - ❌ "Use `apply` to construct a binding"  
-     ✅ "Use `BindingResolver.apply` to construct a binding"
+   - ❌ "Call `map` to transform elements" → ✅ "Call `Chunk#map` to transform elements"
+   - ❌ "Use `apply` to construct a binding" → ✅ "Use `BindingResolver.apply` to construct a binding"
 
 9. **Type name alone rule**: When talking about the type itself (not a method), use only its name with no qualifier, and always wrap it in backticks: "`As` derives automatically", "`Into` is a one-way conversion", "convert the data to `List`". This applies to all type references in prose, including standard library types like `List`, `Vector`, `Set`, `String`, `Int`, `Array`, etc.
 
