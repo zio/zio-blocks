@@ -16,8 +16,28 @@
 
 package zio.blocks.sql
 
+/**
+ * A SQL fragment composed of literal text interleaved with typed parameter
+ * values.
+ *
+ * `parts(i)` is a literal SQL string and `params(i)` is the value bound at the
+ * `?` placeholder that follows it. The invariant is
+ * `parts.length == params.length + 1`: the fragment begins and ends with a
+ * literal segment (which may be empty).
+ *
+ * Fragments are assembled via `++` and rendered to a dialect-specific SQL
+ * string with `sql`. Use the extension methods on [[Frag]] (e.g. `query`,
+ * `queryOne`, `update`) to execute them against a live [[DbCon]].
+ *
+ * The `sql"..."` string interpolator in [[SqlInterpolator]] is the primary way
+ * to construct fragments; use [[Frag.literal]] for parameter-free SQL.
+ */
 final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 
+  /**
+   * Concatenates two fragments, merging the adjacent literal boundary so the
+   * result remains a valid `Frag` (i.e. `parts.length == params.length + 1`).
+   */
   def ++(other: Frag): Frag =
     if (parts.isEmpty) other
     else if (other.parts.isEmpty) this
@@ -26,6 +46,10 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
       Frag(mergedParts, params ++ other.params)
     }
 
+  /**
+   * Renders the fragment to a SQL string using the given dialect's placeholder
+   * syntax.
+   */
   def sql(dialect: SqlDialect): String = {
     val sb       = new StringBuilder
     var paramIdx = 1
@@ -47,8 +71,11 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 }
 
 object Frag {
+
+  /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
+  /** Wraps a parameter-free SQL string as a fragment. */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
 
   extension (frag: Frag) {

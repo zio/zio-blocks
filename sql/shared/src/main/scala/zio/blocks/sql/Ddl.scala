@@ -16,10 +16,25 @@
 
 package zio.blocks.sql
 
+/**
+ * Metadata for a single column in a `CREATE TABLE` statement.
+ *
+ * @param name
+ *   The column name as it appears in SQL.
+ * @param sqlType
+ *   The SQL type string (e.g. `"INTEGER"`, `"TEXT"`).
+ * @param nullable
+ *   Whether the column allows SQL NULL.
+ */
 final case class ColumnDef(name: String, sqlType: String, nullable: Boolean)
 
+/** Helpers for generating DDL fragments (`CREATE TABLE`, `DROP TABLE`). */
 object Ddl {
 
+  /**
+   * Produces a `CREATE TABLE IF NOT EXISTS <tableName> (...)` fragment. Each
+   * column is rendered as `name sqlType [NOT NULL]`.
+   */
   def createTable(tableName: String, columns: IndexedSeq[ColumnDef]): Frag = {
     val colDefs = columns.map { col =>
       val nullStr = if (col.nullable) "" else " NOT NULL"
@@ -28,6 +43,7 @@ object Ddl {
     Frag.literal(s"CREATE TABLE IF NOT EXISTS $tableName (\n${colDefs.mkString(",\n")}\n)")
   }
 
+  /** Produces a `DROP TABLE IF EXISTS <tableName>` fragment. */
   def dropTable(tableName: String): Frag =
     Frag.literal(s"DROP TABLE IF EXISTS $tableName")
 }

@@ -16,6 +16,14 @@
 
 package zio.blocks.sql
 
+/**
+ * Low-level SQL execution primitives.
+ *
+ * These methods execute a [[Frag]] against an implicit [[DbCon]], handle
+ * parameter binding, row decoding, logging, and resource cleanup. In most
+ * application code you should use the extension methods on [[Frag]] or the
+ * higher-level [[Repo]] API instead of calling these directly.
+ */
 object SqlOps {
 
   private def selectLabels[A](reader: DbResultReader, codec: DbCodec[A]): IndexedSeq[String] =
@@ -24,6 +32,7 @@ object SqlOps {
       else reader.columnLabel(offset + 1)
     }
 
+  /** Executes `frag` as a SELECT and returns all rows decoded as `A`. */
   def query[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
@@ -53,6 +62,10 @@ object SqlOps {
     }
   }
 
+  /**
+   * Executes `frag` as a SELECT and returns at most `limit` rows decoded as
+   * `A`.
+   */
   def queryLimit[A](frag: Frag, limit: Int)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
@@ -82,6 +95,10 @@ object SqlOps {
     }
   }
 
+  /**
+   * Executes `frag` as a SELECT and returns the first row decoded as `A`, or
+   * `None`.
+   */
   def queryOne[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): Option[A] = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
@@ -106,6 +123,10 @@ object SqlOps {
     }
   }
 
+  /**
+   * Executes `frag` as an INSERT/UPDATE/DELETE and returns the affected row
+   * count.
+   */
   def update(frag: Frag)(using con: DbCon): Int = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
@@ -126,6 +147,10 @@ object SqlOps {
     }
   }
 
+  /**
+   * Executes `frag` as an INSERT with generated-keys retrieval and returns the
+   * auto-generated key values decoded as `A`.
+   */
   def updateReturningKeys[A](frag: Frag)(using con: DbCon, codec: DbCodec[A]): List[A] = {
     val sqlStr = frag.sql(con.dialect)
     val start  = System.nanoTime()
