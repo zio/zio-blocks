@@ -1,7 +1,7 @@
 # Quick Reference: mdoc Modifiers
 
 
-## Scope Persistence
+## Scope Persistence with reset Modifier
 
 Once a `mdoc:silent` block runs, **all names remain in scope for subsequent blocks** until reset:
 
@@ -26,6 +26,9 @@ Block D: mdoc
 ## Common Patterns
 
 ### Pattern: Setup + Show Output
+
+Only use this pattern when the first block defines multiple larger setup code (e.g., multiple case classes, imports) that later blocks will reference. 
+
 ```scala mdoc:silent
 def add(a: Int, b: Int): Int = a + b
 ```
