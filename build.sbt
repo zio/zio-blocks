@@ -392,10 +392,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
     // Override the default -release flag so Thread.ofVirtual() is available.
     // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
     // compilation of streams (tests will be skipped due to compilation failure).
-    scalacOptions ~= { opts =>
-      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
-        .map(_._1)
-    },
+    scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
     scalacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
@@ -409,6 +406,12 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
       // Alphanumeric infix in tests (andThen, etc.)
       "-Wconf:msg=Alphanumeric method.*infix:s"
     ),
+    Compile / doc / scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq("-no-link-warnings")
+        case _            => Seq.empty
+      }
+    },
     javacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("--release", "21") else Seq("--release", jdkVersion.toString)
@@ -1097,10 +1100,7 @@ lazy val `streams-benchmark` = project
   .enablePlugins(JmhPlugin)
   .settings(
     // Requires JDK 21+ for Thread.ofVirtual() (Project Loom)
-    scalacOptions ~= { opts =>
-      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
-        .map(_._1)
-    },
+    scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
     scalacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)

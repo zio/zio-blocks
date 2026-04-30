@@ -11,6 +11,13 @@ object BuildHelper {
   val Scala3: String      = "3.8.3"
   val Scala3Golem: String = "3.8.3" // Golem macros use experimental APIs (Symbol.newClass etc.)
 
+  def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
+    options.foldLeft((Vector.empty[String], false)) {
+      case ((acc, true), _)              => (acc, false)
+      case ((acc, false), currentOption) if currentOption == option => (acc, true)
+      case ((acc, false), currentOption) => (acc :+ currentOption, false)
+    }._1
+
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
     if (value) println("Detected CI_RELEASE_MODE envvar, enabling optimizations")
