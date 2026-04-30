@@ -10,12 +10,12 @@ Here are the core type definitions:
 ```scala
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 
-sealed trait Block
+sealed trait Block extends Product with Serializable
 final case class Paragraph(content: Chunk[Inline]) extends Block
 final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
 final case class CodeBlock(info: Option[String], code: String) extends Block
 
-sealed trait Inline
+sealed trait Inline extends Product with Serializable
 final case class Text(value: String) extends Inline
 final case class Code(value: String) extends Inline
 final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
