@@ -39,7 +39,7 @@ object NioSinks {
    */
   def fromByteBuffer(buf: ByteBuffer): Sink[Nothing, Byte, Unit] =
     new Sink[Nothing, Byte, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
+      private[streams] def drain(reader: Reader[_]): Unit = {
         var b = reader.readByte()
         while (b >= 0) { buf.put(b.toByte); b = reader.readByte() }
       }
@@ -52,10 +52,11 @@ object NioSinks {
    */
   def fromByteBufferDouble(buf: ByteBuffer): Sink[Nothing, Double, Unit] =
     new Sink[Nothing, Double, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
-        val s = Double.MaxValue
-        var v = reader.readDouble(s)(using unsafeEvidence)
-        while (v != s) { buf.putDouble(v); v = reader.readDouble(s)(using unsafeEvidence) }
+      private[streams] def drain(reader: Reader[_]): Unit = {
+        val s            = Double.MaxValue
+        val doubleReader = reader.asInstanceOf[Reader[Double]]
+        var v            = doubleReader.readDouble(s)
+        while (v != s) { buf.putDouble(v); v = doubleReader.readDouble(s) }
       }
     }
 
@@ -66,10 +67,11 @@ object NioSinks {
    */
   def fromByteBufferFloat(buf: ByteBuffer): Sink[Nothing, Float, Unit] =
     new Sink[Nothing, Float, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
-        val s = Double.MaxValue
-        var v = reader.readFloat(s)(using unsafeEvidence)
-        while (v != s) { buf.putFloat(v.toFloat); v = reader.readFloat(s)(using unsafeEvidence) }
+      private[streams] def drain(reader: Reader[_]): Unit = {
+        val s           = Double.MaxValue
+        val floatReader = reader.asInstanceOf[Reader[Float]]
+        var v           = floatReader.readFloat(s)
+        while (v != s) { buf.putFloat(v.toFloat); v = floatReader.readFloat(s) }
       }
     }
 
@@ -80,10 +82,11 @@ object NioSinks {
    */
   def fromByteBufferInt(buf: ByteBuffer): Sink[Nothing, Int, Unit] =
     new Sink[Nothing, Int, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
-        val s = Long.MinValue
-        var v = reader.readInt(s)(using unsafeEvidence)
-        while (v != s) { buf.putInt(v.toInt); v = reader.readInt(s)(using unsafeEvidence) }
+      private[streams] def drain(reader: Reader[_]): Unit = {
+        val s         = Long.MinValue
+        val intReader = reader.asInstanceOf[Reader[Int]]
+        var v         = intReader.readInt(s)
+        while (v != s) { buf.putInt(v.toInt); v = intReader.readInt(s) }
       }
     }
 
@@ -94,10 +97,11 @@ object NioSinks {
    */
   def fromByteBufferLong(buf: ByteBuffer): Sink[Nothing, Long, Unit] =
     new Sink[Nothing, Long, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
-        val s = Long.MaxValue
-        var v = reader.readLong(s)(using unsafeEvidence)
-        while (v != s) { buf.putLong(v); v = reader.readLong(s)(using unsafeEvidence) }
+      private[streams] def drain(reader: Reader[_]): Unit = {
+        val s          = Long.MaxValue
+        val longReader = reader.asInstanceOf[Reader[Long]]
+        var v          = longReader.readLong(s)
+        while (v != s) { buf.putLong(v); v = longReader.readLong(s) }
       }
     }
 
@@ -113,7 +117,7 @@ object NioSinks {
    */
   def fromChannel(ch: WritableByteChannel, bufSize: Int = 8192): Sink[IOException, Byte, Unit] =
     new Sink[IOException, Byte, Unit] {
-      private[streams] def drain(reader: Reader[?]): Unit = {
+      private[streams] def drain(reader: Reader[_]): Unit = {
         val buf = ByteBuffer.allocate(bufSize)
         var b   = reader.readByte()
         while (b >= 0) {
