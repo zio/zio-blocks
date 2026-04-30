@@ -4,15 +4,11 @@ description: Shared reference for mdoc code block modifiers and Docusaurus admon
 allowed_tools: Read, Glob, Grep
 ---
 
-# ZIO Blocks Documentation Conventions
-
-## Compile-Checked Code Blocks with mdoc
-
-This project uses mdoc to compile-check executable code blocks (examples, use cases). 
+The documentation project should use the `mdoc` modifier to compile-check executable code blocks (examples, use cases). 
 
 **Exception:** Data type definitions use plain `` ```scala `` without mdoc modifiers — they are structural illustrations, not executable examples.
 
-### Modifiers & Rules
+## Modifiers & Rules
 
 Each modifier has a specific role. Choose based on whether you need scope sharing and whether output should render:
 
@@ -48,7 +44,7 @@ Each modifier has a specific role. Choose based on whether you need scope sharin
 - **No mdoc** (plain `` ```scala ``) — Renders source code only, not compiled.
   Use for pseudocode, ASCII diagrams, type signatures for illustration, or non-Scala syntax (e.g., sbt configuration).
 
-### Choosing the Right Modifier
+## Choosing the Right Modifier
 
 Use this decision tree to pick the right modifier:
 
@@ -78,11 +74,9 @@ Is this real executable Scala code?
 
 **After any mdoc:silent block**, if you later need a completely different context (new domain, new imports), use `mdoc:silent:reset` to clear all state.
 
-### Real-World Examples from ZIO Blocks
+## Common Patterns
 
-The ZIO Blocks documentation uses these patterns throughout. Here are real examples:
-
-#### Pattern 1: Silent Setup + Output Rendering (Query DSL SQL Guide)
+### Pattern 1: Silent Setup + Output Rendering (Query DSL SQL Guide)
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -115,50 +109,82 @@ columnName(Product.name)
 
 This pair shows the two-block pattern: `silent` for setup (which doesn't render), then `mdoc` for expressions where the output is meaningful to show.
 
-#### Pattern 2: Silent Reset for New Context (JSON Differ Reference)
+### Pattern 2: Redefining with Nesting
 
-When switching to a different example topic within the same document, reset all prior scope:
+When you need to redefine a name (e.g., `Person`), use `nest` modifier:
 
-```scala mdoc:silent:reset
-import zio.blocks.schema.json.{Json, JsonDiffer}
+```
+Block A: mdoc
+  ├─ case class Person(...)    ← in scope
+  └─ val alice = ...           ← in scope
 
-val numberToString = JsonDiffer.diff(Json.Number(42), Json.String("hello"))
+Block B: mdoc
+  ├─ Can reference alice  ✓
+  └─ Can reference Person ✓
+
+Block C: mdoc:nest
+  ├─ All prior scope accessible ✓
+  └─ Can redefine Person ✓
+
+Block D: mdoc
+  ├─ Can reference new Person  ✓
+  └─ Cannot reference old Person ✗
 ```
 
-The `:reset` wipes the previous `Product` type and imports, preventing name collisions.
-
-#### Pattern 3: Self-Contained Compile-Only (DynamicValue Reference)
-
-For structural examples that don't need to share state:
+### Pattern 3: Self-Contained
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.DynamicValue
-
-val str = DynamicValue.string("hello")
-val num = DynamicValue.int(42)
-val flag = DynamicValue.boolean(true)
-
-val person = DynamicValue.Record(
-  "name" -> DynamicValue.string("Alice"),
-  "age" -> DynamicValue.int(30)
-)
+case class User(name: String, age: Int)
+val user = User("Alice", 30)
 ```
 
 Each `compile-only` block stands alone. The next example in the document doesn't have access to `person`.
 
----
+### Pattern 4: Setup + Show Output
 
-## Quick Reference
+Only use this pattern when the first block defines multiple larger setup code (e.g., multiple case classes, imports) that later blocks will reference and the later block should be evaluated to show output.
 
-Need a one-liner? See **`references/quick-reference.md`** for a cheat sheet of modifiers, patterns, and templates.
+```scala mdoc:silent
+def add(a: Int, b: Int): Int = a + b
+```
+
+Now call it and show the result:
+
+```scala mdoc
+add(2, 3)
+```
+
+If the setup is just a single line or two, it's often cleaner to combine it with the output block:
+
+```scala mdoc
+def add(a: Int, b: Int): Int = a + b
+
+add(2, 3)
+```
+
+### Pattern 5: Multi-Step Guide
+1. **Setup block** → `mdoc:silent` (case classes, imports)
+2. **Example 1** → `mdoc` (show output)
+3. **Building on Example 1** → `mdoc` (reuse prior definitions)
+4. **New Topic** → `mdoc:silent:reset` + `mdoc:silent` (fresh context)
+5. **Final Copy-Paste** → `mdoc:compile-only` (standalone)
+
+## When to Use `:reset`
+
+- Switching to a **completely different domain** (Product → JSON → User)
+- Starting a **new tutorial section** with independent examples
+- Avoid if: just defining a new helper function (doesn't need reset)
+
+## Tips
+
+- **Never manually write `// result` comments** — use `mdoc` to show real output
+- **Test locally with `sbt docs`** before committing mdoc blocks
+- **Group related setup blocks** — define all prerequisites in one `silent` block if possible
+- **Use `:reset` sparingly** — prefer `:nest` for minor redefinitions
 
 ## Troubleshooting
 
-Common mistakes when writing mdoc blocks? See **`references/troubleshooting.md`** for solutions to:
-- "My code won't compile"
-- "Redefining a name failed"
-- "The output doesn't show"
-- Silent scope gotchas
+Common mistakes when writing mdoc blocks? See **`references/troubleshooting.md`** for solutions to.
 
 ---
 
