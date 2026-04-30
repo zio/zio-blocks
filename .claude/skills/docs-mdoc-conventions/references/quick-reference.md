@@ -1,16 +1,5 @@
 # Quick Reference: mdoc Modifiers
 
-## One-Liner Cheat Sheet
-
-| Modifier | Output | Use | Example |
-|----------|--------|-----|---------|
-| `mdoc:compile-only` | Source only | Self-contained, standalone example | Illustrating a type constructor |
-| `mdoc:silent` | Hidden | Define for later blocks | Case class, import statement |
-| `mdoc:silent:nest` | Hidden | Redefine an earlier name | `Person` in Part A vs Part B of guide |
-| `mdoc:silent:reset` | Hidden | Wipe all prior scope, start fresh | Switching domains mid-document |
-| `mdoc` | Source + output | Show the result of evaluation | Calling a function, seeing the REPL output |
-| `mdoc:invisible` | Hidden | Hidden imports only (rare) | Internal setup you don't want shown |
-| `scala` (plain) | Source only | Pseudocode, diagrams, non-code | ASCII art, type signatures, shell commands |
 
 ## Scope Persistence
 
