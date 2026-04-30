@@ -51,7 +51,11 @@ This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, 19, and 23 for mechanical v
 
 ## Frontmatter Titles
 
-10. **No duplicate markdown heading**: Do not create a markdown heading (`#`) that duplicates the frontmatter title. The frontmatter title is sufficient. Start the document content with a `##` section heading.
+10. **No duplicate markdown heading**: Do not create a markdown heading (`#`) that duplicates the frontmatter title. The frontmatter title is sufficient:
+
+   **Bad vs. Good:**
+   - ❌ Frontmatter has `title: "As Type"`, then document starts with `# As Type`
+   - ✅ Start directly with `## Overview` or `## Use Cases`
 
 ## Heading and Code Block Layout Rules
 
