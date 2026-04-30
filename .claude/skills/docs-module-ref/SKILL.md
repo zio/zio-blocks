@@ -132,8 +132,6 @@ Answer: What problem does it solve? Why use it over alternatives?
 
 #### 4. Installation
 
-Standard format (same as `docs-data-type-ref`):
-
 ```scala
 libraryDependencies += "dev.zio" %% "<module-name>" % "@VERSION@"
 ```
