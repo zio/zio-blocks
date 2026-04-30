@@ -35,9 +35,8 @@ object Table {
 
   private val defaultNamingPolicy: TableNamingPolicy = TableNamingPolicy.Singular
 
-  def derived[A](implicit schema: Schema[A]): Table[A] = {
+  def derived[A](implicit schema: Schema[A]): Table[A] =
     derived[A](defaultNamingPolicy)
-  }
 
   def derived[A](tableName: String)(implicit schema: Schema[A]): Table[A] = {
     val codec   = schema.deriving(DbCodecDeriver).derive
@@ -52,7 +51,10 @@ object Table {
     Table(tableName, codec, columns)
   }
 
-  private[sql] def deriveTableName[A](schema: Schema[A], namingPolicy: TableNamingPolicy = defaultNamingPolicy): String = {
+  private[sql] def deriveTableName[A](
+    schema: Schema[A],
+    namingPolicy: TableNamingPolicy = defaultNamingPolicy
+  ): String = {
     val configured = schema.reflect.modifiers.collectFirst { case Modifier.config("sql.table_name", value) =>
       value
     }
