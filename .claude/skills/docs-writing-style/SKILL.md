@@ -92,7 +92,7 @@ Between consecutive code blocks, add bridging prose that explains what the next 
 16. **Always include imports**: Every code block must start with the necessary import statements.
 17. **One concept per code block**: Each code block demonstrates one cohesive idea.
 18. **Prefer `val` over `var`**: Use immutable patterns everywhere if possible.
-20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
+20. **Write contextualized descriptions for code blocks**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
    
    **Bad vs. Good:**
    - ❌ "Here's an example:"  
@@ -138,16 +138,6 @@ Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key e
 - ❌ "As we can see, the chunk will accept..."
 - ❌ "It's worth noting that chunks are immutable"
 - ✅ "Chunks are immutable"
-
-
-**Rule 9 (Type name alone)** — No qualifier when referring to the type itself:
-- ❌ "Use `Chunk#Chunk` for building chunks"
-- ✅ "Use `Chunk` for building chunks"
-
-**Rule 20 (Contextualized descriptions)** — Avoid generic intro phrases:
-- ❌ "Here's an example:"
-- ❌ "We can see this in action:"
-- ✅ "Splitting creates two chunks from a single index:"
 
 
 ## Examples
