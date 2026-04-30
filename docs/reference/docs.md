@@ -415,16 +415,20 @@ Hash code is computed from the normalized form for consistency with `equals`.
 
 ## Block (Sealed Trait)
 
-A block-level markdown element. Block is a sealed trait with the following concrete subtypes.
+A block-level markdown element.
+
+```scala
+sealed trait Block extends Product with Serializable
+```
+
+Block is a sealed trait with the following concrete subtypes.
 
 ### Paragraph
 
 A paragraph containing inline content.
 
-Construct a paragraph with inline content:
-
-```
-Paragraph(content: Chunk[Inline])
+```scala
+final case class Paragraph(content: Chunk[Inline]) extends Block
 ```
 
 Here's an example of creating a paragraph with mixed content:
@@ -443,10 +447,8 @@ val para = Paragraph(Chunk(
 
 An ATX-style heading (# to ######) with a level and inline content.
 
-Construct a heading with a level and inline content:
-
-```
-Heading(level: HeadingLevel, content: Chunk[Inline])
+```scala
+final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
 ```
 
 Here's an example of creating headings with different levels:
@@ -463,10 +465,8 @@ val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 
 A fenced code block with optional language/info string.
 
-Construct a code block with optional language specification:
-
 ```scala
-CodeBlock(info: Option[String], code: String)
+final case class CodeBlock(info: Option[String], code: String) extends Block
 ```
 
 Here are examples of creating code blocks with and without language specification:
@@ -481,7 +481,11 @@ val plainBlock = CodeBlock(None, "some code")
 
 ### ThematicBreak
 
-A thematic break (horizontal rule) represented as `case object ThematicBreak`.
+A thematic break (horizontal rule).
+
+```scala
+case object ThematicBreak extends Block
+```
 
 Create a thematic break:
 
@@ -495,10 +499,8 @@ val break = ThematicBreak
 
 A block quote containing nested blocks.
 
-Construct a block quote with nested blocks:
-
 ```scala
-BlockQuote(content: Chunk[Block])
+final case class BlockQuote(content: Chunk[Block]) extends Block
 ```
 
 Here's an example of creating a block quote:
@@ -515,10 +517,8 @@ val quote = BlockQuote(Chunk(
 
 An unordered list with bullet markers (-, *, +).
 
-Construct a bullet list with items and a tightness parameter:
-
 ```scala
-BulletList(items: Chunk[ListItem], tight: Boolean)
+final case class BulletList(items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
 The `tight` parameter controls spacing: `true` removes blank lines between items for compact rendering. Here's an example:
@@ -537,10 +537,8 @@ val list = BulletList(Chunk(
 
 An ordered list with numeric markers (1., 2., etc.).
 
-Construct an ordered list with a starting number, items, and a tightness parameter:
-
 ```scala
-OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean)
+final case class OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
 The `start` parameter specifies the starting number (typically 1). Here's an example:
@@ -563,10 +561,8 @@ val list = OrderedList(
 
 A list item, optionally a task list item.
 
-Construct a list item with content and optional checkbox status:
-
 ```scala
-ListItem(content: Chunk[Block], checked: Option[Boolean])
+final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) extends Block
 ```
 
 The `checked` parameter: `Some(true)` renders as `[x]`, `Some(false)` renders as `[ ]`, `None` for regular list items. Here are examples of each type:
@@ -586,10 +582,8 @@ val incomplete = ListItem(Chunk(Paragraph(Chunk(Text("TODO")))), Some(false))
 
 Raw HTML block content.
 
-Construct raw HTML block content:
-
 ```scala
-HtmlBlock(content: String)
+final case class HtmlBlock(content: String) extends Block
 ```
 
 Here's an example of creating an HTML block:
@@ -602,10 +596,8 @@ val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 
 A GitHub Flavored Markdown table with aligned columns.
 
-Construct a table with header, column alignments, and data rows:
-
 ```scala
-Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow])
+final case class Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow]) extends Block
 ```
 
 Here's an example of creating a table:
