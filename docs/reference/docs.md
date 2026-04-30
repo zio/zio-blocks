@@ -109,7 +109,7 @@ TerminalRenderer.render(doc)
 
 Parsing markdown strings to create documents:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -1042,7 +1042,7 @@ Renderer.render(doc: Doc): String
 
 Here's an example of rendering a document:
 
-```scala mdoc:reset
+```scala mdoc:silent:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
