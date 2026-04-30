@@ -817,22 +817,6 @@ object HeadingLevel {
 }
 ```
 
-### Predefined Levels
-
-Access predefined heading levels from H1 to H6:
-
-```scala mdoc:compile-only
-import zio.blocks.chunk.Chunk
-import zio.blocks.docs._
-
-HeadingLevel.H1  // value = 1
-HeadingLevel.H2  // value = 2
-HeadingLevel.H3  // value = 3
-HeadingLevel.H4  // value = 4
-HeadingLevel.H5  // value = 5
-HeadingLevel.H6  // value = 6
-```
-
 ### Safe Construction
 
 Construct a heading level from an integer, returning an `Option`:
@@ -901,9 +885,35 @@ Alignment.None    // Renders as ---
 
 Create a table with specific column alignments:
 
-```
+```scala mdoc:silent:nest
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+val header = TableRow(Chunk(
+  Chunk(Text("Name")),
+  Chunk(Text("Age")),
+  Chunk(Text("City"))
+))
+val rows = Chunk(
+  TableRow(Chunk(
+    Chunk(Text("Alice")),
+    Chunk(Text("30")),
+    Chunk(Text("NYC"))
+  )),
+  TableRow(Chunk(
+    Chunk(Text("Bob")),
+    Chunk(Text("25")),
+    Chunk(Text("LA"))
+  ))
+)
 val alignments = Chunk(Alignment.Left, Alignment.Center, Alignment.Right)
 val table = Table(header, alignments, rows)
+val doc = Doc(Chunk(table))
+```
+
+If we render this document, the table will have left-aligned "Name", center-aligned "Age", and right-aligned "City":
+
+```scala mdoc
+Renderer.render(doc)
 ```
 
 ---
