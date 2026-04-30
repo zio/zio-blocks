@@ -283,6 +283,8 @@ A complete GitHub Flavored Markdown document.
 
 ### Definition
 
+Here is the `Doc` type definition:
+
 ```scala
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 ```
@@ -415,7 +417,7 @@ Hash code is computed from the normalized form for consistency with `equals`.
 
 ## Block (Sealed Trait)
 
-A block-level markdown element.
+A block-level markdown element:
 
 ```scala
 sealed trait Block extends Product with Serializable
@@ -425,7 +427,7 @@ Block is a sealed trait with the following concrete subtypes.
 
 ### Paragraph
 
-A paragraph containing inline content.
+A paragraph containing inline content:
 
 ```scala
 final case class Paragraph(content: Chunk[Inline]) extends Block
@@ -445,7 +447,7 @@ val para = Paragraph(Chunk(
 
 ### Heading
 
-An ATX-style heading (# to ######) with a level and inline content.
+An ATX-style heading (# to ######) with a level and inline content:
 
 ```scala
 final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
@@ -463,7 +465,7 @@ val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 
 ### CodeBlock
 
-A fenced code block with optional language/info string.
+A fenced code block with optional language/info string:
 
 ```scala
 final case class CodeBlock(info: Option[String], code: String) extends Block
@@ -481,7 +483,7 @@ val plainBlock = CodeBlock(None, "some code")
 
 ### ThematicBreak
 
-A thematic break (horizontal rule).
+A thematic break (horizontal rule):
 
 ```scala
 case object ThematicBreak extends Block
@@ -497,13 +499,14 @@ val break = ThematicBreak
 
 ### BlockQuote
 
-A block quote containing nested blocks.
+A block quote containing nested blocks:
 
 ```scala
 final case class BlockQuote(content: Chunk[Block]) extends Block
 ```
 
 Here's an example of creating a block quote:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
@@ -515,7 +518,7 @@ val quote = BlockQuote(Chunk(
 
 ### BulletList
 
-An unordered list with bullet markers (-, *, +).
+An unordered list with bullet markers (-, *, +):
 
 ```scala
 final case class BulletList(items: Chunk[ListItem], tight: Boolean) extends Block
@@ -535,7 +538,7 @@ val list = BulletList(Chunk(
 
 ### OrderedList
 
-An ordered list with numeric markers (1., 2., etc.).
+An ordered list with numeric markers (1., 2., etc.):
 
 ```scala
 final case class OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) extends Block
@@ -559,7 +562,7 @@ val list = OrderedList(
 
 ### ListItem
 
-A list item, optionally a task list item.
+A list item, optionally a task list item:
 
 ```scala
 final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) extends Block
@@ -580,7 +583,7 @@ val incomplete = ListItem(Chunk(Paragraph(Chunk(Text("TODO")))), Some(false))
 
 ### HtmlBlock
 
-Raw HTML block content.
+Raw HTML block content:
 
 ```scala
 final case class HtmlBlock(content: String) extends Block
@@ -594,7 +597,7 @@ val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 
 ### Table
 
-A GitHub Flavored Markdown table with aligned columns.
+A GitHub Flavored Markdown table with aligned columns:
 
 ```scala
 final case class Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow]) extends Block
@@ -620,7 +623,7 @@ val table = Table(
 
 ## Inline (Sealed Trait)
 
-An inline-level markdown element.
+An inline-level markdown element:
 
 ```scala
 sealed trait Inline extends Product with Serializable
@@ -630,7 +633,7 @@ Inline is a sealed trait with concrete subtypes (defined both in object and at t
 
 ### Text
 
-Plain text content.
+Plain text content:
 
 ```scala
 final case class Text(value: String) extends Inline
@@ -647,7 +650,7 @@ val text = Text("Hello world")
 
 ### Code
 
-Inline code span (backtick-delimited).
+Inline code span (backtick-delimited):
 
 ```scala
 final case class Code(value: String) extends Inline
@@ -664,7 +667,7 @@ val code = Code("val x = 42")
 
 ### Emphasis
 
-Emphasized (italic) text.
+Emphasized (italic) text:
 
 ```scala
 final case class Emphasis(content: Chunk[Inline]) extends Inline
@@ -682,7 +685,7 @@ val emphasis = Emphasis(Chunk(Text("italic")))
 
 ### Strong
 
-Strong (bold) text.
+Strong (bold) text:
 
 ```scala
 final case class Strong(content: Chunk[Inline]) extends Inline
@@ -700,7 +703,7 @@ val strong = Strong(Chunk(Text("bold")))
 
 ### Strikethrough
 
-Strikethrough text (GFM feature).
+Strikethrough text (GFM feature):
 
 ```scala
 final case class Strikethrough(content: Chunk[Inline]) extends Inline
@@ -718,7 +721,7 @@ val struck = Strikethrough(Chunk(Text("deprecated")))
 
 ### Link
 
-A hyperlink.
+A hyperlink:
 
 ```scala
 final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
@@ -736,7 +739,7 @@ val titled = Link(Chunk(Text("Docs")), "/docs", Some("Documentation"))
 
 ### Image
 
-An image reference.
+An image reference:
 
 ```scala
 final case class Image(alt: String, url: String, title: Option[String]) extends Inline
@@ -754,7 +757,7 @@ val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
 
 ### HtmlInline
 
-Raw HTML inline content.
+Raw HTML inline content:
 
 ```scala
 final case class HtmlInline(content: String) extends Inline
@@ -768,7 +771,7 @@ val html = HtmlInline("<span class='highlight'>custom</span>")
 
 ### SoftBreak
 
-A soft line break (single newline, rendered as space or newline depending on context).
+A soft line break (single newline, rendered as space or newline depending on context):
 
 ```scala
 case object SoftBreak extends Inline
@@ -776,7 +779,7 @@ case object SoftBreak extends Inline
 
 ### HardBreak
 
-A hard line break (two spaces or backslash before newline).
+A hard line break (two spaces or backslash before newline):
 
 ```scala
 case object HardBreak extends Inline
@@ -784,7 +787,7 @@ case object HardBreak extends Inline
 
 ### Autolink
 
-An autolink (URL or email in angle brackets).
+An autolink (URL or email in angle brackets):
 
 ```scala
 final case class Autolink(url: String, isEmail: Boolean) extends Inline
@@ -802,7 +805,7 @@ val emailLink = Autolink("user@example.com", isEmail = true)
 
 ## HeadingLevel
 
-Heading levels from H1 to H6.
+Heading levels from H1 to H6:
 
 ```scala
 sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
@@ -854,7 +857,7 @@ HeadingLevel.H1.value == 1
 
 ## Alignment
 
-Table column alignment specification.
+Table column alignment specification:
 
 ```scala
 sealed trait Alignment extends Product with Serializable
@@ -920,7 +923,7 @@ Renderer.render(doc)
 
 ## TableRow
 
-A single row in a table, containing cells as inline content.
+A single row in a table, containing cells as inline content:
 
 ```scala
 final case class TableRow(cells: Chunk[Chunk[Inline]])
@@ -993,7 +996,7 @@ result match {
 
 ## ParseError
 
-Error information from parsing, with precise location data.
+Error information from parsing, with precise location data:
 
 ```scala
 final case class ParseError(
@@ -1023,7 +1026,7 @@ err.toString
 
 ## Renderer
 
-A singleton object that renders markdown documents back to GitHub Flavored Markdown string format.
+A singleton object that renders markdown documents back to GitHub Flavored Markdown string format:
 
 ```scala
 object Renderer
@@ -1091,7 +1094,7 @@ assert(original == reparsed)  // Equal after normalization
 
 ## HtmlRenderer
 
-A singleton object that renders markdown documents to HTML5.
+A singleton object that renders markdown documents to HTML5:
 
 ```scala
 object HtmlRenderer
@@ -1163,7 +1166,7 @@ Use fragments to embed markdown content into existing HTML templates.
 
 ## TerminalRenderer
 
-A singleton object that renders markdown to ANSI-colored terminal output optimized for console display.
+A singleton object that renders markdown to ANSI-colored terminal output optimized for console display:
 
 ```scala
 object TerminalRenderer
@@ -1237,6 +1240,7 @@ ToMarkdown[String]  // Implicitly summons the ToMarkdown[String] instance
 ### Built-In Instances
 
 Convert primitive types to plain text:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
@@ -1249,6 +1253,7 @@ ToMarkdown[Boolean]   // a: Boolean => Text(a.toString)
 ```
 
 Pass inline elements through unchanged:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
@@ -1257,6 +1262,7 @@ ToMarkdown[Inline]    // a: Inline => a (identity)
 ```
 
 Convert collections to comma-separated text:
+
 ```
 ToMarkdown[List[A]]    // as: List[A] => Text(as.map(...).mkString(", "))
 ToMarkdown[Chunk[A]]   // as: Chunk[A] => Text(as.map(...).mkString(", "))
@@ -1267,6 +1273,7 @@ ToMarkdown[Seq[A]]     // as: Seq[A] => Text(as.map(...).mkString(", "))
 For collection instances, each element is converted using its `ToMarkdown[A]` instance, then joined with ", ".
 
 Render blocks to markdown text:
+
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
