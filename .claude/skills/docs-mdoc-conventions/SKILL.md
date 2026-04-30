@@ -38,8 +38,8 @@ This project uses mdoc to compile-check executable code blocks (examples, use ca
   wouldn't suffice (e.g., switching to a completely different topic mid-document).
 - **`mdoc`** (no qualifier) shows **source + evaluated output** (REPL-style). Use this whenever you
   would otherwise write `// Right(42L)`, `// Some("hello")`, or any result comment — let mdoc render
-  the actual evaluated output instead. Requires definitions to be in scope from a prior
-  `silent`/`silent:nest` block.
+  the actual evaluated output instead. Can be used with definitions from prior `silent`/`silent:nest`
+  blocks, OR used standalone for self-contained examples that just need to show their output.
 - **`mdoc:invisible`** is like `silent` but signals "hidden imports only." Rare — prefer including
   imports directly in the `mdoc:silent` setup block (so they are in shared scope) or inside a
   `compile-only` block (for self-contained examples). Use `invisible` only when you need imports
@@ -62,7 +62,7 @@ Is this real executable Scala code?
    │  │
    │  ├─ NO → Use mdoc:compile-only (source only, isolated)
    │  │
-   │  └─ YES → Use mdoc:reset (source + output, isolated)
+   │  └─ YES → Use mdoc (source + output, isolated from prior scope)
    │
    └─ YES → Is this a later block showing a result?
       │
