@@ -217,6 +217,13 @@ final class Headers private[http] (
 object Headers {
   val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
 
+  /**
+   * Validates a header field name.
+   *
+   * Header names must be non-empty HTTP token strings. This method is suitable
+   * for checking user-supplied names before constructing or mutating
+   * [[Headers]]; the mutating helpers enforce the same invariant.
+   */
   def validateName(name: String): Either[String, Unit] = {
     if (name.isEmpty) return Left("Header name cannot be empty")
     var i = 0
@@ -228,6 +235,13 @@ object Headers {
     Right(())
   }
 
+  /**
+   * Validates a raw header field value.
+   *
+   * Values may not contain carriage return or line feed characters. Rejecting
+   * CR/LF prevents response/request splitting and header-injection attacks when
+   * values are rendered into an HTTP message.
+   */
   def validateValue(value: String): Either[String, Unit] = {
     var i = 0
     while (i < value.length) {

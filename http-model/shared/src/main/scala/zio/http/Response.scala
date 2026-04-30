@@ -28,6 +28,13 @@ final case class Response(
 ) {
   def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
+  /**
+   * Returns this response's content type.
+   *
+   * The typed `Content-Type` header is preferred when present and parseable. If
+   * the header is absent or cannot be parsed as a typed `Content-Type` header,
+   * this method falls back to the body's content type.
+   */
   def contentType: Option[ContentType] =
     header(zio.http.headers.ContentType).map(_.value).orElse(Some(body.contentType))
 
@@ -36,6 +43,13 @@ final case class Response(
   def removeHeader(name: String): Response             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Response = copy(headers = headers.set(name, value))
 
+  /**
+   * Returns a copy with the supplied body and a synchronized `Content-Type`
+   * header.
+   *
+   * This overwrites any existing `Content-Type` header with
+   * `body.contentType.render` so the headers remain aligned with the body.
+   */
   def body(body: Body): Response          = copy(body = body, headers = headers.set("content-type", body.contentType.render))
   def status(status: Status): Response    = copy(status = status)
   def version(version: Version): Response = copy(version = version)
