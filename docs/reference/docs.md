@@ -1059,7 +1059,13 @@ val doc = Doc(Chunk(
   Heading(HeadingLevel.H1, Chunk(Text("Title"))),
   Paragraph(Chunk(Text("Content")))
 ))
-Renderer.render(doc)
+val rendered = Renderer.render(doc)
+```
+
+The result:
+
+```scala mdoc
+rendered
 ```
 
 Render individual blocks:
