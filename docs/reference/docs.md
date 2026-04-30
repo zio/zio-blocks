@@ -945,10 +945,6 @@ val row = TableRow(Chunk(
 
 A singleton object providing strict GitHub Flavored Markdown parsing with position-aware error reporting.
 
-```scala
-object Parser
-```
-
 ### Parsing
 
 Use the main entry point to parse markdown:
