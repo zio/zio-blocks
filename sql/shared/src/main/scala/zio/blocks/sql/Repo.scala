@@ -108,8 +108,11 @@ class Repo[E, ID](
     val updatePairs   = table.columns.zip(entityValues).filter(_._1 != idColumn)
     val updateColumns = updatePairs.map(_._1)
     val updateValues  = updatePairs.map(_._2)
-    val frag          = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, idColumn, idValues)
-    SqlOps.update(frag)(using con)
+    if (updateColumns.isEmpty) 0
+    else {
+      val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, idColumn, idValues)
+      SqlOps.update(frag)(using con)
+    }
   }
 
   def deleteById(id: ID)(using con: DbCon): Int = {
@@ -169,10 +172,16 @@ object Repo {
 
     matchingFields match {
       case IndexedSeq((field, idx)) =>
-        val idColumn       = SqlNameMapper.SnakeCase(field.name)
+        val idColumn = field.modifiers.collectFirst { case rename: Modifier.rename => rename.name }
+          .getOrElse(SqlNameMapper.SnakeCase(field.name))
         val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
         val codec          = schema.deriving(DbCodecDeriver).derive
-        new Repo(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+        new Repo(
+          Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
+          idColumn,
+          idCodec,
+          getId
+        )
 
       case empty if empty.isEmpty =>
         throw new IllegalArgumentException(
@@ -211,6 +220,7 @@ object Repo {
     idValues: IndexedSeq[DbValue]
   ): Frag = {
     require(columns.nonEmpty, "Cannot build UPDATE with no columns to set")
+    require(columns.size == entityValues.size, "UPDATE column/value count mismatch")
     val allValues = entityValues ++ idValues
     val partsB    = IndexedSeq.newBuilder[String]
 
