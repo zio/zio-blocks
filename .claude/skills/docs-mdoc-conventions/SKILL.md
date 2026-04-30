@@ -44,6 +44,12 @@ Each modifier has a specific role. Choose based on whether you need scope sharin
 - **No mdoc** (plain `` ```scala ``) — Renders source code only, not compiled.
   Use for pseudocode, ASCII diagrams, type signatures for illustration, or non-Scala syntax (e.g., sbt configuration).
 
+- -**Never hardcode expression output in comments**: Let mdoc render output automatically, don't add comments like `// None` or `// "hello"`. Use bare `mdoc` to show all vals; only use `mdoc:silent` when output is verbose boilerplate.
+
+**Bad vs. Good:**
+- ❌ `val x = 42 // 42`  
+  ✅ `val x = 42` (mdoc renders the output)
+
 ## Choosing the Right Modifier
 
 Use this decision tree to pick the right modifier:

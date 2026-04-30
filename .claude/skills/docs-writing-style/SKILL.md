@@ -65,29 +65,33 @@ This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, 19, and 23 for mechanical v
    **Bad vs. Good:**
    - ❌ `## Operations` → `### Map` (no intro between them)  
      ✅ `## Operations` → `To transform values, use these operations.` → `### Map`
-13. **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, remove the subheader entirely and place the content directly under the parent heading. The same rule applies to `###` → `####`.
-14. **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a single `###` heading by using `####` for each item. This creates visual hierarchy and makes the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` → `#### Schema-driven migrations`.
-15. **Every code block must be preceded by an introductory prose sentence ending with a colon**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. Between two consecutive code blocks, write a contextualized bridging sentence that explains what the next block demonstrates. This applies universally:
-    - After a heading: write at least one sentence before the first code block.
-    - Between two consecutive code blocks: write a sentence explaining what the next block demonstrates (especially important for execution blocks that follow signature blocks).
-    - The sentence must be surrounded by blank lines on both sides (standard Markdown spacing).
-    - **The sentence must end with a colon (`:`)**. A colon signals to the reader that code follows.
-    
+13. **No lone subheaders**: Never create a subsection with only one child. 
+
+   **Bad vs. Good:**
+   - ❌ `## Overview` → `### Definition` (only one subsection)  
+     ✅ `## Overview` (put the definition content directly here)
+14. **When to use `####`**: Use `####` to organize multiple related topics under a single `###`. Example:
+    ```
+    ### Operations
+    #### Transformations
+    #### Filtering
+    #### Zipping
+    #### Scanning
+    ```
+15. **Every code block must be preceded by a prose sentence ending with `:`**: Never follow a heading directly with a code block. Always write an intro sentence that ends with `:`. 
+
     **Bad vs. Good:**
-    - ❌ `#### Chunk#map` (heading only, followed immediately by code fence)  
-      ✅ `#### Chunk#map`  
-      `To transform each element in a chunk:`  
-      (blank line)  
-      ````scala mdoc ...` (code block)
-    - ❌ (first code block) (blank line) (second code block) (no prose between)  
-      ✅ (first code block) (blank line) `Next, create the final result:` (blank line) (second code block)
+    - ❌ `#### Chunk#map` → (code block immediately)  
+      ✅ `#### Chunk#map` → `To transform each element:` → (code block)
+Between consecutive code blocks, add bridging prose that explains what the next block demonstrates:
+    - ❌ (code block) (code block) (no prose between)  
+      ✅ (code block) `Next, create the result:` (code block)
 
 ## Code Block Rules
 
 16. **Always include imports**: Every code block must start with the necessary import statements.
 17. **One concept per code block**: Each code block demonstrates one cohesive idea.
 18. **Prefer `val` over `var`**: Use immutable patterns everywhere if possible.
-19. **Never hardcode expression output in comments**: Do not annotate results with inline comments like `// None` or `// "hello"` — they go stale. Don't just add `mdoc:compile-only` to hide them. Instead, let mdoc render the output automatically. Default: use a single bare `mdoc` block and let all vals display their rendered output. Only split into `mdoc:silent:reset` + bare `mdoc` when setup produces verbose boilerplate that obscures the final result. See **`docs-mdoc-conventions`** for full modifier reference.
 20. **Code snippet description**: When showing example code snippets, explain what they do and why they are relevant. Provide context before every code block with a sentence that introduces it, explains its purpose, and ends with a colon (`:`). The introduction must be contextualized — relate it to what the code demonstrates or why it matters in context (avoid generic phrases like "here's an example" or "we can see this in action").
    
    **Bad vs. Good:**
