@@ -343,25 +343,34 @@ val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val markdown: String = doc.toString  // Calls Renderer.render internally
 ```
 
-Render to HTML with full document structure including DOCTYPE:
+Render to HTML with full document structure including DOCTYPE (returns complete HTML5 document with `<!DOCTYPE html>` wrapper):
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
+val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val html = doc.toHtml
-// Returns: <!DOCTYPE html><html><head></head><body>...</body></html>
 ```
 
-Render to HTML fragment containing only the content:
+Render to HTML fragment containing only the content (returns just the rendered HTML blocks without wrapper tags):
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
+val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val fragment = doc.toHtmlFragment
-// Returns: <h1>Hello</h1><p>...</p> (no DOCTYPE or wrapper tags)
 ```
 
-Render to colorized terminal output:
+Render to colorized terminal output (returns ANSI-colored string suitable for terminal display):
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
+val doc = Doc(Chunk(Heading(HeadingLevel.H1, Chunk(Text("Hello")))))
 val terminal = doc.toTerminal
-// Returns ANSI-colored string suitable for terminal display
 ```
 
 Canonicalize document structure with `Doc#normalize` to merge adjacent text nodes and remove empty blocks:
