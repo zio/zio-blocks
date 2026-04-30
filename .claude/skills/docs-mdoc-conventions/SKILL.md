@@ -62,7 +62,7 @@ Is this real executable Scala code?
    │  │
    │  ├─ NO → Use mdoc:compile-only (source only, isolated)
    │  │
-   │  └─ YES → Use mdoc (source + output, isolated from prior scope)
+   │  └─ YES → Use mdoc (source + output, isolated)
    │
    └─ YES → Is this a later block showing a result?
       │
