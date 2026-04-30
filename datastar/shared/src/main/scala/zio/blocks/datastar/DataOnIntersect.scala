@@ -23,7 +23,9 @@ import zio.blocks.html.Dom
  *
  * Visibility, timing, and transition modifiers are encoded into the final
  * attribute name. Repeated modifiers are normalized to a single effective
- * suffix.
+ * suffix. Use `once`, `half`, `full`, `exit`, `threshold`, `delay`, `debounce`,
+ * `throttle`, and `viewTransition` to model Datastar's supported intersection
+ * semantics.
  */
 final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
 

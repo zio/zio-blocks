@@ -23,7 +23,8 @@ import zio.blocks.html.Dom
  *
  * Duration modifiers describe how often the interval fires, and
  * `durationLeading` encodes Datastar's leading-edge interval variant. Repeated
- * modifiers are normalized to the last effective duration.
+ * modifiers are normalized to the last effective duration. Use `:=` to assign
+ * the expression executed on each interval tick.
  */
 final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
 

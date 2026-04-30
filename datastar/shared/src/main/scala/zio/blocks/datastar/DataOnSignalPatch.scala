@@ -23,6 +23,8 @@ import zio.blocks.html.Dom
  *
  * Delay, debounce, and throttle modifiers are encoded into the final attribute
  * name. Repeated timing modifiers are normalized to the last effective value.
+ * Use `:=` to attach the Datastar expression that should run when a signal
+ * patch arrives.
  */
 final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
 
