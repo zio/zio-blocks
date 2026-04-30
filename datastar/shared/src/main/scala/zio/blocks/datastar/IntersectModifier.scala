@@ -31,6 +31,8 @@ sealed trait IntersectModifier extends Product with Serializable {
 
 object IntersectModifier {
 
+  /** Constructors and normalization rules for intersect-trigger modifiers. */
+
   /** Fires at most once. */
   case object Once extends IntersectModifier {
     def render: String = "__once"

@@ -21,7 +21,8 @@ package zio.blocks.datastar
  *
  * Interval modifiers encode the polling duration and optional view transition.
  * `Duration(..., leading = true)` represents Datastar's leading-edge interval
- * variant.
+ * variant. Composition via [[OnIntervalModifier.And]] preserves the order of
+ * encoded suffixes before normalization removes redundant duration entries.
  */
 sealed trait OnIntervalModifier extends Product with Serializable {
 
@@ -30,6 +31,8 @@ sealed trait OnIntervalModifier extends Product with Serializable {
 }
 
 object OnIntervalModifier {
+
+  /** Constructors and normalization rules for interval-trigger modifiers. */
 
   /**
    * Encodes a duration-based interval, optionally using the leading variant.

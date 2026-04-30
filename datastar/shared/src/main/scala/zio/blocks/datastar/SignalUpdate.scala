@@ -25,11 +25,15 @@ import zio.blocks.html.ToJs
  * is the JSON string produced by the signal's schema codec. Used by
  * [[DatastarEvent.patchSignals]] to build SSE payloads and by the `ToJs`
  * instance to render inline JavaScript object literals.
+ *
+ * `serialized` is inserted verbatim into the final object expression, so it
+ * must already be valid JSON for the value being assigned.
  */
 final class SignalUpdate[A](val name: String, val serialized: String)
 
 object SignalUpdate {
 
+  /** Renders one or more updates as a single JavaScript object expression. */
   def objectExpression(update: SignalUpdate[_], updates: SignalUpdate[_]*): String = {
     val all = update +: updates
     val sb  = new java.lang.StringBuilder(32)

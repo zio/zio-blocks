@@ -31,6 +31,8 @@ sealed trait OnSignalPatchModifier extends Product with Serializable {
 
 object OnSignalPatchModifier {
 
+  /** Constructors and normalization rules for signal-patch modifiers. */
+
   /** Delays signal-patch handling by the specified interval. */
   final case class Delay(millis: Long) extends OnSignalPatchModifier {
     def render: String = "__delay." + millis + "ms"
