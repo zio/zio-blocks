@@ -267,6 +267,8 @@ val doc = md"# Team\n$user"
 
 ## Integration Points
 
+[//]: # (TODO: Instead of bullet points, please write a few paragraphs describing how the markdown module integrates with other modules.)
+
 - **With Schema**: `schema` module can derive codecs for markdown documents
 - **With Chunk**: `Doc` and `Block`/`Inline` use `Chunk[T]` for efficient immutable sequences
 - **With HTTP**: Markdown can be served as documentation endpoints in HTTP servers
