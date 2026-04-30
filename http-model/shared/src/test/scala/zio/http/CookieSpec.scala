@@ -364,7 +364,12 @@ object CookieSpec extends HttpModelBaseSpec {
         assertTrue(rendered == "a=b; Max-Age=0")
       },
       test("rejects invalid cookie values") {
-        assertTrue(scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b; c"))).isFailure)
+        assertTrue(
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b; c"))).isFailure,
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b c"))).isFailure,
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b,c"))).isFailure,
+          scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "\"b\""))).isFailure
+        )
       },
       test("rejects invalid cookie names") {
         assertTrue(

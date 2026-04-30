@@ -16,10 +16,22 @@
 
 package zio.http
 
+import java.util.Locale
+
 import zio.blocks.chunk.Chunk
 
 final case class RequestCookie(name: String, value: String)
 
+/**
+ * Cookie emitted in a `Set-Cookie` response header.
+ *
+ * The `expires` field is rendered verbatim as the `Expires` attribute and is
+ * expected to already be in the HTTP-date format used by RFC 6265, such as
+ * `Wed, 21 Oct 2026 07:28:00 GMT`. The `priority` field maps to the non-RFC but
+ * commonly used `Priority` attribute, and `isPartitioned` maps to the
+ * `Partitioned` attribute. Rendering validates the cookie name and unquoted
+ * cookie value and rejects `SameSite=None` unless `Secure` is also set.
+ */
 final case class ResponseCookie(
   name: String,
   value: String,
@@ -42,12 +54,24 @@ object SameSite {
   case object None_  extends SameSite
 }
 
+/**
+ * Represents the `Priority` attribute of a `Set-Cookie` header.
+ *
+ * Supported values are `Low`, `Medium`, and `High`, which render directly as
+ * the corresponding `Priority` attribute values.
+ */
 sealed trait CookiePriority
 
 object CookiePriority {
-  case object Low    extends CookiePriority
+
+  /** The `Priority=Low` cookie attribute value. */
+  case object Low extends CookiePriority
+
+  /** The `Priority=Medium` cookie attribute value. */
   case object Medium extends CookiePriority
-  case object High   extends CookiePriority
+
+  /** The `Priority=High` cookie attribute value. */
+  case object High extends CookiePriority
 }
 
 object Cookie {
@@ -106,7 +130,8 @@ object Cookie {
       while (i < parts.length) {
         val part    = parts(i).trim
         val attrEq  = part.indexOf('=')
-        val attrKey = if (attrEq < 0) part.toLowerCase else part.substring(0, attrEq).trim.toLowerCase
+        val attrKey =
+          if (attrEq < 0) part.toLowerCase(Locale.ROOT) else part.substring(0, attrEq).trim.toLowerCase(Locale.ROOT)
         val attrVal = if (attrEq < 0) "" else part.substring(attrEq + 1).trim
 
         if (attrKey == "expires") expires = Some(attrVal)
@@ -119,14 +144,14 @@ object Cookie {
         else if (attrKey == "httponly") isHttpOnly = true
         else if (attrKey == "partitioned") isPartitioned = true
         else if (attrKey == "samesite") {
-          attrVal.toLowerCase match {
+          attrVal.toLowerCase(Locale.ROOT) match {
             case "strict" => sameSite = Some(SameSite.Strict)
             case "lax"    => sameSite = Some(SameSite.Lax)
             case "none"   => sameSite = Some(SameSite.None_)
             case _        => ()
           }
         } else if (attrKey == "priority") {
-          attrVal.toLowerCase match {
+          attrVal.toLowerCase(Locale.ROOT) match {
             case "low"    => priority = Some(CookiePriority.Low)
             case "medium" => priority = Some(CookiePriority.Medium)
             case "high"   => priority = Some(CookiePriority.High)
@@ -228,11 +253,15 @@ object Cookie {
     Right(())
   }
 
+  private def isCookieOctet(c: Char): Boolean =
+    c == 0x21 || (c >= 0x23 && c <= 0x2b) || (c >= 0x2d && c <= 0x3a) || (c >= 0x3c && c <= 0x5b) ||
+      (c >= 0x5d && c <= 0x7e)
+
   private def validateCookieValue(value: String): Either[String, Unit] = {
     var i = 0
     while (i < value.length) {
       val c = value.charAt(i)
-      if (c == ';' || c == '\r' || c == '\n') return Left("Invalid cookie value")
+      if (!isCookieOctet(c)) return Left("Invalid cookie value")
       i += 1
     }
     Right(())
