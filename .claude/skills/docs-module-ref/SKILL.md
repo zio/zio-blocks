@@ -233,26 +233,27 @@ Use the Skill({ name : "docs-examples"}) for writing example project and documen
 - Link to module-level integration section for composition examples
 
 **Example (http-model.md):**
+
 ```markdown
-## Method
-
-`Method` represents standard HTTP methods as case objects.
-
-### Predefined Methods
-GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT with examples.
-
-### Parsing
-fromString("GET") returns Some(Method.GET).
-
-### Rendering
-Method.GET.name returns "GET".
-
-## Status
-
-`Status` is an opaque type alias for Int, providing zero-allocation status codes.
-
-### Predefined Status Codes
-1xx Informational, 2xx Success, 3xx Redirection, 4xx Client Errors, 5xx Server Errors with examples.
+    ## Method
+    
+    `Method` represents standard HTTP methods as case objects.
+    
+    ### Predefined Methods
+    GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE, CONNECT with examples.
+    
+    ### Parsing
+    fromString("GET") returns Some(Method.GET).
+    
+    ### Rendering
+    Method.GET.name returns "GET".
+    
+    ## Status
+    
+    `Status` is an opaque type alias for Int, providing zero-allocation status codes.
+    
+    ### Predefined Status Codes
+    1xx Informational, 2xx Success, 3xx Redirection, 4xx Client Errors, 5xx Server Errors with examples.
 ```
 
 ---
