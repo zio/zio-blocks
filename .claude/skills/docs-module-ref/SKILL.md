@@ -64,7 +64,14 @@ Ask the user which structure they prefer for this module:
 
 ---
 
-## Step 3: Write Module-Level Documentation
+## Step 3: Load Writing Rule Skills
+
+1. Load Skill({ name: "docs-writing-style" }) for prose conventions
+2. Load Skill({ name: "docs-mdoc-conventions" }) for code block syntax rules
+
+---
+
+## Step 4: Write Module-Level Documentation
 
 ### File Location & Frontmatter
 
@@ -203,9 +210,13 @@ How types relate architecturally and integrate with other ZIO Blocks modules:
 - URL parsing uses Path and QueryParams
 ```
 
+#### 9. Running the Examples (Optional)
+
+Use the Skill({ name : "docs-examples"}) for writing example project and documenting them on the documentation.
+
 ---
 
-## Step 4: Write Type-Level Documentation (Flat Structure)
+## Step 5: Write Type-Level Documentation (Flat Structure)
 
 **For flat (.md) files:** Write type sections inline using `##` headings.
 
@@ -248,7 +259,7 @@ Method.GET.name returns "GET".
 
 ---
 
-## Step 5: Write Type-Level Documentation (Hierarchical Structure)
+## Step 6: Write Type-Level Documentation (Hierarchical Structure)
 
 **For hierarchical structures:** Create individual type pages in the module subdirectory.
 
@@ -279,25 +290,9 @@ title: "<TypeName>"
 
 ---
 
-## Step 5.5: Running the Examples (Optional)
-
-Use the **`docs-examples`** skill for complete guidance on:
-- Deciding whether to include a "Running the Examples" section for modules
-- Creating example files in `<module>-examples`
-- Structuring examples to demonstrate multi-type composition
-- Verifying compilation and formatting
-- Embedding and documenting examples with `SourceFile.print`
-
-**Briefly:** Before proceeding with type documentation, ask the user to choose one of three options:
-1. Create standalone examples first (recommended) — create `<module>-examples` with 3-5 App objects showing multi-type composition
-2. Use inline examples only — skip "Running the Examples" section, embed examples throughout type documentation
-3. Examples already exist — review existing examples, then document them
-
-After examples are ready, add a "Running the Examples" section at the end of the module index (hierarchical) or at the end of the flat file, embedding each example with `SourceFile.print`.
-
 ---
 
-## Step 6: Integration
+## Step 7: Integration
 
 Use the **`docs-integrate`** skill for the full checklist:
 1. Update `sidebars.js` with category entry (hierarchical) or single entry (flat)
@@ -341,7 +336,7 @@ Add line under "Reference Documentation" section:
 
 ---
 
-## Step 7: Format & Verify
+## Step 8: Format & Verify
 
 ### Scala Code Formatting
 ```bash
@@ -377,7 +372,7 @@ Check all relative links work:
 
 ---
 
-## Step 8: Test & Iterate
+## Step 9: Test & Iterate
 
 After initial draft:
 1. **Test:** Can a new reader understand how to use the module by reading the module index first?
@@ -389,49 +384,17 @@ After initial draft:
 
 ## Decision Tree: docs-module-ref vs docs-data-type-ref
 
-Use **`docs-module-ref`** when:
+Use skill({ name: "docs-module-ref" }) when:
 - Documenting a **module with multiple related types** designed to work together
 - Need to show **module narrative, relationships, and composition patterns**
 - Want readers to understand **the "why" and "how together"**, not just isolated APIs
 - Examples: HTTP Model, Resource Management, Schema Evolution
 
-Use **`docs-data-type-ref`** when:
+Use skill({ name: "docs-data-type-ref" }) when:
 - Documenting a **single, standalone type**
 - Type doesn't require understanding other types to be useful
 - Want **exhaustive, encyclopedic reference** for one type in isolation
 - Examples: Chunk, TypeId, DynamicValue (when documented standalone)
-
----
-
-## Writing Rules
-
-### Prose (Reference `docs-writing-style`)
-- Qualify methods: `Type#method` or `Type.method` (never bare `method`)
-- Use "we" when instructing, present tense when describing
-- List advantages with bullet points (avoid prose lists)
-- No filler sentences or passive voice
-- Use inline code for types and operations: `` `Type`, `operation` ``
-- Relative links: `[Module](../module/index.md)`, `[Type](./type.md)`
-
-### Code Blocks (Reference `docs-mdoc-conventions`)
-- Plain `` ```scala `` for structural type definitions (not compiled)
-- `mdoc:compile-only` for self-contained signature examples
-- `mdoc:silent` for setup, `mdoc` for output (Setup + Evaluated Output pattern)
-- `mdoc:silent:reset` to clear scope between unrelated sections
-- Every code block preceded by prose sentence ending with `:`
-
-### Examples in Modules
-- Show **cross-type composition** when possible (Type1 + Type2 together)
-- Keep examples **realistic** (domain types: Person, Order, DatabaseConnection)
-- Keep examples **concise** but complete (self-contained, all imports present)
-- Link examples to module-level patterns section for context
-
-### Headings
-- `##` for major sections (Motivation, Installation, How They Work Together)
-- `###` for subsections (Predefined Instances, Core Operations groups)
-- Never place `###` immediately after `##` without intervening prose
-- No standalone subheader — always precede with explanatory text
-
 ---
 
 ## Tools & Skills
