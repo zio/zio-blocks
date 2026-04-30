@@ -49,60 +49,111 @@ This project uses mdoc to compile-check executable code blocks (examples, use ca
 
 ### Choosing the Right Modifier
 
-1. Self-contained example where output doesn't need to be shown? → `mdoc:compile-only`
-2. Later blocks need these definitions? → `mdoc:silent` (first time) or `mdoc:silent:nest`
-   (redefining)
-3. Need a completely clean scope? → `mdoc:silent:reset`
-4. **Showing the result of expressions** (return values, decoded output, computed values)? →
-   `mdoc:silent` for setup + `mdoc` to render evaluated output. **Never manually write `// result`
-   comments when mdoc can show the real output.**
-5. Not real Scala? → plain `` ```scala `` or `` ```text ``
+Use this decision tree to pick the right modifier:
 
-### Pattern: Setup + Evaluated Output
-
-When a code snippet evaluates expressions whose results are meaningful to the reader, split it into
-two blocks:
-
-````
-```scala mdoc:silent
-import zio.blocks.schema.Into
-
-case class Source(name: String, count: Int)
-case class Target(name: String, count: Long)
-
-val conv = Into.derived[Source, Target]
+```
+Is this real executable Scala code?
+│
+├─ NO → Use plain ```scala (pseudocode, ASCII art, type signatures)
+│
+└─ YES → Do later blocks need these definitions?
+   │
+   ├─ NO → Use mdoc:compile-only (self-contained example)
+   │
+   └─ YES → Is this a later block showing a result?
+      │
+      ├─ YES → Use mdoc (source + output)
+      │
+      └─ NO → Are you redefining a name from an earlier block?
+         │
+         ├─ YES → Use mdoc:silent:nest (shadow existing names)
+         │
+         └─ NO → Use mdoc:silent (regular setup)
 ```
 
-With `conv` in scope, we can call `into` and see the result:
+**After any mdoc:silent block**, if you later need a completely different context (new domain, new imports), use `mdoc:silent:reset` to clear all state.
+
+### Real-World Examples from ZIO Blocks
+
+The ZIO Blocks documentation uses these patterns throughout. Here are real examples:
+
+#### Pattern 1: Silent Setup + Output Rendering (Query DSL SQL Guide)
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+case class Product(
+  name: String,
+  price: Double,
+  category: String,
+  inStock: Boolean,
+  rating: Int
+)
+
+object Product extends CompanionOptics[Product] {
+  implicit val schema: Schema[Product] = Schema.derived
+  val price: Lens[Product, Double] = optic(_.price)
+}
+
+def columnName(optic: zio.blocks.schema.Optic[?, ?]): String = {
+  val nodes = optic.toDynamic.nodes
+  nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
+}
+```
+
+Now with `columnName` in scope, we can call it and see the result:
 
 ```scala mdoc
-conv.into(Source("events", 100))
-```
-````
-
-The `mdoc` block renders as:
-```
-conv.into(Source("events", 100))
-// val res0: Either[zio.blocks.schema.SchemaError, Target] = Right(Target(events,100))
+columnName(Product.price)
+columnName(Product.name)
 ```
 
-Do **not** use `mdoc:compile-only` and manually write `// Right(Target("events", 100L))` — always
-prefer the live evaluated output from `mdoc`.
+This pair shows the two-block pattern: `silent` for setup (which doesn't render), then `mdoc` for expressions where the output is meaningful to show.
 
-### For How-To Guides (Progressive Narrative)
+#### Pattern 2: Silent Reset for New Context (JSON Differ Reference)
 
-How-to guides have a **progressive narrative** where code builds on itself, so shared-scope
-modifiers are used more than in reference pages:
+When switching to a different example topic within the same document, reset all prior scope:
 
-1. **Domain setup** (case classes, imports): `mdoc:silent` — hidden, but in scope for all
-   subsequent blocks.
-2. **First example** (showing how something works): `mdoc` — show source + output so the reader
-   sees the result.
-3. **Building on the example** (adding a feature): `mdoc:silent:nest` if redefining, `mdoc` if
-   showing output.
-4. **New topic within the guide**: `mdoc:silent:reset` to start clean, then `mdoc:silent` for new
-   setup.
-5. **Final "putting it together"**: `mdoc:compile-only` — fully self-contained, copy-paste ready.
+```scala mdoc:silent:reset
+import zio.blocks.schema.json.{Json, JsonDiffer}
+
+val numberToString = JsonDiffer.diff(Json.Number(42), Json.String("hello"))
+```
+
+The `:reset` wipes the previous `Product` type and imports, preventing name collisions.
+
+#### Pattern 3: Self-Contained Compile-Only (DynamicValue Reference)
+
+For structural examples that don't need to share state:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.DynamicValue
+
+val str = DynamicValue.string("hello")
+val num = DynamicValue.int(42)
+val flag = DynamicValue.boolean(true)
+
+val person = DynamicValue.Record(
+  "name" -> DynamicValue.string("Alice"),
+  "age" -> DynamicValue.int(30)
+)
+```
+
+Each `compile-only` block stands alone. The next example in the document doesn't have access to `person`.
+
+---
+
+## Quick Reference
+
+Need a one-liner? See **`references/quick-reference.md`** for a cheat sheet of modifiers, patterns, and templates.
+
+## Troubleshooting
+
+Common mistakes when writing mdoc blocks? See **`references/troubleshooting.md`** for solutions to:
+- "My code won't compile"
+- "Redefining a name failed"
+- "The output doesn't show"
+- Silent scope gotchas
 
 ---
 

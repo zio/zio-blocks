@@ -1,0 +1,42 @@
+{
+  "skill_name": "docs-mdoc-conventions",
+  "description": "Test whether the improved skill helps writers correctly use mdoc modifiers and understand scope",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-documentation-writer",
+      "prompt": "I'm writing ZIO Blocks documentation for the first time. I need to show how to construct a simple case class, then show a function that uses it. Can you walk me through which mdoc modifiers to use for each code block? Also show me what the final rendered docs would look like.",
+      "expected_output": "Explanation of modifier choice (silent for setup, mdoc for output), with example code blocks and expected rendering"
+    },
+    {
+      "id": 2,
+      "name": "redefining-names",
+      "prompt": "I'm writing a guide that shows two different implementations of the same type in different sections. First section shows `class Config(debug: Boolean)`, second section shows `class Config(debug: Boolean, timeout: Int)`. What mdoc modifiers should I use to avoid 'type already defined' errors?",
+      "expected_output": "Recommendations for silent:nest or silent:reset, with code examples showing both approaches"
+    },
+    {
+      "id": 3,
+      "name": "fixing-broken-mdoc",
+      "prompt": "I have an mdoc block that's failing to compile. The error says 'value Product is not defined'. Here's my documentation:\n\n```scala mdoc:compile-only\ncase class Product(name: String, price: Double)\n```\n\nLater:\n\n```scala mdoc:compile-only\nval p = Product(\"Widget\", 99)\n```\n\nWhy doesn't it work and how do I fix it?",
+      "expected_output": "Explanation of isolation in compile-only blocks, recommendation to use silent+mdoc pattern"
+    },
+    {
+      "id": 4,
+      "name": "deciding-modifier",
+      "prompt": "I'm documenting a new DSL for querying. I have a complex example with imports, type definitions, and a final query expression. Should I use one big compile-only block or split into multiple blocks with different modifiers? What's the best approach?",
+      "expected_output": "Guidance on multi-block structure with silent for setup, mdoc for result, explanation of trade-offs"
+    },
+    {
+      "id": 5,
+      "name": "using-quick-reference",
+      "prompt": "I need a quick cheat sheet of mdoc modifiers. Can you summarize the modifier table with one-liners and show me the decision tree for choosing modifiers?",
+      "expected_output": "Table of modifiers with use cases, decision tree flowchart or explanation"
+    },
+    {
+      "id": 6,
+      "name": "scope-persistence",
+      "prompt": "I defined a helper function in one mdoc:silent block. Three blocks later, I want to use it. Will it still be in scope? What if I used silent:reset in between?",
+      "expected_output": "Explanation of scope persistence, effect of reset, visual diagram or table"
+    }
+  ]
+}
