@@ -5,14 +5,17 @@
 #
 # Rules checked:
 #   Rule 1:  "zio-blocks" in prose (not in URLs or sbt artifact strings)
+#   Rule 2:  Present tense only (detect past-tense verbs in prose)
 #   Rule 5:  No filler phrases
 #   Rule 6:  No emoji in prose
+#   Rule 10: No duplicate markdown heading
 #   Rule 11: No bare subheaders (### or #### immediately after ## or ###)
-#   Rule 12: Provide narrative introduction before subheaders
 #   Rule 13: Code block preceded by prose sentence ending with ":"
 #   Rule 15: Consecutive code blocks must have bridging prose
+#   Rule 16: No hardcoded result comments in Scala blocks
 #   Rule 18: No "var" in Scala code blocks
-#   Rule 19: All Scala code blocks must have mdoc modifiers
+#   Rule 19: Scala code blocks must have mdoc modifiers
+#   Rule 23: No Scala 3 glob imports (import x.* forbidden)
 
 set -euo pipefail
 
@@ -50,6 +53,18 @@ count_violations "$(awk '
     gsub(/`[^`]*`/, "", temp)
     if (temp ~ /zio-blocks/) {
       print FILENAME ":" NR ": [Rule 1] \"zio-blocks\" in prose (not in code/URL)"
+    }
+  }
+' "$FILE")"
+
+# Rule 2: Past tense verbs in prose (present tense only)
+count_violations "$(awk '
+  /^```/ { in_code = !in_code; next }
+  in_code { next }
+  {
+    past_verbs = "returned|created|modified|called|used|passed|assigned|defined|calculated|computed|produced|generated|applied|executed"
+    if ($0 ~ "\\<(" past_verbs ")\\>") {
+      print FILENAME ":" NR ": [Rule 2] past tense detected (use present tense: \"returns\", \"creates\", etc.)"
     }
   }
 ' "$FILE")"
@@ -92,6 +107,13 @@ except Exception as e:
 PYTHON_EOF
 )"
 fi
+
+# Rule 10: No duplicate markdown heading (# heading duplicating frontmatter title)
+count_violations "$(awk '
+  /^# / {
+    print FILENAME ":" NR ": [Rule 10] markdown heading found (document title comes from frontmatter; start with ## instead)"
+  }
+' "$FILE")"
 
 # Rule 11 & 12: No bare subheaders (### or #### immediately after ## or ###)
 # This comprehensive check replaces the old Rule 11 & 12 check
@@ -299,6 +321,21 @@ except Exception as e:
 PYTHON_EOF
 )"
 fi
+
+# Rule 23: Scala 3 glob imports in Scala code blocks (forbidden; use Scala 2.13 import x._ instead)
+count_violations "$(awk '
+  /^```scala/ {
+    in_scala = 1
+    next
+  }
+  /^```/ {
+    in_scala = 0
+    next
+  }
+  in_scala && /import[[:space:]]+.*\.\*/ {
+    print FILENAME ":" NR ": [Rule 23] Scala 3 glob import syntax detected (use \"import x._\" for Scala 2.13, not \"import x.*\")"
+  }
+' "$FILE")"
 
 # Report summary
 echo ""
