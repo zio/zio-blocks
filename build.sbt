@@ -386,22 +386,6 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
-  .settings(
-    // Streams source requires Scala 3 (inline, summonFrom, etc.).
-    // Under 2.13 CI runs, skip compilation entirely.
-    Compile / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Compile / sources).value
-      }
-    },
-    Test / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Test / sources).value
-      }
-    }
-  )
   .jvmSettings(
     mimaSettings(failOnProblem = false),
     // Streams requires JDK 21+ (Project Loom virtual threads).

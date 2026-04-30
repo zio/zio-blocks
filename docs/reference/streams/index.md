@@ -77,6 +77,8 @@ Streaming libraries in the Scala ecosystem typically require an effect system. f
 
 All benchmarks use 10,000 elements, measured in operations per second (higher is better). Run on Apple M-series, JDK 25, Scala 3.7.4.
 
+If you are evaluating Scala 2 compatibility work, read the [Scala 2 compatibility design note](./scala-2-compatibility.md) before moving any `Stream` or `Sink` hot-path combinators behind version-specific seams.
+
 | Benchmark            | ZB Streams | Ox     | Kyo    | fs2    | Pekko |
 |----------------------|------------|--------|--------|--------|-------|
 | drain                | 179,872    | 54,512 | 31,777 | 20,795 | 4,381 |
