@@ -35,13 +35,17 @@ object DdlSpec extends ZIOSpecDefault {
       },
       test("nullable columns omit NOT NULL") {
         val columns = IndexedSeq(ColumnDef("bio", "TEXT", true))
-        assertTrue(Ddl.createTable("profiles", columns).sql(SqlDialect.PostgreSQL) ==
-          "CREATE TABLE IF NOT EXISTS profiles (\n  bio TEXT\n)")
+        assertTrue(
+          Ddl.createTable("profiles", columns).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS profiles (\n  bio TEXT\n)"
+        )
       },
       test("non-nullable columns include NOT NULL") {
         val columns = IndexedSeq(ColumnDef("id", "INTEGER", false))
-        assertTrue(Ddl.createTable("items", columns).sql(SqlDialect.PostgreSQL) ==
-          "CREATE TABLE IF NOT EXISTS items (\n  id INTEGER NOT NULL\n)")
+        assertTrue(
+          Ddl.createTable("items", columns).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS items (\n  id INTEGER NOT NULL\n)"
+        )
       },
       test("multiple columns are comma-separated") {
         val columns = IndexedSeq(
