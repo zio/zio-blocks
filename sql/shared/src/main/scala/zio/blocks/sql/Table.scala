@@ -18,9 +18,26 @@ package zio.blocks.sql
 
 import zio.blocks.schema._
 
+/**
+ * Metadata binding a Scala type `A` to a specific database table.
+ *
+ * @param name
+ *   The SQL table name used in generated queries.
+ * @param codec
+ *   The [[DbCodec]] used to read and write rows of type `A`.
+ * @param columnsMeta
+ *   Per-column metadata (name, SQL type, nullability) derived from the schema.
+ *   Used by [[createTable]] to emit DDL.
+ */
 final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedSeq[ColumnMeta]) {
+
+  /** Column names in codec order (delegates to `codec.columns`). */
   def columns: IndexedSeq[String] = codec.columns
 
+  /**
+   * Generates a `CREATE TABLE IF NOT EXISTS` fragment using the column types
+   * resolved by `dialect`.
+   */
   def createTable(dialect: SqlDialect): Frag = {
     val columnDefs = columnsMeta.map { column =>
       ColumnDef(column.name, dialect.typeName(column.dbValue), nullable = column.nullable)
@@ -28,6 +45,7 @@ final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedS
     Ddl.createTable(name, columnDefs)
   }
 
+  /** Generates a `DROP TABLE IF EXISTS` fragment for this table. */
   def dropTable: Frag = Ddl.dropTable(name)
 }
 
@@ -35,15 +53,31 @@ object Table {
 
   private val defaultNamingPolicy: TableNamingPolicy = TableNamingPolicy.Singular
 
+  /**
+   * Derives a [[Table]] from `A`'s schema using the default naming policy
+   * ([[TableNamingPolicy.Singular]], i.e. `CamelCase` → `snake_case` singular).
+   *
+   * The table name can be overridden by annotating `A` with
+   * `@Modifier.config("sql.table_name", "my_table")`.
+   */
   def derived[A](implicit schema: Schema[A]): Table[A] =
     derived[A](defaultNamingPolicy)
 
+  /**
+   * Derives a [[Table]] from `A`'s schema with an explicit table name,
+   * bypassing both the schema annotation and the naming policy.
+   */
   def derived[A](tableName: String)(implicit schema: Schema[A]): Table[A] = {
     val codec   = schema.deriving(DbCodecDeriver).derive
     val columns = TableMetadata.columnsFor(schema)
     Table(tableName, codec, columns)
   }
 
+  /**
+   * Derives a [[Table]] from `A`'s schema using the supplied naming policy to
+   * compute the table name (unless overridden by a `@Modifier.config`
+   * annotation).
+   */
   def derived[A](namingPolicy: TableNamingPolicy)(implicit schema: Schema[A]): Table[A] = {
     val codec     = schema.deriving(DbCodecDeriver).derive
     val tableName = deriveTableName(schema, namingPolicy)

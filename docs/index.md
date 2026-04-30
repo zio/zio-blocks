@@ -27,6 +27,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
+| **SQL** | Type-safe JDBC wrapper with schema-derived codecs and CRUD repository | ✅ Available |
 
 ## Core Principles
 
@@ -543,6 +544,74 @@ mpmc.take()          // null if empty
 
 ---
 
+## SQL
+
+A thin, type-safe JDBC wrapper that maps Scala case classes to database tables using the same `Schema` you use for JSON and Avro codecs. No ORM runtime, no code generation — just composable SQL fragments, a derived repository abstraction, and a direct ZIO integration.
+
+### The Problem
+
+JDBC is powerful but tedious: manual `ResultSet` traversal, index-based parameter binding, and repetitive CRUD boilerplate make even simple database access error-prone. ORMs solve the boilerplate but add heavy runtimes, hidden queries, and opaque magic.
+
+### The Solution
+
+ZIO Blocks SQL derives everything from a single `Schema[A]`:
+
+```scala
+case class User(id: Long, name: String, email: String)
+object User:
+  given Schema[User] = Schema.derived
+
+// Derive the table, codec, and repository in one line
+val repo = Repo.derived[User, Long]
+
+// Use the sql"..." interpolator for custom queries
+val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
+```
+
+### Key Features
+
+- **Schema-derived codecs**: `DbCodec[A]` is auto-derived from `Schema[A]` — column names, types, and nullability come for free.
+- **Composable fragments**: The `sql"..."` interpolator creates `Frag` values that compose safely with `++`. SQL injection is structurally impossible.
+- **CRUD repository**: `Repo[E, ID]` provides `findAll`, `findById`, `insert`, `insertAll`, `update`, `deleteById`, and `truncate` out of the box.
+- **DDL generation**: `Table.createTable(dialect)` generates type-accurate `CREATE TABLE IF NOT EXISTS` SQL from the schema.
+- **ZIO integration**: `TransactorZIO` lifts blocking JDBC calls into `Task` (or `ZIO`) with proper bracketing and rollback.
+- **Effect-system agnostic core**: The `zio-blocks-sql` module has no ZIO dependency — use it with any effect system or plain Scala.
+
+### Installation
+
+```scala
+// Core module (Scala 3, JVM + Scala.js)
+libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
+
+// ZIO integration (Scala 3, JVM only)
+libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
+```
+
+### Example
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.sql._
+import zio.blocks.sql.zio._
+
+case class Product(id: Long, name: String, price: Double)
+object Product:
+  given Schema[Product] = Schema.derived
+
+val repo        = Repo.derived[Product, Long]
+val transactor  = TransactorZIO.fromUrl("jdbc:postgresql://localhost/shop", SqlDialect.Postgres)
+
+// Batch insert, then query with a custom filter
+val program = transactor.transact:
+  repo.insertAll(List(
+    Product(1L, "Widget", 9.99),
+    Product(2L, "Gadget", 29.99)
+  ))
+  sql"SELECT * FROM product WHERE price < ${15.0}".query[Product]
+```
+
+---
+
 ## Streams (In Development)
 
 A pull-based streaming library for composable, backpressure-aware data processing.
@@ -575,10 +644,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
 
 ## Documentation
 
@@ -640,6 +709,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
+- [SQL](./reference/sql.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
 
 ### Guides
 
