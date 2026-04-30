@@ -620,18 +620,20 @@ val table = Table(
 
 ## Inline (Sealed Trait)
 
-An inline-level markdown element. Inline is a sealed trait with concrete subtypes (defined both in object and at top level for API compatibility).
+An inline-level markdown element.
+
+```scala
+sealed trait Inline extends Product with Serializable
+```
+
+Inline is a sealed trait with concrete subtypes (defined both in object and at top level for API compatibility).
 
 ### Text
 
 Plain text content.
 
-Create plain text content:
-
 ```scala
-Text(value: String)
-// or
-Inline.Text(value: String)
+final case class Text(value: String) extends Inline
 ```
 
 Here's an example of creating text:
@@ -647,12 +649,8 @@ val text = Text("Hello world")
 
 Inline code span (backtick-delimited).
 
-Create inline code:
-
 ```scala
-Code(value: String)
-// or
-Inline.Code(value: String)
+final case class Code(value: String) extends Inline
 ```
 
 Here's an example of creating inline code:
@@ -668,12 +666,8 @@ val code = Code("val x = 42")
 
 Emphasized (italic) text.
 
-Create emphasized text:
-
 ```scala
-Emphasis(content: Chunk[Inline])
-// or
-Inline.Emphasis(content: Chunk[Inline])
+final case class Emphasis(content: Chunk[Inline]) extends Inline
 ```
 
 Here's an example of creating emphasized text:
@@ -690,12 +684,8 @@ val emphasis = Emphasis(Chunk(Text("italic")))
 
 Strong (bold) text.
 
-Create strong text:
-
 ```scala
-Strong(content: Chunk[Inline])
-// or
-Inline.Strong(content: Chunk[Inline])
+final case class Strong(content: Chunk[Inline]) extends Inline
 ```
 
 Here's an example of creating strong text:
@@ -712,12 +702,8 @@ val strong = Strong(Chunk(Text("bold")))
 
 Strikethrough text (GFM feature).
 
-Create strikethrough text:
-
 ```scala
-Strikethrough(content: Chunk[Inline])
-// or
-Inline.Strikethrough(content: Chunk[Inline])
+final case class Strikethrough(content: Chunk[Inline]) extends Inline
 ```
 
 Here's an example of creating strikethrough text:
@@ -734,12 +720,8 @@ val struck = Strikethrough(Chunk(Text("deprecated")))
 
 A hyperlink.
 
-Construct a link with text, URL, and optional title:
-
 ```scala
-Link(text: Chunk[Inline], url: String, title: Option[String])
-// or
-Inline.Link(text: Chunk[Inline], url: String, title: Option[String])
+final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
 ```
 
 The `title` parameter is optional link title text. Here are examples of creating links:
@@ -756,12 +738,8 @@ val titled = Link(Chunk(Text("Docs")), "/docs", Some("Documentation"))
 
 An image reference.
 
-Construct an image with alt text, URL, and optional title:
-
 ```scala
-Image(alt: String, url: String, title: Option[String])
-// or
-Inline.Image(alt: String, url: String, title: Option[String])
+final case class Image(alt: String, url: String, title: Option[String]) extends Inline
 ```
 
 Here are examples of creating images:
@@ -778,12 +756,8 @@ val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
 
 Raw HTML inline content.
 
-Create raw HTML inline content:
-
-```
-HtmlInline(content: String)
-// or
-Inline.HtmlInline(content: String)
+```scala
+final case class HtmlInline(content: String) extends Inline
 ```
 
 Here's an example of creating HTML inline content:
@@ -796,40 +770,24 @@ val html = HtmlInline("<span class='highlight'>custom</span>")
 
 A soft line break (single newline, rendered as space or newline depending on context).
 
-Create a soft line break:
-
-```scala mdoc:compile-only
-SoftBreak
-// or
-Inline.SoftBreak
+```scala
+case object SoftBreak extends Inline
 ```
-
-**Renders as:** `\n` (a single newline in output)
 
 ### HardBreak
 
 A hard line break (two spaces or backslash before newline).
 
-Create a hard line break:
-
-```scala mdoc:compile-only
-HardBreak
-// or
-Inline.HardBreak
+```scala
+case object HardBreak extends Inline
 ```
-
-**Renders as:** `  \n` (two spaces followed by newline)
 
 ### Autolink
 
 An autolink (URL or email in angle brackets).
 
-Construct an autolink with a URL or email:
-
-```
-Autolink(url: String, isEmail: Boolean)
-// or
-Inline.Autolink(url: String, isEmail: Boolean)
+```scala
+final case class Autolink(url: String, isEmail: Boolean) extends Inline
 ```
 
 Here are examples of creating autolinks:
