@@ -395,21 +395,6 @@ Use skill({ name: "docs-data-type-ref" }) when:
 - Type doesn't require understanding other types to be useful
 - Want **exhaustive, encyclopedic reference** for one type in isolation
 - Examples: Chunk, TypeId, DynamicValue (when documented standalone)
----
-
-## Tools & Skills
-
-### Required Skills (Must use these for best results)
-- **`docs-research`** (Phase 1): Find types, tests, examples, usage patterns
-- **`docs-data-type-ref`** (reference): Use structure for type-level pages
-- **`docs-integrate`** (Phase 6): Integration checklist for sidebars, docs/index.md, links
-- **`docs-writing-style`** (reference): Prose conventions
-- **`docs-mdoc-conventions`** (reference): Code block modifiers
-
-### Forbidden Skills
-- Do NOT use `docs-data-type-ref` to document individual types — instead, apply its structure directly to this skill's guidance
-- Do NOT use `docs-how-to-guide` (task-oriented, not reference)
-- Do NOT use `docs-tutorial` (learning path, not reference)
 
 ---
 
