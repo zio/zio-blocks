@@ -388,7 +388,7 @@ val doc = Doc(Chunk(
 
 Call `Doc#normalize` to see the result:
 
-```scala mdoc:reset
+```scala mdoc
 val normalized = doc.normalize
 ```
 
