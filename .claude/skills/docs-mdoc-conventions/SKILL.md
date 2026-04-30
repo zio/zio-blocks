@@ -26,11 +26,11 @@ Each modifier has a specific role. Choose based on whether you need scope sharin
   you use `silent:reset`. You **cannot** redefine the same name in a later block — use
   `mdoc:silent:nest` for that.
 
-- **`mdoc:silent:nest`** — Renders nothing (hidden), scope shared, code wrapped in anonymous `object`.
+- **`mdoc:silent:nest`** — Renders nothing, scope shared, code wrapped in anonymous `object`.
   Like `silent`, but allows you to **shadow/redefine names** from earlier blocks (e.g., redefining
   `Person` with different fields in a later section). Use when `silent` would fail due to name collision.
 
-- **`mdoc:silent:reset`** — Renders nothing (hidden), clears all prior scope.
+- **`mdoc:silent:reset`** — Renders nothing, clears all prior scope.
   Wipes the entire accumulated scope and starts fresh. Use when switching to a completely different
   context (new domain, new imports) mid-document and `silent:nest` wouldn't suffice.
 
@@ -39,7 +39,7 @@ Each modifier has a specific role. Choose based on whether you need scope sharin
   evaluated). Can build on definitions from prior `silent`/`silent:nest` blocks, or run standalone
   for self-contained examples that just need to show their output.
 
-- **`mdoc:invisible`** — Renders nothing (hidden), scope shared with subsequent blocks.
+- **`mdoc:invisible`** — Invisible code block, scope shared with subsequent blocks.
   Signals "hidden imports only" — rare in practice. Prefer including imports directly in a
   `mdoc:silent` setup block (so they're visible in scope) or inside a `compile-only` block
   (for self-contained examples). Use `invisible` only when you need imports shared across blocks
