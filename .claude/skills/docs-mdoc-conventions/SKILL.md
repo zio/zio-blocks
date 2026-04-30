@@ -1,7 +1,7 @@
 ---
 name: docs-mdoc-conventions
 description: Shared reference for mdoc code block modifiers and Docusaurus admonitions used across ZIO Blocks documentation skills. Include when writing any documentation that contains Scala code blocks.
-allowed-tools: Read, Glob, Grep
+allowed_tools: Read, Glob, Grep
 ---
 
 # ZIO Blocks Documentation Conventions
@@ -10,7 +10,7 @@ allowed-tools: Read, Glob, Grep
 
 This project uses mdoc to compile-check executable code blocks (examples, use cases). 
 
-**Exception:** Data type definitions use plain ` ```scala ` without mdoc modifiers — they are structural illustrations, not executable examples.
+**Exception:** Data type definitions use plain `` ```scala `` without mdoc modifiers — they are structural illustrations, not executable examples.
 
 ### Modifier Summary
 
@@ -44,7 +44,7 @@ This project uses mdoc to compile-check executable code blocks (examples, use ca
   imports directly in the `mdoc:silent` setup block (so they are in shared scope) or inside a
   `compile-only` block (for self-contained examples). Use `invisible` only when you need imports
   shared across blocks but must not appear anywhere in the rendered output.
-- **No mdoc** (plain ` ```scala `) — not compiled. Use for pseudocode, ASCII diagrams, type
+- **No mdoc** (plain `` ```scala ``) — not compiled. Use for pseudocode, ASCII diagrams, type
   signatures for illustration, or sbt/non-Scala syntax.
 
 ### Choosing the Right Modifier
@@ -56,7 +56,7 @@ This project uses mdoc to compile-check executable code blocks (examples, use ca
 4. **Showing the result of expressions** (return values, decoded output, computed values)? →
    `mdoc:silent` for setup + `mdoc` to render evaluated output. **Never manually write `// result`
    comments when mdoc can show the real output.**
-5. Not real Scala? → plain ` ```scala ` or ` ```text `
+5. Not real Scala? → plain `` ```scala `` or `` ```text ``
 
 ### Pattern: Setup + Evaluated Output
 
