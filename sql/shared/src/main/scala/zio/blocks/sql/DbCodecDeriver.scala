@@ -278,19 +278,18 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
           result.asInstanceOf[A]
         }
 
-        def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit = {
+        def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
           optionalPayload(typeId, value) match {
             case Some(v) => innerCodec.writeValue(writer, startIndex, v)
             case None    =>
               var i = 0
               while (i < innerCodec.columnCount) {
-                writer.setNull(startIndex + i, 0)
+                writer.setNull(startIndex + i, java.sql.Types.NULL)
                 i += 1
               }
           }
-        }
 
-        def toDbValues(value: A): IndexedSeq[DbValue] = {
+        def toDbValues(value: A): IndexedSeq[DbValue] =
           optionalPayload(typeId, value) match {
             case Some(v) => innerCodec.toDbValues(v)
             case None    =>
@@ -302,7 +301,6 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
               }
               builder.result()
           }
-        }
       }
     } else if (isSimpleEnum(cases)) {
       val discr                    = binding.discriminator
@@ -414,7 +412,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
   private def optionalPayload[A](typeId: TypeId[A], value: A): Option[Any] =
     if (typeId.isMaybe) {
       val maybe = value.asInstanceOf[Maybe[Any]]
-      if (Maybe.isAbsent(maybe)) None else Some(maybe.asInstanceOf[Any])
+      if (maybe.isAbsent) None else Some(maybe.asInstanceOf[Any])
     } else {
       value.asInstanceOf[Option[Any]]
     }

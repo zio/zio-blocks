@@ -105,7 +105,7 @@ object DbParam {
 
   given [A](using inner: DbParam[A]): DbParam[Maybe[A]] with {
     def toDbValue(v: Maybe[A]): DbValue =
-      if (Maybe.isAbsent(v)) DbValue.DbNull
+      if (v.isAbsent) DbValue.DbNull
       else inner.toDbValue(v.asInstanceOf[A])
   }
 

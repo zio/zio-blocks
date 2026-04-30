@@ -161,7 +161,7 @@ object SqlOps {
     while (i < params.length) {
       val idx = i + 1
       params(i) match {
-        case DbValue.DbNull             => writer.setNull(idx, 0)
+        case DbValue.DbNull             => writer.setNull(idx, java.sql.Types.NULL)
         case DbValue.DbInt(v)           => writer.setInt(idx, v)
         case DbValue.DbLong(v)          => writer.setLong(idx, v)
         case DbValue.DbDouble(v)        => writer.setDouble(idx, v)
