@@ -680,12 +680,12 @@ val fromString = Body.fromString("Hello, World!", Charset.UTF8)
 // Content-Type: text/plain; charset=UTF-8
 ```
 
-`Body.unsafeFromArray` creates a body with default `application/octet-stream` content type without copying the supplied array. The method is intentionally named unsafe because later mutations to the array are visible through the body:
+`Body.fromArray` creates a body with default `application/octet-stream` content type without copying the supplied array. Later mutations to the array are visible through the body:
 
 ```scala mdoc:compile-only
 import zio.http.Body
 
-val fromBytes = Body.unsafeFromArray(Array[Byte](1, 2, 3))
+val fromBytes = Body.fromArray(Array[Byte](1, 2, 3))
 // Content-Type: application/octet-stream
 ```
 
