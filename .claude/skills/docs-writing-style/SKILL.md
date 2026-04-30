@@ -99,7 +99,6 @@ Between consecutive code blocks, add bridging prose that explains what the next 
      ✅ "To extract the first three elements from the end of the chunk:"
    - ❌ "We can see this in action:"  
      ✅ "When filtering an empty chunk, the result contains no elements:"
-21. all Scala code blocks must have mdoc modifiers (e.g., `mdoc:compile-only`, `mdoc:silent`, etc.). Find offending blocks and add an appropriate modifier. See **`docs-mdoc-conventions`** skill for modifier reference.
 
 ## Table Formatting
 
