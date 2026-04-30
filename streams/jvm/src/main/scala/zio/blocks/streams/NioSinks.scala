@@ -16,7 +16,7 @@
 
 package zio.blocks.streams
 
-import zio.blocks.streams.internal.{StreamError, unsafeEvidence}
+import zio.blocks.streams.internal.StreamError
 import zio.blocks.streams.io.Reader
 
 import java.io.IOException

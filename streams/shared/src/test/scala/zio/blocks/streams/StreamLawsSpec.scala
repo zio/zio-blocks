@@ -353,7 +353,7 @@ object StreamLawsSpec extends StreamsBaseSpec {
           implicit val implicitScope: Scope = scope
           val reader                        = Stream.range(0, 5).start
           val buf                           = scala.collection.mutable.ListBuffer.empty[Int]
-          val r                             = implicitScope.leak(reader)
+          val r                             = scope.leak(reader)
           var v                             = r.read[Any](null)
           while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList
@@ -378,7 +378,7 @@ object StreamLawsSpec extends StreamsBaseSpec {
           implicit val implicitScope: Scope = scope
           val reader                        = Stream.range(0, 3).map(_ * 10).start
           val buf                           = scala.collection.mutable.ListBuffer.empty[Int]
-          val r                             = implicitScope.leak(reader)
+          val r                             = scope.leak(reader)
           var v                             = r.read[Any](null)
           while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList

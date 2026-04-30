@@ -99,7 +99,9 @@ abstract class Stream[+E, +A] {
    * determines length. Uses [[zio.blocks.combinators.Tuples]] for flattened
    * composition: `a && b && c` produces a `Stream` of `(A, B, C)`.
    */
-  def &&[E1 >: E, A1 >: A, B, C](that: Stream[E1, B])(implicit t: Tuples.Tuples[A1, B] { type Out = C }): Stream[E1, C] =
+  def &&[E1 >: E, A1 >: A, B, C](
+    that: Stream[E1, B]
+  )(implicit t: Tuples.Tuples[A1, B] { type Out = C }): Stream[E1, C] =
     Stream.fromReader {
       val left  = Stream.compileToReader(this.asInstanceOf[Stream[Any, Any]])
       val right =

@@ -97,8 +97,7 @@ abstract class Reader[+Elem] {
   /**
    * The primitive type of elements in this reader, or `AnyRef` for reference
    * types. Specialized subclasses override this to enable zero-boxing pull
-   * paths via `readInt()(unsafeEvidence)`,
-   * `readLong()(unsafeEvidence)`, etc.
+   * paths via `readInt()(unsafeEvidence)`, `readLong()(unsafeEvidence)`, etc.
    */
   def jvmType: JvmType = JvmType.AnyRef
 
@@ -110,10 +109,9 @@ abstract class Reader[+Elem] {
   def read[A >: Elem](sentinel: A): A
 
   /**
-   * Returns `true` if the next `read()` / `readInt()(unsafeEvidence)`
-   * etc. would return a value (not closed/sentinel). Default implementation
-   * returns `!isClosed`. Subclasses with buffered state should override for
-   * accuracy.
+   * Returns `true` if the next `read()` / `readInt()(unsafeEvidence)` etc.
+   * would return a value (not closed/sentinel). Default implementation returns
+   * `!isClosed`. Subclasses with buffered state should override for accuracy.
    */
   def readable(): Boolean = !isClosed
 
@@ -797,9 +795,9 @@ object Reader {
    * override only the methods you need to change (typically `close()`).
    */
   private[streams] abstract class DelegatingReader[+Elem](inner: Reader[Elem]) extends Reader[Elem] {
-    override def jvmType: JvmType                                          = inner.jvmType
-    def isClosed: Boolean                                                  = inner.isClosed
-    def read[A1 >: Elem](sentinel: A1): A1                                 = inner.read(sentinel)
+    override def jvmType: JvmType                                                 = inner.jvmType
+    def isClosed: Boolean                                                         = inner.isClosed
+    def read[A1 >: Elem](sentinel: A1): A1                                        = inner.read(sentinel)
     override def readInt(sentinel: Long)(implicit ev: Elem <:< Int): Long         = inner.readInt(sentinel)(unsafeEvidence)
     override def readLong(sentinel: Long)(implicit ev: Elem <:< Long): Long       = inner.readLong(sentinel)(unsafeEvidence)
     override def readFloat(sentinel: Double)(implicit ev: Elem <:< Float): Double =
@@ -821,8 +819,8 @@ object Reader {
     val pred: AnyRef
   ) extends Reader[Any]
       with WrappedReader {
-    override def jvmType: JvmType                                           = source.jvmType
-    def isClosed: Boolean                                                   = source.isClosed
+    override def jvmType: JvmType                                                  = source.jvmType
+    def isClosed: Boolean                                                          = source.isClosed
     override def readDouble(sentinel: Double)(implicit ev: Any <:< Double): Double = {
       var v = source.readDouble(sentinel)(unsafeEvidence)
       while (v != sentinel && !pred.asInstanceOf[Double => Boolean](v))
@@ -852,8 +850,8 @@ object Reader {
     val pred: AnyRef
   ) extends Reader[Any]
       with WrappedReader {
-    override def jvmType: JvmType                                         = source.jvmType
-    def isClosed: Boolean                                                 = source.isClosed
+    override def jvmType: JvmType                                                = source.jvmType
+    def isClosed: Boolean                                                        = source.isClosed
     override def readFloat(sentinel: Double)(implicit ev: Any <:< Float): Double = {
       var v = source.readFloat(sentinel)(unsafeEvidence)
       while (v != sentinel && !pred.asInstanceOf[Float => Boolean](v.toFloat))
@@ -887,8 +885,8 @@ object Reader {
     val pred: AnyRef
   ) extends Reader[Any]
       with WrappedReader {
-    override def jvmType: JvmType                                 = source.jvmType
-    def isClosed: Boolean                                         = source.isClosed
+    override def jvmType: JvmType                                        = source.jvmType
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       var v = source.readInt(sentinel)(unsafeEvidence)
       while (v != sentinel && !pred.asInstanceOf[Int => Boolean](v.toInt))
@@ -918,8 +916,8 @@ object Reader {
     val pred: AnyRef
   ) extends Reader[Any]
       with WrappedReader {
-    override def jvmType: JvmType                                   = source.jvmType
-    def isClosed: Boolean                                           = source.isClosed
+    override def jvmType: JvmType                                          = source.jvmType
+    def isClosed: Boolean                                                  = source.isClosed
     override def readLong(sentinel: Long)(implicit ev: Any <:< Long): Long = {
       var v = source.readLong(sentinel)(unsafeEvidence)
       while (v != sentinel && !pred.asInstanceOf[Long => Boolean](v))
@@ -1571,7 +1569,7 @@ object Reader {
       with WrappedReader {
     override def jvmType: JvmType =
       if (outType eq JvmType.Boolean) JvmType.AnyRef else outType
-    def isClosed: Boolean                                         = source.isClosed
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.readDouble(Double.MaxValue)(unsafeEvidence);
       if (v == Double.MaxValue) sentinel
@@ -1628,7 +1626,7 @@ object Reader {
       with WrappedReader {
     override def jvmType: JvmType =
       if (outType eq JvmType.Boolean) JvmType.AnyRef else outType
-    def isClosed: Boolean                                         = source.isClosed
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.readFloat(Double.MaxValue)(unsafeEvidence);
       if (v == Double.MaxValue) sentinel
@@ -1686,7 +1684,7 @@ object Reader {
       with WrappedReader {
     override def jvmType: JvmType =
       if (outType eq JvmType.Boolean) JvmType.AnyRef else outType
-    def isClosed: Boolean                                         = source.isClosed
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.readInt(sentinel)(unsafeEvidence);
       if (v == sentinel) sentinel
@@ -1743,7 +1741,7 @@ object Reader {
       with WrappedReader {
     override def jvmType: JvmType =
       if (outType eq JvmType.Boolean) JvmType.AnyRef else outType
-    def isClosed: Boolean                                         = source.isClosed
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.readLong(Long.MaxValue)(unsafeEvidence);
       if (v == Long.MaxValue) sentinel
@@ -1800,7 +1798,7 @@ object Reader {
       with WrappedReader {
     override def jvmType: JvmType =
       if (outType eq JvmType.Boolean) JvmType.AnyRef else outType
-    def isClosed: Boolean                                         = source.isClosed
+    def isClosed: Boolean                                                = source.isClosed
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
