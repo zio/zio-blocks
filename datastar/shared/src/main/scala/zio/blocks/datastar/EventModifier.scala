@@ -21,7 +21,8 @@ package zio.blocks.datastar
  *
  * Modifiers alter Datastar's event-handling semantics, such as debounce,
  * throttle, delay, capture phase, and propagation/default handling. The
- * rendered form is encoded directly into the attribute name.
+ * rendered form is encoded directly into the attribute name. Composition via
+ * [[EventModifier.And]] preserves left-to-right ordering of suffixes.
  */
 sealed trait EventModifier extends Product with Serializable {
 
@@ -30,6 +31,8 @@ sealed trait EventModifier extends Product with Serializable {
 }
 
 object EventModifier {
+
+  /** Constructors and normalization rules for `data-on:*` modifiers. */
 
   /** Debounces event handling for the specified interval. */
   final case class Debounce(millis: Long, leading: Boolean) extends EventModifier {

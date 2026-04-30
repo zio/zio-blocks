@@ -30,6 +30,8 @@ sealed trait EventType extends Product with Serializable {
 
 object EventType {
 
+  /** Standard Datastar SSE event kinds. */
+
   /** Emits the `datastar-patch-elements` SSE event type. */
   case object PatchElements extends EventType {
     def render: String = "datastar-patch-elements"

@@ -23,7 +23,9 @@ import zio.blocks.html.Dom
  *
  * Most callers should prefer higher-level `data*` helpers from
  * [[DatastarAttributes]]. Use `DatastarAttrKey` when defining a custom Datastar
- * attribute name or when no dedicated helper exists yet.
+ * attribute name or when no dedicated helper exists yet. Values assigned with
+ * `:=` are rendered through [[ToDatastarExpr]], so expression contexts reject
+ * raw Scala `String` values in favor of explicit Datastar expressions.
  */
 final class DatastarAttrKey(val name: String) {
 

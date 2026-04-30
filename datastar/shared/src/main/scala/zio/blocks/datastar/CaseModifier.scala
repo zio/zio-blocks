@@ -37,6 +37,8 @@ sealed trait CaseModifier extends Product with Serializable {
 
 object CaseModifier {
 
+  /** Standard case modifiers supported by the Datastar attribute DSL. */
+
   /** Requests camel-case rendering. */
   case object Camel extends CaseModifier {
     def render: String = "__case.camel"
