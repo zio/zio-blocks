@@ -12,40 +12,41 @@ This project uses mdoc to compile-check executable code blocks (examples, use ca
 
 **Exception:** Data type definitions use plain `` ```scala `` without mdoc modifiers — they are structural illustrations, not executable examples.
 
-### Modifier Summary
+### Modifiers & Rules
 
-| Modifier                   | Rendered Output           | Scope                         | Use When                                                                 |
-|----------------------------|---------------------------|-------------------------------|--------------------------------------------------------------------------|
-| `scala mdoc:compile-only`  | Source code only          | Isolated (no shared state)    | Self-contained examples where evaluated output is NOT needed             |
-| `scala mdoc:silent`        | Nothing (hidden)          | Shared with subsequent blocks | Setting up definitions needed by later blocks                            |
-| `scala mdoc:silent:nest`   | Nothing (hidden)          | Shared, wrapped in `object`   | Re-defining names already in scope                                       |
-| `scala mdoc`               | Source + evaluated output | Shared with subsequent blocks | When the evaluated result of expressions should be shown to the reader   |
-| `scala mdoc:invisible`     | Nothing (hidden)          | Shared with subsequent blocks | Importing hidden prerequisites                                           |
-| `scala mdoc:silent:reset`  | Nothing (hidden)          | Resets all prior scope        | Starting a clean scope mid-document                                      |
-| `scala` (no mdoc)          | Source code only          | Not compiled                  | Pseudocode, ASCII diagrams, conceptual snippets                          |
+Each modifier has a specific role. Choose based on whether you need scope sharing and whether output should render:
 
-### Key Rules
+- **`mdoc:compile-only`** — Renders source code only, isolated scope (no definitions carry over).
+  This is the **default** for self-contained examples where you want to show the structure but not
+  the evaluated output. Each block compiles alone; subsequent blocks cannot reference definitions
+  from a `compile-only` block.
 
-- **`mdoc:compile-only`** is the **default** for structural or setup-only examples where no output
-  needs to be shown. Each block is compiled in isolation — definitions do NOT carry over between
-  `compile-only` blocks.
-- **`mdoc:silent`** defines types/values that **subsequent blocks** can reference (scope persists
-  until reset). Nothing is rendered. You cannot redefine the same name — use `silent:nest` for that.
-- **`mdoc:silent:nest`** is like `silent` but wraps code in an anonymous `object`, allowing you to
-  **shadow names** from earlier blocks (e.g., redefining `Person` with different fields in a later
-  section).
-- **`mdoc:silent:reset`** wipes **all** accumulated scope and starts fresh. Use when `silent:nest`
-  wouldn't suffice (e.g., switching to a completely different topic mid-document).
-- **`mdoc`** (no qualifier) shows **source + evaluated output** (REPL-style). Use this whenever you
-  would otherwise write `// Right(42L)`, `// Some("hello")`, or any result comment — let mdoc render
-  the actual evaluated output instead. Can be used with definitions from prior `silent`/`silent:nest`
-  blocks, OR used standalone for self-contained examples that just need to show their output.
-- **`mdoc:invisible`** is like `silent` but signals "hidden imports only." Rare — prefer including
-  imports directly in the `mdoc:silent` setup block (so they are in shared scope) or inside a
-  `compile-only` block (for self-contained examples). Use `invisible` only when you need imports
-  shared across blocks but must not appear anywhere in the rendered output.
-- **No mdoc** (plain `` ```scala ``) — not compiled. Use for pseudocode, ASCII diagrams, type
-  signatures for illustration, or sbt/non-Scala syntax.
+- **`mdoc:silent`** — Renders nothing (hidden), scope shared with subsequent blocks.
+  Use to define types, values, or imports that later blocks will reference. Scope persists until
+  you use `silent:reset`. You **cannot** redefine the same name in a later block — use
+  `mdoc:silent:nest` for that.
+
+- **`mdoc:silent:nest`** — Renders nothing (hidden), scope shared, code wrapped in anonymous `object`.
+  Like `silent`, but allows you to **shadow/redefine names** from earlier blocks (e.g., redefining
+  `Person` with different fields in a later section). Use when `silent` would fail due to name collision.
+
+- **`mdoc:silent:reset`** — Renders nothing (hidden), clears all prior scope.
+  Wipes the entire accumulated scope and starts fresh. Use when switching to a completely different
+  context (new domain, new imports) mid-document and `silent:nest` wouldn't suffice.
+
+- **`mdoc`** (no qualifier) — Renders source + evaluated output, scope shared with subsequent blocks.
+  Shows both the code and its REPL-style result (as if you'd written `// Right(42L)` by hand, but
+  evaluated). Can build on definitions from prior `silent`/`silent:nest` blocks, or run standalone
+  for self-contained examples that just need to show their output.
+
+- **`mdoc:invisible`** — Renders nothing (hidden), scope shared with subsequent blocks.
+  Signals "hidden imports only" — rare in practice. Prefer including imports directly in a
+  `mdoc:silent` setup block (so they're visible in scope) or inside a `compile-only` block
+  (for self-contained examples). Use `invisible` only when you need imports shared across blocks
+  but must **not** appear anywhere in the rendered output.
+
+- **No mdoc** (plain `` ```scala ``) — Renders source code only, not compiled.
+  Use for pseudocode, ASCII diagrams, type signatures for illustration, or non-Scala syntax (e.g., sbt configuration).
 
 ### Choosing the Right Modifier
 
