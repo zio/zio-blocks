@@ -80,7 +80,7 @@ object Response {
     Response(
       Status.Ok,
       Headers("content-type" -> "application/json"),
-      Body.unsafeFromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
+      Body.fromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
     )
 
   def redirect(location: String, isPermanent: Boolean = false): Response =

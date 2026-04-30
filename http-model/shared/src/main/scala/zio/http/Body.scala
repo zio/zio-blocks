@@ -108,29 +108,14 @@ object Body {
     new Body(Stream.fromChunk(chunk), contentType)
 
   /**
-   * Unsafely creates a body from a byte array without a defensive copy.
+   * Creates a body from a byte array without a defensive copy.
    *
    * The resulting body aliases the supplied mutable array. Mutating the array
    * after calling this method mutates the body contents too. Use this only when
    * ownership of the array has been transferred to the body.
    */
-  def unsafeFromArray(bytes: Array[Byte], contentType: ContentType = ContentType.`application/octet-stream`): Body =
-    new Body(Stream.fromChunk(Chunk.fromArray(bytes)), contentType)
-
-  /**
-   * Unsafely creates a body from a byte array without a defensive copy.
-   *
-   * @deprecated
-   *   Use `unsafeFromArray` to make mutable-array aliasing explicit, or
-   *   `fromChunk(Chunk.fromArray(bytes.clone()))` when the body must own an
-   *   immutable snapshot.
-   */
-  @deprecated(
-    "Use unsafeFromArray to make mutable-array aliasing explicit, or fromChunk(Chunk.fromArray(bytes.clone())) for an immutable snapshot.",
-    "0.0.33"
-  )
   def fromArray(bytes: Array[Byte], contentType: ContentType = ContentType.`application/octet-stream`): Body =
-    unsafeFromArray(bytes, contentType)
+    new Body(Stream.fromChunk(Chunk.fromArray(bytes)), contentType)
 
   /**
    * Creates a body from a string, encoding with the given charset.

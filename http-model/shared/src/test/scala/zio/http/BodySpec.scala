@@ -69,36 +69,36 @@ object BodySpec extends HttpModelBaseSpec {
         assertTrue(body.contentType == ContentType.`application/octet-stream`)
       }
     ),
-    suite("unsafeFromArray")(
+    suite("fromArray")(
       test("toChunk returns chunk with those bytes") {
         val bytes = Array[Byte](1, 2, 3)
-        val body  = Body.unsafeFromArray(bytes)
+        val body  = Body.fromArray(bytes)
         assertTrue(body.toChunk == Chunk[Byte](1, 2, 3))
       },
       test("toArray returns array matching bytes") {
         val bytes = Array[Byte](1, 2, 3)
-        val body  = Body.unsafeFromArray(bytes)
+        val body  = Body.fromArray(bytes)
         val arr   = body.toArray
         assertTrue(arr(0) == 1.toByte, arr(1) == 2.toByte, arr(2) == 3.toByte)
       },
       test("length returns Some(bytes.length.toLong)") {
         val bytes = Array[Byte](1, 2, 3)
-        val body  = Body.unsafeFromArray(bytes)
+        val body  = Body.fromArray(bytes)
         assertTrue(body.length == Some(3L))
       },
-      test("unsafe wrapper aliases the supplied mutable array") {
+      test("aliases the supplied mutable array") {
         val bytes = Array[Byte](1, 2, 3)
-        val body  = Body.unsafeFromArray(bytes)
+        val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte
         assertTrue(body.toChunk(0) == 99.toByte)
       },
       test("preserves content type") {
         val ct   = ContentType.`application/json`
-        val body = Body.unsafeFromArray(Array[Byte](1), ct)
+        val body = Body.fromArray(Array[Byte](1), ct)
         assertTrue(body.contentType == ct)
       },
       test("defaults to application/octet-stream") {
-        val body = Body.unsafeFromArray(Array[Byte](1))
+        val body = Body.fromArray(Array[Byte](1))
         assertTrue(body.contentType == ContentType.`application/octet-stream`)
       }
     ),
@@ -204,10 +204,10 @@ object BodySpec extends HttpModelBaseSpec {
         val c1 = Chunk[Byte](1, 2, 3)
         assertTrue(Body.fromChunk(c1, ContentType.`application/json`) != Body.fromChunk(c1, ContentType.`text/plain`))
       },
-      test("fromChunk and unsafeFromArray with same bytes are equal") {
+      test("fromChunk and fromArray with same bytes are equal") {
         val c1 = Chunk[Byte](1, 2, 3)
         val ct = ContentType.`application/json`
-        assertTrue(Body.fromChunk(c1, ct) == Body.unsafeFromArray(c1.toArray, ct))
+        assertTrue(Body.fromChunk(c1, ct) == Body.fromArray(c1.toArray, ct))
       },
       test("fromStream(fromIterable) bodies are not equal even with same data") {
         val ct = ContentType.`application/json`
@@ -221,12 +221,12 @@ object BodySpec extends HttpModelBaseSpec {
         assertTrue(Body.fromStream(Stream.fromChunk(c1), ct) == Body.fromChunk(c1, ct))
       },
       test("equal bodies have same hashCode") {
-        val a = Body.unsafeFromArray(Array[Byte](1, 2, 3))
-        val b = Body.unsafeFromArray(Array[Byte](1, 2, 3))
+        val a = Body.fromArray(Array[Byte](1, 2, 3))
+        val b = Body.fromArray(Array[Byte](1, 2, 3))
         assertTrue(a.hashCode == b.hashCode)
       },
       test("body is not equal to non-Body") {
-        val body = Body.unsafeFromArray(Array[Byte](1))
+        val body = Body.fromArray(Array[Byte](1))
         assertTrue(!body.equals("not a body"))
       }
     ),
