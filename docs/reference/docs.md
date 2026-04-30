@@ -335,7 +335,7 @@ val combined = doc1 ++ doc2
 
 Render a document to GFM markdown:
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -345,7 +345,7 @@ val markdown: String = doc.toString  // Calls Renderer.render internally
 
 Render to HTML with full document structure including DOCTYPE (returns complete HTML5 document with `<!DOCTYPE html>` wrapper):
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -355,7 +355,7 @@ val html = doc.toHtml
 
 Render to HTML fragment containing only the content (returns just the rendered HTML blocks without wrapper tags):
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -365,7 +365,7 @@ val fragment = doc.toHtmlFragment
 
 Render to colorized terminal output (returns ANSI-colored string suitable for terminal display):
 
-```scala mdoc:compile-only
+```scala mdoc:reset
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -388,7 +388,7 @@ val doc = Doc(Chunk(
 
 Call `Doc#normalize` to see the result:
 
-```scala mdoc
+```scala mdoc:reset
 val normalized = doc.normalize
 ```
 
@@ -461,7 +461,7 @@ A fenced code block with optional language/info string.
 
 Construct a code block with optional language specification:
 
-```
+```scala
 CodeBlock(info: Option[String], code: String)
 ```
 
@@ -493,7 +493,7 @@ A block quote containing nested blocks.
 
 Construct a block quote with nested blocks:
 
-```
+```scala
 BlockQuote(content: Chunk[Block])
 ```
 
@@ -513,7 +513,7 @@ An unordered list with bullet markers (-, *, +).
 
 Construct a bullet list with items and a tightness parameter:
 
-```
+```scala
 BulletList(items: Chunk[ListItem], tight: Boolean)
 ```
 
@@ -535,7 +535,7 @@ An ordered list with numeric markers (1., 2., etc.).
 
 Construct an ordered list with a starting number, items, and a tightness parameter:
 
-```
+```scala
 OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean)
 ```
 
@@ -561,7 +561,7 @@ A list item, optionally a task list item.
 
 Construct a list item with content and optional checkbox status:
 
-```
+```scala
 ListItem(content: Chunk[Block], checked: Option[Boolean])
 ```
 
@@ -584,7 +584,7 @@ Raw HTML block content.
 
 Construct raw HTML block content:
 
-```
+```scala
 HtmlBlock(content: String)
 ```
 
@@ -600,7 +600,7 @@ A GitHub Flavored Markdown table with aligned columns.
 
 Construct a table with header, column alignments, and data rows:
 
-```
+```scala
 Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow])
 ```
 
@@ -632,7 +632,7 @@ Plain text content.
 
 Create plain text content:
 
-```
+```scala
 Text(value: String)
 // or
 Inline.Text(value: String)
@@ -653,7 +653,7 @@ Inline code span (backtick-delimited).
 
 Create inline code:
 
-```
+```scala
 Code(value: String)
 // or
 Inline.Code(value: String)
@@ -674,7 +674,7 @@ Emphasized (italic) text.
 
 Create emphasized text:
 
-```
+```scala
 Emphasis(content: Chunk[Inline])
 // or
 Inline.Emphasis(content: Chunk[Inline])
@@ -696,7 +696,7 @@ Strong (bold) text.
 
 Create strong text:
 
-```
+```scala
 Strong(content: Chunk[Inline])
 // or
 Inline.Strong(content: Chunk[Inline])
@@ -718,7 +718,7 @@ Strikethrough text (GFM feature).
 
 Create strikethrough text:
 
-```
+```scala
 Strikethrough(content: Chunk[Inline])
 // or
 Inline.Strikethrough(content: Chunk[Inline])
@@ -740,7 +740,7 @@ A hyperlink.
 
 Construct a link with text, URL, and optional title:
 
-```
+```scala
 Link(text: Chunk[Inline], url: String, title: Option[String])
 // or
 Inline.Link(text: Chunk[Inline], url: String, title: Option[String])
@@ -762,7 +762,7 @@ An image reference.
 
 Construct an image with alt text, URL, and optional title:
 
-```
+```scala
 Image(alt: String, url: String, title: Option[String])
 // or
 Inline.Image(alt: String, url: String, title: Option[String])
