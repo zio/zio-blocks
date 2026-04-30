@@ -60,14 +60,11 @@ This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, 19, and 23 for mechanical v
 ## Heading and Code Block Layout Rules
 
 11. **Heading hierarchy**: Use `##` for major sections, `###` for subsections, and `####` for subsubsections. All three levels are fully supported and encouraged.
-12. **No bare subheaders**: Never place a `###` or `####` subheader immediately after a `##` header with nothing in between. Always write a brief, narrative introduction that explains the purpose and context—tell readers *why* they need this section and what problems it solves. Example: "Often you need to work with portions of a chunk rather than the whole. These operations let you keep elements from the ends, skip unwanted portions, extract contiguous ranges by position, and intelligently partition chunks based on predicates or conditions:"
-   
+12. **No bare subheaders**: Always write an intro sentence between a `##` header and its first `###` subheader. Explain why this section exists and what problem it solves. This can be a single sentence or a short paragraph.
+
    **Bad vs. Good:**
-   - ❌ `## Operations`  
-     `### Map` (no intro sentence between them)  
-     ✅ `## Operations`  
-     `To transform values within a chunk, use these operations:`  
-     `### Map`
+   - ❌ `## Operations` → `### Map` (no intro between them)  
+     ✅ `## Operations` → `To transform values, use these operations.` → `### Map`
 13. **No lone subheaders**: Never create a subsection with only one child. If a `##` section would have only one `###`, remove the subheader entirely and place the content directly under the parent heading. The same rule applies to `###` → `####`.
 14. **When to use `####`**: Group multiple related items (use cases, examples, sub-patterns) under a single `###` heading by using `####` for each item. This creates visual hierarchy and makes the section more scannable. Example: `### Use Cases` → `#### Polyglot configuration systems` → `#### Schema-driven migrations`.
 15. **Every code block must be preceded by an introductory prose sentence ending with a colon**: The content immediately before a code block's opening fence must always be a prose sentence — never a heading alone and never blank space alone. Between two consecutive code blocks, write a contextualized bridging sentence that explains what the next block demonstrates. This applies universally:
