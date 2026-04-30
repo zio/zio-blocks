@@ -263,15 +263,17 @@ val user = User("Alice", "Engineer")
 val doc = md"# Team\n$user"
 ```
 
-[//]: # (TODO: write a few more usecase for above feature)
+Additional use cases for custom type interpolation include building documentation programmatically with rich data types, generating reports with structured business objects, and creating templates that mix markdown formatting with domain-specific data. For example, you could create instances for your API models to automatically format them as markdown tables or code examples, making it easy to generate consistent documentation from live data structures.
 
 ## Integration Points
 
-[//]: # (TODO: Instead of bullet points, please write a few paragraphs describing how the markdown module integrates with other modules.)
+The markdown module integrates seamlessly with other ZIO Blocks components to provide a cohesive ecosystem for working with structured data and documentation.
 
-- **With Schema**: `schema` module can derive codecs for markdown documents
-- **With Chunk**: `Doc` and `Block`/`Inline` use `Chunk[T]` for efficient immutable sequences
-- **With HTTP**: Markdown can be served as documentation endpoints in HTTP servers
+**Schema Integration**: The `schema` module can derive codecs for markdown documents, enabling serialization and deserialization of `Doc` and related types. This allows you to persist markdown structures to various formats (JSON, MessagePack, BSON, etc.) while maintaining type safety and schema validation.
+
+**Chunk Integration**: Core data structures like `Doc`, `Block`, and `Inline` use `Chunk[T]` throughout for efficient immutable sequences. This provides O(1) concatenation, memory efficiency, and seamless interoperability with other ZIO libraries that also rely on chunks for data streaming and collection manipulation.
+
+**HTTP Integration**: Markdown documents can be served directly as documentation endpoints in HTTP servers. Combined with the multiple renderer options (GFM, HTML, terminal), you can build documentation APIs that serve content in multiple formats based on client preferences, making it trivial to expose living documentation alongside your application.
 
 ---
 
