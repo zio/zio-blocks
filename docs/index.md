@@ -25,7 +25,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | 🚧 In Development |
+| **Streams** | Pull-based streaming primitives | ✅ Available |
 
 ## Core Principles
 
@@ -576,8 +576,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 | Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
 |----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 
@@ -626,7 +626,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
-- [HTTP Model](./reference/http-model/) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
 - [Stream](./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](./reference/streams/pipeline.md) - Reusable, composable stream transformations
