@@ -802,7 +802,20 @@ val emailLink = Autolink("user@example.com", isEmail = true)
 
 ## HeadingLevel
 
-Heading levels from H1 to H6, with convenience constructors.
+Heading levels from H1 to H6.
+
+```scala
+sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
+
+object HeadingLevel {
+  case object H1 extends HeadingLevel(1)
+  case object H2 extends HeadingLevel(2)
+  case object H3 extends HeadingLevel(3)
+  case object H4 extends HeadingLevel(4)
+  case object H5 extends HeadingLevel(5)
+  case object H6 extends HeadingLevel(6)
+}
+```
 
 ### Predefined Levels
 
@@ -859,6 +872,17 @@ HeadingLevel.H1.value == 1
 
 Table column alignment specification.
 
+```scala
+sealed trait Alignment extends Product with Serializable
+
+object Alignment {
+  case object Left   extends Alignment
+  case object Right  extends Alignment
+  case object Center extends Alignment
+  case object None   extends Alignment
+}
+```
+
 ### Predefined Alignments
 
 Use predefined alignment values for table columns:
@@ -888,10 +912,8 @@ val table = Table(header, alignments, rows)
 
 A single row in a table, containing cells as inline content.
 
-Construct a table row with cells:
-
-```
-TableRow(cells: Chunk[Chunk[Inline]])
+```scala
+final case class TableRow(cells: Chunk[Chunk[Inline]])
 ```
 
 Each cell is a `Chunk[Inline]`, allowing formatted content (text, links, emphasis, etc.). Here's an example:
@@ -911,13 +933,17 @@ val row = TableRow(Chunk(
 
 ## Parser
 
-Strict GitHub Flavored Markdown parser with position-aware error reporting.
+A singleton object providing strict GitHub Flavored Markdown parsing with position-aware error reporting.
+
+```scala
+object Parser
+```
 
 ### Parsing
 
 Use the main entry point to parse markdown:
 
-```
+```scala
 Parser.parse(input: String): Either[ParseError, Doc]
 ```
 
@@ -963,10 +989,8 @@ result match {
 
 Error information from parsing, with precise location data.
 
-Construct a `ParseError` with message and location information:
-
-```
-ParseError(
+```scala
+final case class ParseError(
   message: String,    // Human-readable error description
   line: Int,          // 1-based line number
   column: Int,        // 1-based column number
@@ -993,13 +1017,17 @@ err.toString
 
 ## Renderer
 
-Renders markdown documents back to GitHub Flavored Markdown string format.
+A singleton object that renders markdown documents back to GitHub Flavored Markdown string format.
+
+```scala
+object Renderer
+```
 
 ### Rendering
 
 Render an entire document to GFM markdown:
 
-```
+```scala
 Renderer.render(doc: Doc): String
 ```
 
@@ -1057,13 +1085,17 @@ assert(original == reparsed)  // Equal after normalization
 
 ## HtmlRenderer
 
-Renders markdown documents to HTML5.
+A singleton object that renders markdown documents to HTML5.
+
+```scala
+object HtmlRenderer
+```
 
 ### Full Document Rendering
 
 Render a document as complete HTML with DOCTYPE and html wrapper tags:
 
-```
+```scala
 HtmlRenderer.render(doc: Doc): String
 ```
 
@@ -1125,12 +1157,16 @@ Use fragments to embed markdown content into existing HTML templates.
 
 ## TerminalRenderer
 
-Renders markdown to ANSI-colored terminal output optimized for console display.
+A singleton object that renders markdown to ANSI-colored terminal output optimized for console display.
+
+```scala
+object TerminalRenderer
+```
 
 ### Rendering
 
 Render a document to ANSI-colored terminal output:
-```
+```scala
 TerminalRenderer.render(doc: Doc): String
 ```
 
