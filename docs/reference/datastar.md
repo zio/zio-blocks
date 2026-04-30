@@ -8,7 +8,11 @@ title: "Datastar"
 ## Installation
 
 ```scala
+// JVM
 libraryDependencies += "dev.zio" %% "zio-blocks-datastar" % "@VERSION@"
+
+// Scala.js
+libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 ```
 
 ## Signals
@@ -97,7 +101,8 @@ Import `zio.blocks.datastar._` to get all `data-*` attribute constructors. These
 import zio.blocks.html._
 import zio.blocks.datastar._
 
-val count = Signal[Int]("count")
+val count    = Signal[Int]("count")
+val username = Signal[String]("username")
 
 div(
   dataSignals(count := 0),
@@ -144,7 +149,7 @@ Chain modifiers on `dataOn` before assigning a handler:
 
 ```scala
 // Debounce input by 300ms
-dataOn("input").debounce(300) := js"$username"
+dataOn.input.debounce(300) := username
 
 // Click with prevent default, only once
 dataOn.click.prevent.once := js"handleSubmit()"
