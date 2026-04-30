@@ -48,14 +48,14 @@ private[streams] final class ChannelWriter(ch: WritableByteChannel, bufSize: Int
 
   def write(a: Byte): Boolean = writeByte(a)
 
-  override def writeByte(b: Byte)(using Byte <:< Byte): Boolean = {
+  override def writeByte(b: Byte)(implicit ev: Byte <:< Byte): Boolean = {
     if (closed) return false
     if (!buf.hasRemaining) { if (!flush()) return false }
     buf.put(b)
     true
   }
 
-  override def writeBytes(arr: Array[Byte], offset: Int, len: Int)(using Byte <:< Byte): Int = {
+  override def writeBytes(arr: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
     if (closed) return 0
     if (len == 0) return 0
     var written = 0

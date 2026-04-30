@@ -129,7 +129,7 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
     else if (buffer.remaining() >= 4) (buffer.getInt() & 0xff)
     else { done = true; -1 }
 
-  override def readInt(sentinel: Long)(using Int <:< Int): Long =
+  override def readInt(sentinel: Long)(implicit ev: Int <:< Int): Long =
     if (done) sentinel
     else if (buffer.remaining() >= 4) buffer.getInt().toLong
     else { done = true; sentinel }
@@ -199,7 +199,7 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
     else if (buffer.remaining() >= 8) (buffer.getLong().toInt & 0xff)
     else { done = true; -1 }
 
-  override def readLong(sentinel: Long)(using Long <:< Long): Long =
+  override def readLong(sentinel: Long)(implicit ev: Long <:< Long): Long =
     if (done) sentinel
     else if (buffer.remaining() >= 8) buffer.getLong()
     else { done = true; sentinel }
@@ -269,7 +269,7 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
     else if (buffer.remaining() >= 8) (buffer.getDouble().toInt & 0xff)
     else { done = true; -1 }
 
-  override def readDouble(sentinel: Double)(using Double <:< Double): Double =
+  override def readDouble(sentinel: Double)(implicit ev: Double <:< Double): Double =
     if (done) sentinel
     else if (buffer.remaining() >= 8) buffer.getDouble()
     else { done = true; sentinel }
@@ -339,7 +339,7 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
     else if (buffer.remaining() >= 4) (buffer.getFloat().toInt & 0xff)
     else { done = true; -1 }
 
-  override def readFloat(sentinel: Double)(using Float <:< Float): Double =
+  override def readFloat(sentinel: Double)(implicit ev: Float <:< Float): Double =
     if (done) sentinel
     else if (buffer.remaining() >= 4) buffer.getFloat().toDouble
     else { done = true; sentinel }
