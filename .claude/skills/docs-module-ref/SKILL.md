@@ -24,18 +24,21 @@ This skill produces comprehensive reference documentation for modules with multi
 
 ## Step 1: Research & Map the Module
 
-Use the **`docs-research`** skill to:
+Run the `docs-reasearch` skill:
+
+skill({ name: "docs-research" })
+
+Key Goals:
 1. Find all core and supporting types in the module
 2. Identify type relationships and dependencies (which types use which types)
 3. Find tests, examples, and real-world usage patterns
-4. Search GitHub history for design rationale and evolution
 5. Review any existing partial documentation
 
-**Additional mapping:** Create a mental model of:
-- **Core types** (primary exports, main abstractions): e.g., Request, Response for http-model
-- **Supporting types** (helpers, variants): e.g., Method, Status, Version
-- **Relationships** (uses/composes with): e.g., Request contains Headers, URL, Body
-- **Data flow** (typical usage pattern): e.g., create URL → create Request → send → receive Response
+**Additional mapping:** Create a mental model of data types:
+- **Core types** (primary exports, main abstractions)
+- **Supporting types** (helpers, variants)
+- **Relationships**
+- **Data flow**
 
 ---
 
