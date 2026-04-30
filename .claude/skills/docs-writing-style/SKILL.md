@@ -41,7 +41,7 @@ This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, 19, and 23 for mechanical v
 
 ## Referencing Types, Operations, and Constructors
 
-8. **Always qualify method/constructor names**: Never use bare names like `map` or `empty`. Always write `Chunk#map` (instance methods) or `BindingResolver.empty` (companion methods). Use backticks everywhere: prose, headings, comparative phrases. This ensures readers understand the context.
+8. **Always qualify method/constructor names**:
 
    **Bad vs. Good:**
    - ❌ "Call `map` to transform elements" → ✅ "Call `Chunk#map` to transform elements"
@@ -139,9 +139,6 @@ Rules 2–4, 7–10, 12, 14, 17–23 require manual verification. Here are key e
 - ❌ "It's worth noting that chunks are immutable"
 - ✅ "Chunks are immutable"
 
-**Rule 8 (Qualify method names)** — Always include the type:
-- ❌ "Use `map` to transform elements"
-- ✅ "Use `Chunk#map` to transform elements"
 
 **Rule 9 (Type name alone)** — No qualifier when referring to the type itself:
 - ❌ "Use `Chunk#Chunk` for building chunks"
