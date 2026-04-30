@@ -26,14 +26,14 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | ✅ Available |
+| **Streams** | Pull-based streaming primitives | 🚧 In Development |
 
 ## Core Principles
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
 - **Modular**: Each block is a separate artifact. Import only what you need.
 - **Cross-Platform**: Full support for JVM and Scala.js.
-- **Cross-Version**: Most blocks support Scala 2.13 and Scala 3.x with source compatibility, while Scala 3-only blocks document that requirement explicitly.
+- **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
 - **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
 - **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
 
@@ -573,12 +573,12 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ## Scala & Platform Support
 
-Most ZIO Blocks modules support **Scala 2.13** and **Scala 3.x** with source compatibility. Modules that rely on Scala 3-only foundations document that requirement explicitly.
+ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
 | Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
 |----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
 
 ## Documentation
 
