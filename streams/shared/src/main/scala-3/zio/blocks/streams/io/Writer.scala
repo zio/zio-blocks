@@ -271,9 +271,11 @@ object Writer {
   ) extends Writer[Elem] {
     private var current: Writer[Elem] = self
     private var switched: Boolean     = false
-    def isClosed: Boolean             = current.isClosed && switched
+    private var closed: Boolean       = false
+    def isClosed: Boolean             = closed || (current.isClosed && switched)
 
     def write(a: Elem): Boolean = {
+      if (closed) return false
       if (switched) return current.write(a)
       val ok =
         try self.write(a)
@@ -286,6 +288,7 @@ object Writer {
     }
 
     def close(): Unit = {
+      closed = true
       try self.close()
       catch { case _: Throwable => () }
       if (switched) {

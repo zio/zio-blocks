@@ -315,6 +315,16 @@ object WriterSpec extends StreamsBaseSpec {
         w.close()
         assertTrue(first.isClosed)
       },
+      test("close is terminal even before switching to next writer") {
+        val first  = new CollectingWriter[Int]
+        val second = new CollectingWriter[Int]
+        val w      = first.concat(second)
+        w.close()
+        assertTrue(w.isClosed) &&
+        assertTrue(!w.write(1)) &&
+        assertTrue(first.collected.isEmpty) &&
+        assertTrue(second.collected.isEmpty)
+      },
       test("++ is alias for concat") {
         val first  = new CollectingWriter[Int]
         val second = new CollectingWriter[Int]
