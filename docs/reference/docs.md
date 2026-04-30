@@ -7,7 +7,7 @@ ZIO Blocks Markdown is a **pure, zero-dependency GitHub Flavored Markdown librar
 
 Here are the core type definitions:
 
-```scala
+```scala mdoc:compile-only
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 
 sealed trait Block extends Product with Serializable
