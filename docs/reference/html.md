@@ -316,14 +316,14 @@ The `script` and `style` elements have specialized APIs for handling inline code
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
-// Inline JavaScript must be wrapped in Js (or produced by js"...")
-val inlineScript = script().inlineJs(Js("console.log('Hello');"))
+// Inline JavaScript should be produced by js"..."
+val inlineScript = script().inlineJs(js"console.log('Hello');")
 
 // External JavaScript
 val externalScript = script().externalJs("/app.js")
 
-// Inline CSS must be wrapped in Css (or produced by css"...")
-val inlineStyle = style().inlineCss(Css.Raw("body { margin: 0; }"))
+// Inline CSS should be produced by css"..."
+val inlineStyle = style().inlineCss(css"body { margin: 0; }")
 
 // With Css ADT
 val styleWithAdt = style().inlineCss(
