@@ -170,15 +170,6 @@ object DatastarEventSpec extends ZIOSpecDefault {
             "event: datastar-patch-signals\n" +
             "id: sig-1\n" +
             "retry: 3000\n" +
-            "data: onlyIfMissing false\n" +
-            "data: signals {\"count\":1}\n" +
-            "\n"
-        ) ||
-        assertTrue(
-          result ==
-            "event: datastar-patch-signals\n" +
-            "id: sig-1\n" +
-            "retry: 3000\n" +
             "data: signals {\"count\":1}\n" +
             "\n"
         )

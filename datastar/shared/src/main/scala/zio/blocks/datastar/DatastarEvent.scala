@@ -25,12 +25,16 @@ import zio.blocks.html.{CssSelector, Dom, Js}
  * Sealed trait with builder-style constructors in the companion object. Use
  * [[DatastarEvent.patchElements]], [[DatastarEvent.patchSignals]],
  * [[DatastarEvent.executeScript]], or [[DatastarEvent.removeElements]] to
- * create events, then call `renderSSE` to produce the SSE wire format.
+ * create events, then call `renderSSE` to produce the SSE wire format. Builder
+ * options map directly to emitted SSE fields such as `selector`, `mode`,
+ * `useViewTransition`, `namespace`, `id`, and `retry`.
  *
  * {{{
- * val sse = DatastarEvent
- *   .patchSignals(count := 42)
- *   .renderSSE
+ * val sse = DatastarEvent.patchSignals(count := 42).withEventId("evt-1").renderSSE
+ *
+ * // event: datastar-patch-signals
+ * // id: evt-1
+ * // data: signals {"count":42}
  * }}}
  */
 sealed trait DatastarEvent {
@@ -161,10 +165,9 @@ object DatastarEvent {
     new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
 
   def executeScript(code: Js): PatchElementsBuilder = {
-    val escapedCode   = code.value.replace("</", "<\\/")
     val scriptElement = Dom.Element.Script(
       Chunk(Dom.Attribute.KeyValue("data-effect", Dom.AttributeValue.StringValue("el.remove()"))),
-      Chunk(Dom.Text(escapedCode))
+      Chunk(Dom.Text(code.value))
     )
     new PatchElementsBuilder(
       scriptElement,
