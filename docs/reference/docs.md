@@ -107,6 +107,36 @@ Rendering to terminal:
 TerminalRenderer.render(doc)
 ```
 
+Parsing markdown strings to create documents:
+
+```scala mdoc:reset
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
+val markdown = """# My Document
+
+This is a paragraph with **bold** text.
+
+- Item 1
+- Item 2
+"""
+
+Parser.parse(markdown) match {
+  case Right(parsedDoc) => println(s"Successfully parsed ${parsedDoc.blocks.size} blocks")
+  case Left(err) => println(s"Parse error: ${err.message}")
+}
+```
+
+Round-trip verification (parse → render → parse preserves structure):
+
+```scala mdoc
+val input = "# Hello\n\nWorld"
+val parsed1 = Parser.parse(input).toOption.get
+val rendered = Renderer.render(parsed1)
+val parsed2 = Parser.parse(rendered).toOption.get
+parsed1 == parsed2  // Equal after normalization
+```
+
 ## Common Patterns
 
 The markdown module provides several patterns for working with documents and types. Here are the most common usage scenarios:
@@ -311,21 +341,21 @@ val markdown: String = doc.toString  // Calls Renderer.render internally
 
 Render to HTML with full document structure including DOCTYPE:
 
-```scala mdoc:compile-only
+```
 val html = doc.toHtml
 // Returns: <!DOCTYPE html><html><head></head><body>...</body></html>
 ```
 
 Render to HTML fragment containing only the content:
 
-```scala mdoc:compile-only
+```
 val fragment = doc.toHtmlFragment
 // Returns: <h1>Hello</h1><p>...</p> (no DOCTYPE or wrapper tags)
 ```
 
 Render to colorized terminal output:
 
-```scala mdoc:compile-only
+```
 val terminal = doc.toTerminal
 // Returns ANSI-colored string suitable for terminal display
 ```
