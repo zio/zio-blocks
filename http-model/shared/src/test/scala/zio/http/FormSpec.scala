@@ -78,6 +78,14 @@ object FormSpec extends HttpModelBaseSpec {
         val form = Form.fromString("first+name=John+Doe")
         assertTrue(form.get("first name") == Some("John Doe"))
       },
+      test("decodes percent-encoded plus as literal plus") {
+        val form = Form.fromString("math=1%2B1")
+        assertTrue(form.get("math") == Some("1+1"))
+      },
+      test("decodes percent-encoded equals sign in keys") {
+        val form = Form.fromString("a%3Db=value")
+        assertTrue(form.get("a=b") == Some("value"))
+      },
       test("handles empty string") {
         val form = Form.fromString("")
         assertTrue(form.isEmpty)
@@ -152,11 +160,19 @@ object FormSpec extends HttpModelBaseSpec {
       test("encodes equals sign in values") {
         val form    = Form("expr" -> "a=b")
         val encoded = form.encode
-        assertTrue(encoded == "expr=a%3Db" || encoded == "expr=a=b")
+        assertTrue(encoded == "expr=a=b")
+      },
+      test("encodes equals sign in keys") {
+        val form = Form("a=b" -> "value")
+        assertTrue(form.encode == "a%3Db=value")
       },
       test("encodes spaces in values") {
         val form = Form("msg" -> "hello world")
         assertTrue(form.encode.contains("hello+world"))
+      },
+      test("encodes literal plus signs") {
+        val form = Form("math" -> "1+1", "a+b" -> "plus")
+        assertTrue(form.encode == "math=1%2B1&a%2Bb=plus")
       }
     ),
     suite("round-trip")(
@@ -167,6 +183,11 @@ object FormSpec extends HttpModelBaseSpec {
       },
       test("round-trip with special characters") {
         val original     = Form("key name" -> "value&special", "x" -> "y")
+        val roundTripped = Form.fromString(original.encode)
+        assertTrue(roundTripped == original)
+      },
+      test("round-trip with literal plus signs and equals signs in keys") {
+        val original     = Form("math" -> "1+1", "a=b" -> "c+d")
         val roundTripped = Form.fromString(original.encode)
         assertTrue(roundTripped == original)
       },

@@ -54,9 +54,9 @@ final case class Form(entries: Chunk[(String, String)]) {
     while (i < entries.length) {
       if (i > 0) sb.append('&')
       val entry = entries(i)
-      sb.append(Form.encodeComponent(entry._1))
+      sb.append(Form.encodeKey(entry._1))
       sb.append('=')
-      sb.append(Form.encodeComponent(entry._2))
+      sb.append(Form.encodeValue(entry._2))
       i += 1
     }
     sb.toString
@@ -89,8 +89,11 @@ object Form {
     Form(builder.result())
   }
 
-  private def encodeComponent(value: String): String =
-    PercentEncoder.encode(value, PercentEncoder.ComponentType.QueryValue).replace("%20", "+")
+  private def encodeKey(value: String): String =
+    PercentEncoder.encode(value, PercentEncoder.ComponentType.QueryKey).replace("+", "%2B").replace("%20", "+")
+
+  private def encodeValue(value: String): String =
+    PercentEncoder.encode(value, PercentEncoder.ComponentType.QueryValue).replace("+", "%2B").replace("%20", "+")
 
   private def decodeComponent(value: String): String =
     PercentEncoder.decode(value.replace('+', ' '))
