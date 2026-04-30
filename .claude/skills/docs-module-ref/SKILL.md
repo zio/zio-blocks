@@ -290,8 +290,6 @@ title: "<TypeName>"
 
 ---
 
----
-
 ## Step 7: Integration
 
 Use the **`docs-integrate`** skill for the full checklist:
