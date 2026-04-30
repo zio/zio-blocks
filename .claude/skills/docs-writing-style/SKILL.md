@@ -102,7 +102,19 @@ Between consecutive code blocks, add bridging prose that explains what the next 
 
 ## Table Formatting
 
-22. **Pad column alignment**: Pad column headers and separators with spaces to align content vertically. This makes tables more scannable and readable than minimal-width formatting.
+22. **Pad column alignment**: Align table columns with spaces for readability.
+
+   **Bad (minimal spacing):**
+   ```
+   | Name | Value |
+   | - | - |
+   ```
+
+   **Good (padded for alignment):**
+   ```
+   | Name  | Value     |
+   | ----- | --------- |
+   ```
 
 ## Scala Version
 
