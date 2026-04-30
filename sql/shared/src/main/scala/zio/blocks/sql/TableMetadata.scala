@@ -42,7 +42,8 @@ object TableNamingPolicy {
     if (s.isEmpty) s
     else if (s.endsWith("s") || s.endsWith("x") || s.endsWith("ch") || s.endsWith("sh") || s.endsWith("zz"))
       s + "es"
-    else if (s.endsWith("z")) s + "zes"
+    else if (s.endsWith("iz")) s.dropRight(1) + "zzes"
+    else if (s.endsWith("z")) s + "es"
     else if (s.endsWith("y") && s.length > 1 && !isVowel(s.charAt(s.length - 2))) s.dropRight(1) + "ies"
     else s + "s"
 
@@ -50,7 +51,10 @@ object TableNamingPolicy {
 }
 
 object TableMetadata {
-  def columnsFor[A](schema: Schema[A], columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase): IndexedSeq[ColumnMeta] =
+  def columnsFor[A](
+    schema: Schema[A],
+    columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase
+  ): IndexedSeq[ColumnMeta] =
     fromReflect(schema.reflect, columnNameMapper)
 
   private def fromReflect[F[_, _]](
@@ -58,9 +62,10 @@ object TableMetadata {
     columnNameMapper: SqlNameMapper,
     forcedNullable: Boolean = false,
     prefix: String = ""
-  ): IndexedSeq[ColumnMeta] = {
+  ): IndexedSeq[ColumnMeta] =
     if (reflect.isOption || reflect.isMaybe)
-      reflect.optionInnerType.toIndexedSeq.flatMap(inner => fromReflect(inner, columnNameMapper, forcedNullable = true, prefix = prefix))
+      reflect.optionInnerType.toIndexedSeq
+        .flatMap(inner => fromReflect(inner, columnNameMapper, forcedNullable = true, prefix = prefix))
     else {
       reflect.asRecord match {
         case Some(record) =>
@@ -68,8 +73,8 @@ object TableMetadata {
             val isTransient = field.modifiers.exists(_.isInstanceOf[Modifier.transient])
             if (isTransient) IndexedSeq.empty
             else {
-              val renamed   = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
-              val fieldName = renamed.getOrElse(columnNameMapper(field.name))
+              val renamed    = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
+              val fieldName  = renamed.getOrElse(columnNameMapper(field.name))
               val nextPrefix = if (prefix.isEmpty) fieldName else s"${prefix}_${fieldName}"
               fromReflect(field.value, columnNameMapper, forcedNullable = forcedNullable, prefix = nextPrefix)
             }
@@ -79,12 +84,11 @@ object TableMetadata {
           IndexedSeq(ColumnMeta(columnName(prefix), dbValueFor(reflect), forcedNullable))
       }
     }
-  }
 
   private def columnName(prefix: String): String =
     if (prefix.nonEmpty) prefix else "value"
 
-  private def dbValueFor[F[_, _]](reflect: Reflect[F, ?]): DbValue = {
+  private def dbValueFor[F[_, _]](reflect: Reflect[F, ?]): DbValue =
     reflect.asPrimitive match {
       case Some(primitive) =>
         primitive.primitiveType match {
@@ -102,10 +106,11 @@ object TableMetadata {
           case _: PrimitiveType.Duration      => DbValue.DbDuration(java.time.Duration.ZERO)
           case _: PrimitiveType.Instant       => DbValue.DbInstant(java.time.Instant.EPOCH)
           case _: PrimitiveType.LocalDate     => DbValue.DbLocalDate(java.time.LocalDate.ofEpochDay(0))
-          case _: PrimitiveType.LocalDateTime => DbValue.DbLocalDateTime(java.time.LocalDateTime.ofEpochSecond(0, 0, java.time.ZoneOffset.UTC))
-          case _: PrimitiveType.LocalTime     => DbValue.DbLocalTime(java.time.LocalTime.MIDNIGHT)
-          case _: PrimitiveType.UUID          => DbValue.DbUUID(new java.util.UUID(0L, 0L))
-          case other                          =>
+          case _: PrimitiveType.LocalDateTime =>
+            DbValue.DbLocalDateTime(java.time.LocalDateTime.ofEpochSecond(0, 0, java.time.ZoneOffset.UTC))
+          case _: PrimitiveType.LocalTime => DbValue.DbLocalTime(java.time.LocalTime.MIDNIGHT)
+          case _: PrimitiveType.UUID      => DbValue.DbUUID(new java.util.UUID(0L, 0L))
+          case other                      =>
             throw new UnsupportedOperationException(
               s"Typed DDL does not support primitive type: ${other.getClass.getSimpleName}"
             )
@@ -122,5 +127,4 @@ object TableMetadata {
           s"Typed DDL does not support reflect node ${reflect.typeId}"
         )
     }
-  }
 }

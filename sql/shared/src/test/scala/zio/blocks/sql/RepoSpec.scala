@@ -123,6 +123,17 @@ object RepoSpec extends ZIOSpecDefault {
           repo.getId(Article("hello", 99L)) == 99L
         )
       },
+      test("uses renamed field for auto-detected ID column") {
+        case class RenamedId(@Modifier.rename("widget_id") id: Int, name: String)
+        object RenamedId {
+          implicit val schema: Schema[RenamedId] = Schema.derived
+        }
+        val repo = Repo.derived[RenamedId, Int]
+        assertTrue(
+          repo.idColumn == "widget_id",
+          repo.getId(RenamedId(7, "gadget")) == 7
+        )
+      },
       test("fails for ambiguous ID type") {
         case class TwoInts(id: Int, otherId: Int, name: String)
         object TwoInts {
@@ -138,6 +149,35 @@ object RepoSpec extends ZIOSpecDefault {
         }
         val result = scala.util.Try(Repo.derived[NoLong, Long])
         assertTrue(result.isFailure)
+      },
+      test("update is a no-op when table only contains the ID column") {
+        case class IdOnly(id: Int)
+        object IdOnly {
+          implicit val schema: Schema[IdOnly] = Schema.derived
+        }
+
+        val repo = Repo.derived[IdOnly, Int]
+
+        val unusedConnection = new DbConnection {
+          def prepareStatement(sql: String): DbPreparedStatement =
+            throw new AssertionError(s"prepareStatement should not be called: $sql")
+          def prepareStatementReturningKeys(sql: String): DbPreparedStatement =
+            throw new AssertionError(s"prepareStatementReturningKeys should not be called: $sql")
+          def close(): Unit                            = ()
+          def isClosed: Boolean                        = false
+          def setAutoCommit(autoCommit: Boolean): Unit = ()
+          def getAutoCommit: Boolean                   = true
+          def commit(): Unit                           = ()
+          def rollback(): Unit                         = ()
+        }
+
+        given DbCon = new DbCon {
+          val connection: DbConnection = unusedConnection
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+
+        assertTrue(repo.update(IdOnly(1)) == 0)
       }
     )
   )

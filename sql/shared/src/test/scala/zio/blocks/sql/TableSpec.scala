@@ -101,6 +101,12 @@ object TableSpec extends ZIOSpecDefault {
       test("plural naming policy pluralizes category") {
         assertTrue(TableNamingPolicy.Plural.defaultName("Category") == "categories")
       },
+      test("plural naming policy pluralizes quiz") {
+        assertTrue(TableNamingPolicy.Plural.defaultName("Quiz") == "quizzes")
+      },
+      test("plural naming policy pluralizes waltz") {
+        assertTrue(TableNamingPolicy.Plural.defaultName("Waltz") == "waltzes")
+      },
       test("singular naming policy keeps singular snake case") {
         assertTrue(TableNamingPolicy.Singular.defaultName("UserProfile") == "user_profile")
       }
