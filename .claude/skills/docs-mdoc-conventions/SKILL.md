@@ -56,30 +56,26 @@ Is this real executable Scala code?
 │
 ├─ NO → Use plain ```scala (pseudocode, ASCII art, type signatures)
 │
-└─ YES → Do you have accumulated scope from prior silent blocks?
+└─ YES → Do later blocks need these definitions?
    │
-   ├─ YES, and starting fresh topic?
-   │  └─ YES → Use mdoc:silent:reset first (clear scope)
-   │           Then choose: compile-only (isolated) or silent + mdoc (new scope)
+   ├─ NO → Do you want to show the output/result?
+   │  │
+   │  ├─ NO → Use mdoc:compile-only (source only, isolated)
+   │  │
+   │  └─ YES → Use mdoc:reset (source + output, isolated)
    │
-   └─ NO, or continuing in same topic → Do later blocks need these definitions?
+   └─ YES → Is this a later block showing a result?
       │
-      ├─ NO → Use mdoc:compile-only (self-contained, isolated)
+      ├─ YES → Use mdoc (source + output)
       │
-      └─ YES → Should this block show evaluated output?
+      └─ NO → Are you redefining a name from an earlier block?
          │
-         ├─ YES → Use mdoc (source + output shown)
+         ├─ YES → Use mdoc:silent:nest (shadow existing names)
          │
-         └─ NO → Are you redefining a name from an earlier block?
-            │
-            ├─ YES → Use mdoc:silent:nest (shadow in object wrapper)
-            │
-            └─ NO → Use mdoc:silent (setup only, stays hidden)
+         └─ NO → Use mdoc:silent (regular setup)
 ```
 
-**When to reset:** Use `mdoc:silent:reset` when you have accumulated definitions from prior `silent` blocks and want a completely fresh scope (different domain, new imports, different topic). After reset, you can use either:
-- `mdoc:compile-only` — for isolated, self-contained examples
-- `mdoc:silent` + subsequent `mdoc` — for new examples in the fresh scope
+**After any mdoc:silent block**, if you later need a completely different context (new domain, new imports), use `mdoc:silent:reset` to clear all state.
 
 ### Real-World Examples from ZIO Blocks
 
