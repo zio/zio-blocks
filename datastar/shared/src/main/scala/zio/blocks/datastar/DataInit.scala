@@ -23,7 +23,8 @@ import zio.blocks.html.Dom
  *
  * Modifiers such as [[delay]] and [[viewTransition]] are encoded into the final
  * attribute name and normalized so repeated modifiers collapse to the last
- * effective value.
+ * effective value. Use `:=` to assign the Datastar expression that should run
+ * during initialization.
  */
 final class DataInit(val modifier: Option[InitModifier]) {
 

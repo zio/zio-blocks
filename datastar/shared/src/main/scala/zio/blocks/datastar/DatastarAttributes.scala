@@ -21,10 +21,16 @@ import zio.blocks.html.Dom
 /**
  * Mixin providing Datastar `data-*` attribute constructors for the HTML DSL.
  *
- * Import via the package object (`import zio.blocks.datastar._`) which extends
- * this trait. Provides methods for all Datastar attributes: `dataSignals`,
- * `dataBind`, `dataOn`, `dataText`, `dataShow`, `dataClass`, `dataComputed`,
- * `dataEffect`, `dataInit`, `dataRef`, and more.
+ * Typical usage is through the package object via
+ * `import zio.blocks.datastar._`. The methods in this trait build the Datastar
+ * attribute DSL surface, including signal initialization (`dataSignals`),
+ * bindings (`dataBind`), event handlers (`dataOn`), DOM updates (`dataText`,
+ * `dataShow`, `dataClass`, `dataStyle`, `dataAttr`), and lifecycle hooks
+ * (`dataInit`, `dataOnIntersect`, `dataOnInterval`, `dataOnSignalPatch`).
+ *
+ * Attribute values are rendered as Datastar expressions, not as generic HTML
+ * string values. In expression positions use typed values such as [[Signal]],
+ * [[SignalUpdate]], [[DatastarRef]], or explicit `js"..."` expressions.
  */
 trait DatastarAttributes {
 

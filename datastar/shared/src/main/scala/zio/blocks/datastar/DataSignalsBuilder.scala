@@ -23,7 +23,8 @@ import zio.blocks.html.Dom
  *
  * The base key uses the kebab-cased `signalName`. Case modifier methods append
  * a `__case.*` suffix when a non-default casing is requested. Values assigned
- * with `:=` must be valid Datastar expressions.
+ * with `:=` must be valid Datastar expressions and become the attribute value
+ * rendered for that keyed signal.
  */
 final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseModifier) {
 

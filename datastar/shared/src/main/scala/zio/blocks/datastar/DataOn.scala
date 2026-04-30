@@ -23,7 +23,7 @@ import zio.blocks.html.Dom
  *
  * Obtained via `dataOn` from [[DatastarAttributes]]. Select an event (`click`,
  * `submit`, `keydown`, etc.) to get a [[DataOn]] builder, then assign a handler
- * with `:=`.
+ * with `:=`. Use [[apply]] for custom event names.
  *
  * {{{
  * dataOn.click := js"alert('hi')"
@@ -73,7 +73,9 @@ final class PartialDataOn {
  * Chain modifiers like `debounce`, `throttle`, `once`, `prevent`, `stop`,
  * `capture`, `passive`, `outside`, `window`, `document`, and `viewTransition`
  * before assigning a handler with `:=`. Case modifiers (`camel`, `kebab`,
- * `snake`, `pascal`) control attribute name casing.
+ * `snake`, `pascal`) control attribute name casing. Repeated timing or target
+ * modifiers are normalized to the last effective value before the final
+ * attribute name is rendered.
  */
 final class DataOn(val eventName: String, val modifier: Option[EventModifier], val caseModifier: CaseModifier) {
 
