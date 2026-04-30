@@ -1157,7 +1157,7 @@ Use fragments to embed markdown content into existing HTML templates.
 - Strikethrough → `<del>` or `<s>`
 - Links → `<a href="...">`
 - Images → `<img alt="..." src="...">`
-- HTML blocks and inlines → passed through as-is
+- HTML blocks and inlines → pass through as-is
 
 ---
 
@@ -1221,7 +1221,7 @@ trait ToMarkdown[-A] {
 }
 ```
 
-The type parameter is contravariant (`-A`), allowing supertype instances to be used for subtypes.
+The type parameter is contravariant (`-A`), allowing subtypes to use supertype instances.
 
 ### Summon an Instance
 
