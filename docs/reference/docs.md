@@ -283,7 +283,11 @@ A complete GitHub Flavored Markdown document.
 
 ### Definition
 
-`Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)` represents a parsed or constructed markdown document. The `metadata` field is reserved for future use and defaults to an empty map.
+```scala
+final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
+```
+
+A parsed or constructed markdown document. The `metadata` field is reserved for future use and defaults to an empty map.
 
 ### Construction
 
