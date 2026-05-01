@@ -1115,7 +1115,7 @@ result match {
 - Tables with alignment (GFM)
 - Inline formatting (emphasis, strong, strikethrough)
 - Links and images with optional titles
-- Autolinks (<url> or <email>)
+- Autolinks (`<url>` or `<email>`)
 - HTML blocks and inline HTML
 - Soft and hard line breaks
 
