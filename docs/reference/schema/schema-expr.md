@@ -217,10 +217,10 @@ object Item extends CompanionOptics[Item] {
   val price: Lens[Item, Int] = $(_.price)
 }
 
-// Construct AST nodes directly
-val lit: SchemaExpr[Item, Int] = new SchemaExpr.Literal(42, Schema[Int])
-val opticExpr: SchemaExpr[Item, Int] = new SchemaExpr.Optic(Item.price)
-val comparison: SchemaExpr[Item, Boolean] = new SchemaExpr.Relational(
+// Construct via factory methods
+val lit: SchemaExpr[Item, Int] = SchemaExpr.literal[Item, Int](42)
+val opticExpr: SchemaExpr[Item, Int] = SchemaExpr.optic[Item, Int](Item.price.toDynamic, Item.schema)
+val comparison: SchemaExpr[Item, Boolean] = SchemaExpr.relational(
   opticExpr,
   lit,
   SchemaExpr.RelationalOperator.GreaterThan
@@ -290,7 +290,7 @@ object Person extends CompanionOptics[Person] {
   val name: Lens[Person, String] = $(_.name)
 }
 
-val nameExpr = new SchemaExpr.Optic(Person.name)
+val nameExpr = SchemaExpr.optic[Person, String](Person.name.toDynamic, Person.schema)
 val result = nameExpr.evalDynamic(Person("Alice", 30))
 // Right(List(DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
 ```

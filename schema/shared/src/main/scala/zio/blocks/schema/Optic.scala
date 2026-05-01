@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.Chunk
+import zio.blocks.chunk.ChunkBuilder
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
@@ -93,148 +93,205 @@ sealed trait Optic[S, A] { self =>
   }
 
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Literal(that, schema),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.literal(that),
       SchemaExpr.RelationalOperator.Equal
     )
 
   final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Optic(that),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
       SchemaExpr.RelationalOperator.Equal
     )
 
   final def >(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Optic(that),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
       SchemaExpr.RelationalOperator.GreaterThan
     )
 
-  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, schema),
+  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.GreaterThan
   )
 
-  final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Optic(that),
+  final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
-  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, schema),
+  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.GreaterThanOrEqual
   )
 
   final def <(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Optic(that),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
       SchemaExpr.RelationalOperator.LessThan
     )
 
-  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, schema),
+  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.LessThan
   )
 
   final def <=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Optic(that),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
       SchemaExpr.RelationalOperator.LessThanOrEqual
     )
 
-  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = new SchemaExpr.Relational(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, schema),
+  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.relational(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that),
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
   final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Optic(that),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
   final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Relational(
-      new SchemaExpr.Optic(this),
-      new SchemaExpr.Literal(that, schema),
+    SchemaExpr.relational(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.literal(that),
       SchemaExpr.RelationalOperator.NotEqual
     )
 
-  final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = new SchemaExpr.Logical(
-    new SchemaExpr.Optic(this.asEquivalent[Boolean]),
-    new SchemaExpr.Optic(that.asEquivalent[Boolean]),
+  final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.LogicalOperator.And
   )
 
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Logical(
-      new SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      new SchemaExpr.Literal(that, Schema[Boolean]),
+    SchemaExpr.logical(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.literal(that),
       SchemaExpr.LogicalOperator.And
     )
 
-  final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = new SchemaExpr.Logical(
-    new SchemaExpr.Optic(this.asEquivalent[Boolean]),
-    new SchemaExpr.Optic(that.asEquivalent[Boolean]),
+  final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.logical(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.optic(that.toDynamic, new Schema(that.source)),
     SchemaExpr.LogicalOperator.Or
   )
 
   final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Logical(
-      new SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      new SchemaExpr.Literal(that, Schema[Boolean]),
+    SchemaExpr.logical(
+      SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+      SchemaExpr.literal(that),
       SchemaExpr.LogicalOperator.Or
     )
 
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    new SchemaExpr.Not(new SchemaExpr.Optic(this.asEquivalent[Boolean]))
+    SchemaExpr.not(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
-    new SchemaExpr.StringConcat(
-      new SchemaExpr.Optic(this.asEquivalent[String]),
-      new SchemaExpr.Literal(that, Schema[String])
-    )
+    SchemaExpr.stringConcat(SchemaExpr.optic(this.toDynamic, new Schema(this.source)), SchemaExpr.literal(that))
 
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
-    new SchemaExpr.StringRegexMatch(
-      new SchemaExpr.Literal(that, Schema[String]),
-      new SchemaExpr.Optic(this.asEquivalent[String])
-    )
+    SchemaExpr.stringRegexMatch(SchemaExpr.literal(that), SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
-  final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, isNumeric.schema),
+  final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Add,
-    isNumeric
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
-  final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, isNumeric.schema),
+  final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Subtract,
-    isNumeric
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
 
-  final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = new SchemaExpr.Arithmetic(
-    new SchemaExpr.Optic(this),
-    new SchemaExpr.Literal(that, isNumeric.schema),
+  final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
     SchemaExpr.ArithmeticOperator.Multiply,
-    isNumeric
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
   )
+
+  final def /(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Divide,
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
+  )
+
+  final def %(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Modulo,
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
+  )
+
+  final def pow(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.arithmetic(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Pow,
+    isNumeric.primitiveType.asInstanceOf[NumericPrimitiveType[A]]
+  )
+
+  // Bitwise operations
+  final def &(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.And
+  )
+
+  final def |(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.Or
+  )
+
+  final def ^(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.Xor
+  )
+
+  final def <<(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.LeftShift
+  )
+
+  final def >>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.RightShift
+  )
+
+  final def >>>(that: A)(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = SchemaExpr.bitwise(
+    SchemaExpr.optic(this.toDynamic, new Schema(this.source)),
+    SchemaExpr.literal(that)(ev.schema),
+    SchemaExpr.BitwiseOperator.UnsignedRightShift
+  )
+
+  final def unary_~(implicit ev: IsIntegral[A]): SchemaExpr[S, A] = {
+    val _ = ev
+    SchemaExpr.bitwiseNot(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
+  }
 
   final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
-    new SchemaExpr.StringLength(new SchemaExpr.Optic(this.asEquivalent[String]))
+    SchemaExpr.stringLength(SchemaExpr.optic(this.toDynamic, new Schema(this.source)))
 
   final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 }
@@ -369,12 +426,11 @@ object Lens {
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = new Right(modify(s, f))
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(Chunk.fromArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
+      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
     override def toString: String = {
-      val sb = new java.lang.StringBuilder("Lens(_")
-      focusTerms.foreach(term => sb.append('.').append(term.name))
-      sb.append(')').toString
+      val path = focusTerms.map(term => s".${term.name}").mkString
+      s"Lens(_$path)"
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -556,12 +612,11 @@ object Prism {
     }
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(Chunk.fromArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
+      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
 
     override def toString: String = {
-      val sb = new java.lang.StringBuilder("Prism(_")
-      focusTerms.foreach(term => sb.append(".when[").append(term.name).append(']'))
-      sb.append(')').toString
+      val path = focusTerms.map(term => s".when[${term.name}]").mkString
+      s"Prism(_$path)"
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -796,11 +851,11 @@ object Optional {
             val col           = x.asInstanceOf[Col[A]]
             deconstructor match {
               case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-                val len    = indexed.size(col)
-                val colIdx = atBinding.index
-                if (len <= colIdx) {
+                val colSize = indexed.size(col)
+                val colIdx  = atBinding.index
+                if (colSize <= colIdx) {
                   val sequenceIndexOutOfBounds =
-                    new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, len)
+                    new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, colSize)
                   return new Some(new OpticCheck(new ::(sequenceIndexOutOfBounds, Nil)))
                 }
                 indexed.elementType(col) match {
@@ -871,9 +926,9 @@ object Optional {
             val col           = x.asInstanceOf[Col[A]]
             deconstructor match {
               case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-                val len    = indexed.size(col)
-                val colIdx = atBinding.index
-                if (len <= colIdx) return None
+                val colSize = indexed.size(col)
+                val colIdx  = atBinding.index
+                if (colSize <= colIdx) return None
                 indexed.elementType(col) match {
                   case _: RegisterType.Boolean.type => x = indexed.booleanAt(x.asInstanceOf[Col[Boolean]], colIdx)
                   case _: RegisterType.Byte.type    => x = indexed.byteAt(x.asInstanceOf[Col[Byte]], colIdx)
@@ -1002,8 +1057,13 @@ object Optional {
           if (idx + 1 == bindings.length)
             modifySeqAt(deconstructor, constructor, col, f, colIdx, atBinding.elemClassTag)
           else {
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
+                case _                                                 => 8
+              }
             implicit val classTag: ClassTag[Any] = atBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
-            val builder                          = constructor.newBuilder[Any](deconstructor.size(col))
+            val builder                          = constructor.newBuilder[Any](sizeHint)
             val it                               = deconstructor.deconstruct(col)
             var currIdx                          = 0
             while (it.hasNext) {
@@ -1045,12 +1105,12 @@ object Optional {
       elemClassTag: ClassTag[?]
     ): Col[A] = {
       implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
-      val len                            = deconstructor.size(s)
-      val builder                        = constructor.newBuilder[A](len)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          var idx = 0
-          while (idx < len) {
+          val size    = indexed.size(s)
+          val builder = constructor.newBuilder[A](size)
+          var idx     = 0
+          while (idx < size) {
             constructor.add(
               builder, {
                 val value = indexed.objectAt(s, idx)
@@ -1060,7 +1120,9 @@ object Optional {
             )
             idx += 1
           }
+          constructor.result(builder)
         case _ =>
+          val builder = constructor.newBuilder[A]()
           val it      = deconstructor.deconstruct(s)
           var currIdx = -1
           while (it.hasNext)
@@ -1072,8 +1134,8 @@ object Optional {
                 else f(value)
               }
             )
+          constructor.result(builder)
       }
-      constructor.result(builder)
     }
 
     def modifyOption(s: S, f: A => A): Option[S] = {
@@ -1123,27 +1185,33 @@ object Optional {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
-      val nodes = new Array[DynamicOptic.Node](len)
       var idx   = 0
       while (idx < len) {
-        nodes(idx) = bindings(idx) match {
-          case _: LensBinding                                        => new DynamicOptic.Node.Field(focusTerms(idx).name)
-          case _: PrismBinding                                       => new DynamicOptic.Node.Case(focusTerms(idx).name)
-          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked => DynamicOptic.Node.Wrapped
-          case at: AtBinding[Col] @scala.unchecked                   => new DynamicOptic.Node.AtIndex(at.index)
-          case binding                                               =>
-            val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
-            new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
+        nodes.addOne {
+          bindings(idx) match {
+            case _: LensBinding =>
+              new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding =>
+              new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+              DynamicOptic.Node.Wrapped
+            case at: AtBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndex(at.index)
+            case binding =>
+              val atKeyBinding = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+              new DynamicOptic.Node.AtMapKey(atKeyBinding.keySchema.toDynamicValue(atKeyBinding.key))
+          }
         }
         idx += 1
       }
-      Chunk.fromArray(nodes)
+      nodes.result()
     })
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new java.lang.StringBuilder("Optional(_")
+      val sb  = new java.lang.StringBuilder
       val len = bindings.length
       var idx = 0
       while (idx < len) {
@@ -1161,7 +1229,7 @@ object Optional {
         }
         idx += 1
       }
-      sb.append(')').toString
+      s"Optional(_${sb.toString})"
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -1553,10 +1621,10 @@ object Traversal {
           val col           = x.asInstanceOf[Col[A]]
           deconstructor match {
             case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-              val len    = indexed.size(col)
-              val colIdx = atBinding.index
-              if (len <= colIdx) {
-                errors.addOne(new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, len))
+              val colSize = indexed.size(col)
+              val colIdx  = atBinding.index
+              if (colSize <= colIdx) {
+                errors.addOne(new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, colSize))
               } else if (idx + 1 != bindings.length) {
                 checkRecursive(registers, idx + 1, indexed.objectAt(col, colIdx), errors)
               }
@@ -1584,13 +1652,13 @@ object Traversal {
           val col           = x.asInstanceOf[Col[A]]
           deconstructor match {
             case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-              val len        = indexed.size(col)
+              val colSize    = indexed.size(col)
               val indices    = atIndicesBinding.indices
               var indicesIdx = 0
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len <= colIdx) {
-                  errors.addOne(new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, len))
+                if (colSize <= colIdx) {
+                  errors.addOne(new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, colSize))
                 } else if (idx + 1 != bindings.length) {
                   checkRecursive(registers, idx + 1, indexed.objectAt(col, colIdx), errors)
                 }
@@ -1676,9 +1744,9 @@ object Traversal {
           val col           = x.asInstanceOf[Col[A]]
           deconstructor match {
             case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-              val len    = indexed.size(col)
-              val colIdx = atBinding.index
-              if (len <= colIdx) zero
+              val colSize = indexed.size(col)
+              val colIdx  = atBinding.index
+              if (colSize <= colIdx) zero
               else if (idx + 1 == bindings.length) {
                 f(
                   zero,
@@ -1732,10 +1800,10 @@ object Traversal {
             var indicesIdx = 0
             deconstructor match {
               case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-                val len = indexed.size(col)
+                val colSize = indexed.size(col)
                 while (indicesIdx < indices.length) {
                   val colIdx = indices(indicesIdx)
-                  if (len > colIdx) z = foldRecursive(registers, idx + 1, indexed.objectAt(col, colIdx), z, f)
+                  if (colSize > colIdx) z = foldRecursive(registers, idx + 1, indexed.objectAt(col, colIdx), z, f)
                   indicesIdx += 1
                 }
               case _ =>
@@ -1818,7 +1886,7 @@ object Traversal {
     ): Z =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          val len        = indexed.size(x)
+          val colSize    = indexed.size(x)
           var indicesIdx = 0
           indexed.elementType(x) match {
             case _: RegisterType.Int.type =>
@@ -1829,7 +1897,7 @@ object Traversal {
                   val sf     = f.asInstanceOf[(Int, Int) => Int]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.intAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.intAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1838,7 +1906,7 @@ object Traversal {
                   val sf      = f.asInstanceOf[(Long, Int) => Long]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.intAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.intAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1847,7 +1915,7 @@ object Traversal {
                   val sf        = f.asInstanceOf[(Double, Int) => Double]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.intAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.intAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1856,7 +1924,7 @@ object Traversal {
                   val sf = f.asInstanceOf[(Z, Int) => Z]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.intAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.intAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z
@@ -1869,7 +1937,7 @@ object Traversal {
                   val sf     = f.asInstanceOf[(Int, Long) => Int]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.longAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.longAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1878,7 +1946,7 @@ object Traversal {
                   val sf      = f.asInstanceOf[(Long, Long) => Long]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.longAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.longAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1887,7 +1955,7 @@ object Traversal {
                   val sf        = f.asInstanceOf[(Double, Long) => Double]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.longAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.longAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1896,7 +1964,7 @@ object Traversal {
                   val sf = f.asInstanceOf[(Z, Long) => Z]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.longAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.longAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z
@@ -1909,7 +1977,7 @@ object Traversal {
                   val sf     = f.asInstanceOf[(Int, Double) => Int]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1918,7 +1986,7 @@ object Traversal {
                   val sf      = f.asInstanceOf[(Long, Double) => Long]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1927,7 +1995,7 @@ object Traversal {
                   val sf        = f.asInstanceOf[(Double, Double) => Double]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z.asInstanceOf[Z]
@@ -1936,7 +2004,7 @@ object Traversal {
                   val sf = f.asInstanceOf[(Z, Double) => Z]
                   while (indicesIdx < indices.length) {
                     val colIdx = indices(indicesIdx)
-                    if (len > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
+                    if (colSize > colIdx) z = sf(z, indexed.doubleAt(col, colIdx))
                     indicesIdx += 1
                   }
                   z
@@ -1947,7 +2015,7 @@ object Traversal {
               var z   = zero
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = sf(z, indexed.booleanAt(col, colIdx))
+                if (colSize > colIdx) z = sf(z, indexed.booleanAt(col, colIdx))
                 indicesIdx += 1
               }
               z
@@ -1957,7 +2025,7 @@ object Traversal {
               var z   = zero
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = sf(z, indexed.byteAt(col, colIdx))
+                if (colSize > colIdx) z = sf(z, indexed.byteAt(col, colIdx))
                 indicesIdx += 1
               }
               z
@@ -1967,7 +2035,7 @@ object Traversal {
               val sf  = f.asInstanceOf[(Z, Short) => Z]
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = sf(z, indexed.shortAt(col, colIdx))
+                if (colSize > colIdx) z = sf(z, indexed.shortAt(col, colIdx))
                 indicesIdx += 1
               }
               z
@@ -1977,7 +2045,7 @@ object Traversal {
               val sf  = f.asInstanceOf[(Z, Float) => Z]
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = sf(z, indexed.floatAt(col, colIdx))
+                if (colSize > colIdx) z = sf(z, indexed.floatAt(col, colIdx))
                 indicesIdx += 1
               }
               z
@@ -1987,7 +2055,7 @@ object Traversal {
               val sf  = f.asInstanceOf[(Z, Char) => Z]
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = sf(z, indexed.charAt(col, colIdx))
+                if (colSize > colIdx) z = sf(z, indexed.charAt(col, colIdx))
                 indicesIdx += 1
               }
               z
@@ -1995,7 +2063,7 @@ object Traversal {
               var z = zero
               while (indicesIdx < indices.length) {
                 val colIdx = indices(indicesIdx)
-                if (len > colIdx) z = f(z, indexed.objectAt(x, colIdx))
+                if (colSize > colIdx) z = f(z, indexed.objectAt(x, colIdx))
                 indicesIdx += 1
               }
               z
@@ -2022,7 +2090,7 @@ object Traversal {
     private[this] def foldSeq[Z](deconstructor: SeqDeconstructor[Col], x: Col[A], zero: Z, f: (Z, A) => Z): Z =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
-          val len     = indexed.size(x)
+          val size    = indexed.size(x)
           var currIdx = 0
           indexed.elementType(x) match {
             case _: RegisterType.Int.type =>
@@ -2031,7 +2099,7 @@ object Traversal {
                 case zi: Int =>
                   val sf     = f.asInstanceOf[(Int, Int) => Int]
                   var z: Int = zi
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.intAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2039,7 +2107,7 @@ object Traversal {
                 case zl: Long =>
                   val sf      = f.asInstanceOf[(Long, Int) => Long]
                   var z: Long = zl
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.intAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2047,7 +2115,7 @@ object Traversal {
                 case zd: Double =>
                   val sf        = f.asInstanceOf[(Double, Int) => Double]
                   var z: Double = zd
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.intAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2055,7 +2123,7 @@ object Traversal {
                 case _ =>
                   val sf = f.asInstanceOf[(Z, Int) => Z]
                   var z  = zero
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.intAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2067,7 +2135,7 @@ object Traversal {
                 case zi: Int =>
                   val sf     = f.asInstanceOf[(Int, Long) => Int]
                   var z: Int = zi
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.longAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2075,7 +2143,7 @@ object Traversal {
                 case zl: Long =>
                   val sf      = f.asInstanceOf[(Long, Long) => Long]
                   var z: Long = zl
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.longAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2083,7 +2151,7 @@ object Traversal {
                 case zd: Double =>
                   val sf        = f.asInstanceOf[(Double, Long) => Double]
                   var z: Double = zd
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.longAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2091,7 +2159,7 @@ object Traversal {
                 case _ =>
                   val sf = f.asInstanceOf[(Z, Long) => Z]
                   var z  = zero
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.longAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2103,7 +2171,7 @@ object Traversal {
                 case zi: Int =>
                   val sf     = f.asInstanceOf[(Int, Double) => Int]
                   var z: Int = zi
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.doubleAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2111,7 +2179,7 @@ object Traversal {
                 case zl: Long =>
                   val sf      = f.asInstanceOf[(Long, Double) => Long]
                   var z: Long = zl
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.doubleAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2119,7 +2187,7 @@ object Traversal {
                 case zd: Double =>
                   val sf        = f.asInstanceOf[(Double, Double) => Double]
                   var z: Double = zd
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.doubleAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2127,7 +2195,7 @@ object Traversal {
                 case _ =>
                   val sf = f.asInstanceOf[(Z, Double) => Z]
                   var z  = zero
-                  while (currIdx < len) {
+                  while (currIdx < size) {
                     z = sf(z, indexed.doubleAt(col, currIdx))
                     currIdx += 1
                   }
@@ -2137,7 +2205,7 @@ object Traversal {
               val col = x.asInstanceOf[Col[Boolean]]
               val sf  = f.asInstanceOf[(Z, Boolean) => Z]
               var z   = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = sf(z, indexed.booleanAt(col, currIdx))
                 currIdx += 1
               }
@@ -2146,7 +2214,7 @@ object Traversal {
               val col = x.asInstanceOf[Col[Byte]]
               val sf  = f.asInstanceOf[(Z, Byte) => Z]
               var z   = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = sf(z, indexed.byteAt(col, currIdx))
                 currIdx += 1
               }
@@ -2155,7 +2223,7 @@ object Traversal {
               val col = x.asInstanceOf[Col[Short]]
               val sf  = f.asInstanceOf[(Z, Short) => Z]
               var z   = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = sf(z, indexed.shortAt(col, currIdx))
                 currIdx += 1
               }
@@ -2164,7 +2232,7 @@ object Traversal {
               val col = x.asInstanceOf[Col[Float]]
               val sf  = f.asInstanceOf[(Z, Float) => Z]
               var z   = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = sf(z, indexed.floatAt(col, currIdx))
                 currIdx += 1
               }
@@ -2173,14 +2241,14 @@ object Traversal {
               val col = x.asInstanceOf[Col[Char]]
               val sf  = f.asInstanceOf[(Z, Char) => Z]
               var z   = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = sf(z, indexed.charAt(col, currIdx))
                 currIdx += 1
               }
               z
             case _ =>
               var z = zero
-              while (currIdx < len) {
+              while (currIdx < size) {
                 z = f(z, indexed.objectAt(x, currIdx))
                 currIdx += 1
               }
@@ -2238,8 +2306,13 @@ object Traversal {
           if (idx + 1 == bindings.length)
             modifySeqAt(deconstructor, constructor, col, f, colIdx, atBinding.elemClassTag)
           else {
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
+                case _                                                 => 8
+              }
             implicit val classTag: ClassTag[Any] = atBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
-            val builder                          = constructor.newBuilder[Any](deconstructor.size(col))
+            val builder                          = constructor.newBuilder[Any](sizeHint)
             val it                               = deconstructor.deconstruct(col)
             var currIdx                          = 0
             while (it.hasNext) {
@@ -2277,7 +2350,12 @@ object Traversal {
           if (idx + 1 == bindings.length)
             modifySeqAtIndices(indices, deconstructor, constructor, col, f, atIndicesBinding.elemClassTag)
           else {
-            val builder             = constructor.newBuilder[Any](deconstructor.size(col))
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
+                case _                                                 => 8
+              }
+            val builder             = constructor.newBuilder[Any](sizeHint)
             val it                  = deconstructor.deconstruct(col)
             var colIdx              = indices(0)
             var currIdx, indicesIdx = 0
@@ -2323,8 +2401,13 @@ object Traversal {
           val col           = x.asInstanceOf[Col[A]]
           if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f, seqBinding.elemClassTag)
           else {
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.size(col)
+                case _                                                 => 8
+              }
             implicit val classTag: ClassTag[Any] = seqBinding.elemClassTag.asInstanceOf[ClassTag[Any]]
-            val builder                          = constructor.newBuilder[Any](deconstructor.size(col))
+            val builder                          = constructor.newBuilder[Any](sizeHint)
             val it                               = deconstructor.deconstruct(col)
             while (it.hasNext) constructor.add(builder, modifyRecursive(registers, idx + 1, it.next(), f))
             constructor.result(builder)
@@ -2333,7 +2416,7 @@ object Traversal {
           val deconstructor = mapKeyBinding.mapDeconstructor
           val constructor   = mapKeyBinding.mapConstructor
           if (idx + 1 == bindings.length) {
-            val builder = constructor.newObjectBuilder[A, Value](deconstructor.size(x.asInstanceOf[Map[Key, Value]]))
+            val builder = constructor.newObjectBuilder[A, Value]()
             val it      = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
             while (it.hasNext) {
               val next = it.next()
@@ -2341,7 +2424,7 @@ object Traversal {
             }
             constructor.resultObject(builder)
           } else {
-            val builder = constructor.newObjectBuilder[Any, Value](deconstructor.size(x.asInstanceOf[Map[Any, Value]]))
+            val builder = constructor.newObjectBuilder[Any, Value]()
             val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Any, Value]])
             while (it.hasNext) {
               val next = it.next()
@@ -2357,7 +2440,7 @@ object Traversal {
           val deconstructor = mapValueBinding.mapDeconstructor
           val constructor   = mapValueBinding.mapConstructor
           if (idx + 1 == bindings.length) {
-            val builder = constructor.newObjectBuilder[Key, A](deconstructor.size(x.asInstanceOf[Map[Key, A]]))
+            val builder = constructor.newObjectBuilder[Key, A]()
             val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
             while (it.hasNext) {
               val next = it.next()
@@ -2365,7 +2448,7 @@ object Traversal {
             }
             constructor.resultObject(builder)
           } else {
-            val builder = constructor.newObjectBuilder[Key, Any](deconstructor.size(x.asInstanceOf[Map[Key, Any]]))
+            val builder = constructor.newObjectBuilder[Key, Any]()
             val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Any]])
             while (it.hasNext) {
               val next = it.next()
@@ -2388,12 +2471,12 @@ object Traversal {
       elemClassTag: ClassTag[?]
     ): Col[A] = {
       implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
-      val len                            = deconstructor.size(x)
-      val builder                        = constructor.newBuilder[A](len)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
+          val size    = indexed.size(x)
+          val builder = constructor.newBuilder[A](size)
           var currIdx = 0
-          while (currIdx < len) {
+          while (currIdx < size) {
             constructor.add(
               builder, {
                 val value = indexed.objectAt(x, currIdx)
@@ -2403,7 +2486,9 @@ object Traversal {
             )
             currIdx += 1
           }
+          constructor.result(builder)
         case _ =>
+          val builder = constructor.newBuilder[A]()
           val it      = deconstructor.deconstruct(x)
           var currIdx = -1
           while (it.hasNext)
@@ -2415,8 +2500,8 @@ object Traversal {
                 else f(value)
               }
             )
+          constructor.result(builder)
       }
-      constructor.result(builder)
     }
 
     private[this] def modifySeqAtIndices(
@@ -2428,13 +2513,13 @@ object Traversal {
       elemClassTag: ClassTag[?]
     ): Col[A] = {
       implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
-      val len                            = deconstructor.size(x)
-      val builder                        = constructor.newBuilder[A](len)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
+          val size                = indexed.size(x)
           var colIdx              = indices(0)
           var currIdx, indicesIdx = 0
-          while (currIdx < len) {
+          val builder             = constructor.newBuilder[A](size)
+          while (currIdx < size) {
             constructor.add(
               builder, {
                 val value = indexed.objectAt(x, currIdx)
@@ -2448,7 +2533,9 @@ object Traversal {
             )
             currIdx += 1
           }
+          constructor.result(builder)
         case _ =>
+          val builder             = constructor.newBuilder[A]()
           val it                  = deconstructor.deconstruct(x)
           var colIdx              = indices(0)
           var currIdx, indicesIdx = 0
@@ -2466,8 +2553,8 @@ object Traversal {
             )
             currIdx += 1
           }
+          constructor.result(builder)
       }
-      constructor.result(builder)
     }
 
     private[this] def modifySeq(
@@ -2478,21 +2565,22 @@ object Traversal {
       elemClassTag: ClassTag[?]
     ): Col[A] = {
       implicit val classTag: ClassTag[A] = elemClassTag.asInstanceOf[ClassTag[A]]
-      val len                            = deconstructor.size(x)
-      val builder                        = constructor.newBuilder[A](len)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
+          val size    = indexed.size(x)
+          val builder = constructor.newBuilder[A](size)
           var currIdx = 0
-          while (currIdx < len) {
+          while (currIdx < size) {
             constructor.add(builder, f(indexed.objectAt(x, currIdx)))
             currIdx += 1
           }
           constructor.result(builder)
         case _ =>
-          val it = deconstructor.deconstruct(x)
+          val builder = constructor.newBuilder[A]()
+          val it      = deconstructor.deconstruct(x)
           while (it.hasNext) constructor.add(builder, f(it.next()))
+          constructor.result(builder)
       }
-      constructor.result(builder)
     }
 
     def modifyOption(s: S, f: A => A): Option[S] = {
@@ -2542,33 +2630,42 @@ object Traversal {
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
+      val nodes = ChunkBuilder.make[DynamicOptic.Node]()
       val len   = bindings.length
-      val nodes = new Array[DynamicOptic.Node](len)
       var idx   = 0
       while (idx < len) {
-        nodes(idx) = bindings(idx) match {
-          case _: LensBinding                                        => new DynamicOptic.Node.Field(focusTerms(idx).name)
-          case _: PrismBinding                                       => new DynamicOptic.Node.Case(focusTerms(idx).name)
-          case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked => DynamicOptic.Node.Wrapped
-          case at: AtBinding[Col] @scala.unchecked                   => new DynamicOptic.Node.AtIndex(at.index)
-          case atKey: AtKeyBinding[Key, Map] @scala.unchecked        =>
-            new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
-          case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
-            new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
-          case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-            new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
-          case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
-          case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
-          case _                                      => DynamicOptic.Node.MapValues
+        nodes.addOne {
+          bindings(idx) match {
+            case _: LensBinding =>
+              new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding =>
+              new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+              DynamicOptic.Node.Wrapped
+            case at: AtBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndex(at.index)
+            case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKey(atKey.keySchema.toDynamicValue(atKey.key))
+            case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
+            case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKeys(atKeys.keys.map(atKeys.keySchema.toDynamicValue))
+            case _: SeqBinding[Col] @scala.unchecked =>
+              DynamicOptic.Node.Elements
+            case _: MapKeyBinding[Map] @scala.unchecked =>
+              DynamicOptic.Node.MapKeys
+            case _ =>
+              DynamicOptic.Node.MapValues
+          }
         }
         idx += 1
       }
-      Chunk.fromArray(nodes)
+      nodes.result()
     })
 
     override def toString: String = {
       if (bindings eq null) init()
-      val sb  = new java.lang.StringBuilder("Traversal(_")
+      val sb  = new java.lang.StringBuilder
       val len = bindings.length
       var idx = 0
       while (idx < len) {
@@ -2596,7 +2693,7 @@ object Traversal {
         }
         idx += 1
       }
-      sb.append(')').toString
+      s"Traversal(_${sb.toString})"
     }
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
@@ -2636,28 +2733,39 @@ object Traversal {
      * DynamicValue, searches for matches via single-pass decode, and folds.
      */
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = {
+      // Convert source value to DynamicValue for searching
       val dv = sourceReflect.toDynamicValue(s)
+
       // Collect all decoded matches using iterative DFS (single decode per candidate)
       val matches = searchCollectDecoded(dv)
+
       // Fold over already-decoded values
       var result = zero
-      matches.foreach(a => result = f(result, a))
+      matches.foreach { a =>
+        result = f(result, a)
+      }
       result
     }
 
     def check(s: S): Option[OpticCheck] = {
+      // Convert to DynamicValue and search
       val dv = sourceReflect.toDynamicValue(s)
+
       // Check if at least one candidate decodes successfully (single decode per candidate)
       val anyMatch = searchHasMatch(dv)
+
       if (anyMatch) None
-      else new Some(new OpticCheck(new ::(new OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+      else Some(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
     }
 
-    def modify(s: S, f: A => A): S =
-      sourceReflect.fromDynamicValue(searchModify(sourceReflect.toDynamicValue(s), f), Nil) match {
+    def modify(s: S, f: A => A): S = {
+      val dv       = sourceReflect.toDynamicValue(s)
+      val modified = searchModify(dv, f)
+      sourceReflect.fromDynamicValue(modified, Nil) match {
         case Right(result) => result
-        case _             => s // Should not happen if source schema is correct
+        case Left(_)       => s // Should not happen if source schema is correct
       }
+    }
 
     def modifyOption(s: S, f: A => A): Option[S] = {
       val dv                   = sourceReflect.toDynamicValue(s)
@@ -2672,7 +2780,7 @@ object Traversal {
       if (anyModified) {
         sourceReflect.fromDynamicValue(modified, Nil) match {
           case Right(result) => Some(result)
-          case _             => None
+          case Left(_)       => None
         }
       } else None
     }
@@ -2691,30 +2799,34 @@ object Traversal {
         sourceReflect.fromDynamicValue(modified, Nil) match {
           case Right(result) => Right(result)
           case Left(error)   =>
-            new Left(new OpticCheck(new ::(new OpticCheck.WrappingError(toDynamic, toDynamic, error), Nil)))
+            Left(new OpticCheck(new ::(OpticCheck.WrappingError(toDynamic, toDynamic, error), Nil)))
         }
-      } else new Left(new OpticCheck(new ::(new OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+      } else Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
     }
 
-    lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(Chunk.single(new DynamicOptic.Node.TypeSearch(focusReflect.typeId)))
+    lazy val toDynamic: DynamicOptic = new DynamicOptic(Vector(DynamicOptic.Node.TypeSearch(focusReflect.typeId)))
 
     override def toString: String = s"Traversal(_.searchFor[${focusReflect.typeId.name}])"
 
     // Override composition methods to handle SearchTraversal specially
-    override def apply[B](that: Lens[A, B]): Traversal[S, B] = new ComposedSearchTraversal(this, that)
+    override def apply[B](that: Lens[A, B]): Traversal[S, B] =
+      new ComposedSearchTraversal(this, that)
 
-    override def apply[B <: A](that: Prism[A, B]): Traversal[S, B] = new ComposedSearchTraversal(this, that)
+    override def apply[B <: A](that: Prism[A, B]): Traversal[S, B] =
+      new ComposedSearchTraversal(this, that)
 
-    override def apply[B](that: Optional[A, B]): Traversal[S, B] = new ComposedSearchTraversal(this, that)
+    override def apply[B](that: Optional[A, B]): Traversal[S, B] =
+      new ComposedSearchTraversal(this, that)
 
-    override def apply[B](that: Traversal[A, B]): Traversal[S, B] = new ComposedSearchTraversal(this, that)
+    override def apply[B](that: Traversal[A, B]): Traversal[S, B] =
+      new ComposedSearchTraversal(this, that)
 
     override def hashCode: Int = sourceReflect.hashCode ^ focusReflect.hashCode ^ 31
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: SearchTraversal[?, ?] => sourceReflect == other.sourceReflect && focusReflect == other.focusReflect
-      case _                            => false
+      case other: SearchTraversal[?, ?] =>
+        sourceReflect == other.sourceReflect && focusReflect == other.focusReflect
+      case _ => false
     }
 
     /**
@@ -2722,25 +2834,33 @@ object Traversal {
      * matching the focus type. Each candidate is decoded exactly once. Order is
      * depth-first, left-to-right.
      */
-    private[this] def searchCollectDecoded(root: DynamicValue): List[A] = {
+    private def searchCollectDecoded(root: DynamicValue): List[A] = {
       var stack: List[DynamicValue]       = List(root)
       val results: mutable.ArrayBuffer[A] = mutable.ArrayBuffer.empty
+
       while (stack.nonEmpty) {
         val current = stack.head
         stack = stack.tail
-        tryDecodeFocus(current).foreach(results.addOne) // Try to decode — single decode per candidate
-        current match {                                 // Push children onto stack for DFS
+
+        // Try to decode — single decode per candidate
+        tryDecodeFocus(current).foreach(results += _)
+
+        // Push children onto stack for DFS
+        current match {
           case r: DynamicValue.Record =>
-            stack = r.fields.foldRight(stack)(_._2 :: _)
+            stack = r.fields.iterator.map(_._2).toList ++ stack
           case v: DynamicValue.Variant =>
             stack = v.value :: stack
           case s: DynamicValue.Sequence =>
-            stack = s.elements.foldRight(stack)(_ :: _)
-          case m: DynamicValue.Map => // Search both keys and values
-            stack = m.entries.foldRight(stack)((kv, stack) => kv._1 :: kv._2 :: stack)
-          case _ =>
+            stack = s.elements.iterator.toList ++ stack
+          case m: DynamicValue.Map =>
+            // Search both keys and values
+            stack = m.entries.iterator.flatMap { case (k, v) => Iterator(k, v) }.toList ++ stack
+          case _: DynamicValue.Primitive | DynamicValue.Null =>
+            ()
         }
       }
+
       results.toList
     }
 
@@ -2748,22 +2868,26 @@ object Traversal {
      * Iterative stack-based depth-first check for at least one match. Returns
      * true as soon as a decodable candidate is found.
      */
-    private[this] def searchHasMatch(root: DynamicValue): Boolean = {
+    private def searchHasMatch(root: DynamicValue): Boolean = {
       var stack: List[DynamicValue] = List(root)
+
       while (stack.nonEmpty) {
         val current = stack.head
         stack = stack.tail
+
         if (tryDecodeFocus(current).isDefined) return true
+
         current match {
           case r: DynamicValue.Record =>
-            stack = r.fields.foldRight(stack)(_._2 :: _)
+            stack = r.fields.iterator.map(_._2).toList ++ stack
           case v: DynamicValue.Variant =>
             stack = v.value :: stack
           case s: DynamicValue.Sequence =>
-            stack = s.elements.foldRight(stack)(_ :: _)
+            stack = s.elements.iterator.toList ++ stack
           case m: DynamicValue.Map =>
-            stack = m.entries.foldRight(stack)((kv, stack) => kv._1 :: kv._2 :: stack)
-          case _ =>
+            stack = m.entries.iterator.flatMap { case (k, v) => Iterator(k, v) }.toList ++ stack
+          case _: DynamicValue.Primitive | DynamicValue.Null =>
+            ()
         }
       }
 
@@ -2774,21 +2898,24 @@ object Traversal {
      * Try to decode a DynamicValue as the focus type. Returns Some(a) if
      * successful, None otherwise. Single decode — no double decoding.
      */
-    private[this] def tryDecodeFocus(dv: DynamicValue): Option[A] = focusReflect.fromDynamicValue(dv, Nil) match {
-      case Right(a) => new Some(a)
-      case _        => None
-    }
+    private def tryDecodeFocus(dv: DynamicValue): Option[A] =
+      focusReflect.fromDynamicValue(dv, Nil) match {
+        case Right(a) => Some(a)
+        case Left(_)  => None
+      }
 
     /**
      * Iterative modification of all values matching the focus type. Uses
      * stack-based traversal (via DynamicValue.iterativeTransform) to avoid
      * stack overflow on deeply nested structures.
      */
-    private[this] def searchModify(dv: DynamicValue, f: A => A): DynamicValue =
+    private def searchModify(dv: DynamicValue, f: A => A): DynamicValue =
       DynamicValue.iterativeTransform(dv) { value =>
         tryDecodeFocus(value) match {
-          case Some(a) => focusReflect.toDynamicValue(f(a))
-          case _       => value
+          case Some(a) =>
+            val modified = f(a)
+            focusReflect.toDynamicValue(modified)
+          case None => value
         }
       }
   }
@@ -2809,6 +2936,7 @@ object Traversal {
     search: SearchTraversal[S, T],
     inner: Optic[T, A]
   ) extends Traversal[S, A] {
+
     def source: Reflect.Bound[S] = search.source
 
     def focus: Reflect.Bound[A] = inner.focus
@@ -2820,18 +2948,20 @@ object Traversal {
         (acc, t) =>
           // For each T, use the inner optic to get/fold over A values
           inner match {
-            case lens: Lens[T, A] @unchecked   => f(acc, lens.get(t))
+            case lens: Lens[T, A] @unchecked =>
+              f(acc, lens.get(t))
             case prism: Prism[T, A] @unchecked =>
               prism.getOption(t) match {
                 case Some(a) => f(acc, a)
-                case _       => acc
+                case None    => acc
               }
             case optional: Optional[T, A] @unchecked =>
               optional.getOption(t) match {
                 case Some(a) => f(acc, a)
-                case _       => acc
+                case None    => acc
               }
-            case traversal: Traversal[T, A] @unchecked => traversal.fold[Z](t)(acc, f)
+            case traversal: Traversal[T, A] @unchecked =>
+              traversal.fold[Z](t)(acc, f)
           }
       )
 
@@ -2846,7 +2976,7 @@ object Traversal {
           (_, t) =>
             inner.check(t) match {
               case Some(opticCheck) => errors ++= opticCheck.errors
-              case _                =>
+              case None             => ()
             }
         )
         errors.result() match {
@@ -2867,12 +2997,11 @@ object Traversal {
             case Some(modified) =>
               anyModified = true
               modified
-            case _ => t
+            case None => t
           }
         }
       )
-      if (anyModified) Some(result)
-      else None
+      if (anyModified) Some(result) else None
     }
 
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
@@ -2895,10 +3024,10 @@ object Traversal {
         }
       )
       firstError match {
-        case Left(error) => new Left(error)
-        case _           =>
-          if (anyModified) new Right(result)
-          else new Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+        case Left(error) => Left(error)
+        case Right(_)    =>
+          if (anyModified) Right(result)
+          else Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
       }
     }
 
@@ -2910,8 +3039,9 @@ object Traversal {
     override def hashCode: Int = search.hashCode ^ inner.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: ComposedSearchTraversal[?, ?, ?] => search == other.search && inner == other.inner
-      case _                                       => false
+      case other: ComposedSearchTraversal[?, ?, ?] =>
+        search == other.search && inner == other.inner
+      case _ => false
     }
 
     // Override apply methods to handle composition with this non-TraversalImpl traversal
@@ -2947,6 +3077,7 @@ object Traversal {
     prefix: Optic[S, T],
     inner: Traversal[T, A]
   ) extends Traversal[S, A] {
+
     def source: Reflect.Bound[S] = prefix.source
 
     def focus: Reflect.Bound[A] = inner.focus
@@ -2954,104 +3085,93 @@ object Traversal {
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z =
       // Apply prefix to get T value(s), then apply inner traversal to each
       prefix match {
-        case lens: Lens[S, T] @unchecked   => inner.fold[Z](lens.get(s))(zero, f)
+        case lens: Lens[S, T] @unchecked =>
+          val t = lens.get(s)
+          inner.fold[Z](t)(zero, f)
         case prism: Prism[S, T] @unchecked =>
           prism.getOption(s) match {
             case Some(t) => inner.fold[Z](t)(zero, f)
-            case _       => zero
+            case None    => zero
           }
         case optional: Optional[S, T] @unchecked =>
           optional.getOption(s) match {
             case Some(t) => inner.fold[Z](t)(zero, f)
-            case _       => zero
+            case None    => zero
           }
-        case traversal: Traversal[S, T] @unchecked => traversal.fold[Z](s)(zero, (acc, t) => inner.fold[Z](t)(acc, f))
+        case traversal: Traversal[S, T] @unchecked =>
+          traversal.fold[Z](s)(zero, (acc, t) => inner.fold[Z](t)(acc, f))
       }
 
-    def check(s: S): Option[OpticCheck] = {
+    def check(s: S): Option[OpticCheck] =
       // First check prefix
-      val prefixErrorOpt = prefix.check(s)
-      if (prefixErrorOpt.isDefined) prefixErrorOpt
-      else {
-        // Then check inner traversal on all T values from prefix
-        prefix match {
-          case lens: Lens[S, T] @unchecked   => inner.check(lens.get(s))
-          case prism: Prism[S, T] @unchecked =>
-            prism.getOption(s) match {
-              case Some(t) => inner.check(t)
-              case _       => None
-            }
-          case optional: Optional[S, T] @unchecked =>
-            optional.getOption(s) match {
-              case Some(t) => inner.check(t)
-              case _       => None
-            }
-          case traversal: Traversal[S, T] @unchecked =>
-            val errors = List.newBuilder[OpticCheck.Single]
-            traversal.fold[Unit](s)(
-              (),
-              (_, t) =>
-                inner.check(t) match {
-                  case Some(opticCheck) => errors ++= opticCheck.errors
-                  case _                => ()
-                }
-            )
-            errors.result() match {
-              case Nil          => None
-              case head :: tail => new Some(new OpticCheck(new ::(head, tail)))
-            }
-        }
+      prefix.check(s) match {
+        case Some(prefixError) => Some(prefixError)
+        case None              =>
+          // Then check inner traversal on all T values from prefix
+          prefix match {
+            case lens: Lens[S, T] @unchecked =>
+              inner.check(lens.get(s))
+            case prism: Prism[S, T] @unchecked =>
+              prism.getOption(s).flatMap(inner.check)
+            case optional: Optional[S, T] @unchecked =>
+              optional.getOption(s).flatMap(inner.check)
+            case traversal: Traversal[S, T] @unchecked =>
+              val errors = List.newBuilder[OpticCheck.Single]
+              traversal.fold[Unit](s)(
+                (),
+                (_, t) =>
+                  inner.check(t) match {
+                    case Some(opticCheck) => errors ++= opticCheck.errors
+                    case None             => ()
+                  }
+              )
+              errors.result() match {
+                case Nil          => None
+                case head :: tail => Some(new OpticCheck(new ::(head, tail)))
+              }
+          }
       }
-    }
 
     def modify(s: S, f: A => A): S =
       prefix match {
-        case lens: Lens[S, T] @unchecked   => lens.replace(s, inner.modify(lens.get(s), f))
+        case lens: Lens[S, T] @unchecked =>
+          val t        = lens.get(s)
+          val modified = inner.modify(t, f)
+          lens.replace(s, modified)
         case prism: Prism[S, T] @unchecked =>
           prism.getOption(s) match {
             case Some(t) =>
-              prism.replaceOption(s, inner.modify(t, f)) match {
-                case Some(replaces) => replaces
-                case _              => s
-              }
-            case _ => s
+              val modified = inner.modify(t, f)
+              prism.replaceOption(s, modified).getOrElse(s)
+            case None => s
           }
         case optional: Optional[S, T] @unchecked =>
           optional.getOption(s) match {
             case Some(t) =>
-              optional.replaceOption(s, inner.modify(t, f)) match {
-                case Some(replaced) => replaced
-                case _              => s
-              }
-            case _ => s
+              val modified = inner.modify(t, f)
+              optional.replaceOption(s, modified).getOrElse(s)
+            case None => s
           }
-        case traversal: Traversal[S, T] @unchecked => traversal.modify(s, (t: T) => inner.modify(t, f))
+        case traversal: Traversal[S, T] @unchecked =>
+          traversal.modify(s, (t: T) => inner.modify(t, f))
       }
 
     def modifyOption(s: S, f: A => A): Option[S] =
       prefix match {
         case lens: Lens[S, T] @unchecked =>
-          inner.modifyOption(lens.get(s), f) match {
-            case Some(modified) => new Some(lens.replace(s, modified))
-            case _              => None
-          }
+          val t = lens.get(s)
+          inner.modifyOption(t, f).map(lens.replace(s, _))
         case prism: Prism[S, T] @unchecked =>
           prism.getOption(s) match {
             case Some(t) =>
-              inner.modifyOption(t, f) match {
-                case Some(modified) => prism.replaceOption(s, modified)
-                case _              => None
-              }
-            case _ => None
+              inner.modifyOption(t, f).flatMap(modified => prism.replaceOption(s, modified))
+            case None => None
           }
         case optional: Optional[S, T] @unchecked =>
           optional.getOption(s) match {
             case Some(t) =>
-              inner.modifyOption(t, f) match {
-                case Some(modified) => optional.replaceOption(s, modified)
-                case _              => None
-              }
-            case _ => None
+              inner.modifyOption(t, f).flatMap(modified => optional.replaceOption(s, modified))
+            case None => None
           }
         case traversal: Traversal[S, T] @unchecked =>
           var anyModified = false
@@ -3062,42 +3182,35 @@ object Traversal {
                 case Some(modified) =>
                   anyModified = true
                   modified
-                case _ => t
+                case None => t
               }
             }
           )
-          if (anyModified) new Some(result)
-          else None
+          if (anyModified) Some(result) else None
       }
 
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] =
       prefix match {
         case lens: Lens[S, T] @unchecked =>
-          inner.modifyOrFail(lens.get(s), f) match {
-            case Right(modified) => new Right(lens.replace(s, modified))
-            case l               => l.asInstanceOf[Either[OpticCheck, S]]
-          }
+          val t = lens.get(s)
+          inner.modifyOrFail(t, f).map(lens.replace(s, _))
         case prism: Prism[S, T] @unchecked =>
           prism.getOption(s) match {
             case Some(t) =>
-              inner.modifyOrFail(t, f) match {
-                case Right(modified) => prism.replaceOrFail(s, modified)
-                case l               => l.asInstanceOf[Either[OpticCheck, S]]
-              }
-            case _ => new Left(new OpticCheck(new ::(new OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+              inner.modifyOrFail(t, f).flatMap(modified => prism.replaceOrFail(s, modified))
+            case None =>
+              Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
           }
         case optional: Optional[S, T] @unchecked =>
           optional.getOption(s) match {
             case Some(t) =>
-              inner.modifyOrFail(t, f) match {
-                case Right(modified) => optional.replaceOrFail(s, modified)
-                case l               => l.asInstanceOf[Either[OpticCheck, S]]
-              }
-            case _ => new Left(new OpticCheck(new ::(new OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+              inner.modifyOrFail(t, f).flatMap(modified => optional.replaceOrFail(s, modified))
+            case None =>
+              Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
           }
         case traversal: Traversal[S, T] @unchecked =>
           var anyModified                          = false
-          var firstError: Either[OpticCheck, Unit] = new Right(())
+          var firstError: Either[OpticCheck, Unit] = Right(())
           val result                               = traversal.modify(
             s,
             (t: T) => {
@@ -3108,17 +3221,17 @@ object Traversal {
                     anyModified = true
                     modified
                   case Left(error) =>
-                    firstError = new Left(error)
+                    firstError = Left(error)
                     t
                 }
               }
             }
           )
           firstError match {
-            case Left(error) => new Left(error)
-            case _           =>
-              if (anyModified) new Right(result)
-              else new Left(new OpticCheck(new ::(new OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
+            case Left(error) => Left(error)
+            case Right(_)    =>
+              if (anyModified) Right(result)
+              else Left(new OpticCheck(new ::(OpticCheck.EmptySequence(toDynamic, toDynamic), Nil)))
           }
       }
 
@@ -3129,8 +3242,9 @@ object Traversal {
     override def hashCode: Int = prefix.hashCode ^ inner.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: PrefixedSearchTraversal[?, ?, ?] => prefix == other.prefix && inner == other.inner
-      case _                                       => false
+      case other: PrefixedSearchTraversal[?, ?, ?] =>
+        prefix == other.prefix && inner == other.inner
+      case _ => false
     }
 
     // Override apply methods to handle composition with this non-TraversalImpl traversal
