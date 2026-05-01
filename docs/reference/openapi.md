@@ -162,8 +162,8 @@ val jsonString = Json.jsonCodec.encodeToString(json, WriterConfig.withIndentionS
 ```
 OpenAPI (root document)
 ├─ info: Info (metadata)
-├─ servers: Chunk[Server]
-├─ paths: Paths (map of path strings to PathItem)
+├─ servers: Option[Chunk[Server]]
+├─ paths: Option[Paths] (map of path strings to PathItem)
 │  └─ PathItem
 │     ├─ get: Operation
 │     ├─ post: Operation
@@ -177,12 +177,12 @@ OpenAPI (root document)
 │           └─ Map[statusCode, ReferenceOr[Response]]
 │              └─ content: Map[String, MediaType]
 │                 └─ schema: ReferenceOr[SchemaObject]
-├─ components: Components
-│  ├─ schemas: Map[String, SchemaObject]
-│  ├─ responses: Map[String, ReferenceOr[Response]]
-│  ├─ parameters: Map[String, ReferenceOr[Parameter]]
-│  └─ securitySchemes: Map[String, ReferenceOr[SecurityScheme]]
-└─ security: Chunk[SecurityRequirement]
+├─ components: Option[Components]
+│  ├─ schemas: ChunkMap[String, ReferenceOr[SchemaObject]]
+│  ├─ responses: ChunkMap[String, ReferenceOr[Response]]
+│  ├─ parameters: ChunkMap[String, ReferenceOr[Parameter]]
+│  └─ securitySchemes: ChunkMap[String, ReferenceOr[SecurityScheme]]
+└─ security: Option[Chunk[SecurityRequirement]]
 ```
 
 ## Common Patterns
@@ -315,10 +315,14 @@ The OpenAPI module integrates tightly with other ZIO Blocks components:
 Every OpenAPI document requires:
 - **`openapi`**: Version string (typically `"3.1.0"`)
 - **`info`**: Metadata about the API (`Info`)
-- **`paths`**: Map of endpoint paths to operations (`Paths`)
-- **`responses`**: HTTP response definitions (`Responses`)
 
-Optional fields include servers, components, security requirements, tags, and external documentation.
+Optional top-level fields include:
+- **`servers`**: Server definitions for the API (`Chunk[Server]`)
+- **`paths`**: Map of endpoint paths to operations (`Paths`)
+- **`components`**: Reusable schemas, responses, parameters, and other components (`Components`)
+- **`security`**: Security requirements applied to the API (`Chunk[SecurityRequirement]`)
+
+Response definitions are modeled per `Operation`, not as a top-level field on `OpenAPI`.
 
 ### Creating an OpenAPI Document
 
@@ -417,11 +421,13 @@ val info = Info(
 
 ## Paths & PathItem
 
-`Paths` is a map of URL paths to their operations. `PathItem` groups HTTP methods (GET, POST, PUT, etc.) on a single path.
+`Paths` represents the collection of URL paths and their operations. `PathItem` groups HTTP methods (GET, POST, PUT, etc.) on a single path.
 
 ### Definition
 
-`Paths` is a type alias for `ChunkMap[String, PathItem]`, where keys are path strings (e.g., `"/users/{id}"`).
+`Paths` is a wrapper case class with two fields:
+- **`paths`**: `ChunkMap[String, PathItem]`, where keys are path strings (e.g., `"/users/{id}"`)
+- **`extensions`**: `ChunkMap[String, Json]`, for OpenAPI specification extensions
 
 `PathItem` contains optional fields for each HTTP method:
 - **`get`, `post`, `put`, `delete`, `patch`, `head`, `options`, `trace`**: `Operation` instances
@@ -803,7 +809,7 @@ val formMedia = MediaType(
 ### Definition
 
 Key fields:
-- **`schemas`**: Reusable schema objects (`ChunkMap[String, SchemaObject]`)
+- **`schemas`**: Reusable schema objects (`ChunkMap[String, ReferenceOr[SchemaObject]]`)
 - **`responses`**: Reusable response definitions
 - **`parameters`**: Reusable parameter definitions
 - **`securitySchemes`**: Authentication method definitions
