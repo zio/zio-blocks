@@ -514,6 +514,9 @@ final case class CodeBlock(info: Option[String], code: String) extends Block
 Here are examples of creating code blocks with and without language specification:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 // Scala code block
 val scalaBlock = CodeBlock(Some("scala"), "val x = 42\nprintln(x)")
 
@@ -535,6 +538,9 @@ case object ThematicBreak extends Block
 Create a thematic break:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val break = ThematicBreak
 ```
 
@@ -626,6 +632,9 @@ final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) exten
 The `checked` parameter: `Some(true)` renders as `[x]`, `Some(false)` renders as `[ ]`, `None` for regular list items. Here are examples of each type:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 // Regular list item
 val item = ListItem(Chunk(Paragraph(Chunk(Text("Task")))), None)
 
@@ -650,6 +659,9 @@ final case class HtmlBlock(content: String) extends Block
 Here's an example of creating an HTML block:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 ```
 
@@ -693,7 +705,7 @@ import zio.blocks.docs._
 sealed trait Inline extends Product with Serializable
 ```
 
-Inline is a sealed trait with concrete subtypes, defined both in object and at top level for API compatibility.
+Inline is a sealed trait with concrete subtypes, defining both object-level and top-level forms for API compatibility.
 
 ### Text
 
@@ -812,6 +824,9 @@ final case class Link(text: Chunk[Inline], url: String, title: Option[String]) e
 The `title` parameter is optional link title text. Here are examples of creating links:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 // Simple link
 val link = Link(Chunk(Text("Click here")), "https://example.com", None)
 
@@ -854,6 +869,9 @@ final case class HtmlInline(content: String) extends Inline
 Here's an example of creating HTML inline content:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val html = HtmlInline("<span class='highlight'>custom</span>")
 ```
 
@@ -893,6 +911,9 @@ final case class Autolink(url: String, isEmail: Boolean) extends Inline
 Here are examples of creating autolinks:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val urlLink = Autolink("https://example.com", isEmail = false)
 val emailLink = Autolink("user@example.com", isEmail = true)
 // Renders as: <https://example.com> and <user@example.com>
@@ -905,6 +926,9 @@ val emailLink = Autolink("user@example.com", isEmail = true)
 Heading levels from H1 to H6:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
 
 object HeadingLevel {
@@ -957,6 +981,9 @@ HeadingLevel.H1.value == 1
 Table column alignment specification:
 
 ```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Alignment extends Product with Serializable
 
 object Alignment {
@@ -1013,6 +1040,9 @@ val doc = Doc(Chunk(table))
 If we render this document, the table will have left-aligned "Name", center-aligned "Age", and right-aligned "City":
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.render(doc)
 ```
 
@@ -1125,6 +1155,9 @@ val err = ParseError("Unexpected token", line = 5, column = 12, input = "[invali
 Get the string representation of the error:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 err.toString
 ```
 
@@ -1168,6 +1201,9 @@ val rendered = Renderer.render(doc)
 The result:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 rendered
 ```
 
@@ -1225,7 +1261,10 @@ object HtmlRenderer
 
 Render a document as complete HTML with DOCTYPE and html wrapper tags:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HtmlRenderer.render(doc: Doc): String
 ```
 
