@@ -632,7 +632,7 @@ Key fields:
 
 ### Creating a RequestBody
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -662,7 +662,7 @@ Key fields:
 
 ### Creating a Response
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -690,7 +690,7 @@ val errorResponse = Response(
 
 `Responses` is a map of HTTP status codes to `ReferenceOr[Response]`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -727,7 +727,7 @@ Key fields:
 
 With schema and example:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -744,7 +744,7 @@ val jsonMedia = MediaType(
 
 For form data:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -777,7 +777,7 @@ Key fields:
 
 ### Creating Components
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -840,7 +840,7 @@ val components = Components(
 
 Directly from a `Schema[A]`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -851,7 +851,7 @@ val userSchema = Schema[User].toOpenAPISchema
 
 Or with additional OpenAPI metadata:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -882,7 +882,7 @@ val enrichedSchema = SchemaObject(
 
 Use the `SchemaOps` extension methods on any `Schema[A]`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -909,7 +909,7 @@ Two cases:
 
 Prefer `Ref` for reusable components:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -923,7 +923,7 @@ val responseRef = ReferenceOr.Ref(Reference(
 
 Use `Value` for inline, one-off definitions:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -938,7 +938,7 @@ val inlineError = ReferenceOr.Value(Response(
 
 ### Pattern Matching on ReferenceOr
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -968,7 +968,7 @@ Sealed trait variants:
 
 API Key authentication:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -982,7 +982,7 @@ val apiKeySecurity = SecurityScheme.APIKey(
 
 HTTP Bearer token:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -996,7 +996,7 @@ val bearerSecurity = SecurityScheme.HTTP(
 
 OAuth 2.0:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1022,7 +1022,7 @@ The `OAuthFlows` type supports multiple flow types: `implicit`, `password`, `cli
 
 OpenID Connect:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1049,7 +1049,7 @@ Key fields:
 
 Simple discriminator by property name:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1062,7 +1062,7 @@ val discriminator = Discriminator(
 
 With explicit value-to-schema mapping:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1099,7 +1099,7 @@ val mappedDiscriminator = Discriminator(
 
 Single static server:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1113,7 +1113,7 @@ val server = Server(
 
 Server with variables (showing structure without reserved keywords):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1160,7 +1160,7 @@ Key fields:
 
 ### Creating Tags
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1187,7 +1187,7 @@ val productsTag = Tag(
 
 All types support custom `x-*` extension fields for vendor-specific metadata. These extensions are preserved during encoding/decoding:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -1214,7 +1214,7 @@ val operationWithExtensions = Operation(
 
 All OpenAPI types have `Schema.derived` instances, enabling serialization through `DynamicValue`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
