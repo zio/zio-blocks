@@ -6,16 +6,6 @@ allowed-tools: Read, Glob, Grep
 
 # ZIO Blocks Documentation Writing Style
 
-## Quick Reference: Most Common Violations
-
-These five rules are violated most frequently. Check your work against them first:
-
-1. **Rule 8** — Always qualify method names: use `BindingResolver.empty`, not `empty`; use `ZIO#map`, not `map`.
-2. **Rule 12** — Never place a `###` heading immediately after `##` with no prose. Always write a brief intro first.
-3. **Rule 15** — Every code block must be preceded by a prose sentence ending with `:`. Between consecutive code blocks, add bridging prose.
-4. **Rule 20** — Explain what code demonstrates (avoid generic "here's an example"). Provide context that explains *why* it matters.
-5. **Rule 2** — Use present tense only: "returns", "creates", never "returned", "created".
-
 ## Mechanical Validation
 
 Before validating manually, run the mechanical style checks to catch common violations of the most critical rules:
