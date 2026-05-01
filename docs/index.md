@@ -576,8 +576,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 | Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
 |----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
 
 ## Documentation
 
