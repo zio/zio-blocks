@@ -52,8 +52,10 @@ final case class JsonRpcProtocol[T](
     val extra   = boundNames.filterNot(bound => expectedNames.contains(bound))
 
     val errors = Chunk.empty[String] ++
-      (if (missing.nonEmpty) Chunk(s"Missing JSON-RPC handlers for operations: ${missing.mkString(", ")}") else Chunk.empty) ++
-      (if (extra.nonEmpty) Chunk(s"Unknown JSON-RPC handlers supplied for operations: ${extra.mkString(", ")}") else Chunk.empty)
+      (if (missing.nonEmpty) Chunk(s"Missing JSON-RPC handlers for operations: ${missing.mkString(", ")}")
+       else Chunk.empty) ++
+      (if (extra.nonEmpty) Chunk(s"Unknown JSON-RPC handlers supplied for operations: ${extra.mkString(", ")}")
+       else Chunk.empty)
 
     if (errors.nonEmpty) Left(errors.mkString("; "))
     else {
