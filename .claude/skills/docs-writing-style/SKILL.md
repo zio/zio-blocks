@@ -14,7 +14,7 @@ Before validating manually, run the mechanical style checks to catch common viol
 bash .claude/skills/docs-writing-style/check-docs-style.sh <file.md>
 ```
 
-This checks Rules 1, 2, 5, 6, 8, 10, 11, 13, 15, 18, and 23 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
+This checks Rules 2, 3, 8, 10, 12, 15, 18, and 23 for mechanical violations. Exit code `0` means all checked rules pass; exit code `1` means violations were found with details printed to stdout.
 
 **Rule 8** detects unqualified methods using heuristics (camelCase in backticks, confident if qualified elsewhere). Update `SAFE_NAMES` in `check-docs-style.sh` to avoid false positives.
 

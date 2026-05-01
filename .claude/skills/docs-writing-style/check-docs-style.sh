@@ -3,18 +3,15 @@
 # Usage: check-docs-style.sh <file.md>
 # Exit codes: 0 = no violations, 1 = violations found
 #
-# Rules checked:
-#   Rule 1:  "zio-blocks" in prose (not in URLs or sbt artifact strings)
+# Rules checked (from docs-writing-style/SKILL.md):
 #   Rule 2:  Present tense only (detect past-tense verbs in prose)
-#   Rule 5:  No filler phrases
-#   Rule 6:  No emoji in prose
+#   Rule 3:  No padding/filler phrases
+#   Rule 8:  Always qualify method/constructor names
 #   Rule 10: No duplicate markdown heading
-#   Rule 11: No bare subheaders (### or #### immediately after ## or ###)
-#   Rule 13: Code block preceded by prose sentence ending with ":"
-#   Rule 15: Consecutive code blocks must have bridging prose
-#   Rule 16: No hardcoded result comments in Scala blocks
-#   Rule 18: No "var" in Scala code blocks
-#   Rule 23: No Scala 3 glob imports (import x.* forbidden)
+#   Rule 12: No bare subheaders (### or #### immediately after ## or ###)
+#   Rule 15: Code block preceded by prose sentence ending with ":", and bridging prose between consecutive code blocks
+#   Rule 18: Prefer "val" over "var" in Scala code blocks
+#   Rule 23: Default to Scala 2.13.x syntax (no Scala 3 glob imports)
 
 set -euo pipefail
 
@@ -40,22 +37,6 @@ count_violations() {
   fi
 }
 
-# Rule 1: "zio-blocks" in prose (not in URLs or sbt artifact strings or inline code)
-count_violations "$(awk '
-  /^```/ { in_code = !in_code; next }
-  in_code { next }
-  /^[[:space:]]*-[[:space:]]|^[[:space:]]*\*[[:space:]]|^[0-9]+\.[[:space:]]/ { in_list = 1 }
-  in_list && /^[[:space:]]*$/ { in_list = 0 }
-  /zio-blocks/ && !/^http/ && !/^.*:.*=.*zio-blocks/ {
-    # Remove inline code (backtick-quoted sections) to check if zio-blocks is still there
-    temp = $0
-    gsub(/`[^`]*`/, "", temp)
-    if (temp ~ /zio-blocks/) {
-      print FILENAME ":" NR ": [Rule 1] \"zio-blocks\" in prose (not in code/URL)"
-    }
-  }
-' "$FILE")"
-
 # Rule 2: Past tense verbs in prose (present tense only)
 count_violations "$(awk '
   /^```/ { in_code = !in_code; next }
@@ -68,44 +49,17 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 5: Filler phrases
+# Rule 3: No padding/filler phrases
 count_violations "$(awk '
   /^```/ { in_code = !in_code; next }
   in_code { next }
   {
     fillers = "as we can see|it'\''s worth noting that|it should be noted that|importantly|needless to say|it is important to note that|by the way|obviously|clearly|basically|essentially"
     if ($0 ~ "(" fillers ")") {
-      print FILENAME ":" NR ": [Rule 5] filler phrase detected"
+      print FILENAME ":" NR ": [Rule 3] filler phrase detected"
     }
   }
 ' "$FILE")"
-
-# Rule 6: Emoji characters (using Python for robust Unicode detection)
-if command -v python3 >/dev/null 2>&1; then
-  count_violations "$(python3 - "$FILE" << 'PYTHON_EOF'
-import sys, re
-EMOJI_RE = re.compile(
-    "[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0001F900-\U0001F9FF\uFE00-\uFE0F]"
-)
-in_code = False
-try:
-    with open(sys.argv[1], encoding="utf-8") as f:
-        for lineno, line in enumerate(f, 1):
-            s = line.rstrip()
-            if s.lstrip().startswith("```"):
-                in_code = not in_code
-                continue
-            if in_code:
-                continue
-            m = EMOJI_RE.search(s)
-            if m:
-                print(f"{sys.argv[1]}:{lineno}: [Rule 6] emoji in prose: {repr(m.group())}")
-except Exception as e:
-    print(f"Error in Rule 6: {e}", file=sys.stderr)
-    sys.exit(1)
-PYTHON_EOF
-)"
-fi
 
 # Rule 10: No duplicate markdown heading (# heading duplicating frontmatter title)
 count_violations "$(awk '
@@ -114,8 +68,7 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 11 & 12: No bare subheaders (### or #### immediately after ## or ###)
-# This comprehensive check replaces the old Rule 11 & 12 check
+# Rule 12: No bare subheaders (### or #### immediately after ## or ###)
 count_violations "$(awk '
   /^```/ { in_code_block = !in_code_block; next }
   in_code_block { next }
@@ -148,16 +101,16 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 13: Code block not preceded by prose sentence ending with ":"
+# Rule 15 (Part 1): Code block not preceded by prose sentence ending with ":"
 count_violations "$(awk '
   /^```/ {
     if (in_code) {
       in_code = 0
     } else {
       if (NR == 1) {
-        print FILENAME ":" NR ": [Rule 13] code block at start of file (no preceding prose)"
+        print FILENAME ":" NR ": [Rule 15] code block at start of file (no preceding prose)"
       } else if (!have_prose || last_prose_line !~ /:$/) {
-        print FILENAME ":" NR ": [Rule 13] code block not preceded by sentence ending with \":\""
+        print FILENAME ":" NR ": [Rule 15] code block not preceded by sentence ending with \":\""
       }
       in_code = 1
     }
@@ -172,7 +125,7 @@ count_violations "$(awk '
   }
 ' "$FILE")"
 
-# Rule 15 (Part 1): Consecutive code blocks without bridging prose
+# Rule 15 (Part 2): Consecutive code blocks without bridging prose
 count_violations "$(awk '
   /^```/ {
     if (in_code) {
@@ -212,21 +165,6 @@ count_violations "$(awk '
   }
   in_scala && /var[^a-zA-Z0-9_]|^var[[:space:]]|[[:space:]]var[[:space:]]/ {
     print FILENAME ":" NR ": [Rule 18] \"var\" in Scala code block"
-  }
-' "$FILE")"
-
-# Rule 16: Hardcoded result comments in Scala blocks
-count_violations "$(awk '
-  /^```scala/ {
-    in_scala = 1
-    next
-  }
-  /^```/ {
-    in_scala = 0
-    next
-  }
-  in_scala && /\/\/\s*(None|Some\(|Right\(|Left\(|Success\(|Failure\(|".*")/ {
-    print FILENAME ":" NR ": [Rule 16] hardcoded result comment"
   }
 ' "$FILE")"
 
