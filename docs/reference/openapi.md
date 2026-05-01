@@ -67,27 +67,22 @@ object ErrorResponse {
 
 **2. Create an OpenAPI document** by composing types:
 
-```scala
-import zio.blocks.openapi._
-import zio.blocks.docs._
-import zio.blocks.chunk._
-import zio.blocks.schema._
-
+```scala mdoc:silent
 val api = OpenAPI(
   openapi = "3.1.0",
   info = Info(
     title = "User API",
     version = "1.0.0",
-    description = Some(Doc("API for managing users"))
+    description = Some(md"API for managing users")
   ),
   paths = Some(Paths(ChunkMap(
     "/users" -> PathItem(
       get = Some(Operation(
-        summary = Some("List all users"),
-        description = Some(Doc("Returns a paginated list of users")),
+        summary = Some(md"List all users"),
+        description = Some(md"Returns a paginated list of users"),
         responses = Responses(ChunkMap(
           "200" -> ReferenceOr.Value(Response(
-            description = Doc("Successful response"),
+            description = md"Successful response",
             content = ChunkMap(
               "application/json" -> MediaType(
                 schema = Some(ReferenceOr.Value(
@@ -101,8 +96,8 @@ val api = OpenAPI(
     ),
     "/users/{id}" -> PathItem(
       get = Some(Operation(
-        summary = Some("Get a user by ID"),
-        parameters = Some(Chunk(
+        summary = Some(md"Get a user by ID"),
+        parameters = Chunk(
           ReferenceOr.Value(Parameter(
             name = "id",
             in = ParameterLocation.Path,
@@ -111,10 +106,10 @@ val api = OpenAPI(
               Schema[Int].toOpenAPISchema
             ))
           ))
-        )),
+        ),
         responses = Responses(ChunkMap(
           "200" -> ReferenceOr.Value(Response(
-            description = Doc("User found"),
+            description = md"User found",
             content = ChunkMap(
               "application/json" -> MediaType(
                 schema = Some(ReferenceOr.Value(
@@ -124,7 +119,7 @@ val api = OpenAPI(
             )
           )),
           "404" -> ReferenceOr.Value(Response(
-            description = Doc("User not found"),
+            description = md"User not found",
             content = ChunkMap(
               "application/json" -> MediaType(
                 schema = Some(ReferenceOr.Value(
@@ -138,21 +133,17 @@ val api = OpenAPI(
     )
   ))),
   components = Some(Components(
-    schemas = Some(ChunkMap(
-      Schema[User].toRefSchema._2,
-      Schema[ErrorResponse].toRefSchema._2
-    ))
+    schemas = ChunkMap(
+      Schema[User].toRefSchema._2._1 -> ReferenceOr.Value(Schema[User].toRefSchema._2._2),
+      Schema[ErrorResponse].toRefSchema._2._1 -> ReferenceOr.Value(Schema[ErrorResponse].toRefSchema._2._2)
+    )
   ))
 )
 ```
 
 **3. Serialize to JSON** for tools to consume:
 
-```scala
-import zio.blocks.openapi._
-import zio.blocks.docs._
-import zio.blocks.chunk._
-
+```scala mdoc:silent
 import zio.blocks.openapi.OpenAPICodec._
 
 val json = openAPICodec.encodeValue(api)
@@ -241,33 +232,34 @@ val simpleString = ReferenceOr.Value(Schema[String].toOpenAPISchema)
 
 Define authentication methods in `components.securitySchemes`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val apiKeyScheme = SecurityScheme.APIKey(
   name = "X-API-Key",
-  in = "header",
-  description = Some(Doc("API key for authentication"))
+  in = APIKeyLocation.Header,
+  description = Some(md"API key for authentication")
 )
 
 val oauthScheme = SecurityScheme.OAuth2(
   flows = OAuthFlows(
     authorizationCode = Some(OAuthFlow(
-      authorizationUrl = "https://example.com/oauth/authorize",
-      tokenUrl = "https://example.com/oauth/token",
-      scopes = ChunkMap("read" -> Doc("Read access"), "write" -> Doc("Write access"))
+      authorizationUrl = Some("https://example.com/oauth/authorize"),
+      tokenUrl = Some("https://example.com/oauth/token"),
+      scopes = ChunkMap("read" -> "Read access", "write" -> "Write access")
     ))
   ),
-  description = Some(Doc("OAuth 2.0 authorization"))
+  description = Some(md"OAuth 2.0 authorization")
 )
 
 val components = Components(
-  securitySchemes = Some(ChunkMap(
+  securitySchemes = ChunkMap(
     "api_key" -> ReferenceOr.Value(apiKeyScheme),
     "oauth2" -> ReferenceOr.Value(oauthScheme)
-  ))
+  )
 )
 ```
 
@@ -275,10 +267,11 @@ val components = Components(
 
 Distinguish parameter locations using `ParameterLocation`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val pathParam = Parameter(
   name = "id",
@@ -330,15 +323,15 @@ Optional fields include servers, components, security requirements, tags, and ex
 
 To construct an `OpenAPI` document:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val minimalApi = OpenAPI(
   openapi = "3.1.0",
-  info = Info(title = "My API", version = "1.0.0"),
-  paths = Some(Paths(ChunkMap()))  // Empty paths initially
+  info = Info(title = "My API", version = "1.0.0")
 )
 ```
 
@@ -348,23 +341,32 @@ Add paths, operations, and components as shown in the "How They Work Together" s
 
 Encode an `OpenAPI` document to `Json` AST:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
-import zio.blocks.openapi.OpenAPICodec._
+import zio.blocks.schema.json._
 
-val encoded: Json = openAPICodec.encodeValue(api)
+val myApi = OpenAPI(openapi = "3.1.0", info = Info(title = "My API", version = "1.0.0"))
+val encoded: Json = openAPICodec.encodeValue(myApi)
 ```
 
 Decode from `Json` AST back to an `OpenAPI` instance:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
+import zio.blocks.openapi.OpenAPICodec._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
+import zio.blocks.schema.json._
+
+val myApi = OpenAPI(openapi = "3.1.0", info = Info(title = "My API", version = "1.0.0"))
+val encoded: Json = openAPICodec.encodeValue(myApi)
 val decoded: OpenAPI = openAPICodec.decodeValue(encoded)
 ```
 
@@ -388,15 +390,16 @@ Optional fields:
 
 ### Creating Info
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val info = Info(
   title = "Pet Store API",
   version = "3.0.0",
-  description = Some(Doc("API for managing a pet store")),
+  description = Some(md"API for managing a pet store"),
   contact = Some(Contact(
     name = Some("API Support"),
     url = Some("https://example.com/support"),
@@ -428,18 +431,19 @@ val info = Info(
 
 To define a path with multiple operations:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val userPaths = Paths(ChunkMap(
   "/users" -> PathItem(
     get = Some(Operation(
-      summary = Some("List users"),
+      summary = Some(md"List users"),
       responses = Responses(ChunkMap(
         "200" -> ReferenceOr.Value(Response(
-          description = Doc("User list"),
+          description = md"User list",
           content = ChunkMap(
             "application/json" -> MediaType(schema = None)
           )
@@ -447,9 +451,9 @@ val userPaths = Paths(ChunkMap(
       ))
     )),
     post = Some(Operation(
-      summary = Some("Create user"),
+      summary = Some(md"Create user"),
       requestBody = Some(ReferenceOr.Value(RequestBody(
-        description = Some(Doc("User data")),
+        description = Some(md"User data"),
         content = ChunkMap(
           "application/json" -> MediaType(schema = None)
         ),
@@ -457,7 +461,7 @@ val userPaths = Paths(ChunkMap(
       ))),
       responses = Responses(ChunkMap(
         "201" -> ReferenceOr.Value(Response(
-          description = Doc("User created"),
+          description = md"User created",
           content = ChunkMap(
             "application/json" -> MediaType(schema = None)
           )
@@ -466,25 +470,25 @@ val userPaths = Paths(ChunkMap(
     ))
   ),
   "/users/{id}" -> PathItem(
-    parameters = Some(Chunk(
+    parameters = Chunk(
       ReferenceOr.Value(Parameter(
         name = "id",
         in = ParameterLocation.Path,
         required = true,
         schema = Some(ReferenceOr.Value(Schema[String].toOpenAPISchema))
       ))
-    )),
+    ),
     get = Some(Operation(
-      summary = Some("Get user by ID"),
+      summary = Some(md"Get user by ID"),
       responses = Responses(ChunkMap(
         "200" -> ReferenceOr.Value(Response(
-          description = Doc("User found"),
+          description = md"User found",
           content = ChunkMap(
             "application/json" -> MediaType(schema = None)
           )
         )),
         "404" -> ReferenceOr.Value(Response(
-          description = Doc("User not found"),
+          description = md"User not found",
           content = ChunkMap(
             "application/json" -> MediaType(schema = None)
           )
@@ -517,34 +521,35 @@ Key fields:
 
 With summary, description, and parameters:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val getUser = Operation(
-  tags = Some(Chunk("users")),
-  summary = Some("Retrieve user"),
-  description = Some(Doc("Fetches a single user by ID")),
+  tags = Chunk("users"),
+  summary = Some(md"Retrieve user"),
+  description = Some(md"Fetches a single user by ID"),
   operationId = Some("getUserById"),
-  parameters = Some(Chunk(
+  parameters = Chunk(
     ReferenceOr.Value(Parameter(
       name = "id",
       in = ParameterLocation.Path,
       required = true,
       schema = Some(ReferenceOr.Value(Schema[String].toOpenAPISchema)),
-      description = Some(Doc("User ID"))
+      description = Some(md"User ID")
     ))
-  )),
+  ),
   responses = Responses(ChunkMap(
     "200" -> ReferenceOr.Value(Response(
-      description = Doc("User found"),
+      description = md"User found",
       content = ChunkMap(
         "application/json" -> MediaType(schema = None)
       )
     )),
     "404" -> ReferenceOr.Value(Response(
-      description = Doc("User not found"),
+      description = md"User not found",
       content = ChunkMap(
         "application/json" -> MediaType(schema = None)
       )
@@ -576,49 +581,52 @@ Optional fields:
 
 Path parameter (required):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val idPathParam = Parameter(
   name = "id",
   in = ParameterLocation.Path,
   required = true,
   schema = Some(ReferenceOr.Value(Schema[String].toOpenAPISchema)),
-  description = Some(Doc("User identifier"))
+  description = Some(md"User identifier")
 )
 ```
 
 Query parameter (optional with default):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val limitQueryParam = Parameter(
   name = "limit",
   in = ParameterLocation.Query,
   required = false,
   schema = Some(ReferenceOr.Value(Schema[Int].toOpenAPISchema)),
-  description = Some(Doc("Maximum number of results (default: 20)"))
+  description = Some(md"Maximum number of results (default: 20)")
 )
 ```
 
 Header parameter:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val authHeaderParam = Parameter(
   name = "X-API-Key",
   in = ParameterLocation.Header,
   required = true,
   schema = Some(ReferenceOr.Value(Schema[String].toOpenAPISchema)),
-  description = Some(Doc("API key for authentication"))
+  description = Some(md"API key for authentication")
 )
 ```
 
@@ -637,17 +645,22 @@ Key fields:
 
 ### Creating a RequestBody
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class User(name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val createUserBody = RequestBody(
-  description = Some(Doc("User data to create")),
+  description = Some(md"User data to create"),
   content = ChunkMap(
     "application/json" -> MediaType(
       schema = Some(ReferenceOr.Value(Schema[User].toOpenAPISchema)),
-      example = Some(Json.Object(Map(
+      example = Some(Json.Object(Chunk(
         "name" -> Json.String("John Doe"),
         "email" -> Json.String("john@example.com")
       )))
@@ -667,25 +680,31 @@ Key fields:
 
 ### Creating a Response
 
-```scala
+```scala mdoc:silent
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User2(id: Int, name: String, email: String)
+object User2 { implicit val schema: Schema[User2] = Schema.derived }
+case class ErrorResponse2(code: Int, message: String)
+object ErrorResponse2 { implicit val schema: Schema[ErrorResponse2] = Schema.derived }
 
 val successResponse = Response(
-  description = Doc("User successfully created"),
+  description = md"User successfully created",
   content = ChunkMap(
     "application/json" -> MediaType(
-      schema = Some(ReferenceOr.Value(Schema[User].toOpenAPISchema))
+      schema = Some(ReferenceOr.Value(Schema[User2].toOpenAPISchema))
     )
   )
 )
 
 val errorResponse = Response(
-  description = Doc("Request validation failed"),
+  description = md"Request validation failed",
   content = ChunkMap(
     "application/json" -> MediaType(
-      schema = Some(ReferenceOr.Value(Schema[ErrorResponse].toOpenAPISchema))
+      schema = Some(ReferenceOr.Value(Schema[ErrorResponse2].toOpenAPISchema))
     )
   )
 )
@@ -695,20 +714,24 @@ val errorResponse = Response(
 
 `Responses` is a map of HTTP status codes to `ReferenceOr[Response]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+val ok = Response(description = md"Created", content = ChunkMap())
+val err = Response(description = md"Bad request", content = ChunkMap())
 
 val responses = Responses(ChunkMap(
-  "201" -> ReferenceOr.Value(successResponse),
-  "400" -> ReferenceOr.Value(errorResponse),
+  "201" -> ReferenceOr.Value(ok),
+  "400" -> ReferenceOr.Value(err),
   "401" -> ReferenceOr.Value(Response(
-    description = Doc("Unauthorized"),
+    description = md"Unauthorized",
     content = ChunkMap()
   )),
   "500" -> ReferenceOr.Value(Response(
-    description = Doc("Internal server error"),
+    description = md"Internal server error",
     content = ChunkMap()
   ))
 ))
@@ -732,36 +755,41 @@ Key fields:
 
 With schema and example:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val jsonMedia = MediaType(
   schema = Some(ReferenceOr.Value(Schema[User].toOpenAPISchema)),
-  example = Some(Json.Object(Map(
+  example = Some(Json.Object(
     "id" -> Json.Number(1),
     "name" -> Json.String("Alice"),
     "email" -> Json.String("alice@example.com")
-  )))
+  ))
 )
 ```
 
 For form data:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val formMedia = MediaType(
   schema = Some(ReferenceOr.Value(Schema[Map[String, String]].toOpenAPISchema)),
-  encoding = Some(ChunkMap(
+  encoding = ChunkMap(
     "file" -> Encoding(
-      contentType = Some("application/octet-stream"),
-      style = Some("form")
+      contentType = Some("application/octet-stream")
     )
-  ))
+  )
 )
 ```
 
@@ -782,27 +810,33 @@ Key fields:
 
 ### Creating Components
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+case class ErrorResponse(code: Int, message: String)
+object ErrorResponse { implicit val schema: Schema[ErrorResponse] = Schema.derived }
 
 val components = Components(
-  schemas = Some(ChunkMap(
-    Schema[User].toRefSchema._2,
-    Schema[ErrorResponse].toRefSchema._2
-  )),
-  parameters = Some(ChunkMap(
+  schemas = ChunkMap(
+    Schema[User].toRefSchema._2._1 -> ReferenceOr.Value(Schema[User].toRefSchema._2._2),
+    Schema[ErrorResponse].toRefSchema._2._1 -> ReferenceOr.Value(Schema[ErrorResponse].toRefSchema._2._2)
+  ),
+  parameters = ChunkMap(
     "id" -> ReferenceOr.Value(Parameter(
       name = "id",
       in = ParameterLocation.Path,
       required = true,
       schema = Some(ReferenceOr.Value(Schema[String].toOpenAPISchema))
     ))
-  )),
-  responses = Some(ChunkMap(
+  ),
+  responses = ChunkMap(
     "NotFound" -> ReferenceOr.Value(Response(
-      description = Doc("Resource not found"),
+      description = md"Resource not found",
       content = ChunkMap(
         "application/json" -> MediaType(
           schema = Some(ReferenceOr.Value(
@@ -812,17 +846,17 @@ val components = Components(
       )
     )),
     "Unauthorized" -> ReferenceOr.Value(Response(
-      description = Doc("Unauthorized access"),
+      description = md"Unauthorized access",
       content = ChunkMap()
     ))
-  )),
-  securitySchemes = Some(ChunkMap(
+  ),
+  securitySchemes = ChunkMap(
     "api_key" -> ReferenceOr.Value(SecurityScheme.APIKey(
       name = "X-API-Key",
-      in = "header",
-      description = Some(Doc("API key header"))
+      in = APIKeyLocation.Header,
+      description = Some(md"API key header")
     ))
-  ))
+  )
 )
 ```
 
@@ -845,10 +879,14 @@ val components = Components(
 
 Directly from a `Schema[A]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val userSchema = Schema[User].toOpenAPISchema
 // Returns a SchemaObject with the User type's JSON Schema
@@ -856,30 +894,34 @@ val userSchema = Schema[User].toOpenAPISchema
 
 Or with additional OpenAPI metadata:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val enrichedSchema = SchemaObject(
   jsonSchema = Schema[User].toJsonSchema.toJson,
   discriminator = None,
   xml = Some(XML(
     name = Some("user"),
-    prefix = None,
     namespace = None,
+    prefix = None,
     attribute = false,
-    wrapped = false,
-    extensions = None
+    wrapped = false
   )),
-  example = Some(Json.Object(Map(
+  example = Some(Json.Object(
     "id" -> Json.Number(1),
     "name" -> Json.String("John")
-  ))),
-  extensions = Some(ChunkMap(
+  )),
+  extensions = ChunkMap(
     "x-generated" -> Json.String("true"),
     "x-version" -> Json.String("1.0.0")
-  ))
+  )
 )
 ```
 
@@ -887,10 +929,14 @@ val enrichedSchema = SchemaObject(
 
 Use the `SchemaOps` extension methods on any `Schema[A]`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val schemaObj: SchemaObject = Schema[User].toOpenAPISchema
 val (ref, component) = Schema[User].toRefSchema
@@ -914,43 +960,49 @@ Two cases:
 
 Prefer `Ref` for reusable components:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
-val userRef = ReferenceOr.Ref(Reference("$ref" -> "#/components/schemas/User"))
+val userRef = ReferenceOr.Ref(Reference(`$ref` = "#/components/schemas/User"))
 
 val responseRef = ReferenceOr.Ref(Reference(
-  "$ref" -> "#/components/responses/NotFound"
+  `$ref` = "#/components/responses/NotFound"
 ))
 ```
 
 Use `Value` for inline, one-off definitions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
 
 val inlineUser = ReferenceOr.Value(Schema[User].toOpenAPISchema)
 
 val inlineError = ReferenceOr.Value(Response(
-  description = Doc("Quick error"),
+  description = md"Quick error",
   content = ChunkMap()
 ))
 ```
 
 ### Pattern Matching on ReferenceOr
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 def describeRef[A](ref: ReferenceOr[A]): String = ref match {
-  case ReferenceOr.Ref(r) => s"Reference to ${r.ref}"
-  case ReferenceOr.Value(v) => "Inline value"
+  case ReferenceOr.Ref(r)   => s"Reference to ${r.`$ref`}"
+  case ReferenceOr.Value(_) => "Inline value"
 }
 ```
 
@@ -973,51 +1025,54 @@ Sealed trait variants:
 
 API Key authentication:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val apiKeySecurity = SecurityScheme.APIKey(
   name = "X-API-Key",
-  in = "header",
-  description = Some(Doc("API key required in header"))
+  in = APIKeyLocation.Header,
+  description = Some(md"API key required in header")
 )
 ```
 
 HTTP Bearer token:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val bearerSecurity = SecurityScheme.HTTP(
   scheme = "bearer",
   bearerFormat = Some("JWT"),
-  description = Some(Doc("JWT bearer token"))
+  description = Some(md"JWT bearer token")
 )
 ```
 
 OAuth 2.0:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val oauthSecurity = SecurityScheme.OAuth2(
   flows = OAuthFlows(
     authorizationCode = Some(OAuthFlow(
-      authorizationUrl = "https://example.com/oauth/authorize",
-      tokenUrl = "https://example.com/oauth/token",
+      authorizationUrl = Some("https://example.com/oauth/authorize"),
+      tokenUrl = Some("https://example.com/oauth/token"),
       scopes = ChunkMap(
-        "read:users" -> Doc("Read user data"),
-        "write:users" -> Doc("Modify user data")
+        "read:users" -> "Read user data",
+        "write:users" -> "Modify user data"
       )
     ))
   ),
-  description = Some(Doc("OAuth 2.0 authorization"))
+  description = Some(md"OAuth 2.0 authorization")
 )
 ```
 
@@ -1027,14 +1082,15 @@ The `OAuthFlows` type supports multiple flow types: `implicit`, `password`, `cli
 
 OpenID Connect:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val oidcSecurity = SecurityScheme.OpenIdConnect(
   openIdConnectUrl = "https://example.com/.well-known/openid-configuration",
-  description = Some(Doc("OpenID Connect discovery"))
+  description = Some(md"OpenID Connect discovery")
 )
 ```
 
@@ -1054,31 +1110,30 @@ Key fields:
 
 Simple discriminator by property name:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
-val discriminator = Discriminator(
-  propertyName = "type",
-  mapping = None
-)
+val discriminator = Discriminator(propertyName = "type")
 ```
 
 With explicit value-to-schema mapping:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val mappedDiscriminator = Discriminator(
   propertyName = "kind",
-  mapping = Some(ChunkMap(
+  mapping = ChunkMap(
     "user" -> "#/components/schemas/User",
     "admin" -> "#/components/schemas/Admin",
     "guest" -> "#/components/schemas/Guest"
-  ))
+  )
 )
 ```
 
@@ -1104,45 +1159,46 @@ val mappedDiscriminator = Discriminator(
 
 Single static server:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val server = Server(
   url = "https://api.example.com",
-  description = Some(Doc("Production API")),
-  variables = None
+  description = Some(md"Production API")
 )
 ```
 
-Server with variables (showing structure without reserved keywords):
+Server with variables:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val variableServer = Server(
   url = "https://{host}:{port}/{basePath}",
-  description = Some(Doc("Development API with variables")),
-  variables = Some(ChunkMap(
+  description = Some(md"Development API with variables"),
+  variables = ChunkMap(
     "host" -> ServerVariable(
       default = "localhost",
-      enumValues = Some(Chunk("localhost", "staging.example.com", "api.example.com")),
-      description = Some(Doc("API host"))
+      `enum` = Chunk("localhost", "staging.example.com", "api.example.com"),
+      description = Some(md"API host")
     ),
     "port" -> ServerVariable(
       default = "8080",
-      enumValues = Some(Chunk("8080", "443")),
-      description = Some(Doc("Port number"))
+      `enum` = Chunk("8080", "443"),
+      description = Some(md"Port number")
     ),
     "basePath" -> ServerVariable(
       default = "v1",
-      enumValues = Some(Chunk("v1", "v2")),
-      description = Some(Doc("API version path"))
+      `enum` = Chunk("v1", "v2"),
+      description = Some(md"API version path")
     )
-  ))
+  )
 )
 ```
 
@@ -1165,23 +1221,23 @@ Key fields:
 
 ### Creating Tags
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 val userTag = Tag(
   name = "users",
-  description = Some(Doc("User management operations")),
-  externalDocs = None
+  description = Some(md"User management operations")
 )
 
 val productsTag = Tag(
   name = "products",
-  description = Some(Doc("Product catalog operations")),
+  description = Some(md"Product catalog operations"),
   externalDocs = Some(ExternalDocumentation(
     url = "https://docs.example.com/products",
-    description = Some(Doc("Full product API documentation"))
+    description = Some(md"Full product API documentation")
   ))
 )
 ```
@@ -1192,24 +1248,26 @@ val productsTag = Tag(
 
 All types support custom `x-*` extension fields for vendor-specific metadata. These extensions are preserved during encoding/decoding:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+import zio.blocks.schema.json._
 
 val operationWithExtensions = Operation(
-  summary = Some("Get user"),
+  summary = Some(md"Get user"),
   responses = Responses(ChunkMap(
     "200" -> ReferenceOr.Value(Response(
-      description = Doc("User found"),
+      description = md"User found",
       content = ChunkMap()
     ))
   )),
-  extensions = Some(ChunkMap(
-    "x-internal" -> Json.Bool(true),
+  extensions = ChunkMap(
+    "x-internal" -> Json.Boolean(true),
     "x-rate-limit" -> Json.Number(100),
     "x-deprecated-at" -> Json.String("2024-01-01")
-  ))
+  )
 )
 ```
 
@@ -1219,17 +1277,18 @@ val operationWithExtensions = Operation(
 
 All OpenAPI types have `Schema.derived` instances, enabling serialization through `DynamicValue`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
+val myApi = OpenAPI(openapi = "3.1.0", info = Info(title = "My API", version = "1.0.0"))
 val openAPISchema = Schema[OpenAPI]
 
-val apiDynamic = openAPISchema.toDynamicValue(api)
+val apiDynamic = openAPISchema.toDynamicValue(myApi)
 
 val apiRestored = openAPISchema.fromDynamicValue(apiDynamic)
-// apiRestored == api
 ```
 
 This enables integration with other ZIO Blocks modules that work with `DynamicValue`.
