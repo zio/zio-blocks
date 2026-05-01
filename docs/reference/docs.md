@@ -1431,7 +1431,7 @@ ToMarkdown[Inline]    // a: Inline => a (identity)
 
 Convert collections to comma-separated text:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
