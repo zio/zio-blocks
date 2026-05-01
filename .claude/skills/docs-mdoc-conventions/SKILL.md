@@ -190,6 +190,8 @@ add(2, 3)
 
 ## Troubleshooting
 
+If mdoc produces more than 3 compilation errors, the blocks are likely not properly isolated. Check for missing `:reset` or `:nest` modifiers, or name collisions between blocks. If the issue persists, strip all mdoc modifiers from the reported lines, confirm the errors are gone, then re-apply the correct modifiers one by one using the decision tree — running `sbt mdoc --in <path>.md` after each change to verify before continuing.
+
 Common mistakes when writing mdoc blocks? See **`references/troubleshooting.md`** for solutions to.
 
 ---
