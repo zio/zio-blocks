@@ -4,7 +4,9 @@ description: Shared reference for mdoc code block modifiers and Docusaurus admon
 allowed_tools: Read, Glob, Grep
 ---
 
-All Scala code blocks must have proper mdoc modifiers (e.g., `mdoc:compile-only`, `mdoc:silent`, etc.). Look at the "Choosing the Right Modifier" section below to pick the correct one based on your use case.
+## Final Goal
+
+All Scala code blocks must have proper "mdoc" modifiers (e.g., `mdoc:compile-only`, `mdoc:silent`, etc.). Look at the "Choosing the Right Modifier" section below to pick the correct one based on your use case.
 
 **Exception:** Data type definitions use plain `` ```scala `` without mdoc modifiers — they are structural illustrations, not executable examples.
 
