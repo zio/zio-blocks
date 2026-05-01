@@ -113,10 +113,11 @@ Between consecutive code blocks, add bridging prose that explains what the next 
 
 ## Dependency Declarations
 
-25. **Use @VERSION@ for versions**: In installation sections, use `@VERSION@` in sbt coordinates; the build system substitutes it.
+25. **Use @VERSION@ placeholder for versions**: 
 
    **Bad vs. Good:**
    - ❌ `libraryDependencies += "dev.zio" %% "zio-blocks" % "1.0.0"`
+   - ❌ `libraryDependencies += "dev.zio" %% "zio-blocks" % "<version>"`
    - ✅ `libraryDependencies += "dev.zio" %% "zio-blocks" % "@VERSION@"`
 
 ---
