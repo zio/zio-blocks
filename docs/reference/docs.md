@@ -7,7 +7,7 @@ ZIO Blocks Markdown is a **pure, zero-dependency GitHub Flavored Markdown librar
 
 Here are the core type definitions:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
@@ -1203,7 +1203,7 @@ rendered
 
 Render individual blocks:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -1212,7 +1212,7 @@ Renderer.renderBlock(block: Block): String
 
 Render inline content:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -1285,7 +1285,7 @@ html
 
 Render content-only HTML without wrapper tags:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
@@ -1337,7 +1337,7 @@ object TerminalRenderer
 ### Rendering
 
 Render a document to ANSI-colored terminal output:
-```scala mdoc:compile-only
+```scala
 import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
