@@ -47,9 +47,9 @@ The OpenAPI module follows a clear workflow:
 
 **1. Define your data types** using ZIO Blocks `Schema`:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 import zio.blocks.schema._
@@ -69,11 +69,9 @@ object ErrorResponse {
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
-
-import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.schema._
 
 val api = OpenAPI(
   openapi = "3.1.0",
@@ -152,7 +150,7 @@ val api = OpenAPI(
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 import zio.blocks.openapi.OpenAPICodec._
@@ -201,10 +199,16 @@ OpenAPI (root document)
 
 Avoid duplicating schema definitions by moving them to `components.schemas`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
+
+case class User(id: Int, name: String, email: String)
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
 
 val userSchemaComponent = Schema[User].toRefSchema
 // Returns: (ReferenceOr.Ref(...), ("User", SchemaObject(...)))
@@ -220,13 +224,14 @@ val userSchemaComponent = Schema[User].toRefSchema
 
 Prefer `Ref` for reusable schemas; use `Value` for simple, one-off schemas:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
+import zio.blocks.schema._
 
 // Reusable: use Ref
-val userRef = ReferenceOr.Ref(Reference("$ref" -> "#/components/schemas/User"))
+val userRef = ReferenceOr.Ref(Reference(`$ref` = "#/components/schemas/User"))
 
 // One-off: use Value
 val simpleString = ReferenceOr.Value(Schema[String].toOpenAPISchema)
@@ -238,7 +243,7 @@ Define authentication methods in `components.securitySchemes`:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val apiKeyScheme = SecurityScheme.APIKey(
@@ -272,7 +277,7 @@ Distinguish parameter locations using `ParameterLocation`:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val pathParam = Parameter(
@@ -327,7 +332,7 @@ To construct an `OpenAPI` document:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val minimalApi = OpenAPI(
@@ -345,7 +350,7 @@ Encode an `OpenAPI` document to `Json` AST:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 import zio.blocks.openapi.OpenAPICodec._
@@ -357,7 +362,7 @@ Decode from `Json` AST back to an `OpenAPI` instance:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val decoded: OpenAPI = openAPICodec.decodeValue(encoded)
@@ -385,7 +390,7 @@ Optional fields:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val info = Info(
@@ -425,7 +430,7 @@ To define a path with multiple operations:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val userPaths = Paths(ChunkMap(
@@ -514,7 +519,7 @@ With summary, description, and parameters:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val getUser = Operation(
@@ -573,7 +578,7 @@ Path parameter (required):
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val idPathParam = Parameter(
@@ -589,7 +594,7 @@ Query parameter (optional with default):
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val limitQueryParam = Parameter(
@@ -605,7 +610,7 @@ Header parameter:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val authHeaderParam = Parameter(
@@ -634,7 +639,7 @@ Key fields:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val createUserBody = RequestBody(
@@ -664,7 +669,7 @@ Key fields:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val successResponse = Response(
@@ -692,7 +697,7 @@ val errorResponse = Response(
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val responses = Responses(ChunkMap(
@@ -729,7 +734,7 @@ With schema and example:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val jsonMedia = MediaType(
@@ -746,7 +751,7 @@ For form data:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val formMedia = MediaType(
@@ -779,7 +784,7 @@ Key fields:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val components = Components(
@@ -842,7 +847,7 @@ Directly from a `Schema[A]`:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val userSchema = Schema[User].toOpenAPISchema
@@ -853,7 +858,7 @@ Or with additional OpenAPI metadata:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val enrichedSchema = SchemaObject(
@@ -884,7 +889,7 @@ Use the `SchemaOps` extension methods on any `Schema[A]`:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val schemaObj: SchemaObject = Schema[User].toOpenAPISchema
@@ -911,7 +916,7 @@ Prefer `Ref` for reusable components:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val userRef = ReferenceOr.Ref(Reference("$ref" -> "#/components/schemas/User"))
@@ -925,7 +930,7 @@ Use `Value` for inline, one-off definitions:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val inlineUser = ReferenceOr.Value(Schema[User].toOpenAPISchema)
@@ -940,7 +945,7 @@ val inlineError = ReferenceOr.Value(Response(
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 def describeRef[A](ref: ReferenceOr[A]): String = ref match {
@@ -970,7 +975,7 @@ API Key authentication:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val apiKeySecurity = SecurityScheme.APIKey(
@@ -984,7 +989,7 @@ HTTP Bearer token:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val bearerSecurity = SecurityScheme.HTTP(
@@ -998,7 +1003,7 @@ OAuth 2.0:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val oauthSecurity = SecurityScheme.OAuth2(
@@ -1024,7 +1029,7 @@ OpenID Connect:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val oidcSecurity = SecurityScheme.OpenIdConnect(
@@ -1051,7 +1056,7 @@ Simple discriminator by property name:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val discriminator = Discriminator(
@@ -1064,7 +1069,7 @@ With explicit value-to-schema mapping:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val mappedDiscriminator = Discriminator(
@@ -1101,7 +1106,7 @@ Single static server:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val server = Server(
@@ -1115,7 +1120,7 @@ Server with variables (showing structure without reserved keywords):
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val variableServer = Server(
@@ -1162,7 +1167,7 @@ Key fields:
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val userTag = Tag(
@@ -1189,7 +1194,7 @@ All types support custom `x-*` extension fields for vendor-specific metadata. Th
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val operationWithExtensions = Operation(
@@ -1216,7 +1221,7 @@ All OpenAPI types have `Schema.derived` instances, enabling serialization throug
 
 ```scala
 import zio.blocks.openapi._
-import zio.blocks.markdown._
+import zio.blocks.docs._
 import zio.blocks.chunk._
 
 val openAPISchema = Schema[OpenAPI]
