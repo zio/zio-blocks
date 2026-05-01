@@ -926,6 +926,9 @@ val emailLink = Autolink("user@example.com", isEmail = true)
 Heading levels from H1 to H6:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
 
 object HeadingLevel {
@@ -978,6 +981,9 @@ HeadingLevel.H1.value == 1
 Table column alignment specification:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Alignment extends Product with Serializable
 
 object Alignment {
