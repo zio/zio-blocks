@@ -411,7 +411,7 @@ val doc2 = Doc(Chunk(Paragraph(Chunk(Text("Hello World")))))
 assert(doc1 == doc2)  // Equal after normalization
 ```
 
-Hash code is computed from the normalized form for consistency with `equals`.
+Hash code computes from the normalized form for consistency with `equals`.
 
 ---
 
@@ -629,7 +629,7 @@ An inline-level markdown element:
 sealed trait Inline extends Product with Serializable
 ```
 
-Inline is a sealed trait with concrete subtypes (defined both in object and at top level for API compatibility).
+Inline is a sealed trait with concrete subtypes, defined both in object and at top level for API compatibility.
 
 ### Text
 
