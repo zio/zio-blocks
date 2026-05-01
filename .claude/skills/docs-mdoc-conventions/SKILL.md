@@ -8,6 +8,19 @@ allowed_tools: Read, Glob, Grep
 
 All Scala code blocks must have proper "mdoc" modifiers (e.g., `mdoc:compile-only`, `mdoc:silent`, etc.). Look at the "Choosing the Right Modifier" section below to pick the correct one based on your use case.
 
+**❌ Bad:**
+
+```scala
+// snippet source code
+```
+
+**✅ Good:**
+
+```scala mdoc
+// snippet source code
+```
+
+
 **Exception:** Data type definitions use plain `` ```scala `` without mdoc modifiers — they are structural illustrations, not executable examples.
 
 ## Modifiers & Rules
