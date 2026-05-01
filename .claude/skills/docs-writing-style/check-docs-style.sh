@@ -6,12 +6,19 @@
 # Rules checked (from docs-writing-style/SKILL.md):
 #   Rule 2:  Present tense only (detect past-tense verbs in prose)
 #   Rule 3:  No padding/filler phrases
+#   Rule 4:  Bullet capitalization (full-sentence bullets must start with capital)
+#   Rule 7:  Link to related docs (enforce relative paths for doc links)
 #   Rule 8:  Always qualify method/constructor names
 #   Rule 10: No duplicate markdown heading
+#   Rule 11: Heading hierarchy (no skipped levels)
 #   Rule 12: No bare subheaders (### or #### immediately after ## or ###)
+#   Rule 13: No lone subheaders (subsections must have ≥2 children)
 #   Rule 15: Code block preceded by prose sentence ending with ":", and bridging prose between consecutive code blocks
+#   Rule 16: Always include imports in code blocks
 #   Rule 18: Prefer "val" over "var" in Scala code blocks
+#   Rule 22: Table column alignment (proper padding in separators)
 #   Rule 23: Default to Scala 2.13.x syntax (no Scala 3 glob imports)
+#   Rule 25: Use @VERSION@ placeholder for version strings
 
 set -euo pipefail
 
@@ -264,6 +271,155 @@ count_violations "$(awk '
   }
   in_scala && /import[[:space:]]+.*\.\*/ {
     print FILENAME ":" NR ": [Rule 23] Scala 3 glob import syntax detected (use \"import x._\" for Scala 2.13, not \"import x.*\")"
+  }
+' "$FILE")"
+
+# Rule 25: Use @VERSION@ placeholder for version strings in dependency declarations
+count_violations "$(awk '
+  /^```/ { in_code = !in_code; next }
+  in_code && /libraryDependencies/ && /("[0-9]+\.[0-9]+\.[0-9]+"|"<version>")/ {
+    if ($0 ~ /"[0-9]+\.[0-9]+\.[0-9]+"/) {
+      print FILENAME ":" NR ": [Rule 25] hardcoded version number (use \"@VERSION@\" placeholder)"
+    } else if ($0 ~ /"<version>"/) {
+      print FILENAME ":" NR ": [Rule 25] use \"@VERSION@\" placeholder instead of \"<version>\""
+    }
+  }
+' "$FILE")"
+
+# Rule 22: Table column alignment - check separator row has proper spacing
+count_violations "$(awk '
+  /^\|.*\|.*\|/ {
+    # Is this a table separator row?
+    if ($0 ~ /\|\s*-+\s*\|/) {
+      in_table = 1
+      if (NR > 1) {
+        prev_line = prev
+      }
+      # Check if previous line was table header (has |)
+      if (prev ~ /^\|.*\|/) {
+        # Count dashes in separator vs chars in header
+        gsub(/\| */, "|", $0)  # normalize pipes
+        header_cols = gsub(/\|/, "|", prev)
+        sep_cols = gsub(/\|/, "|", $0)
+
+        # Simple check: separator should have proper alignment
+        # Look for misaligned columns (single dash with no padding)
+        if ($0 ~ /\| *-+ *\| *- *\|/ || $0 ~ /\| *- *\| *-+ *\|/) {
+          # Has inconsistent dash patterns - likely misaligned
+          print FILENAME ":" NR ": [Rule 22] table column alignment - use consistent padding (e.g., | ----- | )"
+        }
+      }
+    }
+    prev = $0
+    next
+  }
+  { prev = $0 }
+' "$FILE")"
+
+# Rule 16: Code blocks must include imports
+count_violations "$(awk '
+  /^```(scala|python|javascript|typescript|java|go|rust)/ {
+    lang = substr($1, 4)
+    in_code = 1
+    code_start = NR
+    has_import = 0
+    next
+  }
+  /^```/ && in_code {
+    in_code = 0
+    if (!has_import) {
+      print FILENAME ":" code_start ": [Rule 16] code block missing import statements"
+    }
+    next
+  }
+  in_code && /^(import|from|require|use|package)/ {
+    has_import = 1
+  }
+' "$FILE")"
+
+# Rule 4: Bullet capitalization - full-sentence bullets must start with capital letter
+count_violations "$(awk '
+  /^```/ { in_code = !in_code; next }
+  in_code { next }
+  /^[[:space:]]*[-*][[:space:]]+[a-z]/ && !/^[[:space:]]*[-*][[:space:]]+\`[a-z]/ {
+    # Bullet starts with lowercase letter (not a backtick identifier)
+    # Check if it looks like a full sentence (ends with period/colon)
+    if ($0 ~ /\.$|:$|[?!]$/) {
+      print FILENAME ":" NR ": [Rule 4] bullet point is full sentence but starts with lowercase"
+    }
+  }
+' "$FILE")"
+
+# Rule 11: Heading hierarchy - no skipped levels (## cannot jump to ####)
+count_violations "$(awk '
+  /^(#+)[[:space:]]/ {
+    match($0, /^(#+)/)
+    current_level = length(substr($0, 1, RLENGTH))
+
+    if (prev_level > 0) {
+      # Check for level jumps
+      if (prev_level == 2 && current_level == 4) {
+        print FILENAME ":" NR ": [Rule 11] heading hierarchy skipped (## jumps directly to ####, use ### in between)"
+      } else if (prev_level == 3 && current_level > 4) {
+        print FILENAME ":" NR ": [Rule 11] heading hierarchy skipped (heading level jumped)"
+      }
+    }
+    prev_level = current_level
+  }
+' "$FILE")"
+
+# Rule 13: No lone subheaders - subsections must have at least 2 children or be promoted
+count_violations "$(awk '
+  /^(#+)[[:space:]]/ {
+    match($0, /^(#+)/)
+    current_level = length(substr($0, 1, RLENGTH))
+    current_line = NR
+    header_text = substr($0, current_level + 2)
+
+    # Track headers for lone child detection
+    if (prev_level > 0 && prev_level < current_level) {
+      # This is a subsection of prev header
+      child_count[prev_header_line]++
+    }
+
+    # When we move to same or higher level, check if previous was lone
+    if (prev_level > current_level && child_count[prev_header_line] == 1) {
+      print FILENAME ":" prev_header_line ": [Rule 13] lone subheader (must have ≥2 children or be promoted to parent level)"
+    }
+
+    prev_level = current_level
+    prev_header_line = current_line
+  }
+  END {
+    # Check last header
+    if (prev_level > 0 && child_count[prev_header_line] == 1) {
+      print FILENAME ":" prev_header_line ": [Rule 13] lone subheader (must have ≥2 children or be promoted to parent level)"
+    }
+  }
+' "$FILE")"
+
+# Rule 7: Link to related docs - enforce relative paths (./type-name.md not absolute URLs)
+count_violations "$(awk '
+  /^```/ { in_code = !in_code; next }
+  in_code { next }
+  {
+    # Find markdown links [text](url)
+    while (match($0, /\[([^\]]+)\]\(([^)]+)\)/)) {
+      url = substr($0, RSTART + RLENGTH - length(substr($0, RSTART + RLENGTH)), length(substr($0, RSTART + RLENGTH)) - 1)
+      # Extract the URL from the matched pattern
+      link_part = substr($0, RSTART, RLENGTH)
+      if (match(link_part, /\(([^)]+)\)/)) {
+        url = substr(link_part, RSTART + 1, RLENGTH - 2)
+        # Check if it looks like a doc link (not external URL, not anchor)
+        if (url !~ /^http/ && url !~ /^#/ && url ~ /\.md$/) {
+          # Is it a relative path?
+          if (url ~ /^\//) {
+            print FILENAME ":" NR ": [Rule 7] use relative path instead of absolute (use \"./type-name.md\" not \"/type-name.md\")"
+          }
+        }
+      }
+      $0 = substr($0, RSTART + RLENGTH)
+    }
   }
 ' "$FILE")"
 
