@@ -47,7 +47,7 @@ The OpenAPI module follows a clear workflow:
 
 **1. Define your data types** using ZIO Blocks `Schema`:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -67,7 +67,7 @@ object ErrorResponse {
 
 **2. Create an OpenAPI document** by composing types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -150,7 +150,7 @@ val api = OpenAPI(
 
 **3. Serialize to JSON** for tools to consume:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -162,7 +162,7 @@ val json = openAPICodec.encodeValue(api)
 
 **4. Render or serve** the JSON (e.g., to Swagger UI):
 
-```scala
+```scala mdoc:compile-only
 // Pseudo-code: render json to string and serve at GET /openapi.json
 val jsonString = json.render // Produces JSON string
 ```
