@@ -1,6 +1,7 @@
 ---
 id: docs
-title: "Docs (Markdown)"
+title: "ZIO Blocks Docs (Markdown)"
+sidebar_title: "ZIO Blocks Docs"
 ---
 
 ZIO Blocks Markdown is a **pure, zero-dependency GitHub Flavored Markdown library** providing an immutable ADT for markdown documents, a strict parser with error handling, multiple renderers (GFM markdown, HTML, terminal), and a compile-time validated string interpolator. Core types: `Doc`, `Block`, `Inline`, `Parser`, `Renderer`, `ToMarkdown`.
