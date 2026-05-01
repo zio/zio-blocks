@@ -424,7 +424,13 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
       "-Wconf:msg=being leaked from scope:s",
       // Alphanumeric infix in tests (andThen, etc.)
       "-Wconf:msg=Alphanumeric method.*infix:s"
-    )
+    ),
+    Compile / doc / scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => Seq("-no-link-warnings")
+        case _            => Seq.empty
+      }
+    }
   )
   .settings(
     libraryDependencies ++= Seq(
