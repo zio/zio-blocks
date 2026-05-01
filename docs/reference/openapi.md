@@ -201,7 +201,7 @@ OpenAPI (root document)
 
 Avoid duplicating schema definitions by moving them to `components.schemas`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -220,7 +220,7 @@ val userSchemaComponent = Schema[User].toRefSchema
 
 Prefer `Ref` for reusable schemas; use `Value` for simple, one-off schemas:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -236,7 +236,7 @@ val simpleString = ReferenceOr.Value(Schema[String].toOpenAPISchema)
 
 Define authentication methods in `components.securitySchemes`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -270,7 +270,7 @@ val components = Components(
 
 Distinguish parameter locations using `ParameterLocation`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
