@@ -25,7 +25,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | 🚧 In Development |
+| **Streams** | Pull-based streaming primitives | ✅ Available |
 
 ## Core Principles
 
