@@ -700,6 +700,9 @@ val table = Table(
 An inline-level markdown element:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Inline extends Product with Serializable
 ```
 
