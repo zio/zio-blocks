@@ -316,14 +316,14 @@ The `script` and `style` elements have specialized APIs for handling inline code
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
-// Inline JavaScript
-val inlineScript = script().inlineJs("console.log('Hello');")
+// Inline JavaScript should be produced by js"..."
+val inlineScript = script().inlineJs(js"console.log('Hello');")
 
 // External JavaScript
 val externalScript = script().externalJs("/app.js")
 
-// Inline CSS
-val inlineStyle = style().inlineCss("body { margin: 0; }")
+// Inline CSS should be produced by css"..."
+val inlineStyle = style().inlineCss(css"body { margin: 0; }")
 
 // With Css ADT
 val styleWithAdt = style().inlineCss(
@@ -369,7 +369,7 @@ println(withAttrs.render)
 ```
 
 :::caution
-The `html""` interpolator requires a **single root element**. Templates with multiple top-level nodes produce an error at runtime.
+The `html""` interpolator requires a **single root element**. On Scala 3, static templates with multiple top-level nodes fail at compile time; dynamic templates are still validated when the interpolator is evaluated.
 :::
 
 The interpolator automatically escapes values to prevent XSS:
@@ -666,9 +666,9 @@ println(page.render(indent = 2))
 
 `zio-blocks-html` is designed for efficient HTML generation with Scala 3 compile-time optimizations for string interpolators.
 
-### Compile-Time Constant Folding (Scala 3)
+### Compile-Time Validation (Scala 3)
 
-On Scala 3, interpolators with no variables are folded to compile-time constants, eliminating runtime overhead:
+On Scala 3, interpolators with no variables are validated at compile time and can avoid typeclass dispatch for interpolation arguments:
 
 ```scala
 // What you write:
@@ -680,7 +680,7 @@ val styles = Css.Raw("margin: 10px; padding: 5px")
 
 ### Position-Aware HTML Interpolation (Scala 3)
 
-The `html""` interpolator analyzes the template structure at compile time to summon the correct typeclass for each interpolation position. This ensures correct escaping with zero runtime checks.
+The `html""` interpolator analyzes interpolation positions at compile time to summon the correct typeclass for each value. Static Scala 3 templates are also validated for the single-root requirement before compilation succeeds.
 
 ### Runtime Characteristics
 

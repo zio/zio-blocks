@@ -86,7 +86,7 @@ object BodySpec extends HttpModelBaseSpec {
         val body  = Body.fromArray(bytes)
         assertTrue(body.length == Some(3L))
       },
-      test("wraps array without defensive copy — mutation is visible") {
+      test("aliases the supplied mutable array") {
         val bytes = Array[Byte](1, 2, 3)
         val body  = Body.fromArray(bytes)
         bytes(0) = 99.toByte

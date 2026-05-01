@@ -184,17 +184,17 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val s: Dom.Element.Style = style()
         assertTrue(s.tag == "style")
       },
-      test("script renders JS without escaping") {
-        assertTrue(script("var x = 1 < 2;").render == "<script>var x = 1 < 2;</script>")
+      test("script renders typed JS without escaping") {
+        assertTrue(script(Js("var x = 1 < 2;")).render == "<script>var x = 1 < 2;</script>")
       },
-      test("style renders CSS without escaping") {
-        assertTrue(style("div > p { color: red; }").render == "<style>div > p { color: red; }</style>")
+      test("style renders typed CSS without escaping") {
+        assertTrue(style(Css.Raw("div > p { color: red; }")).render == "<style>div > p { color: red; }</style>")
       },
       test("script with attributes") {
         assertTrue(script(src := "app.js").render == """<script src="app.js"></script>""")
       },
       test("script inlineJs convenience") {
-        val s = script().inlineJs("alert('hello')")
+        val s = script().inlineJs(Js("alert('hello')"))
         assertTrue(s.render == "<script>alert('hello')</script>")
       },
       test("script externalJs convenience") {
@@ -202,7 +202,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(s.render == """<script src="app.js"></script>""")
       },
       test("style inlineCss convenience") {
-        val s = style().inlineCss("body { margin: 0; }")
+        val s = style().inlineCss(Css.Raw("body { margin: 0; }"))
         assertTrue(s.render == "<style>body { margin: 0; }</style>")
       },
       test("script inlineJs with Js type") {
@@ -216,13 +216,11 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("script/style modifier type coercion")(
       test("script with Dom.Text child preserves as Script") {
-        val genericChild: Dom = Dom.Text("code")
-        val s                 = script(genericChild)
+        val s = script(Js("code"))
         assertTrue(s.tag == "script", s.render == "<script>code</script>")
       },
       test("style with Dom.Text child preserves as Style") {
-        val genericChild: Dom = Dom.Text("css")
-        val s                 = style(genericChild)
+        val s = style(Css.Raw("css"))
         assertTrue(s.tag == "style", s.render == "<style>css</style>")
       },
       test("element with no modifiers creates empty element") {
@@ -727,20 +725,20 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       }
     ),
     suite("HtmlElements constructor with script/style type conversions")(
-      test("script with string modifier creates Script element") {
-        val s = script("console.log(1)")
+      test("script with Js modifier creates Script element") {
+        val s = script(Js("console.log(1)"))
         assertTrue(s.tag == "script", s.render == "<script>console.log(1)</script>")
       },
       test("script with attribute modifier creates Script element") {
         val s = script(src := "app.js")
         assertTrue(s.tag == "script", s.render == """<script src="app.js"></script>""")
       },
-      test("style with string modifier creates Style element") {
-        val s = style(".cls { color: red }")
+      test("style with Css modifier creates Style element") {
+        val s = style(Css.Raw(".cls { color: red }"))
         assertTrue(s.tag == "style", s.render == "<style>.cls { color: red }</style>")
       },
       test("script with multiple modifiers") {
-        val s = script(`type` := "module", "import x from 'y';")
+        val s = script(`type` := "module", Js("import x from 'y';"))
         assertTrue(
           s.render == """<script type="module">import x from 'y';</script>"""
         )
@@ -841,13 +839,11 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("script and style with AddChildren")(
       test("script with Seq[Dom] children modifier") {
-        val children: Seq[Dom] = Seq(Dom.Text("var a = 1;"), Dom.Text("var b = 2;"))
-        val result             = script(children).render
+        val result = script(Js("var a = 1;var b = 2;")).render
         assertTrue(result == "<script>var a = 1;var b = 2;</script>")
       },
       test("style with Seq[Dom] children modifier") {
-        val children: Seq[Dom] = Seq(Dom.Text("body {}"), Dom.Text("p {}"))
-        val result             = style(children).render
+        val result = style(Css.Raw("body {}p {}")).render
         assertTrue(result == "<style>body {}p {}</style>")
       }
     )

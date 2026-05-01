@@ -97,9 +97,9 @@ object RequestSpec extends HttpModelBaseSpec {
           ct.get == ContentType.`application/json`
         )
       },
-      test("returns None when no content-type header") {
+      test("falls back to body content type when no content-type header is present") {
         val request = Request.get(URL.fromPath(Path.root))
-        assertTrue(request.contentType.isEmpty)
+        assertTrue(request.contentType == Some(ContentType.`application/octet-stream`))
       }
     ),
     suite("path")(
@@ -212,7 +212,7 @@ object RequestSpec extends HttpModelBaseSpec {
       test("replaces body") {
         val newBody = Body.fromString("new body")
         val request = Request.get(URL.fromPath(Path.root)).body(newBody)
-        assertTrue(request.body == newBody)
+        assertTrue(request.body == newBody, request.headers.rawGet("content-type") == Some(newBody.contentType.render))
       }
     ),
     suite("url (setter)")(

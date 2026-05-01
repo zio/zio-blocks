@@ -104,8 +104,8 @@ object ResponseSpec extends HttpModelBaseSpec {
           ct.get == ContentType.`text/plain`
         )
       },
-      test("returns None when no content-type header") {
-        assertTrue(Response.ok.contentType.isEmpty)
+      test("falls back to body content type when no content-type header is present") {
+        assertTrue(Response.ok.contentType == Some(ContentType.`application/octet-stream`))
       }
     ),
     suite("Response.badRequest")(
@@ -138,7 +138,9 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.text("hello world")
         assertTrue(
           response.status == Status.Ok,
-          response.body == Body.fromString("hello world")
+          response.body == Body.fromString("hello world"),
+          response.headers.rawGet("content-type") == Some("text/plain; charset=UTF-8"),
+          response.contentType == Some(response.body.contentType)
         )
       }
     ),
@@ -147,7 +149,8 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.json("{\"key\": \"value\"}")
         assertTrue(
           response.status == Status.Ok,
-          response.headers.rawGet("content-type") == Some("application/json")
+          response.headers.rawGet("content-type") == Some("application/json"),
+          response.contentType == Some(ContentType.`application/json`)
         )
       }
     ),
@@ -210,7 +213,10 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("replaces body") {
         val newBody  = Body.fromString("new body")
         val response = Response.ok.body(newBody)
-        assertTrue(response.body == newBody)
+        assertTrue(
+          response.body == newBody,
+          response.headers.rawGet("content-type") == Some(newBody.contentType.render)
+        )
       }
     ),
     suite("Response status (setter)")(

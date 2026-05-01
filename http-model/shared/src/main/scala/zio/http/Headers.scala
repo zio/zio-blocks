@@ -16,6 +16,8 @@
 
 package zio.http
 
+import java.util.Locale
+
 import zio.blocks.chunk.Chunk
 
 /**
@@ -23,10 +25,9 @@ import zio.blocks.chunk.Chunk
  *
  * Header names are stored pre-lowercased for case-insensitive matching.
  * Multiple headers with the same name are allowed (multi-value). The `parsed`
- * array is populated lazily on the first typed `get` call and is monotonic,
- * making it thread-safe without locks. Parse failures are not cached: `get`
- * returns `None` but a subsequent call may succeed if the underlying raw value
- * has been corrected via `set`.
+ * array is populated lazily on typed `get` calls. The cache is an optimization
+ * only: duplicate benign parses are possible if the same `Headers` is read
+ * concurrently.
  */
 final class Headers private[http] (
   private val names: Array[String],
@@ -58,7 +59,8 @@ final class Headers private[http] (
   }
 
   def rawGet(name: String): Option[String] = {
-    val target = name.toLowerCase
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
       if (names(i) == target) return Some(rawValues(i))
@@ -68,7 +70,8 @@ final class Headers private[http] (
   }
 
   def rawGetAll(name: String): Chunk[String] = {
-    val target  = name.toLowerCase
+    Headers.validateNameOrThrow(name)
+    val target  = name.toLowerCase(Locale.ROOT)
     val builder = Chunk.newBuilder[String]
     var i       = 0
     while (i < size) {
@@ -102,42 +105,48 @@ final class Headers private[http] (
   }
 
   def add(name: String, value: String): Headers = {
+    Headers.validateNameOrThrow(name)
+    Headers.validateValueOrThrow(value)
     val newSize      = size + 1
     val newNames     = new Array[String](newSize)
     val newRawValues = new Array[String](newSize)
     val newParsed    = new Array[AnyRef](newSize)
     System.arraycopy(names, 0, newNames, 0, size)
     System.arraycopy(rawValues, 0, newRawValues, 0, size)
-    newNames(size) = name.toLowerCase
+    newNames(size) = name.toLowerCase(Locale.ROOT)
     newRawValues(size) = value
     new Headers(newNames, newRawValues, newParsed, newSize)
   }
 
   def set(name: String, value: String): Headers = {
-    val lowerName = name.toLowerCase
+    Headers.validateNameOrThrow(name)
+    Headers.validateValueOrThrow(value)
+    val lowerName = name.toLowerCase(Locale.ROOT)
     val builder   = HeadersBuilder.make(size)
     var i         = 0
     while (i < size) {
-      if (names(i) != lowerName) builder.addRaw(names(i), rawValues(i))
+      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
       i += 1
     }
-    builder.addRaw(lowerName, value)
+    builder.add(lowerName, value)
     builder.build()
   }
 
   def remove(name: String): Headers = {
-    val lowerName = name.toLowerCase
+    Headers.validateNameOrThrow(name)
+    val lowerName = name.toLowerCase(Locale.ROOT)
     val builder   = HeadersBuilder.make(size)
     var i         = 0
     while (i < size) {
-      if (names(i) != lowerName) builder.addRaw(names(i), rawValues(i))
+      if (names(i) != lowerName) builder.add(names(i), rawValues(i))
       i += 1
     }
     builder.build()
   }
 
   def has(name: String): Boolean = {
-    val target = name.toLowerCase
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
       if (names(i) == target) return true
@@ -167,12 +176,12 @@ final class Headers private[http] (
     val builder = HeadersBuilder.make(size + other.size)
     var i       = 0
     while (i < size) {
-      builder.addRaw(names(i), rawValues(i))
+      builder.add(names(i), rawValues(i))
       i += 1
     }
     i = 0
     while (i < other.size) {
-      builder.addRaw(other.names(i), other.rawValues(i))
+      builder.add(other.names(i), other.rawValues(i))
       i += 1
     }
     builder.build()
@@ -208,6 +217,61 @@ final class Headers private[http] (
 object Headers {
   val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
 
+  /**
+   * Validates a header field name.
+   *
+   * Header names must be non-empty HTTP token strings. This method is suitable
+   * for checking user-supplied names before constructing or mutating
+   * [[Headers]]; the mutating helpers enforce the same invariant.
+   */
+  def validateName(name: String): Either[String, Unit] = {
+    if (name.isEmpty) return Left("Header name cannot be empty")
+    var i = 0
+    while (i < name.length) {
+      val c = name.charAt(i)
+      if (!isTokenChar(c)) return Left(s"Invalid header name: $name")
+      i += 1
+    }
+    Right(())
+  }
+
+  /**
+   * Validates a raw header field value.
+   *
+   * Values may not contain carriage return or line feed characters. Rejecting
+   * CR/LF prevents response/request splitting and header-injection attacks when
+   * values are rendered into an HTTP message.
+   */
+  def validateValue(value: String): Either[String, Unit] = {
+    var i = 0
+    while (i < value.length) {
+      val c = value.charAt(i)
+      if (c == '\r' || c == '\n') return Left("Header value cannot contain CR or LF")
+      i += 1
+    }
+    Right(())
+  }
+
+  private[http] def validateNameOrThrow(name: String): Unit =
+    validateName(name) match {
+      case Right(()) => ()
+      case Left(err) => throw new IllegalArgumentException(err)
+    }
+
+  private[http] def validateValueOrThrow(value: String): Unit =
+    validateValue(value) match {
+      case Right(()) => ()
+      case Left(err) => throw new IllegalArgumentException(err)
+    }
+
+  private def isTokenChar(c: Char): Boolean =
+    (c >= 'A' && c <= 'Z') ||
+      (c >= 'a' && c <= 'z') ||
+      (c >= '0' && c <= '9') ||
+      c == '!' || c == '#' || c == '$' || c == '%' || c == '&' || c == '\'' ||
+      c == '*' || c == '+' || c == '-' || c == '.' || c == '^' || c == '_' ||
+      c == '`' || c == '|' || c == '~'
+
   def apply(pairs: (String, String)*): Headers = {
     val builder = HeadersBuilder.make(pairs.size)
     pairs.foreach { case (k, v) => builder.add(k, v) }
@@ -222,15 +286,10 @@ final class HeadersBuilder private (
 ) {
 
   def add(name: String, value: String): Unit = {
+    Headers.validateNameOrThrow(name)
+    Headers.validateValueOrThrow(value)
     ensureCapacity()
-    names(len) = name.toLowerCase
-    rawValues(len) = value
-    len += 1
-  }
-
-  private[http] def addRaw(lowerName: String, value: String): Unit = {
-    ensureCapacity()
-    names(len) = lowerName
+    names(len) = name.toLowerCase(Locale.ROOT)
     rawValues(len) = value
     len += 1
   }

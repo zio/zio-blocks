@@ -54,11 +54,11 @@ You've built your entire API client around ZIO's HTTP library, but your team dec
 
 `zio-http-model` separates **protocol concerns** (representing HTTP messages) from **effect concerns** (actually sending/receiving them). It provides:
 
-- **Pure immutable data types** — `Request`, `Response`, `URL`, `Headers`, `Body` are just data. No effects, no I/O, no surprises. You can use them anywhere: tests, serialization, caching, multiple effect systems.
+- **Pure immutable data types** — `Request`, `Response`, `URL`, `Headers`, and chunk-backed `Body` values are just data. Stream-backed bodies are still effect-free, but collecting them may consume the underlying stream.
 
-- **Zero dependencies beyond Chunk** — Not coupled to ZIO, Akka, or any runtime. Your HTTP data structures work in any Scala application.
+- **No dependency on an HTTP runtime** — Not coupled to ZIO HTTP, Akka, or a server/client implementation. The module depends on ZIO Blocks primitives such as Chunk, MediaType, and Stream.
 
-- **Incremental, lazy parsing** — Headers are parsed on first access and cached. You pay only for what you use.
+- **Incremental, lazy parsing** — Headers are parsed on first access and cached as an optimization. You pay only for what you use.
 
 - **Efficient, composable** — Headers and QueryParams use parallel array-backed collections for fast lookups. Types compose naturally without forcing a single architectural path.
 
@@ -79,7 +79,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x
+Supported Scala versions: Scala 3.x only. The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 
@@ -271,7 +271,7 @@ m.toString   // "GET"
 
 ## Status
 
-`Status` is an opaque type alias for `Int` in Scala 3 (AnyVal wrapper in Scala 2.13), providing zero-allocation HTTP status codes with predefined constants for all standard codes (1xx–5xx).
+`Status` is an opaque type alias for `Int`, providing zero-allocation HTTP status codes with predefined constants for all standard codes (1xx–5xx).
 
 ```scala
 opaque type Status = Int  // Scala 3
@@ -680,7 +680,7 @@ val fromString = Body.fromString("Hello, World!", Charset.UTF8)
 // Content-Type: text/plain; charset=UTF-8
 ```
 
-`Body.fromArray` creates a body with default `application/octet-stream` content type:
+`Body.fromArray` creates a body with default `application/octet-stream` content type without copying the supplied array. Later mutations to the array are visible through the body:
 
 ```scala mdoc:compile-only
 import zio.http.Body
@@ -864,12 +864,15 @@ val cookies = zio.Chunk(
 final case class ResponseCookie(
   name: String,
   value: String,
+  expires: Option[String] = None,
   domain: Option[String] = None,
   path: Option[Path] = None,
   maxAge: Option[Long] = None,
   isSecure: Boolean = false,
   isHttpOnly: Boolean = false,
-  sameSite: Option[SameSite] = None
+  sameSite: Option[SameSite] = None,
+  isPartitioned: Boolean = false,
+  priority: Option[CookiePriority] = None
 )
 ```
 
@@ -887,7 +890,8 @@ val sessionCookie = ResponseCookie(
   maxAge = Some(3600),           // 1 hour (in seconds)
   isSecure = true,               // HTTPS only (prevents transmission over HTTP)
   isHttpOnly = true,             // No JavaScript access (prevents XSS theft)
-  sameSite = Some(SameSite.Strict) // Prevent CSRF attacks
+  sameSite = Some(SameSite.Strict), // Prevent CSRF attacks
+  priority = Some(CookiePriority.High)
 )
 ```
 
@@ -911,14 +915,14 @@ import zio.http.SameSite
 
 val strict = SameSite.Strict  // Only same-site requests (default, safest)
 val lax = SameSite.Lax        // Top-level navigations allowed (links, forms)
-val none = SameSite.None_     // Cross-site allowed (requires Secure flag)
+val none = SameSite.None_     // Cross-site allowed; render requires Secure flag
 ```
 
 ---
 
 ## Form
 
-`Form` represents URL-encoded form data as key-value pairs:
+`Form` represents `application/x-www-form-urlencoded` form data as key-value pairs. Spaces are encoded as `+`, and `+` decodes back to a space.
 
 ```scala
 final case class Form(entries: Chunk[(String, String)])
@@ -963,7 +967,7 @@ import zio.http.Form
 val form = Form("key1" -> "value1", "key2" -> "value2")
 
 val entries = form.entries      // Chunk[(String, String)] of all entries
-val encoded = form.encode       // "key1=value1&key2=value2" (percent-encoded for URL)
+val encoded = form.encode       // "key1=value1&key2=value2" (form-url-encoded)
 ```
 
 ---
@@ -1325,7 +1329,7 @@ val body = Body(data = Stream[Byte]) // Yields chunks as they download
 
 Most HTTP libraries choose Option B for large files — streaming makes sense when you want to process data *as it arrives* without loading everything into memory first.
 
-**But http-model chose Option A: fully materialized bodies.** Here's why.
+**http-model chooses an effect-free stream-backed body.** Here's why.
 
 #### The Streaming Trade-off
 
@@ -1456,4 +1460,3 @@ Shows a realistic HTTP exchange scenario: creating a request with multiple heade
 ```bash
 sbt "http-model-examples/runMain httpmodel.CompleteHttpExchange"
 ```
-

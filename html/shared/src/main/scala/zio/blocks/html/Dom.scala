@@ -344,11 +344,6 @@ object Dom {
       def withAttributes(attrs: Chunk[Attribute]): Script = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Script          = copy(children = kids)
 
-      def inlineJs(code: String): Script = {
-        val escaped = code.replace("</", "<\\/")
-        copy(children = children :+ Dom.Text(escaped))
-      }
-
       def inlineJs(code: Js): Script = {
         val escaped = code.value.replace("</", "<\\/")
         copy(children = children :+ Dom.Text(escaped))
@@ -378,9 +373,6 @@ object Dom {
       private[html] def escapeText: Boolean              = false
       def withAttributes(attrs: Chunk[Attribute]): Style = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Style          = copy(children = kids)
-
-      def inlineCss(code: String): Style =
-        copy(children = children :+ Dom.Text(code))
 
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))

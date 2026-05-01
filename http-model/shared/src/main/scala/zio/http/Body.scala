@@ -63,7 +63,7 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
   def toChunk: Chunk[Byte] =
     stream.knownChunk.getOrElse(stream.runCollect.getOrElse(Chunk.empty))
 
-  /** Materializes the entire stream into an `Array[Byte]`. */
+  /** Materializes the entire stream into a fresh `Array[Byte]`. */
   def toArray: Array[Byte] = toChunk.toArray
 
   /**
@@ -108,10 +108,11 @@ object Body {
     new Body(Stream.fromChunk(chunk), contentType)
 
   /**
-   * Creates a body from a byte array.
+   * Creates a body from a byte array without a defensive copy.
    *
-   * The array is wrapped via `Chunk.fromArray` without a defensive copy. The
-   * resulting body has a known chunk and known length.
+   * The resulting body aliases the supplied mutable array. Mutating the array
+   * after calling this method mutates the body contents too. Use this only when
+   * ownership of the array has been transferred to the body.
    */
   def fromArray(bytes: Array[Byte], contentType: ContentType = ContentType.`application/octet-stream`): Body =
     new Body(Stream.fromChunk(Chunk.fromArray(bytes)), contentType)
