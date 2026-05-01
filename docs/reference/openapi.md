@@ -151,9 +151,12 @@ val json = openAPICodec.encodeValue(api)
 
 **4. Render or serve** the JSON (e.g., to Swagger UI):
 
-```scala
-// Pseudo-code: render json to string and serve at GET /openapi.json
-val jsonString = json.render // Produces JSON string
+```scala mdoc:silent
+import zio.blocks.schema.json._
+```
+
+```scala mdoc
+val jsonString = Json.jsonCodec.encodeToString(json)
 ```
 
 ### Type Relationships Diagram
