@@ -48,6 +48,8 @@ count_violations() {
 count_violations "$(awk '
   /^```/ { in_code = !in_code; next }
   in_code { next }
+  /^[[:space:]]*-[[:space:]]|^[[:space:]]*\*[[:space:]]|^[0-9]+\.[[:space:]]/ { in_list = 1 }
+  in_list && /^[[:space:]]*$/ { in_list = 0 }
   {
     past_verbs = "returned|created|modified|called|used|passed|assigned|defined|calculated|computed|produced|generated|applied|executed"
     if ($0 ~ "\\<(" past_verbs ")\\>") {
@@ -70,6 +72,8 @@ count_violations "$(awk '
 
 # Rule 10: No duplicate markdown heading (# heading duplicating frontmatter title)
 count_violations "$(awk '
+  /^```/ { in_code = !in_code; next }
+  in_code { next }
   /^# / {
     print FILENAME ":" NR ": [Rule 10] markdown heading found (document title comes from frontmatter; start with ## instead)"
   }
