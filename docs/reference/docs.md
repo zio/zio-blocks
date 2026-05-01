@@ -7,7 +7,9 @@ ZIO Blocks Markdown is a **pure, zero-dependency GitHub Flavored Markdown librar
 
 Here are the core type definitions:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 
 sealed trait Block extends Product with Serializable
@@ -37,13 +39,13 @@ Markdown is the de facto standard for documentation, READMEs, and formatted text
 
 Add the dependency to your `build.sbt`:
 
-```scala
+```sbt
 libraryDependencies += "dev.zio" %% "zio-blocks-markdown" % "@VERSION@"
 ```
 
 For Scala.js, use the cross-build syntax:
 
-```scala
+```sbt
 libraryDependencies += "dev.zio" %%% "zio-blocks-markdown" % "@VERSION@"
 ```
 
@@ -92,18 +94,27 @@ val doc = Doc(Chunk(
 Rendering to GFM markdown:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.render(doc)
 ```
 
 Rendering to HTML:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HtmlRenderer.render(doc)
 ```
 
 Rendering to terminal:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 TerminalRenderer.render(doc)
 ```
 
@@ -130,6 +141,9 @@ Parser.parse(markdown) match {
 Round-trip verification (parse → render → parse preserves structure):
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val input = "# Hello\n\nWorld"
 val parsed1 = Parser.parse(input).toOption.get
 val rendered = Renderer.render(parsed1)
@@ -156,6 +170,9 @@ val count = 42
 Now interpolate these values into markdown:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 md"# Welcome $name\nYou have $count items."
 ```
 
@@ -177,6 +194,9 @@ val tasks = BulletList(Chunk(
 Rendering the task list:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.render(Doc(Chunk(tasks)))
 ```
 
@@ -213,6 +233,9 @@ val table = Table(
 Rendering the table to markdown:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.render(Doc(Chunk(table)))
 ```
 
@@ -285,7 +308,9 @@ A complete GitHub Flavored Markdown document.
 
 Here is the `Doc` type definition:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+
 final case class Doc(blocks: Chunk[Block], metadata: Map[String, String] = Map.empty)
 ```
 
@@ -395,6 +420,9 @@ val doc = Doc(Chunk(
 Call `Doc#normalize` to see the result:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 val normalized = doc.normalize
 ```
 
@@ -419,7 +447,10 @@ Hash code computes from the normalized form for consistency with `equals`.
 
 A block-level markdown element:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Block extends Product with Serializable
 ```
 
@@ -429,7 +460,10 @@ Block is a sealed trait with the following concrete subtypes.
 
 A paragraph containing inline content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Paragraph(content: Chunk[Inline]) extends Block
 ```
 
@@ -449,7 +483,10 @@ val para = Paragraph(Chunk(
 
 An ATX-style heading (# to ######) with a level and inline content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
 ```
 
@@ -467,7 +504,10 @@ val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 
 A fenced code block with optional language/info string:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class CodeBlock(info: Option[String], code: String) extends Block
 ```
 
@@ -485,7 +525,10 @@ val plainBlock = CodeBlock(None, "some code")
 
 A thematic break (horizontal rule):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case object ThematicBreak extends Block
 ```
 
@@ -501,7 +544,10 @@ val break = ThematicBreak
 
 A block quote containing nested blocks:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class BlockQuote(content: Chunk[Block]) extends Block
 ```
 
@@ -520,7 +566,10 @@ val quote = BlockQuote(Chunk(
 
 An unordered list with bullet markers (-, *, +):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class BulletList(items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
@@ -540,7 +589,10 @@ val list = BulletList(Chunk(
 
 An ordered list with numeric markers (1., 2., etc.):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
@@ -564,7 +616,10 @@ val list = OrderedList(
 
 A list item, optionally a task list item:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) extends Block
 ```
 
@@ -585,7 +640,10 @@ val incomplete = ListItem(Chunk(Paragraph(Chunk(Text("TODO")))), Some(false))
 
 Raw HTML block content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class HtmlBlock(content: String) extends Block
 ```
 
@@ -599,7 +657,10 @@ val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 
 A GitHub Flavored Markdown table with aligned columns:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow]) extends Block
 ```
 
@@ -625,7 +686,10 @@ val table = Table(
 
 An inline-level markdown element:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Inline extends Product with Serializable
 ```
 
@@ -635,7 +699,10 @@ Inline is a sealed trait with concrete subtypes, defined both in object and at t
 
 Plain text content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Text(value: String) extends Inline
 ```
 
@@ -652,7 +719,10 @@ val text = Text("Hello world")
 
 Inline code span (backtick-delimited):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Code(value: String) extends Inline
 ```
 
@@ -669,7 +739,10 @@ val code = Code("val x = 42")
 
 Emphasized (italic) text:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Emphasis(content: Chunk[Inline]) extends Inline
 ```
 
@@ -687,7 +760,10 @@ val emphasis = Emphasis(Chunk(Text("italic")))
 
 Strong (bold) text:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Strong(content: Chunk[Inline]) extends Inline
 ```
 
@@ -705,7 +781,10 @@ val strong = Strong(Chunk(Text("bold")))
 
 Strikethrough text (GFM feature):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Strikethrough(content: Chunk[Inline]) extends Inline
 ```
 
@@ -723,7 +802,10 @@ val struck = Strikethrough(Chunk(Text("deprecated")))
 
 A hyperlink:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Link(text: Chunk[Inline], url: String, title: Option[String]) extends Inline
 ```
 
@@ -741,7 +823,10 @@ val titled = Link(Chunk(Text("Docs")), "/docs", Some("Documentation"))
 
 An image reference:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Image(alt: String, url: String, title: Option[String]) extends Inline
 ```
 
@@ -759,7 +844,10 @@ val imgWithTitle = Image(alt = "Icon", url = "/icon.svg", Some("App Icon"))
 
 Raw HTML inline content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class HtmlInline(content: String) extends Inline
 ```
 
@@ -773,7 +861,10 @@ val html = HtmlInline("<span class='highlight'>custom</span>")
 
 A soft line break (single newline, rendered as space or newline depending on context):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case object SoftBreak extends Inline
 ```
 
@@ -781,7 +872,10 @@ case object SoftBreak extends Inline
 
 A hard line break (two spaces or backslash before newline):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 case object HardBreak extends Inline
 ```
 
@@ -789,7 +883,10 @@ case object HardBreak extends Inline
 
 An autolink (URL or email in angle brackets):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Autolink(url: String, isEmail: Boolean) extends Inline
 ```
 
@@ -807,7 +904,7 @@ val emailLink = Autolink("user@example.com", isEmail = true)
 
 Heading levels from H1 to H6:
 
-```scala
+```scala mdoc:compile-only
 sealed abstract class HeadingLevel(val value: Int) extends Product with Serializable
 
 object HeadingLevel {
@@ -859,7 +956,7 @@ HeadingLevel.H1.value == 1
 
 Table column alignment specification:
 
-```scala
+```scala mdoc:compile-only
 sealed trait Alignment extends Product with Serializable
 
 object Alignment {
@@ -925,7 +1022,10 @@ Renderer.render(doc)
 
 A single row in a table, containing cells as inline content:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class TableRow(cells: Chunk[Chunk[Inline]])
 ```
 
@@ -952,7 +1052,10 @@ A singleton object providing strict GitHub Flavored Markdown parsing with positi
 
 Use the main entry point to parse markdown:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Parser.parse(input: String): Either[ParseError, Doc]
 ```
 
@@ -998,7 +1101,10 @@ result match {
 
 Error information from parsing, with precise location data:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class ParseError(
   message: String,    // Human-readable error description
   line: Int,          // 1-based line number
@@ -1028,7 +1134,10 @@ err.toString
 
 A singleton object that renders markdown documents back to GitHub Flavored Markdown string format:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 object Renderer
 ```
 
@@ -1036,7 +1145,10 @@ object Renderer
 
 Render an entire document to GFM markdown:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.render(doc: Doc): String
 ```
 
@@ -1061,13 +1173,19 @@ rendered
 
 Render individual blocks:
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.renderBlock(block: Block): String
 ```
 
 Render inline content:
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 Renderer.renderInlines(inlines: Chunk[Inline]): String
 Renderer.renderInline(inline: Inline): String
 ```
@@ -1096,7 +1214,10 @@ assert(original == reparsed)  // Equal after normalization
 
 A singleton object that renders markdown documents to HTML5:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 object HtmlRenderer
 ```
 
@@ -1121,6 +1242,9 @@ val html = HtmlRenderer.render(doc)
 The result:
 
 ```scala mdoc
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 html
 ```
 
@@ -1128,7 +1252,10 @@ html
 
 Render content-only HTML without wrapper tags:
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 HtmlRenderer.renderFragment(doc: Doc): String
 ```
 
@@ -1139,7 +1266,6 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.docs._
 
 val fragment = HtmlRenderer.renderFragment(doc)
-// <h1>Title</h1>
 ```
 
 Use fragments to embed markdown content into existing HTML templates.
@@ -1168,14 +1294,20 @@ Use fragments to embed markdown content into existing HTML templates.
 
 A singleton object that renders markdown to ANSI-colored terminal output optimized for console display:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 object TerminalRenderer
 ```
 
 ### Rendering
 
 Render a document to ANSI-colored terminal output:
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 TerminalRenderer.render(doc: Doc): String
 ```
 
@@ -1218,7 +1350,10 @@ Type class for converting Scala values to markdown inline elements, enabling int
 
 Define the `ToMarkdown` type class:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 trait ToMarkdown[-A] {
   def toMarkdown(a: A): Inline
 }
@@ -1263,7 +1398,10 @@ ToMarkdown[Inline]    // a: Inline => a (identity)
 
 Convert collections to comma-separated text:
 
-```
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 ToMarkdown[List[A]]    // as: List[A] => Text(as.map(...).mkString(", "))
 ToMarkdown[Chunk[A]]   // as: Chunk[A] => Text(as.map(...).mkString(", "))
 ToMarkdown[Vector[A]]  // as: Vector[A] => Text(as.map(...).mkString(", "))
