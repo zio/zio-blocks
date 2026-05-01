@@ -325,7 +325,7 @@ Optional fields include servers, components, security requirements, tags, and ex
 
 To construct an `OpenAPI` document:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -343,7 +343,7 @@ Add paths, operations, and components as shown in the "How They Work Together" s
 
 Encode an `OpenAPI` document to `Json` AST:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -355,7 +355,7 @@ val encoded: Json = openAPICodec.encodeValue(api)
 
 Decode from `Json` AST back to an `OpenAPI` instance:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -383,7 +383,7 @@ Optional fields:
 
 ### Creating Info
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -423,7 +423,7 @@ val info = Info(
 
 To define a path with multiple operations:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -512,7 +512,7 @@ Key fields:
 
 With summary, description, and parameters:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -571,7 +571,7 @@ Optional fields:
 
 Path parameter (required):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -587,7 +587,7 @@ val idPathParam = Parameter(
 
 Query parameter (optional with default):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
@@ -603,7 +603,7 @@ val limitQueryParam = Parameter(
 
 Header parameter:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.openapi._
 import zio.blocks.markdown._
 import zio.blocks.chunk._
