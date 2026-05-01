@@ -449,6 +449,9 @@ Hash code computes from the normalized form for consistency with `equals`.
 A block-level markdown element:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 sealed trait Block extends Product with Serializable
 ```
 
@@ -459,6 +462,9 @@ Block is a sealed trait with the following concrete subtypes.
 A paragraph containing inline content:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Paragraph(content: Chunk[Inline]) extends Block
 ```
 
@@ -479,6 +485,9 @@ val para = Paragraph(Chunk(
 An ATX-style heading (# to ######) with a level and inline content:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Heading(level: HeadingLevel, content: Chunk[Inline]) extends Block
 ```
 
@@ -497,6 +506,9 @@ val h3 = Heading(HeadingLevel.H3, Chunk(Text("Subsection")))
 A fenced code block with optional language/info string:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class CodeBlock(info: Option[String], code: String) extends Block
 ```
 
@@ -540,6 +552,9 @@ val break = ThematicBreak
 A block quote containing nested blocks:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class BlockQuote(content: Chunk[Block]) extends Block
 ```
 
@@ -559,6 +574,9 @@ val quote = BlockQuote(Chunk(
 An unordered list with bullet markers (-, *, +):
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class BulletList(items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
@@ -579,6 +597,9 @@ val list = BulletList(Chunk(
 An ordered list with numeric markers (1., 2., etc.):
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class OrderedList(start: Int, items: Chunk[ListItem], tight: Boolean) extends Block
 ```
 
@@ -603,6 +624,9 @@ val list = OrderedList(
 A list item, optionally a task list item:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class ListItem(content: Chunk[Block], checked: Option[Boolean]) extends Block
 ```
 
@@ -627,6 +651,9 @@ val incomplete = ListItem(Chunk(Paragraph(Chunk(Text("TODO")))), Some(false))
 Raw HTML block content:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class HtmlBlock(content: String) extends Block
 ```
 
@@ -644,6 +671,9 @@ val html = HtmlBlock("<div class='alert'>Custom HTML</div>")
 A GitHub Flavored Markdown table with aligned columns:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Table(header: TableRow, alignments: Chunk[Alignment], rows: Chunk[TableRow]) extends Block
 ```
 
@@ -680,6 +710,9 @@ Inline is a sealed trait with concrete subtypes, defining both object-level and 
 Plain text content:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Text(value: String) extends Inline
 ```
 
@@ -697,6 +730,9 @@ val text = Text("Hello world")
 Inline code span (backtick-delimited):
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Code(value: String) extends Inline
 ```
 
@@ -714,6 +750,9 @@ val code = Code("val x = 42")
 Emphasized (italic) text:
 
 ```scala
+import zio.blocks.chunk.Chunk
+import zio.blocks.docs._
+
 final case class Emphasis(content: Chunk[Inline]) extends Inline
 ```
 
