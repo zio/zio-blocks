@@ -113,7 +113,7 @@ lazy val testJSScala3Command =
 lazy val docJVMScala2Command =
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc"
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
@@ -122,7 +122,7 @@ lazy val docJVMScala3Command =
 
 lazy val docJSScala2Command =
   "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc; datastarJS/doc"
 
 lazy val docJSScala3Command =
   "typeidJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
