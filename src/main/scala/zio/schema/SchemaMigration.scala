@@ -305,11 +305,8 @@ object Migration:
    * @tparam B
    *   Target schema type
    */
-  inline def derive[A, B](
-    using schemaA: Schema[A],
-    using schemaB: Schema[B]
-  ): Migration = ${ MigrationMacros.deriveImpl[A, B]('schemaA, 'schemaB) }
-
+  inline def derive[A, B](using schemaA: Schema[A], schemaB: Schema[B]): Migration =
+    ${ MigrationMacros.deriveImpl[A, B]('schemaA, 'schemaB) }
 // ═══════════════════════════════════════════════════════════════
 //  4. MIGRATOR — HIGH-PERFORMANCE INTERPRETER
 // ═══════════════════════════════════════════════════════════════
