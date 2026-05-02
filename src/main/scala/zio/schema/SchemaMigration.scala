@@ -33,37 +33,37 @@ object MigrationError:
 
   /** A required field was not found at the given path. */
   case class FieldNotFound(path: MigrationPath, fieldName: String)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Field '$fieldName' not found at path ${path.render}"
 
   /** A field already exists where we tried to add one. */
   case class FieldAlreadyExists(path: MigrationPath, fieldName: String)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Field '$fieldName' already exists at path ${path.render}"
 
   /** The DynamicValue at a path is not a Record. */
   case class NotARecord(path: MigrationPath, actual: String)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Expected Record at path ${path.render}, got $actual"
 
   /** The DynamicValue at a path is not a Sequence. */
   case class NotASequence(path: MigrationPath, actual: String)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Expected Sequence at path ${path.render}, got $actual"
 
   /** A nested migration failed. */
   case class NestedError(path: MigrationPath, cause: MigrationError)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Migration failed at path ${path.render}: ${cause.message}"
 
   /** Schemas are incompatible — caught at compile-time via macro, runtime fallback. */
   case class IncompatibleTypes(from: String, to: String)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Cannot migrate from '$from' to '$to': incompatible types"
 
   /** Composition failure — wraps the step index for easy diagnosis. */
   case class CompositionFailure(step: Int, cause: MigrationError)
-    extends MigrationError:
+      extends MigrationError:
     def message = s"Migration composition failed at step $step: ${cause.message}"
 
 // ═══════════════════════════════════════════════════════════════
@@ -76,10 +76,11 @@ object MigrationError:
  * Paths are modelled as a Chunk of String segments, where each
  * segment is either a record field name or a sequence index (as String).
  *
- * @example {{{
+ * @example
+ *   {{{
  *   MigrationPath("address", "street") // targets record.address.street
  *   MigrationPath.Root                 // targets the root value
- * }}}
+ *   }}}
  */
 opaque type MigrationPath = Chunk[String]
 
@@ -93,7 +94,7 @@ object MigrationPath:
 
     def segments: Chunk[String] = path
 
-    def / (segment: String): MigrationPath = path :+ segment
+    def /(segment: String): MigrationPath = path :+ segment
 
     def render: String =
       if path.isEmpty then "ROOT"
@@ -126,8 +127,8 @@ object MigrationPath:
 sealed trait Migration:
 
   /**
-   * Compose this migration with `next`.
-   * The resulting migration applies `this` first, then `next`.
+   * Compose this migration with `next`. The resulting migration applies `this`
+   * first, then `next`.
    *
    * Satisfies:
    *   - `m >>> Identity == m`
@@ -136,15 +137,15 @@ sealed trait Migration:
    */
   final def andThen(next: Migration): Migration =
     (this, next) match
-      case (Migration.Identity, _) => next
-      case (_, Migration.Identity) => this
+      case (Migration.Identity, _)                                     => next
+      case (_, Migration.Identity)                                     => this
       case (Migration.Composed(steps), Migration.Composed(moreSteps)) =>
         Migration.Composed(steps ++ moreSteps)
-      case (Migration.Composed(steps), _) =>
+      case (Migration.Composed(steps), _)                             =>
         Migration.Composed(steps :+ next)
-      case (_, Migration.Composed(steps)) =>
+      case (_, Migration.Composed(steps))                             =>
         Migration.Composed(this +: steps)
-      case _ =>
+      case _                                                          =>
         Migration.Composed(Chunk(this, next))
 
   @targetName("compose")
@@ -155,27 +156,30 @@ sealed trait Migration:
 
 object Migration:
 
-  // ── Identity ────────────────────────────────────────────────
+  // ── Identity ──────────────────────────────────────────────────
 
   /** The identity migration: passes DynamicValue through unchanged. */
   case object Identity extends Migration:
     def describe = "Identity"
 
-  // ── Field Operations ─────────────────────────────────────────
+  // ── Field Operations ──────────────────────────────────────────
 
   /**
    * Add a field at `path` with the given `fieldName` and `defaultValue`.
    *
-   * Fails with `FieldAlreadyExists` if the field is present.
-   * Fails with `FieldNotFound` / `NotARecord` if the path is invalid.
+   * Fails with `FieldAlreadyExists` if the field is present. Fails with
+   * `FieldNotFound` / `NotARecord` if the path is invalid.
    *
-   * @param path         Path to the Record that will receive the new field.
-   * @param fieldName    Name of the new field.
-   * @param defaultValue Value to insert (typed as DynamicValue).
+   * @param path
+   *   Path to the Record that will receive the new field.
+   * @param fieldName
+   *   Name of the new field.
+   * @param defaultValue
+   *   Value to insert (typed as DynamicValue).
    */
   case class AddField(
-    path:         MigrationPath,
-    fieldName:    String,
+    path: MigrationPath,
+    fieldName: String,
     defaultValue: DynamicValue
   ) extends Migration:
     def describe = s"AddField('$fieldName') at ${path.render}"
@@ -185,11 +189,13 @@ object Migration:
    *
    * Fails with `FieldNotFound` if the field does not exist.
    *
-   * @param path      Path to the containing Record.
-   * @param fieldName Name of the field to remove.
+   * @param path
+   *   Path to the containing Record.
+   * @param fieldName
+   *   Name of the field to remove.
    */
   case class RemoveField(
-    path:      MigrationPath,
+    path: MigrationPath,
     fieldName: String
   ) extends Migration:
     def describe = s"RemoveField('$fieldName') at ${path.render}"
@@ -199,12 +205,15 @@ object Migration:
    *
    * Equivalent to `RemoveField + AddField` but preserves the value.
    *
-   * @param path    Path to the containing Record.
-   * @param oldName Current field name.
-   * @param newName New field name.
+   * @param path
+   *   Path to the containing Record.
+   * @param oldName
+   *   Current field name.
+   * @param newName
+   *   New field name.
    */
   case class RenameField(
-    path:    MigrationPath,
+    path: MigrationPath,
     oldName: String,
     newName: String
   ) extends Migration:
@@ -215,12 +224,15 @@ object Migration:
    *
    * The field must exist at the source and must NOT exist at the target.
    *
-   * @param fieldName  Name of the field to relocate.
-   * @param sourcePath Path of the source Record.
-   * @param targetPath Path of the destination Record.
+   * @param fieldName
+   *   Name of the field to relocate.
+   * @param sourcePath
+   *   Path of the source Record.
+   * @param targetPath
+   *   Path of the destination Record.
    */
   case class RelocateField(
-    fieldName:  String,
+    fieldName: String,
     sourcePath: MigrationPath,
     targetPath: MigrationPath
   ) extends Migration:
@@ -231,23 +243,26 @@ object Migration:
    * Apply an arbitrary `DynamicValue => Either[MigrationError, DynamicValue]`
    * transformation at `path`.
    *
-   * This is the escape hatch for transformations that cannot be expressed
-   * as structural AST nodes (e.g. String → Int coercion with validation).
+   * This is the escape hatch for transformations that cannot be expressed as
+   * structural AST nodes (e.g. String → Int coercion with validation).
    *
-   * @param path        Path to the value to transform.
-   * @param description Human-readable description (used in error messages).
-   * @param transform   The transformation function.
+   * @param path
+   *   Path to the value to transform.
+   * @param description
+   *   Human-readable description (used in error messages).
+   * @param transform
+   *   The transformation function.
    */
   case class UpdateSchema(
-    path:        MigrationPath,
+    path: MigrationPath,
     description: String,
-    transform:   DynamicValue => Either[MigrationError, DynamicValue]
+    transform: DynamicValue => Either[MigrationError, DynamicValue]
   ) extends Migration:
     def describe = s"UpdateSchema('$description') at ${path.render}"
 
   /**
-   * A pre-composed sequence of migrations.
-   * Stored as a Chunk for O(1) append and efficient iteration.
+   * A pre-composed sequence of migrations. Stored as a Chunk for O(1) append
+   * and efficient iteration.
    */
   case class Composed(steps: Chunk[Migration]) extends Migration:
     def describe = steps.map(_.describe).mkString(" >>> ")
@@ -264,13 +279,13 @@ object Migration:
     RenameField(MigrationPath.Root, oldName, newName)
 
   def relocateField(
-    fieldName:  String,
+    fieldName: String,
     sourcePath: MigrationPath,
     targetPath: MigrationPath
   ): Migration = RelocateField(fieldName, sourcePath, targetPath)
 
   def updateAt(
-    path:        MigrationPath,
+    path: MigrationPath,
     description: String
   )(f: DynamicValue => Either[MigrationError, DynamicValue]): Migration =
     UpdateSchema(path, description, f)
@@ -281,12 +296,14 @@ object Migration:
    * Derive a migration from Schema[A] to Schema[B] at compile time.
    *
    * Rules:
-   *   - Fields in B but not A  → AddField  (default = DynamicValue.none)
-   *   - Fields in A but not B  → RemoveField
-   *   - Fields in both          → Identity (if types match) or compile error
+   *   - Fields in B but not A → AddField (default = DynamicValue.none)
+   *   - Fields in A but not B → RemoveField
+   *   - Fields in both → Identity (if types match) or compile error
    *
-   * @tparam A Source schema type
-   * @tparam B Target schema type
+   * @tparam A
+   *   Source schema type
+   * @tparam B
+   *   Target schema type
    */
   inline def derive[A, B](
     using schemaA: Schema[A],
@@ -298,15 +315,15 @@ object Migration:
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * The Migrator compiles a `Migration` AST into a pre-built
- * `DynamicValue => Either[MigrationError, DynamicValue]` function.
+ * The Migrator compiles a `Migration` AST into a pre-built `DynamicValue =>
+ * Either[MigrationError, DynamicValue]` function.
  *
  * Key performance properties:
  *   - Compilation happens once in ZIO (the ZIO effect itself).
- *   - The resulting function is a plain Scala closure — no ZIO overhead
- *     on the hot transformation path.
- *   - Composed migrations are flattened before interpretation,
- *     avoiding nested function calls.
+ *   - The resulting function is a plain Scala closure — no ZIO overhead on the
+ *     hot transformation path.
+ *   - Composed migrations are flattened before interpretation, avoiding nested
+ *     function calls.
  *   - Record updates use `ListMap` structural sharing where possible.
  */
 object Migrator:
@@ -316,11 +333,13 @@ object Migrator:
   /**
    * Compile a `Migration` into a pure transformation function.
    *
-   * The ZIO effect represents the compilation phase.
-   * The resulting `Transform` is called on each `DynamicValue`.
+   * The ZIO effect represents the compilation phase. The resulting `Transform`
+   * is called on each `DynamicValue`.
    *
-   * @param migration The migration to compile.
-   * @return A ZIO that produces a compiled, reusable transformation.
+   * @param migration
+   *   The migration to compile.
+   * @return
+   *   A ZIO that produces a compiled, reusable transformation.
    */
   def apply(migration: Migration): ZIO[Any, MigrationError, Transform] =
     ZIO.succeed(compile(migration))
@@ -334,49 +353,52 @@ object Migrator:
         Right(_)
 
       case Migration.AddField(path, fieldName, default) =>
-        dv => modifyAtPath(dv, path) { record =>
-          record match
-            case Record(id, fields) =>
-              if fields.exists(_._1 == fieldName) then
-                Left(MigrationError.FieldAlreadyExists(path, fieldName))
-              else
-                Right(Record(id, fields :+ (fieldName -> default)))
-            case other =>
-              Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
-        }
+        dv =>
+          modifyAtPath(dv, path) { record =>
+            record match
+              case Record(id, fields) =>
+                if fields.exists(_._1 == fieldName) then
+                  Left(MigrationError.FieldAlreadyExists(path, fieldName))
+                else
+                  Right(Record(id, fields :+ (fieldName -> default)))
+              case other =>
+                Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
+          }
 
       case Migration.RemoveField(path, fieldName) =>
-        dv => modifyAtPath(dv, path) { record =>
-          record match
-            case Record(id, fields) =>
-              if !fields.exists(_._1 == fieldName) then
-                Left(MigrationError.FieldNotFound(path, fieldName))
-              else
-                Right(Record(id, fields.filterNot(_._1 == fieldName)))
-            case other =>
-              Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
-        }
+        dv =>
+          modifyAtPath(dv, path) { record =>
+            record match
+              case Record(id, fields) =>
+                if !fields.exists(_._1 == fieldName) then
+                  Left(MigrationError.FieldNotFound(path, fieldName))
+                else
+                  Right(Record(id, fields.filterNot(_._1 == fieldName)))
+              case other =>
+                Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
+          }
 
       case Migration.RenameField(path, oldName, newName) =>
-        dv => modifyAtPath(dv, path) { record =>
-          record match
-            case Record(id, fields) =>
-              fields.indexWhere(_._1 == oldName) match
-                case -1 => Left(MigrationError.FieldNotFound(path, oldName))
-                case i  =>
-                  val updated = fields.updated(i, newName -> fields(i)._2)
-                  Right(Record(id, updated))
-            case other =>
-              Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
-        }
+        dv =>
+          modifyAtPath(dv, path) { record =>
+            record match
+              case Record(id, fields) =>
+                fields.indexWhere(_._1 == oldName) match
+                  case -1 => Left(MigrationError.FieldNotFound(path, oldName))
+                  case i  =>
+                    val updated = fields.updated(i, newName -> fields(i)._2)
+                    Right(Record(id, updated))
+              case other =>
+                Left(MigrationError.NotARecord(path, other.getClass.getSimpleName))
+          }
 
       case Migration.RelocateField(fieldName, sourcePath, targetPath) =>
         // Extract from source, insert at target — atomically
         dv =>
           for
-            extracted <- extractField(dv, sourcePath, fieldName)
-            (fieldValue, dvWithoutField) = extracted
-            result    <- modifyAtPath(dvWithoutField, targetPath) {
+            extracted                    <- extractField(dv, sourcePath, fieldName)
+            (fieldValue, dvWithoutField)  = extracted
+            result                       <- modifyAtPath(dvWithoutField, targetPath) {
               case Record(id, fields) =>
                 Right(Record(id, fields :+ (fieldName -> fieldValue)))
               case other =>
@@ -390,21 +412,23 @@ object Migrator:
       case Migration.Composed(steps) =>
         // Flatten and chain — avoids building intermediate closures
         val compiled: Chunk[Transform] = steps.map(compile)
-        dv => compiled.zipWithIndex.foldLeft[Either[MigrationError, DynamicValue]](Right(dv)) {
-          case (Right(current), (f, _))    => f(current)
-          case (Left(err), (_, stepIndex)) => Left(MigrationError.CompositionFailure(stepIndex, err))
-        }
+        dv =>
+          compiled.zipWithIndex.foldLeft[Either[MigrationError, DynamicValue]](Right(dv)) {
+            case (Right(current), (f, _))         => f(current)
+            case (Left(err), (_, stepIndex))       =>
+              Left(MigrationError.CompositionFailure(stepIndex, err))
+          }
 
   // ── Path navigation ───────────────────────────────────────────
 
   /**
-   * Navigate to the sub-value at `path` within `dv`,
-   * apply `f` to it, and reconstruct the outer value.
+   * Navigate to the sub-value at `path` within `dv`, apply `f` to it, and
+   * reconstruct the outer value.
    *
    * This is the structural recursion that powers all path-based migrations.
    */
   private def modifyAtPath(
-    dv:   DynamicValue,
+    dv: DynamicValue,
     path: MigrationPath
   )(f: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] =
     if path.isEmpty then f(dv)
@@ -423,7 +447,7 @@ object Migrator:
         case Sequence(elements) =>
           // Support integer-string segment for sequence index access
           segment.toIntOption match
-            case None =>
+            case None      =>
               Left(MigrationError.NotARecord(path, "Sequence (use integer index)"))
             case Some(idx) if idx >= elements.length =>
               Left(MigrationError.FieldNotFound(path, s"index[$idx]"))
@@ -436,15 +460,15 @@ object Migrator:
 
   /** Extract a field from a Record at `path`, returning (value, dvWithoutField). */
   private def extractField(
-    dv:        DynamicValue,
-    path:      MigrationPath,
+    dv: DynamicValue,
+    path: MigrationPath,
     fieldName: String
   ): Either[MigrationError, (DynamicValue, DynamicValue)] =
     var extracted: Option[DynamicValue] = None
     modifyAtPath(dv, path) {
       case Record(id, fields) =>
         fields.find(_._1 == fieldName) match
-          case None =>
+          case None          =>
             Left(MigrationError.FieldNotFound(path, fieldName))
           case Some((_, value)) =>
             extracted = Some(value)
@@ -460,11 +484,12 @@ object Migrator:
 object MigrationMacros:
 
   /**
-   * Derives the migration delta between Schema[A] and Schema[B] at compile time.
+   * Derives the migration delta between Schema[A] and Schema[B] at compile
+   * time.
    *
-   * Implementation note: We inspect the `Schema` structure via `Quotes`.
-   * For `Schema.Record`, we extract field names and types from the
-   * `TypeRepr` of the case class constructor.
+   * Implementation note: We inspect the `Schema` structure via `Quotes`. For
+   * `Schema.Record`, we extract field names and types from the `TypeRepr` of
+   * the case class constructor.
    *
    * Compile-time errors are reported via `quotes.reflect.report.error`,
    * producing red underlines in IDEs.
@@ -519,9 +544,9 @@ object MigrationMacros:
     val allSteps = addExprs ++ removeExprs
 
     allSteps match
-      case Nil       => '{ Migration.Identity }
+      case Nil        => '{ Migration.Identity }
       case one :: Nil => one
-      case steps =>
+      case steps      =>
         val chunk = Expr.ofList(steps)
         '{ Migration.Composed(Chunk.fromIterable($chunk)) }
 
@@ -550,7 +575,7 @@ object MigrationSpec extends ZIOSpecDefault:
   private def seq(elems: DynamicValue*): DynamicValue =
     DynamicValue.Sequence(Chunk.fromIterable(elems))
 
-  // ── Sample values ──────────────────────────────────────────────
+  // ── Sample values ─────────────────────────────────────────────
 
   val userV1: DynamicValue = rec(
     "id"    -> int(42),
@@ -571,7 +596,7 @@ object MigrationSpec extends ZIOSpecDefault:
 
   def spec = suite("Migration Laws & Behaviour")(
 
-    // ── Identity laws ────────────────────────────────────────────
+    // ── Identity laws ──────────────────────────────────────────
 
     suite("Identity")(
       test("identity is a no-op on any DynamicValue") {
@@ -600,7 +625,7 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── Composition associativity ─────────────────────────────────
+    // ── Composition associativity ─────────────────────────────
 
     suite("Composition")(
       test("(a >>> b) >>> c == a >>> (b >>> c) (associativity)") {
@@ -616,7 +641,7 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── Record evolution ──────────────────────────────────────────
+    // ── Record evolution ──────────────────────────────────────
 
     suite("Record Evolution")(
       test("AddField inserts a new field with default value") {
@@ -672,7 +697,7 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── Nested path migrations ─────────────────────────────────────
+    // ── Nested path migrations ────────────────────────────────
 
     suite("Nested Path Migrations")(
       test("AddField at nested path") {
@@ -713,7 +738,7 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── RelocateField ─────────────────────────────────────────────
+    // ── RelocateField ─────────────────────────────────────────
 
     suite("RelocateField")(
       test("moves a field from source to target path") {
@@ -738,7 +763,7 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── UpdateSchema ──────────────────────────────────────────────
+    // ── UpdateSchema ──────────────────────────────────────────
 
     suite("UpdateSchema")(
       test("applies a custom transform at a path") {
@@ -763,11 +788,11 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── Sequence support ──────────────────────────────────────────
+    // ── Sequence support ──────────────────────────────────────
 
     suite("Sequence")(
       test("modify element at index within sequence") {
-        val tags = rec("tags" -> seq(str("scala"), str("zio"), str("fp")))
+        val tags      = rec("tags" -> seq(str("scala"), str("zio"), str("fp")))
         val migration = Migration.UpdateSchema(
           path        = MigrationPath("tags") / "1",
           description = "uppercase second tag",
@@ -791,14 +816,14 @@ object MigrationSpec extends ZIOSpecDefault:
       }
     ),
 
-    // ── Full V1 → V2 schema evolution scenario ─────────────────────
+    // ── Full V1 → V2 schema evolution scenario ────────────────
 
     suite("End-to-End Schema Evolution")(
       test("User V1 → V2: rename + add + remove in one composed migration") {
         val v1ToV2 =
           Migration.renameField("name", "fullName") >>>
-          Migration.addField("version", int(2))     >>>
-          Migration.removeField("email")
+            Migration.addField("version", int(2)) >>>
+            Migration.removeField("email")
 
         for
           transform <- Migrator(v1ToV2)
@@ -807,10 +832,10 @@ object MigrationSpec extends ZIOSpecDefault:
           case Record(_, fields) =>
             val fieldNames = fields.map(_._1).toSet
             assertTrue(
-              fieldNames.contains("fullName")   &&
-              fieldNames.contains("version")    &&
-              !fieldNames.contains("name")      &&
-              !fieldNames.contains("email")     &&
+              fieldNames.contains("fullName") &&
+              fieldNames.contains("version") &&
+              !fieldNames.contains("name") &&
+              !fieldNames.contains("email") &&
               fields.find(_._1 == "fullName").get._2 == str("Alice")
             )
           case _ => assertTrue(false)
