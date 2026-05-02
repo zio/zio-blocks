@@ -26,7 +26,7 @@ import zio.blocks.html.Dom
  * effective value. Use `:=` to assign the Datastar expression that should run
  * during initialization.
  */
-final class DataInit(val modifier: Option[InitModifier]) {
+final class DataInit(private[datastar] val modifier: Option[InitModifier]) {
 
   def delay(millis: Long): DataInit = withModifier(InitModifier.Delay(millis))
 

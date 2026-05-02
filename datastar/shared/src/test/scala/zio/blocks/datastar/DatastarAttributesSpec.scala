@@ -82,7 +82,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
           import zio.blocks.datastar._
           import zio.blocks.html._
           div(dataText := "$count")
-        """).map(result => assertTrue(result.isLeft))
+        """).map { result =>
+          assertTrue(result.isLeft) &&
+          assertTrue(result.swap.toOption.get.contains("No ToDatastarExpr instance found for type String"))
+        }
       }
     ),
     suite("dataShow")(
@@ -133,7 +136,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
           import zio.blocks.datastar._
           import zio.blocks.html._
           div(dataOn.click := "$count++")
-        """).map(result => assertTrue(result.isLeft))
+        """).map { result =>
+          assertTrue(result.isLeft) &&
+          assertTrue(result.swap.toOption.get.contains("No ToDatastarExpr instance found for type String"))
+        }
       },
       test("dataOn.click.debounce produces correct attribute") {
         val result = div(dataOn.click.debounce(300) := js"@get('/search')").render
@@ -259,7 +265,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
           import zio.blocks.datastar._
           import zio.blocks.html._
           div(dataInit := "@get('/data')")
-        """).map(result => assertTrue(result.isLeft))
+        """).map { result =>
+          assertTrue(result.isLeft) &&
+          assertTrue(result.swap.toOption.get.contains("No ToDatastarExpr instance found for type String"))
+        }
       },
       test("dataInit.delay(500) := js expression produces correct attribute") {
         val result = div(dataInit.delay(500) := js"@get('/data')").render

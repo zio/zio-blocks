@@ -55,7 +55,7 @@ object IntersectModifier {
 
   /** Fires when the intersection ratio crosses the provided threshold. */
   final case class Threshold(pct: Double) extends IntersectModifier {
-    def render: String = "__threshold." + pct
+    def render: String = "__threshold." + BigDecimal(pct).underlying().stripTrailingZeros().toPlainString
   }
 
   /** Delays intersect handling by the specified interval. */

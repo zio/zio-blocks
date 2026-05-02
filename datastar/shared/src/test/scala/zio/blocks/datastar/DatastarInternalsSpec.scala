@@ -70,7 +70,10 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         typeCheck("""
           import zio.blocks.datastar._
           ToDatastarExpr[String]
-        """).map(result => assertTrue(result.isLeft))
+        """).map { result =>
+          assertTrue(result.isLeft) &&
+          assertTrue(result.swap.toOption.get.contains("No ToDatastarExpr instance found for type String"))
+        }
       }
     ),
     suite("DatastarStringEscape")(

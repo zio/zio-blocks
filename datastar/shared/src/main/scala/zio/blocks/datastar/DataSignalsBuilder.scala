@@ -26,7 +26,10 @@ import zio.blocks.html.Dom
  * with `:=` must be valid Datastar expressions and become the attribute value
  * rendered for that keyed signal.
  */
-final class DataSignalsBuilder(val signalName: String, val caseModifier: CaseModifier) {
+final class DataSignalsBuilder(
+  private[datastar] val signalName: String,
+  private[datastar] val caseModifier: CaseModifier
+) {
 
   def kebab: DataSignalsBuilder = new DataSignalsBuilder(signalName, CaseModifier.Kebab)
 

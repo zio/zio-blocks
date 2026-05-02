@@ -37,5 +37,5 @@ final class DatastarAttrKey(val name: String) {
 object DatastarAttrKey {
 
   /** Creates a low-level Datastar attribute key for the provided raw name. */
-  def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
+  private[datastar] def apply(name: String): DatastarAttrKey = new DatastarAttrKey(name)
 }

@@ -143,13 +143,15 @@ object DatastarEvent {
   def patchElements(elements: Dom): PatchElementsBuilder =
     new PatchElementsBuilder(elements, None, ElementPatchMode.Outer, false, None, None, None)
 
-  def patchSignals(updates: SignalUpdate[_]*): PatchSignalsBuilder = {
+  def patchSignals(first: SignalUpdate[_], rest: SignalUpdate[_]*): PatchSignalsBuilder = {
     val sb = new java.lang.StringBuilder(64)
     sb.append('{')
+    appendJsonString(sb, first.name)
+    sb.append(':').append(first.serialized)
     var i = 0
-    while (i < updates.length) {
-      if (i > 0) sb.append(',')
-      val u = updates(i)
+    while (i < rest.length) {
+      sb.append(',')
+      val u = rest(i)
       appendJsonString(sb, u.name)
       sb.append(':').append(u.serialized)
       i += 1
@@ -161,8 +163,20 @@ object DatastarEvent {
   def patchSignalsRaw(json: String): PatchSignalsBuilder =
     new PatchSignalsBuilder(json, false, None, None)
 
-  def removeElements(selector: CssSelector): PatchElementsBuilder =
-    new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
+  final class RemoveElementsBuilder private[DatastarEvent] (
+    private val inner: PatchElementsBuilder
+  ) {
+    def withViewTransition: RemoveElementsBuilder        = new RemoveElementsBuilder(inner.withViewTransition)
+    def withNamespace(ns: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.withNamespace(ns))
+    def withEventId(id: String): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.withEventId(id))
+    def withRetry(millis: Long): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.withRetry(millis))
+    def renderSSE: String                                = inner.renderSSE
+  }
+
+  def removeElements(selector: CssSelector): RemoveElementsBuilder =
+    new RemoveElementsBuilder(
+      new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
+    )
 
   def executeScript(code: Js): PatchElementsBuilder = {
     val scriptElement = Dom.Element.Script(

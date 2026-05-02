@@ -77,7 +77,11 @@ final class PartialDataOn {
  * modifiers are normalized to the last effective value before the final
  * attribute name is rendered.
  */
-final class DataOn(val eventName: String, val modifier: Option[EventModifier], val caseModifier: CaseModifier) {
+final class DataOn(
+  private[datastar] val eventName: String,
+  private[datastar] val modifier: Option[EventModifier],
+  private[datastar] val caseModifier: CaseModifier
+) {
 
   def debounce(millis: Long): DataOn = withModifier(EventModifier.Debounce(millis, false))
 
