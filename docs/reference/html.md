@@ -743,11 +743,12 @@ val page = div(
 )
 
 // Filter by predicate
-val visible = page.select(CssSelector.Element("p")).filter { el =>
-  el.asInstanceOf[Dom.Element].attributes.exists {
+val visible = page.select(CssSelector.Element("p")).filter { 
+  case el: Dom.Element => el.attributes.exists {
     case attr: Dom.Attribute.KeyValue if attr.name == "class" => true
     case _ => false
   }
+  case _ => false
 }
 
 // Filter by class
@@ -767,16 +768,16 @@ val page = div(
   span("Keep")
 )
 
-// Transform elements in the selection
-val modified = page.select(CssSelector.Element("p")).modifyAll { el =>
+// Transform elements in the selection (returns DomSelection of modified nodes only)
+val modifiedSelection = page.select(CssSelector.Element("p")).modifyAll { el =>
   el.copy(tag = "div")
 }
 
-// Replace all selected nodes
-val replaced = page.select(CssSelector.Element("p")).replaceAll(p("New"))
+// Replace all selected nodes (returns DomSelection of replacement nodes)
+val replacedSelection = page.select(CssSelector.Element("p")).replaceAll(p("New"))
 
-// Remove all selected nodes
-val removed = page.select(CssSelector.Element("p")).removeAll
+// Remove all selected nodes (returns empty DomSelection)
+val removedSelection = page.select(CssSelector.Element("p")).removeAll
 ```
 
 :::warning
