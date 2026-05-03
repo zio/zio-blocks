@@ -19,28 +19,63 @@ package zio.blocks.maybe
 import zio.test._
 
 object MaybeSpec extends ZIOSpecDefault {
+  private final case class Payload(value: Int)
+  private final case class Label(value: String)
+
   def spec = suite("Maybe")(
-    test("present value is defined") {
-      val value: Maybe[String] = Maybe.present("hello")
-      assertTrue(value.isDefined, value.get == "hello", value.toOption == Some("hello"))
+    test("present value exposes all present operations") {
+      val value: Maybe[Payload] = Maybe.present(Payload(1))
+      assertTrue(
+        value.isPresent,
+        value.isDefined,
+        !value.isAbsent,
+        !value.isEmpty,
+        value.get == Payload(1),
+        value.getOrElse(Payload(2)) == Payload(1),
+        value.toOption.nonEmpty,
+        value.toOption.get == Payload(1)
+      )
     },
-    test("absent value is empty") {
-      val value: Maybe[String] = Maybe.absent
-      assertTrue(value.isEmpty, value.toOption == None, value.getOrElse("fallback") == "fallback")
+    test("absent value exposes all absent operations") {
+      val value: Maybe[Payload] = Maybe.absent
+      assertTrue(
+        value.isAbsent,
+        value.isEmpty,
+        !value.isPresent,
+        !value.isDefined,
+        value.toOption == None,
+        value.getOrElse(Payload(2)) == Payload(2)
+      )
     },
-    test("fromOption converts Option") {
-      val present: Maybe[Int] = Maybe.fromOption(Some(42))
-      val absent: Maybe[Int]  = Maybe.fromOption(None)
-      assertTrue(present.get == 42, absent.isAbsent)
+    test("absent get throws") {
+      val value: Maybe[Payload] = Maybe.absent
+      val thrown                = scala.util.Try(value.get).failed.toOption
+      assertTrue(
+        thrown.exists(_.isInstanceOf[NoSuchElementException]),
+        thrown.map(_.getMessage).contains("Maybe.absent.get")
+      )
+    },
+    test("constructors preserve semantics") {
+      val present: Maybe[Payload] = Maybe.fromOption(Some(Payload(42)))
+      val absent: Maybe[Payload]  = Maybe.fromOption(None)
+      val missing: Maybe[Payload] = Maybe.absent
+      assertTrue(
+        present.get == Payload(42),
+        present.isPresent,
+        absent.isAbsent,
+        missing.isAbsent
+      )
     },
     test("map and flatMap preserve absent/present semantics") {
-      val present: Maybe[Int] = Maybe.present(1)
-      val absent: Maybe[Int]  = Maybe.absent
+      val present: Maybe[Payload] = Maybe.present(Payload(1))
+      val absent: Maybe[Payload]  = Maybe.absent
       assertTrue(
-        present.map(_ + 1).get == 2,
-        present.flatMap(n => Maybe.present(n + 2)).get == 3,
-        absent.map(_ + 1).isAbsent,
-        absent.flatMap(n => Maybe.present(n + 2)).isAbsent
+        present.map(payload => Label((payload.value + 1).toString)).get == Label("2"),
+        present.map(payload => Label((payload.value + 1).toString)).isPresent,
+        present.flatMap(payload => Maybe.present(Label((payload.value + 2).toString))).get == Label("3"),
+        present.flatMap(_ => Maybe.absent[Label]).isAbsent,
+        absent.map(payload => Label((payload.value + 1).toString)).isAbsent,
+        absent.flatMap(payload => Maybe.present(Label((payload.value + 2).toString))).isAbsent
       )
     }
   )
