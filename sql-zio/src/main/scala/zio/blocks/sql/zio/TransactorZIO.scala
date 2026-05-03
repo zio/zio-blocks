@@ -135,9 +135,17 @@ class TransactorZIO(
             val dialect: SqlDialect      = TransactorZIO.this.dialect
             val logger: SqlLogger        = TransactorZIO.this.logger
           }
-          f(using tx)
-            .tapErrorCause(_ => ZIO.attemptBlocking(conn.rollback()).ignore)
-            .tap(_ => ZIO.attemptBlocking(conn.commit()))
+          f(using tx).exit.flatMap {
+            case Exit.Success(value) =>
+              ZIO.attemptBlocking(conn.commit()).as(value).catchAll { commitError =>
+                ZIO.attemptBlocking(conn.rollback()).catchAll { rollbackError =>
+                  ZIO.succeed(commitError.addSuppressed(rollbackError))
+                } *> ZIO.fail(commitError)
+              }
+
+            case Exit.Failure(cause) =>
+              ZIO.attemptBlocking(conn.rollback()).ignore *> ZIO.refailCause(cause)
+          }
         }
     }
 }
