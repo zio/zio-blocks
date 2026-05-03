@@ -1728,10 +1728,10 @@ object Reflect {
 
   private[this] val maybeTypeId: TypeId[Any] =
     TypeId
-      .nominal[Any]("Maybe", Owner.fromPackagePath("zio.blocks.schema"), List(TypeParam("A", 0, Variance.Covariant)))
+      .nominal[Any]("Maybe", Owner.fromPackagePath("zio.blocks.maybe"), List(TypeParam("A", 0, Variance.Covariant)))
 
   private[this] val absentTypeId: TypeId[AnyRef] =
-    TypeId.nominal[AnyRef]("Absent", Owner.fromPackagePath("zio.blocks.schema.Maybe"))
+    TypeId.nominal[AnyRef]("Absent", Owner.fromPackagePath("zio.blocks.maybe.Maybe"))
 
   private[this] def absentRecord[F[_, _]](implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(Chunk.empty, absentTypeId, F.fromBinding(Binding.Record.absent))
@@ -1741,7 +1741,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.present)
     )
 
@@ -1750,7 +1750,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentDouble)
     )
 
@@ -1759,7 +1759,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentLong)
     )
 
@@ -1768,7 +1768,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentFloat)
     )
 
@@ -1777,7 +1777,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentInt)
     )
 
@@ -1786,7 +1786,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentChar)
     )
 
@@ -1795,7 +1795,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentShort)
     )
 
@@ -1804,7 +1804,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentBoolean)
     )
 
@@ -1813,7 +1813,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentByte)
     )
 
@@ -1822,7 +1822,7 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, AnyRef] =
     new Record(
       Chunk.single(new Term("value", element)),
-      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.schema.Maybe")),
+      TypeId.nominal[AnyRef]("Present", Owner.fromPackagePath("zio.blocks.maybe.Maybe")),
       F.fromBinding(Binding.Record.presentUnit)
     )
 

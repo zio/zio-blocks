@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema
+package zio.blocks.maybe
 
 trait MaybeCompat {
   type Maybe[+A] = (A with MaybeTag) @scala.annotation.unchecked.uncheckedVariance

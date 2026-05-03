@@ -18,6 +18,7 @@ package zio.blocks.datastar
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.html.{CssSelector, Dom, Js}
+import zio.http.ServerSentEvent
 
 /**
  * A Datastar SSE event that can be sent to the browser.

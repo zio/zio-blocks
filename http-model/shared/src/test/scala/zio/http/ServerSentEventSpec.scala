@@ -14,13 +14,25 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object ServerSentEventSpec extends ZIOSpecDefault {
+  private final case class Payload(value: String)
+
+  private implicit val payloadEncoder: SseDataEncoder[Payload] =
+    new SseDataEncoder[Payload] {
+      def lines(value: Payload): Chunk[String] = Chunk.single(s"payload:${value.value}")
+    }
+
   def spec = suite("ServerSentEvent")(
-    test("Basic: renders event type and single-line data") {
+    test("Basic: renders only data when event is absent") {
+      val event = ServerSentEvent("hello")
+      assertTrue(event.render == "data: hello\n\n")
+    },
+    test("With event: renders event and single-line data") {
       val event = ServerSentEvent("hello", "test")
       assertTrue(event.render == "event: test\ndata: hello\n\n")
     },
@@ -32,7 +44,7 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       val event = ServerSentEvent("hello", "test").withRetry(5000)
       assertTrue(event.render == "event: test\nretry: 5000\ndata: hello\n\n")
     },
-    test("Multi-line data: splits on newlines and prefixes each with data:") {
+    test("Multi-line string data: splits on newlines and prefixes each with data:") {
       val event = ServerSentEvent("line1\nline2", "test")
       assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
     },
@@ -48,11 +60,23 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       val event = ServerSentEvent("data", "evt").withId("42").withRetry(3000)
       assertTrue(event.render == "event: evt\nid: 42\nretry: 3000\ndata: data\n\n")
     },
-    test("Empty data: renders event type and empty data line") {
+    test("fromOptions supports Option metadata") {
+      val event = ServerSentEvent.fromOptions("data", event = Some("evt"), id = Some("42"), retry = Some(3000))
+      assertTrue(event.render == "event: evt\nid: 42\nretry: 3000\ndata: data\n\n")
+    },
+    test("Empty string data: renders event type and empty data line") {
       val event = ServerSentEvent("", "test")
       assertTrue(event.render == "event: test\ndata: \n\n")
     },
-    test("eventType with newline is rejected") {
+    test("Chunk payload writes one data line per chunk entry") {
+      val event = ServerSentEvent(Chunk("line1", "line2"), "test")
+      assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
+    },
+    test("Custom payload uses SseDataEncoder") {
+      val event = ServerSentEvent(Payload("x"), "test")
+      assertTrue(event.render == "event: test\ndata: payload:x\n\n")
+    },
+    test("event with newline is rejected") {
       val result = scala.util.Try(ServerSentEvent("data", "bad\nname"))
       assertTrue(result.isFailure)
     },

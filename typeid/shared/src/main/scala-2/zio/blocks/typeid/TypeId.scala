@@ -141,8 +141,8 @@ sealed trait TypeId[A] extends TypeIdPlatformSpecific {
   }
 
   final def isMaybe: Boolean =
-    (owner == Owner.fromPackagePath("zio.blocks.schema") ||
-      owner == Owner.fromPackagePath("zio.blocks.schema.package")) && name == "Maybe"
+    (owner == Owner.fromPackagePath("zio.blocks.maybe") ||
+      owner == Owner.fromPackagePath("zio.blocks.maybe.package")) && name == "Maybe"
 
   def isSubtypeOf(other: TypeId[_]): Boolean = {
     if (TypeId.structurallyEqual(this, other)) return true
