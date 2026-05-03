@@ -46,24 +46,24 @@ object TransactorZIOSpec extends ZIOSpecDefault {
             state.autoCommit = value
             state.autoCommitValues += value
             null
-          case "commit"        =>
+          case "commit" =>
             state.commitCalls += 1
             if (state.failCommit) throw new java.sql.SQLException("commit failed")
             null
-          case "rollback"      =>
+          case "rollback" =>
             state.rollbackCalls += 1
             if (state.failRollback) throw new java.sql.SQLException("rollback failed")
             null
-          case "close"         =>
+          case "close" =>
             state.closed = true
             null
-          case "isClosed"      => java.lang.Boolean.valueOf(state.closed)
-          case "unwrap"        => null
-          case "isWrapperFor"  => java.lang.Boolean.FALSE
-          case "toString"      => "TestConnection"
-          case "hashCode"      => Integer.valueOf(java.lang.System.identityHashCode(proxy.asInstanceOf[AnyRef]))
-          case "equals"        => java.lang.Boolean.valueOf(proxy.asInstanceOf[AnyRef] eq args.nn(0))
-          case _                => defaultValue(method.getReturnType)
+          case "isClosed"     => java.lang.Boolean.valueOf(state.closed)
+          case "unwrap"       => null
+          case "isWrapperFor" => java.lang.Boolean.FALSE
+          case "toString"     => "TestConnection"
+          case "hashCode"     => Integer.valueOf(java.lang.System.identityHashCode(proxy.asInstanceOf[AnyRef]))
+          case "equals"       => java.lang.Boolean.valueOf(proxy.asInstanceOf[AnyRef] eq args.nn(0))
+          case _              => defaultValue(method.getReturnType)
         }
     }
 
@@ -82,8 +82,8 @@ object TransactorZIOSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment, Any] = suite("TransactorZIOSpec")(
     test("transactZIO rolls back when commit fails after a successful body") {
-      val state      = ConnectionState(failCommit = true)
-      val transactor = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
+      val state                                               = ConnectionState(failCommit = true)
+      val transactor                                          = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
       val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, Int] = _root_.zio.ZIO.succeed(42)
 
       for {
@@ -98,8 +98,8 @@ object TransactorZIOSpec extends ZIOSpecDefault {
       )
     },
     test("transactZIO commits once on success without rollback") {
-      val state      = ConnectionState()
-      val transactor = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
+      val state                                               = ConnectionState()
+      val transactor                                          = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
       val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, Int] = _root_.zio.ZIO.succeed(42)
 
       for {
