@@ -48,9 +48,9 @@ object Ddl {
    */
   def createTable(tableName: String, columns: IndexedSeq[ColumnDef]): Frag = {
     val validatedTable = validateIdentifier("table", tableName)
-    val colDefs = columns.map { col =>
+    val colDefs        = columns.map { col =>
       val validatedColumn = validateIdentifier("column", col.name)
-      val nullStr = if (col.nullable) "" else " NOT NULL"
+      val nullStr         = if (col.nullable) "" else " NOT NULL"
       s"  $validatedColumn ${col.sqlType}$nullStr"
     }
     Frag.literal(s"CREATE TABLE IF NOT EXISTS $validatedTable (\n${colDefs.mkString(",\n")}\n)")
