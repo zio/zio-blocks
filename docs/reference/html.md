@@ -15,19 +15,21 @@ import zio.blocks.chunk.Chunk
 
 // Dom variants
 sealed trait Dom
-final case class Dom.Text(value: String) extends Dom
-final case class Dom.Element(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom
+final case class Dom.Text(content: String) extends Dom
+sealed trait Dom.Element extends Dom
+final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+final case class Dom.Element.Script(children: Chunk[Dom]) extends Dom.Element
+final case class Dom.Element.Style(children: Chunk[Dom]) extends Dom.Element
 
 // CssSelector variants
 sealed trait CssSelector
 final case class CssSelector.Element(tag: String) extends CssSelector
 final case class CssSelector.Class(name: String) extends CssSelector
-final case class CssSelector.Id(name: String) extends CssSelector
 
 // Css variants
 sealed trait Css
 final case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration]) extends Css
-final case class Css.Declaration(name: String, value: String) extends Css
+final case class Css.Declaration(property: String, value: String) extends Css
 ```
 
 ## Motivation
@@ -235,14 +237,14 @@ val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => fal
 // Some(Dom.Element.Generic("p", ...))
 ```
 
-**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children also undergo recursive transformation:
+**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
 val tree = div(h3("Old"), p("Content"))
 val upgraded = tree.transform {
-  case el: Dom.Element if el.tag == "h3" => el.copy(tag = "h2")
+  case el: Dom.Element.Generic if el.tag == "h3" => el.copy(tag = "h2")
   case other => other
 }
 // div(h2("Old"), p("Content"))
@@ -560,7 +562,7 @@ println(code.value)
 Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Use `ToJs[String]` (which automatically quotes) or construct `Js` literals explicitly.
 :::
 
-The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes `<` and `>`:
+The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -569,7 +571,7 @@ val userInput = "if (x < y) alert('<script>');"
 val code = js"val check = $userInput"
 
 println(code.value)
-// val check = if (x < y) alert(<script>);
+// val check = if (x > y) alert('<script>');
 ```
 
 ### `selector""` Interpolator
@@ -993,7 +995,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// let payload = <script>alert(\'XSS\');<script>
+// let payload = "</script><script>alert(\'XSS\');</script>"
 ```
 
 ### URL Sanitization
