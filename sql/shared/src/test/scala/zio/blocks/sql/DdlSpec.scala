@@ -84,6 +84,25 @@ object DdlSpec extends ZIOSpecDefault {
         val columns = IndexedSeq(ColumnDef("x", "INTEGER", false))
         val frag    = Ddl.createTable("t", columns)
         assertTrue(frag.params.isEmpty)
+      },
+      test("rejects invalid table identifiers") {
+        val columns = IndexedSeq(ColumnDef("id", "INTEGER", false))
+        val error   = try {
+          Ddl.createTable("users; DROP TABLE users", columns)
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL table identifier"))
+      },
+      test("rejects invalid column identifiers") {
+        val error = try {
+          Ddl.createTable("users", IndexedSeq(ColumnDef("name desc", "TEXT", false)))
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL column identifier"))
       }
     ),
     suite("dropTable")(
@@ -99,6 +118,15 @@ object DdlSpec extends ZIOSpecDefault {
       test("result is a parameterless Frag") {
         val frag = Ddl.dropTable("t")
         assertTrue(frag.params.isEmpty)
+      },
+      test("rejects invalid drop-table identifiers") {
+        val error = try {
+          Ddl.dropTable("orders cascade")
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL table identifier"))
       }
     )
   )

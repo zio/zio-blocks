@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import zio.test.*
+import zio.blocks.schema.*
 import zio.blocks.schema.Maybe
 
 import scala.language.implicitConversions
@@ -24,6 +25,13 @@ import java.time._
 import java.util.UUID
 
 object SqlInterpolatorSpec extends ZIOSpecDefault {
+  case class NameAndAge(name: String, age: Int)
+  object NameAndAge {
+    implicit val schema: Schema[NameAndAge] = Schema.derived
+  }
+
+  private given DbCodec[NameAndAge] = NameAndAge.schema.deriving(DbCodecDeriver).derive
+
   def spec: Spec[TestEnvironment, Any] = suite("SqlInterpolatorSpec")(
     suite("DbParam givens")(
       test("Int param converts to DbInt") {
@@ -198,6 +206,18 @@ object SqlInterpolatorSpec extends ZIOSpecDefault {
         val v: Maybe[Int] = Maybe.absent
         val frag          = sql"SELECT ${v}"
         assertTrue(frag.queryParams == IndexedSeq(DbValue.DbNull))
+      },
+      test("multi-column values fail with a clear error") {
+        val error = try {
+          sql"SELECT ${NameAndAge("Alice", 30)}"
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(
+          error.getMessage ==
+            "Cannot use multi-column type as a single SQL parameter (got 2 columns). Expand the value into multiple placeholders instead."
+        )
       }
     )
   )
