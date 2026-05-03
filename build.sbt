@@ -1274,7 +1274,6 @@ lazy val docs = project
     moduleName := "zio-blocks-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    scalacOptions += "-experimental",
     projectName                                := (ThisBuild / name).value,
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,

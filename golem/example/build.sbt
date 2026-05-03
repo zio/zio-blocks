@@ -8,7 +8,6 @@ lazy val root = project
   .settings(
     name := "scala-demo",
     scalaJSUseMainModuleInitializer := false,
-    scalacOptions += "-experimental",
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     golemAgentGuestWasmFile := {
       val appRoot = (ThisProject / baseDirectory).value
@@ -21,4 +20,3 @@ lazy val root = project
     ),
     golemBasePackage := Some("demo")
   )
-
