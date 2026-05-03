@@ -66,8 +66,8 @@ final case class JsonRpcProtocol[T](
    * Binds a single typed operation handler and produces an executable codec.
    *
    * This reference binding keeps the public API in terms of typed values plus
-   * the derived operation schemas/codecs, while raw JSON remains internal to the
-   * wire format boundary.
+   * the derived operation schemas/codecs, while raw JSON remains internal to
+   * the wire format boundary.
    */
   def bind[Input, Output](
     name: String
@@ -78,7 +78,7 @@ final case class JsonRpcProtocol[T](
     val operationOpt = operations.find(_.name == name)
 
     operationOpt match {
-      case None => Left(s"Unknown JSON-RPC operation: $name")
+      case None            => Left(s"Unknown JSON-RPC operation: $name")
       case Some(operation) =>
         validateSchema(name, "input", operation.inputSchema, inputSchema)
           .flatMap(_ => validateSchema(name, "output", operation.outputSchema, outputSchema))
@@ -90,7 +90,8 @@ final case class JsonRpcProtocol[T](
                   handle = params => {
                     val typedInput = operation.inputCodec.asInstanceOf[JsonCodec[Input]].decodeValue(params)
                     try {
-                      handler(typedInput).map(output => operation.outputCodec.asInstanceOf[JsonCodec[Output]].encodeValue(output))
+                      handler(typedInput)
+                        .map(output => operation.outputCodec.asInstanceOf[JsonCodec[Output]].encodeValue(output))
                     } catch {
                       case NonFatal(error) => Left(SchemaError(error.getMessage))
                     }
@@ -117,7 +118,8 @@ final case class JsonRpcProtocol[T](
 
 object JsonRpcProtocol {
 
-  private[jsonrpc] /** Internal raw JSON handler after typed binding. */
+  private[jsonrpc]
+  /** Internal raw JSON handler after typed binding. */
   final case class BoundOperation(
     name: String,
     handle: Json => Either[SchemaError, Json]

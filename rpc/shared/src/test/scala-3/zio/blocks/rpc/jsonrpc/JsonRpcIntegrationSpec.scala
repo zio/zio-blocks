@@ -187,7 +187,7 @@ object JsonRpcIntegrationSpec extends ZIOSpecDefault {
       test("derived contract can be bound once into an executable codec") {
         val protocol = JsonRpcDeriver.deriveService(RPC.derived[GreeterService])
         val codec    = protocol
-          .bind[String, String]("greet") { name => Right(s"Hello, $name!") }
+          .bind[String, String]("greet")(name => Right(s"Hello, $name!"))
           .fold(message => throw new RuntimeException(message), identity)
 
         val request  = """{"jsonrpc":"2.0","method":"greet","params":"bound","id":1}"""
