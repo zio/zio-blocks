@@ -20,8 +20,8 @@ opaque type Maybe[+A] = A | Null
 
 object Maybe {
   inline def present[A](a: A): Maybe[A] = a
-  inline def absent[A]: Maybe[A] = null
-  def Absent: Maybe[Nothing] = null
+  inline def absent[A]: Maybe[A]        = null
+  def Absent: Maybe[Nothing]            = null
 
   def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
     case Some(a) => a
@@ -33,7 +33,7 @@ object Maybe {
     inline def isPresent: Boolean = self != null
     inline def isEmpty: Boolean   = self == null
     inline def isDefined: Boolean = self != null
-    inline def get: A =
+    inline def get: A             =
       if (self == null) throw new NoSuchElementException("Maybe.absent.get")
       else self.asInstanceOf[A]
     inline def getOrElse[B >: A](default: => B): B =

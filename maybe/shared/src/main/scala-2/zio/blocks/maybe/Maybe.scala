@@ -24,7 +24,7 @@ object MaybeTag {
     @inline def isPresent: Boolean = !(self.asInstanceOf[AnyRef] eq null)
     @inline def isEmpty: Boolean   = self.asInstanceOf[AnyRef] eq null
     @inline def isDefined: Boolean = !(self.asInstanceOf[AnyRef] eq null)
-    @inline def get: A =
+    @inline def get: A             =
       if (self.asInstanceOf[AnyRef] eq null) throw new NoSuchElementException("Maybe.absent.get")
       else self.asInstanceOf[A]
     @inline def getOrElse[B >: A](default: => B): B =
@@ -43,9 +43,9 @@ object MaybeTag {
 }
 
 object Maybe {
-  @inline def present[A](a: A): Maybe[A] = a.asInstanceOf[Maybe[A]]
-  @inline def absent[A]: Maybe[A] = null.asInstanceOf[Maybe[A]]
-  def Absent: Maybe[Nothing] = null.asInstanceOf[Maybe[Nothing]]
+  @inline def present[A](a: A): Maybe[A]      = a.asInstanceOf[Maybe[A]]
+  @inline def absent[A]: Maybe[A]             = null.asInstanceOf[Maybe[A]]
+  def Absent: Maybe[Nothing]                  = null.asInstanceOf[Maybe[Nothing]]
   def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
     case Some(a) => a.asInstanceOf[Maybe[A]]
     case None    => null.asInstanceOf[Maybe[A]]
