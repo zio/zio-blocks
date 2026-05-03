@@ -9,7 +9,7 @@ Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM 
 
 The module is structured around these core types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
@@ -21,7 +21,7 @@ final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribut
 final case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 final case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 
-// CssSelector variants
+// CssSelector variants (additional types omitted for brevity)
 sealed trait CssSelector
 final case class CssSelector.Element(tag: String) extends CssSelector
 final case class CssSelector.Class(name: String) extends CssSelector
@@ -220,7 +220,7 @@ import zio.blocks.html._
 
 val tree = div(p("A"), span("B"), p("C"))
 val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
-// List(Dom.Element.Generic("p", ...), Dom.Element.Generic("p", ...))
+// List(p("A"), p("C"))
 ```
 
 **`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
@@ -228,15 +228,12 @@ val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
-val tree = div(p(className := "visible", "A"), p(className := "hidden", "B"))
+val tree = div(p("A"), span("Keep"), p("B"), span("Also keep"))
 val filtered = tree.filter {
-  case el: Dom.Element => !el.attributes.exists {
-    case attr: Dom.Attribute.KeyValue if attr.name == "class" => false
-    case _ => true
-  }
+  case el: Dom.Element => el.tag == "span"
   case _ => true
 }
-// div(p(className := "visible", "A"))
+// div(span("Keep"), span("Also keep"))
 ```
 
 **`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
@@ -389,6 +386,22 @@ val alpineDiv = div(attr("x-data") := "{open: false}", "Alpine.js component")
 val htmxDiv = div(attr("hx-get") := "/api/data", "HTMX target")
 ```
 
+### Programmatic Multi-Valued Attributes
+
+For programmatic construction of multi-valued attributes (when the DSL `+=` operator is not available), use `Dom.multiAttr(name)` or `Dom.multiAttr(name, separator)`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val className = Dom.multiAttr("class")
+val div1 = div(className := "base", className += "active")
+
+val rel = Dom.multiAttr("rel", Dom.AttributeSeparator.Space)
+val link = a(rel := "prev", rel += "first", href := "/previous")
+```
+
+The `MultiAttributeKey` class handles accumulation of values with configurable separators (Space, Comma, Semicolon, or Custom).
+
 ### Children
 
 Children can be strings, elements, or collections. The DSL uses the `ToModifier` typeclass to convert values into DOM nodes:
@@ -402,7 +415,7 @@ val simple = p("Plain text")
 // Element children are nested
 val nested = div(p("First"), p("Second"))
 
-// Lists of children — ToModifier[List[A]] wraps in a span if multi-element
+// Lists of children — elements append directly, no wrapper
 val items = List("Apple", "Banana", "Cherry")
 val listEl = ul(items.map(item => li(item)))
 
@@ -551,8 +564,12 @@ Use `CssLength` and `CssColor` extension types for type-safe CSS values:
 import zio.blocks.html._
 
 val width = css"width: ${300.px};"
-val background = css"background: ${CssColor.hex("ff0000")};"
+val background = css"background: ${CssColor.Hex.unsafe("ff0000")};"
 ```
+
+:::note
+`CssColor.Hex` returns `Option[CssColor]` because hex validation may fail. Use `CssColor.Hex.apply()` (or just `CssColor.Hex(...)`) for safe validation, or `CssColor.Hex.unsafe()` for known-valid hex strings.
+:::
 
 ### `js""` Interpolator
 
@@ -645,6 +662,8 @@ println(descendantSel.render) // div span
 
 ### Pseudo-Classes and Pseudo-Elements
 
+Select elements based on their state using pseudo-classes, and insert generated content using pseudo-elements:
+
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
@@ -659,6 +678,8 @@ println(before.render)      // div::before
 ```
 
 ### Attribute Selectors
+
+Select elements by their attribute values using built-in matchers:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -996,9 +1017,9 @@ println(safe.render)
 ### JavaScript String Escaping
 
 The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` becomes the Unicode escape `<`
-- `>` becomes the Unicode escape `>`  
-- `&` becomes the Unicode escape `&`
+- `<` becomes `<`
+- `>` becomes `>`
+- `&` becomes `&`
 - `"` → `\"`, `'` → `\'`, `\` → `\\`
 - Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
@@ -1135,6 +1156,8 @@ assert(aboutLink.texts.contains("About"))
 ```
 
 ## Complete Example: A Dashboard Page
+
+Here is a complete, self-contained example building a full dashboard page with navigation, metadata, styling, and content sections:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
