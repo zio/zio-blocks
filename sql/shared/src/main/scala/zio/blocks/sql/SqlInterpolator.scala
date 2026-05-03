@@ -115,7 +115,8 @@ object DbParam {
       if (values.size == 1) values.head
       else
         throw new IllegalArgumentException(
-          s"Cannot use multi-column type as SQL parameter (got ${values.size} columns)"
+          s"Cannot use multi-column type as a single SQL parameter (got ${values.size} columns). " +
+            "Expand the value into multiple placeholders instead."
         )
     }
   }
