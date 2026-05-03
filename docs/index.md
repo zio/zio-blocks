@@ -597,9 +597,10 @@ import zio.blocks.sql.zio._
 case class Product(id: Long, name: String, price: Double)
 object Product:
   given Schema[Product] = Schema.derived
+  given DbCodec[Product] = summon[Schema[Product]].deriving(DbCodecDeriver).derive
 
 val repo        = Repo.derived[Product, Long]
-val transactor  = TransactorZIO.fromUrl("jdbc:postgresql://localhost/shop", SqlDialect.Postgres)
+val transactor  = TransactorZIO.fromUrl("jdbc:postgresql://localhost/shop", SqlDialect.PostgreSQL)
 
 // Batch insert, then query with a custom filter
 val program = transactor.transact:
