@@ -13,9 +13,21 @@ The module is structured around these core types:
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
-final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+// Dom variants
+sealed trait Dom
+final case class Dom.Text(value: String) extends Dom
+final case class Dom.Element(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom
+
+// CssSelector variants
+sealed trait CssSelector
 final case class CssSelector.Element(tag: String) extends CssSelector
-final case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration])
+final case class CssSelector.Class(name: String) extends CssSelector
+final case class CssSelector.Id(name: String) extends CssSelector
+
+// Css variants
+sealed trait Css
+final case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration]) extends Css
+final case class Css.Declaration(name: String, value: String) extends Css
 ```
 
 ## Motivation
@@ -223,7 +235,7 @@ val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => fal
 // Some(Dom.Element.Generic("p", ...))
 ```
 
-**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in post-order. Each node receives the transformation, and if it is an Element, its children also undergo recursive transformation:
+**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children also undergo recursive transformation:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -548,7 +560,7 @@ println(code.value)
 Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Use `ToJs[String]` (which automatically quotes) or construct `Js` literals explicitly.
 :::
 
-The interpolator protects against `</script>` injection by escaping `<` and `>` as `<` and `>`:
+The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes `<` and `>`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -557,7 +569,7 @@ val userInput = "if (x < y) alert('<script>');"
 val code = js"val check = $userInput"
 
 println(code.value)
-// val check = if (x < y) alert('<script>');
+// val check = if (x < y) alert(<script>);
 ```
 
 ### `selector""` Interpolator
@@ -690,9 +702,9 @@ val page = div(
 val navLinks = page.select(CssSelector.Element("nav")).children
 println(navLinks.length)  // 2 (both <a> elements)
 
-// First and last
+// First match
 val firstLink = page.select(CssSelector.Element("a")).first
-println(firstLink.isDefined)  // true
+println(firstLink.length)  // 1
 ```
 
 ### Extraction
@@ -740,8 +752,33 @@ val visible = page.select(CssSelector.Element("p")).filter { el =>
 val withClass = page.select(CssSelector.Element("p")).withClass("visible")
 ```
 
+### Modifying Selections
+
+Transform or replace selected nodes:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = div(
+  p("Old 1"),
+  p("Old 2"),
+  span("Keep")
+)
+
+// Transform elements in the selection
+val modified = page.select(CssSelector.Element("p")).modifyAll { el =>
+  el.copy(tag = "div")
+}
+
+// Replace all selected nodes
+val replaced = page.select(CssSelector.Element("p")).replaceAll(p("New"))
+
+// Remove all selected nodes
+val removed = page.select(CssSelector.Element("p")).removeAll
+```
+
 :::warning
-The `DomSelection` API provides read-only querying. To modify the tree in-place, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
+The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
 :::
 
 :::note
@@ -848,19 +885,48 @@ println(mediaQuery.render)
 Prefer `Css.Rule` and `Css.Sheet` over `Css.Raw` when possible — structured CSS enables future optimization and prevents CSS injection. Use `Css.Raw` only for trusted, hardcoded CSS.
 :::
 
+### CSS Comments
+
+Add comments to stylesheets using `Css.Comment`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val stylesheet = Css.Sheet(Chunk(
+  Css.Comment("Mobile-first responsive design"),
+  Css.Rule(
+    CssSelector.Element("body"),
+    Chunk(Css.Declaration("font-size", "16px"))
+  ),
+  Css.Comment("Tablet and desktop breakpoints"),
+  Css.Raw("@media (min-width: 768px) { body { font-size: 18px; } }")
+))
+
+println(stylesheet.render(indent = 2))
+// /* Mobile-first responsive design */
+// body {
+//   font-size: 16px;
+// }
+// /* Tablet and desktop breakpoints */
+// @media (min-width: 768px) { body { font-size: 18px; } }
+```
+
 ## Rendering
 
 All `Dom` and `Css` values support multiple rendering modes.
 
 ### Minified Rendering
 
-`Dom#render` produces compact HTML with no extra whitespace:
+`Dom#render` produces compact HTML with no extra whitespace. Use `Dom#renderMinified` as an explicit alias for the same operation:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
 val page = div(h1("Title"), p("Content"))
 println(page.render)
+// <div><h1>Title</h1><p>Content</p></div>
+
+println(page.renderMinified)  // Same as render
 // <div><h1>Title</h1><p>Content</p></div>
 ```
 
@@ -927,7 +993,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// let payload = </script><script>alert('XSS');</script>
+// let payload = <script>alert(\'XSS\');<script>
 ```
 
 ### URL Sanitization
