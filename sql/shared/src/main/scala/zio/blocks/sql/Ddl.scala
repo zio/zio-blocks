@@ -31,19 +31,32 @@ final case class ColumnDef(name: String, sqlType: String, nullable: Boolean)
 /** Helpers for generating DDL fragments (`CREATE TABLE`, `DROP TABLE`). */
 object Ddl {
 
+  private val Identifier = raw"[A-Za-z_][A-Za-z0-9_]*".r
+
+  private def validateIdentifier(kind: String, value: String): String =
+    value match {
+      case Identifier() => value
+      case _            =>
+        throw new IllegalArgumentException(
+          s"Invalid SQL $kind identifier '$value'. Only ASCII letters, digits, and underscores are supported, and the first character must be a letter or underscore."
+        )
+    }
+
   /**
    * Produces a `CREATE TABLE IF NOT EXISTS <tableName> (...)` fragment. Each
    * column is rendered as `name sqlType [NOT NULL]`.
    */
   def createTable(tableName: String, columns: IndexedSeq[ColumnDef]): Frag = {
+    val validatedTable = validateIdentifier("table", tableName)
     val colDefs = columns.map { col =>
+      val validatedColumn = validateIdentifier("column", col.name)
       val nullStr = if (col.nullable) "" else " NOT NULL"
-      s"  ${col.name} ${col.sqlType}$nullStr"
+      s"  $validatedColumn ${col.sqlType}$nullStr"
     }
-    Frag.literal(s"CREATE TABLE IF NOT EXISTS $tableName (\n${colDefs.mkString(",\n")}\n)")
+    Frag.literal(s"CREATE TABLE IF NOT EXISTS $validatedTable (\n${colDefs.mkString(",\n")}\n)")
   }
 
   /** Produces a `DROP TABLE IF EXISTS <tableName>` fragment. */
   def dropTable(tableName: String): Frag =
-    Frag.literal(s"DROP TABLE IF EXISTS $tableName")
+    Frag.literal(s"DROP TABLE IF EXISTS ${validateIdentifier("table", tableName)}")
 }

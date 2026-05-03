@@ -117,6 +117,10 @@ class Repo[E, ID](
    * Inserts all `entities` using a JDBC batch, which is significantly faster
    * than individual inserts for large collections. Returns the total affected
    * row count.
+   *
+   * Batch logging records the rendered SQL, duration, and total affected row
+   * count. Individual parameter lists are omitted because a batch may contain a
+   * large number of rows.
    */
   def insertAll(entities: Iterable[E])(using con: DbCon): Int = {
     if (entities.isEmpty) return 0
