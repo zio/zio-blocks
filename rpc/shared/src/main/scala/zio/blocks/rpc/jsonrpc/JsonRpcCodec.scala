@@ -18,14 +18,16 @@ package zio.blocks.rpc.jsonrpc
 
 import scala.util.control.NonFatal
 import zio.blocks.chunk.Chunk
+import zio.blocks.schema.SchemaError
 import zio.blocks.schema.json.Json
 
 /**
- * A low-level JSON-RPC 2.0 dispatcher over raw operation handlers.
+ * A low-level JSON-RPC 2.0 dispatcher over internal JSON operation handlers.
  *
  * This type is transport-agnostic and executable, but intentionally unaware of
  * RPC descriptors or dependency injection. Higher-level runtimes can construct
- * it from a derived protocol contract plus concrete handlers.
+ * it from a derived protocol contract plus concrete typed bindings while raw
+ * JSON remains confined to the wire format boundary.
  */
 final class JsonRpcCodec(
   private val operationHandlers: Map[String, JsonRpcCodec.OperationHandler]
@@ -82,7 +84,7 @@ final class JsonRpcCodec(
                                 JsonRpcCodec.errorResponse(
                                   idJson,
                                   -32603,
-                                  Option(error.getMessage).getOrElse("Internal error")
+                                  JsonRpcCodec.message(error)
                                 )
                             }
                           } catch {
@@ -109,11 +111,10 @@ final class JsonRpcCodec(
 object JsonRpcCodec {
 
   /**
-   * Handles a single JSON-RPC operation by processing raw JSON parameters and
-   * returning a result.
+   * Handles a single JSON-RPC operation at the internal wire boundary.
    *
-   * `params` is the raw JSON from the `"params"` field of the request, or
-   * `Json.Null` if the field is absent.
+   * Public bindings should remain typed; this low-level trait exists only for
+   * the executable JSON-RPC dispatcher after typed protocol binding.
    *
    * Returns `Right(result)` on success (serialized as the `"result"` field) or
    * `Left(error)` on failure (serialized as a `-32603` internal error).
@@ -121,7 +122,12 @@ object JsonRpcCodec {
    * `Left`.
    */
   trait OperationHandler {
-    def handle(params: Json): Either[Throwable, Json]
+    def handle(params: Json): Either[SchemaError, Json]
+  }
+
+  private[jsonrpc] def message(error: SchemaError): String = {
+    val rendered = error.toString
+    if (rendered == null || rendered.isEmpty) "Internal error" else rendered
   }
 
   def successResponse(id: Json, result: Json): String =
