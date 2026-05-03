@@ -10,7 +10,7 @@ Key design goals:
 - **Zero magic** — SQL strings are visible, composable, and inspectable.
 - **Schema-first** — column names, types, and nullability are derived from the same `Schema[A]` you already use for JSON/Avro codecs.
 - **Effect-system agnostic** — the core module (`zio-blocks-sql`) is plain synchronous Scala. A thin `zio-blocks-sql-zio` adapter lifts operations into ZIO effects.
-- **Cross-platform** — JVM and Scala.js (Scala.js uses in-memory stubs for testing; real JDBC runs on JVM only).
+- **Cross-platform core** — the `sql` module cross-compiles to JVM and Scala.js, while the actual JDBC backend (`JdbcTransactor`, `JdbcConnection`, `sql-zio`) is JVM-only.
 
 ## Overview
 
@@ -50,7 +50,7 @@ import zio.blocks.sql.zio._
 case class User(id: Long, name: String, email: String)
 object User:
   given Schema[User] = Schema.derived
-  given DbCodec[User] = DbCodec.derived   // derived from Schema
+  given DbCodec[User] = summon[Schema[User]].deriving(DbCodecDeriver).derive
 
 // 2. Create a Repo (auto-derives table name "user", id column "id")
 val userRepo: Repo[User, Long] = Repo.derived[User, Long]
@@ -59,7 +59,7 @@ val userRepo: Repo[User, Long] = Repo.derived[User, Long]
 val transactor = TransactorZIO.fromUrl(
   "jdbc:postgresql://localhost/mydb",
   "user", "password",
-  SqlDialect.Postgres
+  SqlDialect.PostgreSQL
 )
 
 // 4. Execute operations inside a transaction
@@ -109,7 +109,7 @@ case class Address(street: String, city: String, zip: String)
 object Address:
   given Schema[Address] = Schema.derived
 
-val addressCodec: DbCodec[Address] = DbCodecDeriver.derive[Address]
+val addressCodec: DbCodec[Address] = summon[Schema[Address]].deriving(DbCodecDeriver).derive
 ```
 
 Derived codecs map each field to a snake_case column name by default
@@ -145,6 +145,11 @@ val city   = "Berlin"
 // Typed parameters are bound as `?` placeholders — never string-interpolated
 val frag: Frag = sql"SELECT * FROM users WHERE age > $minAge AND city = $city"
 ```
+
+Interpolated values must correspond to a **single SQL column**. Primitive
+types, `Option[A]`, `Maybe[A]`, and wrappers around a single-column codec work
+directly. Composite record values do not expand automatically inside one
+placeholder — write one placeholder per column instead.
 
 Fragments compose with `++`:
 
@@ -183,7 +188,7 @@ val userTable: Table[User] = Table.derived[User]
 val legacyTable: Table[User] = Table.derived[User]("tbl_users")
 
 // Generate CREATE TABLE DDL
-val createDdl: Frag = userTable.createTable(SqlDialect.Postgres)
+val createDdl: Frag = userTable.createTable(SqlDialect.PostgreSQL)
 // → CREATE TABLE IF NOT EXISTS user (
 //     id BIGINT NOT NULL,
 //     name TEXT NOT NULL,
@@ -328,7 +333,7 @@ ZIO effect system.
 val transactor = TransactorZIO.fromUrl(
   "jdbc:postgresql://localhost/mydb",
   "alice", "secret",
-  SqlDialect.Postgres
+  SqlDialect.PostgreSQL
 )
 ```
 
@@ -357,7 +362,7 @@ val program: ZIO[Any, Throwable, User] =
 
 ```scala
 val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
-  TransactorZIO.layer("jdbc:postgresql://localhost/mydb", SqlDialect.Postgres)
+  TransactorZIO.layer("jdbc:postgresql://localhost/mydb", SqlDialect.PostgreSQL)
 ```
 
 ### DDL Generation
@@ -368,13 +373,13 @@ Generate schema DDL from a `Table` using the dialect's type mappings:
 val table = Table.derived[User]
 
 // CREATE TABLE
-val createSql: Frag = table.createTable(SqlDialect.Postgres)
-createSql.sql(SqlDialect.Postgres)
+val createSql: Frag = table.createTable(SqlDialect.PostgreSQL)
+createSql.sql(SqlDialect.PostgreSQL)
 // → "CREATE TABLE IF NOT EXISTS user (\n  id BIGINT NOT NULL,\n  name TEXT NOT NULL\n)"
 
 // DROP TABLE
 val dropSql: Frag = table.dropTable
-dropSql.sql(SqlDialect.Postgres)
+dropSql.sql(SqlDialect.PostgreSQL)
 // → "DROP TABLE IF EXISTS user"
 ```
 
@@ -392,12 +397,12 @@ val frag = Ddl.createTable("events", IndexedSeq(
 
 ### SQL Dialects
 
-`SqlDialect` controls dialect-specific rendering: placeholder syntax (`?` vs `$1`), type names, and identifier quoting.
+`SqlDialect` controls dialect-specific rendering: placeholder syntax (`?` vs `$1`) and type names.
 
 ```scala
 object SqlDialect:
-  val Postgres: SqlDialect  // Uses $1, $2, ... placeholders; PostgreSQL type names
-  val Generic:  SqlDialect  // Uses ? placeholders; generic JDBC type names
+  val PostgreSQL: SqlDialect  // Uses $1, $2, ... placeholders
+  val SQLite:     SqlDialect  // Uses ? placeholders
 ```
 
 Pass the dialect when constructing a transactor; it is threaded through
@@ -415,7 +420,7 @@ val logger: SqlLogger = new SqlLogger:
   def onError(event: SqlLogger.ErrorEvent): Unit =
     println(s"[SQL ERROR] ${event.sql} — ${event.error.getMessage}")
 
-val transactor = JdbcTransactor(connectionFactory, SqlDialect.Postgres, logger)
+val transactor = JdbcTransactor(connectionFactory, SqlDialect.PostgreSQL, logger)
 ```
 
 ## Column Naming
@@ -451,18 +456,26 @@ transactor.connect:
     ORDER BY o.total DESC
     LIMIT ${10}
   """
-  frag.query[(Long, String, BigDecimal)]
+  case class OrderSummary(id: Long, name: String, total: BigDecimal)
+  object OrderSummary:
+    given Schema[OrderSummary] = Schema.derived
+    given DbCodec[OrderSummary] = summon[Schema[OrderSummary]].deriving(DbCodecDeriver).derive
+
+  frag.query[OrderSummary]
 
   // Aggregate
   val avgFrag = sql"SELECT AVG(price) FROM products WHERE category = ${"electronics"}"
   avgFrag.queryOne[Double]
 ```
 
-For tuple result types, derive `DbCodec` via the macro:
+For custom result shapes, define a small record and derive a codec from its
+schema:
 
 ```scala
-// Two-column result
-given DbCodec[(Long, String)] = DbCodecDeriver.deriveProduct[(Long, String)]
+case class ProductAverage(value: Double)
+object ProductAverage:
+  given Schema[ProductAverage] = Schema.derived
+  given DbCodec[ProductAverage] = summon[Schema[ProductAverage]].deriving(DbCodecDeriver).derive
 ```
 
 ## Error Handling
