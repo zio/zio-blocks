@@ -129,7 +129,9 @@ The `Dom` sealed trait is the core data model. Everything in the module works wi
 
 A `Dom` tree is composed of four node types:
 
-**`Dom.Text(content: String)`** — A text node containing string content. Text is automatically HTML-escaped when rendered to prevent XSS injection. Escaping happens at render time (not construction time), so `Dom.Text` stores the raw string.
+#### Dom.Text(content: String)
+
+A text node containing string content. Text is automatically HTML-escaped when rendered to prevent XSS injection. Escaping happens at render time (not construction time), so `Dom.Text` stores the raw string.
 
 To create text nodes, use the DSL (strings are converted via `ToModifier[String]`) or explicitly:
 
@@ -141,7 +143,9 @@ println(text.render)
 // Hello, world!
 ```
 
-**`Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A standard HTML element. The tag is the element name, attributes is a `Chunk` of key-value pairs and modifiers, and children is a `Chunk` of DOM nodes. Text content in children is HTML-escaped during rendering.
+#### Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+
+A standard HTML element. The tag is the element name, attributes is a `Chunk` of key-value pairs and modifiers, and children is a `Chunk` of DOM nodes. Text content in children is HTML-escaped during rendering.
 
 The DSL functions (`div`, `p`, `span`, etc.) construct these:
 
@@ -153,7 +157,9 @@ println(elem.render)
 // <div id="main"><p>Content</p></div>
 ```
 
-**`Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A specialized script element with `tag = "script"`. Unlike `Generic`, Script renders its text children **without HTML escaping**, allowing inline JavaScript to be emitted as-is. This is the mechanism that enables safe `js"..."` interpolation — the interpolator escapes the JavaScript, but the Script element does not double-escape.
+#### Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+
+A specialized script element with `tag = "script"`. Unlike `Generic`, Script renders its text children **without HTML escaping**, allowing inline JavaScript to be emitted as-is. This is the mechanism that enables safe `js"..."` interpolation — the interpolator escapes the JavaScript, but the Script element does not double-escape.
 
 Use `script().inlineJs(js"...")` or `script().externalJs(url)`:
 
@@ -164,7 +170,9 @@ val inlineScript = script().inlineJs(js"console.log('Hello');")
 val externalScript = script().externalJs("/app.js")
 ```
 
-**`Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A specialized style element with `tag = "style"`. Like Script, Style renders text children **without escaping**, allowing raw CSS to be emitted. Use `style().inlineCss(css"...")`:
+#### Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+
+A specialized style element with `tag = "style"`. Like Script, Style renders text children **without escaping**, allowing raw CSS to be emitted. Use `style().inlineCss(css"...")`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -172,7 +180,9 @@ import zio.blocks.html._
 val inlineStyle = style().inlineCss(css"body { margin: 0; }")
 ```
 
-**`Dom.Doctype(value: String)`** — A DOCTYPE declaration node. Renders as `<!DOCTYPE value>`. The singleton `doctype` value renders as `<!DOCTYPE html>`:
+#### Dom.Doctype(value: String)
+
+A DOCTYPE declaration node. Renders as `<!DOCTYPE value>`. The singleton `doctype` value renders as `<!DOCTYPE html>`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -181,7 +191,9 @@ println(doctype.render)
 // <!DOCTYPE html>
 ```
 
-**`Dom.Empty`** — A no-op node that renders to empty string. Useful for conditional rendering (e.g., `if (condition) element else Dom.Empty`).
+#### Dom.Empty
+
+A no-op node that renders to empty string. Useful for conditional rendering (e.g., `if (condition) element else Dom.Empty`).
 
 ### Attributes and Values
 
@@ -201,7 +213,7 @@ The DSL provides `id := value` (`:=`) for single-valued attributes and `classNam
 
 `Dom` provides four pure tree transformation methods:
 
-**`collect(pf: PartialFunction[Dom, Dom]): List[Dom]`** — Applies a partial function to every node in the tree (depth-first) and collects the results. Useful for extracting or transforming specific nodes:
+**`Dom#collect(pf: PartialFunction[Dom, Dom]): List[Dom]`** — Applies a partial function to every node in the tree (depth-first) and collects the results. Useful for extracting or transforming specific nodes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -211,7 +223,7 @@ val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
 // List(Dom.Element.Generic("p", ...), Dom.Element.Generic("p", ...))
 ```
 
-**`filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
+**`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -227,7 +239,7 @@ val filtered = tree.filter {
 // div(p(className := "visible", "A"))
 ```
 
-**`find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
+**`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -237,7 +249,7 @@ val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => fal
 // Some(Dom.Element.Generic("p", ...))
 ```
 
-**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
+**`Dom#transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
