@@ -3,204 +3,387 @@ id: html
 title: "HTML"
 ---
 
-`zio-blocks-html` is a type-safe HTML templating library with compile-time optimizations. We can build HTML, CSS, and JavaScript using a fluent Scala DSL that ensures correctness and prevents common vulnerabilities.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-## Why `zio-blocks-html`?
+`zio-blocks-html` is a **type-safe HTML templating library** providing immutable data structures and a fluent DSL for building HTML, CSS, and JavaScript. It offers compile-time safety, automatic XSS protection, and zero-dependency simplicity across Scala 2.13, 3.x, and both JVM and Scala.js platforms.
 
-String concatenation for HTML is error-prone and lacks type safety. Untrusted user input can lead to XSS vulnerabilities if not manually escaped everywhere:
+Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM navigation), `Css` (stylesheets), `Js` (JavaScript expressions).
 
-```scala
+The module is structured around these core types:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
+import zio.blocks.chunk.Chunk
 
-// Unsafe: XSS vulnerability if userInput contains "<script>"
-val html = "<div>" + userInput + "</div>"
-
-// Manual escaping is tedious and easy to forget
-val escaped = userInput.replace("<", "&lt;").replace(">", "&gt;")
+final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+final case class CssSelector.Element(tag: String) extends CssSelector
+final case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration])
 ```
 
-Template libraries with runtime overhead compromise performance by parsing and validating at every render:
+## Motivation
 
-```scala
-// Runtime parsing and validation at every render
-val html = RuntimeTemplate.parse("<div>{{content}}</div>")
-```
+Why use `zio-blocks-html`?
 
-`zio-blocks-html` provides type-safe HTML construction with automatic XSS protection and Scala 3 compile-time optimizations for string interpolators.
+String concatenation for HTML is error-prone:
+- No type safety — typos in tag names or attributes only surface at runtime
+- Manual escaping is tedious and easy to forget
+- Tightly couples HTML structure to data serialization
+
+Template engines with runtime parsing add overhead and complexity:
+- Parsing validation on every render
+- Separate template syntax to learn
+- Difficult to compose programmatically
+
+`zio-blocks-html` provides:
+- **Type-safe construction** via DSL functions (`div(id := "main", p("Hello"))`)
+- **Automatic XSS protection** through position-aware typeclasses and HTML escaping
+- **Scala 3 compile-time optimizations** for string interpolators (constant folding, macro validation)
+- **Zero dependencies** — pure Scala, works with any HTTP framework
+- **Cross-platform** — identical API on JVM and Scala.js
+- **Structured querying** — CSS selectors for DOM navigation and testing
 
 ## Installation
 
-Add the following to your `build.sbt`:
+Add to `build.sbt`:
 
-```scala
+```
 libraryDependencies += "dev.zio" %% "zio-blocks-html" % "@VERSION@"
 ```
 
-For cross-platform projects (Scala.js):
+For Scala.js projects, use `%%%`:
 
-```scala
+```
 libraryDependencies += "dev.zio" %%% "zio-blocks-html" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: 2.13.x and 3.x
 
 :::note
-The `html` module depends on `zio-blocks-schema`. This dependency is pulled in transitively. The `ToJs` typeclass auto-derives from `Schema`, so any type with a `Schema` instance can be interpolated into `js"..."` expressions.
+The `html` module depends transitively on `zio-blocks-schema` and `zio-blocks-chunk`. The schema dependency enables `ToJs` auto-derivation via JSON encoding — if your type has a `Schema` instance, it automatically becomes usable in `js"..."` expressions.
 :::
 
-## Overview
+## Overview: How They Work Together
 
-`zio-blocks-html` provides five core features:
+The module is organized around five core subsystems that compose together:
 
-1. **HTML DSL** for type-safe element construction: `div(id := "main", p("Hello"))`
-2. **String interpolators** with position-aware escaping: `html"<p>$name</p>"`, `css"color: $color"`, `js"console.log($msg)"`
-3. **CSS Selector DSL** with combinator methods: `div.hover`, `div > span`, `(div | p).firstChild`
-4. **CSS ADT** for structured stylesheets: `Css.Rule(selector, declarations)`
-5. **DOM Querying** for manipulating DOM trees: `page.select(div.hover).texts`
+```
+┌─────────────────────────────────────────────────────┐
+│  DSL Functions (div, p, span, ...)                  │
+│  + Attribute Builders (id :=, className +=)         │
+│  └─> Produces: Dom.Element.Generic                  │
+│                                                      │
+├─────────────────────────────────────────────────────┤
+│  String Interpolators (html"", css"", js"")          │
+│  └─> Position-aware typeclasses                      │
+│      └─> html"" → Dom.Element (attribute escaping)   │
+│      └─> css"" → Css (CSS value types)               │
+│      └─> js"" → Js (JavaScript with </script> guard) │
+│                                                      │
+├─────────────────────────────────────────────────────┤
+│  Dom ADT (sealed trait Dom)                          │
+│  ├─> Dom.Text (HTML-escaped text content)            │
+│  ├─> Dom.Element (Generic, Script, Style)            │
+│  ├─> Dom.Doctype (<!DOCTYPE html>)                   │
+│  └─> Dom.Empty (renders to nothing)                  │
+│                                                      │
+├─────────────────────────────────────────────────────┤
+│  Rendering                                           │
+│  ├─> dom.render → minified HTML String               │
+│  ├─> dom.render(indent=2) → pretty-printed String    │
+│  └─> Used in HTTP responses, testing                 │
+│                                                      │
+├─────────────────────────────────────────────────────┤
+│  CSS Selectors + DOM Querying                        │
+│  ├─> CssSelector ADT (Element, Class, Id, etc.)      │
+│  ├─> Fluent combinators (>, >>, +, ~, &, |)          │
+│  ├─> DomSelection API (select, filter, extract)      │
+│  └─> Used for testing, transformation, navigation    │
+└─────────────────────────────────────────────────────┘
+```
 
-All features are cross-platform (JVM and Scala.js) and work identically on Scala 2.13 and Scala 3, with Scala 3 receiving additional compile-time optimizations.
+**Typical workflow:**
+
+1. **Build** — use DSL (`div(className := "card", ...)`) or interpolators (`html"<div>$content</div>"`)
+2. **Compose** — nest elements and use typeclasses to extend for custom types
+3. **Query** — use CSS selectors (`page.select(div.hover).texts`) for testing or transformation
+4. **Render** — call `Dom#render` or `Dom#render(indent)` for HTTP response or testing
+5. **Style** — use `css"..."` and `Css.Rule` to define or embed stylesheets
+
+## The Dom ADT
+
+The `Dom` sealed trait is the core data model. Everything in the module works with or produces `Dom` nodes.
+
+### The Four Node Types
+
+A `Dom` tree is composed of four node types:
+
+**`Dom.Text(content: String)`** — A text node containing string content. Text is automatically HTML-escaped when rendered to prevent XSS injection. Escaping happens at render time (not construction time), so `Dom.Text` stores the raw string.
+
+To create text nodes, use the DSL (strings are converted via `ToModifier[String]`) or explicitly:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val text = Dom.Text("Hello, world!")
+println(text.render)
+// Hello, world!
+```
+
+**`Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A standard HTML element. The tag is the element name, attributes is a `Chunk` of key-value pairs and modifiers, and children is a `Chunk` of DOM nodes. Text content in children is HTML-escaped during rendering.
+
+The DSL functions (`div`, `p`, `span`, etc.) construct these:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val elem = div(id := "main", p("Content"))
+println(elem.render)
+// <div id="main"><p>Content</p></div>
+```
+
+**`Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A specialized script element with `tag = "script"`. Unlike `Generic`, Script renders its text children **without HTML escaping**, allowing inline JavaScript to be emitted as-is. This is the mechanism that enables safe `js"..."` interpolation — the interpolator escapes the JavaScript, but the Script element does not double-escape.
+
+Use `script().inlineJs(js"...")` or `script().externalJs(url)`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val inlineScript = script().inlineJs(js"console.log('Hello');")
+val externalScript = script().externalJs("/app.js")
+```
+
+**`Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])`** — A specialized style element with `tag = "style"`. Like Script, Style renders text children **without escaping**, allowing raw CSS to be emitted. Use `style().inlineCss(css"...")`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val inlineStyle = style().inlineCss(css"body { margin: 0; }")
+```
+
+**`Dom.Doctype(value: String)`** — A DOCTYPE declaration node. Renders as `<!DOCTYPE value>`. The singleton `doctype` value renders as `<!DOCTYPE html>`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+println(doctype.render)
+// <!DOCTYPE html>
+```
+
+**`Dom.Empty`** — A no-op node that renders to empty string. Useful for conditional rendering (e.g., `if (condition) element else Dom.Empty`).
+
+### Attributes and Values
+
+Elements carry a `Chunk[Dom.Attribute]` where each attribute is one of:
+
+- **`Dom.Attribute.KeyValue(name: String, value: Dom.AttributeValue)`** — A standard `name="value"` attribute. The value can be a string, multi-value, boolean, or JavaScript expression.
+
+- **`Dom.Attribute.AppendValue(name: String, value: Dom.AttributeValue, separator: Dom.AttributeSeparator)`** — Declares a value to be concatenated with any existing value for the same attribute. Provides accumulation of multi-valued attributes like `class` and `rel`. The separator appears between values (Space, Comma, Semicolon, or Custom).
+
+- **`Dom.Attribute.BooleanAttribute(name: String, enabled: Boolean)`** — A standalone attribute (like `disabled`, `checked`, `required`) that renders as just the name when enabled, or is omitted when disabled.
+
+:::tip
+The DSL provides `id := value` (`:=`) for single-valued attributes and `className += "class"` (`+=`) for appending to multi-valued attributes. Both are easier to use than constructing `Dom.Attribute` directly.
+:::
+
+### Tree Traversal Operations
+
+`Dom` provides four pure tree transformation methods:
+
+**`collect(pf: PartialFunction[Dom, Dom]): List[Dom]`** — Applies a partial function to every node in the tree (depth-first) and collects the results. Useful for extracting or transforming specific nodes:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val tree = div(p("A"), span("B"), p("C"))
+val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
+// List(Dom.Element.Generic("p", ...), Dom.Element.Generic("p", ...))
+```
+
+**`filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val tree = div(p(className := "visible", "A"), p(className := "hidden", "B"))
+val filtered = tree.filter {
+  case el: Dom.Element => !el.attributes.exists {
+    case attr: Dom.Attribute.KeyValue if attr.name == "class" => false
+    case _ => true
+  }
+  case _ => true
+}
+// div(p(className := "visible", "A"))
+```
+
+**`find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val tree = div(p("First"), span("Second"), p("Third"))
+val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => false }
+// Some(Dom.Element.Generic("p", ...))
+```
+
+**`transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in post-order. Each node receives the transformation, and if it is an Element, its children also undergo recursive transformation:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val tree = div(h3("Old"), p("Content"))
+val upgraded = tree.transform {
+  case el: Dom.Element if el.tag == "h3" => el.copy(tag = "h2")
+  case other => other
+}
+// div(h2("Old"), p("Content"))
+```
 
 ## The HTML DSL
 
-The HTML DSL provides functions for every HTML5 element. We construct elements by calling the element name with modifiers such as attributes, children, or other elements.
+The DSL provides functions for all HTML5 elements, allowing fluent construction with a modifier pattern.
 
-### Basic Element Construction
+### Element Functions
 
-We can create simple or nested elements using the DSL:
+All standard HTML elements are available as lowercase functions (or backtick-quoted if they shadow Scala keywords):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-// Simple elements
+// Basic elements
 val paragraph = p("Hello, world!")
 val heading = h1("Welcome")
+val container = div("Content here")
 
-// Nested elements
-val page = div(
-  h1("My Page"),
-  p("This is a paragraph."),
-  p("Another paragraph.")
-)
+// Void elements (auto self-closing)
+val image = img(src := "photo.jpg", alt := "A photo")
+val lineBreak = br
+val horizontalRule = hr
 
-// Render to string
-println(page.render)
-// <div><h1>My Page</h1><p>This is a paragraph.</p><p>Another paragraph.</p></div>
+// Keyword-shadowed elements (use backticks)
+val label = `label`("Choose an option")
 ```
 
-:::note
-The HTML DSL supports all HTML Living Standard elements and attributes, including newer ones such as `hgroup`, `menu`, `popover`, `inert`, `fetchpriority`, and many others.
-:::
+### Setting Attributes
 
-### Attributes
+Attributes are set using the `:=` operator on `AttributeKey` builders:
 
-We set attributes using the `:=` operator:
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val link = a(
   href := "https://example.com",
   target := "_blank",
+  title := "Visit Example",
   "Visit Example"
 )
-
-val styledDiv = div(
-  id := "container",
-  className := "main-content",
-  p("Content here")
-)
-
 println(link.render)
-// <a href="https://example.com" target="_blank">Visit Example</a>
+// <a href="https://example.com" target="_blank" title="Visit Example">Visit Example</a>
 ```
 
-### Attribute Override vs Accumulation
+### Multi-Valued Attributes: Override vs Accumulate
 
-For multi-value attributes like `class` and `rel`, we can choose between overriding or accumulating values:
+For attributes that can have multiple values (`class`, `rel`, `accept`), you can override or accumulate:
 
-- `:=` **overrides** (last wins):
-  ```scala
-  import zio.blocks.html._
-  div(className := "a", className := "b")
-  // renders: <div class="b"></div>
-  ```
+- **`:=` (override)** — Replaces any previous value. Last assignment wins:
 
-- `+=` **accumulates**:
-  ```scala
-  import zio.blocks.html._
-  div(className += "a", className += "b")
-  // renders: <div class="a b"></div>
-  ```
-
-- Mixed — override then append:
-  ```scala
-  import zio.blocks.html._
-  div(className := "base", className += "extra")
-  // renders: <div class="base extra"></div>
-  ```
-
-Accumulation also works with conditional rendering:
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
-div(className += "card").when(isActive)(className += "active")
-// renders: <div class="card active"></div>  (when true)
+
+val div1 = div(className := "a", className := "b")
+println(div1.render)
+// <div class="b"></div>
+```
+
+- **`+=` (append)** — Concatenates with the previous value using a separator (space for `class`):
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val div2 = div(className += "card", className += "active")
+println(div2.render)
+// <div class="card active"></div>
+```
+
+- **Mixed** — Set a base value, then append:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val div3 = div(className := "base").when(true)(className += "extra")
+println(div3.render)
+// <div class="base extra"></div>
 ```
 
 ### Boolean Attributes
 
-Use `BooleanAttribute.:=` to conditionally include boolean attributes like `disabled`, `required`, or `checked`:
+Use `BooleanAttribute.:=` to conditionally include attributes like `disabled`, `required`, or `checked`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val isDisabled = true
-val submitButton = button(disabled := isDisabled, "Submit")
-// renders: <button disabled>Submit</button>
+val submitBtn = button(disabled := isDisabled, "Submit")
 
-val isNotDisabled = false
-val activeButton = button(disabled := isNotDisabled, "Submit")
-// renders: <button>Submit</button>
+println(submitBtn.render)
+// <button disabled>Submit</button>
+
+val enabledBtn = button(disabled := false, "Submit")
+println(enabledBtn.render)
+// <button>Submit</button>
 ```
 
 ### Data and ARIA Attributes
 
-Use `dataAttr()` and `aria()` for HTML5 data attributes and ARIA accessibility attributes:
+Use `dataAttr(name)` and `aria(name)` builders for HTML5 data attributes and ARIA accessibility attributes:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-// Data attributes
-val userDiv = div(dataAttr("user-id") := "42", dataAttr("action") := "edit")
-// <div data-user-id="42" data-action="edit"></div>
+val userDiv = div(
+  dataAttr("user-id") := "42",
+  dataAttr("action") := "edit",
+  "User Card"
+)
+println(userDiv.render)
+// <div data-user-id="42" data-action="edit">User Card</div>
 
-// ARIA attributes  
-val closeButton = button(aria("label") := "Close", aria("expanded") := "false")
-// <button aria-label="Close" aria-expanded="false"></button>
+val button = button(
+  aria("label") := "Close",
+  aria("expanded") := "false",
+  "×"
+)
+println(button.render)
+// <button aria-label="Close" aria-expanded="false">×</button>
+```
 
-// Generic custom attributes
-val alpineDiv = div(attr("x-data") := "{open: false}")  // Alpine.js
-val htmxDiv = div(attr("hx-get") := "/api/data")      // HTMX
+For custom attributes not provided by the DSL, use the generic `attr(name)` builder:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val alpineDiv = div(attr("x-data") := "{open: false}", "Alpine.js component")
+val htmxDiv = div(attr("hx-get") := "/api/data", "HTMX target")
 ```
 
 ### Children
 
-Children can be strings, elements, or collections. The DSL uses the `ToDom` typeclass to convert values into DOM nodes:
+Children can be strings, elements, or collections. The DSL uses the `ToModifier` typeclass to convert values into DOM nodes:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-// String children
+// String children are converted to Dom.Text
 val simple = p("Plain text")
 
-// Element children
+// Element children are nested
 val nested = div(p("First"), p("Second"))
 
-// Lists of children
+// Lists of children — ToModifier[List[A]] wraps in a span if multi-element
 val items = List("Apple", "Banana", "Cherry")
 val listEl = ul(items.map(item => li(item)))
 
-// Option children (None renders nothing)
+// Option children — None renders nothing
 val maybeHeader: Option[String] = Some("Welcome")
 val conditional = div(maybeHeader.map(text => h1(text)))
 
@@ -208,81 +391,18 @@ println(listEl.render)
 // <ul><li>Apple</li><li>Banana</li><li>Cherry</li></ul>
 ```
 
-### ToDom Typeclass
+### Conditional Rendering
 
-The `ToDom` typeclass provides a uniform way to convert Scala values into `Dom` nodes. We can provide custom instances to support rendering domain-specific types:
+Use `when(condition)` to apply modifiers conditionally:
 
-```scala
-import zio.blocks.html._
-
-case class User(name: String)
-implicit val userToDom: ToDom[User] = new ToDom[User] {
-  def toDom(user: User): Dom = p(className := "user", user.name)
-}
-
-val userList = div(User("Alice"), User("Bob"))
-// <div><p class="user">Alice</p><p class="user">Bob</p></div>
-```
-
-### Void Elements
-
-Void elements (self-closing tags) automatically render with the correct syntax:
-
-```scala
-import zio.blocks.html._
-
-val voidElements = div(
-  br,
-  hr,
-  img(src := "photo.jpg", alt := "A photo"),
-  input(`type` := "text", name := "username")
-)
-
-println(voidElements.render)
-// <div><br/><hr/><img src="photo.jpg" alt="A photo"/><input type="text" name="username"/></div>
-```
-
-### DOCTYPE
-
-Use `doctype` to add an HTML5 doctype declaration to your document:
-
-```scala
-import zio.blocks.html._
-
-val page = div(doctype, html(head(title("My App")), body(p("Hello"))))
-println(doctype.render)
-// <!DOCTYPE html>
-```
-
-### Custom Elements
-
-We can create custom HTML elements (web components, etc.) or dynamic tags with `element()`:
-
-```scala
-import zio.blocks.html._
-
-val myComponent = element("my-component")(id := "app", "Hello")
-println(myComponent.render)
-// <my-component id="app">Hello</my-component>
-
-// Dynamic tag names
-val level = 2
-val heading = element(s"h$level")("Title")
-// <h2>Title</h2>
-```
-
-### Conditional Rendering with `when` and `whenSome`
-
-Use `Dom.Element#when` to apply modifiers conditionally:
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val isHighlighted = true
 val box = div(
   className := "box"
 ).when(isHighlighted)(
-  className := "highlighted",
+  className += "highlighted",
   titleAttr := "This is highlighted"
 )
 
@@ -290,9 +410,9 @@ println(box.render)
 // <div class="box highlighted" title="This is highlighted"></div>
 ```
 
-Use `Dom.Element#whenSome` to apply modifiers based on an `Option`. We use a unique variable name to avoid shadowing attributes:
+Use `whenSome(option)` to apply modifiers based on an `Option`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val maybeTitle: Option[String] = Some("Important")
@@ -300,7 +420,7 @@ val card = div(
   className := "card",
   p("Content")
 ).whenSome(maybeTitle)(t => Seq(
-  attr("title") := t,
+  titleAttr := t,
   className += "has-title"
 ))
 
@@ -308,87 +428,89 @@ println(card.render)
 // <div class="card has-title" title="Important"><p>Content</p></div>
 ```
 
-### Special Elements: `script` and `style`
+### Void Elements
 
-The `script` and `style` elements have specialized APIs for handling inline code:
+Void elements (self-closing tags) automatically render with the correct syntax:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
-import zio.blocks.chunk.Chunk
 
-// Inline JavaScript should be produced by js"..."
-val inlineScript = script().inlineJs(js"console.log('Hello');")
-
-// External JavaScript
-val externalScript = script().externalJs("/app.js")
-
-// Inline CSS should be produced by css"..."
-val inlineStyle = style().inlineCss(css"body { margin: 0; }")
-
-// With Css ADT
-val styleWithAdt = style().inlineCss(
-  Css.Rule(CssSelector.Element("body"), Chunk(
-    Css.Declaration("margin", "0"),
-    Css.Declaration("padding", "0")
-  ))
+val voidElements = div(
+  br,
+  hr,
+  img(src := "photo.jpg", alt := "A photo"),
+  input(`type` := "text", placeholder := "Enter text")
 )
 
-println(inlineScript.render)
-// <script>console.log('Hello');</script>
-
-println(externalScript.render)
-// <script src="/app.js"></script>
+println(voidElements.render)
+// <div><br/><hr/><img src="photo.jpg" alt="A photo"/><input type="text" placeholder="Enter text"/></div>
 ```
-
-:::caution
-`script` and `style` elements render their text children **without HTML escaping**. Never interpolate untrusted user input into script or style content. Use the `js""` interpolator or the `css""` interpolator instead.
-:::
 
 ## String Interpolators
 
-`zio-blocks-html` provides four interpolators: `html""`, `css""`, `js""`, and `selector""`. All interpolators are type-safe and leverage typeclasses to convert interpolated values.
+The module provides four string interpolators: `html""`, `css""`, `js""`, and `selector""`. All offer compile-time safety (on Scala 3) and automatic escaping appropriate to their context.
 
 ### `html""` Interpolator
 
-The `html""` interpolator is position-aware: it summons `ToAttrValue[A]` for attribute values and `ToElements[A]` for element content:
+The `html""` interpolator is **position-aware**: it detects whether each interpolated argument is in an attribute-value position or content position, then summons the appropriate typeclass.
 
-```scala
+The `html""` interpolator determines position based on the preceding string:
+
+**Position detection:**
+- **Attribute position**: if the preceding string part ends with `=`, `='`, or `="`, the next argument is treated as an attribute value and uses `ToAttrValue[A]`
+- **Content position**: otherwise, the argument is treated as element content and uses `ToElements[A]`
+
+Position-aware interpolation enables safe attribute values and content:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val name = "Alice"
 val age = 30
 
-// Attribute value position -> ToAttrValue
-val withAttrs = html"""<div id="user-$age" class="profile">User: $name</div>"""
+// name is in content position → ToElements[String]
+// age is in attribute position → ToAttrValue[Int]
+val elem = html"""<div id="user-$age" class="profile">User: $name</div>"""
 
-// Element content position -> ToElements
-val content = html"""<p>Hello, $name!</p>"""
-
-println(withAttrs.render)
+println(elem.render)
 // <div id="user-30" class="profile">User: Alice</div>
 ```
 
-:::caution
-The `html""` interpolator requires a **single root element**. On Scala 3, static templates with multiple top-level nodes fail at compile time; dynamic templates are still validated when the interpolator is evaluated.
-:::
+**Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3):
 
-The interpolator automatically escapes values to prevent XSS:
+```scala mdoc:compile-only
+import zio.blocks.html._
 
-```scala
+// This compiles (single root)
+val page = html"<div><p>A</p><p>B</p></div>"
+
+// This would fail:
+// val multiple = html"<p>A</p><p>B</p>"
+```
+
+**XSS Protection:**
+
+When interpolating untrusted user input, the `html""` interpolator escapes content to prevent injection:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val userInput = "<script>alert('XSS')</script>"
-val safe = html"""<p>$userInput</p>"""
+val safe = html"<p>$userInput</p>"
 
 println(safe.render)
 // <p>&lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p>
 ```
 
+:::danger
+The `html""` interpolator requires a **single root element**. On Scala 3, pure-static templates with multiple roots fail at compile time. On Scala 2 or for dynamic templates, the error occurs at evaluation time. Always wrap multiple elements in a container (e.g., `<div>`).
+:::
+
 ### `css""` Interpolator
 
-The `css""` interpolator returns a `Css` value. Variables are converted via the `ToCss[A]` typeclass:
+The `css""` interpolator returns a `Css` value with `ToCss` typeclass dispatch for interpolated parts:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val color = "blue"
@@ -400,11 +522,20 @@ println(styles.render)
 // color: blue; font-size: 16px;
 ```
 
+Use `CssLength` and `CssColor` extension types for type-safe CSS values:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val width = css"width: ${300.px};"
+val background = css"background: ${CssColor.hex("ff0000")};"
+```
+
 ### `js""` Interpolator
 
-The `js""` interpolator returns a `Js` value. Variables are converted via the `ToJs[A]` typeclass and automatically escaped. The `ToJs[String]` instance automatically adds quotes around strings:
+The `js""` interpolator returns a `Js` value. Strings are automatically quoted and escaped; numerics and booleans are rendered unquoted:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val message = "Hello, world!"
@@ -416,13 +547,27 @@ println(code.value)
 // console.log("Hello, world!"); alert(42);
 ```
 
-The interpolator protects against `</script>` injection by escaping it as `\u003c/script\u003e`.
+:::warning
+Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Use `ToJs[String]` (which automatically quotes) or construct `Js` literals explicitly.
+:::
+
+The interpolator protects against `</script>` injection by escaping `<` and `>` as `<` and `>`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val userInput = "if (x < y) alert('<script>');"
+val code = js"val check = $userInput"
+
+println(code.value)
+// val check = if (x < y) alert('<script>');
+```
 
 ### `selector""` Interpolator
 
 The `selector""` interpolator returns a `CssSelector`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val className = "active"
@@ -432,134 +577,90 @@ println(selector.render)
 // .active
 ```
 
-## CSS Selectors
+## CSS Selectors and the DSL
 
-The `CssSelector` DSL provides a fluent API for building CSS selectors with combinator methods.
+The `CssSelector` ADT provides a fluent DSL for building CSS selectors with combinator methods.
 
 ### Basic Selectors
 
-We can create selectors for elements, classes, IDs, or universal matches:
+Create selectors for elements, classes, IDs, or universal matches:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-// Element selector
 val divSel = CssSelector.Element("div")
-
-// Class selector
 val classSel = CssSelector.Class("container")
-
-// ID selector
 val idSel = CssSelector.Id("header")
-
-// Universal selector
 val universal = CssSelector.Universal
 
-println(divSel.render)  // div
-println(classSel.render)  // .container
-println(idSel.render)  // #header
+println(divSel.render)     // div
+println(classSel.render)   // .container
+println(idSel.render)      // #header
+println(universal.render)  // *
 ```
 
 ### Combinators
 
-Selectors support fluent combinator methods via the `CssSelectable` trait:
+All HTML elements (`div`, `span`, `p`, etc.) implement `CssSelectable`, so you can use them directly as selectors:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-val divSel = CssSelector.Element("div")
-val spanSel = CssSelector.Element("span")
+// Element selectors via DSL elements
+val divSel = div.selector
+val childSel = div > span              // div > span
+val descendantSel = div >> span        // div span (descendant)
+val adjacentSel = div + span           // div + span
+val sibllingSel = div ~ span           // div ~ span
+val andSel = div & CssSelector.Class("active")  // div.active
+val orSel = div | span                 // div, span
 
-// Descendant: div span
-val descendant = divSel descendant spanSel
-
-// Child: div > span
-val child = divSel > spanSel
-
-// Adjacent sibling: div + span
-val adjacent = divSel + spanSel
-
-// General sibling: div ~ span
-val sibling = divSel ~ spanSel
-
-// And (chaining): div.active
-val and = divSel & CssSelector.Class("active")
-
-// Or (grouping): div, span
-val or = divSel | spanSel
-
-println(descendant.render)  // div span
-println(child.render)  // div > span
-```
-
-### Element Selector Shortcuts
-
-All HTML elements created with the DSL implement `CssSelectable`, allowing us to use them directly in selector expressions:
-
-```scala
-import zio.blocks.html._
-
-// Elements ARE selectors
-val hoverSel = div.hover    // div:hover
-val childSel = div > span   // div > span
-
-println(hoverSel.render)  // div:hover
-println(childSel.render)  // div > span
+println(childSel.render)      // div > span
+println(descendantSel.render) // div span
 ```
 
 ### Pseudo-Classes and Pseudo-Elements
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-val linkSel = CssSelector.Element("a")
+val hoverSel = a.hover              // a:hover
+val firstChild = li.firstChild      // li:first-child
+val nthChild = tr.nthChild(2)       // tr:nth-child(2)
+val before = div.before             // div::before
+val after = span.after              // span::after
 
-// Pseudo-class
-val hover = linkSel.hover
-val firstChild = linkSel.firstChild
-val nthChild = linkSel.nthChild(2)
-
-// Pseudo-element
-val before = linkSel.before
-val after = linkSel.after
-
-println(hover.render)  // a:hover
-println(before.render)  // a::before
+println(hoverSel.render)    // a:hover
+println(before.render)      // div::before
 ```
 
 ### Attribute Selectors
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
-val inputSel = CssSelector.Element("input")
+val input = CssSelector.Element("input")
 
-// Has attribute
-val hasType = inputSel.withAttribute("type")
+val hasType = input.withAttribute("type")              // input[type]
+val exactType = input.withAttribute("type", "text")    // input[type="text"]
+val containsClass = input.withAttributeContaining("class", "btn")  // input[class*="btn"]
+val startsWithHref = a.withAttributeStarting("href", "https")      // a[href^="https"]
+val endsWithPng = img.withAttributeEnding("src", ".png")           // img[src$=".png"]
 
-// Exact match
-val exactType = inputSel.withAttribute("type", "text")
-
-// Contains
-val containsClass = inputSel.withAttributeContaining("class", "btn")
-
-// Starts with
-val startsWithHref = inputSel.withAttributeStarting("href", "https")
-
-// Ends with
-val endsWithPng = inputSel.withAttributeEnding("src", ".png")
-
-println(hasType.render)  // input[type]
-println(exactType.render)  // input[type="text"]
+println(exactType.render)      // input[type="text"]
+println(containsClass.render)  // input[class*="btn"]
 ```
 
 ## DOM Querying with DomSelection
 
-Use `Dom#select(CssSelector)` to query and manipulate DOM trees using CSS selectors. The `DomSelection` wrapper provides fluent chaining for navigation:
+The `DomSelection` API lets you query and navigate DOM trees using CSS selectors. It is useful for testing, transforming templates, and extracting information.
 
-```scala
+### Selecting Elements
+
+Call `Dom#select(selector)` to query the tree:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
-import zio.blocks.chunk.Chunk
 
 val page = div(
   header(nav(a(href := "/", "Home"), a(href := "/about", "About"))),
@@ -573,32 +674,99 @@ println(paragraphs.length)  // 3
 
 // Query by class
 val intros = page.select(CssSelector.Class("intro"))
-println(intros.texts)  // Chunk("Hello")
-
-// Chain queries
-val navLinks = page.select(CssSelector.Element("nav")).children
-println(navLinks.length)  // 2
-
-// Extract attribute values
-val hrefs = page.select(CssSelector.Element("a")).attrs("href")
-// Chunk("/", "/about")
+println(intros.texts)       // Chunk(Hello)
 ```
 
-## CSS ADT
+### Navigation
 
-The `Css` ADT represents structured CSS with three main types: `Rule`, `Declaration`, and `Sheet`.
+Chain methods to navigate the tree:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = div(
+  nav(a(href := "/", "Home"), a(href := "/about", "About")),
+  main(p("Content"))
+)
+
+// Direct children
+val navLinks = page.select(CssSelector.Element("nav")).children
+println(navLinks.length)  // 2 (both <a> elements)
+
+// First and last
+val firstLink = page.select(CssSelector.Element("a")).first
+println(firstLink.isDefined)  // true
+```
+
+### Extraction
+
+Extract attribute values and text content:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = div(
+  a(href := "/home", "Home"),
+  a(href := "/about", "About"),
+  a(href := "/contact", "Contact")
+)
+
+val hrefs = page.select(CssSelector.Element("a")).attrs("href")
+// Chunk("/home", "/about", "/contact")
+
+val labels = page.select(CssSelector.Element("a")).texts
+// Chunk("Home", "About", "Contact")
+```
+
+### Filtering
+
+Filter selections by predicate or attribute:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = div(
+  p(className += "visible", "A"),
+  p(className += "hidden", "B"),
+  p("C")
+)
+
+// Filter by predicate
+val visible = page.select(CssSelector.Element("p")).filter { el =>
+  el.asInstanceOf[Dom.Element].attributes.exists {
+    case attr: Dom.Attribute.KeyValue if attr.name == "class" => true
+    case _ => false
+  }
+}
+
+// Filter by class
+val withClass = page.select(CssSelector.Element("p")).withClass("visible")
+```
+
+:::warning
+The `DomSelection` API provides read-only querying. To modify the tree in-place, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
+:::
+
+:::note
+Pseudo-class selectors (`:hover`, `:focus`, etc.) match elements structurally by their underlying element selector only — they cannot detect browser interaction state in a static DOM tree. `div.hover` matches the same elements as `CssSelector.Element("div")`.
+
+Adjacent sibling (`+`) and general sibling (`~`) selectors are supported in CSS output but not in DOM querying — `DomSelection.select` with these combinators returns empty results.
+:::
+
+## The CSS ADT
+
+The `Css` ADT represents structured stylesheets as a typed data structure, separate from strings.
 
 ### Declarations and Rules
 
-```scala
-import zio.blocks.html._
-import zio.blocks.chunk.Chunk
+A `Css.Declaration` is a property-value pair:
 
-// A CSS declaration (property-value pair)
+```scala mdoc:compile-only
+import zio.blocks.html._
+
 val marginDecl = Css.Declaration("margin", "10px")
 val colorDecl = Css.Declaration("color", "blue")
 
-// A CSS rule (selector + declarations)
 val rule = Css.Rule(
   CssSelector.Element("p"),
   Chunk(marginDecl, colorDecl)
@@ -606,13 +774,20 @@ val rule = Css.Rule(
 
 println(rule.render)
 // p{margin:10px;color:blue;}
+
+println(rule.render(indent = 2))
+// p {
+//   margin: 10px;
+//   color: blue;
+// }
 ```
 
 ### Stylesheets
 
-```scala
+A `Css.Sheet` is a collection of rules:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
-import zio.blocks.chunk.Chunk
 
 val bodyRule = Css.Rule(
   CssSelector.Element("body"),
@@ -631,15 +806,60 @@ println(stylesheet.render(indent = 2))
 // }
 ```
 
+### Embedding Stylesheets
+
+Embed stylesheets in HTML via the `style()` element:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = html(
+  head(
+    style().inlineCss(
+      Css.Sheet(Chunk(
+        Css.Rule(
+          CssSelector.Element("body"),
+          Chunk(Css.Declaration("background", "#f0f0f0"))
+        )
+      ))
+    )
+  ),
+  body(p("Styled"))
+)
+
+println(page.render)
+// <html><head><style>body{background:#f0f0f0;}</style></head><body><p>Styled</p></body></html>
+```
+
+### Raw CSS
+
+For CSS features not expressible via the ADT (media queries, keyframes, at-rules), use `Css.Raw`:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val mediaQuery = Css.Raw("""
+  |@media (max-width: 600px) {
+  |  body { font-size: 14px; }
+  |}
+""".stripMargin)
+
+println(mediaQuery.render)
+```
+
+:::tip
+Prefer `Css.Rule` and `Css.Sheet` over `Css.Raw` when possible — structured CSS enables future optimization and prevents CSS injection. Use `Css.Raw` only for trusted, hardcoded CSS.
+:::
+
 ## Rendering
 
-All `Dom` and `Css` values support multiple rendering modes:
+All `Dom` and `Css` values support multiple rendering modes.
 
-### `render`
+### Minified Rendering
 
-Returns a compact string with no extra whitespace:
+`Dom#render` produces compact HTML with no extra whitespace:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val page = div(h1("Title"), p("Content"))
@@ -647,11 +867,11 @@ println(page.render)
 // <div><h1>Title</h1><p>Content</p></div>
 ```
 
-### `render(indent: Int)`
+### Pretty-Printed Rendering
 
-Returns a pretty-printed string with the specified indentation:
+`render(indent: Int)` produces indented, readable output:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val page = div(h1("Title"), p("Content"))
@@ -662,44 +882,29 @@ println(page.render(indent = 2))
 // </div>
 ```
 
-## Performance and Optimizations
+### Performance Notes
 
-`zio-blocks-html` is designed for efficient HTML generation with Scala 3 compile-time optimizations for string interpolators.
-
-### Compile-Time Validation (Scala 3)
-
-On Scala 3, interpolators with no variables are validated at compile time and can avoid typeclass dispatch for interpolation arguments:
-
-```scala
-// What you write:
-val styles = css"margin: 10px; padding: 5px"
-
-// What Scala 3 generates (via macro):
-val styles = Css.Raw("margin: 10px; padding: 5px")
-```
-
-### Position-Aware HTML Interpolation (Scala 3)
-
-The `html""` interpolator analyzes interpolation positions at compile time to summon the correct typeclass for each value. Static Scala 3 templates are also validated for the single-root requirement before compilation succeeds.
-
-### Runtime Characteristics
-
-Even on Scala 2, `zio-blocks-html` is highly optimized:
-
-- **Zero intermediate allocations** for direct element construction paths.
-- **StringBuilder pre-allocation** with estimated sizes to minimize resizing.
-- **While-loop rendering** to avoid iterator overhead.
-- **Chunk-based collections** for cache-friendly, zero-boxing storage.
+- `Dom#render` uses a pre-allocated `StringBuilder` and while-loop rendering — zero allocations for iteration
+- Indentation strings get cached in an array of pre-built space strings (up to 128 characters) to prevent repeated string allocation
+- Void elements automatically self-close with no children
+- Script and Style elements render their children without escaping (with `</` → `<\/` protection for scripts)
 
 ## Security: XSS Protection
 
-`zio-blocks-html` provides automatic XSS protection through multiple layers:
+The module provides multiple layers of automatic XSS protection:
 
-### Automatic HTML Escaping in Text Nodes
+### HTML Text Escaping
 
-All `Dom.Text` nodes are HTML-escaped when rendered:
+All `Dom.Text` nodes are HTML-escaped during rendering:
+- `&` → `&amp;`
+- `<` → `&lt;`
+- `>` → `&gt;`
+- `"` → `&quot;`
+- `'` → `&#x27;`
 
-```scala
+Untrusted content is always escaped to prevent XSS:
+
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val userInput = "<script>alert('XSS')</script>"
@@ -709,17 +914,147 @@ println(safe.render)
 // <div><p>&lt;script&gt;alert(&#x27;XSS&#x27;)&lt;/script&gt;</p></div>
 ```
 
-### JS String Escaping with `</script>` Protection
+### JavaScript String Escaping
 
-The `ToJs` typeclass escapes strings to prevent breaking out of script contexts. Characters like `<`, `>`, and `&` are unicode-escaped, and `</script>` is transformed to prevent closing the script tag prematurely.
+The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
+- `<` → `<`, `>` → `>`, `&` → `&`
+- `"` → `\"`, `'` → `\'`, `\` → `\\`
+- Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
-### Safety by Design: No Raw HTML Escape Hatch
+This protects against `</script>` injection:
 
-`zio-blocks-html` intentionally provides no public `Dom.Raw` API for embedding arbitrary HTML. This prevents XSS vulnerabilities by ensuring all dynamic content is either constructed via the DSL or interpolated through context-aware interpolators.
+```scala mdoc:compile-only
+import zio.blocks.html._
 
-## Example: A Complete HTML Page
+val userInput = "</script><script>alert('XSS');</script>"
+val code = js"let payload = $userInput"
 
-```scala
+println(code.value)
+// let payload = </script><script>alert('XSS');</script>
+```
+
+### URL Sanitization
+
+Attributes named `href`, `src`, `action`, or `formaction` are checked for dangerous schemes at render time:
+- `javascript:`, `vbscript:`, `data:text/html` → prefixed with `unsafe:`
+
+Dangerous URLs are automatically sanitized in HTML output:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val dangerous = a(href := "javascript:alert('XSS')", "Click me")
+
+println(dangerous.render)
+// <a href="unsafe:javascript:alert(&#x27;XSS&#x27;)">Click me</a>
+```
+
+### No Raw HTML Escape Hatch
+
+The module intentionally provides no `Dom.Raw` type for embedding arbitrary HTML. This prevents XSS by ensuring all dynamic content is either constructed via the DSL or interpolated through context-aware interpolators.
+
+## Common Patterns
+
+The module supports several architectural patterns for code organization and reuse:
+
+### Building Reusable Components
+
+Define functions that return `Dom.Element` to create reusable components:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+def card(title: String, content: String): Dom.Element =
+  div(
+    className := "card",
+    h2(title),
+    p(content)
+  )
+
+val page = div(
+  card("Card 1", "Content A"),
+  card("Card 2", "Content B")
+)
+
+println(page.render)
+// <div><div class="card"><h2>Card 1</h2><p>Content A</p></div><div class="card"><h2>Card 2</h2><p>Content B</p></div></div>
+```
+
+### Conditional Rendering
+
+Use `when` and `whenSome` for conditional modifiers:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+def userCard(name: String, isAdmin: Boolean): Dom.Element =
+  div(
+    className := "user-card"
+  ).when(isAdmin)(
+    className += "admin",
+    span(className := "badge", "Admin")
+  )
+```
+
+### Rendering Collections
+
+Map over collections to create child elements:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+def userList(users: List[String]): Dom.Element =
+  ul(users.map(user => li(user)))
+
+val page = userList(List("Alice", "Bob", "Charlie"))
+```
+
+### Template Composition
+
+Combine interpolators and DSL for flexibility:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val title = "My Page"
+val content = "Welcome to my site"
+
+val page = html"""
+<html>
+  <head><title>$title</title></head>
+  <body>
+    ${div(p(content))}
+  </body>
+</html>
+"""
+```
+
+### Querying for Tests
+
+Use `DomSelection` to write structural assertions:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val page = div(
+  ul(
+    li(a(href := "/home", "Home")),
+    li(a(href := "/about", "About"))
+  )
+)
+
+// Test: check number of links
+val links = page.select(CssSelector.Element("a"))
+assert(links.length == 2)
+
+// Test: check specific href
+val aboutLink = page.select(a.withAttribute("href", "/about"))
+assert(aboutLink.texts.contains("About"))
+```
+
+## Complete Example: A Dashboard Page
+
+```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
@@ -731,6 +1066,7 @@ val page = div(
   html(
     head(
       meta(charset := "utf-8"),
+      meta(name := "viewport", content := "width=device-width, initial-scale=1.0"),
       title("My App"),
       link(rel := "stylesheet", href := "/style.css"),
       style().inlineCss(
@@ -753,7 +1089,7 @@ val page = div(
       footer(
         p("© 2026 My App")
       ),
-      script().inlineJs(js"console.log($userName);")
+      script().inlineJs(js"console.log('Page loaded');")
     )
   )
 )
