@@ -83,6 +83,8 @@ Run once after verify passes.
 
 For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
 
+**Streams exception:** `Stream`, `Sink`, `Reader`, `Writer`, `Pipeline`, and `Interpreter` are fully split across `scala-2/` and `scala-3/`. Keep both in sync.
+
 ## Testing
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.

@@ -30,6 +30,18 @@ import zio.test._
 object InterpreterCoverageSpec extends StreamsBaseSpec {
   import Interpreter._
 
+  private def readIntValue(p: Interpreter, sentinel: Long): Long =
+    p.asInstanceOf[Reader[Int]].readInt(sentinel)
+
+  private def readLongValue(p: Interpreter, sentinel: Long): Long =
+    p.asInstanceOf[Reader[Long]].readLong(sentinel)
+
+  private def readFloatValue(p: Interpreter, sentinel: Double): Double =
+    p.asInstanceOf[Reader[Float]].readFloat(sentinel)
+
+  private def readDoubleValue(p: Interpreter, sentinel: Double): Double =
+    p.asInstanceOf[Reader[Double]].readDouble(sentinel)
+
   def spec = suite("Interpreter coverage")(
     allMapCrossingsSuite,
     wrapLastReadSuite,
@@ -41,29 +53,29 @@ object InterpreterCoverageSpec extends StreamsBaseSpec {
 
   private def drainInts(p: Interpreter, sentinel: Long = Long.MinValue): List[Int] = {
     val buf = scala.collection.mutable.ListBuffer[Int]()
-    var v   = p.readInt(sentinel)(using unsafeEvidence)
-    while (v != sentinel) { buf += v.toInt; v = p.readInt(sentinel)(using unsafeEvidence) }
+    var v   = readIntValue(p, sentinel)
+    while (v != sentinel) { buf += v.toInt; v = readIntValue(p, sentinel) }
     buf.toList
   }
 
   private def drainLongs(p: Interpreter, sentinel: Long = Long.MaxValue): List[Long] = {
     val buf = scala.collection.mutable.ListBuffer[Long]()
-    var v   = p.readLong(sentinel)(using unsafeEvidence)
-    while (v != sentinel) { buf += v; v = p.readLong(sentinel)(using unsafeEvidence) }
+    var v   = readLongValue(p, sentinel)
+    while (v != sentinel) { buf += v; v = readLongValue(p, sentinel) }
     buf.toList
   }
 
   private def drainFloats(p: Interpreter, sentinel: Double = Double.MaxValue): List[Float] = {
     val buf = scala.collection.mutable.ListBuffer[Float]()
-    var v   = p.readFloat(sentinel)(using unsafeEvidence)
-    while (v != sentinel) { buf += v.toFloat; v = p.readFloat(sentinel)(using unsafeEvidence) }
+    var v   = readFloatValue(p, sentinel)
+    while (v != sentinel) { buf += v.toFloat; v = readFloatValue(p, sentinel) }
     buf.toList
   }
 
   private def drainDoubles(p: Interpreter, sentinel: Double = Double.MaxValue): List[Double] = {
     val buf = scala.collection.mutable.ListBuffer[Double]()
-    var v   = p.readDouble(sentinel)(using unsafeEvidence)
-    while (v != sentinel) { buf += v; v = p.readDouble(sentinel)(using unsafeEvidence) }
+    var v   = readDoubleValue(p, sentinel)
+    while (v != sentinel) { buf += v; v = readDoubleValue(p, sentinel) }
     buf.toList
   }
 
@@ -260,12 +272,12 @@ object InterpreterCoverageSpec extends StreamsBaseSpec {
 
   /** A Reader that throws the given exception on close. */
   private def failingCloseReader(ex: Throwable): Reader[Int] = new Reader[Int] {
-    private var _closed                                           = false
-    override def jvmType: JvmType                                 = JvmType.Int
-    def isClosed: Boolean                                         = _closed
-    def read[A1 >: Int](sentinel: A1): A1                         = { _closed = true; sentinel }
-    override def readInt(sentinel: Long)(using Int <:< Int): Long = { _closed = true; sentinel }
-    def close(): Unit                                             = throw ex
+    private var _closed                                                  = false
+    override def jvmType: JvmType                                        = JvmType.Int
+    def isClosed: Boolean                                                = _closed
+    def read[A1 >: Int](sentinel: A1): A1                                = { _closed = true; sentinel }
+    override def readInt(sentinel: Long)(implicit ev: Int <:< Int): Long = { _closed = true; sentinel }
+    def close(): Unit                                                    = throw ex
   }
 
   val closeSuppressedSuite = suite("close() suppressed exceptions")(

@@ -349,13 +349,12 @@ object StreamLawsSpec extends StreamsBaseSpec {
       test("start returns a scoped reader that produces all elements") {
         import zio.blocks.scope._
         val result = Scope.global.scoped { scope =>
-          import scope._
-          val reader: $[Reader[Int]] = Stream.range(0, 5).start
+          implicit val implicitScope = scope
+          val reader                 = Stream.range(0, 5).start
           val buf                    = scala.collection.mutable.ListBuffer.empty[Int]
-          $(reader) { r =>
-            var v = r.read[Any](null)
-            while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
-          }
+          val r                      = implicitScope.leak(reader)
+          var v                      = r.read[Any](null)
+          while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList
         }
         assert(result)(equalTo(List(0, 1, 2, 3, 4)))
@@ -364,22 +363,21 @@ object StreamLawsSpec extends StreamsBaseSpec {
         import zio.blocks.scope._
         var readerClosed = false
         Scope.global.scoped { scope =>
-          import scope._
-          val s                       = Stream.range(0, 5).ensuring { readerClosed = true }
-          val _reader: $[Reader[Int]] = s.start
+          implicit val implicitScope = scope
+          val s                      = Stream.range(0, 5).ensuring { readerClosed = true }
+          val _reader                = s.start
         }
         assertTrue(readerClosed)
       },
       test("start with mapped stream") {
         import zio.blocks.scope._
         val result = Scope.global.scoped { scope =>
-          import scope._
-          val reader: $[Reader[Int]] = Stream.range(0, 3).map(_ * 10).start
+          implicit val implicitScope = scope
+          val reader                 = Stream.range(0, 3).map(_ * 10).start
           val buf                    = scala.collection.mutable.ListBuffer.empty[Int]
-          $(reader) { r =>
-            var v = r.read[Any](null)
-            while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
-          }
+          val r                      = implicitScope.leak(reader)
+          var v                      = r.read[Any](null)
+          while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList
         }
         assert(result)(equalTo(List(0, 10, 20)))

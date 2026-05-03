@@ -35,9 +35,9 @@ package zio.blocks.streams.internal
  */
 object StreamState {
   private inline val IDX_BITS  = 13
-  private inline val IDX_MASK  = (1 << IDX_BITS) - 1  // 0x1FFF = 8191
+  private inline val IDX_MASK  = (1 << IDX_BITS) - 1
   private inline val LANE_BITS = 4
-  private inline val LANE_MASK = (1 << LANE_BITS) - 1 // 0xF = 15
+  private inline val LANE_MASK = (1 << LANE_BITS) - 1
 
   inline def apply(
     stageStart: Int,

@@ -58,6 +58,18 @@ object InterpreterSpec extends StreamsBaseSpec {
   import Interpreter._
   import OpTag.{mapTag, filterTag, storageLaneOfMapTag}
 
+  private def readIntValue(p: Interpreter, sentinel: Long): Long =
+    p.asInstanceOf[Reader[Int]].readInt(sentinel)
+
+  private def readLongValue(p: Interpreter, sentinel: Long): Long =
+    p.asInstanceOf[Reader[Long]].readLong(sentinel)
+
+  private def readFloatValue(p: Interpreter, sentinel: Double): Double =
+    p.asInstanceOf[Reader[Float]].readFloat(sentinel)
+
+  private def readDoubleValue(p: Interpreter, sentinel: Double): Double =
+    p.asInstanceOf[Reader[Double]].readDouble(sentinel)
+
   def spec = suite("Interpreter V3")(
     singleMapSuite,
     crossTypeMapSuite,
@@ -94,40 +106,40 @@ object InterpreterSpec extends StreamsBaseSpec {
 
   private def drainInts(p: Interpreter, sentinel: Long = Long.MinValue): List[Int] = {
     val buf = scala.collection.mutable.ListBuffer[Int]()
-    var v   = p.readInt(sentinel)(using unsafeEvidence)
+    var v   = readIntValue(p, sentinel)
     while (v != sentinel) {
       buf += v.toInt
-      v = p.readInt(sentinel)(using unsafeEvidence)
+      v = readIntValue(p, sentinel)
     }
     buf.toList
   }
 
   private def drainLongs(p: Interpreter, sentinel: Long = Long.MaxValue): List[Long] = {
     val buf = scala.collection.mutable.ListBuffer[Long]()
-    var v   = p.readLong(sentinel)(using unsafeEvidence)
+    var v   = readLongValue(p, sentinel)
     while (v != sentinel) {
       buf += v
-      v = p.readLong(sentinel)(using unsafeEvidence)
+      v = readLongValue(p, sentinel)
     }
     buf.toList
   }
 
   private def drainFloats(p: Interpreter, sentinel: Double = Double.MaxValue): List[Float] = {
     val buf = scala.collection.mutable.ListBuffer[Float]()
-    var v   = p.readFloat(sentinel)(using unsafeEvidence)
+    var v   = readFloatValue(p, sentinel)
     while (v != sentinel) {
       buf += v.toFloat
-      v = p.readFloat(sentinel)(using unsafeEvidence)
+      v = readFloatValue(p, sentinel)
     }
     buf.toList
   }
 
   private def drainDoubles(p: Interpreter, sentinel: Double = Double.MaxValue): List[Double] = {
     val buf = scala.collection.mutable.ListBuffer[Double]()
-    var v   = p.readDouble(sentinel)(using unsafeEvidence)
+    var v   = readDoubleValue(p, sentinel)
     while (v != sentinel) {
       buf += v
-      v = p.readDouble(sentinel)(using unsafeEvidence)
+      v = readDoubleValue(p, sentinel)
     }
     buf.toList
   }
@@ -597,15 +609,15 @@ object InterpreterSpec extends StreamsBaseSpec {
       val source   = Reader.fromRange(0 until 0)
       val p        = Interpreter(source)
       val sentinel = Long.MinValue
-      val v        = p.readInt(sentinel)(using unsafeEvidence)
+      val v        = readIntValue(p, sentinel)
       assertTrue(v == sentinel)
     },
     test("sentinel returned when all elements consumed") {
       val source   = Reader.fromChunk(Chunk(42))
       val p        = Interpreter(source)
       val sentinel = Long.MinValue
-      val first    = p.readInt(sentinel)(using unsafeEvidence)
-      val second   = p.readInt(sentinel)(using unsafeEvidence)
+      val first    = readIntValue(p, sentinel)
+      val second   = readIntValue(p, sentinel)
       assertTrue(first == 42L && second == sentinel)
     }
   )
@@ -1170,7 +1182,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       // Top level is MappedInt
       assertTrue(reader.isInstanceOf[Reader.MappedInt]) && {
         // Walk the chain — every layer should be MappedInt, none Interpreter
-        var r: Reader[?] = reader
+        var r: Reader[_] = reader
         var allMapped    = true
         var depth        = 0
         while (r.isInstanceOf[Reader.MappedInt]) {
@@ -1229,7 +1241,7 @@ object InterpreterSpec extends StreamsBaseSpec {
     test("Interpreter.fromStream with empty stream returns sentinel immediately") {
       val stream = Stream.fromChunk(Chunk.empty[Int])
       val p      = Interpreter.fromStream(stream)
-      assertTrue(p.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue)
+      assertTrue(readIntValue(p, Long.MinValue) == Long.MinValue)
     },
     test("Interpreter.fromStream with filter + map") {
       val stream = Stream.fromRange(0 until 10).filter((_: Int) % 2 == 0).map((_: Int) + 100)
@@ -1287,8 +1299,8 @@ object InterpreterSpec extends StreamsBaseSpec {
     test("reset after partial read starts over") {
       val source = Reader.fromRange(0 until 5)
       val p      = Interpreter(source)
-      val v1     = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v2     = p.readInt(Long.MinValue)(using unsafeEvidence)
+      val v1     = readIntValue(p, Long.MinValue)
+      val v2     = readIntValue(p, Long.MinValue)
       p.reset()
       val result = drainInts(p)
       assertTrue(v1 == 0L && v2 == 1L) &&
@@ -1365,25 +1377,25 @@ object InterpreterSpec extends StreamsBaseSpec {
       val source = Reader.fromRange(0 until 5)
       val p      = Interpreter(source)
       p.close()
-      assertTrue(p.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue)
+      assertTrue(readIntValue(p, Long.MinValue) == Long.MinValue)
     },
     test("read after close returns sentinel (readLong)") {
       val source = Reader.fromChunk(Chunk(1L, 2L))
       val p      = Interpreter(source)
       p.close()
-      assertTrue(p.readLong(Long.MaxValue)(using unsafeEvidence) == Long.MaxValue)
+      assertTrue(readLongValue(p, Long.MaxValue) == Long.MaxValue)
     },
     test("read after close returns sentinel (readFloat)") {
       val source = Reader.fromChunk(Chunk(1.0f, 2.0f))
       val p      = Interpreter(source)
       p.close()
-      assertTrue(p.readFloat(Double.MaxValue)(using unsafeEvidence) == Double.MaxValue)
+      assertTrue(readFloatValue(p, Double.MaxValue) == Double.MaxValue)
     },
     test("read after close returns sentinel (readDouble)") {
       val source = Reader.fromChunk(Chunk(1.0, 2.0))
       val p      = Interpreter(source)
       p.close()
-      assertTrue(p.readDouble(Double.MaxValue)(using unsafeEvidence) == Double.MaxValue)
+      assertTrue(readDoubleValue(p, Double.MaxValue) == Double.MaxValue)
     },
     test("read after close returns sentinel (generic read)") {
       val source = Reader.fromIterable(List("a", "b"))
@@ -1403,9 +1415,9 @@ object InterpreterSpec extends StreamsBaseSpec {
     test("partial read then close then read returns sentinel") {
       val source = Reader.fromRange(0 until 5)
       val p      = Interpreter(source)
-      val first  = p.readInt(Long.MinValue)(using unsafeEvidence)
+      val first  = readIntValue(p, Long.MinValue)
       p.close()
-      val afterClose = p.readInt(Long.MinValue)(using unsafeEvidence)
+      val afterClose = readIntValue(p, Long.MinValue)
       assertTrue(first == 0L && afterClose == Long.MinValue)
     }
   )
@@ -1433,13 +1445,13 @@ object InterpreterSpec extends StreamsBaseSpec {
       val source = Reader.fromRange(0 until 5)
       val p      = Interpreter(source)
       p.skip(5)
-      assertTrue(p.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue)
+      assertTrue(readIntValue(p, Long.MinValue) == Long.MinValue)
     },
     test("skip more than available returns sentinel") {
       val source = Reader.fromRange(0 until 3)
       val p      = Interpreter(source)
       p.skip(100)
-      assertTrue(p.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue)
+      assertTrue(readIntValue(p, Long.MinValue) == Long.MinValue)
     },
     test("skip on pipeline with map") {
       val source = Reader.fromRange(0 until 10)
@@ -1577,31 +1589,31 @@ object InterpreterSpec extends StreamsBaseSpec {
   val specializedReadSuite = suite("Specialized read methods")(
     test("readInt on Int pipeline returns values without boxing") {
       val p  = Interpreter(Reader.fromRange(0 until 3))
-      val v1 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v2 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v3 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v4 = p.readInt(Long.MinValue)(using unsafeEvidence)
+      val v1 = readIntValue(p, Long.MinValue)
+      val v2 = readIntValue(p, Long.MinValue)
+      val v3 = readIntValue(p, Long.MinValue)
+      val v4 = readIntValue(p, Long.MinValue)
       assertTrue(v1 == 0L && v2 == 1L && v3 == 2L && v4 == Long.MinValue)
     },
     test("readLong on Long pipeline returns values without boxing") {
       val p  = Interpreter(Reader.fromChunk(Chunk(100L, 200L)))
-      val v1 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v2 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v3 = p.readLong(Long.MaxValue)(using unsafeEvidence)
+      val v1 = readLongValue(p, Long.MaxValue)
+      val v2 = readLongValue(p, Long.MaxValue)
+      val v3 = readLongValue(p, Long.MaxValue)
       assertTrue(v1 == 100L && v2 == 200L && v3 == Long.MaxValue)
     },
     test("readFloat on Float pipeline returns values without boxing") {
       val p  = Interpreter(Reader.fromChunk(Chunk(1.5f, 2.5f)))
-      val v1 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
-      val v2 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
-      val v3 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
+      val v1 = readFloatValue(p, Double.MaxValue)
+      val v2 = readFloatValue(p, Double.MaxValue)
+      val v3 = readFloatValue(p, Double.MaxValue)
       assertTrue(v1 == 1.5f.toDouble && v2 == 2.5f.toDouble && v3 == Double.MaxValue)
     },
     test("readDouble on Double pipeline returns values without boxing") {
       val p  = Interpreter(Reader.fromChunk(Chunk(3.14, 2.71)))
-      val v1 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
-      val v2 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
-      val v3 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
+      val v1 = readDoubleValue(p, Double.MaxValue)
+      val v2 = readDoubleValue(p, Double.MaxValue)
+      val v3 = readDoubleValue(p, Double.MaxValue)
       assertTrue(v1 == 3.14 && v2 == 2.71 && v3 == Double.MaxValue)
     },
     test("read[Any] on AnyRef pipeline returns boxed values") {
@@ -1615,44 +1627,44 @@ object InterpreterSpec extends StreamsBaseSpec {
     test("readInt with map on Int pipeline") {
       val p = Interpreter(Reader.fromRange(0 until 3))
       p.addMap[Int, Int](LANE_I, OUT_I)((_: Int) + 100)
-      val v1 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v2 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v3 = p.readInt(Long.MinValue)(using unsafeEvidence)
-      val v4 = p.readInt(Long.MinValue)(using unsafeEvidence)
+      val v1 = readIntValue(p, Long.MinValue)
+      val v2 = readIntValue(p, Long.MinValue)
+      val v3 = readIntValue(p, Long.MinValue)
+      val v4 = readIntValue(p, Long.MinValue)
       assertTrue(v1 == 100L && v2 == 101L && v3 == 102L && v4 == Long.MinValue)
     },
     test("readLong with map on Long pipeline") {
       val p = Interpreter(Reader.fromChunk(Chunk(1L, 2L, 3L)))
       p.addMap[Long, Long](LANE_L, OUT_L)((_: Long) * 10L)
-      val v1 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v2 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v3 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v4 = p.readLong(Long.MaxValue)(using unsafeEvidence)
+      val v1 = readLongValue(p, Long.MaxValue)
+      val v2 = readLongValue(p, Long.MaxValue)
+      val v3 = readLongValue(p, Long.MaxValue)
+      val v4 = readLongValue(p, Long.MaxValue)
       assertTrue(v1 == 10L && v2 == 20L && v3 == 30L && v4 == Long.MaxValue)
     },
     test("readFloat with map on Float pipeline") {
       val p = Interpreter(Reader.fromChunk(Chunk(1.0f, 2.0f)))
       p.addMap[Float, Float](LANE_F, OUT_F)((_: Float) + 0.5f)
-      val v1 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
-      val v2 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
-      val v3 = p.readFloat(Double.MaxValue)(using unsafeEvidence)
+      val v1 = readFloatValue(p, Double.MaxValue)
+      val v2 = readFloatValue(p, Double.MaxValue)
+      val v3 = readFloatValue(p, Double.MaxValue)
       assertTrue(v1 == 1.5f.toDouble && v2 == 2.5f.toDouble && v3 == Double.MaxValue)
     },
     test("readDouble with map on Double pipeline") {
       val p = Interpreter(Reader.fromChunk(Chunk(1.0, 2.0)))
       p.addMap[Double, Double](LANE_D, OUT_D)((_: Double) + 0.1)
-      val v1 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
-      val v2 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
-      val v3 = p.readDouble(Double.MaxValue)(using unsafeEvidence)
+      val v1 = readDoubleValue(p, Double.MaxValue)
+      val v2 = readDoubleValue(p, Double.MaxValue)
+      val v3 = readDoubleValue(p, Double.MaxValue)
       assertTrue(v1 == 1.1 && v2 == 2.1 && v3 == Double.MaxValue)
     },
     test("readInt with cross-type map Int→Long emits in Long lane via readLong") {
       val p = Interpreter(Reader.fromRange(0 until 3))
       p.addMap[Int, Long](LANE_I, OUT_L)((_: Int).toLong * 100L)
-      val v1 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v2 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v3 = p.readLong(Long.MaxValue)(using unsafeEvidence)
-      val v4 = p.readLong(Long.MaxValue)(using unsafeEvidence)
+      val v1 = readLongValue(p, Long.MaxValue)
+      val v2 = readLongValue(p, Long.MaxValue)
+      val v3 = readLongValue(p, Long.MaxValue)
+      val v4 = readLongValue(p, Long.MaxValue)
       assertTrue(v1 == 0L && v2 == 100L && v3 == 200L && v4 == Long.MaxValue)
     }
   )

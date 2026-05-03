@@ -31,7 +31,6 @@ package zio.blocks.streams.internal
  */
 object OpTag {
 
-  // ---- Map ops: inLane * 5 + outLane (0–24) ----
   inline val MAP_II: 0  = 0; inline val MAP_IL: 1   = 1; inline val MAP_IF: 2   = 2; inline val MAP_ID: 3   = 3;
   inline val MAP_IR: 4  = 4
   inline val MAP_LI: 5  = 5; inline val MAP_LL: 6   = 6; inline val MAP_LF: 7   = 7; inline val MAP_LD: 8   = 8;
@@ -43,19 +42,15 @@ object OpTag {
   inline val MAP_RI: 20 = 20; inline val MAP_RL: 21 = 21; inline val MAP_RF: 22 = 22; inline val MAP_RD: 23 = 23;
   inline val MAP_RR: 24 = 24
 
-  // ---- Filter ops (25–29) ----
   inline val FILTER_I: 25 = 25; inline val FILTER_L: 26 = 26; inline val FILTER_F: 27 = 27
   inline val FILTER_D: 28 = 28; inline val FILTER_R: 29 = 29
 
-  // ---- Push ops / flatMap (30–34) ----
   inline val PUSH_I: 30 = 30; inline val PUSH_L: 31 = 31; inline val PUSH_F: 32 = 32
   inline val PUSH_D: 33 = 33; inline val PUSH_R: 34 = 34
 
-  // ---- Read ops / source (35–39) ----
   inline val READ_I: 35 = 35; inline val READ_L: 36 = 36; inline val READ_F: 37 = 37
   inline val READ_D: 38 = 38; inline val READ_R: 39 = 39
 
-  // ---- Derived helpers ----
   inline def mapTag(inLane: Lane, outLane: Lane): OpTag = inLane * 5 + outLane
   inline def filterTag(inLane: Lane): OpTag             = 25 + inLane
   inline def pushTag(inLane: Lane): OpTag               = 30 + inLane
