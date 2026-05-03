@@ -18,8 +18,8 @@ sealed trait Dom
 final case class Dom.Text(content: String) extends Dom
 sealed trait Dom.Element extends Dom
 final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
-final case class Dom.Element.Script(children: Chunk[Dom]) extends Dom.Element
-final case class Dom.Element.Style(children: Chunk[Dom]) extends Dom.Element
+final case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+final case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 
 // CssSelector variants
 sealed trait CssSelector
@@ -571,7 +571,8 @@ val userInput = "if (x < y) alert('<script>');"
 val code = js"val check = $userInput"
 
 println(code.value)
-// val check = if (x > y) alert('<script>');
+// val check = if (x < y) alert('<script>');
+// (with < and > characters escaped as Unicode in actual output)
 ```
 
 ### `selector""` Interpolator
@@ -983,7 +984,9 @@ println(safe.render)
 ### JavaScript String Escaping
 
 The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` → `<`, `>` → `>`, `&` → `&`
+- `<` becomes the Unicode escape `<`
+- `>` becomes the Unicode escape `>`  
+- `&` becomes the Unicode escape `&`
 - `"` → `\"`, `'` → `\'`, `\` → `\\`
 - Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
@@ -996,6 +999,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
+// All < and > characters are escaped as Unicode: < and >
 // let payload = "</script><script>alert(\'XSS\');</script>"
 ```
 
