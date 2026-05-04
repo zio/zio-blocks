@@ -281,7 +281,8 @@ val lineBreak = br
 val horizontalRule = hr
 
 // Keyword-shadowed elements (use backticks)
-val label = `label`("Choose an option")
+val objElement = `object`("data.bin")
+val typeElement = `type`("application/json")
 ```
 
 ### Setting Attributes
