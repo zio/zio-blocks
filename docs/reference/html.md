@@ -409,12 +409,14 @@ For constructing multi-valued attributes directly from collections (without a bu
 import zio.blocks.html._
 
 // Directly create a multi-valued attribute from a collection
-val classes = Dom.multiAttr("class", List("card", "active", "large"))
-val div1 = div(classes)
+val customClasses = Dom.multiAttr("class", List("card", "active", "large"))
+val div1 = div(customClasses)
 
 println(div1.render)
 // <div class="card active large"></div>
 ```
+
+This approach is useful when programmatically building multi-valued attributes outside the DSL's builder pattern.
 
 ### Children
 
