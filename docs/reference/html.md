@@ -402,6 +402,19 @@ val link = a(rel := "prev", rel += "first", href := "/previous")
 
 The `MultiAttributeKey` class handles accumulation of values with configurable separators (Space, Comma, Semicolon, or Custom).
 
+For constructing multi-valued attributes directly from collections (without a builder chain), use the `Iterable[String]` overload:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+// Directly create a multi-valued attribute from a collection
+val classes = Dom.multiAttr("class", List("card", "active", "large"))
+val div1 = div(classes)
+
+println(div1.render)
+// <div class="card active large"></div>
+```
+
 ### Children
 
 Children can be strings, elements, or collections. The DSL uses the `ToModifier` typeclass to convert values into DOM nodes:
@@ -802,7 +815,7 @@ val page = div(
   span("Keep")
 )
 
-// Transform elements in the selection (returns DomSelection of modified nodes only)
+// Transform all Element nodes in the selection; non-Element nodes pass through unchanged
 val modifiedSelection = page.select(CssSelector.Element("p")).modifyAll { el =>
   el.copy(tag = "div")
 }
