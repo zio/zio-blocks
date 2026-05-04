@@ -1030,9 +1030,9 @@ println(safe.render)
 ### JavaScript String Escaping
 
 The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` becomes `<` (Unicode: \u003c)
-- `>` becomes `>` (Unicode: \u003e)
-- `&` becomes `&` (Unicode: \u0026)
+- `<` → `<` (Unicode escape)
+- `>` → `>` (Unicode escape)
+- `&` → `&` (Unicode escape)
 - `"` → `\"`, `'` → `\'`, `\` → `\\`
 - Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
@@ -1045,8 +1045,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// < and > characters are escaped as Unicode: \u003c and \u003e
-// let payload = "</script><script>alert(\'XSS\');</script>"
+// let payload = "<\/script><script>alert(\'XSS\');<\/script>"
 ```
 
 ### URL Sanitization
