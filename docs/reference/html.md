@@ -21,6 +21,12 @@ final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribut
 final case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 final case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 
+// Attribute variants
+sealed trait Dom.Attribute
+final case class Dom.Attribute.KeyValue(name: String, value: Dom.AttributeValue) extends Dom.Attribute
+final case class Dom.Attribute.AppendValue(name: String, value: Dom.AttributeValue, separator: Dom.AttributeSeparator) extends Dom.Attribute
+final case class Dom.Attribute.BooleanAttribute(name: String, enabled: Boolean) extends Dom.Attribute
+
 // CssSelector variants (additional types omitted for brevity)
 sealed trait CssSelector
 final case class CssSelector.Element(tag: String) extends CssSelector
