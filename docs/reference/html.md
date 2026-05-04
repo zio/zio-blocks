@@ -814,6 +814,10 @@ val withClass = page.select(CssSelector.Element("p")).withClass("visible")
 
 ### Modifying Selections
 
+:::warning
+The returned `DomSelection` contains modified copies; the original DOM tree is unchanged. The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
+:::
+
 Transform or replace selected nodes:
 
 ```scala mdoc:compile-only
@@ -836,10 +840,6 @@ val replacedSelection = page.select(CssSelector.Element("p")).replaceAll(p("New"
 // Remove all selected nodes (returns empty DomSelection)
 val removedSelection = page.select(CssSelector.Element("p")).removeAll
 ```
-
-:::warning
-The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
-:::
 
 :::note
 Pseudo-class selectors (`:hover`, `:focus`, etc.) match elements structurally by their underlying element selector only — they cannot detect browser interaction state in a static DOM tree. `div.hover` matches the same elements as `CssSelector.Element("div")`.
