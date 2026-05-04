@@ -618,8 +618,7 @@ val userInput = "if (x < y) alert('<script>');"
 val code = js"val check = $userInput"
 
 println(code.value)
-// val check = if (x < y) alert('<script>');
-// (with < and > characters escaped as Unicode in actual output)
+// val check = "if (x < y) alert('\\u003cscript\\u003e');"
 ```
 
 ### `selector""` Interpolator
