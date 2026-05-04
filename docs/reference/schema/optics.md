@@ -148,7 +148,7 @@ val updatedAddress: Address = Address.street.replace(address, "456 Elm St")
 
 While manual lens construction gives you fine-grained control, ZIO Blocks provides macro-based derivation as the **preferred approach** for creating lenses.
 
-The `optic` macro inside the `CompanionOptics` trait creates a lens using intuitive selector syntax that mirrors standard Scala field access:
+The `optic` macro inside the `CompanionOptics` trait creates a lens using intuitive selector syntax that mirrors standard Scala field access. In the rest of the schema docs you may also see the symbolic `$(_.field)` form; it is the same optic-construction API presented with symbolic syntax instead of the named `optic(_.field)` helper.
 
 ```scala
 import zio.blocks.schema.optic

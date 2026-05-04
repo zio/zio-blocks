@@ -62,7 +62,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 
 ## Domain Setup
 
-We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods, schema-driven table names, and statement builder types. The `Expr` ADT used here is the same independent design from Part 3.
+We carry forward the product catalog domain and the Part 3 independent `Expr` ADT. The key additions in Part 4 are bridge extension methods, schema-driven table names, and statement builder types. As in Part 3, the public expression layer stays typed: built-in logic remains `SchemaExpr`, and the SQL builder only drops to the dynamic AST inside interpreter helpers.
 
 ```scala mdoc:silent
 import zio.blocks.schema._
@@ -135,8 +135,9 @@ object OrderItem extends CompanionOptics[OrderItem] {
 sealed trait Expr[S, A]
 
 object Expr {
-  final case class Column[S, A](path: DynamicOptic) extends Expr[S, A]
-  final case class Lit[S, A](value: DynamicValue) extends Expr[S, A]
+  final case class Builtin[S, A](schemaExpr: SchemaExpr[S, A]) extends Expr[S, A]
+  final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+  final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
   final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
   final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
@@ -152,50 +153,10 @@ object Expr {
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
-  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic.toDynamic)
-  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(schema.toDynamicValue(value))
+  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
-  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result = fromDynamic[S](se.dynamic)
-    result.asInstanceOf[Expr[S, A]]
-  }
-
-  private def fromDynamic[S](dse: DynamicSchemaExpr): Expr[S, ?] = dse match {
-    case DynamicSchemaExpr.Select(path)    => Column[S, Any](path)
-    case DynamicSchemaExpr.Literal(value)  => Lit[S, Any](value)
-
-    case DynamicSchemaExpr.Relational(l, r, op) =>
-      val relOp = op match {
-        case DynamicSchemaExpr.RelationalOperator.Equal              => RelOp.Equal
-        case DynamicSchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
-        case DynamicSchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
-        case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
-        case DynamicSchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
-        case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
-      }
-      Relational(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], relOp)
-
-    case DynamicSchemaExpr.Logical(l, r, op) => op match {
-      case DynamicSchemaExpr.LogicalOperator.And => And(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
-      case DynamicSchemaExpr.LogicalOperator.Or  => Or(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
-    }
-
-    case DynamicSchemaExpr.Not(inner) => Not(fromDynamic[S](inner).asInstanceOf[Expr[S, Boolean]])
-
-    case DynamicSchemaExpr.Arithmetic(l, r, op, _) =>
-      val arithOp = op match {
-        case DynamicSchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
-        case DynamicSchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
-        case DynamicSchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-        case _                                             => ArithOp.Add
-      }
-      Arithmetic(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], arithOp)
-
-    case DynamicSchemaExpr.StringConcat(l, r)              => StringConcat(fromDynamic[S](l).asInstanceOf[Expr[S, String]], fromDynamic[S](r).asInstanceOf[Expr[S, String]])
-    case DynamicSchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromDynamic[S](regex).asInstanceOf[Expr[S, String]], fromDynamic[S](string).asInstanceOf[Expr[S, String]])
-    case DynamicSchemaExpr.StringLength(string)            => StringLength(fromDynamic[S](string).asInstanceOf[Expr[S, String]])
-    case _                                                 => Lit[S, Any](DynamicValue.Null)
-  }
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = Builtin(se)
 }
 
 sealed trait RelOp
@@ -283,8 +244,9 @@ implicit final class SchemaExprBooleanBridge[S](private val self: SchemaExpr[S, 
 // --- Single unified SQL interpreter ---
 
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
-  case Expr.Column(path)     => columnName(path)
-  case Expr.Lit(value)       => sqlLiteralDV(value)
+  case Expr.Builtin(schemaExpr) => schemaExprToSql(schemaExpr)
+  case Expr.Column(optic)       => columnName(optic)
+  case Expr.Lit(value, schema)  => sqlLiteral(value, schema)
   case Expr.Relational(left, right, op) =>
     val sqlOp = op match {
       case RelOp.Equal              => "="
@@ -314,6 +276,46 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
     s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
+}
+
+def schemaExprToSql[S, A](expr: SchemaExpr[S, A]): String =
+  toSqlDynamic(expr.dynamic)
+
+def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
+  case DynamicSchemaExpr.Select(path)   => columnName(path)
+  case DynamicSchemaExpr.Literal(value) => sqlLiteralDV(value)
+  case DynamicSchemaExpr.Relational(left, right, op) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
+      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
+      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
+      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
+      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
+      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Logical(left, right, op) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.LogicalOperator.And => "AND"
+      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Not(inner) =>
+    s"NOT (${toSqlDynamic(inner)})"
+  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
+      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
+      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
+      case _                                             => "?"
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.StringConcat(left, right) =>
+    s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
+    s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
+  case DynamicSchemaExpr.StringLength(string) =>
+    s"LENGTH(${toSqlDynamic(string)})"
 }
 ```
 
@@ -357,7 +359,7 @@ val condition =
 exprToSql(condition)
 ```
 
-The first two `&&` calls stay in `SchemaExpr` land (direct method). The third `&&` encounters `between` (returns `Expr`), triggering the bridge. From that point on, everything is `Expr`.
+The first `&&` already involves `between`, so the bridge activates as soon as an `Expr` enters the chain. From that point on, the whole condition is represented as `Expr`.
 
 ## Schema-Driven Table Names
 
@@ -610,7 +612,7 @@ For batch inserts, create one `InsertStmt` per row and render each separately. T
 
 ## Putting It Together
 
-Here is a complete example combining schema-driven table names, bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries:
+Here is a complete example combining schema-driven table names, bridge extensions, all four statement builders, and the renderers. The `Expr` ADT, extension methods, SQL rendering, and builder types are defined in `Common.scala` and `package.scala` — the usage code stays focused on building queries with typed optics and `SchemaExpr`, not on manipulating `Dynamic*` nodes directly:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -681,8 +683,9 @@ object OrderItem extends CompanionOptics[OrderItem] {
 sealed trait Expr[S, A]
 
 object Expr {
-  final case class Column[S, A](path: DynamicOptic) extends Expr[S, A]
-  final case class Lit[S, A](value: DynamicValue) extends Expr[S, A]
+  final case class Builtin[S, A](schemaExpr: SchemaExpr[S, A]) extends Expr[S, A]
+  final case class Column[S, A](optic: Optic[S, A]) extends Expr[S, A]
+  final case class Lit[S, A](value: A, schema: Schema[A]) extends Expr[S, A]
 
   final case class Relational[S, A](left: Expr[S, A], right: Expr[S, A], op: RelOp) extends Expr[S, Boolean]
   final case class And[S](left: Expr[S, Boolean], right: Expr[S, Boolean]) extends Expr[S, Boolean]
@@ -698,45 +701,10 @@ object Expr {
   final case class IsNull[S, A](expr: Expr[S, A]) extends Expr[S, Boolean]
   final case class Like[S](expr: Expr[S, String], pattern: String) extends Expr[S, Boolean]
 
-  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic.toDynamic)
-  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(schema.toDynamicValue(value))
+  def col[S, A](optic: Optic[S, A]): Expr[S, A] = Column(optic)
+  def lit[S, A](value: A)(implicit schema: Schema[A]): Expr[S, A] = Lit(value, schema)
 
-  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = {
-    val result = fromDynamic[S](se.dynamic)
-    result.asInstanceOf[Expr[S, A]]
-  }
-
-  private def fromDynamic[S](dse: DynamicSchemaExpr): Expr[S, ?] = dse match {
-    case DynamicSchemaExpr.Select(path)    => Column[S, Any](path)
-    case DynamicSchemaExpr.Literal(value)  => Lit[S, Any](value)
-    case DynamicSchemaExpr.Relational(l, r, op) =>
-      val relOp = op match {
-        case DynamicSchemaExpr.RelationalOperator.Equal              => RelOp.Equal
-        case DynamicSchemaExpr.RelationalOperator.NotEqual           => RelOp.NotEqual
-        case DynamicSchemaExpr.RelationalOperator.LessThan           => RelOp.LessThan
-        case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => RelOp.LessThanOrEqual
-        case DynamicSchemaExpr.RelationalOperator.GreaterThan        => RelOp.GreaterThan
-        case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => RelOp.GreaterThanOrEqual
-      }
-      Relational(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], relOp)
-    case DynamicSchemaExpr.Logical(l, r, op) => op match {
-      case DynamicSchemaExpr.LogicalOperator.And => And(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
-      case DynamicSchemaExpr.LogicalOperator.Or  => Or(fromDynamic[S](l).asInstanceOf[Expr[S, Boolean]], fromDynamic[S](r).asInstanceOf[Expr[S, Boolean]])
-    }
-    case DynamicSchemaExpr.Not(inner) => Not(fromDynamic[S](inner).asInstanceOf[Expr[S, Boolean]])
-    case DynamicSchemaExpr.Arithmetic(l, r, op, _) =>
-      val arithOp = op match {
-        case DynamicSchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
-        case DynamicSchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
-        case DynamicSchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-        case _                                             => ArithOp.Add
-      }
-      Arithmetic(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], arithOp)
-    case DynamicSchemaExpr.StringConcat(l, r)              => StringConcat(fromDynamic[S](l).asInstanceOf[Expr[S, String]], fromDynamic[S](r).asInstanceOf[Expr[S, String]])
-    case DynamicSchemaExpr.StringRegexMatch(regex, string) => StringRegexMatch(fromDynamic[S](regex).asInstanceOf[Expr[S, String]], fromDynamic[S](string).asInstanceOf[Expr[S, String]])
-    case DynamicSchemaExpr.StringLength(string)            => StringLength(fromDynamic[S](string).asInstanceOf[Expr[S, String]])
-    case _                                                 => Lit[S, Any](DynamicValue.Null)
-  }
+  def fromSchemaExpr[S, A](se: SchemaExpr[S, A]): Expr[S, A] = Builtin(se)
 }
 
 sealed trait RelOp
@@ -820,8 +788,9 @@ def sqlLiteralDV(dv: DynamicValue): String = dv match {
 }
 
 def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
-  case Expr.Column(path)     => columnName(path)
-  case Expr.Lit(value)       => sqlLiteralDV(value)
+  case Expr.Builtin(schemaExpr) => schemaExprToSql(schemaExpr)
+  case Expr.Column(optic)       => columnName(optic)
+  case Expr.Lit(value, schema)  => sqlLiteral(value, schema)
   case Expr.Relational(left, right, op) =>
     val sqlOp = op match {
       case RelOp.Equal              => "="
@@ -851,6 +820,46 @@ def exprToSql[S, A](expr: Expr[S, A]): String = expr match {
     s"(${exprToSql(e)} BETWEEN ${sqlLiteral(low, schema)} AND ${sqlLiteral(high, schema)})"
   case Expr.IsNull(e)        => s"${exprToSql(e)} IS NULL"
   case Expr.Like(e, pattern) => s"${exprToSql(e)} LIKE '${pattern.replace("'", "''")}'"
+}
+
+def schemaExprToSql[S, A](expr: SchemaExpr[S, A]): String =
+  toSqlDynamic(expr.dynamic)
+
+def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
+  case DynamicSchemaExpr.Select(path)   => columnName(path)
+  case DynamicSchemaExpr.Literal(value) => sqlLiteralDV(value)
+  case DynamicSchemaExpr.Relational(left, right, op) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.RelationalOperator.Equal              => "="
+      case DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
+      case DynamicSchemaExpr.RelationalOperator.LessThan           => "<"
+      case DynamicSchemaExpr.RelationalOperator.LessThanOrEqual    => "<="
+      case DynamicSchemaExpr.RelationalOperator.GreaterThan        => ">"
+      case DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Logical(left, right, op) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.LogicalOperator.And => "AND"
+      case DynamicSchemaExpr.LogicalOperator.Or  => "OR"
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Not(inner) =>
+    s"NOT (${toSqlDynamic(inner)})"
+  case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
+    val sqlOp = op match {
+      case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
+      case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
+      case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
+      case _                                             => "?"
+    }
+    s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.StringConcat(left, right) =>
+    s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.StringRegexMatch(regex, string) =>
+    s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
+  case DynamicSchemaExpr.StringLength(string) =>
+    s"LENGTH(${toSqlDynamic(string)})"
 }
 
 // --- Statement builders ---
@@ -963,7 +972,7 @@ val q = select(Product.table)
   .where(
     Product.category.in("Electronics", "Books") &&
     Product.price.between(10.0, 500.0) &&
-    (Product.rating >= 4).toExpr
+    (Product.rating >= 4)
   )
   .orderBy(Product.price, SortOrder.Desc)
   .limit(20)
