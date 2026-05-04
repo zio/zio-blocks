@@ -1046,9 +1046,9 @@ println(safe.render)
 ### JavaScript String Escaping
 
 The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` → `<` (Unicode escape)
-- `>` → `>` (Unicode escape)
-- `&` → `&` (Unicode escape)
+- `<` becomes the six-character string `<`
+- `>` becomes the six-character string `>`
+- `&` becomes the six-character string `&`
 - `"` → `\"`, `'` → `\'`, `\` → `\\`
 - Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
