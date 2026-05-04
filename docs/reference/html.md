@@ -845,6 +845,12 @@ Adjacent sibling (`+`) and general sibling (`~`) selectors are supported in CSS 
 
 The `Css` ADT represents structured stylesheets as a typed data structure, separate from strings.
 
+All `Css` subtypes support `.render()` for minified output and `.render(indent: Int)` for indented pretty-printing:
+- `Css.Rule` — single CSS rule with selector and declarations
+- `Css.Sheet` — collection of rules
+- `Css.Raw` — raw CSS string
+- `Css.Comment` — CSS comment
+
 ### Declarations and Rules
 
 A `Css.Declaration` is a property-value pair:
