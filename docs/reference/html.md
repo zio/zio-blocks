@@ -9,7 +9,7 @@ Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM 
 
 The module is structured around these core types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
