@@ -550,7 +550,7 @@ val page = html"<div><p>A</p><p>B</p></div>"
 
 **XSS Protection:**
 
-When interpolating untrusted user input, the `html""` interpolator escapes content to prevent injection:
+Content interpolated into `html""` is stored as `Dom.Text` nodes, which are HTML-escaped during `Dom#render` to prevent XSS:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
