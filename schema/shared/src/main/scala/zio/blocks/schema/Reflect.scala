@@ -199,7 +199,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding }
 
-  lazy val noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+  lazy val noBinding: Reflect[NoBinding, A] =
+    Reflect.withTransformCache(transform(DynamicOptic.root, ReflectTransformer.noBinding()).force)
 
   def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 
@@ -1201,7 +1202,7 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy {
-        val c      = cache.get
+        val c      = Reflect.transformCache.get
         val key    = new IdentityTuple(this, f)
         val cached = c.get(key)
         if (cached ne null) cached.asInstanceOf[Reflect[G, A]]
@@ -1415,11 +1416,6 @@ object Reflect {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap
       }
 
-    private[this] val cache =
-      new ThreadLocal[java.util.HashMap[IdentityTuple, AnyRef]] {
-        override def initialValue: java.util.HashMap[IdentityTuple, AnyRef] = new java.util.HashMap
-      }
-
     def nodeType = value.nodeType
 
     override def toString: String = {
@@ -1433,7 +1429,11 @@ object Reflect {
     }
   }
 
-  private class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {
+  object Deferred {
+    type Bound[A] = Deferred[Binding, A]
+  }
+
+  private[schema] class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {
     override def equals(obj: Any): Boolean = obj match {
       case that: IdentityTuple => (this.v1 eq that.v1) && (this.v2 eq that.v2)
       case _                   => false
@@ -1442,8 +1442,42 @@ object Reflect {
     override def hashCode(): Int = System.identityHashCode(v1) * 31 + System.identityHashCode(v2)
   }
 
-  object Deferred {
-    type Bound[A] = Deferred[Binding, A]
+  // Per-thread memoization map shared across all `Reflect.Deferred` instances during a single
+  // top-level `transform` walk. Used as a cycle-breaker so that recursive schemas terminate
+  // and so that a `Deferred` reached via multiple paths is shared in the result.
+  //
+  // Keeping it scoped (cleared by `withTransformCache` on outermost exit) prevents transformers
+  // and their captured state — e.g. the override maps held by `DerivationBuilder`'s anonymous
+  // `ReflectTransformer` — from being pinned for the lifetime of the thread.
+  private[schema] val transformCache: ThreadLocal[java.util.HashMap[IdentityTuple, AnyRef]] =
+    new ThreadLocal[java.util.HashMap[IdentityTuple, AnyRef]] {
+      override def initialValue: java.util.HashMap[IdentityTuple, AnyRef] = new java.util.HashMap
+    }
+
+  private[this] val transformDepth: ThreadLocal[Integer] =
+    new ThreadLocal[Integer] {
+      override def initialValue: Integer = Integer.valueOf(0)
+    }
+
+  /**
+   * Establishes a scope around a top-level `transform` (or chain of `transform`
+   * calls) so that the per-thread cache used to break cycles is cleared once
+   * the outermost call returns.
+   *
+   * The block must encompass the entire `Lazy.force` chain that triggers the
+   * transformation, not just the construction of the outer `Lazy`, since the
+   * transform recursion happens lazily inside the result `Deferred`s.
+   *
+   * Re-entrant: only the outermost call clears the cache.
+   */
+  private[schema] def withTransformCache[A](thunk: => A): A = {
+    val depth = transformDepth.get.intValue
+    transformDepth.set(Integer.valueOf(depth + 1))
+    try thunk
+    finally {
+      transformDepth.set(Integer.valueOf(depth))
+      if (depth == 0) transformCache.get.clear()
+    }
   }
 
   def unit[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Unit] = primitive(PrimitiveType.Unit)
