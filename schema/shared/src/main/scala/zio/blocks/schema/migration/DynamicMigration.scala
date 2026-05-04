@@ -162,9 +162,7 @@ private[migration] object ActionExecutor {
         executeRename(at, to, value)
 
       case TransformField(at, transform) =>
-        evalExpr(transform, value).flatMap { transformValue =>
-          executeTransformValueLiteral(at, transformValue, value)
-        }
+        executeTransformField(at, transform, value)
 
       case MandateField(at, default) =>
         evalExpr(default, value).flatMap { defaultValue =>
@@ -175,9 +173,7 @@ private[migration] object ActionExecutor {
         executeOptionalize(at, value)
 
       case ChangeFieldType(at, converter) =>
-        evalExpr(converter, value).flatMap { convertedValue =>
-          executeChangeTypeLiteral(at, convertedValue, value)
-        }
+        executeChangeFieldType(at, converter, value)
 
       case RenameCase(at, from, to) =>
         executeRenameCase(at, from, to, value)
@@ -189,19 +185,13 @@ private[migration] object ActionExecutor {
         executeApplyMigration(at, migration, value)
 
       case TransformElements(at, transform) =>
-        evalExpr(transform, value).flatMap { transformValue =>
-          executeTransformElements(at, transformValue, value)
-        }
+        executeTransformElements(at, transform, value)
 
       case TransformKeys(at, transform) =>
-        evalExpr(transform, value).flatMap { transformValue =>
-          executeTransformKeys(at, transformValue, value)
-        }
+        executeTransformKeys(at, transform, value)
 
       case TransformValues(at, transform) =>
-        evalExpr(transform, value).flatMap { transformValue =>
-          executeTransformValues(at, transformValue, value)
-        }
+        executeTransformValues(at, transform, value)
 
       case i: Irreversible =>
         Left(SchemaError.transformFailed(i.at, s"Cannot execute reverse of irreversible action: ${i.originalAction}"))
@@ -217,13 +207,20 @@ private[migration] object ActionExecutor {
     input: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     expr.eval(input).flatMap { results =>
-      results.headOption match {
-        case Some(value) => Right(value)
-        case None        =>
+      results match {
+        case Seq(value) => Right(value)
+        case Seq()      =>
           Left(
             SchemaError.transformFailed(
               zio.blocks.schema.DynamicOptic.root,
               s"Expression evaluation returned no values"
+            )
+          )
+        case _ =>
+          Left(
+            SchemaError.transformFailed(
+              zio.blocks.schema.DynamicOptic.root,
+              s"Expression evaluation must return exactly one value, got ${results.size}"
             )
           )
       }
@@ -299,58 +296,78 @@ private[migration] object ActionExecutor {
     }
   }
 
-  private def executeTransformValueLiteral(
+  private def executeTransformField(
     at: zio.blocks.schema.DynamicOptic,
-    newValue: DynamicValue,
+    transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) { _ =>
-      Right(newValue)
+    modifyAt(at, value) { currentValue =>
+      evalExpr(transform, currentValue)
     }
 
-  private def executeChangeTypeLiteral(
+  private def executeChangeFieldType(
     at: zio.blocks.schema.DynamicOptic,
-    convertedValue: DynamicValue,
+    converter: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) { _ =>
-      Right(convertedValue)
+    modifyAt(at, value) { currentValue =>
+      evalExpr(converter, currentValue)
     }
 
   // ==================== Collection/Map Action Execution ====================
 
   private def executeTransformElements(
     at: zio.blocks.schema.DynamicOptic,
-    transformValue: DynamicValue,
+    transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Sequence(elements) =>
-        Right(DynamicValue.Sequence(elements.map(_ => transformValue)))
+        val transformed = elements.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+          case (Right(acc), element) =>
+            evalExpr(transform, element).map(acc :+ _)
+          case (left, _) =>
+            left
+        }
+        transformed.map(DynamicValue.Sequence(_))
       case other =>
         Left(SchemaError.typeMismatch(at, "Sequence", other.getClass.getSimpleName))
     }
 
   private def executeTransformKeys(
     at: zio.blocks.schema.DynamicOptic,
-    transformValue: DynamicValue,
+    transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Map(entries) =>
-        Right(DynamicValue.Map(entries.map { case (_, v) => (transformValue, v) }))
+        val transformed =
+          entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+            case (Right(acc), (key, currentValue)) =>
+              evalExpr(transform, key).map(newKey => acc :+ (newKey -> currentValue))
+            case (left, _) =>
+              left
+          }
+        transformed.map(DynamicValue.Map(_))
       case other =>
         Left(SchemaError.typeMismatch(at, "Map", other.getClass.getSimpleName))
     }
 
   private def executeTransformValues(
     at: zio.blocks.schema.DynamicOptic,
-    transformValue: DynamicValue,
+    transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Map(entries) =>
-        Right(DynamicValue.Map(entries.map { case (k, _) => (k, transformValue) }))
+        val transformed =
+          entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
+            case (Right(acc), (key, currentValue)) =>
+              evalExpr(transform, currentValue).map(newValue => acc :+ (key -> newValue))
+            case (left, _) =>
+              left
+          }
+        transformed.map(DynamicValue.Map(_))
       case other =>
         Left(SchemaError.typeMismatch(at, "Map", other.getClass.getSimpleName))
     }
@@ -540,14 +557,23 @@ private[migration] object ActionExecutor {
         case Node.AtMapKey(key) =>
           value match {
             case DynamicValue.Map(entries) =>
-              val keyValue = key.asInstanceOf[DynamicValue]
-              val entryIdx = entries.indexWhere(_._1 == keyValue)
-              if (entryIdx < 0) {
-                Left(SchemaError.pathNotFound(fullPath))
+              if (key == null) {
+                Left(
+                  SchemaError.invalidValue(
+                    fullPath,
+                    "Expected DynamicValue map key, got: null"
+                  )
+                )
               } else {
-                val (k, v) = entries(entryIdx)
-                modifyAtPath(nodes, idx + 1, v, fullPath)(f).map { newV =>
-                  DynamicValue.Map(entries.updated(entryIdx, (k, newV)))
+                val keyValue = key
+                val entryIdx = entries.indexWhere(_._1 == keyValue)
+                if (entryIdx < 0) {
+                  Left(SchemaError.pathNotFound(fullPath))
+                } else {
+                  val (k, v) = entries(entryIdx)
+                  modifyAtPath(nodes, idx + 1, v, fullPath)(f).map { newV =>
+                    DynamicValue.Map(entries.updated(entryIdx, (k, newV)))
+                  }
                 }
               }
             case other =>
