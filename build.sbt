@@ -1252,7 +1252,8 @@ lazy val docs = project
     `schema-xml`.jvm,
     mediatype.jvm,
     `http-model`.jvm,
-    `http-model-schema`.jvm
+    `http-model-schema`.jvm,
+    openapi.jvm
   )
   .enablePlugins(WebsitePlugin)
 

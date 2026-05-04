@@ -126,6 +126,7 @@ const sidebars = {
              "reference/http-model/schema",
            ]
          },
+         "reference/openapi",
          "reference/chunk",
          "path-interpolator",
          "reference/ringbuffer",
