@@ -684,7 +684,7 @@ println(descendantSel.render) // div span
 
 ### Pseudo-Classes and Pseudo-Elements
 
-Select elements based on their state using pseudo-classes, and insert generated content using pseudo-elements:
+Pseudo-classes match elements by their state, and pseudo-elements create dynamic content:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -814,7 +814,7 @@ val withClass = page.select(CssSelector.Element("p")).withClass("visible")
 ### Modifying Selections
 
 :::warning
-The returned `DomSelection` contains modified copies; the original DOM tree is unchanged. The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
+`DomSelection` returns new copies with modifications; the original DOM tree remains unchanged. The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
 :::
 
 Transform or replace selected nodes:
