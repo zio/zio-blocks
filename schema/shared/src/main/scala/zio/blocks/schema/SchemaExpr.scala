@@ -16,6 +16,8 @@
 
 package zio.blocks.schema
 
+import scala.util.Try
+
 /**
  * A typed wrapper around DynamicSchemaExpr that provides compile-time type
  * safety.
@@ -78,11 +80,11 @@ final case class SchemaExpr[A, B](
         OpticCheck.EmptySequence(fullPath, source)
 
       case SchemaError.Message(source, details) if details.startsWith("SequenceIndexOutOfBounds:") =>
-        val parts    = details.stripPrefix("SequenceIndexOutOfBounds: ").split(", ")
-        val index    = parts(0).stripPrefix("index ").toInt
-        val size     = parts(1).stripPrefix("size ").toInt
         val fullPath = extractFullPath(expr).getOrElse(source)
-        OpticCheck.SequenceIndexOutOfBounds(fullPath, source, index, size)
+        parseSequenceIndexOutOfBounds(details) match {
+          case Some((index, size)) => OpticCheck.SequenceIndexOutOfBounds(fullPath, source, index, size)
+          case None                => OpticCheck.DynamicConversionError(error.message)
+        }
 
       case SchemaError.Message(source, details) if details.startsWith("MissingKey:") =>
         val fullPath = extractFullPath(expr).getOrElse(source)
@@ -122,6 +124,23 @@ final case class SchemaExpr[A, B](
     case _                                               => None
   }
 
+  private def parseSequenceIndexOutOfBounds(details: String): Option[(Int, Int)] = {
+    val prefix = "SequenceIndexOutOfBounds: "
+    if (!details.startsWith(prefix)) None
+    else {
+      val parts = details.stripPrefix(prefix).split(", ")
+      if (parts.length != 2) None
+      else {
+        val maybeIndex = Try(parts(0).stripPrefix("index ").toInt).toOption
+        val maybeSize  = Try(parts(1).stripPrefix("size ").toInt).toOption
+        for {
+          index <- maybeIndex
+          size  <- maybeSize
+        } yield (index, size)
+      }
+    }
+  }
+
   /**
    * Get the underlying dynamic expression.
    */
@@ -148,6 +167,66 @@ final case class SchemaExpr[A, B](
 }
 
 object SchemaExpr {
+
+  private def outOfRange(value: Any, target: String): Either[Predef.String, DynamicValue] =
+    Left(s"Value $value is out of range for $target")
+
+  private def lossyConversion(value: Any, target: String): Either[Predef.String, DynamicValue] =
+    Left(s"Value $value cannot be converted to $target without losing information")
+
+  private def checkedIntegralNarrow(
+    value: Long,
+    min: Long,
+    max: Long,
+    target: String
+  )(result: => DynamicValue): Either[Predef.String, DynamicValue] =
+    if (value < min || value > max) outOfRange(value, target)
+    else Right(result)
+
+  private def checkedFiniteFloatToInt(value: Float): Either[Predef.String, DynamicValue] =
+    if (!java.lang.Float.isFinite(value)) lossyConversion(value, "Int")
+    else if (value < Int.MinValue.toFloat || value > Int.MaxValue.toFloat) outOfRange(value, "Int")
+    else {
+      val converted = value.toInt
+      if (converted.toFloat != value) lossyConversion(value, "Int")
+      else Right(DynamicValue.Primitive(PrimitiveValue.Int(converted)))
+    }
+
+  private def checkedFiniteFloatToLong(value: Float): Either[Predef.String, DynamicValue] =
+    if (!java.lang.Float.isFinite(value)) lossyConversion(value, "Long")
+    else if (value < Long.MinValue.toFloat || value > Long.MaxValue.toFloat) outOfRange(value, "Long")
+    else {
+      val converted = value.toLong
+      if (converted.toFloat != value) lossyConversion(value, "Long")
+      else Right(DynamicValue.Primitive(PrimitiveValue.Long(converted)))
+    }
+
+  private def checkedFiniteDoubleToInt(value: Double): Either[Predef.String, DynamicValue] =
+    if (!java.lang.Double.isFinite(value)) lossyConversion(value, "Int")
+    else if (value < Int.MinValue.toDouble || value > Int.MaxValue.toDouble) outOfRange(value, "Int")
+    else {
+      val converted = value.toInt
+      if (converted.toDouble != value) lossyConversion(value, "Int")
+      else Right(DynamicValue.Primitive(PrimitiveValue.Int(converted)))
+    }
+
+  private def checkedFiniteDoubleToLong(value: Double): Either[Predef.String, DynamicValue] =
+    if (!java.lang.Double.isFinite(value)) lossyConversion(value, "Long")
+    else if (value < Long.MinValue.toDouble || value > Long.MaxValue.toDouble) outOfRange(value, "Long")
+    else {
+      val converted = value.toLong
+      if (converted.toDouble != value) lossyConversion(value, "Long")
+      else Right(DynamicValue.Primitive(PrimitiveValue.Long(converted)))
+    }
+
+  private def checkedDoubleToFloat(value: Double): Either[Predef.String, DynamicValue] =
+    if (!java.lang.Double.isFinite(value)) lossyConversion(value, "Float")
+    else {
+      val converted = value.toFloat
+      if (!java.lang.Float.isFinite(converted) || converted.toDouble != value)
+        lossyConversion(value, "Float")
+      else Right(DynamicValue.Primitive(PrimitiveValue.Float(converted)))
+    }
 
   /**
    * Create a Literal expression from the schema's default value. Gets the
@@ -465,7 +544,9 @@ object SchemaExpr {
     case object ShortToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+          checkedIntegralNarrow(v.toLong, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
+            DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte))
+          )
         case _ => Left(s"Expected Short, got $value")
       }
     }
@@ -473,7 +554,9 @@ object SchemaExpr {
     case object IntToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+          checkedIntegralNarrow(v.toLong, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
+            DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte))
+          )
         case _ => Left(s"Expected Int, got $value")
       }
     }
@@ -481,7 +564,9 @@ object SchemaExpr {
     case object IntToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
+          checkedIntegralNarrow(v.toLong, Short.MinValue.toLong, Short.MaxValue.toLong, "Short")(
+            DynamicValue.Primitive(PrimitiveValue.Short(v.toShort))
+          )
         case _ => Left(s"Expected Int, got $value")
       }
     }
@@ -489,7 +574,9 @@ object SchemaExpr {
     case object LongToByte extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte)))
+          checkedIntegralNarrow(v, Byte.MinValue.toLong, Byte.MaxValue.toLong, "Byte")(
+            DynamicValue.Primitive(PrimitiveValue.Byte(v.toByte))
+          )
         case _ => Left(s"Expected Long, got $value")
       }
     }
@@ -497,7 +584,9 @@ object SchemaExpr {
     case object LongToShort extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Short(v.toShort)))
+          checkedIntegralNarrow(v, Short.MinValue.toLong, Short.MaxValue.toLong, "Short")(
+            DynamicValue.Primitive(PrimitiveValue.Short(v.toShort))
+          )
         case _ => Left(s"Expected Long, got $value")
       }
     }
@@ -505,7 +594,9 @@ object SchemaExpr {
     case object LongToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+          checkedIntegralNarrow(v, Int.MinValue.toLong, Int.MaxValue.toLong, "Int")(
+            DynamicValue.Primitive(PrimitiveValue.Int(v.toInt))
+          )
         case _ => Left(s"Expected Long, got $value")
       }
     }
@@ -513,7 +604,7 @@ object SchemaExpr {
     case object DoubleToFloat extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Float(v.toFloat)))
+          checkedDoubleToFloat(v)
         case _ => Left(s"Expected Double, got $value")
       }
     }
@@ -636,7 +727,9 @@ object SchemaExpr {
     case object IntToChar extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Char(v.toChar)))
+          checkedIntegralNarrow(v.toLong, Char.MinValue.toLong, Char.MaxValue.toLong, "Char")(
+            DynamicValue.Primitive(PrimitiveValue.Char(v.toChar))
+          )
         case _ => Left(s"Expected Int, got $value")
       }
     }
@@ -682,11 +775,10 @@ object SchemaExpr {
       }
     }
 
-    // Float/Double to Int/Long (truncation)
     case object FloatToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+          checkedFiniteFloatToInt(v)
         case _ => Left(s"Expected Float, got $value")
       }
     }
@@ -694,7 +786,7 @@ object SchemaExpr {
     case object FloatToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+          checkedFiniteFloatToLong(v)
         case _ => Left(s"Expected Float, got $value")
       }
     }
@@ -702,7 +794,7 @@ object SchemaExpr {
     case object DoubleToInt extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Int(v.toInt)))
+          checkedFiniteDoubleToInt(v)
         case _ => Left(s"Expected Double, got $value")
       }
     }
@@ -710,7 +802,7 @@ object SchemaExpr {
     case object DoubleToLong extends ConversionType {
       def convert(value: DynamicValue): Either[Predef.String, DynamicValue] = value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(v)) =>
-          Right(DynamicValue.Primitive(PrimitiveValue.Long(v.toLong)))
+          checkedFiniteDoubleToLong(v)
         case _ => Left(s"Expected Double, got $value")
       }
     }

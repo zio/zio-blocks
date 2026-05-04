@@ -793,6 +793,188 @@ object PrimitiveTypeSpec extends SchemaBaseSpec {
         val roundTrip            = schema.fromDynamicValue(dv)
         assertTrue(roundTrip == Right(PrimitiveType.Int(Validation.Numeric.Positive)))
       }
+    ),
+    suite("narrowing failure paths")(
+      test("Byte rejects out-of-range Short, Int, Long, Float, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Byte(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Byte")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(300))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(300))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(300L))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(300.5f))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(300.5))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(300)))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(300.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("Short rejects out-of-range Int, Long, Float, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Short(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Short")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(40000))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(40000L))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(40000.5f))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(40000.5))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(40000)))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(40000.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("Int rejects out-of-range Float, Long, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Int(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Int")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(3000000000L))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(3000000000.5))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(3000000000L)))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("Long rejects out-of-range Float, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Long(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Long")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.5))))(isLeft(equalTo(errMsg))) &&
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("99999999999999999999")))
+          )
+        )(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("Float rejects lossy Int, Long, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Float(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Float")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(16777217))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(9007199254740993L))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0000000001))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("99999999999999999999")))
+          )
+        )(isLeft(equalTo(errMsg))) &&
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal("1.00000000000001")))
+          )
+        )(isLeft(equalTo(errMsg)))
+      },
+      test("Double rejects lossy Long, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Double(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Double")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(9007199254740993L))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt("99999999999999999999")))
+          )
+        )(isLeft(equalTo(errMsg))) &&
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(
+              PrimitiveValue.BigDecimal(BigDecimal("1.0000000000000000001"))
+            )
+          )
+        )(isLeft(equalTo(errMsg)))
+      },
+      test("Char rejects out-of-range Int, Long, Float, Double, BigInt, BigDecimal") {
+        val tpe    = PrimitiveType.Char(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected Char")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(70000))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(70000L))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(70000.5f))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(70000.5))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(70000)))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(70000.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("BigInt rejects non-finite Float and Double, and fractional values") {
+        val tpe    = PrimitiveType.BigInt(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected BigInt")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(Float.NaN))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(Float.PositiveInfinity))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(Double.NaN))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(Double.PositiveInfinity))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.5f))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.5))))(isLeft(equalTo(errMsg))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.5)))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("BigDecimal rejects non-finite Float and Double") {
+        val tpe    = PrimitiveType.BigDecimal(None)
+        val errMsg = SchemaError.expectationMismatch(Nil, "Expected BigDecimal")
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(Float.NaN))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(Float.PositiveInfinity))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(Double.NaN))))(
+          isLeft(equalTo(errMsg))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(Double.PositiveInfinity))))(
+          isLeft(equalTo(errMsg))
+        )
+      },
+      test("fromDynamicValue with non-Primitive DynamicValue fails for numeric types") {
+        val record = DynamicValue.Record("x" -> DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        assert(PrimitiveType.Byte(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Short(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Int(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Long(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Float(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Double(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.Char(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.BigInt(None).fromDynamicValue(record))(isLeft) &&
+        assert(PrimitiveType.BigDecimal(None).fromDynamicValue(record))(isLeft)
+      }
+    ),
+    suite("typeReprToPrimitiveType via fromTypeId")(
+      test("returns None for null typeId") {
+        assertTrue(PrimitiveType.fromTypeId(null) == scala.None)
+      }
     )
   )
 }
