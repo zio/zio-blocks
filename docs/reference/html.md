@@ -394,9 +394,11 @@ For programmatic construction of multi-valued attributes (when the DSL `+=` oper
 ```scala mdoc:compile-only
 import zio.blocks.html._
 
-val className = Dom.multiAttr("class")
-val div1 = div(className := "base", className += "active")
+// Create a custom multi-valued attribute builder (alternative to DSL's className)
+val classBuilder = Dom.multiAttr("class")
+val div1 = div(classBuilder := "base", classBuilder += "active")
 
+// Create a multi-valued attribute with explicit separator
 val rel = Dom.multiAttr("rel", Dom.AttributeSeparator.Space)
 val link = a(rel := "prev", rel += "first", href := "/previous")
 ```
