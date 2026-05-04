@@ -9,7 +9,7 @@ This is Part 2 of the Query DSL series. [Part 1](./query-dsl-reified-optics.md) 
 
 **What we'll cover:**
 
-- Interpreting `SchemaExpr` via its `DynamicSchemaExpr` representation using pattern matching
+- Interpreting `SchemaExpr` while keeping the typed API at the boundary
 - Extracting column names from optic paths using `DynamicOptic`
 - Translating relational, logical, arithmetic, and string operations to SQL
 - Building complete `SELECT ... FROM ... WHERE ...` statements
@@ -36,7 +36,7 @@ def findProducts(category: Option[String], maxPrice: Option[Double], inStock: Op
 
 This is fragile, repetitive, and vulnerable to SQL injection. Every new query shape requires new string-building code. The query logic is duplicated -- once as a `SchemaExpr` for in-memory filtering, and again as hand-written SQL for the database.
 
-`SchemaExpr` wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the full expression AST. We can write a single interpreter that pattern-matches on this AST to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
+`SchemaExpr` is the user-facing query API. Internally it wraps a `DynamicSchemaExpr` — a sealed trait whose cases represent the full expression AST. That means we can write a single interpreter that accepts `SchemaExpr`, then crosses into the dynamic AST internally to translate *any* query expression into SQL. Write the interpreter once, and every query you build with the Part 1 DSL automatically gets a SQL translation.
 
 ## Prerequisites
 
@@ -74,23 +74,33 @@ object Product extends CompanionOptics[Product] {
 }
 ```
 
-## The SchemaExpr Structure
+## The SchemaExpr API
 
-Before we build the interpreter, let's understand the structure we are interpreting. `SchemaExpr[A, B]` is a case class that wraps a `DynamicSchemaExpr` — a sealed trait with cases representing the expression AST:
+Before we build the interpreter, keep the API boundary in mind: application code builds `SchemaExpr[A, B]` values, while interpreter code may inspect the underlying `DynamicSchemaExpr` through `.dynamic`.
 
 ```
-SchemaExpr[A, B]
-└── .dynamic: DynamicSchemaExpr
-    ├── Select(path: DynamicOptic)                         -- a field reference
-    ├── Literal(value: DynamicValue)                       -- a constant value
-    ├── Relational(left, right, op: RelationalOperator)    -- comparison operations
-    ├── Logical(left, right, op: LogicalOperator)          -- boolean operations
-    ├── Not(expr)                                          -- boolean negation
-    ├── Arithmetic(left, right, op, numericTag)            -- numeric operations
-    ├── StringConcat(left, right)                          -- string concatenation
-    ├── StringRegexMatch(regex, string)                    -- regex pattern matching
-    └── StringLength(string)                               -- string length calculation
+SchemaExpr[A, B]                        -- user-facing, typed API
+└── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary
+    ├── Select(path: DynamicOptic)      -- field reference
+    ├── Literal(value: DynamicValue)    -- constant value
+    ├── Relational(left, right, op)     -- comparisons
+    ├── Logical(left, right, op)        -- boolean operators
+    ├── Not(expr)                       -- negation
+    ├── Arithmetic(left, right, op, _)  -- numeric operators
+    ├── StringConcat(left, right)       -- string concatenation
+    ├── StringRegexMatch(regex, string) -- pattern matching
+    └── StringLength(string)            -- string length
+```
 
+Most users never need to construct `DynamicSchemaExpr` directly. The normal workflow is:
+
+1. Build a typed `SchemaExpr` with optics and operators.
+2. Pass that `SchemaExpr` to your interpreter.
+3. Let the interpreter read `.dynamic` internally.
+
+The dynamic cases are still worth understanding because they are what your interpreter will pattern-match on:
+
+```
 RelationalOperator
 ├── LessThan
 ├── GreaterThan
@@ -109,7 +119,7 @@ ArithmeticOperator
 └── Multiply
 ```
 
-Each case carries enough information to produce SQL: `Select` nodes carry field paths, `Literal` nodes carry values, and operator nodes carry the operation type. Our interpreter walks this tree and emits SQL fragments.
+Each dynamic case carries enough information to produce SQL: `Select` nodes carry field paths, `Literal` nodes carry values, and operator nodes carry the operation type. Our interpreter walks this tree and emits SQL fragments.
 
 ## Extracting Column Names from Optics
 
@@ -135,7 +145,7 @@ columnName(Product.category)
 
 ## Translating Literals to SQL
 
-Literal values in `DynamicSchemaExpr` are stored as `DynamicValue`. We need a function to format them as SQL:
+Once we cross the interpreter boundary, literal values appear as `DynamicValue`. We need a function to format them as SQL:
 
 ```scala mdoc:silent
 def sqlLiteralDV(dv: DynamicValue): String = dv match {
@@ -157,7 +167,7 @@ def sqlLiteralDV(dv: DynamicValue): String = dv match {
 
 ## Building the SQL Interpreter
 
-Now we build the core interpreter. `SchemaExpr` wraps a `DynamicSchemaExpr`, so we access it via `.dynamic` and pattern-match on each case:
+Now we build the core interpreter. The public entry point accepts `SchemaExpr`; the internal helper does the `DynamicSchemaExpr` pattern matching:
 
 ```scala mdoc:silent
 def toSql[A, B](expr: SchemaExpr[A, B]): String = toSqlDynamic(expr.dynamic)
@@ -222,7 +232,7 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
 }
 ```
 
-The mapping from `DynamicSchemaExpr` to SQL is direct:
+The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching stays inside the interpreter implementation:
 
 | DynamicSchemaExpr Case | SQL Output                           |
 |------------------------|--------------------------------------|
