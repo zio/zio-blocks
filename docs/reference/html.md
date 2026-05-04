@@ -230,10 +230,10 @@ import zio.blocks.html._
 
 val tree = div(p("A"), span("Keep"), p("B"), span("Also keep"))
 val filtered = tree.filter {
-  case el: Dom.Element => el.tag == "span"
+  case el: Dom.Element => el.tag == "div" || el.tag == "span"
   case _ => true
 }
-// div(span("Keep"), span("Also keep"))
+// <div><span>Keep</span><span>Also keep</span></div>
 ```
 
 **`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
