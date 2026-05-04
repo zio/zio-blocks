@@ -40,13 +40,8 @@ final class UpDownCounter private[telemetry] (
     val attributes =
       if (attrs.isEmpty) Attributes.empty
       else SyncInstrumentsHelper.buildPooledAttributes(attrs)
-    var adder = adders.get(attributes)
-    if (adder == null) {
-      adder = new LongAdder()
-      val existing = adders.putIfAbsent(attributes, adder)
-      if (existing != null) adder = existing
-    }
-    adder.add(value)
+
+    add(value, attributes)
   }
 
   def bind(attributes: Attributes): BoundUpDownCounter = {

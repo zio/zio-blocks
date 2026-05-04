@@ -34,7 +34,8 @@ private[telemetry] object LogRateLimit {
     val idx  = siteId & MASK
     val now  = System.currentTimeMillis()
     val last = timestamps.get(idx)
-    if (now - last >= intervalMillis) timestamps.compareAndSet(idx, last, now)
-    else false
+    if (now - last >= intervalMillis) {
+      timestamps.compareAndSet(idx, last, now)
+    } else false
   }
 }

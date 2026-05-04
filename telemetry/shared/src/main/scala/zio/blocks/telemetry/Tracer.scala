@@ -58,51 +58,16 @@ final class Tracer private[telemetry] (
         f(Span.NoOp)
 
       case SamplingDecision.RecordOnly =>
-        val builder =
-          SpanBuilder(name).setKind(kind).setResource(resource).setInstrumentationScope(instrumentationScope)
-
-        parentCtx.foreach(p => builder.setParent(p))
-
-        result.attributes.foreach { (k, v) =>
-          v match {
-            case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(k), s)
-            case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(k), l)
-            case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(k), d)
-            case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(k), b)
-            case _                              => ()
-          }
-        }
-
-        attributes.foreach { (k, v) =>
-          v match {
-            case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(k), s)
-            case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(k), l)
-            case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(k), d)
-            case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(k), b)
-            case _                              => ()
-          }
-        }
-
-        val span = builder.startSpan()
-        val sd   = span.toSpanData
-        // Override traceFlags to none (not sampled) and apply traceState from SamplingResult
-        val correctedCtx = span.spanContext.copy(
-          traceFlags = TraceFlags.none,
-          traceState = if (result.traceState.nonEmpty) result.traceState else span.spanContext.traceState
-        )
-        // End the builder-created span to avoid dangling
-        span.end()
-        val recordOnlySpan = new RecordingSpan(
-          spanContext = correctedCtx,
-          name = sd.name,
-          kind = sd.kind,
-          parentSpanContext = sd.parentSpanContext,
-          startTimeNanos = sd.startTimeNanos,
-          initialAttributes = sd.attributes,
-          initialLinks = sd.links,
-          resource = resource,
-          instrumentationScope = instrumentationScope
-        )
+        val recordOnlySpan =
+          buildSpan(
+            name = name,
+            kind = kind,
+            parentCtx = parentCtx,
+            attributes = attributes,
+            samplingAttributes = result.attributes,
+            traceFlags = TraceFlags.none,
+            traceState = result.traceState
+          )
 
         processors.foreach(_.onStart(recordOnlySpan))
 
@@ -117,53 +82,16 @@ final class Tracer private[telemetry] (
         }
 
       case SamplingDecision.RecordAndSample =>
-        val builder =
-          SpanBuilder(name).setKind(kind).setResource(resource).setInstrumentationScope(instrumentationScope)
-
-        parentCtx.foreach(p => builder.setParent(p))
-
-        result.attributes.foreach { (k, v) =>
-          v match {
-            case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(k), s)
-            case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(k), l)
-            case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(k), d)
-            case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(k), b)
-            case _                              => ()
-          }
-        }
-
-        attributes.foreach { (k, v) =>
-          v match {
-            case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(k), s)
-            case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(k), l)
-            case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(k), d)
-            case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(k), b)
-            case _                              => ()
-          }
-        }
-
-        val span = builder.startSpan()
-        // Ensure sampled flag is set and apply traceState from SamplingResult if present
-        val finalSpan = if (result.traceState.nonEmpty || !span.spanContext.traceFlags.isSampled) {
-          val sd           = span.toSpanData
-          val correctedCtx = span.spanContext.copy(
+        val finalSpan =
+          buildSpan(
+            name = name,
+            kind = kind,
+            parentCtx = parentCtx,
+            attributes = attributes,
+            samplingAttributes = result.attributes,
             traceFlags = TraceFlags.sampled,
-            traceState = if (result.traceState.nonEmpty) result.traceState else span.spanContext.traceState
+            traceState = result.traceState
           )
-          // End the builder-created span to avoid dangling
-          span.end()
-          new RecordingSpan(
-            spanContext = correctedCtx,
-            name = sd.name,
-            kind = sd.kind,
-            parentSpanContext = sd.parentSpanContext,
-            startTimeNanos = sd.startTimeNanos,
-            initialAttributes = sd.attributes,
-            initialLinks = sd.links,
-            resource = resource,
-            instrumentationScope = instrumentationScope
-          )
-        } else span
 
         processors.foreach(_.onStart(finalSpan))
 
@@ -178,4 +106,52 @@ final class Tracer private[telemetry] (
         }
     }
   }
+
+  private def buildSpan(
+    name: String,
+    kind: SpanKind,
+    parentCtx: Option[SpanContext],
+    attributes: Attributes,
+    samplingAttributes: Attributes,
+    traceFlags: TraceFlags,
+    traceState: String
+  ): RecordingSpan = {
+    val builder =
+      SpanBuilder(name).setKind(kind).setResource(resource).setInstrumentationScope(instrumentationScope)
+
+    parentCtx.foreach(p => builder.setParent(p))
+
+    samplingAttributes.foreach { (k, v) =>
+      putAttribute(builder, k, v)
+    }
+
+    attributes.foreach { (k, v) =>
+      putAttribute(builder, k, v)
+    }
+
+    val span = builder.startSpan()
+    new RecordingSpan(
+      spanContext = span.spanContext.copy(
+        traceFlags = traceFlags,
+        traceState = if (traceState.nonEmpty) traceState else span.spanContext.traceState
+      ),
+      name = span.name,
+      kind = span.kind,
+      parentSpanContext = span.toSpanData.parentSpanContext,
+      startTimeNanos = span.toSpanData.startTimeNanos,
+      initialAttributes = span.toSpanData.attributes,
+      initialLinks = span.toSpanData.links,
+      resource = resource,
+      instrumentationScope = instrumentationScope
+    )
+  }
+
+  private def putAttribute(builder: SpanBuilder, key: String, value: AttributeValue): Unit =
+    value match {
+      case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(key), s)
+      case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(key), l)
+      case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(key), d)
+      case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(key), b)
+      case _                              => ()
+    }
 }

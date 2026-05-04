@@ -32,16 +32,18 @@ import java.nio.file.{Files, Path, Paths}
  *   - ASCII fast path for most log lines
  *   - ThreadLocal CharsetEncoder for non-ASCII content
  *
- * Usage: val writer = FileLogWriter("logs/app.log")
- * log.writer(TextLogFormatter, writer)
+ * Usage: val writer = FileLogWriter("logs/app.log") val emitter = new
+ * FormattedLogEmitter(TextLogFormatter, writer)
  *
  * // Or with JSON: val jsonWriter = FileLogWriter(Paths.get("logs/app.json"),
- * bufferSize = 16384) log.writer(JsonLogFormatter, jsonWriter)
+ * bufferSize = 16384) val emitter = new FormattedLogEmitter(JsonLogFormatter,
+ * jsonWriter)
  */
 private[telemetry] final class FileLogWriter private (
   private val channel: FileChannel,
   private val bufferSize: Int
 ) extends LogWriter {
+
   private val channelLock = new AnyRef
 
   // ThreadLocal encoder + buffer — no allocation per write
@@ -51,7 +53,7 @@ private[telemetry] final class FileLogWriter private (
         new FileLogWriter.WriterState(bufferSize)
     }
 
-  override def write(content: CharSequence): Unit = {
+  override def write(content: CharSequence): Unit = channelLock.synchronized {
     val state   = threadState.get()
     val buf     = state.buffer
     val encoder = state.encoder
@@ -78,9 +80,7 @@ private[telemetry] final class FileLogWriter private (
         buf.put('\n'.toByte)
         buf.flip()
         try {
-          channelLock.synchronized {
-            while (buf.hasRemaining) channel.write(buf)
-          }
+          while (buf.hasRemaining) channel.write(buf)
         } catch {
           case e: IOException =>
             System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
@@ -96,35 +96,46 @@ private[telemetry] final class FileLogWriter private (
     val charBuf = CharBuffer.wrap(content)
     encoder.reset()
     try {
-      channelLock.synchronized {
-        var result = encoder.encode(charBuf, buf, true)
-        while (result == CoderResult.OVERFLOW) {
-          buf.flip()
-          while (buf.hasRemaining) channel.write(buf)
-          buf.clear()
-          result = encoder.encode(charBuf, buf, true)
-        }
-        encoder.flush(buf)
-        buf.put('\n'.toByte)
+      var result = encoder.encode(charBuf, buf, true)
+      while (result == CoderResult.OVERFLOW) {
         buf.flip()
         while (buf.hasRemaining) channel.write(buf)
+        buf.clear()
+        result = encoder.encode(charBuf, buf, true)
       }
+      result = encoder.flush(buf)
+      while (result == CoderResult.OVERFLOW) {
+        buf.flip()
+        while (buf.hasRemaining) channel.write(buf)
+        buf.clear()
+        result = encoder.flush(buf)
+      }
+      if (!buf.hasRemaining) {
+        buf.flip()
+        while (buf.hasRemaining) channel.write(buf)
+        buf.clear()
+      }
+      buf.put('\n'.toByte)
+      buf.flip()
+      while (buf.hasRemaining) channel.write(buf)
     } catch {
       case e: IOException =>
         System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
     }
   }
 
-  override def flush(): Unit =
-    try channelLock.synchronized(channel.force(false))
+  override def flush(): Unit = channelLock.synchronized {
+    try channel.force(false)
     catch { case e: IOException => System.err.println("[zio-blocks-telemetry] flush error: " + e.getMessage) }
+  }
 
-  override def close(): Unit =
-    try channelLock.synchronized(channel.close())
+  override def close(): Unit = channelLock.synchronized {
+    try channel.close()
     catch { case e: IOException => System.err.println("[zio-blocks-telemetry] close error: " + e.getMessage) }
+  }
 }
 
-object FileLogWriter {
+private[telemetry] object FileLogWriter {
 
   private[telemetry] class WriterState(bufferSize: Int) {
     val buffer: ByteBuffer      = ByteBuffer.allocate(bufferSize) // heap buffer — faster for small writes

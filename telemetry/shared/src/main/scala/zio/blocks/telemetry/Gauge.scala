@@ -40,13 +40,8 @@ final class Gauge private[telemetry] (
     val attributes =
       if (attrs.isEmpty) Attributes.empty
       else SyncInstrumentsHelper.buildPooledAttributes(attrs)
-    var ref = values.get(attributes)
-    if (ref == null) {
-      ref = new AtomicLong(0L)
-      val existing = values.putIfAbsent(attributes, ref)
-      if (existing != null) ref = existing
-    }
-    ref.set(java.lang.Double.doubleToRawLongBits(value))
+
+    record(value, attributes)
   }
 
   def bind(attributes: Attributes): BoundGauge = {

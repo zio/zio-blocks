@@ -100,4 +100,45 @@ object log extends LogVersionSpecific {
       }
     }
 
+  private[telemetry] def baseRecord(
+    severity: Severity,
+    message: String,
+    location: SourceLocation
+  ): LogRecord = {
+    val now     = EpochClock.epochNanos()
+    val builder = AttributeBuilderPool
+      .get()
+      .put("code.filepath", location.filePath)
+      .put("code.namespace", location.namespace)
+      .put("code.function", location.methodName)
+      .put("code.lineno", location.lineNumber.toLong)
+
+    // Merge scoped annotations
+    val annotations = LogAnnotations.get()
+    if (annotations.nonEmpty) {
+      annotations.foreach { case (k, v) => builder.put(k, v) }
+    }
+
+    val attrs = builder.build
+    builder.clear()
+    val state    = GlobalLogState.get()
+    val resource =
+      if (state != null && state.logger != null) state.logger.resource
+      else Resource.empty
+
+    LogRecord(
+      timestampNanos = now,
+      observedTimestampNanos = now,
+      severity = severity,
+      severityText = severity.text,
+      body = LogMessage(message),
+      attributes = attrs,
+      traceIdHi = 0L,
+      traceIdLo = 0L,
+      spanId = 0L,
+      traceFlags = 0,
+      resource = resource,
+      instrumentationScope = logInstrumentationScope
+    )
+  }
 }

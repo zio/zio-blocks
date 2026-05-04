@@ -26,7 +26,6 @@ import scala.util.Random
  * directly into SpanContext for zero heap allocation.
  */
 object TraceId {
-  private val hexDigits = "0123456789abcdef".toCharArray
 
   /**
    * Checks if a trace ID (hi, lo) pair is valid (not all zeros).
@@ -37,19 +36,9 @@ object TraceId {
    * Converts a trace ID to a 32-character lowercase hexadecimal string.
    */
   def toHex(hi: Long, lo: Long): String = {
-    val chars = new Array[Char](32)
-    writeHexLong(chars, 0, hi)
-    writeHexLong(chars, 16, lo)
-    new String(chars)
-  }
-
-  private def writeHexLong(chars: Array[Char], offset: Int, value: Long): Unit = {
-    var i = 0
-    while (i < 16) {
-      val shift = (15 - i) * 4
-      chars(offset + i) = hexDigits(((value >>> shift) & 0x0fL).toInt)
-      i += 1
-    }
+    val hiHex = String.format("%016x", hi)
+    val loHex = String.format("%016x", lo)
+    hiHex + loHex
   }
 
   /**

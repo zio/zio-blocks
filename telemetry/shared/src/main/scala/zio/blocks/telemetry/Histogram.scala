@@ -41,13 +41,8 @@ final class Histogram private[telemetry] (
     val attributes =
       if (attrs.isEmpty) Attributes.empty
       else SyncInstrumentsHelper.buildPooledAttributes(attrs)
-    var state = states.get(attributes)
-    if (state == null) {
-      state = new Histogram.State(boundaries.length + 1)
-      val existing = states.putIfAbsent(attributes, state)
-      if (existing != null) state = existing
-    }
-    recordInternal(value, state)
+
+    record(value, attributes)
   }
 
   def bind(attributes: Attributes): BoundHistogram = {

@@ -55,16 +55,8 @@ private[otel] final class BatchProcessor[A](
   def enqueue(item: A): Unit =
     if (!isShutdown.get()) {
       queue.add(item)
-      val size = queueSize.incrementAndGet()
-      if (size > maxQueueSize) {
-        val removed = queue.poll()
-        if (removed != null) {
-          queueSize.decrementAndGet()
-          System.err.println(
-            "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
-          )
-        }
-      }
+      queueSize.incrementAndGet()
+      dropOldestIfOverCapacity()
     }
 
   def forceFlush(): Unit = doFlush()
@@ -114,6 +106,26 @@ private[otel] final class BatchProcessor[A](
       }
     }
     builder.result()
+  }
+
+  private def dropOldestIfOverCapacity(): Unit = {
+    var done = false
+    while (!done) {
+      val currentSize = queueSize.get()
+      if (currentSize <= maxQueueSize) {
+        done = true
+      } else if (queueSize.compareAndSet(currentSize, currentSize - 1)) {
+        val removed = queue.poll()
+        if (removed != null) {
+          System.err.println(
+            "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
+          )
+        } else {
+          queueSize.incrementAndGet()
+        }
+        done = true
+      }
+    }
   }
 
   private def exportWithRetry(batch: Seq[A], attempt: Int): Unit =
