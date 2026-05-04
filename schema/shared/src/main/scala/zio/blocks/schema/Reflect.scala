@@ -1475,8 +1475,10 @@ object Reflect {
     transformDepth.set(Integer.valueOf(depth + 1))
     try thunk
     finally {
-      transformDepth.set(Integer.valueOf(depth))
-      if (depth == 0) transformCache.get.clear()
+      if (depth == 0) {
+        transformDepth.remove()
+        transformCache.remove()
+      } else transformDepth.set(Integer.valueOf(depth))
     }
   }
 
