@@ -1060,7 +1060,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// let payload = "<\/script><script>alert(\'XSS\');<\/script>"
+// let payload = "</script><script>alert('XSS');</script>"
 ```
 
 ### URL Sanitization
