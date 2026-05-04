@@ -261,7 +261,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   }}}
    */
   def rebind[A](resolver: BindingResolver): Schema[A] = {
-    val bound = reflect.transform(DynamicOptic.root, new RebindTransformer(resolver)).force
+    val bound = Reflect.withTransformCache(reflect.transform(DynamicOptic.root, new RebindTransformer(resolver)).force)
     new Schema(bound.asInstanceOf[Reflect.Bound[A]])
   }
 }

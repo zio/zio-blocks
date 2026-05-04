@@ -121,7 +121,7 @@ final case class DerivationBuilder[TC[_], A](
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByType(typeId, termName, modifier))
 
-  lazy val derive: TC[A] = {
+  lazy val derive: TC[A] = Reflect.withTransformCache {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
     val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
     val instanceByOpticMap   =
