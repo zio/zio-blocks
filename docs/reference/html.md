@@ -1045,9 +1045,9 @@ println(safe.render)
 ### JavaScript String Escaping
 
 The `ToJs[String]` typeclass escapes strings to prevent breaking out of script contexts:
-- `<` becomes the six-character string `<`
-- `>` becomes the six-character string `>`
-- `&` becomes the six-character string `&`
+- `<` → backslash-u-0-0-3-c (the six-character Unicode escape sequence `<`)
+- `>` → backslash-u-0-0-3-e (the six-character Unicode escape sequence `>`)
+- `&` → backslash-u-0-0-2-6 (the six-character Unicode escape sequence `&`)
 - `"` → `\"`, `'` → `\'`, `\` → `\\`
 - Newlines, carriage returns, and Unicode line/paragraph separators are escaped
 
@@ -1060,7 +1060,7 @@ val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
 println(code.value)
-// let payload = "<\/script><script>alert(\'XSS\');<\/script>"
+// let payload = "</script><script>alert(\'XSS\');</script>"
 ```
 
 ### URL Sanitization
