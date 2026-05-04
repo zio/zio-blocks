@@ -16,6 +16,9 @@
 
 package zio.blocks.schema
 
+import java.util.regex.Pattern
+import java.util.regex.PatternSyntaxException
+
 import zio.blocks.chunk.Chunk
 
 sealed trait DynamicSchemaExpr {
@@ -23,6 +26,8 @@ sealed trait DynamicSchemaExpr {
 }
 
 object DynamicSchemaExpr {
+
+  private val MaxSafeExponent: Int = 10000
 
   private def extractBoolean(dv: DynamicValue): Either[SchemaError, Boolean] = dv match {
     case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => Right(b)
@@ -52,6 +57,44 @@ object DynamicSchemaExpr {
     if (errors.nonEmpty) Left(errors.head)
     else Right(results.collect { case Right(v) => v })
   }
+
+  private def invalidOperation[A](message: String): Either[String, A] =
+    Left(message)
+
+  private def dynamicResult(value: DynamicValue): Either[String, DynamicValue] =
+    Right(value)
+
+  private def ensureNonZero[A](value: A, render: A => String = (_: A).toString)(
+    isZero: A => Boolean
+  ): Either[String, Unit] =
+    if (isZero(value)) Left(s"Division by zero: divisor ${render(value)}") else Right(())
+
+  private def checkedPowExponent(value: BigInt): Either[String, Int] =
+    if (!value.isValidInt) invalidOperation[Int](s"Exponent out of range: $value")
+    else {
+      val exponent = value.toInt
+      if (exponent < 0) invalidOperation[Int](s"Negative exponent not supported: $exponent")
+      else if (exponent > MaxSafeExponent)
+        invalidOperation[Int](s"Exponent exceeds safe limit ($MaxSafeExponent): $exponent")
+      else Right(exponent)
+    }
+
+  private def safeRegexMatch(regex: String, value: String): Either[SchemaError, Boolean] =
+    try Right(Pattern.matches(regex, value))
+    catch {
+      case e: PatternSyntaxException =>
+        Left(SchemaError.conversionFailed(Nil, s"Invalid regex pattern: ${e.getDescription}"))
+    }
+
+  private def safeSubstring(value: String, start: Int, end: Int): Either[SchemaError, String] =
+    if (start < 0 || end < 0)
+      Left(SchemaError.conversionFailed(Nil, s"Substring indices must be non-negative: start=$start, end=$end"))
+    else if (start > end)
+      Left(SchemaError.conversionFailed(Nil, s"Substring start index $start exceeds end index $end"))
+    else if (end > value.length)
+      Left(SchemaError.conversionFailed(Nil, s"Substring end index $end exceeds string length ${value.length}"))
+    else Right(value.substring(start, end))
+
   // ==================== Leaf Expressions ====================
 
   final case class Literal(value: DynamicValue) extends DynamicSchemaExpr {
@@ -334,13 +377,21 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a * b).toByte)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a / b).toByte)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Byte](b)(_ == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Byte((a / b).toByte)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) =>
           DynamicValue.Primitive(PrimitiveValue.Byte(Math.pow(a.toDouble, b.toDouble).toByte))
         }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Byte((a % b).toByte)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Byte](b)(_ == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Byte((a % b).toByte)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Byte, Byte)] =
         (x, y) match {
@@ -358,13 +409,21 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a * b).toShort)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a / b).toShort)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Short](b)(_ == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Short((a / b).toShort)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) =>
           DynamicValue.Primitive(PrimitiveValue.Short(Math.pow(a.toDouble, b.toDouble).toShort))
         }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Short((a % b).toShort)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Short](b)(_ == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Short((a % b).toShort)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Short, Short)] =
         (x, y) match {
@@ -382,13 +441,17 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Int](b)(_ == 0).flatMap(_ => dynamicResult(DynamicValue.Primitive(PrimitiveValue.Int(a / b))))
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) =>
           DynamicValue.Primitive(PrimitiveValue.Int(Math.pow(a.toDouble, b.toDouble).toInt))
         }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Int(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Int](b)(_ == 0).flatMap(_ => dynamicResult(DynamicValue.Primitive(PrimitiveValue.Int(a % b))))
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Int, Int)] =
         (x, y) match {
@@ -406,13 +469,21 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Long](b)(_ == 0L).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Long(a / b)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) =>
           DynamicValue.Primitive(PrimitiveValue.Long(Math.pow(a.toDouble, b.toDouble).toLong))
         }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Long(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Long](b)(_ == 0L).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Long(a % b)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Long, Long)] =
         (x, y) match {
@@ -430,13 +501,21 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Float](b)(_.compare(0.0f) == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Float(a / b)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) =>
           DynamicValue.Primitive(PrimitiveValue.Float(Math.pow(a.toDouble, b.toDouble).toFloat))
         }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Float(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Float](b)(_.compare(0.0f) == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Float(a % b)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Float, Float)] =
         (x, y) match {
@@ -454,11 +533,19 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Double(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Double(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Double](b)(_.compare(0.0d) == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Double(a / b)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Double(Math.pow(a, b))) }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.Double(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[Double](b)(_.compare(0.0d) == 0).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.Double(a % b)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (Double, Double)] =
         (x, y) match {
@@ -476,11 +563,23 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigInt(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigInt(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[BigInt](b)(_ == BigInt(0)).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigInt(a / b)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigInt(a.pow(b.toInt))) }
+        extract2(x, y).flatMap { case (a, b) =>
+          checkedPowExponent(b).flatMap(exponent =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigInt(a.pow(exponent))))
+          )
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigInt(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[BigInt](b)(_ == BigInt(0)).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigInt(a % b)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (BigInt, BigInt)] =
         (x, y) match {
@@ -498,11 +597,23 @@ object DynamicSchemaExpr {
       def multiply(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
         extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a * b)) }
       def divide(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a / b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[BigDecimal](b)(_ == BigDecimal(0)).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a / b)))
+          )
+        }
       def pow(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.pow(b.toInt))) }
+        extract2(x, y).flatMap { case (a, b) =>
+          checkedPowExponent(b.toBigIntExact.getOrElse(BigInt(Int.MaxValue))).flatMap { exponent =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a.pow(exponent))))
+          }
+        }
       def modulo(x: DynamicValue, y: DynamicValue): Either[String, DynamicValue] =
-        extract2(x, y).map { case (a, b) => DynamicValue.Primitive(PrimitiveValue.BigDecimal(a % b)) }
+        extract2(x, y).flatMap { case (a, b) =>
+          ensureNonZero[BigDecimal](b)(_ == BigDecimal(0)).flatMap(_ =>
+            dynamicResult(DynamicValue.Primitive(PrimitiveValue.BigDecimal(a % b)))
+          )
+        }
 
       private def extract2(x: DynamicValue, y: DynamicValue): Either[String, (BigDecimal, BigDecimal)] =
         (x, y) match {
@@ -710,7 +821,8 @@ object DynamicSchemaExpr {
             for {
               regexStr <- extractString(x)
               str      <- extractString(y)
-            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(str.matches(regexStr)))
+              matches  <- safeRegexMatch(regexStr, str)
+            } yield DynamicValue.Primitive(PrimitiveValue.Boolean(matches))
           }
           sequence(computed)
         }
@@ -746,7 +858,8 @@ object DynamicSchemaExpr {
               str      <- extractString(s)
               startInt <- extractInt(st)
               endInt   <- extractInt(en)
-            } yield DynamicValue.Primitive(PrimitiveValue.String(str.substring(startInt, endInt)))
+              slice    <- safeSubstring(str, startInt, endInt)
+            } yield DynamicValue.Primitive(PrimitiveValue.String(slice))
           }
           sequence(computed)
         }

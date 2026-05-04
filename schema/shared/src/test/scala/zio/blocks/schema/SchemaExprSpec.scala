@@ -85,6 +85,21 @@ object SchemaExprSpec extends ZIOSpecDefault {
         val conv  = SchemaExpr.ConversionType.FloatToDouble
         val input = DynamicValue.Primitive(PrimitiveValue.Float(3.14f))
         assertTrue(conv.convert(input).isRight)
+      },
+      test("IntToByte rejects out-of-range values") {
+        val conv  = SchemaExpr.ConversionType.IntToByte
+        val input = DynamicValue.Primitive(PrimitiveValue.Int(128))
+        assertTrue(conv.convert(input).isLeft)
+      },
+      test("FloatToInt rejects fractional values") {
+        val conv  = SchemaExpr.ConversionType.FloatToInt
+        val input = DynamicValue.Primitive(PrimitiveValue.Float(3.5f))
+        assertTrue(conv.convert(input).isLeft)
+      },
+      test("DoubleToFloat rejects lossy values") {
+        val conv  = SchemaExpr.ConversionType.DoubleToFloat
+        val input = DynamicValue.Primitive(PrimitiveValue.Double(0.1d))
+        assertTrue(conv.convert(input).isLeft)
       }
     ),
     suite("Bitwise")(
@@ -117,6 +132,21 @@ object SchemaExprSpec extends ZIOSpecDefault {
         val expr   = SchemaExpr.bitwise(intLit(12), intLit(10), SchemaExpr.BitwiseOperator.Xor)
         val result = expr.evalDynamic(())
         assertTrue(result.isRight && result.exists(seq => seq.nonEmpty))
+      }
+    ),
+    suite("Error handling")(
+      test("evalDynamic reports invalid substring indices as OpticCheck") {
+        val expr = SchemaExpr(
+          DynamicSchemaExpr.StringSubstring(
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello"))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)))
+          ),
+          Schema[Unit],
+          Schema[String]
+        )
+
+        assertTrue(expr.evalDynamic(()).isLeft)
       }
     )
   )
