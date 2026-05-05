@@ -37,11 +37,11 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       assertTrue(event.render == "event: test\ndata: hello\n\n")
     },
     test("With id: renders event type, id, and data") {
-      val event = ServerSentEvent("hello", "test").withId("1")
+      val event = ServerSentEvent("hello", "test").id("1")
       assertTrue(event.render == "event: test\nid: 1\ndata: hello\n\n")
     },
     test("With retry: renders event type, retry, and data") {
-      val event = ServerSentEvent("hello", "test").withRetry(5000)
+      val event = ServerSentEvent("hello", "test").retry(5000)
       assertTrue(event.render == "event: test\nretry: 5000\ndata: hello\n\n")
     },
     test("Multi-line string data: splits on newlines and prefixes each with data:") {
@@ -57,7 +57,7 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
     },
     test("All options: renders event type, id, retry, and data") {
-      val event = ServerSentEvent("data", "evt").withId("42").withRetry(3000)
+      val event = ServerSentEvent("data", "evt").id("42").retry(3000)
       assertTrue(event.render == "event: evt\nid: 42\nretry: 3000\ndata: data\n\n")
     },
     test("fromOptions supports Option metadata") {
@@ -93,23 +93,23 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       assertTrue(result.isFailure)
     },
     test("id with carriage return is rejected") {
-      val result = scala.util.Try(ServerSentEvent("data", "evt").withId("bad\rid"))
+      val result = scala.util.Try(ServerSentEvent("data", "evt").id("bad\rid"))
       assertTrue(result.isFailure)
     },
     test("negative retry is rejected") {
-      val result = scala.util.Try(ServerSentEvent("data").withRetry(-1))
+      val result = scala.util.Try(ServerSentEvent("data").retry(-1))
       assertTrue(result.isFailure)
     },
-    test("withoutEvent removes event metadata") {
-      val event = ServerSentEvent("data", "evt").withoutEvent
+    test("clearEvent removes event metadata") {
+      val event = ServerSentEvent("data", "evt").clearEvent
       assertTrue(event.render == "data: data\n\n")
     },
-    test("withoutRetry removes retry metadata") {
-      val event = ServerSentEvent("data", "evt").withRetry(1000).withoutRetry
+    test("clearRetry removes retry metadata") {
+      val event = ServerSentEvent("data", "evt").retry(1000).clearRetry
       assertTrue(event.render == "event: evt\ndata: data\n\n")
     },
     test("ServerSentEvent equality and toString are value-based") {
-      val left  = ServerSentEvent("data", "evt").withId("1").withRetry(5)
+      val left  = ServerSentEvent("data", "evt").id("1").retry(5)
       val same  = ServerSentEvent.fromOptions("data", event = Some("evt"), id = Some("1"), retry = Some(5))
       val other = ServerSentEvent("other")
 
