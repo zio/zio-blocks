@@ -37,6 +37,43 @@ Supported platforms:
 - **Tuples, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
+## How They Work Together
+
+The three combinator types solve distinct composition problems, each with a specific architectural role:
+
+```
+Your values → Tuples → Eithers → Unions (Scala 3)
+  (Any)        (Group)   (Flatten)  (Convert)
+```
+
+**Tuples** aggregates heterogeneous values into a single product type, automatically flattening nested structures for ergonomics. Use Tuples when you need to combine independent values or build up multi-element results.
+
+**Eithers** canonicalizes nested choice types (Either) into a uniform left-nested form, making error accumulation and pattern matching systematic. Use Eithers when composing error types, building sum types for schemas, or needing predictable Either nesting.
+
+**Unions** (Scala 3 only) bridges the gap between Either's runtime disjoint semantics and Scala 3's native union types (`|`), enabling type-safe two-way conversion. Use Unions when you want to leverage Scala 3's union syntax for cleaner API design while maintaining Either-compatible serialization or error handling.
+
+**Typical workflows:**
+
+1. **Building a result**: Combine independent values with `Tuples.combine` to aggregate results, then flatten automatically.
+2. **Handling alternatives**: Use `Eithers.combine` to normalize error types in a chain of operations, ensuring all Eithers nest consistently.
+3. **Scala 3 API design**: Convert a polymorphic result to a union type with `Unions.combine` for idiomatic Scala 3 code, or convert back to Either for interop.
+
+Here is how to combine multiple values and canonicalize error types:
+
+```scala mdoc
+import zio.blocks.combinators.{Tuples, Eithers}
+
+// Aggregate three values into a flattened tuple
+val username: String = "alice"
+val userId: Int = 42
+val email: String = "alice@example.com"
+val userTuple = Tuples.combine(username, Tuples.combine(userId, email))
+
+// Canonicalize nested Either types to left-nested form
+val validationError: Either[String, Either[String, Boolean]] = Right(Left("invalid email"))
+val canonical = Eithers.combine(validationError)
+```
+
 ## Tuples
 
 The `Tuples` module combines values into flat tuples and separates them back.
@@ -331,6 +368,18 @@ type IntStringTuples = Tuples.Tuples.WithOut[Int, String, (Int, String)]
 type TripleTuples = Tuples.Tuples.WithOut[(Int, String), Boolean, (Int, String, Boolean)]
 ```
 
+## Integration Points
+
+The combinator types integrate with other ZIO Blocks modules through systematic composition:
+
+**Schema Evolution**: The `Eithers` canonicalization strategy directly supports schema sum type encoding. When deriving schemas for sealed trait hierarchies, the combinator ensures all Either encodings use the same left-nested form, enabling consistent serialization across schema variants.
+
+**Error Handling**: `Eithers` provides a foundation for systematic error composition. Libraries building polymorphic error types can leverage canonicalization to ensure uniform error nesting, preventing subtle bugs from inconsistent Either structure.
+
+**Scala 3 APIs**: The `Unions` type enables idiomatic Scala 3 DSLs and API designs that use native union syntax. Gateway types that convert between union-based and Either-based representations (e.g., for serialization compatibility) can use `Unions` for zero-cost interop.
+
+**Tuple-Based Builders**: The `Tuples` module supports builder patterns and accumulator-based APIs that need to combine heterogeneous values step-by-step. By flattening automatically, it eliminates the ergonomic burden of manual nesting, making fluent builder chains natural.
+
 ## Performance Characteristics
 
 All operations maintain predictable performance characteristics:
@@ -355,3 +404,8 @@ All operations are pure and allocation-minimal.
 | Unions.Unions                | No               | Yes              |
 | Recursive tuple flattening   | No               | Yes              |
 | EmptyTuple handling          | No               | Yes              |
+
+## See Also
+
+- [Schema](./schema/schema.md) — The Schema module uses `Eithers` canonicalization for encoding sealed trait hierarchies and sum types with consistent Either nesting.
+- **HTTP Model Schema** — When extracting multiple typed query parameters or headers in the HTTP Model schema module, `Eithers` provides systematic composition of error types for uniform error handling.
