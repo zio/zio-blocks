@@ -135,7 +135,7 @@ The `Dom` sealed trait is the core data model. Everything in the module works wi
 
 A `Dom` tree is composed of four node types:
 
-#### Dom.Text(content: String)
+#### Dom.Text
 
 A text node containing string content. Text is automatically HTML-escaped when rendered to prevent XSS injection. Escaping happens at render time (not construction time), so `Dom.Text` stores the raw string.
 
@@ -149,7 +149,7 @@ println(text.render)
 // Hello, world!
 ```
 
-#### Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+#### Dom.Element.Generic
 
 A standard HTML element. The tag is the element name, attributes is a `Chunk` of key-value pairs and modifiers, and children is a `Chunk` of DOM nodes. Text content in children is HTML-escaped during rendering.
 
@@ -163,7 +163,7 @@ println(elem.render)
 // <div id="main"><p>Content</p></div>
 ```
 
-#### Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+#### Dom.Element.Script
 
 A specialized script element with `tag = "script"`. Unlike `Generic`, Script renders its text children **without HTML escaping**, allowing inline JavaScript to be emitted as-is. This is the mechanism that enables safe `js"..."` interpolation — the interpolator escapes the JavaScript, but the Script element does not double-escape.
 
@@ -176,7 +176,7 @@ val inlineScript = script().inlineJs(js"console.log('Hello');")
 val externalScript = script().externalJs("/app.js")
 ```
 
-#### Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom])
+#### Dom.Element.Style
 
 A specialized style element with `tag = "style"`. Like Script, Style renders text children **without escaping**, allowing raw CSS to be emitted. Use `style().inlineCss(css"...")`:
 
@@ -186,7 +186,7 @@ import zio.blocks.html._
 val inlineStyle = style().inlineCss(css"body { margin: 0; }")
 ```
 
-#### Dom.Doctype(value: String)
+#### Dom.Doctype
 
 A DOCTYPE declaration node. Renders as `<!DOCTYPE value>`. The singleton `doctype` value renders as `<!DOCTYPE html>`:
 
