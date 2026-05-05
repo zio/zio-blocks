@@ -62,7 +62,7 @@ val result3: (Int, String, Boolean, Double) = Tuples.combine((1, "hello"), (true
 
 Unit and EmptyTuple values are automatically eliminated:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.combinators.Tuples
 
 // Unit on left - returns right value
