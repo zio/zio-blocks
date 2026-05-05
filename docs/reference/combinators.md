@@ -398,17 +398,17 @@ For Scala 2.13 codebases, use `Either` directly or `Eithers` canonicalization in
 
 ### Feature Matrix
 
-| Feature | Scala 2.13 | Scala 3.x | Notes |
-|---------|------------|-----------|-------|
-| **Tuples.combine** | ✅ | ✅ | Left-only flattening in 2.13 |
-| **Tuples.separate** | ✅ | ✅ | Works identically on both |
-| **Eithers.combine** | ✅ | ✅ | No differences |
-| **Eithers.separate** | ✅ | ✅ | No differences |
-| **Unions.combine** | ❌ | ✅ | Requires Scala 3 |
-| **Unions.separate** | ❌ | ✅ | Requires Scala 3 |
-| **EmptyTuple as identity** | ❌ | ✅ | Use `Unit` in Scala 2 |
-| **Unlimited tuple arity** | ❌ | ✅ | Limited to 22 in Scala 2 |
-| **Recursive tuple flattening** | ❌ | ✅ | Right side not flattened in 2 |
+| Feature                        | Scala 2.13 | Scala 3.x | Notes                         |
+|--------------------------------|------------|-----------|-------------------------------|
+| **Tuples.combine**             | ✅          | ✅         | Left-only flattening in 2.13  |
+| **Tuples.separate**            | ✅          | ✅         | Works identically on both     |
+| **Eithers.combine**            | ✅          | ✅         | No differences                |
+| **Eithers.separate**           | ✅          | ✅         | No differences                |
+| **Unions.combine**             | ❌          | ✅         | Requires Scala 3              |
+| **Unions.separate**            | ❌          | ✅         | Requires Scala 3              |
+| **EmptyTuple as identity**     | ❌          | ✅         | Use `Unit` in Scala 2         |
+| **Unlimited tuple arity**      | ❌          | ✅         | Limited to 22 in Scala 2      |
+| **Recursive tuple flattening** | ❌          | ✅         | Right side not flattened in 2 |
 
 ### Migration Path from Scala 2 to 3
 
