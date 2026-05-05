@@ -115,6 +115,24 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
+      test("rejects trailing combinations at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.Trailing ~ SegmentCodec.string("suffix")
+          """)
+        )(isLeft)
+      },
+      test("rejects slash literals at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.literal("foo/bar")
+          """)
+        )(isLeft)
+      },
       test("allows valid mixed combinations") {
         assertZIO(
           typeCheck("""
@@ -124,35 +142,6 @@ object EndpointSpec extends ZIOSpecDefault {
               SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~ SegmentCodec.string("suffix")
           """)
         )(isRight)
-      },
-      test("runtime validation still rejects opaque invalid combinations") {
-        val left: SegmentCodec[Any]  = SegmentCodec.string("a").asInstanceOf[SegmentCodec[Any]]
-        val right: SegmentCodec[Any] = SegmentCodec.string("b").asInstanceOf[SegmentCodec[Any]]
-
-        val result = scala.util.Try {
-          SegmentCodec.combineValidated(
-            left,
-            right,
-            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
-          )
-        }
-
-        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
-      },
-      test("runtime validation allows non-adjacent string boundaries") {
-        val left: SegmentCodec[Any] =
-          (SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id")).asInstanceOf[SegmentCodec[Any]]
-        val right: SegmentCodec[Any] = SegmentCodec.string("suffix").asInstanceOf[SegmentCodec[Any]]
-
-        val result = scala.util.Try {
-          SegmentCodec.combineValidated(
-            left,
-            right,
-            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
-          )
-        }
-
-        assertTrue(result.isSuccess)
       },
       test("string followed by uuid followed by string decodes") {
         val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
@@ -164,21 +153,6 @@ object EndpointSpec extends ZIOSpecDefault {
         val codec = PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix"))
 
         assertTrue(codec.decode(zio.http.Path("/pre123post")).isRight)
-      },
-      test("runtime validation rejects grouped ambiguous boundaries") {
-        val left: SegmentCodec[Any]  = SegmentCodec.string("prefix").asInstanceOf[SegmentCodec[Any]]
-        val right: SegmentCodec[Any] =
-          (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id")).asInstanceOf[SegmentCodec[Any]]
-
-        val result = scala.util.Try {
-          SegmentCodec.combineValidated(
-            left,
-            right,
-            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
-          )
-        }
-
-        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
       },
       test("allows transformed size-delimited boundaries at compile time") {
         assertZIO(
@@ -205,23 +179,15 @@ object EndpointSpec extends ZIOSpecDefault {
           codec.format(uuid.toString).map(_.render) == Right(s"/$uuid")
         )
       },
-      test("runtime validation rejects transformed string boundaries") {
-        val left: SegmentCodec[Any] =
-          SegmentCodec
-            .string("left")
-            .transform[Any](value => value, value => value.asInstanceOf[String])
-            .asInstanceOf[SegmentCodec[Any]]
-        val right: SegmentCodec[Any] = SegmentCodec.string("right").asInstanceOf[SegmentCodec[Any]]
+      test("rejects transformed string boundaries at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
 
-        val result = scala.util.Try {
-          SegmentCodec.combineValidated(
-            left,
-            right,
-            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
-          )
-        }
-
-        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
+            val left = SegmentCodec.string("left").transform(identity, identity)
+            val invalid = left ~ SegmentCodec.string("right")
+          """)
+        )(isLeft)
       },
       test("transformed path codec decodes and formats") {
         val codec = PathCodec.int("id").transform[String](_.toString, _.toInt)

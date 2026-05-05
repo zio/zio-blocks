@@ -46,7 +46,14 @@ sealed trait SegmentCodec[A] { self =>
 
 object SegmentCodec {
 
-  private type DecodeError = String
+  private type DecodeError                                   = String
+  type WithBoundaries[A, P <: BoundaryTag, S <: BoundaryTag] = SegmentCodec[A] { type Prefix = P; type Suffix = S }
+
+  sealed trait CanCombine[L <: BoundaryTag, R <: BoundaryTag]
+  object CanCombine {
+    transparent inline given [L <: BoundaryTag, R <: BoundaryTag]: CanCombine[L, R] =
+      ${ SegmentCodecMacros.canCombineImpl[L, R] }
+  }
 
   sealed trait BoundaryTag
   object BoundaryTag {
@@ -86,26 +93,31 @@ object SegmentCodec {
     case object Trailing                         extends Key
   }
 
-  extension [A](self: SegmentCodec[A]) {
-    inline def ~[B, C](that: SegmentCodec[B])(using
-      combiner: Tuples.Tuples.WithOut[A, B, C]
-    ): SegmentCodec[C] =
-      ${ SegmentCodecMacros.combineImpl[A, B, C]('self, 'that, 'combiner) }
+  extension [A, P <: BoundaryTag, S <: BoundaryTag](self: WithBoundaries[A, P, S]) {
+    inline def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(using
+      combiner: Tuples.Tuples.WithOut[A, B, C],
+      canCombine: CanCombine[S, P2]
+    ): WithBoundaries[C, P, S2] =
+      ${ SegmentCodecMacros.combineImpl[A, B, C, P, S, P2, S2]('self, 'that, 'combiner) }
 
-    inline def ~[C](that: String)(using combiner: Tuples.Tuples.WithOut[A, Unit, C]): SegmentCodec[C] =
-      ${ SegmentCodecMacros.combineImpl[A, Unit, C]('self, '{ literal(that) }, 'combiner) }
+    inline def ~[C](inline that: String)(using
+      combiner: Tuples.Tuples.WithOut[A, Unit, C],
+      canCombine: CanCombine[S, BoundaryTag.Literal]
+    ): WithBoundaries[C, P, BoundaryTag.Literal] =
+      ${ SegmentCodecMacros.combineLiteralImpl[A, C, P, S]('self, 'that, 'combiner) }
 
-    inline def transform[B](decode: A => B, encode: B => A): SegmentCodec[B] =
-      ${ SegmentCodecMacros.transformImpl[A, B]('self, 'decode, 'encode) }
+    inline def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] =
+      ${ SegmentCodecMacros.transformImpl[A, B, P, S]('self, 'decode, 'encode) }
 
     inline def transformOrFail[B](
       decode: A => Either[DecodeError, B],
       encode: B => Either[DecodeError, A]
-    ): SegmentCodec[B] =
-      ${ SegmentCodecMacros.transformOrFailImpl[A, B]('self, 'decode, 'encode) }
+    ): WithBoundaries[B, P, S] =
+      ${ SegmentCodecMacros.transformOrFailImpl[A, B, P, S]('self, 'decode, 'encode) }
   }
 
-  def literal(value: String): Literal = Literal(value)
+  inline def literal(inline value: String): Literal =
+    ${ SegmentCodecMacros.literalImpl('value) }
   def bool(name: String): BoolSeg     = BoolSeg(name)
   def int(name: String): IntSeg       = IntSeg(name)
   def long(name: String): LongSeg     = LongSeg(name)
@@ -129,10 +141,10 @@ object SegmentCodec {
             .asInstanceOf[SegmentCodec[Any]],
           existing.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
         ).asInstanceOf[SegmentCodec[C]]
-      case _ =>
-        validateBoundary(trailingLeaf(left), leadingLeaf(right))
-        Combined(left, right, combiner)
+      case _ => Combined(left, right, combiner)
     }
+
+  private[endpoint] def literalValidated(value: String): Literal = Literal(value)
 
   private[endpoint] def transformValidated[A, B](
     codec: SegmentCodec[A],
@@ -427,56 +439,16 @@ object SegmentCodec {
       }
     }
 
-  private def validateBoundary(left: Option[SegmentCodec[_]], right: Option[SegmentCodec[_]]): Unit =
-    (left, right) match {
-      case (Some(StringSeg(leftName, _, _)), Some(StringSeg(rightName, _, _))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two string segments. Their names are $leftName and $rightName"
-        )
-      case (Some(IntSeg(leftName, _, _)), Some(IntSeg(rightName, _, _))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
-        )
-      case (Some(IntSeg(leftName, _, _)), Some(LongSeg(rightName, _, _))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
-        )
-      case (Some(LongSeg(leftName, _, _)), Some(IntSeg(rightName, _, _))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
-        )
-      case (Some(LongSeg(leftName, _, _)), Some(LongSeg(rightName, _, _))) =>
-        throw new IllegalArgumentException(
-          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
-        )
-      case _ => ()
-    }
-
-  private def leadingLeaf(codec: SegmentCodec[_]): Option[SegmentCodec[_]] =
-    codec match {
-      case Combined(left, right, _) => leadingLeaf(left).orElse(leadingLeaf(right))
-      case Transform(inner, _, _)   => leadingLeaf(inner)
-      case Empty                    => None
-      case other                    => Some(other)
-    }
-
-  private def trailingLeaf(codec: SegmentCodec[_]): Option[SegmentCodec[_]] =
-    codec match {
-      case Combined(left, right, _) => trailingLeaf(right).orElse(trailingLeaf(left))
-      case Transform(inner, _, _)   => trailingLeaf(inner)
-      case Empty                    => None
-      case other                    => Some(other)
-    }
-
   private object SegmentCodecMacros {
     private sealed trait SegmentInfoKind
     private object SegmentInfoKind {
-      case object Literal extends SegmentInfoKind
-      case object Bool    extends SegmentInfoKind
-      case object Int     extends SegmentInfoKind
-      case object Long    extends SegmentInfoKind
-      case object String  extends SegmentInfoKind
-      case object UUID    extends SegmentInfoKind
+      case object Literal  extends SegmentInfoKind
+      case object Bool     extends SegmentInfoKind
+      case object Int      extends SegmentInfoKind
+      case object Long     extends SegmentInfoKind
+      case object String   extends SegmentInfoKind
+      case object UUID     extends SegmentInfoKind
+      case object Trailing extends SegmentInfoKind
     }
 
     private final case class SegmentInfo(kind: SegmentInfoKind, name: String)
@@ -485,11 +457,19 @@ object SegmentCodec {
         BoundaryInfo(prefix.orElse(that.prefix), that.suffix.orElse(suffix))
     }
 
-    def combineImpl[A: Type, B: Type, C: Type](
-      leftExpr: Expr[SegmentCodec[A]],
-      rightExpr: Expr[SegmentCodec[B]],
+    def combineImpl[
+      A: Type,
+      B: Type,
+      C: Type,
+      P <: BoundaryTag: Type,
+      S <: BoundaryTag: Type,
+      P2 <: BoundaryTag: Type,
+      S2 <: BoundaryTag: Type
+    ](
+      leftExpr: Expr[WithBoundaries[A, P, S]],
+      rightExpr: Expr[WithBoundaries[B, P2, S2]],
       combinerExpr: Expr[Tuples.Tuples.WithOut[A, B, C]]
-    )(using Quotes): Expr[SegmentCodec[C]] = {
+    )(using Quotes): Expr[WithBoundaries[C, P, S2]] = {
       import quotes.reflect.*
 
       val leftInfo  = boundaryInfo(leftExpr.asTerm)
@@ -498,36 +478,119 @@ object SegmentCodec {
       (leftInfo, rightInfo) match {
         case (Some(left), Some(right)) =>
           validateBoundary(left.suffix, right.prefix)
-          '{ SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr) }
+          '{
+            SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr).asInstanceOf[WithBoundaries[C, P, S2]]
+          }
         case _ =>
-          '{ SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr) }
+          '{
+            SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr).asInstanceOf[WithBoundaries[C, P, S2]]
+          }
       }
     }
 
-    def transformImpl[A: Type, B: Type](
-      codecExpr: Expr[SegmentCodec[A]],
-      decodeExpr: Expr[A => B],
-      encodeExpr: Expr[B => A]
-    )(using Quotes): Expr[SegmentCodec[B]] =
+    def combineLiteralImpl[A: Type, C: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+      leftExpr: Expr[WithBoundaries[A, P, S]],
+      rightExpr: Expr[String],
+      combinerExpr: Expr[Tuples.Tuples.WithOut[A, Unit, C]]
+    )(using Quotes): Expr[WithBoundaries[C, P, BoundaryTag.Literal]] =
       '{
-        SegmentCodec.transformValidated[A, B](
-          $codecExpr,
-          value => Right($decodeExpr(value)),
-          value => Right($encodeExpr(value))
-        )
+        SegmentCodec
+          .combineValidated($leftExpr, SegmentCodec.literal($rightExpr), $combinerExpr)
+          .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal]]
       }
 
-    def transformOrFailImpl[A: Type, B: Type](
-      codecExpr: Expr[SegmentCodec[A]],
+    def canCombineImpl[L <: BoundaryTag: Type, R <: BoundaryTag: Type](using Quotes): Expr[CanCombine[L, R]] = {
+      import quotes.reflect.*
+
+      val left  = TypeRepr.of[L]
+      val right = TypeRepr.of[R]
+
+      def is(boundary: TypeRepr, target: TypeRepr): Boolean = boundary <:< target
+
+      def label(boundary: TypeRepr): String =
+        if is(boundary, TypeRepr.of[BoundaryTag.Literal]) then "literal"
+        else if is(boundary, TypeRepr.of[BoundaryTag.Bool]) then "bool"
+        else if is(boundary, TypeRepr.of[BoundaryTag.Int]) then "int"
+        else if is(boundary, TypeRepr.of[BoundaryTag.Long]) then "long"
+        else if is(boundary, TypeRepr.of[BoundaryTag.String]) then "string"
+        else if is(boundary, TypeRepr.of[BoundaryTag.UUID]) then "uuid"
+        else if is(boundary, TypeRepr.of[BoundaryTag.Trailing]) then "trailing"
+        else if is(boundary, TypeRepr.of[BoundaryTag.Empty]) then "empty"
+        else boundary.show
+
+      val leftTrailing  = is(left, TypeRepr.of[BoundaryTag.Trailing])
+      val rightTrailing = is(right, TypeRepr.of[BoundaryTag.Trailing])
+      val leftString    = is(left, TypeRepr.of[BoundaryTag.String])
+      val rightString   = is(right, TypeRepr.of[BoundaryTag.String])
+      val leftNumeric   = is(left, TypeRepr.of[BoundaryTag.Int]) || is(left, TypeRepr.of[BoundaryTag.Long])
+      val rightNumeric  = is(right, TypeRepr.of[BoundaryTag.Int]) || is(right, TypeRepr.of[BoundaryTag.Long])
+      val leftKnown     =
+        is(left, TypeRepr.of[BoundaryTag.Empty]) || is(left, TypeRepr.of[BoundaryTag.Literal]) ||
+          is(left, TypeRepr.of[BoundaryTag.Bool]) || leftNumeric || leftString ||
+          is(left, TypeRepr.of[BoundaryTag.UUID]) || leftTrailing
+      val rightKnown =
+        is(right, TypeRepr.of[BoundaryTag.Empty]) || is(right, TypeRepr.of[BoundaryTag.Literal]) ||
+          is(right, TypeRepr.of[BoundaryTag.Bool]) || rightNumeric || rightString ||
+          is(right, TypeRepr.of[BoundaryTag.UUID]) || rightTrailing
+
+      if leftTrailing || rightTrailing then
+        report.errorAndAbort(s"Cannot combine trailing path segments with `~`: ${label(left)} ~ ${label(right)}")
+      else if leftString && rightString then
+        report.errorAndAbort(s"Cannot combine two string segments with `~`: ${label(left)} ~ ${label(right)}")
+      else if leftNumeric && rightNumeric then
+        report.errorAndAbort(s"Cannot combine two numeric segments with `~`: ${label(left)} ~ ${label(right)}")
+      else if !leftKnown || !rightKnown then
+        report.errorAndAbort(
+          s"Cannot prove segment combination at compile time: ${label(left)} ~ ${label(right)}"
+        )
+      else '{ new CanCombine[L, R] {} }
+    }
+
+    def literalImpl(valueExpr: Expr[String])(using Quotes): Expr[Literal] = {
+      import quotes.reflect.*
+
+      valueExpr.value match {
+        case Some(value) =>
+          validateLiteralValue(value)
+          '{ SegmentCodec.literalValidated(${ Expr(value) }) }
+        case None =>
+          report.errorAndAbort("SegmentCodec.literal requires a string literal known at compile time")
+      }
+    }
+
+    def transformImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+      codecExpr: Expr[WithBoundaries[A, P, S]],
+      decodeExpr: Expr[A => B],
+      encodeExpr: Expr[B => A]
+    )(using Quotes): Expr[WithBoundaries[B, P, S]] =
+      '{
+        SegmentCodec
+          .transformValidated[A, B](
+            $codecExpr,
+            value => Right($decodeExpr(value)),
+            value => Right($encodeExpr(value))
+          )
+          .asInstanceOf[WithBoundaries[B, P, S]]
+      }
+
+    def transformOrFailImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+      codecExpr: Expr[WithBoundaries[A, P, S]],
       decodeExpr: Expr[A => Either[DecodeError, B]],
       encodeExpr: Expr[B => Either[DecodeError, A]]
-    )(using Quotes): Expr[SegmentCodec[B]] =
-      '{ SegmentCodec.transformValidated[A, B]($codecExpr, $decodeExpr, $encodeExpr) }
+    )(using Quotes): Expr[WithBoundaries[B, P, S]] =
+      '{
+        SegmentCodec
+          .transformValidated[A, B]($codecExpr, $decodeExpr, $encodeExpr)
+          .asInstanceOf[WithBoundaries[B, P, S]]
+      }
 
     private def validateBoundary(using Quotes)(left: Option[SegmentInfo], right: Option[SegmentInfo]): Unit = {
       import quotes.reflect.*
 
       (left, right) match {
+        case (Some(SegmentInfo(SegmentInfoKind.Trailing, _)), _) |
+            (_, Some(SegmentInfo(SegmentInfoKind.Trailing, _))) =>
+          report.errorAndAbort("Cannot combine trailing path segments with `~`")
         case (
               Some(SegmentInfo(SegmentInfoKind.String, leftName)),
               Some(SegmentInfo(SegmentInfoKind.String, rightName))
@@ -563,6 +626,7 @@ object SegmentCodec {
         case "int" | "IntSeg"       => Some(singleInfo(SegmentInfoKind.Int, stringArg(args, "int")))
         case "long" | "LongSeg"     => Some(singleInfo(SegmentInfoKind.Long, stringArg(args, "long")))
         case "uuid" | "UUIDSeg"     => Some(singleInfo(SegmentInfoKind.UUID, stringArg(args, "uuid")))
+        case "Trailing"             => Some(singleInfo(SegmentInfoKind.Trailing, "trailing"))
         case "Empty"                => Some(BoundaryInfo(None, None))
         case _                      => None
       }
@@ -583,6 +647,7 @@ object SegmentCodec {
             else if boundary <:< TypeRepr.of[BoundaryTag.Long] then Some(SegmentInfoKind.Long)
             else if boundary <:< TypeRepr.of[BoundaryTag.String] then Some(SegmentInfoKind.String)
             else if boundary <:< TypeRepr.of[BoundaryTag.UUID] then Some(SegmentInfoKind.UUID)
+            else if boundary <:< TypeRepr.of[BoundaryTag.Trailing] then Some(SegmentInfoKind.Trailing)
             else None
 
           val prefix = kindOf(prefixTpe).map(kind => SegmentInfo(kind, "transformed"))
@@ -668,6 +733,20 @@ object SegmentCodec {
         case Select(_, "Empty") => Some(BoundaryInfo(None, None))
         case _                  => typeInfo(term.tpe)
       }
+    }
+
+    private def validateLiteralValue(value: String)(using Quotes): Unit = {
+      import quotes.reflect.*
+
+      val path          = Path(s"/$value")
+      val singleSegment = path.segments.length == 1 && path.segments.headOption.contains(value)
+      val preserved     = path.encode.stripPrefix("/") == value
+
+      if value.isEmpty then report.errorAndAbort("SegmentCodec.literal cannot be empty")
+      else if !singleSegment || !preserved then
+        report.errorAndAbort(
+          s"SegmentCodec.literal must be a valid single path segment without `/` or characters that require URL encoding: $value"
+        )
     }
   }
 }

@@ -84,7 +84,10 @@ object PathCodec {
   def apply(value: String): PathCodec[Unit] = {
     val path = Path(value)
     if (path.segments.isEmpty) empty
-    else path.segments.foldLeft(empty: PathCodec[Unit])((acc, segment) => acc / literal(segment))
+    else
+      path.segments.foldLeft(empty: PathCodec[Unit])((acc, segment) =>
+        acc / Segment(SegmentCodec.literalValidated(segment))
+      )
   }
 
   def apply[A](segment: SegmentCodec[A]): PathCodec[A] =
@@ -108,13 +111,13 @@ object PathCodec {
 
   val empty: PathCodec[Unit] = Segment(SegmentCodec.Empty)
 
-  def literal(value: String): PathCodec[Unit]       = Segment(SegmentCodec.literal(value))
-  def bool(name: String): PathCodec[Boolean]        = Segment(SegmentCodec.bool(name))
-  def int(name: String): PathCodec[Int]             = Segment(SegmentCodec.int(name))
-  def long(name: String): PathCodec[Long]           = Segment(SegmentCodec.long(name))
-  def string(name: String): PathCodec[String]       = Segment(SegmentCodec.string(name))
-  def uuid(name: String): PathCodec[java.util.UUID] = Segment(SegmentCodec.uuid(name))
-  val trailing: PathCodec[Path]                     = Segment(SegmentCodec.Trailing)
+  inline def literal(inline value: String): PathCodec[Unit] = Segment(SegmentCodec.literal(value))
+  def bool(name: String): PathCodec[Boolean]                = Segment(SegmentCodec.bool(name))
+  def int(name: String): PathCodec[Int]                     = Segment(SegmentCodec.int(name))
+  def long(name: String): PathCodec[Long]                   = Segment(SegmentCodec.long(name))
+  def string(name: String): PathCodec[String]               = Segment(SegmentCodec.string(name))
+  def uuid(name: String): PathCodec[java.util.UUID]         = Segment(SegmentCodec.uuid(name))
+  val trailing: PathCodec[Path]                             = Segment(SegmentCodec.Trailing)
 
   def render(codec: PathCodec[_], prefix: String = "{", suffix: String = "}"): String = {
     def loop(current: PathCodec[_]): String =

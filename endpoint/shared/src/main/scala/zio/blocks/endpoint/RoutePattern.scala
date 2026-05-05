@@ -21,9 +21,11 @@ import zio.blocks.combinators.Tuples
 import zio.http.{Method, Path}
 
 /**
- * HTTP method paired with a typed path pattern. The primary constructor is `Method.GET / "users" / PathCodec.int("id")`.
- * Use [[RoutePattern.alternatives alternatives]] to expand `orElse` branches, [[RoutePattern.any any]] for
- * catch-all trailing routes, and [[RoutePattern.nest nest]] to prepend a path prefix.
+ * HTTP method paired with a typed path pattern. The primary constructor is
+ * `Method.GET / "users" / PathCodec.int("id")`. Use
+ * [[RoutePattern.alternatives alternatives]] to expand `orElse` branches,
+ * [[RoutePattern.any any]] for catch-all trailing routes, and
+ * [[RoutePattern.nest nest]] to prepend a path prefix.
  */
 final case class RoutePattern[A](
   method: Method,
@@ -81,7 +83,7 @@ object RoutePattern {
 
   def apply(method: Method, path: Path): RoutePattern[Unit] =
     path.segments.foldLeft(fromMethod(method))((acc, segment) =>
-      acc./[Unit, Unit](PathCodec.literal(segment))(using Tuples.Tuples.leftUnit[Unit])
+      acc./[Unit, Unit](PathCodec(SegmentCodec.literalValidated(segment)))(using Tuples.Tuples.leftUnit[Unit])
     )
 
   def apply(method: Method, pathString: String): RoutePattern[Unit] =
