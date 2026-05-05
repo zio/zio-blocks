@@ -9,7 +9,7 @@ Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM 
 
 The module is structured around these core types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
@@ -139,7 +139,7 @@ A `Dom` tree is composed of four node types:
 
 A text node containing string content. Text is automatically HTML-escaped when rendered to prevent XSS injection. Escaping happens at render time (not construction time), so `Dom.Text` stores the raw string.
 
-To create text nodes, use the DSL (strings are converted via `ToModifier[String]`) or explicitly:
+To create text nodes, use the DSL (strings are converted via `ToModifier[String]`) or explicitly. Call `Dom#render` to convert a text node to an HTML string:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -304,7 +304,6 @@ val link = a(
   "Visit Example"
 )
 println(link.render)
-// <a href="https://example.com" target="_blank" title="Visit Example">Visit Example</a>
 ```
 
 ### Multi-Valued Attributes: Override vs Accumulate
@@ -318,7 +317,6 @@ import zio.blocks.html._
 
 val div1 = div(className := "a", className := "b")
 println(div1.render)
-// <div class="b"></div>
 ```
 
 - **`+=` (append)** — Concatenates with the previous value using a separator (space for `class`):
@@ -674,7 +672,7 @@ val divSel = div.selector
 val childSel = div > span              // div > span
 val descendantSel = div >> span        // div span (descendant)
 val adjacentSel = div + span           // div + span
-val sibllingSel = div ~ span           // div ~ span
+val siblingSel = div ~ span           // div ~ span
 val andSel = div & CssSelector.Class("active")  // div.active
 val orSel = div | span                 // div, span
 
@@ -746,7 +744,7 @@ println(intros.texts)       // Chunk(Hello)
 
 ### Navigation
 
-Chain methods to navigate the tree:
+The `DomSelection` API returned by `Dom#select` provides navigation methods like `.children` and `.first` to traverse the selection results:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -767,7 +765,7 @@ println(firstLink.length)  // 1
 
 ### Extraction
 
-Extract attribute values and text content:
+The `DomSelection` API provides methods like `.attrs` and `.texts` to extract attribute values and text content from selected elements:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -787,7 +785,7 @@ val labels = page.select(CssSelector.Element("a")).texts
 
 ### Filtering
 
-Filter selections by predicate or attribute:
+The `DomSelection` API provides `.filter` and `.withClass` methods to filter selections by predicate or attribute:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -817,7 +815,7 @@ val withClass = page.select(CssSelector.Element("p")).withClass("visible")
 `DomSelection` returns new copies with modifications; the original DOM tree remains unchanged. The `DomSelection` API provides functional transformations. To modify the original DOM tree, use `Dom#transform` with a tree-rewriting function, or rebuild the tree from scratch using the DSL.
 :::
 
-Transform or replace selected nodes:
+The `DomSelection` API provides methods like `.modifyAll`, `.replaceAll`, and `.removeAll` to transform or replace selected nodes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
