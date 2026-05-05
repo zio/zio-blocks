@@ -23,13 +23,13 @@ All typeclasses are derived automatically via compile-time resolution and provid
 
 Add the following to your `build.sbt`:
 
-```scala
+```sbt
 libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "<version>"
 ```
 
 For cross-platform projects (Scala.js):
 
-```scala
+```sbt
 libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
 ```
 
@@ -45,7 +45,7 @@ The `Tuples` module combines values into flat tuples and separates them back.
 
 `Tuples.Tuples[L, R]` combines two values into a flattened tuple.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // Basic combination
@@ -62,7 +62,7 @@ val result3: (Int, String, Boolean, Double) = Tuples.combine((1, "hello"), (true
 
 Unit and EmptyTuple values are automatically eliminated:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // Unit on left - returns right value
@@ -79,7 +79,7 @@ val result3: String = Tuples.combine(EmptyTuple, "world")
 
 Nested tuples are automatically flattened:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // Tuple + value flattens to larger tuple
@@ -88,15 +88,15 @@ val result1: (Int, String, Boolean) = Tuples.combine((1, "a"), true)
 // Tuple + tuple concatenates (Scala 3 - recursive flattening)
 val result2: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.14))
 
-// Scala 2 - flattens left tuple only
-val result3: (Int, String, (Boolean, Double)) = Tuples.combine((1, "a"), (true, 3.14))
+// Deep flattening with tuples
+val result3: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.14))
 ```
 
 ### separate
 
 `separate` is accessed via the unified typeclass instance and splits a tuple into its init (all but last) and last element.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // 2-tuple separation
@@ -121,7 +121,7 @@ val (left3, right3): ((Int, String, Boolean), Double) = t4.separate((1, "hello",
 
 The output type is computed at compile time via the `Out` type member:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // Access the combiner with explicit output type
@@ -149,7 +149,7 @@ The `Eithers` module canonicalizes Either types to left-nested form and separate
 
 `Eithers.Eithers[L, R]` transforms an `Either[L, R]` into its left-nested canonical form.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Eithers
 
 // Atomic Either - unchanged
@@ -184,7 +184,7 @@ This transformation preserves values while reassociating the structure:
 
 `separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Eithers
 
 val e = summon[Eithers.Eithers[Int, String]]
@@ -207,7 +207,7 @@ The `Unions` module converts between Either types and Scala 3 union types.
 
 `Unions.Unions[L, R]` converts an `Either[L, R]` to a union type `L | R`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Unions
 
 val either: Either[Int, String] = Left(42)
@@ -223,7 +223,7 @@ val union2: Int | String = Unions.combine(either2)
 
 `separate` is accessed via the unified typeclass instance and discriminates a union type back to Either:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Unions
 
 val u = summon[Unions.Unions.WithOut[Int, String, Int | String]]
@@ -237,7 +237,7 @@ val result2: Either[Int, String] = u.separate("hello": Int | String)
 
 Union types collapse same types (`A | A` = `A`), making them ambiguous. The separator rejects overlapping types at compile time:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Unions
 
 // Compile error: Union types must contain unique types
@@ -252,9 +252,9 @@ val either: Either[Int, Int] = Left(1)  // Distinguishable via Left/Right
 
 Union discrimination relies on runtime type tests, which are fragile for erased types:
 
-```scala
+```scala mdoc:compile-only
 // Problematic: List[Int] and List[String] erase to List
-val value: List[Int] | List[String] = List(1, 2, 3)
+val problematicValue: List[Int] | List[String] = List(1, 2, 3)
 // Runtime cannot distinguish List[Int] from List[String]
 
 // Safe: Use distinct concrete types
@@ -265,7 +265,7 @@ val value: Int | String = 42  // Works reliably
 
 ### With Implicit Parameters (Scala 2)
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 def combineAll[A, B, C](a: A, b: B, c: C)(
@@ -282,7 +282,7 @@ val result = combineAll(1, "hello", true)
 
 ### With Context Parameters (Scala 3)
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 def combineAll[A, B, C](a: A, b: B, c: C)(using
@@ -300,7 +300,7 @@ val result = combineAll(1, "hello", true)
 
 The `Out`, `Left`, and `Right` type members are path-dependent:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 def process[L, R](l: L, r: R)(using t: Tuples.Tuples[L, R]): (L, R) =
@@ -311,7 +311,7 @@ val result: (Int, String) = process(1, "hello")
 
 ### Type Aliases for Clarity
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 // Typeclass with known output type
