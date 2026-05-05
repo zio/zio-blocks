@@ -16,6 +16,8 @@
 
 package zio.blocks.maybe
 
+import scala.language.implicitConversions
+
 import zio.test.*
 
 object MaybeScala3Spec extends ZIOSpecDefault {
@@ -32,6 +34,21 @@ object MaybeScala3Spec extends ZIOSpecDefault {
         absent.toOption == None,
         presentOption.get == Payload(1),
         absentOption.isAbsent
+      )
+    },
+    test("for-comprehension and unzip helpers mirror Option behavior") {
+      val present: Maybe[Int]                 = Some(2)
+      val pair: Maybe[(Int, String)]          = Maybe.present((1, "one"))
+      val triple: Maybe[(Int, String, Long)]  = Maybe.present((1, "one", 2L))
+      val computed                            = for {
+        value <- present
+        if value % 2 == 0
+      } yield value + 1
+
+      assertTrue(
+        computed.contains(3),
+        pair.unzip == (Maybe.present(1), Maybe.present("one")),
+        triple.unzip3 == (Maybe.present(1), Maybe.present("one"), Maybe.present(2L))
       )
     }
   )
