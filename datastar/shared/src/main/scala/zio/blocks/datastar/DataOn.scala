@@ -64,7 +64,13 @@ final class PartialDataOn {
 
   def load: DataOn = new DataOn("load", None, CaseModifier.Kebab)
 
-  def apply(name: String): DataOn = new DataOn(name, None, CaseModifier.Kebab)
+  def apply(name: String): DataOn = {
+    require(
+      name.nonEmpty && !name.contains("__"),
+      s"Invalid Datastar custom event name '$name'. Custom event names must be non-empty and must not contain '__'."
+    )
+    new DataOn(name, None, CaseModifier.Kebab)
+  }
 }
 
 /**

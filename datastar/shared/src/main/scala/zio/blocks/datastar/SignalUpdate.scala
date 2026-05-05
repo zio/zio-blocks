@@ -29,7 +29,7 @@ import zio.blocks.html.ToJs
  * `serialized` is inserted verbatim into the final object expression, so it
  * must already be valid JSON for the value being assigned.
  */
-final class SignalUpdate[A](val name: String, val serialized: String)
+final class SignalUpdate[A] private[datastar] (val name: String, val serialized: String)
 
 object SignalUpdate {
 

@@ -153,6 +153,10 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
         val result = div(dataOn("custom-event") := js"handler()").render
         assertTrue(result == """<div data-on:custom-event="handler()"></div>""")
       },
+      test("dataOn rejects reserved modifier separator in custom event name") {
+        val result = scala.util.Try(dataOn("custom__event") := js"handler()")
+        assertTrue(result.isFailure)
+      },
       test("dataOn.click with chained debounce and once") {
         val result = div(dataOn.click.debounce(500).once := js"doIt()").render
         assertTrue(result == """<div data-on:click__debounce.500ms__once="doIt()"></div>""")

@@ -73,6 +73,13 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
       }
     ),
     suite("SignalUpdate")(
+      test("SignalUpdate constructor is not public") {
+        typeCheck("""
+          package external
+          import zio.blocks.datastar.SignalUpdate
+          new SignalUpdate[Int]("count", "42")
+        """).map(result => assertTrue(result.isLeft))
+      },
       test("ToJs[SignalUpdate[Int]] produces Datastar expression format") {
         import zio.blocks.schema.Schema
         val count  = Signal[Int]("count")
