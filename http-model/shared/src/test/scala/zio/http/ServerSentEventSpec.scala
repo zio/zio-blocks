@@ -64,8 +64,16 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       val event = ServerSentEvent.fromOptions("data", event = Some("evt"), id = Some("42"), retry = Some(3000))
       assertTrue(event.render == "event: evt\nid: 42\nretry: 3000\ndata: data\n\n")
     },
+    test("fromOptions omits absent metadata") {
+      val event = ServerSentEvent.fromOptions("data", event = None, id = None, retry = None)
+      assertTrue(event.render == "data: data\n\n")
+    },
     test("Empty string data: renders event type and empty data line") {
       val event = ServerSentEvent("", "test")
+      assertTrue(event.render == "event: test\ndata: \n\n")
+    },
+    test("Empty chunk payload renders a single empty data line") {
+      val event = ServerSentEvent(Chunk.empty[String], "test")
       assertTrue(event.render == "event: test\ndata: \n\n")
     },
     test("Chunk payload writes one data line per chunk entry") {
@@ -91,6 +99,30 @@ object ServerSentEventSpec extends ZIOSpecDefault {
     test("negative retry is rejected") {
       val result = scala.util.Try(ServerSentEvent("data").withRetry(-1))
       assertTrue(result.isFailure)
+    },
+    test("withoutEvent removes event metadata") {
+      val event = ServerSentEvent("data", "evt").withoutEvent
+      assertTrue(event.render == "data: data\n\n")
+    },
+    test("withoutRetry removes retry metadata") {
+      val event = ServerSentEvent("data", "evt").withRetry(1000).withoutRetry
+      assertTrue(event.render == "event: evt\ndata: data\n\n")
+    },
+    test("ServerSentEvent equality and toString are value-based") {
+      val left  = ServerSentEvent("data", "evt").withId("1").withRetry(5)
+      val same  = ServerSentEvent.fromOptions("data", event = Some("evt"), id = Some("1"), retry = Some(5))
+      val other = ServerSentEvent("other")
+
+      assertTrue(
+        left == same,
+        left.hashCode == same.hashCode,
+        left != other,
+        !left.equals("not an event"),
+        left.toString == "ServerSentEvent(data=data, event=evt, id=1, retry=5)"
+      )
+    },
+    test("SseDataEncoder.apply returns implicit encoder") {
+      assertTrue(SseDataEncoder[Payload].lines(Payload("x")) == Chunk.single("payload:x"))
     },
     test("copy is not available on the public API") {
       typeCheck("""
