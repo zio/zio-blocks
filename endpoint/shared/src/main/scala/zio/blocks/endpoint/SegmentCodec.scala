@@ -24,9 +24,11 @@ import zio.blocks.docs.Doc
 import zio.http.Path
 
 /**
- * Typed descriptor for a single URL path segment. Subtypes include [[SegmentCodec.Literal Literal]],
- * [[SegmentCodec.IntSeg Int]], [[SegmentCodec.StringSeg String]], [[SegmentCodec.Combined Combined]] (intra-segment
- * composition via `~`), and [[SegmentCodec.Trailing Trailing]] (captures remaining path).
+ * Typed descriptor for a single URL path segment. Subtypes include
+ * [[SegmentCodec.Literal Literal]], [[SegmentCodec.IntSeg Int]],
+ * [[SegmentCodec.StringSeg String]], [[SegmentCodec.Combined Combined]]
+ * (intra-segment composition via `~`), and [[SegmentCodec.Trailing Trailing]]
+ * (captures remaining path).
  */
 sealed trait SegmentCodec[A] { self =>
   def doc: Doc
@@ -76,12 +78,12 @@ object SegmentCodec {
       ${ SegmentCodecMacros.combineImpl[A, Unit, C]('self, '{ literal(that) }, 'combiner) }
   }
 
-  def literal(value: String): Literal       = Literal(value)
-  def bool(name: String): BoolSeg           = BoolSeg(name)
-  def int(name: String): IntSeg             = IntSeg(name)
-  def long(name: String): LongSeg           = LongSeg(name)
-  def string(name: String): StringSeg       = StringSeg(name)
-  def uuid(name: String): UUIDSeg           = UUIDSeg(name)
+  def literal(value: String): Literal = Literal(value)
+  def bool(name: String): BoolSeg     = BoolSeg(name)
+  def int(name: String): IntSeg       = IntSeg(name)
+  def long(name: String): LongSeg     = LongSeg(name)
+  def string(name: String): StringSeg = StringSeg(name)
+  def uuid(name: String): UUIDSeg     = UUIDSeg(name)
 
   private[endpoint] def combineValidated[A, B, C](
     left: SegmentCodec[A],
@@ -89,8 +91,8 @@ object SegmentCodec {
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ): SegmentCodec[C] =
     (left, right) match {
-      case (Empty, _)          => right.asInstanceOf[SegmentCodec[C]]
-      case (_, Empty)          => left.asInstanceOf[SegmentCodec[C]]
+      case (Empty, _)                                => right.asInstanceOf[SegmentCodec[C]]
+      case (_, Empty)                                => left.asInstanceOf[SegmentCodec[C]]
       case (Literal(lv, ld, le), Literal(rv, rd, _)) =>
         Literal(lv + rv, ld ++ rd, le).asInstanceOf[SegmentCodec[C]]
       case (Combined(l, r, existing), Literal(rv, rd, _)) if r.isInstanceOf[Literal] =>
@@ -100,16 +102,9 @@ object SegmentCodec {
             .asInstanceOf[SegmentCodec[Any]],
           existing.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
         ).asInstanceOf[SegmentCodec[C]]
-      case (_, StringSeg(name, _, _)) =>
-        rejectTrailingString(left, name)
+      case _ =>
+        validateAmbiguousChain(flatten(left) ++ flatten(right))
         Combined(left, right, combiner)
-      case (_, IntSeg(name, _, _)) =>
-        rejectTrailingNumeric(left, name)
-        Combined(left, right, combiner)
-      case (_, LongSeg(name, _, _)) =>
-        rejectTrailingNumeric(left, name)
-        Combined(left, right, combiner)
-      case _ => Combined(left, right, combiner)
     }
 
   private[endpoint] def kind(codec: SegmentCodec[_]): Kind =
@@ -339,40 +334,47 @@ object SegmentCodec {
       }
     }
 
-  private def rejectTrailingString(codec: SegmentCodec[_], newName: String): Unit =
-    trailingLeaf(codec) match {
-      case Some(StringSeg(name, _, _)) =>
-        throw new IllegalArgumentException(s"Cannot combine two string segments. Their names are $name and $newName")
+  private def validateAmbiguousChain(codecs: Chunk[SegmentCodec[_]]): Unit = {
+    var firstString: Option[String]  = None
+    var firstNumeric: Option[String] = None
+
+    codecs.foreach {
+      case StringSeg(name, _, _) =>
+        firstString match {
+          case Some(existing) =>
+            throw new IllegalArgumentException(
+              s"Cannot combine two string segments. Their names are $existing and $name"
+            )
+          case None =>
+            firstString = Some(name)
+        }
+      case IntSeg(name, _, _) =>
+        firstNumeric match {
+          case Some(existing) =>
+            throw new IllegalArgumentException(
+              s"Cannot combine two numeric segments. Their names are $existing and $name"
+            )
+          case None =>
+            firstNumeric = Some(name)
+        }
+      case LongSeg(name, _, _) =>
+        firstNumeric match {
+          case Some(existing) =>
+            throw new IllegalArgumentException(
+              s"Cannot combine two numeric segments. Their names are $existing and $name"
+            )
+          case None =>
+            firstNumeric = Some(name)
+        }
       case _ => ()
     }
-
-  private def rejectTrailingNumeric(codec: SegmentCodec[_], newName: String): Unit =
-    trailingLeaf(codec) match {
-      case Some(IntSeg(name, _, _)) =>
-        throw new IllegalArgumentException(s"Cannot combine two numeric segments. Their names are $name and $newName")
-      case Some(LongSeg(name, _, _)) =>
-        throw new IllegalArgumentException(s"Cannot combine two numeric segments. Their names are $name and $newName")
-      case _ => ()
-    }
-
-  private def trailingLeaf(codec: SegmentCodec[_]): Option[SegmentCodec[_]] =
-    codec match {
-      case Combined(_, right, _) => trailingLeaf(right)
-      case Empty                 => None
-      case other                 => Some(other)
-    }
+  }
 
   private object SegmentCodecMacros {
     private sealed trait SegmentInfoKind
     private object SegmentInfoKind {
-      case object Empty   extends SegmentInfoKind
-      case object Literal extends SegmentInfoKind
       case object String  extends SegmentInfoKind
-      case object Int     extends SegmentInfoKind
-      case object Long    extends SegmentInfoKind
-      case object Bool    extends SegmentInfoKind
-      case object UUID    extends SegmentInfoKind
-      case object Unknown extends SegmentInfoKind
+      case object Numeric extends SegmentInfoKind
     }
 
     private final case class SegmentInfo(kind: SegmentInfoKind, name: String)
@@ -384,78 +386,92 @@ object SegmentCodec {
     )(using Quotes): Expr[SegmentCodec[C]] = {
       import quotes.reflect.*
 
-      val leftInfo  = segmentInfo(leftExpr.asTerm)
-      val rightInfo = segmentInfo(rightExpr.asTerm)
+      val leftInfos  = segmentInfos(leftExpr.asTerm)
+      val rightInfos = segmentInfos(rightExpr.asTerm)
 
-      (leftInfo, rightInfo) match {
-        case (Some(SegmentInfo(SegmentInfoKind.String, leftName)), Some(SegmentInfo(SegmentInfoKind.String, rightName))) =>
-          report.errorAndAbort(s"Cannot combine two string segments. Their names are $leftName and $rightName")
-        case (Some(SegmentInfo(SegmentInfoKind.Int | SegmentInfoKind.Long, leftName)),
-              Some(SegmentInfo(SegmentInfoKind.Int | SegmentInfoKind.Long, rightName))) =>
-          report.errorAndAbort(s"Cannot combine two numeric segments. Their names are $leftName and $rightName")
+      (leftInfos, rightInfos) match {
+        case (Some(left), Some(right)) =>
+          validateInfos(left ++ right)
+          '{ SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr) }
         case _ =>
           '{ SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr) }
       }
     }
 
-    private def segmentInfo(using Quotes)(term: quotes.reflect.Term): Option[SegmentInfo] = {
+    private def validateInfos(using Quotes)(infos: List[SegmentInfo]): Unit = {
+      import quotes.reflect.*
+
+      var firstString: Option[String]  = None
+      var firstNumeric: Option[String] = None
+
+      infos.foreach {
+        case SegmentInfo(SegmentInfoKind.String, name) =>
+          firstString match {
+            case Some(existing) =>
+              report.errorAndAbort(s"Cannot combine two string segments. Their names are $existing and $name")
+            case None =>
+              firstString = Some(name)
+          }
+        case SegmentInfo(SegmentInfoKind.Numeric, name) =>
+          firstNumeric match {
+            case Some(existing) =>
+              report.errorAndAbort(s"Cannot combine two numeric segments. Their names are $existing and $name")
+            case None =>
+              firstNumeric = Some(name)
+          }
+      }
+    }
+
+    private def segmentInfos(using Quotes)(term: quotes.reflect.Term): Option[List[SegmentInfo]] = {
       import quotes.reflect.*
 
       def stringArg(args: List[Term], default: String): String =
         args.collectFirst { case quotes.reflect.Literal(StringConstant(value)) => value }.getOrElse(default)
 
-      def applyInfo(name: String, args: List[Term]): Option[SegmentInfo] = name match {
-        case "literal" | "Literal" => Some(SegmentInfo(SegmentInfoKind.Literal, stringArg(args, "literal")))
-        case "string" | "StringSeg" => Some(SegmentInfo(SegmentInfoKind.String, stringArg(args, "string")))
-        case "int" | "IntSeg"       => Some(SegmentInfo(SegmentInfoKind.Int, stringArg(args, "int")))
-        case "long" | "LongSeg"     => Some(SegmentInfo(SegmentInfoKind.Long, stringArg(args, "long")))
-        case "bool" | "BoolSeg"     => Some(SegmentInfo(SegmentInfoKind.Bool, stringArg(args, "bool")))
-        case "uuid" | "UUIDSeg"     => Some(SegmentInfo(SegmentInfoKind.UUID, stringArg(args, "uuid")))
-        case "Empty"                 => Some(SegmentInfo(SegmentInfoKind.Empty, "empty"))
-        case _                       => None
+      def applyInfos(name: String, args: List[Term]): Option[List[SegmentInfo]] = name match {
+        case "string" | "StringSeg"                                                    => Some(List(SegmentInfo(SegmentInfoKind.String, stringArg(args, "string"))))
+        case "int" | "IntSeg"                                                          => Some(List(SegmentInfo(SegmentInfoKind.Numeric, stringArg(args, "int"))))
+        case "long" | "LongSeg"                                                        => Some(List(SegmentInfo(SegmentInfoKind.Numeric, stringArg(args, "long"))))
+        case "literal" | "Literal" | "bool" | "BoolSeg" | "uuid" | "UUIDSeg" | "Empty" => Some(Nil)
+        case _                                                                         => None
       }
 
-      def combineInfo(left: SegmentInfo, right: SegmentInfo): SegmentInfo =
-        (left.kind, right.kind) match {
-          case (SegmentInfoKind.Empty, _)    => right
-          case (_, SegmentInfoKind.Empty)    => left
-          case (_, SegmentInfoKind.Literal)  => right
-          case (_, SegmentInfoKind.Unknown)  => right
-          case _                             => right
-        }
-
       term match {
-        case Inlined(_, _, inner) => segmentInfo(inner)
-        case Typed(inner, _)      => segmentInfo(inner)
-        case Block(_, expr)       => segmentInfo(expr)
+        case Inlined(_, _, inner) => segmentInfos(inner)
+        case Typed(inner, _)      => segmentInfos(inner)
+        case Block(_, expr)       => segmentInfos(expr)
         case Ident(_)             =>
           term.symbol.tree match {
-            case valDef: ValDef => valDef.rhs.flatMap(segmentInfo)
+            case valDef: ValDef => valDef.rhs.flatMap(segmentInfos)
             case _              => None
           }
         case Apply(TypeApply(Select(_, "combineValidated"), _), List(left, right, _)) =>
           for {
-            leftInfo  <- segmentInfo(left)
-            rightInfo <- segmentInfo(right)
-          } yield combineInfo(leftInfo, rightInfo)
+            leftInfos  <- segmentInfos(left)
+            rightInfos <- segmentInfos(right)
+          } yield leftInfos ++ rightInfos
         case Apply(Select(_, "combineValidated"), List(left, right, _)) =>
           for {
-            leftInfo  <- segmentInfo(left)
-            rightInfo <- segmentInfo(right)
-          } yield combineInfo(leftInfo, rightInfo)
+            leftInfos  <- segmentInfos(left)
+            rightInfos <- segmentInfos(right)
+          } yield leftInfos ++ rightInfos
         case Apply(fun, args) =>
           val fullName = fun.symbol.fullName
-          if (fullName == "zio.blocks.endpoint.SegmentCodec.literal" || fullName == "zio.blocks.endpoint.SegmentCodec.string" ||
+          if (
+            fullName == "zio.blocks.endpoint.SegmentCodec.literal" || fullName == "zio.blocks.endpoint.SegmentCodec.string" ||
             fullName == "zio.blocks.endpoint.SegmentCodec.int" || fullName == "zio.blocks.endpoint.SegmentCodec.long" ||
-            fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid")
-            applyInfo(fun.symbol.name, args)
-          else if (fullName.endsWith("SegmentCodec.Literal.apply") || fullName.endsWith("SegmentCodec.StringSeg.apply") ||
+            fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid"
+          )
+            applyInfos(fun.symbol.name, args)
+          else if (
+            fullName.endsWith("SegmentCodec.Literal.apply") || fullName.endsWith("SegmentCodec.StringSeg.apply") ||
             fullName.endsWith("SegmentCodec.IntSeg.apply") || fullName.endsWith("SegmentCodec.LongSeg.apply") ||
-            fullName.endsWith("SegmentCodec.BoolSeg.apply") || fullName.endsWith("SegmentCodec.UUIDSeg.apply"))
-            applyInfo(fun.symbol.owner.name, args)
+            fullName.endsWith("SegmentCodec.BoolSeg.apply") || fullName.endsWith("SegmentCodec.UUIDSeg.apply")
+          )
+            applyInfos(fun.symbol.owner.name, args)
           else None
-        case Select(_, "Empty") => Some(SegmentInfo(SegmentInfoKind.Empty, "empty"))
-        case _                   => None
+        case Select(_, "Empty") => Some(Nil)
+        case _                  => None
       }
     }
   }

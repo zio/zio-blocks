@@ -86,6 +86,24 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
+      test("rejects non-adjacent repeated string segments at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
+          """)
+        )(isLeft)
+      },
+      test("rejects non-adjacent repeated numeric segments at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.int("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.long("suffix")
+          """)
+        )(isLeft)
+      },
       test("allows valid mixed combinations") {
         assertZIO(
           typeCheck("""
@@ -99,6 +117,21 @@ object EndpointSpec extends ZIOSpecDefault {
       test("runtime validation still rejects opaque invalid combinations") {
         val left: SegmentCodec[Any]  = SegmentCodec.string("a").asInstanceOf[SegmentCodec[Any]]
         val right: SegmentCodec[Any] = SegmentCodec.string("b").asInstanceOf[SegmentCodec[Any]]
+
+        val result = scala.util.Try {
+          SegmentCodec.combineValidated(
+            left,
+            right,
+            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
+          )
+        }
+
+        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
+      },
+      test("runtime validation rejects non-adjacent opaque string combinations") {
+        val left: SegmentCodec[Any] =
+          (SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id")).asInstanceOf[SegmentCodec[Any]]
+        val right: SegmentCodec[Any] = SegmentCodec.string("suffix").asInstanceOf[SegmentCodec[Any]]
 
         val result = scala.util.Try {
           SegmentCodec.combineValidated(
