@@ -72,6 +72,10 @@ object ServerSentEventSpec extends ZIOSpecDefault {
       val event = ServerSentEvent(Chunk("line1", "line2"), "test")
       assertTrue(event.render == "event: test\ndata: line1\ndata: line2\n\n")
     },
+    test("Chunk payload splits embedded newlines in each entry") {
+      val event = ServerSentEvent(Chunk("line1\nline2", "line3\r\nline4"), "test")
+      assertTrue(event.render == "event: test\ndata: line1\ndata: line2\ndata: line3\ndata: line4\n\n")
+    },
     test("Custom payload uses SseDataEncoder") {
       val event = ServerSentEvent(Payload("x"), "test")
       assertTrue(event.render == "event: test\ndata: payload:x\n\n")
@@ -83,6 +87,16 @@ object ServerSentEventSpec extends ZIOSpecDefault {
     test("id with carriage return is rejected") {
       val result = scala.util.Try(ServerSentEvent("data", "evt").withId("bad\rid"))
       assertTrue(result.isFailure)
+    },
+    test("negative retry is rejected") {
+      val result = scala.util.Try(ServerSentEvent("data").withRetry(-1))
+      assertTrue(result.isFailure)
+    },
+    test("copy is not available on the public API") {
+      typeCheck("""
+        import zio.http.ServerSentEvent
+        ServerSentEvent("data").copy(retry = zio.blocks.maybe.Maybe.present(1L))
+      """).map(result => assertTrue(result.isLeft))
     }
   )
 }

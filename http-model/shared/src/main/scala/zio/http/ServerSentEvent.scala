@@ -26,32 +26,32 @@ import zio.blocks.maybe.Maybe
  * [[SseDataEncoder]]. The remaining fields (`event`, `id`, `retry`) are SSE
  * metadata owned by the envelope itself.
  */
-final case class ServerSentEvent[+A] private (
-  data: A,
-  event: Maybe[String],
-  id: Maybe[String],
-  retry: Maybe[Long]
+final class ServerSentEvent[+A] private (
+  val data: A,
+  val event: Maybe[String],
+  val id: Maybe[String],
+  val retry: Maybe[Long]
 ) {
 
   /** Sets the event field. */
   def withEvent(event: String): ServerSentEvent[A] =
-    copy(event = Maybe.present(ServerSentEvent.validateSingleLineField(event, "event")))
+    ServerSentEvent.create(data, Maybe.present(ServerSentEvent.validateSingleLineField(event, "event")), id, retry)
 
   /** Removes the event field. */
   def withoutEvent: ServerSentEvent[A] =
-    copy(event = Maybe.absent)
+    ServerSentEvent.create(data, Maybe.absent, id, retry)
 
   /** Sets the event id. */
   def withId(id: String): ServerSentEvent[A] =
-    copy(id = Maybe.present(ServerSentEvent.validateSingleLineField(id, "id")))
+    ServerSentEvent.create(data, event, Maybe.present(ServerSentEvent.validateSingleLineField(id, "id")), retry)
 
   /** Sets the retry interval in milliseconds. */
   def withRetry(millis: Long): ServerSentEvent[A] =
-    copy(retry = Maybe.present(millis))
+    ServerSentEvent.create(data, event, id, Maybe.present(millis))
 
   /** Removes the retry field. */
   def withoutRetry: ServerSentEvent[A] =
-    copy(retry = Maybe.absent)
+    ServerSentEvent.create(data, event, id, Maybe.absent)
 
   /** Renders this event to SSE wire format. */
   def render(using encoder: SseDataEncoder[A]): String = {
@@ -75,17 +75,35 @@ final case class ServerSentEvent[+A] private (
     }
     sb.append('\n')
   }
+
+  override def equals(other: Any): Boolean =
+    other match {
+      case that: ServerSentEvent[?] =>
+        data == that.data && event == that.event && id == that.id && retry == that.retry
+      case _ => false
+    }
+
+  override def hashCode(): Int = {
+    var result = data.##
+    result = 31 * result + event.##
+    result = 31 * result + id.##
+    result = 31 * result + retry.##
+    result
+  }
+
+  override def toString: String =
+    s"ServerSentEvent(data=$data, event=$event, id=$id, retry=$retry)"
 }
 
 object ServerSentEvent {
 
   /** Creates a new Server-Sent Event without an explicit `event` field. */
   def apply[A](data: A): ServerSentEvent[A] =
-    new ServerSentEvent(data, Maybe.absent, Maybe.absent, Maybe.absent)
+    create(data, Maybe.absent, Maybe.absent, Maybe.absent)
 
   /** Creates a new Server-Sent Event with an explicit `event` field. */
   def apply[A](data: A, event: String): ServerSentEvent[A] =
-    new ServerSentEvent(data, Maybe.present(validateSingleLineField(event, "event")), Maybe.absent, Maybe.absent)
+    create(data, Maybe.present(validateSingleLineField(event, "event")), Maybe.absent, Maybe.absent)
 
   /** Creates a new Server-Sent Event from optional metadata fields. */
   def fromOptions[A](
@@ -94,12 +112,22 @@ object ServerSentEvent {
     id: Option[String] = None,
     retry: Option[Long] = None
   ): ServerSentEvent[A] =
-    new ServerSentEvent(
+    create(
       data,
       Maybe.fromOption(event.map(validateSingleLineField(_, "event"))),
       Maybe.fromOption(id.map(validateSingleLineField(_, "id"))),
       Maybe.fromOption(retry)
     )
+
+  private[http] def create[A](
+    data: A,
+    event: Maybe[String],
+    id: Maybe[String],
+    retry: Maybe[Long]
+  ): ServerSentEvent[A] = {
+    retry.fold(())(validateRetry)
+    new ServerSentEvent(data, event, id, retry)
+  }
 
   private[http] def validateSingleLineField(value: String, fieldName: String): String = {
     if (value.indexOf('\n') >= 0 || value.indexOf('\r') >= 0) {
@@ -107,6 +135,11 @@ object ServerSentEvent {
     }
     value
   }
+
+  private def validateRetry(millis: Long): Unit =
+    if (millis < 0) {
+      throw new IllegalArgumentException("SSE retry must be non-negative")
+    }
 }
 
 /** Encodes typed SSE payloads into one or more `data:` lines. */
@@ -126,7 +159,19 @@ object SseDataEncoder {
   implicit val stringChunk: SseDataEncoder[Chunk[String]] =
     new SseDataEncoder[Chunk[String]] {
       def lines(value: Chunk[String]): Chunk[String] =
-        if (value.isEmpty) Chunk.single("") else value
+        if (value.isEmpty) Chunk.single("")
+        else {
+          val builder  = ChunkBuilder.make[String]()
+          val iterator = value.iterator
+          while (iterator.hasNext) {
+            val split = splitLines(iterator.next())
+            val lines = split.iterator
+            while (lines.hasNext) {
+              builder.addOne(lines.next())
+            }
+          }
+          builder.result()
+        }
     }
 
   private def splitLines(value: String): Chunk[String] = {
