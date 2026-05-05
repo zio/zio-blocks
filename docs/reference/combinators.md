@@ -14,8 +14,8 @@ The combinators module consists of three core modules:
 - **Unions** - Union type operations (Scala 3 only)
 
 Each module provides:
-- A unified typeclass (e.g., `Tuples.Tuples[L, R]`) that provides both `combine` and `separate` operations
-- A convenience method `combine` (the `separate` operation is available on the typeclass instance)
+- A unified typeclass (e.g., `Tuples.Tuples[L, R]`) that provides both `Tuples.Tuples#combine` and `Tuples.Tuples#separate` operations
+- A convenience function like `Tuples.combine` (the `Tuples#separate` operation is available on the typeclass instance)
 
 All typeclasses are derived automatically via compile-time resolution and provide zero-cost abstractions.
 
@@ -24,13 +24,13 @@ All typeclasses are derived automatically via compile-time resolution and provid
 Add the following to your `build.sbt`:
 
 ```sbt
-libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 For cross-platform projects (Scala.js):
 
 ```sbt
-libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "<version>"
+libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 Supported platforms:
@@ -43,7 +43,7 @@ The `Tuples` module combines values into flat tuples and separates them back.
 
 ### combine
 
-`Tuples.Tuples[L, R]` combines two values into a flattened tuple.
+To combine two values into a flattened tuple:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -94,7 +94,7 @@ val result3: (Int, String, Boolean, Double) = Tuples.combine((1, "a"), (true, 3.
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and splits a tuple into its init (all but last) and last element.
+To split a tuple into its init (all but last) and last element, access `Tuples#separate` via the unified typeclass instance:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -119,7 +119,7 @@ val (left3, right3): ((Int, String, Boolean), Double) = t4.separate((1, "hello",
 ```
 ### Type-Level Operations
 
-The output type is computed at compile time via the `Out` type member:
+Compile-time resolution computes the output type via the `Out` type member:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -147,7 +147,7 @@ The `Eithers` module canonicalizes Either types to left-nested form and separate
 
 ### combine
 
-`Eithers.Eithers[L, R]` transforms an `Either[L, R]` into its left-nested canonical form.
+To transform an `Either[L, R]` into its left-nested canonical form:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Eithers
@@ -182,7 +182,7 @@ This transformation preserves values while reassociating the structure:
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
+`Eithers#separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Eithers
@@ -221,7 +221,7 @@ val union2: Int | String = Unions.combine(either2)
 
 ### separate
 
-`separate` is accessed via the unified typeclass instance and discriminates a union type back to Either:
+`Unions#separate` is accessed via the unified typeclass instance and discriminates a union type back to Either:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Unions
@@ -253,6 +253,8 @@ val either: Either[Int, Int] = Left(1)  // Distinguishable via Left/Right
 Union discrimination relies on runtime type tests, which are fragile for erased types:
 
 ```scala mdoc:compile-only
+import scala.collection.immutable.List
+
 // Problematic: List[Int] and List[String] erase to List
 val problematicValue: List[Int] | List[String] = List(1, 2, 3)
 // Runtime cannot distinguish List[Int] from List[String]
@@ -263,7 +265,11 @@ val value: Int | String = 42  // Works reliably
 
 ## Generic Usage Patterns
 
+The combinators module supports both Scala 2's implicit parameters and Scala 3's context parameters. Here are idiomatic usage patterns for each:
+
 ### With Implicit Parameters (Scala 2)
+
+To combine multiple values using implicit typeclass resolution:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -281,6 +287,8 @@ val result = combineAll(1, "hello", true)
 ```
 
 ### With Context Parameters (Scala 3)
+
+To combine multiple values using context parameters:
 
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
@@ -311,6 +319,8 @@ val result: (Int, String) = process(1, "hello")
 
 ### Type Aliases for Clarity
 
+To improve readability when working with complex typeclass bounds:
+
 ```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
@@ -323,23 +333,25 @@ type TripleTuples = Tuples.Tuples.WithOut[(Int, String), Boolean, (Int, String, 
 
 ## Performance Characteristics
 
-| Module | Time Complexity | Notes |
-|--------|-----------------|-------|
-| Tuples.combine | O(1) to O(n) | O(1) for small tuples; O(n) for flattening nested tuples |
-| Tuples.separate | O(n) | Splits tuple at size-1 position |
-| Eithers.combine | O(d) | d = nesting depth of right-nested Either |
-| Eithers.separate | O(d) | Same as combine (delegates to combiner) |
-| Unions.combine | O(1) | Direct Either fold |
-| Unions.separate | O(1) | Single type test |
+All operations maintain predictable performance characteristics:
+
+| Module                | Time Complexity | Notes                                                                    |
+| --------------------- | --------------- | ------------------------------------------------------------------------ |
+| Tuples.combine        | O(1) to O(n)    | O(1) for small tuples; O(n) for flattening nested tuples                |
+| Tuples.separate       | O(n)            | Splits tuple at size-1 position                                         |
+| Eithers.combine       | O(d)            | d = nesting depth of right-nested Either                                |
+| Eithers.separate      | O(d)            | Same as combine (delegates to combiner)                                 |
+| Unions.combine        | O(1)            | Direct Either fold                                                       |
+| Unions.separate       | O(1)            | Single type test                                                         |
 
 All operations are pure and allocation-minimal.
 
 ## Cross-Version Summary
 
-| Feature | Scala 2.13 | Scala 3.x |
-|---------|------------|-----------|
-| Tuples.Tuples | Yes (max 22) | Yes (unlimited) |
-| Eithers.Eithers | Yes | Yes |
-| Unions.Unions | No | Yes |
-| Recursive tuple flattening | No | Yes |
-| EmptyTuple handling | No | Yes |
+| Feature                      | Scala 2.13       | Scala 3.x        |
+| ---------------------------- | ---------------- | ---------------- |
+| Tuples.Tuples                | Yes (max 22)     | Yes (unlimited)  |
+| Eithers.Eithers              | Yes              | Yes              |
+| Unions.Unions                | No               | Yes              |
+| Recursive tuple flattening   | No               | Yes              |
+| EmptyTuple handling          | No               | Yes              |
