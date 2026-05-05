@@ -310,7 +310,7 @@ object EndpointSpec extends ZIOSpecDefault {
 
         assertTrue(
           q == HttpCodec.Query("limit", Schema.int),
-          h == HttpCodec.Header[CodecKind.Request, String]("authorization", Schema.string),
+          h == HttpCodec.Header[CodecKind.Request, String]("Authorization", Schema.string),
           b == HttpCodec.Body[CodecKind.Response, String](Schema.string),
           s == HttpCodec.StatusCodec(Some(Status.Created)),
           a.isInstanceOf[HttpCodec[CodecKind.Request, zio.http.headers.Authorization.Bearer]]
@@ -324,16 +324,16 @@ object EndpointSpec extends ZIOSpecDefault {
         val h = HttpCodec.Header[CodecKind.Request, String]("Authorization", Schema.string)
         assertTrue(h.name == "Authorization")
       },
-      test("explicit header constructors normalize names to lowercase") {
+      test("explicit header constructors preserve provided names") {
         val requestHeader  = HttpCodec.requestHeader("Authorization", Schema.string)
         val responseHeader = HttpCodec.responseHeader("X-Trace-Id", Schema.string)
 
         assertTrue(
-          requestHeader.name == "authorization",
-          responseHeader.name == "x-trace-id"
+          requestHeader.name == "Authorization",
+          responseHeader.name == "X-Trace-Id"
         )
       },
-      test("typed header constructors normalize names to lowercase") {
+      test("typed header constructors preserve typed names") {
         object MixedCaseHeaderType extends Header.Typed[Header.Custom] {
           def name: String                                        = "X-Trace-Id"
           def parse(value: String): Either[String, Header.Custom] = Right(Header.Custom(name, value))
@@ -344,8 +344,8 @@ object EndpointSpec extends ZIOSpecDefault {
         val responseHeader = HttpCodec.responseHeader(MixedCaseHeaderType)
 
         assertTrue(
-          requestHeader.name == "x-trace-id",
-          responseHeader.name == "x-trace-id"
+          requestHeader.name == "X-Trace-Id",
+          responseHeader.name == "X-Trace-Id"
         )
       },
       test("body codec") {

@@ -18,8 +18,6 @@ package zio.blocks.endpoint
 
 import scala.annotation.unchecked.uncheckedVariance
 
-import java.util.Locale
-
 import zio.blocks.chunk.Chunk
 import zio.blocks.combinators.{Eithers, Tuples}
 import zio.blocks.docs.Doc
@@ -67,9 +65,6 @@ sealed trait HttpCodec[+K <: CodecKind, A] { self =>
 }
 
 object HttpCodec {
-
-  private def canonicalHeaderName(name: String): String =
-    name.toLowerCase(Locale.ROOT)
 
   private def validationFailure(message: String): Nothing =
     throw SchemaError.validationFailed(message)
@@ -176,10 +171,10 @@ object HttpCodec {
     examples: Chunk[(String, A)] = Chunk.empty,
     deprecated: Option[Doc] = None
   ): HttpCodec.Header[CodecKind.Request, A] =
-    Header[CodecKind.Request, A](canonicalHeaderName(name), schema, default, doc, examples, deprecated)
+    Header[CodecKind.Request, A](name, schema, default, doc, examples, deprecated)
 
   def requestHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Request, A] =
-    Header[CodecKind.Request, A](canonicalHeaderName(headerType.name), headerSchema(headerType))
+    Header[CodecKind.Request, A](headerType.name, headerSchema(headerType))
 
   def responseHeader[A](
     name: String,
@@ -189,10 +184,10 @@ object HttpCodec {
     examples: Chunk[(String, A)] = Chunk.empty,
     deprecated: Option[Doc] = None
   ): HttpCodec.Header[CodecKind.Response, A] =
-    Header[CodecKind.Response, A](canonicalHeaderName(name), schema, default, doc, examples, deprecated)
+    Header[CodecKind.Response, A](name, schema, default, doc, examples, deprecated)
 
   def responseHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Response, A] =
-    Header[CodecKind.Response, A](canonicalHeaderName(headerType.name), headerSchema(headerType))
+    Header[CodecKind.Response, A](headerType.name, headerSchema(headerType))
 
   def requestBody[A](
     schema: Schema[A],
