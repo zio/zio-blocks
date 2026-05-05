@@ -86,21 +86,32 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
-      test("rejects non-adjacent repeated string segments at compile time") {
+      test("allows string followed by uuid followed by string at compile time") {
         assertZIO(
           typeCheck("""
             import zio.blocks.endpoint._
 
-            val invalid = SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
           """)
-        )(isLeft)
+        )(isRight)
       },
-      test("rejects non-adjacent repeated numeric segments at compile time") {
+      test("allows string followed by int followed by string at compile time") {
         assertZIO(
           typeCheck("""
             import zio.blocks.endpoint._
 
-            val invalid = SegmentCodec.int("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.long("suffix")
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix")
+          """)
+        )(isRight)
+      },
+      test("rejects grouped combinations with an ambiguous boundary at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.string("prefix") ~ (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id"))
           """)
         )(isLeft)
       },
@@ -128,10 +139,36 @@ object EndpointSpec extends ZIOSpecDefault {
 
         assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
       },
-      test("runtime validation rejects non-adjacent opaque string combinations") {
+      test("runtime validation allows non-adjacent string boundaries") {
         val left: SegmentCodec[Any] =
           (SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id")).asInstanceOf[SegmentCodec[Any]]
         val right: SegmentCodec[Any] = SegmentCodec.string("suffix").asInstanceOf[SegmentCodec[Any]]
+
+        val result = scala.util.Try {
+          SegmentCodec.combineValidated(
+            left,
+            right,
+            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
+          )
+        }
+
+        assertTrue(result.isSuccess)
+      },
+      test("string followed by uuid followed by string decodes") {
+        val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val codec = PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix"))
+
+        assertTrue(codec.decode(zio.http.Path(s"/pre${uuid}post")).isRight)
+      },
+      test("string followed by int followed by string decodes") {
+        val codec = PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix"))
+
+        assertTrue(codec.decode(zio.http.Path("/pre123post")).isRight)
+      },
+      test("runtime validation rejects grouped ambiguous boundaries") {
+        val left: SegmentCodec[Any]  = SegmentCodec.string("prefix").asInstanceOf[SegmentCodec[Any]]
+        val right: SegmentCodec[Any] =
+          (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id")).asInstanceOf[SegmentCodec[Any]]
 
         val result = scala.util.Try {
           SegmentCodec.combineValidated(
