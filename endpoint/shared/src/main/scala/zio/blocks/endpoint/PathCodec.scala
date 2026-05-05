@@ -23,14 +23,17 @@ import zio.blocks.combinators.Tuples
 import zio.http.Path
 
 /**
- * Composable path descriptor. Segments are combined with `/` or `++`, literal alternatives with `orElse`.
- * Use [[PathCodec.decode decode]] / [[PathCodec.format format]] for bidirectional path conversion,
- * and [[PathCodec.alternatives alternatives]] to expand `orElse` branches for routing-trie insertion.
+ * Composable path descriptor. Segments are combined with `/` or `++`, literal
+ * alternatives with `orElse`. Use [[PathCodec.decode decode]] /
+ * [[PathCodec.format format]] for bidirectional path conversion, and
+ * [[PathCodec.alternatives alternatives]] to expand `orElse` branches for
+ * routing-trie insertion.
  */
 sealed trait PathCodec[A]
 
 object PathCodec {
 
+  private type DecodeError = String
   private type AnyCombiner = Tuples.Tuples.WithOut[Any, Any, Any]
 
   given unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
@@ -67,6 +70,15 @@ object PathCodec {
       decode(path).isRight
 
     def render: String = PathCodec.render(codec = self)
+
+    inline def transform[B](decode: A => B, encode: B => A): PathCodec[B] =
+      transformOrFail[B](value => Right(decode(value)), value => Right(encode(value)))
+
+    inline def transformOrFail[B](
+      decode: A => Either[DecodeError, B],
+      encode: B => Either[DecodeError, A]
+    ): PathCodec[B] =
+      Transform(self, decode, encode)
   }
 
   def apply(value: String): PathCodec[Unit] = {
@@ -87,6 +99,11 @@ object PathCodec {
     right: PathCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends PathCodec[C]
+  final case class Transform[A, B](
+    codec: PathCodec[A],
+    decode: A => Either[DecodeError, B],
+    encode: B => Either[DecodeError, A]
+  ) extends PathCodec[B]
   final case class Fallback(left: PathCodec[Unit], right: PathCodec[Unit]) extends PathCodec[Unit]
 
   val empty: PathCodec[Unit] = Segment(SegmentCodec.Empty)
@@ -104,6 +121,7 @@ object PathCodec {
       current match {
         case Segment(segment)       => segment.render(prefix, suffix)
         case Concat(left, right, _) => loop(left) + loop(right)
+        case Transform(inner, _, _) => loop(inner)
         case Fallback(left, right)  => loop(left) + " | " + loop(right)
       }
     val rendered = loop(codec)
@@ -137,6 +155,14 @@ object PathCodec {
           r.asInstanceOf[PathCodec[Any]],
           combiner.asInstanceOf[AnyCombiner]
         )
+      case Transform(codec, decode, encode) =>
+        expand(codec).map(inner =>
+          Transform(
+            inner.asInstanceOf[PathCodec[Any]],
+            decode.asInstanceOf[Any => Either[DecodeError, Any]],
+            encode.asInstanceOf[Any => Either[DecodeError, Any]]
+          )
+        )
       case Segment(SegmentCodec.Empty) => Nil
       case other                       => List(other)
     }
@@ -150,6 +176,12 @@ object PathCodec {
             val typed = combiner.asInstanceOf[AnyCombiner]
             (typed.combine(leftValue, rightValue), end)
           }
+        }
+      case transformed: Transform[?, ?] =>
+        val codec  = transformed.codec.asInstanceOf[PathCodec[Any]]
+        val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
+        decodeCodec(codec, segments, index).flatMap { case (value, end) =>
+          decode(value).toOption.map(_ -> end)
         }
       case Fallback(left, right) => decodeCodec(left, segments, index) ++ decodeCodec(right, segments, index)
     }
@@ -186,6 +218,14 @@ object PathCodec {
           if (index >= segments.length) Path.root
           else Path(segments.drop(index), hasLeadingSlash = true, trailingSlash = false)
         List((path, segments.length))
+      case transformed: SegmentCodec.Transform[?, ?] =>
+        if (index >= segments.length) Nil
+        else {
+          val segment = segments(index)
+          SegmentCodec.decodeCombined(transformed, segment, 0).collect {
+            case (value, end) if end == segment.length => (value, index + 1)
+          }
+        }
       case combined: SegmentCodec.Combined[?, ?, ?] =>
         if (index >= segments.length) Nil
         else {
@@ -206,6 +246,10 @@ object PathCodec {
           leftPath  <- formatCodec(left, leftValue)
           rightPath <- formatCodec(right, rightValue)
         } yield leftPath ++ rightPath.dropLeadingSlash
+      case transformed: Transform[?, ?] =>
+        val codec  = transformed.codec.asInstanceOf[PathCodec[Any]]
+        val encode = transformed.encode.asInstanceOf[Any => Either[DecodeError, Any]]
+        encode(value).flatMap(inner => formatCodec(codec, inner))
       case Fallback(left, _) => formatCodec(left, value)
     }
 }

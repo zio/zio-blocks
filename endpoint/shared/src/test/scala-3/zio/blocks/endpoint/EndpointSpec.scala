@@ -179,6 +179,57 @@ object EndpointSpec extends ZIOSpecDefault {
         }
 
         assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
+      },
+      test("allows transformed size-delimited boundaries at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix").transform(identity, identity) ~
+                SegmentCodec.uuid("id") ~
+                SegmentCodec.string("suffix").transform(identity, identity)
+          """)
+        )(isRight)
+      },
+      test("transformed segment codec decodes and formats") {
+        val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val codec = PathCodec(
+          SegmentCodec
+            .uuid("id")
+            .transform[String](_.toString, UUID.fromString)
+        )
+
+        assertTrue(
+          codec.decode(zio.http.Path(s"/$uuid")) == Right(uuid.toString),
+          codec.format(uuid.toString).map(_.render) == Right(s"/$uuid")
+        )
+      },
+      test("runtime validation rejects transformed string boundaries") {
+        val left: SegmentCodec[Any] =
+          SegmentCodec
+            .string("left")
+            .transform[Any](value => value, value => value.asInstanceOf[String])
+            .asInstanceOf[SegmentCodec[Any]]
+        val right: SegmentCodec[Any] = SegmentCodec.string("right").asInstanceOf[SegmentCodec[Any]]
+
+        val result = scala.util.Try {
+          SegmentCodec.combineValidated(
+            left,
+            right,
+            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
+          )
+        }
+
+        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
+      },
+      test("transformed path codec decodes and formats") {
+        val codec = PathCodec.int("id").transform[String](_.toString, _.toInt)
+
+        assertTrue(
+          codec.decode(zio.http.Path("/42")) == Right("42"),
+          codec.format("42").map(_.render) == Right("/42")
+        )
       }
     ),
     suite("PathCodec")(

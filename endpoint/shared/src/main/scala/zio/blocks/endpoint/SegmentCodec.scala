@@ -31,6 +31,9 @@ import zio.http.Path
  * (captures remaining path).
  */
 sealed trait SegmentCodec[A] { self =>
+  type Prefix <: SegmentCodec.BoundaryTag
+  type Suffix <: SegmentCodec.BoundaryTag
+
   def doc: Doc
   def examples: Chunk[(String, A)]
 
@@ -42,6 +45,21 @@ sealed trait SegmentCodec[A] { self =>
 }
 
 object SegmentCodec {
+
+  private type DecodeError = String
+
+  sealed trait BoundaryTag
+  object BoundaryTag {
+    sealed trait Empty    extends BoundaryTag
+    sealed trait Literal  extends BoundaryTag
+    sealed trait Bool     extends BoundaryTag
+    sealed trait Int      extends BoundaryTag
+    sealed trait Long     extends BoundaryTag
+    sealed trait String   extends BoundaryTag
+    sealed trait UUID     extends BoundaryTag
+    sealed trait Trailing extends BoundaryTag
+    sealed trait Unknown  extends BoundaryTag
+  }
 
   enum Kind {
     case Empty
@@ -76,6 +94,15 @@ object SegmentCodec {
 
     inline def ~[C](that: String)(using combiner: Tuples.Tuples.WithOut[A, Unit, C]): SegmentCodec[C] =
       ${ SegmentCodecMacros.combineImpl[A, Unit, C]('self, '{ literal(that) }, 'combiner) }
+
+    inline def transform[B](decode: A => B, encode: B => A): SegmentCodec[B] =
+      ${ SegmentCodecMacros.transformImpl[A, B]('self, 'decode, 'encode) }
+
+    inline def transformOrFail[B](
+      decode: A => Either[DecodeError, B],
+      encode: B => Either[DecodeError, A]
+    ): SegmentCodec[B] =
+      ${ SegmentCodecMacros.transformOrFailImpl[A, B]('self, 'decode, 'encode) }
   }
 
   def literal(value: String): Literal = Literal(value)
@@ -106,6 +133,13 @@ object SegmentCodec {
         validateBoundary(trailingLeaf(left), leadingLeaf(right))
         Combined(left, right, combiner)
     }
+
+  private[endpoint] def transformValidated[A, B](
+    codec: SegmentCodec[A],
+    decode: A => Either[DecodeError, B],
+    encode: B => Either[DecodeError, A]
+  ): SegmentCodec[B] =
+    Transform(codec, decode, encode)
 
   private[endpoint] def kind(codec: SegmentCodec[_]): Kind =
     codec match {
@@ -171,41 +205,76 @@ object SegmentCodec {
   }
 
   case object Empty extends SegmentCodec[Unit] {
+    type Prefix = BoundaryTag.Empty
+    type Suffix = BoundaryTag.Empty
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Unit)] = Chunk.empty
   }
 
   final case class Literal(value: String, doc: Doc = Doc.empty, examples: Chunk[(String, Unit)] = Chunk.empty)
-      extends SegmentCodec[Unit]
+      extends SegmentCodec[Unit] {
+    type Prefix = BoundaryTag.Literal
+    type Suffix = BoundaryTag.Literal
+  }
 
   final case class BoolSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
-      extends SegmentCodec[Boolean]
+      extends SegmentCodec[Boolean] {
+    type Prefix = BoundaryTag.Bool
+    type Suffix = BoundaryTag.Bool
+  }
 
   final case class IntSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
-      extends SegmentCodec[Int]
+      extends SegmentCodec[Int] {
+    type Prefix = BoundaryTag.Int
+    type Suffix = BoundaryTag.Int
+  }
 
   final case class LongSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
-      extends SegmentCodec[Long]
+      extends SegmentCodec[Long] {
+    type Prefix = BoundaryTag.Long
+    type Suffix = BoundaryTag.Long
+  }
 
   final case class StringSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, String)] = Chunk.empty)
-      extends SegmentCodec[String]
+      extends SegmentCodec[String] {
+    type Prefix = BoundaryTag.String
+    type Suffix = BoundaryTag.String
+  }
 
   final case class UUIDSeg(
     name: String,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
-  ) extends SegmentCodec[java.util.UUID]
+  ) extends SegmentCodec[java.util.UUID] {
+    type Prefix = BoundaryTag.UUID
+    type Suffix = BoundaryTag.UUID
+  }
 
   final case class Combined[A, B, C](
     left: SegmentCodec[A],
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
+    type Prefix = left.Prefix
+    type Suffix = right.Suffix
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }
 
+  final case class Transform[A, B](
+    codec: SegmentCodec[A],
+    decode: A => Either[DecodeError, B],
+    encode: B => Either[DecodeError, A]
+  ) extends SegmentCodec[B] {
+    type Prefix = codec.Prefix
+    type Suffix = codec.Suffix
+    val doc: Doc                     = codec.doc
+    val examples: Chunk[(String, B)] = Chunk.empty
+  }
+
   case object Trailing extends SegmentCodec[Path] {
+    type Prefix = BoundaryTag.Trailing
+    type Suffix = BoundaryTag.Trailing
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
@@ -224,6 +293,8 @@ object SegmentCodec {
         case Combined(left, right, _) =>
           loop(left)
           loop(right)
+        case Transform(inner, _, _) =>
+          loop(inner)
         case Trailing => out.append("...")
       }
     loop(codec)
@@ -251,6 +322,14 @@ object SegmentCodec {
               case _: IllegalArgumentException => -1
             }
           }
+        case transformed: Transform[?, ?] =>
+          val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
+          val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
+          if (index >= segments.length) -1
+          else
+            decodeCombined(inner, segments(index), 0).exists { case (value, end) =>
+              end == segments(index).length && decode(value).isRight
+            }.compare(false)
         case Trailing                    => (segments.length - index).max(0)
         case combined: Combined[?, ?, ?] =>
           if (index >= segments.length) -1
@@ -286,6 +365,12 @@ object SegmentCodec {
           try List((java.util.UUID.fromString(candidate), from + 36))
           catch { case _: IllegalArgumentException => Nil }
         }
+      case transformed: Transform[?, ?] =>
+        val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
+        val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
+        decodeCombined(inner, segment, from).flatMap { case (value, end) =>
+          decode(value).toOption.map(_ -> end)
+        }
       case Trailing                    => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
       case combined: Combined[?, ?, ?] =>
         decodeCombined(combined.left, segment, from).flatMap { case (leftValue, next) =>
@@ -298,13 +383,20 @@ object SegmentCodec {
 
   def formatSegment(codec: SegmentCodec[_], value: Any): String =
     codec match {
-      case Empty                       => ""
-      case Literal(value, _, _)        => value
-      case BoolSeg(_, _, _)            => value.toString
-      case IntSeg(_, _, _)             => value.toString
-      case LongSeg(_, _, _)            => value.toString
-      case StringSeg(_, _, _)          => value.asInstanceOf[String]
-      case UUIDSeg(_, _, _)            => value.toString
+      case Empty                        => ""
+      case Literal(value, _, _)         => value
+      case BoolSeg(_, _, _)             => value.toString
+      case IntSeg(_, _, _)              => value.toString
+      case LongSeg(_, _, _)             => value.toString
+      case StringSeg(_, _, _)           => value.asInstanceOf[String]
+      case UUIDSeg(_, _, _)             => value.toString
+      case transformed: Transform[?, ?] =>
+        val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
+        val encode = transformed.encode.asInstanceOf[Any => Either[DecodeError, Any]]
+        encode(value) match {
+          case Right(innerValue) => formatSegment(inner, innerValue)
+          case Left(message)     => throw new IllegalArgumentException(message)
+        }
       case Trailing                    => value.asInstanceOf[Path].render.stripPrefix("/")
       case combined: Combined[?, ?, ?] =>
         val typed                   = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
@@ -315,6 +407,7 @@ object SegmentCodec {
   def flatten(codec: SegmentCodec[_]): Chunk[SegmentCodec[_]] =
     codec match {
       case Combined(left, right, _) => flatten(left) ++ flatten(right)
+      case Transform(inner, _, _)   => flatten(inner)
       case other                    => Chunk(other)
     }
 
@@ -362,6 +455,7 @@ object SegmentCodec {
   private def leadingLeaf(codec: SegmentCodec[_]): Option[SegmentCodec[_]] =
     codec match {
       case Combined(left, right, _) => leadingLeaf(left).orElse(leadingLeaf(right))
+      case Transform(inner, _, _)   => leadingLeaf(inner)
       case Empty                    => None
       case other                    => Some(other)
     }
@@ -369,6 +463,7 @@ object SegmentCodec {
   private def trailingLeaf(codec: SegmentCodec[_]): Option[SegmentCodec[_]] =
     codec match {
       case Combined(left, right, _) => trailingLeaf(right).orElse(trailingLeaf(left))
+      case Transform(inner, _, _)   => trailingLeaf(inner)
       case Empty                    => None
       case other                    => Some(other)
     }
@@ -409,6 +504,26 @@ object SegmentCodec {
       }
     }
 
+    def transformImpl[A: Type, B: Type](
+      codecExpr: Expr[SegmentCodec[A]],
+      decodeExpr: Expr[A => B],
+      encodeExpr: Expr[B => A]
+    )(using Quotes): Expr[SegmentCodec[B]] =
+      '{
+        SegmentCodec.transformValidated[A, B](
+          $codecExpr,
+          value => Right($decodeExpr(value)),
+          value => Right($encodeExpr(value))
+        )
+      }
+
+    def transformOrFailImpl[A: Type, B: Type](
+      codecExpr: Expr[SegmentCodec[A]],
+      decodeExpr: Expr[A => Either[DecodeError, B]],
+      encodeExpr: Expr[B => Either[DecodeError, A]]
+    )(using Quotes): Expr[SegmentCodec[B]] =
+      '{ SegmentCodec.transformValidated[A, B]($codecExpr, $decodeExpr, $encodeExpr) }
+
     private def validateBoundary(using Quotes)(left: Option[SegmentInfo], right: Option[SegmentInfo]): Unit = {
       import quotes.reflect.*
 
@@ -430,6 +545,9 @@ object SegmentCodec {
     private def boundaryInfo(using Quotes)(term: quotes.reflect.Term): Option[BoundaryInfo] = {
       import quotes.reflect.*
 
+      val underlying = term.underlyingArgument
+      if (underlying ne term) return boundaryInfo(underlying)
+
       def stringArg(args: List[Term], default: String): String =
         args.collectFirst { case quotes.reflect.Literal(StringConstant(value)) => value }.getOrElse(default)
 
@@ -449,6 +567,61 @@ object SegmentCodec {
         case _                      => None
       }
 
+      def typeInfo(tpe: TypeRepr): Option[BoundaryInfo] = {
+        val segmentCodecSym = Symbol.requiredClass("zio.blocks.endpoint.SegmentCodec")
+        val base            = tpe.widenTermRefByName.dealias.baseType(segmentCodecSym)
+
+        if base =:= TypeRepr.of[Any] then None
+        else {
+          val prefixTpe = base.memberType(segmentCodecSym.typeMember("Prefix"))
+          val suffixTpe = base.memberType(segmentCodecSym.typeMember("Suffix"))
+
+          def kindOf(boundary: TypeRepr): Option[SegmentInfoKind] =
+            if boundary <:< TypeRepr.of[BoundaryTag.Literal] then Some(SegmentInfoKind.Literal)
+            else if boundary <:< TypeRepr.of[BoundaryTag.Bool] then Some(SegmentInfoKind.Bool)
+            else if boundary <:< TypeRepr.of[BoundaryTag.Int] then Some(SegmentInfoKind.Int)
+            else if boundary <:< TypeRepr.of[BoundaryTag.Long] then Some(SegmentInfoKind.Long)
+            else if boundary <:< TypeRepr.of[BoundaryTag.String] then Some(SegmentInfoKind.String)
+            else if boundary <:< TypeRepr.of[BoundaryTag.UUID] then Some(SegmentInfoKind.UUID)
+            else None
+
+          val prefix = kindOf(prefixTpe).map(kind => SegmentInfo(kind, "transformed"))
+          val suffix = kindOf(suffixTpe).map(kind => SegmentInfo(kind, "transformed"))
+          if (prefix.isEmpty && suffix.isEmpty) None else Some(BoundaryInfo(prefix, suffix))
+        }
+      }
+
+      def appliedBoundary(fun: Term, args: List[Term]): Option[BoundaryInfo] = {
+        val fullName = fun.symbol.fullName
+        if (
+          fullName == "zio.blocks.endpoint.SegmentCodec.literal" || fullName == "zio.blocks.endpoint.SegmentCodec.string" ||
+          fullName == "zio.blocks.endpoint.SegmentCodec.int" || fullName == "zio.blocks.endpoint.SegmentCodec.long" ||
+          fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid"
+        )
+          applyInfo(fun.symbol.name, args)
+        else if (
+          args.nonEmpty &&
+          (fun.symbol.owner.name == "Transform" || fullName.contains("SegmentCodec.Transform"))
+        )
+          boundaryInfo(args.head)
+        else if (
+          (fun.symbol.name == "transform" || fun.symbol.name == "transformOrFail" ||
+            fun.symbol.name == "transformValidated" ||
+            fun.symbol.name == "transform$extension" || fun.symbol.name == "transformOrFail$extension") &&
+          args.nonEmpty
+        )
+          boundaryInfo(args.head)
+        else if (
+          fullName.endsWith("SegmentCodec.Literal.apply") || fullName.endsWith("SegmentCodec.StringSeg.apply") ||
+          fullName.endsWith("SegmentCodec.IntSeg.apply") || fullName.endsWith("SegmentCodec.LongSeg.apply") ||
+          fullName.endsWith("SegmentCodec.BoolSeg.apply") || fullName.endsWith("SegmentCodec.UUIDSeg.apply")
+        )
+          applyInfo(fun.symbol.owner.name, args)
+        else if (fullName.endsWith("SegmentCodec.Transform.apply"))
+          args.headOption.flatMap(boundaryInfo)
+        else None
+      }
+
       term match {
         case Inlined(_, _, inner) => boundaryInfo(inner)
         case Typed(inner, _)      => boundaryInfo(inner)
@@ -463,28 +636,37 @@ object SegmentCodec {
             leftInfo  <- boundaryInfo(left)
             rightInfo <- boundaryInfo(right)
           } yield leftInfo ++ rightInfo
+        case Apply(TypeApply(Select(_, "transformValidated"), _), codec :: _) =>
+          boundaryInfo(codec)
+        case Apply(Select(_, "transformValidated"), codec :: _) =>
+          boundaryInfo(codec)
+        case Apply(TypeApply(fun, _), args) =>
+          appliedBoundary(fun, args)
         case Apply(Select(_, "combineValidated"), List(left, right, _)) =>
           for {
             leftInfo  <- boundaryInfo(left)
             rightInfo <- boundaryInfo(right)
           } yield leftInfo ++ rightInfo
+        case Apply(Apply(TypeApply(Select(_, "transform"), _), List(left)), _) =>
+          boundaryInfo(left)
+        case Apply(Apply(Select(_, "transform"), List(left)), _) =>
+          boundaryInfo(left)
+        case Apply(TypeApply(Select(left, "transform"), _), _) =>
+          boundaryInfo(left)
+        case Apply(Select(left, "transform"), _) =>
+          boundaryInfo(left)
+        case Apply(Apply(TypeApply(Select(_, "transformOrFail"), _), List(left)), _) =>
+          boundaryInfo(left)
+        case Apply(Apply(Select(_, "transformOrFail"), List(left)), _) =>
+          boundaryInfo(left)
+        case Apply(TypeApply(Select(left, "transformOrFail"), _), _) =>
+          boundaryInfo(left)
+        case Apply(Select(left, "transformOrFail"), _) =>
+          boundaryInfo(left)
         case Apply(fun, args) =>
-          val fullName = fun.symbol.fullName
-          if (
-            fullName == "zio.blocks.endpoint.SegmentCodec.literal" || fullName == "zio.blocks.endpoint.SegmentCodec.string" ||
-            fullName == "zio.blocks.endpoint.SegmentCodec.int" || fullName == "zio.blocks.endpoint.SegmentCodec.long" ||
-            fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid"
-          )
-            applyInfo(fun.symbol.name, args)
-          else if (
-            fullName.endsWith("SegmentCodec.Literal.apply") || fullName.endsWith("SegmentCodec.StringSeg.apply") ||
-            fullName.endsWith("SegmentCodec.IntSeg.apply") || fullName.endsWith("SegmentCodec.LongSeg.apply") ||
-            fullName.endsWith("SegmentCodec.BoolSeg.apply") || fullName.endsWith("SegmentCodec.UUIDSeg.apply")
-          )
-            applyInfo(fun.symbol.owner.name, args)
-          else None
+          appliedBoundary(fun, args)
         case Select(_, "Empty") => Some(BoundaryInfo(None, None))
-        case _                  => None
+        case _                  => typeInfo(term.tpe)
       }
     }
   }
