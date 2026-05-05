@@ -414,10 +414,10 @@ For Scala 2.13 codebases, use `Either` directly or `Eithers` canonicalization in
 
 When adopting Scala 3, no changes are required for existing `Tuples` and `Eithers` code. Your code continues to work without modification. However, you can take advantage of new capabilities:
 
-1. **Remove `Unit` workarounds**: Replace `Tuples.combine((), value)` patterns with `EmptyTuple` for clarity
-2. **Simplify tuple builders**: Leverage recursive flattening to remove manual nesting on the right side
-3. **Adopt `Unions`**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax
-4. **Gradual adoption**: Mix `Either` and `Unions` within the same codebase during migration
+1. **Adopt `EmptyTuple` idiom**: Use `EmptyTuple` instead of `Unit` when combining with `Tuples` in Scala 3 for consistency with modern tuple syntax. Note that `Unit` remains fully supported and valid—`EmptyTuple` is a stylistic enhancement, not a replacement.
+2. **Simplify tuple builders**: Leverage recursive flattening on both sides to remove manual nesting. In Scala 3, `Tuples.combine((1, "a"), (true, 3.14))` automatically flattens to `(1, "a", true, 3.14)`.
+3. **Adopt `Unions`**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
+4. **Gradual adoption**: Use `Either` in some modules and `Unions` in others during migration. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
 
 ## See Also
 
