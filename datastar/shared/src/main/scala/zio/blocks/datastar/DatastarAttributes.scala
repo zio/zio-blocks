@@ -17,6 +17,7 @@
 package zio.blocks.datastar
 
 import zio.blocks.html.Dom
+import zio.blocks.maybe.Maybe
 
 /**
  * Mixin providing Datastar `data-*` attribute constructors for the HTML DSL.
@@ -76,7 +77,7 @@ trait DatastarAttributes {
   def dataRef(name: String): Dom.Attribute =
     Dom.Attribute.BooleanAttribute("data-ref:" + toKebabCase(name), true)
 
-  def dataInit: DataInit = new DataInit(None)
+  def dataInit: DataInit = new DataInit(Maybe.absent)
 
   def dataIgnore: Dom.Attribute = Dom.Attribute.BooleanAttribute("data-ignore", true)
 
@@ -84,11 +85,11 @@ trait DatastarAttributes {
 
   def dataIgnoreMorph: Dom.Attribute = Dom.Attribute.BooleanAttribute("data-ignore-morph", true)
 
-  def dataOnIntersect: DataOnIntersect = new DataOnIntersect(None)
+  def dataOnIntersect: DataOnIntersect = new DataOnIntersect(Maybe.absent)
 
-  def dataOnInterval: DataOnInterval = new DataOnInterval(None)
+  def dataOnInterval: DataOnInterval = new DataOnInterval(Maybe.absent)
 
-  def dataOnSignalPatch: DataOnSignalPatch = new DataOnSignalPatch(None)
+  def dataOnSignalPatch: DataOnSignalPatch = new DataOnSignalPatch(Maybe.absent)
 
   def dataOnSignalPatchFilter: DatastarAttrKey = DatastarAttrKey("data-on-signal-patch-filter")
 

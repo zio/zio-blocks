@@ -46,8 +46,8 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
         val result = DatastarEvent
           .patchElements(dom)
-          .withSelector(CssSelector.id("foo"))
-          .withMode(ElementPatchMode.Inner)
+          .selector(CssSelector.id("foo"))
+          .mode(ElementPatchMode.Inner)
           .renderSSE
         assertTrue(
           result ==
@@ -62,12 +62,12 @@ object DatastarEventSpec extends ZIOSpecDefault {
         val dom    = Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("Hi")))
         val result = DatastarEvent
           .patchElements(dom)
-          .withSelector(CssSelector.`class`("container"))
-          .withMode(ElementPatchMode.Prepend)
-          .withViewTransition
-          .withNamespace("custom")
-          .withEventId("evt-1")
-          .withRetry(5000L)
+          .selector(CssSelector.`class`("container"))
+          .mode(ElementPatchMode.Prepend)
+          .viewTransition
+          .namespace("custom")
+          .eventId("evt-1")
+          .retry(5000L)
           .renderSSE
         assertTrue(
           result ==
@@ -102,12 +102,12 @@ object DatastarEventSpec extends ZIOSpecDefault {
       },
       test("default mode (outer) is omitted from output") {
         val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        val result = DatastarEvent.patchElements(dom).withMode(ElementPatchMode.Outer).renderSSE
+        val result = DatastarEvent.patchElements(dom).mode(ElementPatchMode.Outer).renderSSE
         assertTrue(!result.contains("data: mode"))
       },
       test("eventId only adds id field") {
         val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        val result = DatastarEvent.patchElements(dom).withEventId("abc").renderSSE
+        val result = DatastarEvent.patchElements(dom).eventId("abc").renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-elements\n" +
@@ -118,7 +118,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
       },
       test("retry only adds retry field") {
         val dom    = Dom.Element.Generic("div", Chunk.empty, Chunk.empty)
-        val result = DatastarEvent.patchElements(dom).withRetry(1000L).renderSSE
+        val result = DatastarEvent.patchElements(dom).retry(1000L).renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-elements\n" +
@@ -153,7 +153,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
       },
       test("with onlyIfMissing") {
         val count  = Signal[Int]("count")
-        val result = DatastarEvent.patchSignals(count := 0).withOnlyIfMissing.renderSSE
+        val result = DatastarEvent.patchSignals(count := 0).onlyIfMissing.renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-signals\n" +
@@ -164,7 +164,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
       },
       test("with eventId and retry") {
         val count  = Signal[Int]("count")
-        val result = DatastarEvent.patchSignals(count := 1).withEventId("sig-1").withRetry(3000L).renderSSE
+        val result = DatastarEvent.patchSignals(count := 1).eventId("sig-1").retry(3000L).renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-signals\n" +
@@ -184,7 +184,7 @@ object DatastarEventSpec extends ZIOSpecDefault {
         )
       },
       test("raw JSON signals with onlyIfMissing") {
-        val result = DatastarEvent.patchSignalsRaw("""{"x":1}""").withOnlyIfMissing.renderSSE
+        val result = DatastarEvent.patchSignalsRaw("""{"x":1}""").onlyIfMissing.renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-signals\n" +

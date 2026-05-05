@@ -17,6 +17,7 @@
 package zio.blocks.datastar
 
 import zio.blocks.html.Dom
+import zio.blocks.maybe.Maybe
 
 /**
  * Builder for `data-on-intersect` Datastar attributes.
@@ -27,7 +28,7 @@ import zio.blocks.html.Dom
  * `throttle`, and `viewTransition` to model Datastar's supported intersection
  * semantics.
  */
-final class DataOnIntersect(val modifier: Option[IntersectModifier]) {
+final class DataOnIntersect(private[datastar] val modifier: Maybe[IntersectModifier]) {
 
   def once: DataOnIntersect = withModifier(IntersectModifier.Once)
 

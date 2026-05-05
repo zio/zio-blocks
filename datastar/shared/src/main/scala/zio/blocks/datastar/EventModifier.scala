@@ -16,6 +16,8 @@
 
 package zio.blocks.datastar
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Modifier ADT used by `dataOn` event bindings.
  *
@@ -109,8 +111,10 @@ object EventModifier {
    * Normalizes repeated or conflicting modifiers into the final suffix set used
    * by the DSL.
    */
-  def normalize(existing: Option[EventModifier], next: EventModifier): Option[EventModifier] = {
-    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[EventModifier]) { (acc, modifier) =>
+  private[datastar] def normalize(existing: Maybe[EventModifier], next: EventModifier): Maybe[EventModifier] =
+    existing.fold(Maybe.present(next): Maybe[EventModifier]) { current =>
+      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[EventModifier]) {
+      (acc, modifier) =>
       modifier match {
         case d: Debounce =>
           acc.filter {
@@ -140,14 +144,14 @@ object EventModifier {
         case flag =>
           if (acc.exists(_ == flag)) acc else acc :+ flag
       }
-    }
+      }
 
-    normalized match {
-      case Nil          => None
-      case head :: Nil  => Some(head)
-      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+      normalized match {
+        case Nil          => Maybe.absent
+        case head :: Nil  => Maybe.present(head)
+        case head :: tail => Maybe.present(tail.foldLeft(head)(And.apply))
+      }
     }
-  }
 
   private def flatten(modifiers: List[EventModifier]): List[EventModifier] =
     modifiers.flatMap {

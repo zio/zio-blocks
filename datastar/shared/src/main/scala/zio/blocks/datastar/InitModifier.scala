@@ -16,6 +16,8 @@
 
 package zio.blocks.datastar
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Modifier ADT used by `data-init` builders.
  *
@@ -45,8 +47,10 @@ object InitModifier {
     def render: String = left.render + right.render
   }
 
-  def normalize(existing: Option[InitModifier], next: InitModifier): Option[InitModifier] = {
-    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[InitModifier]) { (acc, modifier) =>
+  private[datastar] def normalize(existing: Maybe[InitModifier], next: InitModifier): Maybe[InitModifier] =
+    existing.fold(Maybe.present(next): Maybe[InitModifier]) { current =>
+      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[InitModifier]) {
+      (acc, modifier) =>
       modifier match {
         case d: Delay =>
           acc.filter {
@@ -56,14 +60,14 @@ object InitModifier {
         case flag =>
           if (acc.exists(_ == flag)) acc else acc :+ flag
       }
-    }
+      }
 
-    normalized match {
-      case Nil          => None
-      case head :: Nil  => Some(head)
-      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+      normalized match {
+        case Nil          => Maybe.absent
+        case head :: Nil  => Maybe.present(head)
+        case head :: tail => Maybe.present(tail.foldLeft(head)(And.apply))
+      }
     }
-  }
 
   private def flatten(modifiers: List[InitModifier]): List[InitModifier] =
     modifiers.flatMap {

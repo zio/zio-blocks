@@ -17,6 +17,7 @@
 package zio.blocks.datastar
 
 import zio.blocks.html.Dom
+import zio.blocks.maybe.Maybe
 
 /**
  * Builder for `data-on-interval` Datastar attributes.
@@ -26,7 +27,7 @@ import zio.blocks.html.Dom
  * modifiers are normalized to the last effective duration. Use `:=` to assign
  * the expression executed on each interval tick.
  */
-final class DataOnInterval(val modifier: Option[OnIntervalModifier]) {
+final class DataOnInterval(private[datastar] val modifier: Maybe[OnIntervalModifier]) {
 
   def duration(millis: Long): DataOnInterval = withModifier(OnIntervalModifier.Duration(millis, false))
 

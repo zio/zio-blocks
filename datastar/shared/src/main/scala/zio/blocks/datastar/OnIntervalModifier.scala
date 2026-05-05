@@ -16,6 +16,8 @@
 
 package zio.blocks.datastar
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Modifier ADT used by `data-on-interval` builders.
  *
@@ -54,8 +56,10 @@ object OnIntervalModifier {
     def render: String = left.render + right.render
   }
 
-  def normalize(existing: Option[OnIntervalModifier], next: OnIntervalModifier): Option[OnIntervalModifier] = {
-    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[OnIntervalModifier]) { (acc, modifier) =>
+  private[datastar] def normalize(existing: Maybe[OnIntervalModifier], next: OnIntervalModifier): Maybe[OnIntervalModifier] =
+    existing.fold(Maybe.present(next): Maybe[OnIntervalModifier]) { current =>
+      val normalized = flatten(current :: next :: Nil)
+      .foldLeft(List.empty[OnIntervalModifier]) { (acc, modifier) =>
       modifier match {
         case d: Duration =>
           acc.filter {
@@ -67,12 +71,12 @@ object OnIntervalModifier {
       }
     }
 
-    normalized match {
-      case Nil          => None
-      case head :: Nil  => Some(head)
-      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+      normalized match {
+        case Nil          => Maybe.absent
+        case head :: Nil  => Maybe.present(head)
+        case head :: tail => Maybe.present(tail.foldLeft(head)(And.apply))
+      }
     }
-  }
 
   private def flatten(modifiers: List[OnIntervalModifier]): List[OnIntervalModifier] =
     modifiers.flatMap {

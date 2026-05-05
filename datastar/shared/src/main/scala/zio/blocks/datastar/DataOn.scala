@@ -17,6 +17,7 @@
 package zio.blocks.datastar
 
 import zio.blocks.html.Dom
+import zio.blocks.maybe.Maybe
 
 /**
  * Entry point for building `data-on:*` event handler attributes.
@@ -32,44 +33,44 @@ import zio.blocks.html.Dom
  */
 final class PartialDataOn {
 
-  def click: DataOn = new DataOn("click", None, CaseModifier.Kebab)
+  def click: DataOn = new DataOn("click", Maybe.absent, CaseModifier.Kebab)
 
-  def submit: DataOn = new DataOn("submit", None, CaseModifier.Kebab)
+  def submit: DataOn = new DataOn("submit", Maybe.absent, CaseModifier.Kebab)
 
-  def input: DataOn = new DataOn("input", None, CaseModifier.Kebab)
+  def input: DataOn = new DataOn("input", Maybe.absent, CaseModifier.Kebab)
 
-  def keydown: DataOn = new DataOn("keydown", None, CaseModifier.Kebab)
+  def keydown: DataOn = new DataOn("keydown", Maybe.absent, CaseModifier.Kebab)
 
-  def keyup: DataOn = new DataOn("keyup", None, CaseModifier.Kebab)
+  def keyup: DataOn = new DataOn("keyup", Maybe.absent, CaseModifier.Kebab)
 
-  def keypress: DataOn = new DataOn("keypress", None, CaseModifier.Kebab)
+  def keypress: DataOn = new DataOn("keypress", Maybe.absent, CaseModifier.Kebab)
 
-  def change: DataOn = new DataOn("change", None, CaseModifier.Kebab)
+  def change: DataOn = new DataOn("change", Maybe.absent, CaseModifier.Kebab)
 
-  def focus: DataOn = new DataOn("focus", None, CaseModifier.Kebab)
+  def focus: DataOn = new DataOn("focus", Maybe.absent, CaseModifier.Kebab)
 
-  def blur: DataOn = new DataOn("blur", None, CaseModifier.Kebab)
+  def blur: DataOn = new DataOn("blur", Maybe.absent, CaseModifier.Kebab)
 
-  def mouseover: DataOn = new DataOn("mouseover", None, CaseModifier.Kebab)
+  def mouseover: DataOn = new DataOn("mouseover", Maybe.absent, CaseModifier.Kebab)
 
-  def mouseout: DataOn = new DataOn("mouseout", None, CaseModifier.Kebab)
+  def mouseout: DataOn = new DataOn("mouseout", Maybe.absent, CaseModifier.Kebab)
 
-  def mouseenter: DataOn = new DataOn("mouseenter", None, CaseModifier.Kebab)
+  def mouseenter: DataOn = new DataOn("mouseenter", Maybe.absent, CaseModifier.Kebab)
 
-  def mouseleave: DataOn = new DataOn("mouseleave", None, CaseModifier.Kebab)
+  def mouseleave: DataOn = new DataOn("mouseleave", Maybe.absent, CaseModifier.Kebab)
 
-  def scroll: DataOn = new DataOn("scroll", None, CaseModifier.Kebab)
+  def scroll: DataOn = new DataOn("scroll", Maybe.absent, CaseModifier.Kebab)
 
-  def resize: DataOn = new DataOn("resize", None, CaseModifier.Kebab)
+  def resize: DataOn = new DataOn("resize", Maybe.absent, CaseModifier.Kebab)
 
-  def load: DataOn = new DataOn("load", None, CaseModifier.Kebab)
+  def load: DataOn = new DataOn("load", Maybe.absent, CaseModifier.Kebab)
 
   def apply(name: String): DataOn = {
     require(
       name.nonEmpty && !name.contains("__"),
       s"Invalid Datastar custom event name '$name'. Custom event names must be non-empty and must not contain '__'."
     )
-    new DataOn(name, None, CaseModifier.Kebab)
+    new DataOn(name, Maybe.absent, CaseModifier.Kebab)
   }
 }
 
@@ -85,7 +86,7 @@ final class PartialDataOn {
  */
 final class DataOn(
   private[datastar] val eventName: String,
-  private[datastar] val modifier: Option[EventModifier],
+  private[datastar] val modifier: Maybe[EventModifier],
   private[datastar] val caseModifier: CaseModifier
 ) {
 

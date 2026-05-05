@@ -16,6 +16,8 @@
 
 package zio.blocks.datastar
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Modifier ADT used by `data-on-intersect` builders.
  *
@@ -83,8 +85,10 @@ object IntersectModifier {
     def render: String = left.render + right.render
   }
 
-  def normalize(existing: Option[IntersectModifier], next: IntersectModifier): Option[IntersectModifier] = {
-    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[IntersectModifier]) { (acc, modifier) =>
+  private[datastar] def normalize(existing: Maybe[IntersectModifier], next: IntersectModifier): Maybe[IntersectModifier] =
+    existing.fold(Maybe.present(next): Maybe[IntersectModifier]) { current =>
+      val normalized = flatten(current :: next :: Nil)
+      .foldLeft(List.empty[IntersectModifier]) { (acc, modifier) =>
       modifier match {
         case t: Threshold =>
           acc.filter {
@@ -121,12 +125,12 @@ object IntersectModifier {
       }
     }
 
-    normalized match {
-      case Nil          => None
-      case head :: Nil  => Some(head)
-      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+      normalized match {
+        case Nil          => Maybe.absent
+        case head :: Nil  => Maybe.present(head)
+        case head :: tail => Maybe.present(tail.foldLeft(head)(And.apply))
+      }
     }
-  }
 
   private def flatten(modifiers: List[IntersectModifier]): List[IntersectModifier] =
     modifiers.flatMap {

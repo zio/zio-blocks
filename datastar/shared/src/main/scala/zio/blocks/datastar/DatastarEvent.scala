@@ -18,6 +18,7 @@ package zio.blocks.datastar
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.html.{CssSelector, Dom, Js}
+import zio.blocks.maybe.Maybe
 import zio.http.ServerSentEvent
 
 /**
@@ -31,7 +32,7 @@ import zio.http.ServerSentEvent
  * `useViewTransition`, `namespace`, `id`, and `retry`.
  *
  * {{{
- * val sse = DatastarEvent.patchSignals(count := 42).withEventId("evt-1").renderSSE
+ * val sse = DatastarEvent.patchSignals(count := 42).eventId("evt-1").renderSSE
  *
  * // event: datastar-patch-signals
  * // id: evt-1
@@ -47,25 +48,25 @@ object DatastarEvent {
 
   private final case class PatchElements(
     elements: Dom,
-    selector: Option[CssSelector],
+    selector: Maybe[CssSelector],
     mode: ElementPatchMode,
     useViewTransition: Boolean,
-    namespace: Option[String],
-    eventId: Option[String],
-    retryMillis: Option[Long]
+    namespace: Maybe[String],
+    eventId: Maybe[String],
+    retryMillis: Maybe[Long]
   ) extends DatastarEvent {
 
     def renderSSE: String = {
       val sb = new java.lang.StringBuilder(256)
-      selector.foreach(s => sb.append("selector ").append(s.render).append('\n'))
+      selector.fold(())(s => sb.append("selector ").append(s.render).append('\n'))
       if (mode != ElementPatchMode.Outer) sb.append("mode ").append(mode.render).append('\n')
       if (useViewTransition) sb.append("useViewTransition true\n")
-      namespace.foreach(ns => sb.append("namespace ").append(ns).append('\n'))
+      namespace.fold(())(ns => sb.append("namespace ").append(ns).append('\n'))
       sb.append("elements ").append(elements.renderMinified)
       val data = sb.toString
       ServerSentEvent(data, EventType.PatchElements.render)
-        .pipe(sse => eventId.fold(sse)(sse.withId))
-        .pipe(sse => retryMillis.fold(sse)(sse.withRetry))
+        .pipe(sse => eventId.fold(sse)(sse.id))
+        .pipe(sse => retryMillis.fold(sse)(sse.retry))
         .render
     }
   }
@@ -73,8 +74,8 @@ object DatastarEvent {
   private final case class PatchSignals(
     signalsJson: String,
     onlyIfMissing: Boolean,
-    eventId: Option[String],
-    retryMillis: Option[Long]
+    eventId: Maybe[String],
+    retryMillis: Maybe[Long]
   ) extends DatastarEvent {
 
     def renderSSE: String = {
@@ -83,39 +84,39 @@ object DatastarEvent {
       sb.append("signals ").append(signalsJson)
       val data = sb.toString
       ServerSentEvent(data, EventType.PatchSignals.render)
-        .pipe(sse => eventId.fold(sse)(sse.withId))
-        .pipe(sse => retryMillis.fold(sse)(sse.withRetry))
+        .pipe(sse => eventId.fold(sse)(sse.id))
+        .pipe(sse => retryMillis.fold(sse)(sse.retry))
         .render
     }
   }
 
   final class PatchElementsBuilder private[DatastarEvent] (
     private val elements: Dom,
-    private val selector: Option[CssSelector],
+    private val selector: Maybe[CssSelector],
     private val mode: ElementPatchMode,
     private val useViewTransition: Boolean,
-    private val namespace: Option[String],
-    private val eventId: Option[String],
-    private val retryMillis: Option[Long]
+    private val namespace: Maybe[String],
+    private val eventId: Maybe[String],
+    private val retryMillis: Maybe[Long]
   ) {
 
-    def withSelector(s: CssSelector): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, Some(s), mode, useViewTransition, namespace, eventId, retryMillis)
+    def selector(s: CssSelector): PatchElementsBuilder =
+      new PatchElementsBuilder(elements, Maybe.present(s), mode, useViewTransition, namespace, eventId, retryMillis)
 
-    def withMode(m: ElementPatchMode): PatchElementsBuilder =
+    def mode(m: ElementPatchMode): PatchElementsBuilder =
       new PatchElementsBuilder(elements, selector, m, useViewTransition, namespace, eventId, retryMillis)
 
-    def withViewTransition: PatchElementsBuilder =
+    def viewTransition: PatchElementsBuilder =
       new PatchElementsBuilder(elements, selector, mode, true, namespace, eventId, retryMillis)
 
-    def withNamespace(ns: String): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, Some(ns), eventId, retryMillis)
+    def namespace(ns: String): PatchElementsBuilder =
+      new PatchElementsBuilder(elements, selector, mode, useViewTransition, Maybe.present(ns), eventId, retryMillis)
 
-    def withEventId(id: String): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, Some(id), retryMillis)
+    def eventId(id: String): PatchElementsBuilder =
+      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, Maybe.present(id), retryMillis)
 
-    def withRetry(millis: Long): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, eventId, Some(millis))
+    def retry(millis: Long): PatchElementsBuilder =
+      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, eventId, Maybe.present(millis))
 
     def renderSSE: String =
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSE
@@ -123,26 +124,34 @@ object DatastarEvent {
 
   final class PatchSignalsBuilder private[DatastarEvent] (
     private val signalsJson: String,
-    private val onlyIfMissing: Boolean,
-    private val eventId: Option[String],
-    private val retryMillis: Option[Long]
+    private val emitOnlyIfMissing: Boolean,
+    private val eventId: Maybe[String],
+    private val retryMillis: Maybe[Long]
   ) {
 
-    def withOnlyIfMissing: PatchSignalsBuilder =
+    def onlyIfMissing: PatchSignalsBuilder =
       new PatchSignalsBuilder(signalsJson, true, eventId, retryMillis)
 
-    def withEventId(id: String): PatchSignalsBuilder =
-      new PatchSignalsBuilder(signalsJson, onlyIfMissing, Some(id), retryMillis)
+    def eventId(id: String): PatchSignalsBuilder =
+      new PatchSignalsBuilder(signalsJson, emitOnlyIfMissing, Maybe.present(id), retryMillis)
 
-    def withRetry(millis: Long): PatchSignalsBuilder =
-      new PatchSignalsBuilder(signalsJson, onlyIfMissing, eventId, Some(millis))
+    def retry(millis: Long): PatchSignalsBuilder =
+      new PatchSignalsBuilder(signalsJson, emitOnlyIfMissing, eventId, Maybe.present(millis))
 
     def renderSSE: String =
-      PatchSignals(signalsJson, onlyIfMissing, eventId, retryMillis).renderSSE
+      PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSE
   }
 
   def patchElements(elements: Dom): PatchElementsBuilder =
-    new PatchElementsBuilder(elements, None, ElementPatchMode.Outer, false, None, None, None)
+    new PatchElementsBuilder(
+      elements,
+      Maybe.absent,
+      ElementPatchMode.Outer,
+      false,
+      Maybe.absent,
+      Maybe.absent,
+      Maybe.absent
+    )
 
   def patchSignals(first: SignalUpdate[_], rest: SignalUpdate[_]*): PatchSignalsBuilder = {
     val sb = new java.lang.StringBuilder(64)
@@ -158,25 +167,33 @@ object DatastarEvent {
       i += 1
     }
     sb.append('}')
-    new PatchSignalsBuilder(sb.toString, false, None, None)
+    new PatchSignalsBuilder(sb.toString, false, Maybe.absent, Maybe.absent)
   }
 
   def patchSignalsRaw(json: String): PatchSignalsBuilder =
-    new PatchSignalsBuilder(json, false, None, None)
+    new PatchSignalsBuilder(json, false, Maybe.absent, Maybe.absent)
 
   final class RemoveElementsBuilder private[DatastarEvent] (
     private val inner: PatchElementsBuilder
   ) {
-    def withViewTransition: RemoveElementsBuilder        = new RemoveElementsBuilder(inner.withViewTransition)
-    def withNamespace(ns: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.withNamespace(ns))
-    def withEventId(id: String): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.withEventId(id))
-    def withRetry(millis: Long): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.withRetry(millis))
-    def renderSSE: String                                = inner.renderSSE
+    def viewTransition: RemoveElementsBuilder   = new RemoveElementsBuilder(inner.viewTransition)
+    def namespace(ns: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.namespace(ns))
+    def eventId(id: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.eventId(id))
+    def retry(millis: Long): RemoveElementsBuilder = new RemoveElementsBuilder(inner.retry(millis))
+    def renderSSE: String                         = inner.renderSSE
   }
 
   def removeElements(selector: CssSelector): RemoveElementsBuilder =
     new RemoveElementsBuilder(
-      new PatchElementsBuilder(Dom.Empty, Some(selector), ElementPatchMode.Remove, false, None, None, None)
+      new PatchElementsBuilder(
+        Dom.Empty,
+        Maybe.present(selector),
+        ElementPatchMode.Remove,
+        false,
+        Maybe.absent,
+        Maybe.absent,
+        Maybe.absent
+      )
     )
 
   def executeScript(code: Js): PatchElementsBuilder = {
@@ -186,12 +203,12 @@ object DatastarEvent {
     )
     new PatchElementsBuilder(
       scriptElement,
-      Some(CssSelector.element("body")),
+      Maybe.present(CssSelector.element("body")),
       ElementPatchMode.Append,
       false,
-      None,
-      None,
-      None
+      Maybe.absent,
+      Maybe.absent,
+      Maybe.absent
     )
   }
 

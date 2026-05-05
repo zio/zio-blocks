@@ -16,6 +16,8 @@
 
 package zio.blocks.datastar
 
+import zio.blocks.maybe.Maybe
+
 /**
  * Modifier ADT used by `data-on-signal-patch` builders.
  *
@@ -53,8 +55,10 @@ object OnSignalPatchModifier {
     def render: String = left.render + right.render
   }
 
-  def normalize(existing: Option[OnSignalPatchModifier], next: OnSignalPatchModifier): Option[OnSignalPatchModifier] = {
-    val normalized = flatten(existing.toList :+ next).foldLeft(List.empty[OnSignalPatchModifier]) { (acc, modifier) =>
+  private[datastar] def normalize(existing: Maybe[OnSignalPatchModifier], next: OnSignalPatchModifier): Maybe[OnSignalPatchModifier] =
+    existing.fold(Maybe.present(next): Maybe[OnSignalPatchModifier]) { current =>
+      val normalized = flatten(current :: next :: Nil)
+      .foldLeft(List.empty[OnSignalPatchModifier]) { (acc, modifier) =>
       modifier match {
         case d: Delay =>
           acc.filter {
@@ -76,12 +80,12 @@ object OnSignalPatchModifier {
       }
     }
 
-    normalized match {
-      case Nil          => None
-      case head :: Nil  => Some(head)
-      case head :: tail => Some(tail.foldLeft(head)(And.apply))
+      normalized match {
+        case Nil          => Maybe.absent
+        case head :: Nil  => Maybe.present(head)
+        case head :: tail => Maybe.present(tail.foldLeft(head)(And.apply))
+      }
     }
-  }
 
   private def flatten(modifiers: List[OnSignalPatchModifier]): List[OnSignalPatchModifier] =
     modifiers.flatMap {

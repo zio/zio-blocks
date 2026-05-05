@@ -17,6 +17,7 @@
 package zio.blocks.datastar
 
 import zio.blocks.html.Dom
+import zio.blocks.maybe.Maybe
 
 /**
  * Builder for `data-on-signal-patch` Datastar attributes.
@@ -26,7 +27,7 @@ import zio.blocks.html.Dom
  * Use `:=` to attach the Datastar expression that should run when a signal
  * patch arrives.
  */
-final class DataOnSignalPatch(val modifier: Option[OnSignalPatchModifier]) {
+final class DataOnSignalPatch(private[datastar] val modifier: Maybe[OnSignalPatchModifier]) {
 
   def delay(millis: Long): DataOnSignalPatch = withModifier(OnSignalPatchModifier.Delay(millis))
 

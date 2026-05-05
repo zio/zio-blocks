@@ -157,7 +157,7 @@ object SchemaIntegrationSpec extends ZIOSpecDefault {
         val count  = Signal[Int]("count")
         val query  = Signal[String]("query")
         val result =
-          DatastarEvent.patchSignals(count := 0, query := "").withOnlyIfMissing.renderSSE
+          DatastarEvent.patchSignals(count := 0, query := "").onlyIfMissing.renderSSE
         assertTrue(
           result ==
             "event: datastar-patch-signals\n" +

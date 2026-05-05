@@ -18,6 +18,7 @@ package zio.blocks.datastar
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.html.{CssSelector, Dom, ToJs, _}
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.Schema
 import zio.test._
 
@@ -109,7 +110,7 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         assertTrue(EventModifier.And(EventModifier.Once, EventModifier.Prevent).render == "__once__prevent")
       },
       test("normalize flattens nested modifiers and keeps effective ones") {
-        val existing = Some(
+        val existing = Maybe.present(
           EventModifier.And(
             EventModifier.And(EventModifier.Window, EventModifier.Debounce(10, false)),
             EventModifier.Prevent
@@ -120,19 +121,19 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
       },
       test("normalize deduplicates flags and replaces timing modifiers") {
         val normalized = EventModifier
-          .normalize(None, EventModifier.Once)
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Once))
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Delay(1)))
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Delay(2)))
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Throttle(3, false)))
+          .normalize(Maybe.absent, EventModifier.Once)
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Once))
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Delay(1)))
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Delay(2)))
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Throttle(3, false)))
         assertTrue(normalized.map(_.render).contains("__once__delay.2ms__throttle.3ms"))
       },
       test("normalize handles single and replacement branches for global target and throttle") {
-        val single   = EventModifier.normalize(None, EventModifier.Window)
+        val single   = EventModifier.normalize(Maybe.absent, EventModifier.Window)
         val replaced = EventModifier
-          .normalize(Some(EventModifier.And(EventModifier.Document, EventModifier.Prevent)), EventModifier.Window)
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Throttle(1, false)))
-          .flatMap(m => EventModifier.normalize(Some(m), EventModifier.Throttle(2, true)))
+          .normalize(Maybe.present(EventModifier.And(EventModifier.Document, EventModifier.Prevent)), EventModifier.Window)
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Throttle(1, false)))
+          .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Throttle(2, true)))
         assertTrue(single.contains(EventModifier.Window)) &&
         assertTrue(replaced.map(_.render).contains("__prevent__window__throttle.2ms.leading"))
       }
@@ -140,9 +141,9 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
     suite("InitModifier")(
       test("render and normalize cover delay, viewTransition, and composition") {
         val normalized = InitModifier
-          .normalize(None, InitModifier.Delay(100))
-          .flatMap(m => InitModifier.normalize(Some(m), InitModifier.ViewTransition))
-          .flatMap(m => InitModifier.normalize(Some(m), InitModifier.Delay(200)))
+          .normalize(Maybe.absent, InitModifier.Delay(100))
+          .flatMap(m => InitModifier.normalize(Maybe.present(m), InitModifier.ViewTransition))
+          .flatMap(m => InitModifier.normalize(Maybe.present(m), InitModifier.Delay(200)))
         assertTrue(InitModifier.Delay(1).render == "__delay.1ms") &&
         assertTrue(InitModifier.ViewTransition.render == "__viewTransition") &&
         assertTrue(
@@ -155,7 +156,7 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         )
       },
       test("normalize returns a single modifier when no composition is needed") {
-        assertTrue(InitModifier.normalize(None, InitModifier.ViewTransition).contains(InitModifier.ViewTransition))
+        assertTrue(InitModifier.normalize(Maybe.absent, InitModifier.ViewTransition).contains(InitModifier.ViewTransition))
       }
     ),
     suite("IntersectModifier")(
@@ -172,28 +173,28 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
       },
       test("normalize replaces conflicting visibility and timing modifiers") {
         val normalized = IntersectModifier
-          .normalize(None, IntersectModifier.Half)
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Threshold(0.75)))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Full))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Delay(10)))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Delay(20)))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Debounce(30)))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Throttle(40)))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.ViewTransition))
+          .normalize(Maybe.absent, IntersectModifier.Half)
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Threshold(0.75)))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Full))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Delay(10)))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Delay(20)))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Debounce(30)))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Throttle(40)))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.ViewTransition))
         assertTrue(
           normalized.map(_.render).contains("__full__delay.20ms__debounce.30ms__throttle.40ms__viewTransition")
         )
       },
       test("normalize handles single, duplicate, and replacement visibility branches") {
-        val single     = IntersectModifier.normalize(None, IntersectModifier.Once)
+        val single     = IntersectModifier.normalize(Maybe.absent, IntersectModifier.Once)
         val normalized = IntersectModifier
           .normalize(
-            Some(IntersectModifier.And(IntersectModifier.Threshold(0.25), IntersectModifier.Once)),
+            Maybe.present(IntersectModifier.And(IntersectModifier.Threshold(0.25), IntersectModifier.Once)),
             IntersectModifier.Half
           )
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.ViewTransition))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.ViewTransition))
-          .flatMap(m => IntersectModifier.normalize(Some(m), IntersectModifier.Full))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.ViewTransition))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.ViewTransition))
+          .flatMap(m => IntersectModifier.normalize(Maybe.present(m), IntersectModifier.Full))
         assertTrue(single.contains(IntersectModifier.Once)) &&
         assertTrue(
           normalized.map(_.render).contains("__once__viewTransition__full") || normalized
@@ -205,9 +206,9 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
     suite("OnIntervalModifier")(
       test("render and normalize cover duration variants and viewTransition") {
         val normalized = OnIntervalModifier
-          .normalize(None, OnIntervalModifier.Duration(100, false))
-          .flatMap(m => OnIntervalModifier.normalize(Some(m), OnIntervalModifier.ViewTransition))
-          .flatMap(m => OnIntervalModifier.normalize(Some(m), OnIntervalModifier.Duration(200, true)))
+          .normalize(Maybe.absent, OnIntervalModifier.Duration(100, false))
+          .flatMap(m => OnIntervalModifier.normalize(Maybe.present(m), OnIntervalModifier.ViewTransition))
+          .flatMap(m => OnIntervalModifier.normalize(Maybe.present(m), OnIntervalModifier.Duration(200, true)))
         assertTrue(OnIntervalModifier.Duration(100, false).render == "__duration.100ms") &&
         assertTrue(OnIntervalModifier.Duration(200, true).render == "__duration.200ms.leading") &&
         assertTrue(OnIntervalModifier.ViewTransition.render == "__viewTransition") &&
@@ -217,10 +218,10 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         )
       },
       test("normalize handles single and duplicate viewTransition branches") {
-        val single     = OnIntervalModifier.normalize(None, OnIntervalModifier.ViewTransition)
+        val single     = OnIntervalModifier.normalize(Maybe.absent, OnIntervalModifier.ViewTransition)
         val normalized = OnIntervalModifier
-          .normalize(Some(OnIntervalModifier.ViewTransition), OnIntervalModifier.ViewTransition)
-          .flatMap(m => OnIntervalModifier.normalize(Some(m), OnIntervalModifier.Duration(50, false)))
+          .normalize(Maybe.present(OnIntervalModifier.ViewTransition), OnIntervalModifier.ViewTransition)
+          .flatMap(m => OnIntervalModifier.normalize(Maybe.present(m), OnIntervalModifier.Duration(50, false)))
         assertTrue(single.contains(OnIntervalModifier.ViewTransition)) &&
         assertTrue(
           normalized.map(_.render).contains("__viewTransition__duration.50ms") || normalized
@@ -232,10 +233,10 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
     suite("OnSignalPatchModifier")(
       test("render and normalize cover timing families") {
         val normalized = OnSignalPatchModifier
-          .normalize(None, OnSignalPatchModifier.Delay(10))
-          .flatMap(m => OnSignalPatchModifier.normalize(Some(m), OnSignalPatchModifier.Delay(20)))
-          .flatMap(m => OnSignalPatchModifier.normalize(Some(m), OnSignalPatchModifier.Debounce(30)))
-          .flatMap(m => OnSignalPatchModifier.normalize(Some(m), OnSignalPatchModifier.Throttle(40)))
+          .normalize(Maybe.absent, OnSignalPatchModifier.Delay(10))
+          .flatMap(m => OnSignalPatchModifier.normalize(Maybe.present(m), OnSignalPatchModifier.Delay(20)))
+          .flatMap(m => OnSignalPatchModifier.normalize(Maybe.present(m), OnSignalPatchModifier.Debounce(30)))
+          .flatMap(m => OnSignalPatchModifier.normalize(Maybe.present(m), OnSignalPatchModifier.Throttle(40)))
         assertTrue(OnSignalPatchModifier.Delay(1).render == "__delay.1ms") &&
         assertTrue(OnSignalPatchModifier.Debounce(2).render == "__debounce.2ms") &&
         assertTrue(OnSignalPatchModifier.Throttle(3).render == "__throttle.3ms") &&
@@ -244,30 +245,30 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         )
       },
       test("normalize handles single and replacement timing branches") {
-        val single     = OnSignalPatchModifier.normalize(None, OnSignalPatchModifier.Delay(5))
+        val single     = OnSignalPatchModifier.normalize(Maybe.absent, OnSignalPatchModifier.Delay(5))
         val normalized = OnSignalPatchModifier
           .normalize(
-            Some(OnSignalPatchModifier.And(OnSignalPatchModifier.Delay(1), OnSignalPatchModifier.Throttle(2))),
+            Maybe.present(OnSignalPatchModifier.And(OnSignalPatchModifier.Delay(1), OnSignalPatchModifier.Throttle(2))),
             OnSignalPatchModifier.Delay(3)
           )
-          .flatMap(m => OnSignalPatchModifier.normalize(Some(m), OnSignalPatchModifier.Throttle(4)))
+          .flatMap(m => OnSignalPatchModifier.normalize(Maybe.present(m), OnSignalPatchModifier.Throttle(4)))
         assertTrue(single.contains(OnSignalPatchModifier.Delay(5))) &&
         assertTrue(normalized.map(_.render).contains("__delay.3ms__throttle.4ms"))
       }
     ),
     suite("Direct builders")(
       test("DataOn builds attributes directly from constructor") {
-        val attr = new DataOn("customEvent", None, CaseModifier.Kebab).capture.stop.prevent.pascal := js"save()"
+        val attr = new DataOn("customEvent", Maybe.absent, CaseModifier.Kebab).capture.stop.prevent.pascal := js"save()"
         assertTrue(
           renderAttr(attr) == """<div data-on:custom-event__capture__stop__prevent__case.pascal="save()"></div>"""
         )
       },
       test("DataInit builds attributes directly from constructor") {
-        val attr = new DataInit(None).delay(100).viewTransition := js"boot()"
+        val attr = new DataInit(Maybe.absent).delay(100).viewTransition := js"boot()"
         assertTrue(renderAttr(attr) == """<div data-init__delay.100ms__viewTransition="boot()"></div>""")
       },
       test("DataOnIntersect builds attributes directly from constructor") {
-        val attr = new DataOnIntersect(None).once.exit
+        val attr = new DataOnIntersect(Maybe.absent).once.exit
           .threshold(0.25)
           .delay(10)
           .debounce(20)
@@ -279,13 +280,13 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         )
       },
       test("DataOnInterval builds attributes directly from constructor") {
-        val attr = new DataOnInterval(None).duration(100).durationLeading(200).viewTransition := js"tick()"
+        val attr = new DataOnInterval(Maybe.absent).duration(100).durationLeading(200).viewTransition := js"tick()"
         assertTrue(
           renderAttr(attr) == """<div data-on-interval__duration.200ms.leading__viewTransition="tick()"></div>"""
         )
       },
       test("DataOnSignalPatch builds attributes directly from constructor") {
-        val attr = new DataOnSignalPatch(None).delay(10).debounce(20).throttle(30) := js"patch()"
+        val attr = new DataOnSignalPatch(Maybe.absent).delay(10).debounce(20).throttle(30) := js"patch()"
         assertTrue(
           renderAttr(attr) ==
             """<div data-on-signal-patch__delay.10ms__debounce.20ms__throttle.30ms="patch()"></div>"""
@@ -345,12 +346,12 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         val dom    = Dom.Element.Generic("section", Chunk.empty, Chunk(Dom.Text("Hi")))
         val result = DatastarEvent
           .patchElements(dom)
-          .withSelector(CssSelector.`class`("dashboard"))
-          .withMode(ElementPatchMode.Replace)
-          .withViewTransition
-          .withNamespace("svg")
-          .withEventId("evt-9")
-          .withRetry(2500L)
+          .selector(CssSelector.`class`("dashboard"))
+          .mode(ElementPatchMode.Replace)
+          .viewTransition
+          .namespace("svg")
+          .eventId("evt-9")
+          .retry(2500L)
           .renderSSE
         assertTrue(
           result ==
@@ -368,9 +369,9 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
       test("patchSignals builder methods compose into SSE output") {
         val result = DatastarEvent
           .patchSignalsRaw("{\"ready\":true}")
-          .withOnlyIfMissing
-          .withEventId("sig-9")
-          .withRetry(1500L)
+          .onlyIfMissing
+          .eventId("sig-9")
+          .retry(1500L)
           .renderSSE
         assertTrue(
           result ==
