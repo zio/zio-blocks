@@ -83,8 +83,10 @@ object HttpCodec {
       value =>
         headers.Authorization.parse(value) match {
           case Right(auth) if extract.isDefinedAt(auth) => extract(auth)
-          case Right(other) =>
-            validationFailure(s"Expected $expectedScheme authorization header but found ${other.getClass.getSimpleName}")
+          case Right(other)                             =>
+            validationFailure(
+              s"Expected $expectedScheme authorization header but found ${other.getClass.getSimpleName}"
+            )
           case Left(error) => validationFailure(error)
         },
       value => headers.Authorization.render(value)
@@ -215,26 +217,34 @@ object HttpCodec {
   ): HttpCodec[CodecKind.Response, Unit] =
     StatusCodec(Some(status), doc, examples, deprecated)
 
-  val authorization: HttpCodec[CodecKind.Request, headers.Authorization]          = requestHeader(headers.Authorization)
+  val authorization: HttpCodec[CodecKind.Request, headers.Authorization]   = requestHeader(headers.Authorization)
   val basicAuth: HttpCodec[CodecKind.Request, headers.Authorization.Basic] =
     requestHeader("authorization", authorizationSchema("Basic", { case basic: headers.Authorization.Basic => basic }))
   val bearerAuth: HttpCodec[CodecKind.Request, headers.Authorization.Bearer] =
-    requestHeader("authorization", authorizationSchema("Bearer", { case bearer: headers.Authorization.Bearer => bearer }))
+    requestHeader(
+      "authorization",
+      authorizationSchema("Bearer", { case bearer: headers.Authorization.Bearer => bearer })
+    )
   val digestAuth: HttpCodec[CodecKind.Request, headers.Authorization.Digest] =
-    requestHeader("authorization", authorizationSchema("Digest", { case digest: headers.Authorization.Digest => digest }))
-  val proxyAuthorization: HttpCodec[CodecKind.Request, headers.ProxyAuthorization] = requestHeader(headers.ProxyAuthorization)
+    requestHeader(
+      "authorization",
+      authorizationSchema("Digest", { case digest: headers.Authorization.Digest => digest })
+    )
+  val proxyAuthorization: HttpCodec[CodecKind.Request, headers.ProxyAuthorization] = requestHeader(
+    headers.ProxyAuthorization
+  )
 
-  val Continue: HttpCodec[CodecKind.Response, Unit]                      = status(Status.Continue)
-  val SwitchingProtocols: HttpCodec[CodecKind.Response, Unit]            = status(Status.SwitchingProtocols)
-  val Processing: HttpCodec[CodecKind.Response, Unit]                    = status(Status.Processing)
-  val Ok: HttpCodec[CodecKind.Response, Unit]                            = status(Status.Ok)
-  val Created: HttpCodec[CodecKind.Response, Unit]                       = status(Status.Created)
-  val Accepted: HttpCodec[CodecKind.Response, Unit]                      = status(Status.Accepted)
-  val NoContent: HttpCodec[CodecKind.Response, Unit]                     = status(Status.NoContent)
-  val BadRequest: HttpCodec[CodecKind.Response, Unit]                    = status(Status.BadRequest)
-  val Unauthorized: HttpCodec[CodecKind.Response, Unit]                  = status(Status.Unauthorized)
-  val Forbidden: HttpCodec[CodecKind.Response, Unit]                     = status(Status.Forbidden)
-  val NotFound: HttpCodec[CodecKind.Response, Unit]                      = status(Status.NotFound)
-  val InternalServerError: HttpCodec[CodecKind.Response, Unit]           = status(Status.InternalServerError)
+  val Continue: HttpCodec[CodecKind.Response, Unit]                = status(Status.Continue)
+  val SwitchingProtocols: HttpCodec[CodecKind.Response, Unit]      = status(Status.SwitchingProtocols)
+  val Processing: HttpCodec[CodecKind.Response, Unit]              = status(Status.Processing)
+  val Ok: HttpCodec[CodecKind.Response, Unit]                      = status(Status.Ok)
+  val Created: HttpCodec[CodecKind.Response, Unit]                 = status(Status.Created)
+  val Accepted: HttpCodec[CodecKind.Response, Unit]                = status(Status.Accepted)
+  val NoContent: HttpCodec[CodecKind.Response, Unit]               = status(Status.NoContent)
+  val BadRequest: HttpCodec[CodecKind.Response, Unit]              = status(Status.BadRequest)
+  val Unauthorized: HttpCodec[CodecKind.Response, Unit]            = status(Status.Unauthorized)
+  val Forbidden: HttpCodec[CodecKind.Response, Unit]               = status(Status.Forbidden)
+  val NotFound: HttpCodec[CodecKind.Response, Unit]                = status(Status.NotFound)
+  val InternalServerError: HttpCodec[CodecKind.Response, Unit]     = status(Status.InternalServerError)
   def CustomStatus(code: Int): HttpCodec[CodecKind.Response, Unit] = status(Status.fromInt(code))
 }

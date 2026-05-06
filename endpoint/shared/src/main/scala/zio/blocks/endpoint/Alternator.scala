@@ -18,6 +18,15 @@ package zio.blocks.endpoint
 
 import zio.blocks.combinators.Eithers
 
+/**
+ * Endpoint-local adapter for fallback output shapes.
+ *
+ * The endpoint AST stores one abstraction that can be backed by either
+ * [[zio.blocks.combinators.Eithers]] on all Scala versions or
+ * `zio.blocks.combinators.Unions` on Scala 3. This keeps `HttpCodec.Fallback`
+ * and auth/error composition platform-agnostic while still delegating all
+ * combine / separate logic to the `combinators` block library.
+ */
 trait Alternator[L, R] {
   type Out
 
@@ -29,6 +38,10 @@ trait Alternator[L, R] {
 object Alternator extends AlternatorPlatformSpecific {
   type WithOut[L, R, O] = Alternator[L, R] { type Out = O }
 
+  /**
+   * Adapts an [[zio.blocks.combinators.Eithers]] instance into endpoint
+   * fallback shape.
+   */
   def fromEithers[L, R, O](eithers: Eithers.Eithers.WithOut[L, R, O]): WithOut[L, R, O] =
     new Alternator[L, R] {
       type Out = O
@@ -38,6 +51,10 @@ object Alternator extends AlternatorPlatformSpecific {
       def separate(out: O): Either[L, R] = eithers.separate(out)
     }
 
+  /**
+   * Reuses the canonical [[zio.blocks.combinators.Eithers]] derivation for
+   * endpoint fallbacks.
+   */
   implicit def fromEithersImplicit[L, R, O](implicit eithers: Eithers.Eithers.WithOut[L, R, O]): WithOut[L, R, O] =
     fromEithers(eithers)
 }

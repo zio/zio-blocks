@@ -24,6 +24,7 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.endpoint.RoutePattern.*
 import zio.blocks.schema.Schema
+import zio.http.Header
 import zio.http.{Method, Status}
 import zio.test._
 import zio.test.Assertion.{isLeft, isRight}
@@ -85,6 +86,53 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isLeft)
       },
+      test("allows string followed by uuid followed by string at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
+          """)
+        )(isRight)
+      },
+      test("allows string followed by int followed by string at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix")
+          """)
+        )(isRight)
+      },
+      test("rejects grouped combinations with an ambiguous boundary at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.string("prefix") ~ (SegmentCodec.string("middle") ~ SegmentCodec.uuid("id"))
+          """)
+        )(isLeft)
+      },
+      test("rejects trailing combinations at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.Trailing ~ SegmentCodec.string("suffix")
+          """)
+        )(isLeft)
+      },
+      test("rejects slash literals at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val invalid = SegmentCodec.literal("foo/bar")
+          """)
+        )(isLeft)
+      },
       test("allows valid mixed combinations") {
         assertZIO(
           typeCheck("""
@@ -95,19 +143,59 @@ object EndpointSpec extends ZIOSpecDefault {
           """)
         )(isRight)
       },
-      test("runtime validation still rejects opaque invalid combinations") {
-        val left: SegmentCodec[Any]  = SegmentCodec.string("a").asInstanceOf[SegmentCodec[Any]]
-        val right: SegmentCodec[Any] = SegmentCodec.string("b").asInstanceOf[SegmentCodec[Any]]
+      test("string followed by uuid followed by string decodes") {
+        val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val codec = PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix"))
 
-        val result = scala.util.Try {
-          SegmentCodec.combineValidated(
-            left,
-            right,
-            summon[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, (Any, Any)]]
-          )
-        }
+        assertTrue(codec.decode(zio.http.Path(s"/pre${uuid}post")).isRight)
+      },
+      test("string followed by int followed by string decodes") {
+        val codec = PathCodec(SegmentCodec.string("prefix") ~ SegmentCodec.int("id") ~ SegmentCodec.string("suffix"))
 
-        assertTrue(result.failed.toOption.exists(_.getMessage.contains("Cannot combine two string segments")))
+        assertTrue(codec.decode(zio.http.Path("/pre123post")).isRight)
+      },
+      test("allows transformed size-delimited boundaries at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val valid: SegmentCodec[?] =
+              SegmentCodec.string("prefix").transform(identity, identity) ~
+                SegmentCodec.uuid("id") ~
+                SegmentCodec.string("suffix").transform(identity, identity)
+          """)
+        )(isRight)
+      },
+      test("transformed segment codec decodes and formats") {
+        val uuid  = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val codec = PathCodec(
+          SegmentCodec
+            .uuid("id")
+            .transform[String](_.toString, UUID.fromString)
+        )
+
+        assertTrue(
+          codec.decode(zio.http.Path(s"/$uuid")) == Right(uuid.toString),
+          codec.format(uuid.toString).map(_.render) == Right(s"/$uuid")
+        )
+      },
+      test("rejects transformed string boundaries at compile time") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint._
+
+            val left = SegmentCodec.string("left").transform(identity, identity)
+            val invalid = left ~ SegmentCodec.string("right")
+          """)
+        )(isLeft)
+      },
+      test("transformed path codec decodes and formats") {
+        val codec = PathCodec.int("id").transform[String](_.toString, _.toInt)
+
+        assertTrue(
+          codec.decode(zio.http.Path("/42")) == Right("42"),
+          codec.format("42").map(_.render) == Right("/42")
+        )
       }
     ),
     suite("PathCodec")(
@@ -252,6 +340,30 @@ object EndpointSpec extends ZIOSpecDefault {
       test("header codec") {
         val h = HttpCodec.Header[CodecKind.Request, String]("Authorization", Schema.string)
         assertTrue(h.name == "Authorization")
+      },
+      test("explicit header constructors preserve provided names") {
+        val requestHeader  = HttpCodec.requestHeader("Authorization", Schema.string)
+        val responseHeader = HttpCodec.responseHeader("X-Trace-Id", Schema.string)
+
+        assertTrue(
+          requestHeader.name == "Authorization",
+          responseHeader.name == "X-Trace-Id"
+        )
+      },
+      test("typed header constructors preserve typed names") {
+        object MixedCaseHeaderType extends Header.Typed[Header.Custom] {
+          def name: String                                        = "X-Trace-Id"
+          def parse(value: String): Either[String, Header.Custom] = Right(Header.Custom(name, value))
+          def render(h: Header.Custom): String                    = h.renderedValue
+        }
+
+        val requestHeader  = HttpCodec.requestHeader(MixedCaseHeaderType)
+        val responseHeader = HttpCodec.responseHeader(MixedCaseHeaderType)
+
+        assertTrue(
+          requestHeader.name == "X-Trace-Id",
+          responseHeader.name == "X-Trace-Id"
+        )
       },
       test("body codec") {
         val b = HttpCodec.Body[CodecKind.Request, String](Schema.string)

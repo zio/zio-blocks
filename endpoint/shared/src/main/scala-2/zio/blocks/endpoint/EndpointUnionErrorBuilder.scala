@@ -17,6 +17,7 @@
 package zio.blocks.endpoint
 
 object EndpointUnionErrorBuilder {
+  /** Scala 2 declaration mirror for the Scala 3 `orOutError` builder API. */
   trait ErrorBuilder[Err, E2] {
     type Out
 

@@ -19,10 +19,22 @@ package zio.blocks.endpoint
 import zio.blocks.combinators.Unions
 
 object EndpointUnionErrorBuilder {
+
+  /**
+   * Endpoint-specific helper for `orOutError`.
+   *
+   * This is intentionally narrower than the generic `combinators` typeclasses:
+   * it handles the domain rule that the first `orOutError` replaces the initial
+   * `Unit` error channel, while subsequent calls build fallback codecs backed
+   * by Scala 3 union derivation from [[zio.blocks.combinators.Unions]].
+   */
   trait ErrorBuilder[Err, E2] {
     type Out
 
-    def add(existing: HttpCodec[CodecKind.Response, Err], next: HttpCodec[CodecKind.Response, E2]): HttpCodec[CodecKind.Response, Out]
+    def add(
+      existing: HttpCodec[CodecKind.Response, Err],
+      next: HttpCodec[CodecKind.Response, E2]
+    ): HttpCodec[CodecKind.Response, Out]
   }
 
   object ErrorBuilder {
