@@ -71,9 +71,46 @@ object PathCodec {
 
     def render: String = PathCodec.render(codec = self)
 
+    /**
+     * Maps the decoded path value without changing the underlying path
+     * structure.
+     *
+     * Example: {{ val customerPath =
+     * PathCodec.int("id").transform[CustomerId](CustomerId(_), _.value) }}
+     *
+     * @param decode
+     *   maps the decoded path value into the exposed type
+     * @param encode
+     *   maps the exposed type back into the original path representation used
+     *   by [[format]]
+     * @return
+     *   a path codec with the transformed value type and the same route shape
+     *   as `self`
+     */
     inline def transform[B](decode: A => B, encode: B => A): PathCodec[B] =
       transformOrFail[B](value => Right(decode(value)), value => Right(encode(value)))
 
+    /**
+     * Effectfully maps the decoded path value without changing the underlying
+     * path structure.
+     *
+     * `decode` returning `Left` causes path decoding / matching to fail.
+     * [[format]] remains effectful, so `encode` returning `Left` is propagated
+     * as the `Left` result of [[format]].
+     *
+     * Example: {{ val customerPath = PathCodec .string("id")
+     * .transformOrFail[CustomerId](CustomerId.parse, value =>
+     * Right(value.value)) }}
+     *
+     * @param decode
+     *   validates and maps the decoded path value into the exposed type
+     * @param encode
+     *   validates and maps the exposed type back into the original path
+     *   representation used by [[format]]
+     * @return
+     *   a path codec with the transformed value type and the same route shape
+     *   as `self`
+     */
     inline def transformOrFail[B](
       decode: A => Either[DecodeError, B],
       encode: B => Either[DecodeError, A]

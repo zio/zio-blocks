@@ -106,9 +106,51 @@ object SegmentCodec {
     ): WithBoundaries[C, P, BoundaryTag.Literal] =
       ${ SegmentCodecMacros.combineLiteralImpl[A, C, P, S]('self, 'that, 'combiner) }
 
+    /**
+     * Maps the decoded segment value without changing the underlying segment
+     * boundary shape.
+     *
+     * The returned codec keeps the same compile-time `~` combinability metadata
+     * as `self`, so transformed codecs still participate in compile-time
+     * boundary validation.
+     *
+     * Example: {{ val customerId =
+     * SegmentCodec.uuid("id").transform[CustomerId](CustomerId(_), _.value) }}
+     *
+     * @param decode
+     *   maps the parsed segment value into the exposed type
+     * @param encode
+     *   maps the exposed type back into the original segment representation
+     *   used by [[format]]
+     * @return
+     *   a segment codec with the transformed value type and the same boundary
+     *   semantics as `self`
+     */
     inline def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] =
       ${ SegmentCodecMacros.transformImpl[A, B, P, S]('self, 'decode, 'encode) }
 
+    /**
+     * Effectfully maps the decoded segment value without changing the
+     * underlying segment boundary shape.
+     *
+     * `decode` returning `Left` causes path decoding / matching to fail for
+     * that segment. Because [[format]] is not effectful, `encode` returning
+     * `Left` is surfaced as an `IllegalArgumentException` when formatting the
+     * transformed value back into a path.
+     *
+     * Example: {{ val customerId = SegmentCodec .string("id")
+     * .transformOrFail[CustomerId](CustomerId.parse, value =>
+     * Right(value.value)) }}
+     *
+     * @param decode
+     *   validates and maps the parsed segment value into the exposed type
+     * @param encode
+     *   validates and maps the exposed type back into the original segment
+     *   representation used by [[format]]
+     * @return
+     *   a segment codec with the transformed value type and the same boundary
+     *   semantics as `self`
+     */
     inline def transformOrFail[B](
       decode: A => Either[DecodeError, B],
       encode: B => Either[DecodeError, A]
@@ -116,6 +158,15 @@ object SegmentCodec {
       ${ SegmentCodecMacros.transformOrFailImpl[A, B, P, S]('self, 'decode, 'encode) }
   }
 
+  /**
+   * Creates a fixed literal delimiter inside a single path segment.
+   *
+   * The `value` must be a compile-time string literal. Delimiters containing
+   * `/` or characters that would require URL encoding are rejected at compile
+   * time. For runtime path strings, use
+   * [[zio.blocks.endpoint.PathCodec.apply PathCodec.apply]] or build from
+   * parsed [[zio.http.Path]] segments.
+   */
   inline def literal(inline value: String): Literal =
     ${ SegmentCodecMacros.literalImpl('value) }
   def bool(name: String): BoolSeg     = BoolSeg(name)
