@@ -37,8 +37,18 @@ trait ToHtmxValue[-A] {
 
 object ToHtmxValue {
 
+  type UrlLike = String | Path | URL
+
   /** Summons the [[ToHtmxValue]] instance for `A`. */
   def apply[A](implicit ev: ToHtmxValue[A]): ToHtmxValue[A] = ev
+
+  implicit val urlLikeValue: ToHtmxValue[UrlLike] = new ToHtmxValue[UrlLike] {
+    def toHtmxValue(value: UrlLike): String = value match {
+      case value: String => value
+      case value: Path   => value.encode
+      case value: URL    => value.encode
+    }
+  }
 
   implicit val stringValue: ToHtmxValue[String] = new ToHtmxValue[String] {
     def toHtmxValue(value: String): String = value

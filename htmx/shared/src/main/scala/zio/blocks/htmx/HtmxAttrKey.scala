@@ -21,20 +21,23 @@ import zio.blocks.html.Dom
 /**
  * Typed key for a single HTMX attribute.
  *
- * Unlike `zio.blocks.html.AttributeKey`, this key delegates rendering to
- * [[ToHtmxValue]], which lets the HTMX DSL accept rich domain values such as
- * [[HxSwap]], [[HxTrigger]], [[zio.http.Path]], or custom user-defined types.
+ * Unlike `zio.blocks.html.AttributeKey`, this key carries the expected value
+ * type for the attribute itself. This keeps rich HTMX attributes such as
+ * `hx-swap`, `hx-trigger`, and `hx-target` from silently accepting unrelated
+ * raw strings while still allowing explicit URL/string surfaces where HTMX
+ * itself expects them.
  */
-final class HtmxAttrKey(val name: String) {
+final class HtmxAttrKey[-A] private[htmx] (val name: String, encode: A => Dom.AttributeValue) {
 
   /**
-   * Assigns a typed value to this HTMX attribute by rendering it through an
-   * implicit [[ToHtmxValue]] instance.
+   * Assigns a value to this HTMX attribute using the attribute's declared value
+   * type.
    */
-  def :=[A](value: A)(implicit toHtmxValue: ToHtmxValue[A]): Dom.Attribute =
-    Dom.Attribute.KeyValue(name, Dom.AttributeValue.StringValue(toHtmxValue.toHtmxValue(value)))
+  def :=(value: A): Dom.Attribute =
+    Dom.Attribute.KeyValue(name, encode(value))
 }
 
 object HtmxAttrKey {
-  private[htmx] def apply(name: String): HtmxAttrKey = new HtmxAttrKey(name)
+  private[htmx] def stringValue[A](name: String)(implicit toHtmxValue: ToHtmxValue[A]): HtmxAttrKey[A] =
+    new HtmxAttrKey[A](name, value => Dom.AttributeValue.StringValue(toHtmxValue.toHtmxValue(value)))
 }
