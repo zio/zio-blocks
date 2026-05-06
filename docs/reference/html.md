@@ -223,7 +223,7 @@ import zio.blocks.html._
 
 val tree = div(p("A"), span("B"), p("C"))
 val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
-// List(p("A"), p("C"))
+paragraphs
 ```
 
 **`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
@@ -236,7 +236,7 @@ val filtered = tree.filter {
   case el: Dom.Element => el.tag == "div" || el.tag == "span"
   case _ => true
 }
-// <div><span>Keep</span><span>Also keep</span></div>
+filtered.render
 ```
 
 **`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
@@ -245,13 +245,12 @@ val filtered = tree.filter {
 import zio.blocks.html._
 
 val tree = div(p("First"), span("Second"), p("Third"))
-val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => false }
-// Some(Dom.Element.Generic("p", ...))
+tree.find { case el: Dom.Element => el.tag == "p"; case _ => false }
 ```
 
 **`Dom#transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val tree = div(h3("Old"), p("Content"))
@@ -259,7 +258,7 @@ val upgraded = tree.transform {
   case el: Dom.Element.Generic if el.tag == "h3" => el.copy(tag = "h2")
   case other => other
 }
-// div(h2("Old"), p("Content"))
+upgraded.render
 ```
 
 ## The HTML DSL
@@ -731,17 +730,13 @@ val page = div(
 // Direct children
 val navLinks = page.select(CssSelector.Element("nav")).children
 navLinks.length
-
-// First match
-val firstLink = page.select(CssSelector.Element("a")).first
-firstLink.length
 ```
 
 ### Extraction
 
 The `DomSelection` API provides methods like `.attrs` and `.texts` to extract attribute values and text content from selected elements:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(
@@ -752,9 +747,6 @@ val page = div(
 
 val hrefs = page.select(CssSelector.Element("a")).attrs("href")
 hrefs
-
-val labels = page.select(CssSelector.Element("a")).texts
-labels
 ```
 
 ### Filtering
