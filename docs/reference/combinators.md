@@ -162,6 +162,27 @@ val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
 t4.separate((1, "hello", true, 3.14)) // ((1, "hello", true), 3.14)
 ```
 
+When building recursive data structures like path codecs, `separate` decomposes combined tuples to process each segment independently:
+
+```scala mdoc:compile-only
+import zio.blocks.combinators.Tuples
+
+// Simulating recursive path encoding: a codec combines left and right path segments
+case class PathSegment(name: String, value: String)
+
+def encodePathSegment(combined: (String, String)): PathSegment = {
+  val tuples = summon[Tuples.Tuples[String, String]]
+  val (left, right) = tuples.separate(combined)
+  PathSegment(left, right)
+}
+
+// Decompose a 3-element path into segments for recursive encoding
+val path: (String, String, String) = ("users", "123", "profile")
+val tuples3 = summon[Tuples.Tuples[(String, String), String]]
+val (prefix, suffix) = tuples3.separate(path)
+// prefix = ("users", "123"), suffix = "profile"
+```
+
 ## Eithers
 
 The `Eithers` module canonicalizes Either types to left-nested form and separates them.
@@ -202,7 +223,7 @@ This transformation preserves values while reassociating the structure:
 
 ### separate
 
-`Eithers#separate` is accessed via the unified typeclass instance and peels the rightmost alternative from a canonical Either:
+`Eithers#separate` is accessed via the unified typeclass instance and reverses the canonicalization performed by `combine`. Together, they form a round-trip: canonicalizing to left-nested form and then separating back to the original structure:
 
 ```scala mdoc
 import zio.blocks.combinators.Eithers
@@ -212,12 +233,47 @@ val input = Left(42): Either[Int, String]
 e.separate(e.combine(input))
 ```
 
-### Use Cases
+Use `separate` to decompose a canonical Either back to its original structure when you need to handle different error types differently:
 
-Eithers canonicalization is useful for:
-- **Schema sum type encoding** - Uniform representation of sealed traits
-- **Error handling composition** - Combining error types systematically
-- **Cross-version compatibility** - Works identically on Scala 2 and 3
+```scala mdoc:silent:nest
+import zio.blocks.combinators.Eithers
+
+sealed trait ValidationError
+case class FieldError(field: String) extends ValidationError
+case class FormatError(message: String) extends ValidationError
+
+// You have a right-nested Either from multiple validation steps
+val input: Either[FieldError, Either[FormatError, String]] = Right(Left(FormatError("invalid date")))
+
+val eithers = summon[Eithers.Eithers[FieldError, Either[FormatError, String]]]
+```
+
+Canonicalize to left-nested form for uniform processing, then reverse it to extract the original error types:
+
+```scala mdoc
+// Original form: Either[FieldError, Either[FormatError, String]]
+input
+
+// Canonicalize to left-nested form for uniform processing
+val canonicalized = eithers.combine(input)
+
+// Reverse canonicalization to extract the original error types
+val original = eithers.separate(canonicalized)
+
+// Back to original form
+original
+```
+
+Handle each error type independently:
+
+```scala mdoc:compile-only
+// Handle each error type independently
+original match {
+  case Left(fieldErr: FieldError) => println(s"Field validation failed: ${fieldErr.field}")
+  case Right(Left(formatErr: FormatError)) => println(s"Format error: ${formatErr.message}")
+  case Right(Right(value)) => println(s"Valid: $value")
+}
+```
 
 ## Unions (Scala 3 Only)
 
