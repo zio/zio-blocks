@@ -154,11 +154,10 @@ A standard HTML element. The tag is the element name, attributes is a `Chunk` of
 
 The DSL functions (`div`, `p`, `span`, etc.) construct these:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val elem = div(id := "main", p("Content"))
-elem.render
 ```
 
 #### Dom.Element.Script
@@ -223,7 +222,6 @@ import zio.blocks.html._
 
 val tree = div(p("A"), span("B"), p("C"))
 val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
-paragraphs
 ```
 
 **`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
@@ -236,7 +234,6 @@ val filtered = tree.filter {
   case el: Dom.Element => el.tag == "div" || el.tag == "span"
   case _ => true
 }
-filtered.render
 ```
 
 **`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
@@ -250,7 +247,7 @@ tree.find { case el: Dom.Element => el.tag == "p"; case _ => false }
 
 **`Dom#transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val tree = div(h3("Old"), p("Content"))
@@ -258,7 +255,6 @@ val upgraded = tree.transform {
   case el: Dom.Element.Generic if el.tag == "h3" => el.copy(tag = "h2")
   case other => other
 }
-upgraded.render
 ```
 
 ## The HTML DSL
@@ -299,7 +295,6 @@ val link = a(
   titleAttr := "Visit Example",
   "Visit Example"
 )
-link.render
 ```
 
 ### Multi-Valued Attributes: Override vs Accumulate
@@ -312,7 +307,6 @@ For attributes that can have multiple values (`class`, `rel`, `accept`), you can
 import zio.blocks.html._
 
 val div1 = div(className := "a", className := "b")
-div1.render
 ```
 
 - **`+=` (append)** — Concatenates with the previous value using a separator (space for `class`):
@@ -321,7 +315,6 @@ div1.render
 import zio.blocks.html._
 
 val div2 = div(className += "card", className += "active")
-div2.render
 ```
 
 - **Mixed** — Set a base value, then append:
@@ -330,7 +323,6 @@ div2.render
 import zio.blocks.html._
 
 val div3 = div(className := "base").when(true)(className += "extra")
-div3.render
 ```
 
 ### Boolean Attributes
@@ -342,9 +334,6 @@ import zio.blocks.html._
 
 val isDisabled = true
 val submitBtn = button(disabled := isDisabled, "Submit")
-
-submitBtn.render
-// res: String = <button disabled>Submit</button>
 ```
 
 ### Data and ARIA Attributes
@@ -359,14 +348,12 @@ val userDiv = div(
   dataAttr("action") := "edit",
   "User Card"
 )
-userDiv.render
 
 val closeBtn = button(
   aria("label") := "Close",
   aria("expanded") := "false",
   "×"
 )
-closeBtn.render
 ```
 
 For custom attributes not provided by the DSL, use the generic `attr(name)` builder:
@@ -404,8 +391,6 @@ import zio.blocks.html._
 // Directly create a multi-valued attribute from a collection
 val customClasses = Dom.multiAttr("class", List("card", "active", "large"))
 val div1 = div(customClasses)
-
-div1.render
 ```
 
 This approach is useful when programmatically building multi-valued attributes outside the DSL's builder pattern.
@@ -426,8 +411,6 @@ val nested = div(p("First"), p("Second"))
 // Lists of children — elements append directly, no wrapper
 val items = List("Apple", "Banana", "Cherry")
 val listEl = ul(items.map(item => li(item)))
-
-listEl.render
 ```
 
 ### Conditional Rendering
@@ -444,8 +427,6 @@ val box = div(
   className += "highlighted",
   titleAttr := "This is highlighted"
 )
-
-box.render
 ```
 
 Use `whenSome(option)` to apply modifiers based on an `Option`:
@@ -461,8 +442,6 @@ val card = div(
   titleAttr := t,
   className += "has-title"
 ))
-
-card.render
 ```
 
 ### Void Elements
@@ -478,8 +457,6 @@ val voidElements = div(
   img(src := "photo.jpg", alt := "A photo"),
   input(`type` := "text", placeholder := "Enter text")
 )
-
-voidElements.render
 ```
 
 ## String Interpolators
@@ -507,8 +484,6 @@ val age = 30
 // name is in content position → ToElements[String]
 // age is in attribute position → ToAttrValue[Int]
 val elem = html"""<div id="user-$age" class="profile">User: $name</div>"""
-
-elem.render
 ```
 
 **Single-root requirement**: The `html""` interpolator requires a **single root element**. Multiple top-level nodes cause an exception at runtime (Scala 2) or compile error for static templates (Scala 3):
@@ -518,9 +493,6 @@ import zio.blocks.html._
 
 // This compiles (single root)
 val page = html"<div><p>A</p><p>B</p></div>"
-
-// This would fail:
-// val multiple = html"<p>A</p><p>B</p>"
 ```
 
 **XSS Protection:**
@@ -532,8 +504,6 @@ import zio.blocks.html._
 
 val userInput = "<script>alert('XSS')</script>"
 val safe = html"<p>$userInput</p>"
-
-safe.render
 ```
 
 :::danger
@@ -551,8 +521,6 @@ val color = "blue"
 val size = 16
 
 val styles = css"color: $color; font-size: ${size}px;"
-
-styles.render
 ```
 
 Use `CssLength` and `CssColor` types for type-safe CSS values:
@@ -579,8 +547,6 @@ val message = "Hello, world!"
 val count = 42
 
 val code = js"console.log($message); alert($count);"
-
-code.value
 ```
 
 :::warning
@@ -594,8 +560,6 @@ import zio.blocks.html._
 
 val userInput = "if (x < y) alert('<script>');"
 val code = js"val check = $userInput"
-
-code.value
 ```
 
 ### `selector""` Interpolator
@@ -607,8 +571,6 @@ import zio.blocks.html._
 
 val className = "active"
 val selector = selector".$className"
-
-selector.render
 ```
 
 ## CSS Selectors and the DSL
@@ -626,11 +588,6 @@ val divSel = CssSelector.Element("div")
 val classSel = CssSelector.Class("container")
 val idSel = CssSelector.Id("header")
 val universal = CssSelector.Universal
-
-divSel.render
-classSel.render
-idSel.render
-universal.render
 ```
 
 ### Combinators
@@ -648,9 +605,6 @@ val adjacentSel = div + span           // div + span
 val siblingSel = div ~ span           // div ~ span
 val andSel = div & CssSelector.Class("active")  // div.active
 val orSel = div | span                 // div, span
-
-childSel.render
-descendantSel.render
 ```
 
 ### Pseudo-Classes and Pseudo-Elements
@@ -665,9 +619,6 @@ val firstChild = li.firstChild      // li:first-child
 val nthChild = tr.nthChild(2)       // tr:nth-child(2)
 val before = div.before             // div::before
 val after = span.after              // span::after
-
-hoverSel.render
-before.render
 ```
 
 ### Attribute Selectors
@@ -684,9 +635,6 @@ val exactType = input.withAttribute("type", "text")    // input[type="text"]
 val containsClass = input.withAttributeContaining("class", "btn")  // input[class*="btn"]
 val startsWithHref = a.withAttributeStarting("href", "https")      // a[href^="https"]
 val endsWithPng = img.withAttributeEnding("src", ".png")           // img[src$=".png"]
-
-exactType.render
-containsClass.render
 ```
 
 ## DOM Querying with DomSelection
@@ -729,14 +677,13 @@ val page = div(
 
 // Direct children
 val navLinks = page.select(CssSelector.Element("nav")).children
-navLinks.length
 ```
 
 ### Extraction
 
 The `DomSelection` API provides methods like `.attrs` and `.texts` to extract attribute values and text content from selected elements:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.html._
 
 val page = div(
@@ -746,7 +693,6 @@ val page = div(
 )
 
 val hrefs = page.select(CssSelector.Element("a")).attrs("href")
-hrefs
 ```
 
 ### Filtering
@@ -1015,8 +961,6 @@ Dangerous URLs are automatically sanitized in HTML output:
 import zio.blocks.html._
 
 val dangerous = a(href := "javascript:alert('XSS')", "Click me")
-
-dangerous.render
 ```
 
 ### No Raw HTML Escape Hatch
@@ -1045,8 +989,6 @@ val page = div(
   card("Card 1", "Content A"),
   card("Card 2", "Content B")
 )
-
-page.render
 ```
 
 ### Conditional Rendering
