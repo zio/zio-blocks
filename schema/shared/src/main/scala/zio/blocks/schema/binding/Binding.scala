@@ -696,7 +696,8 @@ object Binding extends BindingCompanionVersionSpecific {
         },
         new Matcher[AnyRef] {
           override def downcastOrNull(any: Any): AnyRef =
-            if (!Maybe.unsafeIsAbsent(any.asInstanceOf[Maybe[Any]])) Maybe.unsafeGet(any.asInstanceOf[Maybe[Any]]).asInstanceOf[AnyRef]
+            if (!Maybe.unsafeIsAbsent(any.asInstanceOf[Maybe[Any]]))
+              Maybe.unsafeGet(any.asInstanceOf[Maybe[Any]]).asInstanceOf[AnyRef]
             else null
         }
       )

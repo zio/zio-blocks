@@ -3120,7 +3120,8 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
+    } else if (isOptional)
+      regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
@@ -3140,7 +3141,8 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
+    } else if (isOptional)
+      regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else throw new JsonCodecError(Nil, s"missing required field \"$name\"")
 
