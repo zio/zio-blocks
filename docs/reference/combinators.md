@@ -88,26 +88,7 @@ Scala 3 introduces native union types (`A | B`) that are more idiomatic than `Ei
 
 The `Unions` combinator bridges this gap, enabling bidirectional conversion between `Either[L, R]` and `L | R` with zero runtime overhead. Use union types idiomatically in your APIs while maintaining Either compatibility at serialization boundaries.
 
-## How They Work Together
-
-The three combinator types solve distinct composition problems, each with a specific architectural role:
-
-```
-Your values → Tuples → Eithers → Unions (Scala 3)
-  (Any)        (Group)   (Flatten)  (Convert)
-```
-
-**Tuples** aggregates heterogeneous values into a single product type, automatically flattening nested structures for ergonomics. Use Tuples when you need to combine independent values or build up multi-element results.
-
-**Eithers** canonicalizes nested choice types (Either) into a uniform left-nested form, making error accumulation and pattern matching systematic. Use Eithers when composing error types, building sum types for schemas, or needing predictable Either nesting.
-
-**Unions** (Scala 3 only) bridges the gap between Either's runtime disjoint semantics and Scala 3's native union types (`|`), enabling type-safe two-way conversion. Use Unions when you want to leverage Scala 3's union syntax for cleaner API design while maintaining Either-compatible serialization or error handling.
-
-**Typical workflows:**
-
-1. **Building a result**: Combine independent values with `Tuples.combine` to aggregate results, then flatten automatically.
-2. **Handling alternatives**: Use `Eithers.combine` to normalize error types in a chain of operations, ensuring all Eithers nest consistently.
-3. **Scala 3 API design**: Convert a polymorphic result to a union type with `Unions.combine` for idiomatic Scala 3 code, or convert back to Either for interop.
+## Quick Example
 
 Here is how to combine multiple values and canonicalize error types:
 
