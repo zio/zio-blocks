@@ -19,7 +19,7 @@ package zio.blocks.sql
 import java.time._
 import java.util.UUID
 import scala.language.implicitConversions
-import zio.blocks.schema.Maybe
+import zio.blocks.maybe.Maybe
 
 trait DbParam[A] {
   def toDbValue(value: A): DbValue

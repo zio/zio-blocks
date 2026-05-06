@@ -16,10 +16,11 @@
 
 package zio.blocks.sql
 
+import zio.blocks.docs.Doc
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive._
-import zio.blocks.docs.Doc
 import zio.blocks.typeid.TypeId
 
 class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
