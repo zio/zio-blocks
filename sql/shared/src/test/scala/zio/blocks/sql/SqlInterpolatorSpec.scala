@@ -17,8 +17,8 @@
 package zio.blocks.sql
 
 import zio.test.*
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.*
-import zio.blocks.schema.Maybe
 
 import scala.language.implicitConversions
 import java.time._
