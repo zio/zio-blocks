@@ -206,7 +206,8 @@ object RouteTreeSpec extends ZIOSpecDefault {
       )
     },
     test("multi-method route expands each method when inserted into route tree") {
-      val tree = RouteTree.empty[String].add(RoutePattern(Method.GET #| Method.POST, PathCodec.literal("users")), "handler")
+      val tree =
+        RouteTree.empty[String].add(RoutePattern(Method.GET #| Method.POST, PathCodec.literal("users")), "handler")
 
       assertTrue(
         tree.get(Method.GET, Path("/users")) == Some("handler"),
