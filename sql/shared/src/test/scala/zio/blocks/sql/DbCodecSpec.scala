@@ -17,8 +17,8 @@
 package zio.blocks.sql
 
 import zio.test._
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
-import zio.blocks.schema.Maybe
 
 object DbCodecSpec extends ZIOSpecDefault {
 
