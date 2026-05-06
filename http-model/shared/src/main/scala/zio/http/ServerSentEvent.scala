@@ -64,13 +64,13 @@ final class ServerSentEvent[+A] private (
     ServerSentEvent.create(data, eventType, eventId, Maybe.absent)
 
   /** Renders this event to SSE wire format. */
-  def render(using encoder: SseDataEncoder[A]): String = {
+  def render(implicit encoder: SseDataEncoder[A]): String = {
     val sb = new java.lang.StringBuilder(256)
     renderTo(sb)
     sb.toString
   }
 
-  private def renderTo(sb: java.lang.StringBuilder)(using encoder: SseDataEncoder[A]): Unit = {
+  private def renderTo(sb: java.lang.StringBuilder)(implicit encoder: SseDataEncoder[A]): Unit = {
     eventType.fold(())(eventValue => sb.append("event: ").append(eventValue).append('\n'))
     eventId.fold(())(idValue => sb.append("id: ").append(idValue).append('\n'))
     retryMillis.fold(())(millis => sb.append("retry: ").append(millis).append('\n'))
