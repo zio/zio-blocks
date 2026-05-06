@@ -177,7 +177,9 @@ object MaybeValue {
         case Absent => (Maybe.absent, Maybe.absent)
       }
 
-    @inline def unzip3[A1, A2, A3](implicit ev: A <:< (A1, A2, A3)): (zio.blocks.maybe.Maybe[A1], zio.blocks.maybe.Maybe[A2], zio.blocks.maybe.Maybe[A3]) =
+    @inline def unzip3[A1, A2, A3](implicit
+      ev: A <:< (A1, A2, A3)
+    ): (zio.blocks.maybe.Maybe[A1], zio.blocks.maybe.Maybe[A2], zio.blocks.maybe.Maybe[A3]) =
       self match {
         case Present(value) =>
           val tuple = ev(value)
@@ -195,12 +197,12 @@ object MaybeValue {
 }
 
 object Maybe {
-  @inline def apply[A](a: A): Maybe[A]             = if (a == null) absent else present(a)
-  @inline def present[A](a: A): Maybe[A]           = MaybeValue.Present(a)
-  @inline def absent[A]: Maybe[A]                  = MaybeValue.Absent
-  @inline def empty[A]: Maybe[A]                   = MaybeValue.Absent
-  def Absent: Maybe[Nothing]                       = MaybeValue.Absent
-  def fromOption[A](opt: Option[A]): Maybe[A]      = opt match {
+  @inline def apply[A](a: A): Maybe[A]        = if (a == null) absent else present(a)
+  @inline def present[A](a: A): Maybe[A]      = MaybeValue.Present(a)
+  @inline def absent[A]: Maybe[A]             = MaybeValue.Absent
+  @inline def empty[A]: Maybe[A]              = MaybeValue.Absent
+  def Absent: Maybe[Nothing]                  = MaybeValue.Absent
+  def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
     case Some(a) => present(a)
     case None    => absent
   }
