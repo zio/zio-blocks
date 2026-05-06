@@ -114,53 +114,54 @@ The `Tuples` module combines values into flat tuples and separates them back.
 
 To combine two values into a flattened tuple:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
-val result1 = Tuples.combine(1, "hello")
-val result2 = Tuples.combine((1, "hello"), true)
-val result3 = Tuples.combine((1, "hello"), (true, 3.14))
+val result1 = Tuples.combine(1, "hello")                 // (1, "hello")
+val result2 = Tuples.combine((1, "hello"), true)         // (1, "hello", true)
+val result3 = Tuples.combine((1, "hello"), (true, 3.14)) // (1, "hello", true, 3.14)j
 ```
 
 #### Identity Handling
 
 Unit and EmptyTuple values are automatically eliminated:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
-Tuples.combine((), 42)
-Tuples.combine("hello", ())
-Tuples.combine(EmptyTuple, "world")
+Tuples.combine((), 42)              // 42
+Tuples.combine("hello", ())          // "hello"
+Tuples.combine(EmptyTuple, "world")  // "world"
 ```
 
 #### Tuple Flattening
 
 Nested tuples are automatically flattened:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
-Tuples.combine((1, "a"), true)
-Tuples.combine((1, "a"), (true, 3.14))
+Tuples.combine((1, "a"), true)          // (1, "a", true)
+Tuples.combine((1, "a"), (true, 3.14))  // (1, "a", true, 3.14)
 ```
 
 ### separate
 
 To split a tuple into its init (all but last) and last element, access `Tuples#separate` via the unified typeclass instance:
 
-```scala mdoc
+```scala mdoc:compile-only
 import zio.blocks.combinators.Tuples
 
 val t2 = summon[Tuples.Tuples[Int, String]]
-t2.separate((1, "hello"))
+t2.separate((1, "hello")) // ((1), "hello")
 
 val t3 = summon[Tuples.Tuples[(Int, String), Boolean]]
-t3.separate((1, "hello", true))
+t3.separate((1, "hello", true)) // ((1, "hello"), true)
 
 val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
-t4.separate((1, "hello", true, 3.14))
+t4.separate((1, "hello", true, 3.14)) // ((1, "hello", true), 3.14)
 ```
+
 ### Type-Level Operations
 
 Compile-time resolution computes the output type via the `Out` type member:
