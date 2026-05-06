@@ -17,7 +17,7 @@
 package dynamicschema
 
 import zio.blocks.schema._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 /**
  * DynamicSchema Reference — Serialization

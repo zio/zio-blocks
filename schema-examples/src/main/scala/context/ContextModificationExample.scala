@@ -17,7 +17,7 @@
 package context
 
 import zio.blocks.context._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Context is immutable; modification methods return new contexts.
 // Context#add expands the context with a new value (or replaces if type exists).

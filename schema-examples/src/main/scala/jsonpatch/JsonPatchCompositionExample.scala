@@ -21,7 +21,7 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch.*
 import zio.blocks.schema.patch.{DynamicPatch, PatchMode}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object JsonPatchCompositionExample extends App {
 

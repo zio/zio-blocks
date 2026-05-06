@@ -17,7 +17,7 @@
 package as
 
 import zio.blocks.schema.{As, Into}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // As#reverse returns a new As[B, A] whose into and from are swapped.
 // No data is copied — it is a zero-cost view over the original instance.

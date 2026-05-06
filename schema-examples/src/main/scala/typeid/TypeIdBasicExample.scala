@@ -17,7 +17,7 @@
 package typeid
 
 import zio.blocks.typeid.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 /**
  * TypeId Basic Example

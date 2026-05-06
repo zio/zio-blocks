@@ -20,7 +20,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
 import Allows.{Primitive, Record, Sequence, `|`}
 import Allows.{Optional => AOptional, Self => ASelf}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // ---------------------------------------------------------------------------
 // GraphQL / tree structure example using Self for recursive grammars

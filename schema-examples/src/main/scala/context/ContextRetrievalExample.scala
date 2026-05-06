@@ -17,7 +17,7 @@
 package context
 
 import zio.blocks.context._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Context#get[A] retrieves a value by type with compile-time proof of existence.
 // Context#getOption[A] retrieves a value if present, returning None if missing.

@@ -1214,16 +1214,6 @@ lazy val `streams-benchmark` = project
     coverageMinimumBranchTotal := 0
   )
 
-lazy val `schema-examples-macros` = project
-  .in(file("schema-examples-macros"))
-  .settings(stdSettings("zio-blocks-schema-examples-macros", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
-  )
-
 lazy val `schema-examples` = project
   .in(file("schema-examples"))
   .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
@@ -1232,11 +1222,13 @@ lazy val `schema-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "sourcecode" % "0.4.4",
+      "dev.zio" %% "zio-sbt-source" % "0.4.7-alpha.3+59-e5dee806-SNAPSHOT"
+    ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
-  .dependsOn(`schema-examples-macros`)
   .dependsOn(
     schema.jvm,
     markdown.jvm,
@@ -1258,14 +1250,16 @@ lazy val `streams-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "sourcecode" % "0.4.4",
+      "dev.zio" %% "zio-sbt-source" % "0.4.7-alpha.3+59-e5dee806-SNAPSHOT"
+    ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
   .dependsOn(
     streams.jvm,
-    chunk.jvm,
-    `schema-examples-macros`
+    chunk.jvm
   )
 
 lazy val docs = project

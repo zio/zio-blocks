@@ -17,7 +17,7 @@
 package pipeline
 
 import zio.blocks.streams.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object PipelineCompositionExample extends App {
   println("=== Pipeline Composition ===\n")
