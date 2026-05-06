@@ -162,22 +162,6 @@ val t4 = summon[Tuples.Tuples[(Int, String, Boolean), Double]]
 t4.separate((1, "hello", true, 3.14)) // ((1, "hello", true), 3.14)
 ```
 
-### Type-Level Operations
-
-Compile-time resolution computes the output type via the `Out` type member:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Tuples
-
-// Access the combiner with explicit output type
-val combiner: Tuples.Tuples.WithOut[Int, String, (Int, String)] = 
-  summon[Tuples.Tuples[Int, String]]
-
-// Access with explicit types
-val instance: Tuples.Tuples.WithOut[Int, String, (Int, String)] = 
-  summon[Tuples.Tuples[Int, String]]
-```
-
 ## Eithers
 
 The `Eithers` module canonicalizes Either types to left-nested form and separates them.
