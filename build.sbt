@@ -1350,7 +1350,8 @@ lazy val docs = project
     endpoint.jvm,
     `http-model`.jvm,
     `http-model-schema`.jvm,
-    openapi.jvm
+    openapi.jvm,
+    datastar.jvm
   )
   .enablePlugins(WebsitePlugin)
 

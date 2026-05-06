@@ -127,7 +127,6 @@ const sidebars = {
             ]
           },
           "reference/endpoint",
-          "reference/openapi",
           "reference/chunk",
           "path-interpolator",
           "reference/ringbuffer",
