@@ -46,6 +46,16 @@ object Maybe {
     def withFilter(q: A => Boolean): WithFilter[A] = new WithFilter(self, x => predicate(x) && q(x))
   }
 
+  /** Low-level check used by schema codecs. Not for public use. */
+  private[blocks] def unsafeIsAbsent(x: Maybe[Any]): Boolean = x == null
+
+  /** Low-level unwrap used by schema codecs. Returns the inner value or null if absent. */
+  private[blocks] def unsafeGet(x: Maybe[Any]): Any = x
+
+  /** Low-level wrap used by schema codecs. Wraps a value (or null for absent) into Maybe. */
+  private[blocks] def unsafeWrap[A](x: Any): Maybe[A] =
+    if (x == null) null else x.asInstanceOf[Maybe[A]]
+
   extension [A](self: Maybe[A]) {
     inline def isAbsent: Boolean  = self == null
     inline def isPresent: Boolean = self != null

@@ -18,6 +18,7 @@ package zio.blocks.schema.json
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder, ChunkMap, NonEmptyChunk}
 import zio.blocks.docs.Doc
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonCodec._
 import zio.blocks.schema.binding.{Binding, HasBinding, RegisterOffset, Registers}
@@ -965,29 +966,29 @@ class JsonCodecDeriver private[json] (
                 try {
                   if (isNull) {
                     in.readNullOrError(nullDefault, "expected null")
-                    null
-                  } else valueCodec.decodeValue(in)
+                    Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef]
+                  } else Maybe.unsafeWrap[Any](valueCodec.decodeValue(in)).asInstanceOf[AnyRef]
                 } catch {
                   case err if NonFatal(err) => decodeError(err, isNull)
                 }
               }
 
               override def encodeValue(x: AnyRef, out: JsonWriter): Unit =
-                if (x eq null) out.writeNull()
-                else valueCodec.encodeValue(x, out)
+                if (Maybe.unsafeIsAbsent(x.asInstanceOf[Maybe[Any]])) out.writeNull()
+                else valueCodec.encodeValue(Maybe.unsafeGet(x.asInstanceOf[Maybe[Any]]).asInstanceOf[AnyRef], out)
 
               override def decodeValue(json: Json): AnyRef =
-                if (json eq Json.Null) null
+                if (json eq Json.Null) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef]
                 else {
-                  try valueCodec.decodeValue(json)
+                  try Maybe.unsafeWrap[Any](valueCodec.decodeValue(json)).asInstanceOf[AnyRef]
                   catch {
                     case err if NonFatal(err) => decodeError(err, false)
                   }
                 }
 
               override def encodeValue(x: AnyRef): Json =
-                if (x eq null) Json.Null
-                else valueCodec.encodeValue(x)
+                if (Maybe.unsafeIsAbsent(x.asInstanceOf[Maybe[Any]])) Json.Null
+                else valueCodec.encodeValue(Maybe.unsafeGet(x.asInstanceOf[Maybe[Any]]).asInstanceOf[AnyRef])
 
               private[this] def decodeError(err: Throwable, isNull: Boolean): Nothing =
                 if (isNull) error(new DynamicOptic.Node.Case("Absent"), err)
@@ -3119,7 +3120,7 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) null else None)
+    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
@@ -3139,7 +3140,7 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) null else None)
+    } else if (isOptional) regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
     else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else throw new JsonCodecError(Nil, s"missing required field \"$name\"")
 
@@ -3268,7 +3269,7 @@ private class FieldInfo(
 
   def writeOptional(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
     val value    = out.registers.getObject(offset + baseOffset)
-    val isAbsent = if (usesNullSentinel) value eq null else value eq None
+    val isAbsent = if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]]) else value eq None
     if (!isAbsent) {
       writeKey(out)
       codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value, out)
@@ -3277,7 +3278,7 @@ private class FieldInfo(
 
   def writeOptional(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
     val value    = regs.getObject(offset)
-    val isAbsent = if (usesNullSentinel) value eq null else value eq None
+    val isAbsent = if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]]) else value eq None
     if (!isAbsent) {
       builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
     }

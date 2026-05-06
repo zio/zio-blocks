@@ -208,4 +208,17 @@ object Maybe {
   }
 
   implicit def optionToMaybe[A](opt: Option[A]): Maybe[A] = fromOption(opt)
+
+  /** Low-level check used by schema codecs. Not for public use. */
+  private[blocks] def unsafeIsAbsent(x: Maybe[Any]): Boolean = x eq MaybeValue.Absent
+
+  /** Low-level unwrap used by schema codecs. Returns the inner value or null if absent. */
+  private[blocks] def unsafeGet(x: Maybe[Any]): Any = x match {
+    case MaybeValue.Present(value) => value
+    case MaybeValue.Absent         => null
+  }
+
+  /** Low-level wrap used by schema codecs. Wraps a value (or null for absent) into Maybe. */
+  private[blocks] def unsafeWrap[A](x: Any): Maybe[A] =
+    if (x == null) MaybeValue.Absent else MaybeValue.Present(x.asInstanceOf[A])
 }
