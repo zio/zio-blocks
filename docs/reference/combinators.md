@@ -99,11 +99,11 @@ import zio.blocks.combinators.{Tuples, Eithers}
 val username: String = "alice"
 val userId: Int = 42
 val email: String = "alice@example.com"
-val userTuple = Tuples.combine(username, Tuples.combine(userId, email))
+val userTuple: Tuple3[String, Int, String] = Tuples.combine(username, Tuples.combine(userId, email))
 
 // Canonicalize nested Either types to left-nested form
 val validationError: Either[String, Either[String, Boolean]] = Right(Left("invalid email"))
-val canonical = Eithers.combine(validationError)
+val canonical      : Either[Either[String, String], Boolean] = Eithers.combine(validationError)
 ```
 
 ## Tuples
