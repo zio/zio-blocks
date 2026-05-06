@@ -141,7 +141,7 @@ A text node containing string content. Text is automatically HTML-escaped when r
 
 To create text nodes, use the DSL (strings are converted via `ToModifier[String]`) or explicitly. Call `Dom#render` to convert a text node to an HTML string:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val text = Dom.Text("Hello, world!")
@@ -155,7 +155,7 @@ A standard HTML element. The tag is the element name, attributes is a `Chunk` of
 
 The DSL functions (`div`, `p`, `span`, etc.) construct these:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val elem = div(id := "main", p("Content"))
@@ -190,7 +190,7 @@ val inlineStyle = style().inlineCss(css"body { margin: 0; }")
 
 A DOCTYPE declaration node. Renders as `<!DOCTYPE value>`. The singleton `doctype` value renders as `<!DOCTYPE html>`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 println(doctype.render)
@@ -221,7 +221,7 @@ The DSL provides `id := value` (`:=`) for single-valued attributes and `classNam
 
 **`Dom#collect(pf: PartialFunction[Dom, Dom]): List[Dom]`** — Applies a partial function to every node in the tree (depth-first) and collects the results. Useful for extracting or transforming specific nodes:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val tree = div(p("A"), span("B"), p("C"))
@@ -231,7 +231,7 @@ val paragraphs = tree.collect { case el: Dom.Element if el.tag == "p" => el }
 
 **`Dom#filter(predicate: Dom => Boolean): Dom`** — Removes any node for which the predicate returns false. Non-matching nodes are replaced with `Dom.Empty`, and their children are lost. Matching elements have their children recursively filtered:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val tree = div(p("A"), span("Keep"), p("B"), span("Also keep"))
@@ -244,7 +244,7 @@ val filtered = tree.filter {
 
 **`Dom#find(predicate: Dom => Boolean): Option[Dom]`** — Returns the first node (depth-first) matching the predicate, or `None`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val tree = div(p("First"), span("Second"), p("Third"))
@@ -254,7 +254,7 @@ val firstPara = tree.find { case el: Dom.Element => el.tag == "p"; case _ => fal
 
 **`Dom#transform(f: Dom => Dom): Dom`** — Applies a transformation function to every node in pre-order. Each node receives the transformation first, and if it is an Element, its children are recursed on the transformed node, so a transformation that changes the child list affects what gets recursed into:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val tree = div(h3("Old"), p("Content"))
@@ -312,16 +312,17 @@ For attributes that can have multiple values (`class`, `rel`, `accept`), you can
 
 - **`:=` (override)** — Replaces any previous value. Last assignment wins:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val div1 = div(className := "a", className := "b")
 println(div1.render)
+// <div class="b"></div>
 ```
 
 - **`+=` (append)** — Concatenates with the previous value using a separator (space for `class`):
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val div2 = div(className += "card", className += "active")
@@ -331,7 +332,7 @@ println(div2.render)
 
 - **Mixed** — Set a base value, then append:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val div3 = div(className := "base").when(true)(className += "extra")
@@ -343,7 +344,7 @@ println(div3.render)
 
 Use `BooleanAttribute.:=` to conditionally include attributes like `disabled`, `required`, or `checked`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val isDisabled = true
@@ -361,7 +362,7 @@ println(enabledBtn.render)
 
 Use `dataAttr(name)` and `aria(name)` builders for HTML5 data attributes and ARIA accessibility attributes:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val userDiv = div(
@@ -410,7 +411,7 @@ The `MultiAttributeKey` class handles accumulation of values with configurable s
 
 For constructing multi-valued attributes directly from collections (without a builder chain), use the `Iterable[String]` overload:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 // Directly create a multi-valued attribute from a collection
@@ -427,7 +428,7 @@ This approach is useful when programmatically building multi-valued attributes o
 
 Children can be strings, elements, or collections. The DSL uses the `ToModifier` typeclass to convert values into DOM nodes:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 // String children are converted to Dom.Text
@@ -452,7 +453,7 @@ println(listEl.render)
 
 Use `when(condition)` to apply modifiers conditionally:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val isHighlighted = true
@@ -469,7 +470,7 @@ println(box.render)
 
 Use `whenSome(option)` to apply modifiers based on an `Option`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val maybeTitle: Option[String] = Some("Important")
@@ -489,7 +490,7 @@ println(card.render)
 
 Void elements (self-closing tags) automatically render with the correct syntax:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val voidElements = div(
@@ -519,7 +520,7 @@ The `html""` interpolator determines position based on the preceding string:
 
 Position-aware interpolation enables safe attribute values and content:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val name = "Alice"
@@ -549,7 +550,7 @@ val page = html"<div><p>A</p><p>B</p></div>"
 
 Content interpolated into `html""` is stored as `Dom.Text` nodes, which are HTML-escaped during `Dom#render` to prevent XSS:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val userInput = "<script>alert('XSS')</script>"
@@ -567,7 +568,7 @@ The `html""` interpolator requires a **single root element**. On Scala 3, pure-s
 
 The `css""` interpolator returns a `Css` value with `ToCss` typeclass dispatch for interpolated parts:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val color = "blue"
@@ -596,7 +597,7 @@ val background = css"background: ${CssColor.Hex.unsafe("ff0000")};"
 
 The `js""` interpolator returns a `Js` value. Strings are automatically quoted and escaped; numerics and booleans are rendered unquoted:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val message = "Hello, world!"
@@ -614,7 +615,7 @@ Never interpolate untrusted user input directly into `js""`. The interpolator es
 
 The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val userInput = "if (x < y) alert('<script>');"
@@ -628,7 +629,7 @@ println(code.value)
 
 The `selector""` interpolator returns a `CssSelector`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val className = "active"
@@ -646,7 +647,7 @@ The `CssSelector` ADT provides a fluent DSL for building CSS selectors with comb
 
 Create selectors for elements, classes, IDs, or universal matches:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val divSel = CssSelector.Element("div")
@@ -664,7 +665,7 @@ println(universal.render)  // *
 
 All HTML elements (`div`, `span`, `p`, etc.) implement `CssSelectable`, so you can use them directly as selectors:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 // Element selectors via DSL elements
@@ -684,7 +685,7 @@ println(descendantSel.render) // div span
 
 Pseudo-classes match elements by their state, and pseudo-elements create dynamic content:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val hoverSel = a.hover              // a:hover
@@ -701,7 +702,7 @@ println(before.render)      // div::before
 
 Select elements by their attribute values using built-in matchers:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val input = CssSelector.Element("input")
@@ -724,7 +725,7 @@ The `DomSelection` API lets you query and navigate DOM trees using CSS selectors
 
 Call `Dom#select(selector)` to query the tree:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(
@@ -746,7 +747,7 @@ println(intros.texts)       // Chunk(Hello)
 
 The `DomSelection` API returned by `Dom#select` provides navigation methods like `.children` and `.first` to traverse the selection results:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(
@@ -767,7 +768,7 @@ println(firstLink.length)  // 1
 
 The `DomSelection` API provides methods like `.attrs` and `.texts` to extract attribute values and text content from selected elements:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(
@@ -858,7 +859,7 @@ All `Css` subtypes support `.render()` for minified output and `.render(indent: 
 
 A `Css.Declaration` is a property-value pair:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val marginDecl = Css.Declaration("margin", "10px")
@@ -883,7 +884,7 @@ println(rule.render(indent = 2))
 
 A `Css.Sheet` is a collection of rules:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val bodyRule = Css.Rule(
@@ -907,7 +908,7 @@ println(stylesheet.render(indent = 2))
 
 Embed stylesheets in HTML via the `style()` element:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = html(
@@ -952,7 +953,7 @@ Prefer `Css.Rule` and `Css.Sheet` over `Css.Raw` when possible — structured CS
 
 Add comments to stylesheets using `Css.Comment`:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val stylesheet = Css.Sheet(Chunk(
@@ -982,7 +983,7 @@ All `Dom` and `Css` values support multiple rendering modes.
 
 `Dom#render` produces compact HTML with no extra whitespace. Use `Dom#renderMinified` as an explicit alias for the same operation:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(h1("Title"), p("Content"))
@@ -997,7 +998,7 @@ println(page.renderMinified)  // Same as render
 
 `render(indent: Int)` produces indented, readable output:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val page = div(h1("Title"), p("Content"))
@@ -1030,7 +1031,7 @@ All `Dom.Text` nodes are HTML-escaped during rendering:
 
 Untrusted content is always escaped to prevent XSS:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val userInput = "<script>alert('XSS')</script>"
@@ -1051,7 +1052,7 @@ The `ToJs[String]` typeclass escapes strings to prevent breaking out of script c
 
 This protects against `</script>` injection:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val userInput = "</script><script>alert('XSS');</script>"
@@ -1068,7 +1069,7 @@ Attributes named `href`, `src`, `action`, or `formaction` are checked for danger
 
 Dangerous URLs are automatically sanitized in HTML output:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 val dangerous = a(href := "javascript:alert('XSS')", "Click me")
@@ -1089,7 +1090,7 @@ The module supports several architectural patterns for code organization and reu
 
 Define functions that return `Dom.Element` to create reusable components:
 
-```scala mdoc:compile-only
+```scala mdoc
 import zio.blocks.html._
 
 def card(title: String, content: String): Dom.Element =
