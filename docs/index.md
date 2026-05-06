@@ -621,6 +621,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
+- [Maybe](./reference/maybe.md) - Low-allocation optional values using null
 - [Scope](./reference/resource-management/scope.md) - Compile-time safe resource management and DI
 - [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](./reference/typeid.md) - Type identity and metadata

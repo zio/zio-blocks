@@ -128,6 +128,7 @@ const sidebars = {
           },
           "reference/endpoint",
           "reference/chunk",
+          "reference/maybe",
           "path-interpolator",
           "reference/ringbuffer",
           "reference/html",
