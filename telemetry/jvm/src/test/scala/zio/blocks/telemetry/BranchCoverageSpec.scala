@@ -18,6 +18,9 @@ package zio.blocks.telemetry
 
 import zio.test._
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+
 import scala.collection.mutable.ArrayBuffer
 
 object BranchCoverageSpec extends ZIOSpecDefault {
@@ -38,8 +41,20 @@ object BranchCoverageSpec extends ZIOSpecDefault {
     def forceFlush(): Unit                 = ()
   }
 
+  private class ThrowingLogProcessor extends LogRecordProcessor {
+    def onEmit(logRecord: LogRecord): Unit = throw new RuntimeException("boom")
+    def shutdown(): Unit                   = ()
+    def forceFlush(): Unit                 = ()
+  }
+
   private val regionKey = AttributeKey.string("region")
   private val usEast    = Attributes.of(regionKey, "us-east-1")
+
+  private def setLogAnnotationsEverUsed(value: Boolean): Unit = {
+    val field = LogAnnotations.getClass.getDeclaredField("everUsed")
+    field.setAccessible(true)
+    field.setBoolean(LogAnnotations, value)
+  }
 
   def spec = suite("BranchCoverage")(
     severitySuite,
@@ -47,9 +62,10 @@ object BranchCoverageSpec extends ZIOSpecDefault {
     tracerSuite,
     meterSuite,
     loggerSuite,
+    fileWriterSuite,
     attributesSuite,
     ctxSuite
-  )
+  ) @@ TestAspect.sequential
 
   private val severitySuite = suite("Severity.fromNumber all arms")(
     test("fromNumber covers all 24 levels and invalid") {
@@ -270,6 +286,42 @@ object BranchCoverageSpec extends ZIOSpecDefault {
       meter.upDownCounterBuilder("oud").buildWithCallback(cb => cb.record(-5.0, usEast))
       meter.gaugeBuilder("og").buildWithCallback(cb => cb.record(42.0, usEast))
       assertTrue(provider.reader.collectAllMetrics().size == 7)
+    },
+    test("bind creates a fresh gauge slot when attributes are absent") {
+      val gauge = Gauge("temperature", "Current temperature", "celsius")
+      val bound = gauge.bind(usEast)
+
+      bound.record(21.5)
+
+      val points = gauge.collect() match {
+        case MetricData.GaugeData(dataPoints) => dataPoints
+        case _                                => Nil
+      }
+
+      assertTrue(
+        points.size == 1,
+        points.head.attributes == usEast,
+        points.head.value == 21.5
+      )
+    },
+    test("bind reuses the existing gauge slot for the same attributes") {
+      val gauge      = Gauge("temperature", "Current temperature", "celsius")
+      val firstBound = gauge.bind(usEast)
+      val nextBound  = gauge.bind(usEast)
+
+      firstBound.record(10.0)
+      nextBound.record(25.0)
+
+      val points = gauge.collect() match {
+        case MetricData.GaugeData(dataPoints) => dataPoints
+        case _                                => Nil
+      }
+
+      assertTrue(
+        points.size == 1,
+        points.head.attributes == usEast,
+        points.head.value == 25.0
+      )
     }
   )
 
@@ -300,6 +352,78 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .get("t")
         .info("m", "s" -> AttributeValue.StringSeqValue(Seq("a")))
       assertTrue(p.emitted.head.attributes.toMap.contains("s"))
+    },
+    test("StandardLogEmitter clears builder when severity is below processor threshold") {
+      val builder = Attributes.builder.put("k", "v")
+      val emitter = new StandardLogEmitter(Array(new TestLogProcessor), Severity.Error.number)
+
+      emitter.emit(
+        timestampNanos = 1L,
+        severity = Severity.Debug,
+        severityText = Severity.Debug.text,
+        body = "ignored",
+        builder = builder,
+        traceIdHi = 0L,
+        traceIdLo = 0L,
+        spanId = 0L,
+        traceFlags = 0,
+        resource = Resource.empty,
+        instrumentationScope = InstrumentationScope("test"),
+        throwable = None
+      )
+
+      assertTrue(builder.builderLen == 0)
+    },
+    test("StandardLogEmitter catches processor failures and clears builder") {
+      val builder = Attributes.builder.put("k", "v")
+      val emitter = new StandardLogEmitter(Array(new ThrowingLogProcessor), Severity.Trace.number)
+
+      emitter.emit(
+        timestampNanos = 1L,
+        severity = Severity.Info,
+        severityText = Severity.Info.text,
+        body = "boom",
+        builder = builder,
+        traceIdHi = 0L,
+        traceIdLo = 0L,
+        spanId = 0L,
+        traceFlags = 0,
+        resource = Resource.empty,
+        instrumentationScope = InstrumentationScope("test"),
+        throwable = None
+      )
+
+      assertTrue(builder.builderLen == 0)
+    }
+  )
+
+  private val fileWriterSuite = suite("FileLogWriter branch coverage")(
+    test("writes non-ASCII content through encoder slow path") {
+      val path    = Files.createTempFile("telemetry-nonascii", ".log")
+      val writer  = FileLogWriter(path, append = false, bufferSize = 8)
+      val content = "héllø telemetry"
+
+      try {
+        writer.write(content)
+        writer.close()
+
+        val lines = Files.readAllLines(path, StandardCharsets.UTF_8)
+        assertTrue(lines.size() == 1, lines.get(0) == content)
+      } finally Files.deleteIfExists(path)
+    },
+    test("writes oversized ASCII content through overflow path") {
+      val path    = Files.createTempFile("telemetry-ascii", ".log")
+      val writer  = FileLogWriter(path, append = false, bufferSize = 8)
+      val content = "x" * 64
+
+      try {
+        writer.write(content)
+        writer.flush()
+        writer.close()
+
+        val lines = Files.readAllLines(path, StandardCharsets.UTF_8)
+        assertTrue(lines.size() == 1, lines.get(0) == content)
+      } finally Files.deleteIfExists(path)
     }
   )
 
@@ -341,6 +465,31 @@ object BranchCoverageSpec extends ZIOSpecDefault {
   private val ctxSuite = suite("ContextStorage branch coverage")(
     test("implementationName is ScopedValue") {
       assertTrue(ContextStorage.implementationName == "ScopedValue")
+    },
+    test("LogAnnotations get is empty before first use") {
+      setLogAnnotationsEverUsed(false)
+      assertTrue(LogAnnotations.get().isEmpty)
+    },
+    test("LogAnnotations scoped merges nested annotations and restores outer scope") {
+      setLogAnnotationsEverUsed(false)
+
+      val (outerBeforeNested, nested, outerAfterNested, afterAllScopes) =
+        LogAnnotations.scoped(Map("requestId" -> "req-1")) {
+          val beforeNested = LogAnnotations.get()
+          val nestedState = LogAnnotations.scoped(Map("userId" -> "u-1")) {
+            LogAnnotations.get()
+          }
+          val afterNested = LogAnnotations.get()
+          (beforeNested, nestedState, afterNested, ())
+        }
+
+      assertTrue(
+        outerBeforeNested == Map("requestId" -> "req-1"),
+        nested == Map("requestId" -> "req-1", "userId" -> "u-1"),
+        outerAfterNested == Map("requestId" -> "req-1"),
+        LogAnnotations.get().isEmpty,
+        afterAllScopes == ()
+      )
     },
     test("scoped restores on normal exit") {
       val s = ContextStorage.create("initial")
