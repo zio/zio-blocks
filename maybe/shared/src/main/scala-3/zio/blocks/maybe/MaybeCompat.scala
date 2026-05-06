@@ -16,4 +16,6 @@
 
 package zio.blocks.maybe
 
-trait MaybeCompat
+trait MaybeCompat extends MaybeSyntaxCompat {
+  type MaybeWithFilter[A] = Maybe.WithFilter[A]
+}

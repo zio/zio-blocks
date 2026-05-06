@@ -110,17 +110,17 @@ object MaybeSpec extends ZIOSpecDefault {
         absent.toSeq.isEmpty,
         present.iterator.toList == List(2),
         absent.iterator.toList.isEmpty,
-        present.toRight("missing") == Right(2),
+        present.toRight("missing").fold(_ => false, _ == 2),
         absent.toRight("missing") == Left("missing"),
-        present.toLeft("fallback") == Left(2),
+        present.toLeft("fallback").fold(_ == 2, _ => false),
         absent.toLeft("fallback") == Right("fallback")
       )
     },
-    test("flatten, zip, and implicit Option conversion work") {
+    test("flatten, zip, and Option conversion helpers work") {
       val nestedPresent: Maybe[Maybe[Int]] = Maybe.present(Maybe.present(1))
       val nestedAbsent: Maybe[Maybe[Int]]  = Maybe.present(Maybe.absent)
-      val someValue: Maybe[Int]            = Some(5)
-      val noneValue: Maybe[Int]            = None
+      val someValue: Maybe[Int]            = Maybe.fromOption(Some(5))
+      val noneValue: Maybe[Int]            = Maybe.fromOption(None)
 
       assertTrue(
         nestedPresent.flatten.contains(1),

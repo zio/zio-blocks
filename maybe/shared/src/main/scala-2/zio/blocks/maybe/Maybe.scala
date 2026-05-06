@@ -18,122 +18,191 @@ package zio.blocks.maybe
 
 import scala.language.implicitConversions
 
-sealed trait MaybeTag
+sealed trait MaybeValue[+A]
 
-object MaybeTag {
-  implicit class MaybeOps[A](val self: A with MaybeTag) {
-    @inline def isAbsent: Boolean  = self.asInstanceOf[AnyRef] eq null
-    @inline def isPresent: Boolean = !(self.asInstanceOf[AnyRef] eq null)
-    @inline def isEmpty: Boolean   = self.asInstanceOf[AnyRef] eq null
-    @inline def isDefined: Boolean = !(self.asInstanceOf[AnyRef] eq null)
-    @inline def nonEmpty: Boolean  = !(self.asInstanceOf[AnyRef] eq null)
-    @inline def get: A             =
-      if (self.asInstanceOf[AnyRef] eq null) throw new NoSuchElementException("Maybe.absent.get")
-      else self.asInstanceOf[A]
+object MaybeValue {
+  final case class Present[+A](value: A) extends MaybeValue[A]
+  case object Absent                     extends MaybeValue[Nothing]
+
+  implicit final class MaybeOps[A](private val self: zio.blocks.maybe.Maybe[A]) extends AnyVal {
+    @inline def isAbsent: Boolean  = self eq Absent
+    @inline def isPresent: Boolean = self ne Absent
+    @inline def isEmpty: Boolean   = self eq Absent
+    @inline def isDefined: Boolean = self ne Absent
+    @inline def nonEmpty: Boolean  = self ne Absent
+
+    @inline def get: A =
+      self match {
+        case Present(value) => value
+        case Absent         => throw new NoSuchElementException("Maybe.absent.get")
+      }
+
     @inline def getOrElse[B >: A](default: => B): B =
-      if (self.asInstanceOf[AnyRef] eq null) default else self.asInstanceOf[A]
+      self match {
+        case Present(value) => value
+        case Absent         => default
+      }
+
     @inline def orElse[B >: A](alternative: => zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq null) alternative else self.asInstanceOf[zio.blocks.maybe.Maybe[B]]
+      self match {
+        case Present(_) => self
+        case Absent     => alternative
+      }
+
     @inline def orNull[B >: A](implicit ev: Null <:< B): B =
-      if (self.asInstanceOf[AnyRef] eq null) null else self.asInstanceOf[A]
+      self match {
+        case Present(value) => value
+        case Absent         => ev(null)
+      }
+
     @inline def fold[B](ifAbsent: => B)(ifPresent: A => B): B =
-      if (self.asInstanceOf[AnyRef] eq null) ifAbsent else ifPresent(self.asInstanceOf[A])
+      self match {
+        case Present(value) => ifPresent(value)
+        case Absent         => ifAbsent
+      }
+
     @inline def toOption: Option[A] =
-      if (self.asInstanceOf[AnyRef] eq null) None else Some(self.asInstanceOf[A])
+      self match {
+        case Present(value) => Some(value)
+        case Absent         => None
+      }
+
     @inline def toList: List[A] =
-      if (self.asInstanceOf[AnyRef] eq null) Nil else self.asInstanceOf[A] :: Nil
+      self match {
+        case Present(value) => value :: Nil
+        case Absent         => Nil
+      }
+
     @inline def toSeq: Seq[A] =
-      if (self.asInstanceOf[AnyRef] eq null) Seq.empty else Seq(self.asInstanceOf[A])
+      self match {
+        case Present(value) => Seq(value)
+        case Absent         => Seq.empty
+      }
+
     @inline def iterator: Iterator[A] =
-      if (self.asInstanceOf[AnyRef] eq null) Iterator.empty else Iterator.single(self.asInstanceOf[A])
+      self match {
+        case Present(value) => Iterator.single(value)
+        case Absent         => Iterator.empty
+      }
+
     @inline def map[B](f: A => B): zio.blocks.maybe.Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[B]]
-      else f(self.asInstanceOf[A]).asInstanceOf[zio.blocks.maybe.Maybe[B]]
+      self match {
+        case Present(value) => Maybe.present(f(value))
+        case Absent         => Maybe.absent
+      }
+
     @inline def flatMap[B](f: A => zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[B]]
-      else f(self.asInstanceOf[A])
+      self match {
+        case Present(value) => f(value)
+        case Absent         => Maybe.absent
+      }
+
     @inline def flatten[B](implicit ev: A <:< zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[B]]
-      else ev(self.asInstanceOf[A])
+      self match {
+        case Present(value) => ev(value)
+        case Absent         => Maybe.absent
+      }
+
     @inline def foreach[U](f: A => U): Unit =
-      if (!(self.asInstanceOf[AnyRef] eq null)) {
-        f(self.asInstanceOf[A])
-        ()
+      self match {
+        case Present(value) =>
+          f(value)
+          ()
+        case Absent => ()
       }
+
     @inline def contains[A1 >: A](elem: A1): Boolean =
-      !(self.asInstanceOf[AnyRef] eq null) && self.asInstanceOf[A] == elem
+      self match {
+        case Present(value) => value == elem
+        case Absent         => false
+      }
+
     @inline def exists(p: A => Boolean): Boolean =
-      !(self.asInstanceOf[AnyRef] eq null) && p(self.asInstanceOf[A])
+      self match {
+        case Present(value) => p(value)
+        case Absent         => false
+      }
+
     @inline def forall(p: A => Boolean): Boolean =
-      (self.asInstanceOf[AnyRef] eq null) || p(self.asInstanceOf[A])
+      self match {
+        case Present(value) => p(value)
+        case Absent         => true
+      }
+
     @inline def filter(p: A => Boolean): zio.blocks.maybe.Maybe[A] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[A]]
-      else if (p(self.asInstanceOf[A])) self.asInstanceOf[zio.blocks.maybe.Maybe[A]]
-      else null.asInstanceOf[zio.blocks.maybe.Maybe[A]]
+      self match {
+        case Present(value) if p(value) => self
+        case _                          => Maybe.absent
+      }
+
     @inline def filterNot(p: A => Boolean): zio.blocks.maybe.Maybe[A] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[A]]
-      else if (p(self.asInstanceOf[A])) null.asInstanceOf[zio.blocks.maybe.Maybe[A]]
-      else self.asInstanceOf[zio.blocks.maybe.Maybe[A]]
+      self match {
+        case Present(value) if p(value) => Maybe.absent
+        case Present(_)                 => self
+        case Absent                     => Maybe.absent
+      }
+
     @inline def collect[B](pf: PartialFunction[A, B]): zio.blocks.maybe.Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq null) null.asInstanceOf[zio.blocks.maybe.Maybe[B]]
-      else {
-        val value = self.asInstanceOf[A]
-        if (pf.isDefinedAt(value)) pf(value).asInstanceOf[zio.blocks.maybe.Maybe[B]]
-        else null.asInstanceOf[zio.blocks.maybe.Maybe[B]]
+      self match {
+        case Present(value) if pf.isDefinedAt(value) => Maybe.present(pf(value))
+        case _                                       => Maybe.absent
       }
+
     @inline def withFilter(p: A => Boolean): MaybeWithFilter[A] =
-      new MaybeWithFilter[A](self.asInstanceOf[zio.blocks.maybe.Maybe[A]], p)
+      new MaybeWithFilter[A](self, p)
+
     @inline def toRight[X](left: => X): Either[X, A] =
-      if (self.asInstanceOf[AnyRef] eq null) Left(left) else Right(self.asInstanceOf[A])
-    @inline def toLeft[X](right: => X): Either[A, X] =
-      if (self.asInstanceOf[AnyRef] eq null) Right(right) else Left(self.asInstanceOf[A])
-    @inline def zip[B](that: zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[(A, B)] =
-      if ((self.asInstanceOf[AnyRef] eq null) || (that.asInstanceOf[AnyRef] eq null)) null.asInstanceOf[zio.blocks.maybe.Maybe[(A, B)]]
-      else (self.asInstanceOf[A], that.asInstanceOf[B]).asInstanceOf[zio.blocks.maybe.Maybe[(A, B)]]
-    @inline def unzip[A1, A2](implicit ev: A <:< (A1, A2)): (zio.blocks.maybe.Maybe[A1], zio.blocks.maybe.Maybe[A2]) =
-      if (self.asInstanceOf[AnyRef] eq null)
-        (null.asInstanceOf[zio.blocks.maybe.Maybe[A1]], null.asInstanceOf[zio.blocks.maybe.Maybe[A2]])
-      else {
-        val value = ev(self.asInstanceOf[A])
-        (
-          value._1.asInstanceOf[zio.blocks.maybe.Maybe[A1]],
-          value._2.asInstanceOf[zio.blocks.maybe.Maybe[A2]]
-        )
+      self match {
+        case Present(value) => Right(value)
+        case Absent         => Left(left)
       }
+
+    @inline def toLeft[X](right: => X): Either[A, X] =
+      self match {
+        case Present(value) => Left(value)
+        case Absent         => Right(right)
+      }
+
+    @inline def zip[B](that: zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[(A, B)] =
+      (self, that) match {
+        case (Present(left), Present(right)) => Maybe.present((left, right))
+        case _                               => Maybe.absent
+      }
+
+    @inline def unzip[A1, A2](implicit ev: A <:< (A1, A2)): (zio.blocks.maybe.Maybe[A1], zio.blocks.maybe.Maybe[A2]) =
+      self match {
+        case Present(value) =>
+          val tuple = ev(value)
+          (Maybe.present(tuple._1), Maybe.present(tuple._2))
+        case Absent => (Maybe.absent, Maybe.absent)
+      }
+
     @inline def unzip3[A1, A2, A3](implicit ev: A <:< (A1, A2, A3)): (zio.blocks.maybe.Maybe[A1], zio.blocks.maybe.Maybe[A2], zio.blocks.maybe.Maybe[A3]) =
-      if (self.asInstanceOf[AnyRef] eq null)
-        (
-          null.asInstanceOf[zio.blocks.maybe.Maybe[A1]],
-          null.asInstanceOf[zio.blocks.maybe.Maybe[A2]],
-          null.asInstanceOf[zio.blocks.maybe.Maybe[A3]]
-        )
-      else {
-        val value = ev(self.asInstanceOf[A])
-        (
-          value._1.asInstanceOf[zio.blocks.maybe.Maybe[A1]],
-          value._2.asInstanceOf[zio.blocks.maybe.Maybe[A2]],
-          value._3.asInstanceOf[zio.blocks.maybe.Maybe[A3]]
-        )
+      self match {
+        case Present(value) =>
+          val tuple = ev(value)
+          (Maybe.present(tuple._1), Maybe.present(tuple._2), Maybe.present(tuple._3))
+        case Absent => (Maybe.absent, Maybe.absent, Maybe.absent)
       }
   }
 
   final class MaybeWithFilter[A](self: zio.blocks.maybe.Maybe[A], predicate: A => Boolean) {
-    def map[B](f: A => B): zio.blocks.maybe.Maybe[B] = self.filter(predicate).map(f)
+    def map[B](f: A => B): zio.blocks.maybe.Maybe[B]                             = self.filter(predicate).map(f)
     def flatMap[B](f: A => zio.blocks.maybe.Maybe[B]): zio.blocks.maybe.Maybe[B] = self.filter(predicate).flatMap(f)
-    def foreach[U](f: A => U): Unit = self.filter(predicate).foreach(f)
-    def withFilter(q: A => Boolean): MaybeWithFilter[A] = new MaybeWithFilter[A](self, x => predicate(x) && q(x))
+    def foreach[U](f: A => U): Unit                                              = self.filter(predicate).foreach(f)
+    def withFilter(q: A => Boolean): MaybeWithFilter[A]                          = new MaybeWithFilter[A](self, x => predicate(x) && q(x))
   }
 }
 
 object Maybe {
-  @inline def apply[A](a: A): Maybe[A]             = if (a == null) null.asInstanceOf[Maybe[A]] else a.asInstanceOf[Maybe[A]]
-  @inline def present[A](a: A): Maybe[A]      = a.asInstanceOf[Maybe[A]]
-  @inline def absent[A]: Maybe[A]             = null.asInstanceOf[Maybe[A]]
-  @inline def empty[A]: Maybe[A]              = null.asInstanceOf[Maybe[A]]
-  def Absent: Maybe[Nothing]                  = null.asInstanceOf[Maybe[Nothing]]
-  def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
-    case Some(a) => a.asInstanceOf[Maybe[A]]
-    case None    => null.asInstanceOf[Maybe[A]]
+  @inline def apply[A](a: A): Maybe[A]             = if (a == null) absent else present(a)
+  @inline def present[A](a: A): Maybe[A]           = MaybeValue.Present(a)
+  @inline def absent[A]: Maybe[A]                  = MaybeValue.Absent
+  @inline def empty[A]: Maybe[A]                   = MaybeValue.Absent
+  def Absent: Maybe[Nothing]                       = MaybeValue.Absent
+  def fromOption[A](opt: Option[A]): Maybe[A]      = opt match {
+    case Some(a) => present(a)
+    case None    => absent
   }
 
   implicit def optionToMaybe[A](opt: Option[A]): Maybe[A] = fromOption(opt)

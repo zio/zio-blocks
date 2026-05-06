@@ -131,7 +131,10 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
       test("normalize handles single and replacement branches for global target and throttle") {
         val single   = EventModifier.normalize(Maybe.absent, EventModifier.Window)
         val replaced = EventModifier
-          .normalize(Maybe.present(EventModifier.And(EventModifier.Document, EventModifier.Prevent)), EventModifier.Window)
+          .normalize(
+            Maybe.present(EventModifier.And(EventModifier.Document, EventModifier.Prevent)),
+            EventModifier.Window
+          )
           .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Throttle(1, false)))
           .flatMap(m => EventModifier.normalize(Maybe.present(m), EventModifier.Throttle(2, true)))
         assertTrue(single.contains(EventModifier.Window)) &&
@@ -156,7 +159,9 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
         )
       },
       test("normalize returns a single modifier when no composition is needed") {
-        assertTrue(InitModifier.normalize(Maybe.absent, InitModifier.ViewTransition).contains(InitModifier.ViewTransition))
+        assertTrue(
+          InitModifier.normalize(Maybe.absent, InitModifier.ViewTransition).contains(InitModifier.ViewTransition)
+        )
       }
     ),
     suite("IntersectModifier")(

@@ -56,20 +56,23 @@ object OnIntervalModifier {
     def render: String = left.render + right.render
   }
 
-  private[datastar] def normalize(existing: Maybe[OnIntervalModifier], next: OnIntervalModifier): Maybe[OnIntervalModifier] =
+  private[datastar] def normalize(
+    existing: Maybe[OnIntervalModifier],
+    next: OnIntervalModifier
+  ): Maybe[OnIntervalModifier] =
     existing.fold(Maybe.present(next): Maybe[OnIntervalModifier]) { current =>
       val normalized = flatten(current :: next :: Nil)
-      .foldLeft(List.empty[OnIntervalModifier]) { (acc, modifier) =>
-      modifier match {
-        case d: Duration =>
-          acc.filter {
-            case _: Duration => false
-            case _           => true
-          } :+ d
-        case flag =>
-          if (acc.exists(_ == flag)) acc else acc :+ flag
-      }
-    }
+        .foldLeft(List.empty[OnIntervalModifier]) { (acc, modifier) =>
+          modifier match {
+            case d: Duration =>
+              acc.filter {
+                case _: Duration => false
+                case _           => true
+              } :+ d
+            case flag =>
+              if (acc.exists(_ == flag)) acc else acc :+ flag
+          }
+        }
 
       normalized match {
         case Nil          => Maybe.absent

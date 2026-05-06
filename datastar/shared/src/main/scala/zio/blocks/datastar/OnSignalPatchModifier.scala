@@ -55,30 +55,33 @@ object OnSignalPatchModifier {
     def render: String = left.render + right.render
   }
 
-  private[datastar] def normalize(existing: Maybe[OnSignalPatchModifier], next: OnSignalPatchModifier): Maybe[OnSignalPatchModifier] =
+  private[datastar] def normalize(
+    existing: Maybe[OnSignalPatchModifier],
+    next: OnSignalPatchModifier
+  ): Maybe[OnSignalPatchModifier] =
     existing.fold(Maybe.present(next): Maybe[OnSignalPatchModifier]) { current =>
       val normalized = flatten(current :: next :: Nil)
-      .foldLeft(List.empty[OnSignalPatchModifier]) { (acc, modifier) =>
-      modifier match {
-        case d: Delay =>
-          acc.filter {
-            case _: Delay => false
-            case _        => true
-          } :+ d
-        case d: Debounce =>
-          acc.filter {
-            case _: Debounce => false
-            case _           => true
-          } :+ d
-        case t: Throttle =>
-          acc.filter {
-            case _: Throttle => false
-            case _           => true
-          } :+ t
-        case other =>
-          if (acc.exists(_ == other)) acc else acc :+ other
-      }
-    }
+        .foldLeft(List.empty[OnSignalPatchModifier]) { (acc, modifier) =>
+          modifier match {
+            case d: Delay =>
+              acc.filter {
+                case _: Delay => false
+                case _        => true
+              } :+ d
+            case d: Debounce =>
+              acc.filter {
+                case _: Debounce => false
+                case _           => true
+              } :+ d
+            case t: Throttle =>
+              acc.filter {
+                case _: Throttle => false
+                case _           => true
+              } :+ t
+            case other =>
+              if (acc.exists(_ == other)) acc else acc :+ other
+          }
+        }
 
       normalized match {
         case Nil          => Maybe.absent

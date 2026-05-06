@@ -16,6 +16,7 @@
 
 package zio.blocks.maybe
 
-trait MaybeCompat {
-  type Maybe[+A] = (A with MaybeTag) @scala.annotation.unchecked.uncheckedVariance
+trait MaybeCompat extends MaybeSyntaxCompat {
+  type Maybe[+A] = MaybeValue[A]
+  type MaybeWithFilter[A] = MaybeValue.MaybeWithFilter[A]
 }

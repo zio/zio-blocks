@@ -49,17 +49,16 @@ object InitModifier {
 
   private[datastar] def normalize(existing: Maybe[InitModifier], next: InitModifier): Maybe[InitModifier] =
     existing.fold(Maybe.present(next): Maybe[InitModifier]) { current =>
-      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[InitModifier]) {
-      (acc, modifier) =>
-      modifier match {
-        case d: Delay =>
-          acc.filter {
-            case _: Delay => false
-            case _        => true
-          } :+ d
-        case flag =>
-          if (acc.exists(_ == flag)) acc else acc :+ flag
-      }
+      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[InitModifier]) { (acc, modifier) =>
+        modifier match {
+          case d: Delay =>
+            acc.filter {
+              case _: Delay => false
+              case _        => true
+            } :+ d
+          case flag =>
+            if (acc.exists(_ == flag)) acc else acc :+ flag
+        }
       }
 
       normalized match {

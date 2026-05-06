@@ -58,16 +58,15 @@ object DatastarEvent {
 
     def renderSSE: String = {
       val sb = new java.lang.StringBuilder(256)
-      selector.fold(())(s => sb.append("selector ").append(s.render).append('\n'))
+      selector.toOption.foreach(s => sb.append("selector ").append(s.render).append('\n'))
       if (mode != ElementPatchMode.Outer) sb.append("mode ").append(mode.render).append('\n')
       if (useViewTransition) sb.append("useViewTransition true\n")
-      namespace.fold(())(ns => sb.append("namespace ").append(ns).append('\n'))
+      namespace.toOption.foreach(ns => sb.append("namespace ").append(ns).append('\n'))
       sb.append("elements ").append(elements.renderMinified)
-      val data = sb.toString
-      ServerSentEvent(data, EventType.PatchElements.render)
-        .pipe(sse => eventId.fold(sse)(sse.id))
-        .pipe(sse => retryMillis.fold(sse)(sse.retry))
-        .render
+      val data        = sb.toString
+      val sse         = ServerSentEvent(data, EventType.PatchElements.render)
+      val withEventId = eventId.toOption.fold(sse)(sse.id)
+      retryMillis.toOption.fold(withEventId)(withEventId.retry).render
     }
   }
 
@@ -82,11 +81,10 @@ object DatastarEvent {
       val sb = new java.lang.StringBuilder(128)
       if (onlyIfMissing) sb.append("onlyIfMissing true\n")
       sb.append("signals ").append(signalsJson)
-      val data = sb.toString
-      ServerSentEvent(data, EventType.PatchSignals.render)
-        .pipe(sse => eventId.fold(sse)(sse.id))
-        .pipe(sse => retryMillis.fold(sse)(sse.retry))
-        .render
+      val data        = sb.toString
+      val sse         = ServerSentEvent(data, EventType.PatchSignals.render)
+      val withEventId = eventId.toOption.fold(sse)(sse.id)
+      retryMillis.toOption.fold(withEventId)(withEventId.retry).render
     }
   }
 
@@ -176,11 +174,11 @@ object DatastarEvent {
   final class RemoveElementsBuilder private[DatastarEvent] (
     private val inner: PatchElementsBuilder
   ) {
-    def viewTransition: RemoveElementsBuilder   = new RemoveElementsBuilder(inner.viewTransition)
+    def viewTransition: RemoveElementsBuilder        = new RemoveElementsBuilder(inner.viewTransition)
     def namespace(ns: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.namespace(ns))
-    def eventId(id: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.eventId(id))
-    def retry(millis: Long): RemoveElementsBuilder = new RemoveElementsBuilder(inner.retry(millis))
-    def renderSSE: String                         = inner.renderSSE
+    def eventId(id: String): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.eventId(id))
+    def retry(millis: Long): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.retry(millis))
+    def renderSSE: String                            = inner.renderSSE
   }
 
   def removeElements(selector: CssSelector): RemoveElementsBuilder =
@@ -214,8 +212,4 @@ object DatastarEvent {
 
   private def appendJsonString(sb: java.lang.StringBuilder, s: String): Unit =
     DatastarStringEscape.appendQuotedString(sb, s)
-
-  private implicit class PipeOps[A](private val self: A) extends AnyVal {
-    def pipe[B](f: A => B): B = f(self)
-  }
 }

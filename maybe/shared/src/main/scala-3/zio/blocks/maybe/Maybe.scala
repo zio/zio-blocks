@@ -40,9 +40,9 @@ object Maybe {
   }
 
   final class WithFilter[A](self: Maybe[A], predicate: A => Boolean) {
-    def map[B](f: A => B): Maybe[B] = self.filter(predicate).map(f)
-    def flatMap[B](f: A => Maybe[B]): Maybe[B] = self.filter(predicate).flatMap(f)
-    def foreach[U](f: A => U): Unit = self.filter(predicate).foreach(f)
+    def map[B](f: A => B): Maybe[B]                = self.filter(predicate).map(f)
+    def flatMap[B](f: A => Maybe[B]): Maybe[B]     = self.filter(predicate).flatMap(f)
+    def foreach[U](f: A => U): Unit                = self.filter(predicate).foreach(f)
     def withFilter(q: A => Boolean): WithFilter[A] = new WithFilter(self, x => predicate(x) && q(x))
   }
 

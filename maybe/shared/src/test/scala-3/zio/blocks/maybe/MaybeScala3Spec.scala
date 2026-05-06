@@ -37,10 +37,10 @@ object MaybeScala3Spec extends ZIOSpecDefault {
       )
     },
     test("for-comprehension and unzip helpers mirror Option behavior") {
-      val present: Maybe[Int]                 = Some(2)
-      val pair: Maybe[(Int, String)]          = Maybe.present((1, "one"))
-      val triple: Maybe[(Int, String, Long)]  = Maybe.present((1, "one", 2L))
-      val computed                            = for {
+      val present: Maybe[Int]                = Some(2)
+      val pair: Maybe[(Int, String)]         = Maybe.present((1, "one"))
+      val triple: Maybe[(Int, String, Long)] = Maybe.present((1, "one", 2L))
+      val computed                           = for {
         value <- present
         if value % 2 == 0
       } yield value + 1

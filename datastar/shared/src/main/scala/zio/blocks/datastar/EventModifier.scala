@@ -113,37 +113,36 @@ object EventModifier {
    */
   private[datastar] def normalize(existing: Maybe[EventModifier], next: EventModifier): Maybe[EventModifier] =
     existing.fold(Maybe.present(next): Maybe[EventModifier]) { current =>
-      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[EventModifier]) {
-      (acc, modifier) =>
-      modifier match {
-        case d: Debounce =>
-          acc.filter {
-            case _: Debounce => false
-            case _           => true
-          } :+ d
-        case t: Throttle =>
-          acc.filter {
-            case _: Throttle => false
-            case _           => true
-          } :+ t
-        case d: Delay =>
-          acc.filter {
-            case _: Delay => false
-            case _        => true
-          } :+ d
-        case Window =>
-          acc.filter {
-            case Window | Document => false
-            case _                 => true
-          } :+ Window
-        case Document =>
-          acc.filter {
-            case Window | Document => false
-            case _                 => true
-          } :+ Document
-        case flag =>
-          if (acc.exists(_ == flag)) acc else acc :+ flag
-      }
+      val normalized = flatten(current :: next :: Nil).foldLeft(List.empty[EventModifier]) { (acc, modifier) =>
+        modifier match {
+          case d: Debounce =>
+            acc.filter {
+              case _: Debounce => false
+              case _           => true
+            } :+ d
+          case t: Throttle =>
+            acc.filter {
+              case _: Throttle => false
+              case _           => true
+            } :+ t
+          case d: Delay =>
+            acc.filter {
+              case _: Delay => false
+              case _        => true
+            } :+ d
+          case Window =>
+            acc.filter {
+              case Window | Document => false
+              case _                 => true
+            } :+ Window
+          case Document =>
+            acc.filter {
+              case Window | Document => false
+              case _                 => true
+            } :+ Document
+          case flag =>
+            if (acc.exists(_ == flag)) acc else acc :+ flag
+        }
       }
 
       normalized match {

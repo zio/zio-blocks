@@ -85,45 +85,48 @@ object IntersectModifier {
     def render: String = left.render + right.render
   }
 
-  private[datastar] def normalize(existing: Maybe[IntersectModifier], next: IntersectModifier): Maybe[IntersectModifier] =
+  private[datastar] def normalize(
+    existing: Maybe[IntersectModifier],
+    next: IntersectModifier
+  ): Maybe[IntersectModifier] =
     existing.fold(Maybe.present(next): Maybe[IntersectModifier]) { current =>
       val normalized = flatten(current :: next :: Nil)
-      .foldLeft(List.empty[IntersectModifier]) { (acc, modifier) =>
-      modifier match {
-        case t: Threshold =>
-          acc.filter {
-            case _: Threshold | Half | Full => false
-            case _                          => true
-          } :+ t
-        case Half =>
-          acc.filter {
-            case _: Threshold | Half | Full => false
-            case _                          => true
-          } :+ Half
-        case Full =>
-          acc.filter {
-            case _: Threshold | Half | Full => false
-            case _                          => true
-          } :+ Full
-        case d: Delay =>
-          acc.filter {
-            case _: Delay => false
-            case _        => true
-          } :+ d
-        case d: Debounce =>
-          acc.filter {
-            case _: Debounce => false
-            case _           => true
-          } :+ d
-        case t: Throttle =>
-          acc.filter {
-            case _: Throttle => false
-            case _           => true
-          } :+ t
-        case flag =>
-          if (acc.exists(_ == flag)) acc else acc :+ flag
-      }
-    }
+        .foldLeft(List.empty[IntersectModifier]) { (acc, modifier) =>
+          modifier match {
+            case t: Threshold =>
+              acc.filter {
+                case _: Threshold | Half | Full => false
+                case _                          => true
+              } :+ t
+            case Half =>
+              acc.filter {
+                case _: Threshold | Half | Full => false
+                case _                          => true
+              } :+ Half
+            case Full =>
+              acc.filter {
+                case _: Threshold | Half | Full => false
+                case _                          => true
+              } :+ Full
+            case d: Delay =>
+              acc.filter {
+                case _: Delay => false
+                case _        => true
+              } :+ d
+            case d: Debounce =>
+              acc.filter {
+                case _: Debounce => false
+                case _           => true
+              } :+ d
+            case t: Throttle =>
+              acc.filter {
+                case _: Throttle => false
+                case _           => true
+              } :+ t
+            case flag =>
+              if (acc.exists(_ == flag)) acc else acc :+ flag
+          }
+        }
 
       normalized match {
         case Nil          => Maybe.absent
