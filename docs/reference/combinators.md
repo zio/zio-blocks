@@ -173,11 +173,14 @@ To transform an `Either[L, R]` into its left-nested canonical form:
 ```scala mdoc
 import zio.blocks.combinators.Eithers
 
+// Atomic Either - unchanged
 Eithers.combine(Left(42): Either[Int, String])
 
+// Right-nested Either - reassociates to left-nested
 val input2 = Right(Right(true)): Either[Int, Either[String, Boolean]]
 Eithers.combine(input2)
 
+// Left(42) becomes Left(Left(42))
 val input3 = Left(42): Either[Int, Either[String, Boolean]]
 Eithers.combine(input3)
 ```
