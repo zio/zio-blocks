@@ -386,20 +386,21 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
+  .settings(
+    Compile / doc / scalacOptions ~= (_.filterNot(_ == "-Xfatal-warnings"))
+  )
   .jvmSettings(
     mimaSettings(failOnProblem = false),
     // Streams requires JDK 21+ (Project Loom virtual threads).
     // Override the default -release flag so Thread.ofVirtual() is available.
     // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
     // compilation of streams (tests will be skipped due to compilation failure).
-    scalacOptions ~= { opts =>
-      opts.zipWithIndex.flatMap { case (o, i) => if (o == "-release") None else Some((o, i)) }
-        .map(_._1)
-    },
+    scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
     scalacOptions ++= {
       val jdkVersion = System.getProperty("java.specification.version", "17").toInt
       if (jdkVersion >= 21) Seq("-release", "21") else Seq("-release", jdkVersion.toString)
     },
+    Compile / doc / scalacOptions ~= (opts => removeOptionWithValue(opts, "-release")),
     scalacOptions ++= Seq(
       // scope.leak is used intentionally throughout Streams internals
       "-Wconf:msg=being leaked from scope:s",
