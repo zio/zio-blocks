@@ -22,9 +22,10 @@ import zio.blocks.chunk.Chunk
 import zio.http.{Method, Path}
 
 /**
- * Routing trie keyed by HTTP method, then by path segments. Literals are matched first, then dynamic
- * segments in priority order (int > long > uuid > bool > string > combined > trailing).
- * HEAD requests fall back to GET handlers. Merge prefers right-hand-side values on conflict.
+ * Routing trie keyed by HTTP method, then by path segments. Literals are
+ * matched first, then dynamic segments in priority order (int > long > uuid >
+ * bool > string > combined > trailing). HEAD requests fall back to GET
+ * handlers. Merge prefers right-hand-side values on conflict.
  */
 final case class RouteTree[A](
   roots: Map[Method, SegmentSubtree[A]]
@@ -74,8 +75,9 @@ object RouteTree {
 }
 
 /**
- * A single level of the routing trie. `literals` holds exact-match branches, `others` holds
- * dynamic segment branches keyed by [[SegmentCodec.Key]] and ordered by match priority.
+ * A single level of the routing trie. `literals` holds exact-match branches,
+ * `others` holds dynamic segment branches keyed by [[SegmentCodec.Key]] and
+ * ordered by match priority.
  */
 final case class SegmentSubtree[A](
   literals: Map[String, SegmentSubtree[A]],

@@ -18,7 +18,8 @@ package zio.blocks.schema.json
 
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
-import zio.blocks.schema.{Maybe, Schema}
+import zio.blocks.maybe.Maybe
+import zio.blocks.schema.Schema
 import scala.compiletime.uninitialized
 
 class MaybeBoxingBenchmark extends BaseBenchmark {

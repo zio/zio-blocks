@@ -16,4 +16,4 @@
 
 package zio.blocks
 
-package object schema extends PathInterpolator with SyntaxVersionSpecific with MaybeCompat {}
+package object schema extends PathInterpolator with SyntaxVersionSpecific {}

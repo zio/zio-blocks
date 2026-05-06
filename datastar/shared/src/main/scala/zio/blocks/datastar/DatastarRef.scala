@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema
+package zio.blocks.datastar
 
-trait MaybeCompat {
-  type Maybe[+A] = (A with MaybeTag) @scala.annotation.unchecked.uncheckedVariance
+import zio.blocks.html.ToJs
+
+final class DatastarRef private[datastar] (val signalName: String) {
+  val value: String = "$" + signalName
+
+  override def toString: String = value
+}
+
+object DatastarRef {
+  implicit val datastarRefToJs: ToJs[DatastarRef] = new ToJs[DatastarRef] {
+    def toJs(ref: DatastarRef): String = ref.value
+  }
 }

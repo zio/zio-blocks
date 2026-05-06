@@ -17,6 +17,7 @@
 package zio.blocks.schema.binding
 
 import zio.blocks.chunk.{Chunk, ChunkMap}
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import scala.annotation.unchecked.uncheckedVariance
@@ -684,18 +685,19 @@ object Binding extends BindingCompanionVersionSpecific {
     def maybe[A]: Variant[AnyRef] = new Variant(
       discriminator = new Discriminator[AnyRef] {
         def discriminate(a: AnyRef): Int =
-          if (a eq null) 0
+          if (Maybe.unsafeIsAbsent(a.asInstanceOf[Maybe[Any]])) 0
           else 1
       },
       matchers = Matchers(
         new Matcher[AnyRef] {
           override def downcastOrNull(any: Any): AnyRef =
-            if (any.asInstanceOf[AnyRef] eq null) absentSentinel
+            if (Maybe.unsafeIsAbsent(any.asInstanceOf[Maybe[Any]])) absentSentinel
             else null
         },
         new Matcher[AnyRef] {
           override def downcastOrNull(any: Any): AnyRef =
-            if (any.asInstanceOf[AnyRef] ne null) any.asInstanceOf[AnyRef]
+            if (!Maybe.unsafeIsAbsent(any.asInstanceOf[Maybe[Any]]))
+              Maybe.unsafeGet(any.asInstanceOf[Maybe[Any]]).asInstanceOf[AnyRef]
             else null
         }
       )

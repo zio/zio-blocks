@@ -17,6 +17,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._

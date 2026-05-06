@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema
+package zio.blocks.maybe
 
-// On Scala 3, Maybe is already a top-level opaque type, so no re-export is needed.
-trait MaybeCompat
+trait MaybeCompat extends MaybeSyntaxCompat {
+  type Maybe[+A]          = MaybeValue[A]
+  type MaybeWithFilter[A] = MaybeValue.MaybeWithFilter[A]
+}
