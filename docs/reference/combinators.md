@@ -37,6 +37,57 @@ Supported platforms:
 - **Tuples, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
+## Motivation
+
+Building type-safe, composable systems requires managing values and types at both runtime and compile time. The combinators module solves three distinct problems that arise in complex Scala applications:
+
+### The Tuple Nesting Problem
+
+When building up results step-by-step—aggregating function parameters, accumulating intermediate results, or constructing compound values—you often end up with deeply nested tuples:
+
+```scala
+// Manual nesting is tedious and error-prone
+val step1 = (1, "a")
+val step2 = (step1, true)           // ((1, "a"), true)
+val step3 = (step2, 3.14)           // (((1, "a"), true), 3.14)
+val step4 = (step3, 'x')            // ((((1, "a"), true), 3.14), 'x')
+```
+
+This creates two problems:
+1. **Ergonomic burden**: Consumers of compound values must destructure deeply nested structures
+2. **Inconsistency**: Different code paths produce different tuple shapes, making composition fragile
+
+The `Tuples` combinator automatically flattens these structures, producing clean, predictable tuples at each step.
+
+### The Either Canonicalization Problem
+
+Error handling often involves composing multiple error types through Either chains. Without systematic canonicalization, Either types nest unpredictably:
+
+```scala
+// Inconsistent nesting across code paths
+val result1: Either[E1, V] = Left(e1)
+val result2: Either[E1, Either[E2, V]] = Right(Left(e2))
+val result3: Either[Either[E1, E2], V] = Right(Right(v))
+// Each path has a different structure!
+```
+
+This causes problems when:
+1. **Serializing error types** for schemas (each variant has a different shape)
+2. **Accumulating errors** (inconsistent nesting makes aggregation complex)
+3. **Pattern matching** (must handle multiple nesting patterns)
+
+The `Eithers` combinator canonicalizes all Either types to a uniform left-nested form, ensuring systematic error composition.
+
+### The Scala 3 Union Type Gap
+
+Scala 3 introduces native union types (`A | B`) that are more idiomatic than `Either[A, B]`. However, existing code, libraries, and serialization infrastructure are built around `Either`. When adopting Scala 3, you face a choice:
+
+1. Stick with `Either` for compatibility (missing idiomatic Scala 3 syntax)
+2. Switch to union types (breaking compatibility with Either-based code)
+3. Maintain two parallel type systems (duplication and cognitive overhead)
+
+The `Unions` combinator bridges this gap, enabling bidirectional conversion between `Either[L, R]` and `L | R` with zero runtime overhead. Use union types idiomatically in your APIs while maintaining Either compatibility at serialization boundaries.
+
 ## How They Work Together
 
 The three combinator types solve distinct composition problems, each with a specific architectural role:
