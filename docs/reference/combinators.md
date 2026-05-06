@@ -3,6 +3,9 @@ id: combinators
 title: "Combinators"
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, Either types, and union types.
 
 ## Overview
@@ -338,7 +341,8 @@ val value: Int | String = 42  // Works reliably
 
 The combinators module supports both Scala 2's implicit parameters and Scala 3's context parameters. Here are idiomatic usage patterns for each:
 
-### With Implicit Parameters (Scala 2)
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2">
 
 To combine multiple values using implicit typeclass resolution:
 
@@ -357,7 +361,8 @@ val result = combineAll(1, "hello", true)
 // result: (Int, String, Boolean)
 ```
 
-### With Context Parameters (Scala 3)
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
 
 To combine multiple values using context parameters:
 
@@ -374,6 +379,9 @@ def combineAll[A, B, C](a: A, b: B, c: C)(using
 val result = combineAll(1, "hello", true)
 // result: (Int, String, Boolean)
 ```
+
+  </TabItem>
+</Tabs>
 
 ### Path-Dependent Types
 
