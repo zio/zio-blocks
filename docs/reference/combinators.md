@@ -45,12 +45,12 @@ Building type-safe, composable systems requires managing values and types at bot
 
 When building up results step-by-step—aggregating function parameters, accumulating intermediate results, or constructing compound values—you often end up with deeply nested tuples:
 
-```scala
+```scala mdoc
 // Manual nesting is tedious and error-prone
 val step1 = (1, "a")
-val step2 = (step1, true)           // ((1, "a"), true)
-val step3 = (step2, 3.14)           // (((1, "a"), true), 3.14)
-val step4 = (step3, 'x')            // ((((1, "a"), true), 3.14), 'x')
+val step2 = (step1, true)
+val step3 = (step2, 3.14)
+val step4 = (step3, 'x') 
 ```
 
 This creates two problems:
