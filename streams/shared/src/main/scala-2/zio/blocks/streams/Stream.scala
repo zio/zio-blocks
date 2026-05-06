@@ -43,7 +43,7 @@ abstract class Stream[+E, +A] {
   def render: String
 
   /**
-   * Returns the underlying [[Chunk]] if this stream wraps a known, materialized
+   * Returns the underlying `Chunk` if this stream wraps a known, materialized
    * chunk, `None` otherwise. O(1).
    *
    * Only streams created via [[Stream.fromChunk]], [[Stream.fromArray]], or
@@ -190,7 +190,7 @@ abstract class Stream[+E, +A] {
   def foreach(f: A => Unit): Either[E, Unit] = runForeach(f)
 
   /**
-   * Groups elements into [[Chunk]]s of size `n`. The last group may be smaller.
+   * Groups elements into `Chunk`s of size `n`. The last group may be smaller.
    */
   def grouped(n: Int): Stream[E, Chunk[A]] = {
     require(n >= 1, s"grouped requires n >= 1, got n=$n")
@@ -387,7 +387,7 @@ abstract class Stream[+E, +A] {
       case e: StreamError => Left(e.value.asInstanceOf[E2])
     }
 
-  /** Runs the stream and collects all elements into a [[Chunk]]. */
+  /** Runs the stream and collects all elements into a `Chunk`. */
   def runCollect: Either[E, Chunk[A]] = run(Sink.collectAll)
 
   /** Runs the stream, discarding all elements. */
@@ -790,7 +790,7 @@ abstract class Stream[+E, +A] {
   /**
    * Opens this stream for manual pull-based consumption within a
    * [[zio.blocks.scope.Scope]]. Use this when you need element-by-element
-   * control rather than running through a [[Sink]]. The returned [[Reader]] is
+   * control rather than running through a [[Sink]]. The returned `Reader` is
    * closed automatically when the scope closes.
    */
   def start(implicit scope: Scope): scope.$[Reader[A]] =
@@ -916,7 +916,7 @@ object Stream {
   def fromArray[A](array: Array[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     fromChunk(Chunk.fromArray(array))
 
-  /** Creates a stream backed by a [[Chunk]]. */
+  /** Creates a stream backed by a `Chunk`. */
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromChunkStream(chunk, jt)
 
@@ -941,8 +941,8 @@ object Stream {
     new FromReader(() => Reader.fromInputStream(is), "Stream.fromInputStreamUnmanaged(...)")
 
   /**
-   * Creates a stream backed by an [[Iterable]]. If the iterable has a known
-   * size, `knownLength` is set.
+   * Creates a stream backed by an `Iterable`. If the iterable has a known size,
+   * `knownLength` is set.
    */
   def fromIterable[A](it: Iterable[A]): Stream[Nothing, A] = {
     val size = it.knownSize
@@ -954,7 +954,7 @@ object Stream {
       new FromReader(() => Reader.fromIterable[A](it), "Stream.fromIterable(...)")
   }
 
-  /** Creates a stream from a lazily-evaluated [[Iterator]]. */
+  /** Creates a stream from a lazily-evaluated `Iterator`. */
   def fromIterator[A](it: => Iterator[A]): Stream[Nothing, A] =
     new FromReader(
       () => {
@@ -991,20 +991,20 @@ object Stream {
     new FromReader(() => Reader.fromReader(r), "Stream.fromJavaReaderUnmanaged(...)")
 
   /**
-   * Creates a stream of integers from a Scala [[Range]]. The `knownLength` is
-   * set from the range size.
+   * Creates a stream of integers from a Scala `Range`. The `knownLength` is set
+   * from the range size.
    */
   def fromRange(range: Range): Stream[Nothing, Int] =
     new FromReader(() => Reader.fromRange(range), "Stream.fromRange(...)") {
       override def knownLength: Option[Long] = Some(range.size.toLong)
     }
 
-  /** Creates a stream from a lazily-evaluated [[Reader]] (advanced API). */
+  /** Creates a stream from a lazily-evaluated `Reader` (advanced API). */
   def fromReader[E, A](mkReader: => Reader[A]): Stream[E, A] =
     new FromReader(() => mkReader)
 
   /**
-   * Creates a resource-safe stream from a [[Resource]] managed by a [[Scope]].
+   * Creates a resource-safe stream from a `Resource` managed by a [[Scope]].
    */
   def fromResource[R, E, A](resource: Resource[R])(use: R => Stream[E, A]): Stream[E, A] =
     new FromResource(resource, use)

@@ -207,7 +207,7 @@ abstract class Reader[+Elem] {
   /**
    * Box-free bulk byte pull into a caller-supplied buffer.
    *
-   * Contract mirrors [[java.io.InputStream#read(byte[],int,int)]]:
+   * Contract mirrors `java.io.InputStream.read(byte[], int, int)`:
    *   - Blocks until at least 1 byte is available.
    *   - Returns the number of bytes read (`1 <= r <= len`).
    *   - Returns `-1` when closed and empty.
