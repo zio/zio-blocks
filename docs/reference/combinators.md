@@ -396,20 +396,6 @@ def process[L, R](l: L, r: R)(using t: Tuples.Tuples[L, R]): (L, R) =
 val result: (Int, String) = process(1, "hello")
 ```
 
-### Type Aliases for Clarity
-
-To improve readability when working with complex typeclass bounds:
-
-```scala mdoc:compile-only
-import zio.blocks.combinators.Tuples
-
-// Typeclass with known output type
-type IntStringTuples = Tuples.Tuples.WithOut[Int, String, (Int, String)]
-
-// Typeclass with known left/right types
-type TripleTuples = Tuples.Tuples.WithOut[(Int, String), Boolean, (Int, String, Boolean)]
-```
-
 ## Integration Points
 
 The combinator types integrate with other ZIO Blocks modules through systematic composition:
@@ -421,21 +407,6 @@ The combinator types integrate with other ZIO Blocks modules through systematic 
 **Scala 3 APIs**: The `Unions` type enables idiomatic Scala 3 DSLs and API designs that use native union syntax. Gateway types that convert between union-based and Either-based representations (e.g., for serialization compatibility) can use `Unions` for zero-cost interop.
 
 **Tuple-Based Builders**: The `Tuples` module supports builder patterns and accumulator-based APIs that need to combine heterogeneous values step-by-step. By flattening automatically, it eliminates the ergonomic burden of manual nesting, making fluent builder chains natural.
-
-## Performance Characteristics
-
-All operations maintain predictable performance characteristics:
-
-| Module                | Time Complexity | Notes                                                                    |
-| --------------------- | --------------- | ------------------------------------------------------------------------ |
-| Tuples.combine        | O(1) to O(n)    | O(1) for small tuples; O(n) for flattening nested tuples                |
-| Tuples.separate       | O(n)            | Splits tuple at size-1 position                                         |
-| Eithers.combine       | O(d)            | d = nesting depth of right-nested Either                                |
-| Eithers.separate      | O(d)            | Same as combine (delegates to combiner)                                 |
-| Unions.combine        | O(1)            | Direct Either fold                                                       |
-| Unions.separate       | O(1)            | Single type test                                                         |
-
-All operations are pure and allocation-minimal.
 
 ## Scala 2 vs Scala 3: Compatibility and Differences
 
@@ -455,17 +426,32 @@ The combinators module works across Scala 2.13 and Scala 3.x with **full source 
 
 **Example: The difference in practice**
 
-In Scala 2.13, this fails to compile:
-```scala
-// Scala 2.13 - ERROR: right side not flattened
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2.13">
+
+In Scala 2.13, combining two tuples on the right side fails to compile:
+
+```scala mdoc:compile-only
+import zio.blocks.combinators.Tuples
+
+// ERROR: right side not flattened
 val result = Tuples.combine((1, 2), (3, 4))  // Type mismatch
 ```
 
-In Scala 3.x, it works seamlessly:
-```scala
-// Scala 3.x - OK: both sides flattened
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3.x">
+
+In Scala 3.x, recursive flattening on both sides works seamlessly:
+
+```scala mdoc:compile-only
+import zio.blocks.combinators.Tuples
+
+// OK: both sides flattened
 val result = Tuples.combine((1, 2), (3, 4))  // (1, 2, 3, 4)
 ```
+
+  </TabItem>
+</Tabs>
 
 ### Eithers: Full Cross-Version Support
 
