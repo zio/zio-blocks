@@ -17,11 +17,15 @@
 package zio.blocks.endpoint
 
 object EndpointUnionErrorBuilder {
+
   /** Scala 2 declaration mirror for the Scala 3 `orOutError` builder API. */
   trait ErrorBuilder[Err, E2] {
     type Out
 
-    def add(existing: HttpCodec[CodecKind.Response, Err], next: HttpCodec[CodecKind.Response, E2]): HttpCodec[CodecKind.Response, Out]
+    def add(
+      existing: HttpCodec[CodecKind.Response, Err],
+      next: HttpCodec[CodecKind.Response, E2]
+    ): HttpCodec[CodecKind.Response, Out]
   }
 
   object ErrorBuilder {

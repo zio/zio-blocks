@@ -19,7 +19,9 @@ package zio.blocks.endpoint
 import zio.blocks.combinators.Eithers
 import zio.http.{Status, headers}
 
-/** Authentication scheme descriptor aligned with zio-http's typed auth model. */
+/**
+ * Authentication scheme descriptor aligned with zio-http's typed auth model.
+ */
 sealed trait AuthType { self =>
   type ClientRequirement
 
@@ -83,7 +85,7 @@ object AuthType {
     type ClientRequirement = ClientReq
     override val codec: HttpCodec[CodecKind.Request, ClientReq] =
       HttpCodec.Fallback(left.codec, right.codec, Alternator.fromEithers(alternator))
-    override def unauthorizedStatus: Status                     = left.unauthorizedStatus
+    override def unauthorizedStatus: Status = left.unauthorizedStatus
   }
 
   final case class WithStatus[ClientReq](
