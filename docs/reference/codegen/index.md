@@ -66,7 +66,7 @@ Scala Code             Scala Code              Scala Code
 ```
 OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → Scala
     ↓                  ↓                   ↓                    ↓
-    └──────────────────┬─────────────────┘─────────────────────┘
+    └──────────────────┬───────────────────┘────────────────────┘
                        ↓
               [zio-blocks-codegen]
                        ↓
@@ -74,7 +74,7 @@ OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → S
             ↓                     ↓
       [IR: Type-safe]     [Emitter: Pure function]
       representation      (no side effects)
-      of Scala code
+      of Scala code               |
             ↓                     ↓
             └──────────┬──────────┘
                        ↓
@@ -94,9 +94,9 @@ libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 Supported Scala versions: 2.13.x and 3.x
 
 ## Overview
-\nThe module has two key layers:
-
-The module has two layers:
+The module has two key layers:
+1. **IR Layer**: Immutable, strongly-typed models of Scala code structures (files, types, members)
+2. **Emit Layer**: Pure functions that convert IR models to formatted Scala source code
 
 ### IR Layer (`zio.blocks.codegen.ir`)
 
