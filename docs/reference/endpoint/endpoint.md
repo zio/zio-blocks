@@ -32,7 +32,7 @@ The five type parameters track everything the compiler needs to enforce consiste
 
 ## Construction
 
-An `Endpoint` is created from a `RoutePattern` using the companion's `apply`:
+We create an `Endpoint` from a `RoutePattern` using `Endpoint.apply`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -268,7 +268,7 @@ val secured = Endpoint(Method.GET / "me")
 
 The `Auth` type parameter carries the `ClientRequirement` associated type, so a bearer-secured endpoint exposes `auth.codec` typed as `HttpCodec[CodecKind.Request, headers.Authorization.Bearer]`. See [AuthType](./auth-type.md) for all variants.
 
-To override the HTTP status returned when the client does not meet the auth requirement, use `.unauthorizedStatus(status)`:
+To override the HTTP status the server sends when the client does not meet the auth requirement, use `Endpoint#unauthorizedStatus`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
