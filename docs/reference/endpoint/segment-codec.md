@@ -22,6 +22,8 @@ Standard routing libraries treat path segments as plain strings, deferring all p
 
 ## Segment Kinds
 
+Each segment kind maps to a specific URL token type. Literal segments match a fixed string; the others capture and parse dynamic values.
+
 ### Literal segments
 
 A `Literal` segment matches exactly one fixed string value. Use `SegmentCodec.literal` with a compile-time string constant:
@@ -105,9 +107,11 @@ Attempting an ambiguous combination like `string ~ string` produces a compiler e
 
 ## Type Transformations
 
+Use these methods to remap the value a codec decodes or encodes without changing the underlying segment structure or its compile-time boundary tags.
+
 ### `SegmentCodec#transform`
 
-To map the decoded segment value to a different type, use `transform`. Both the decode and encode functions must be total:
+To map the decoded segment value to a different type, use `SegmentCodec#transform`. Both the decode and encode functions must be total:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -119,11 +123,11 @@ val userIdSeg: SegmentCodec[UserId] =
   SegmentCodec.uuid("id").transform[UserId](UserId(_), _.value)
 ```
 
-`transform` preserves the `BoundaryTag` types of the original codec, so transformed codecs still participate in compile-time `~` boundary validation.
+`SegmentCodec#transform` preserves the `BoundaryTag` types of the original codec, so transformed codecs still participate in compile-time `~` boundary validation.
 
 ### `SegmentCodec#transformOrFail`
 
-When decoding can fail, use `transformOrFail`. A `Left` result causes segment matching to fail for that candidate:
+When decoding can fail, use `SegmentCodec#transformOrFail`. A `Left` result causes segment matching to fail for that candidate:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -139,6 +143,8 @@ val positiveIntSeg: SegmentCodec[PositiveInt] =
 ```
 
 ## Formatting and Rendering
+
+These methods convert a typed value back to a string for use in URL construction and documentation output.
 
 ### `SegmentCodec#format`
 
