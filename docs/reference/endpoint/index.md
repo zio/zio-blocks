@@ -37,6 +37,8 @@ Without a typed endpoint descriptor, HTTP surface definitions are scattered: rou
 
 ## Installation
 
+Add the dependency to your build definition:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
 ```
