@@ -7,6 +7,8 @@ title: "Smithy"
 
 ## Installation
 
+Add the library to your build configuration:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-smithy" % "@VERSION@"
 ```
@@ -95,7 +97,8 @@ A globally unique identifier for shapes: `namespace#name` (e.g., `"smithy.api#St
 
 **Also supports member references**: `namespace#shape$member` for referencing specific members within shapes.
 
-**Construction**:
+**Construction**: Create a `ShapeId` directly or parse from string format:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -113,6 +116,8 @@ ShapeId.parse("com.example#User") match {
 ### NodeValue
 
 Represents JSON-like values used in trait attributes and metadata. Variants: `String`, `Number`, `Boolean`, `Null`, `Array`, `Object`.
+
+Construct node values for trait configuration:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -142,6 +147,8 @@ Metadata annotation attached to shapes. Identifies the trait (by `ShapeId`) and 
 - `TraitApplication.http(method, uri)` — `@http(method: "...", uri: "...")`
 - `TraitApplication.error(value)` — `@error` trait
 
+Create common trait applications using factory methods:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -155,6 +162,8 @@ val docTrait = TraitApplication.documentation("Get a user by ID")
 Parse Smithy IDL text into structured models using `SmithyModel.parse`, handle errors, and validate round-trips.
 
 ### Basic Parsing
+
+Parse Smithy IDL text and handle the result:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -174,6 +183,8 @@ SmithyModel.parse(smithyText) match {
 ```
 
 ### Handling Parse Errors
+
+Access error details including line and column information when parsing fails:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -196,7 +207,7 @@ SmithyModel.parse(invalidSmithy) match {
 
 ### Round-Trip Validation
 
-Verify a model parses correctly by round-tripping:
+Verify a model parses correctly by round-tripping (parse → serialize → parse again):
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -219,6 +230,8 @@ println(reparsed.isRight)  // true if round-trip succeeds
 Once you have a parsed model, query shapes by name, pattern match on shape types, and traverse their members.
 
 ### Finding Shapes
+
+Locate shapes by name or retrieve all shape identifiers:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -244,6 +257,8 @@ println(s"Total shapes: ${allIds.length}")
 
 ### Pattern Matching on Shapes
 
+Determine shape type and access type-specific properties:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -267,6 +282,8 @@ model.findShape("User").foreach { shapeDef =>
 ```
 
 ### Traversing Members
+
+Iterate over structure/union members and inspect their traits:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -299,6 +316,8 @@ Construct Smithy models in code by creating shapes, adding traits, and assemblin
 
 ### Creating Shapes
 
+Programmatically construct shapes and assemble them into a complete model:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -330,6 +349,8 @@ val model = SmithyModel(
 
 ### Adding Traits
 
+Attach metadata traits to shapes during construction:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -354,6 +375,8 @@ Convert models back to valid Smithy IDL text using `prettyPrint`, with options f
 
 ### Basic Serialization
 
+Convert a model to valid Smithy IDL text:
+
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
 
@@ -372,6 +395,8 @@ println(idlText)
 ```
 
 ### Custom Indentation
+
+Control indentation width when serializing models:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -432,7 +457,8 @@ structure GetUserInput { @required id: String }
 structure CreateUserInput { @required name: String }
 """).toOption.get
 
-// Generate code for each operation
+// Generate code stubs for each operation by pattern matching:
+
 model.shapes.foreach { shapeDef =>
   shapeDef.shape match {
     case op: OperationShape =>
@@ -446,7 +472,7 @@ model.shapes.foreach { shapeDef =>
 
 ### Use-Case 2: Validation & Analysis
 
-Analyze shapes for completeness:
+Find deprecated shapes and analyze trait coverage:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -464,7 +490,8 @@ structure ModernUser {
 }
 """).toOption.get
 
-// Find all deprecated shapes
+// Find all deprecated shapes:
+
 val deprecated = model.shapes.filter { shapeDef =>
   shapeDef.shape.traits.exists(_.id.name == "deprecated")
 }
@@ -474,7 +501,7 @@ println(s"Deprecated shapes: ${deprecated.map(_.name)}")
 
 ### Use-Case 3: Model Transformation
 
-Parse, modify, and re-serialize a model:
+Parse, modify, and re-serialize a model with updated metadata:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
@@ -486,7 +513,8 @@ string UserId
 """
 
 val modified = SmithyModel.parse(original).map { model =>
-  // Add metadata to the model
+  // Add metadata to the model:
+
   val newMetadata = model.metadata + ("version" -> NodeValue.String("1.0"))
   model.copy(metadata = newMetadata)
 }
