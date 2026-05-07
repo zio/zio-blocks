@@ -558,6 +558,8 @@ All shapes have `name: String` and `traits: List[TraitApplication]`.
 
 ### MemberDefinition
 
+The structure of a member definition:
+
 ```scala
 case class MemberDefinition(
   name: String,
@@ -568,6 +570,8 @@ case class MemberDefinition(
 
 ### TraitApplication
 
+The structure of a trait application:
+
 ```scala
 case class TraitApplication(
   id: ShapeId,
@@ -576,10 +580,10 @@ case class TraitApplication(
 ```
 
 **Factories**:
-- `required` — `@required` (no value)
-- `documentation(text: String)` — `@documentation` with text
-- `http(method: String, uri: String)` — `@http` with method and URI
-- `error(value: String)` — `@error` with classification
+- `TraitApplication.required` — `@required` (no value)
+- `TraitApplication.documentation(text: String)` — `@documentation` with text
+- `TraitApplication.http(method: String, uri: String)` — `@http` with method and URI
+- `TraitApplication.error(value: String)` — `@error` with classification
 
 ## Type Integration
 
