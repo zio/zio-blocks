@@ -79,7 +79,7 @@ object Sink {
     }
   }
 
-  /** A sink that collects all elements into a [[Chunk]]. */
+  /** A sink that collects all elements into a `Chunk`. */
   def collectAll[A]: Sink[Nothing, A, Chunk[A]] =
     new Sink[Nothing, A, Chunk[A]] {
       private[streams] def drain(reader: Reader[_]): Chunk[A] =
@@ -117,9 +117,9 @@ object Sink {
     }
 
   /**
-   * Creates a sink from a function that directly consumes a [[Reader]]. Use
-   * this when none of the built-in sinks (`foldLeft`, `foreach`, `collectAll`,
-   * etc.) meet your needs.
+   * Creates a sink from a function that directly consumes a `Reader`. Use this
+   * when none of the built-in sinks (`foldLeft`, `foreach`, `collectAll`, etc.)
+   * meet your needs.
    */
   def create[E, A, Z](f: Reader[A] => Z): Sink[E, A, Z] =
     new Sink[E, A, Z] {
@@ -456,7 +456,7 @@ object Sink {
    */
   val sumLong: Sink[Nothing, Long, Long] = loopLongToLong(0L)((acc, a) => acc + a)
 
-  /** A sink that collects the first `n` elements into a [[Chunk]]. */
+  /** A sink that collects the first `n` elements into a `Chunk`. */
   def take[A](n: Int): Sink[Nothing, A, Chunk[A]] =
     new Sink[Nothing, A, Chunk[A]] {
       private[streams] def drain(reader: Reader[_]): Chunk[A] = {

@@ -24,7 +24,7 @@ import StreamState.{stageStart => ss, incomingLen => il, stageEnd => se, outgoin
  * An optimized interpreter that compiles a chain of stream operations (map,
  * filter, flatMap, source reads) into a flat-array representation for efficient
  * dispatch. This is the fallback compilation strategy for deep pipelines
- * (beyond `Stream.DepthCutoff`) and is used by [[Interpreter.fromStream]].
+ * (beyond `Stream.DepthCutoff`) and is used by `Interpreter.fromStream`.
  *
  * Internally, each op is a (Long, AnyRef) pair stored at the same index in two
  * parallel arrays. The Long's bottom 8 bits hold the [[OpTag]]; the upper 56

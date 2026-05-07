@@ -625,6 +625,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](./reference/typeid.md) - Type identity and metadata
 - [Context](./reference/context.md) - Type-indexed heterogeneous collections
+- [Combinators](./reference/combinators.md) - Compile-time composition and decomposition of values (Tuples, Eithers, Unions)
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms

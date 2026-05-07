@@ -18,7 +18,14 @@ package zio.blocks.html
 
 import zio.blocks.chunk.Chunk
 
-private[html] object InterpolatorRuntime {
+/**
+ * Internal runtime support for the `css`, `selector`, `js`, and `html`
+ * interpolators.
+ *
+ * This object is public only because Scala 2 macro expansion inlines calls at
+ * the use site. It is not intended as a stable user-facing API.
+ */
+object InterpolatorRuntime {
 
   def buildCss(sc: StringContext, args: Seq[String]): Css = {
     require(args.length == sc.parts.length - 1, "wrong number of arguments for interpolation")

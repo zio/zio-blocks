@@ -567,3 +567,7 @@ Expected single character but got ''
 ### Custom Types
 
 To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, manually create a `Schema[T]` using the schema module's derivation tools or manual construction.
+
+## See Also
+
+- [Combinators](../combinators.md) — Systematically compose and canonicalize Either types for uniform error handling across multiple query parameter or header extractions. The `Eithers` combinator canonicalizes nested Either types, making error accumulation consistent.

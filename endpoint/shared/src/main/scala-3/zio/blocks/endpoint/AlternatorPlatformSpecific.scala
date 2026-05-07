@@ -14,8 +14,22 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema
+package zio.blocks.endpoint
 
-trait MaybeCompat {
-  type Maybe[+A] = (A with MaybeTag) @scala.annotation.unchecked.uncheckedVariance
+import zio.blocks.combinators.Unions
+
+private[endpoint] trait AlternatorPlatformSpecific {
+  self: Alternator.type =>
+
+  def fromUnions[L, R, O](unions: Unions.Unions.WithOut[L, R, O]): WithOut[L, R, O] =
+    new Alternator[L, R] {
+      type Out = O
+
+      def combine(either: Either[L, R]): O = unions.combine(either)
+
+      def separate(out: O): Either[L, R] = unions.separate(out)
+    }
+
+  given fromUnionsGiven[L, R, O](using unions: Unions.Unions.WithOut[L, R, O]): WithOut[L, R, O] =
+    fromUnions(unions)
 }

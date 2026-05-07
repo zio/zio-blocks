@@ -1,0 +1,34 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.blocks.endpoint
+
+object EndpointUnionErrorBuilder {
+
+  /** Scala 2 declaration mirror for the Scala 3 `orOutError` builder API. */
+  trait ErrorBuilder[Err, E2] {
+    type Out
+
+    def add(
+      existing: HttpCodec[CodecKind.Response, Err],
+      next: HttpCodec[CodecKind.Response, E2]
+    ): HttpCodec[CodecKind.Response, Out]
+  }
+
+  object ErrorBuilder {
+    type WithOut[Err, E2, O] = ErrorBuilder[Err, E2] { type Out = O }
+  }
+}

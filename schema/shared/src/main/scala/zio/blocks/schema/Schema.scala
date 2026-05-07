@@ -18,6 +18,7 @@ package zio.blocks.schema
 
 import zio.blocks.chunk.{Chunk, ChunkMap}
 import zio.blocks.docs.Doc
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Derivable, DerivationBuilder, Deriver}
 import zio.blocks.typeid.TypeId
