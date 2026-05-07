@@ -1312,7 +1312,8 @@ lazy val docs = project
     `http-model-schema`.jvm,
     openapi.jvm,
     html.jvm,
-    datastar.jvm
+    datastar.jvm,
+    smithy
   )
   .enablePlugins(WebsitePlugin)
 
