@@ -115,7 +115,7 @@ ShapeId.parse("com.example#User") match {
 
 ### NodeValue
 
-Represents JSON-like values used in trait attributes and metadata. Variants: `String`, `Number`, `Boolean`, `Null`, `Array`, `Object`.
+JSON-like values for trait attributes and metadata. Variants include `String`, `Number`, `Boolean`, `Null`, `Array`, and `Object`.
 
 Construct node values for trait configuration:
 
