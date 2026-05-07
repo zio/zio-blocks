@@ -62,6 +62,8 @@ result.foreach { model =>
 
 ## Core Types
 
+The library provides five core types that work together to parse, query, and serialize Smithy models.
+
 ### SmithyModel
 
 The root container for a Smithy model. Contains version, namespace, shapes, metadata, and trait applications.
@@ -150,6 +152,8 @@ val docTrait = TraitApplication.documentation("Get a user by ID")
 
 ## Parsing Models
 
+Parse Smithy IDL text into structured models using `SmithyModel.parse`, handle errors, and validate round-trips.
+
 ### Basic Parsing
 
 ```scala mdoc:compile-only
@@ -211,6 +215,8 @@ println(reparsed.isRight)  // true if round-trip succeeds
 ```
 
 ## Querying & Traversing Shapes
+
+Once you have a parsed model, query shapes by name, pattern match on shape types, and traverse their members.
 
 ### Finding Shapes
 
@@ -289,6 +295,8 @@ model.findShape("User").foreach { shapeDef =>
 
 ## Building Models Programmatically
 
+Construct Smithy models in code by creating shapes, adding traits, and assembling them into a complete model.
+
 ### Creating Shapes
 
 ```scala mdoc:compile-only
@@ -342,6 +350,8 @@ val serviceShape = ServiceShape(
 
 ## Serializing Models
 
+Convert models back to valid Smithy IDL text using `prettyPrint`, with options for custom formatting.
+
 ### Basic Serialization
 
 ```scala mdoc:compile-only
@@ -388,6 +398,8 @@ val verbose = model.prettyPrint(indent = 8)
 ```
 
 ## Common Use-Cases
+
+See how to apply Smithy parsing and querying to real-world workflows: code generation, validation, and model transformation.
 
 ### Use-Case 1: Code Generation
 
@@ -485,6 +497,8 @@ modified.foreach { model =>
 ```
 
 ## API Reference
+
+Concise reference for all public methods and types, organized by component.
 
 ### SmithyModel
 
