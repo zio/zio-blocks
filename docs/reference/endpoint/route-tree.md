@@ -108,4 +108,4 @@ This means `/users/42` matches an `Int` route even if a `String` route is also r
 - **`literals`**: a `Map[String, SegmentSubtree[A]]` for O(1) exact-match lookups.
 - **`others`**: a `ListMap[SegmentCodec.Key, (SegmentCodec[_], SegmentSubtree[A])]` ordered by priority for dynamic segment matching.
 
-The `value: Option[A]` field holds the registered value when a complete path terminates at this node. Trailing segments are handled as a special case: if a `Trailing` codec is registered and the current index is past the end of the path segments, its subtree value is returned.
+The `value: Option[A]` field holds the registered value when a complete path terminates at this node. Trailing segments have special handling: if a `Trailing` codec is registered and the current index is past the end of the path segments, the lookup returns its subtree value.
