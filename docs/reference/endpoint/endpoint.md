@@ -57,11 +57,11 @@ The initial `Endpoint` starts with `Unit` for all three codec channels and `Auth
 
 ## Request Input Builders
 
-Every `.in`, `.query`, and `.header` call adds another input component to the endpoint, widening the `Input` type parameter.
+Every `Endpoint#in`, `Endpoint#query`, and `Endpoint#header` call adds another input component to the endpoint, widening the `Input` type parameter.
 
 ### Body input
 
-To add a request body typed by a `Schema`, use `.in(schema)`:
+To add a request body typed by a `Schema`, use `Endpoint#in`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -86,7 +86,7 @@ val ep = Endpoint(Method.POST / "users")
   .in(MediaTypes.application.`json`, Schema.string)
 ```
 
-To add a raw `HttpCodec.Body` node directly, use `.in(codec)`:
+To add a raw `HttpCodec.Body` node directly, use `Endpoint#in`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -100,7 +100,7 @@ val ep = Endpoint(Method.POST / "users")
 
 ### Query parameters
 
-To add a query parameter by name and schema, use `.query(name, schema)`:
+To add a query parameter by name and schema, use `Endpoint#query`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -113,7 +113,7 @@ val ep = Endpoint(Method.GET / "users")
   .query("limit", Schema.int)
 ```
 
-To add a pre-built `HttpCodec.Query` node, use `.query(codec)`:
+To add a pre-built `HttpCodec.Query` node, use `Endpoint#query`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -127,7 +127,7 @@ val ep        = Endpoint(Method.GET / "users").query(pageCodec)
 
 ### Request headers
 
-To add a request header by name and schema, use `.header(name, schema)`:
+To add a request header by name and schema, use `Endpoint#header`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -139,7 +139,7 @@ val ep = Endpoint(Method.GET / "users")
   .header("X-Trace-Id", Schema.string)
 ```
 
-To add a pre-built `HttpCodec.Header` node, use `.header(codec)`:
+To add a pre-built `HttpCodec.Header` node, use `Endpoint#header`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -153,11 +153,11 @@ val ep         = Endpoint(Method.GET / "users").header(traceCodec)
 
 ## Success Output Builders
 
-Every `.out` and `.outHeader` call adds a success response alternative or header component, widening `Output`.
+Every `Endpoint#out` and `Endpoint#outHeader` call adds a success response alternative or header component, widening `Output`.
 
 ### Response body
 
-To add a 200 OK response body, use `.out(schema)`:
+To add a 200 OK response body, use `Endpoint#out`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -169,7 +169,7 @@ val ep = Endpoint(Method.GET / "users")
   .out(Schema.string)
 ```
 
-To specify a non-200 status code, use `.out(status, schema)`:
+To specify a non-200 status code, use `Endpoint#out` with a `Status`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -195,11 +195,11 @@ val ep = Endpoint(Method.GET / "users")
   .out(Status.Created, MediaTypes.text.`plain`, Schema.int)
 ```
 
-Multiple `.out` calls produce alternatives. The output type widens from `Unit` to the first schema type, then to a nested `Either` for each additional alternative.
+Multiple `Endpoint#out` calls produce alternatives. The output type widens from `Unit` to the first schema type, then to a nested `Either` for each additional alternative.
 
 ### Response headers
 
-To add a typed response header, use `.outHeader(name, schema)`:
+To add a typed response header, use `Endpoint#outHeader`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -214,11 +214,11 @@ val ep = Endpoint(Method.GET / "users")
 
 ## Error Output Builders
 
-Error channels work like success channels but populate the `Err` type parameter. Two variants exist: `outError` (cross-version) and `orOutError` (Scala 3 unions).
+Error channels work like success channels but populate the `Err` type parameter. Two variants exist: `Endpoint#outError` (cross-version) and `Endpoint#orOutError` (Scala 3 unions).
 
-### `outError` — cross-version additive errors
+### `Endpoint#outError` — cross-version additive errors
 
-To add an error response with a status code and body schema, use `.outError(status, schema)`:
+To add an error response with a status code and body schema, use `Endpoint#outError`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -232,11 +232,11 @@ val ep = Endpoint(Method.GET / "users")
   .outError(Status.BadRequest, Schema.string)
 ```
 
-Each `.outError` call widens `Err` by one nested `Either` layer.
+Each `Endpoint#outError` call widens `Err` by one nested `Either` layer.
 
-### `orOutError` — Scala 3 union errors
+### `Endpoint#orOutError` — Scala 3 union errors
 
-On Scala 3, `.orOutError` accumulates error types as a native union type instead of nested `Either`s. The first call replaces the initial `Unit` error outright; subsequent calls build a `Fallback` codec backed by `Unions` derivation:
+On Scala 3, `Endpoint#orOutError` accumulates error types as a native union type instead of nested `Either`s. The first call replaces the initial `Unit` error outright; subsequent calls build a `Fallback` codec backed by `Unions` derivation:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -251,11 +251,11 @@ val ep = Endpoint(Method.GET / "users")
 val typed: Endpoint[Unit, Unit, String | Int, Unit, AuthType.None.type] = ep
 ```
 
-The compiler rejects overlapping union members — `.orOutError(Status.NotFound, Schema.string)` followed by `.orOutError(Status.BadRequest, Schema.string)` is a compile error because `String | String` is not a valid discriminated union.
+The compiler rejects overlapping union members — two `Endpoint#orOutError` calls both using `Schema.string` produce a compile error because `String | String` is not a valid discriminated union.
 
 ## Authentication
 
-To attach an authentication scheme, use `.auth(authType)`:
+To attach an authentication scheme, use `Endpoint#auth`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -282,7 +282,7 @@ val secured = Endpoint(Method.GET / "me")
 
 ## Documentation
 
-To attach a `Doc` value to the endpoint as a whole, use `.doc(documentation)`:
+To attach a `Doc` value to the endpoint as a whole, use `Endpoint#doc`:
 
 ```scala mdoc:compile-only
 import zio.blocks.docs.Doc
