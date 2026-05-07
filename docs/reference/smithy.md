@@ -620,3 +620,62 @@ Smithy IDL Text
 - No lazy evaluation—everything is eagerly loaded into memory
 
 For large models (1000+ shapes), consider batching operations rather than repeated `findShape` calls.
+
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `smithy-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+### Step 1: Basic Parsing and Querying
+
+Parse Smithy IDL text, find shapes by name, and access their structure and metadata:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.BasicParsingAndQuerying"
+```
+
+### Step 2: Building Models Programmatically
+
+Construct Smithy models in code by creating shapes, adding traits, and assembling them into a complete model:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.BuildingModelsAndTraits"
+```
+
+### Step 3: Code Generation from Models
+
+Use Smithy models to generate client and server stubs, showing the foundation for code generation tools:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.CodeGenerationExample"
+```
+
+### Step 4: Validation and Analysis
+
+Analyze Smithy models for completeness, find deprecated shapes, check for documentation, and validate API contracts:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.ValidationAndAnalysis"
+```
+
+### Complete Example: E-Commerce API
+
+A complete real-world example showing a full e-commerce API model with parsing, querying, analysis, and code generation:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.CompleteECommerceAPI"
+```
+
+**3. Or compile all examples at once:**
+
+```bash
+sbt "smithy-examples/compile"
+```
