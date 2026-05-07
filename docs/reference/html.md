@@ -9,33 +9,33 @@ Core types: `Dom` (HTML tree), `CssSelector` (CSS queries), `DomSelection` (DOM 
 
 The module is structured around these core types:
 
-```scala
+```
 import zio.blocks.html._
 import zio.blocks.chunk.Chunk
 
 // Dom variants
 sealed trait Dom
-final case class Dom.Text(content: String) extends Dom
+case class Dom.Text(content: String) extends Dom
 sealed trait Dom.Element extends Dom
-final case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
-final case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
-final case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 
 // Attribute variants
 sealed trait Dom.Attribute
-final case class Dom.Attribute.KeyValue(name: String, value: Dom.AttributeValue) extends Dom.Attribute
-final case class Dom.Attribute.AppendValue(name: String, value: Dom.AttributeValue, separator: Dom.AttributeSeparator) extends Dom.Attribute
-final case class Dom.Attribute.BooleanAttribute(name: String, enabled: Boolean) extends Dom.Attribute
+case class Dom.Attribute.KeyValue(name: String, value: Dom.AttributeValue) extends Dom.Attribute
+case class Dom.Attribute.AppendValue(name: String, value: Dom.AttributeValue, separator: Dom.AttributeSeparator) extends Dom.Attribute
+case class Dom.Attribute.BooleanAttribute(name: String, enabled: Boolean) extends Dom.Attribute
 
 // CssSelector variants (additional types omitted for brevity)
 sealed trait CssSelector
-final case class CssSelector.Element(tag: String) extends CssSelector
-final case class CssSelector.Class(name: String) extends CssSelector
+case class CssSelector.Element(tag: String) extends CssSelector
+case class CssSelector.Class(name: String) extends CssSelector
 
 // Css variants
 sealed trait Css
-final case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration]) extends Css
-final case class Css.Declaration(property: String, value: String) extends Css
+case class Css.Rule(selector: CssSelector, declarations: Chunk[Css.Declaration]) extends Css
+case class Css.Declaration(property: String, value: String) extends Css
 ```
 
 ## Motivation
@@ -550,7 +550,7 @@ val code = js"console.log($message); alert($count);"
 ```
 
 :::warning
-Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Use `ToJs[String]` (which automatically quotes) or construct `Js` literals explicitly.
+Never interpolate untrusted user input directly into `js""`. The interpolator escapes string values, but the `Js` value is rendered without additional escaping in script elements. Always use `ToJs[String]` (which automatically quotes and escapes) for any untrusted input.
 :::
 
 The interpolator protects against `</script>` injection by escaping `<` and `>` as Unicode escapes:
@@ -559,7 +559,11 @@ The interpolator protects against `</script>` injection by escaping `<` and `>` 
 import zio.blocks.html._
 
 val userInput = "if (x < y) alert('<script>');"
-val code = js"val check = $userInput"
+val code = js"let check = $userInput"
+
+println(code.value)
+// let check = "if (x < y) alert('<script>');"
+// (with < and > characters escaped as < and > in actual output)
 ```
 
 ### `selector""` Interpolator
@@ -947,7 +951,9 @@ import zio.blocks.html._
 val userInput = "</script><script>alert('XSS');</script>"
 val code = js"let payload = $userInput"
 
-code.value
+println(code.value)
+// let payload = "</script><script>alert('XSS');</script>"
+// (with < and > characters escaped as Unicode in actual output)
 ```
 
 ### URL Sanitization
