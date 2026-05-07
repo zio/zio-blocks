@@ -46,6 +46,8 @@ These are never instantiated — they exist only to parameterize `HttpCodec[K, A
 
 ## Construction
 
+Smart constructors on the `HttpCodec` companion build each atom type. Choose the constructor that matches the HTTP part you are describing.
+
 ### Query parameters
 
 To describe a named query parameter, use `HttpCodec.query`:
@@ -162,6 +164,8 @@ val unauthorized = HttpCodec.Unauthorized
 For any other status code, use `HttpCodec.CustomStatus(code)`.
 
 ## Composition
+
+Two operators combine `HttpCodec` values: `++` sequences parts within the same direction, while `|` creates alternatives for content negotiation or multi-status responses.
 
 ### Sequential composition with `++`
 
