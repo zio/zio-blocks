@@ -11,7 +11,7 @@ sealed trait PathCodec[A]
 
 ## Motivation
 
-URL paths need to be both matched and generated. A routing library that only matches paths requires a separate URL-builder for links and redirects, leading to duplication and drift. `PathCodec` is bidirectional: every codec that can decode `/users/42` into `42: Int` can also format `42` back into `/users/42`. This makes it safe to use the same path definition for routing, link generation, and OpenAPI path parameter documentation.
+URL paths need both matching and generation. A routing library that only matches paths requires a separate URL-builder for links and redirects, leading to duplication and drift. `PathCodec` is bidirectional: every codec that can decode `/users/42` into `42: Int` can also format `42` back into `/users/42`. This makes it safe to use the same path definition for routing, link generation, and OpenAPI path parameter documentation.
 
 ## Structure
 
@@ -22,7 +22,7 @@ URL paths need to be both matched and generated. A routing library that only mat
 | `Segment`   | A single path segment, described by a `SegmentCodec[A]`        |
 | `Concat`    | Two path codecs composed sequentially with `/` or `++`         |
 | `Transform` | Bidirectional type mapping over an existing codec              |
-| `Fallback`  | Two literal alternatives (used only with `orElse`)             |
+| `Fallback`  | Two literal alternatives (applies only with `orElse`)          |
 
 ## Construction
 
