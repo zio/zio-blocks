@@ -23,6 +23,8 @@ Authentication requirements are often encoded informally — a comment in the ha
 
 ## Built-in Variants
 
+Each built-in variant maps to a specific HTTP authorization scheme. Use the one that matches your API's authentication model.
+
 ### `AuthType.None`
 
 The default auth type — no authentication required. Its `ClientRequirement` is `Unit` and its codec is `HttpCodec.Empty`:
@@ -94,6 +96,8 @@ val keyEndpoint = Endpoint(Method.GET / "data").auth(apiKeyAuth)
 ```
 
 ## Composition
+
+`AuthType` values compose in two ways: `|` builds an OR alternative that accepts either scheme, and `Scoped` attaches scope requirements to an existing auth type.
 
 ### `AuthType#|` — OR composition
 
