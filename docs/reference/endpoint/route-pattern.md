@@ -21,6 +21,8 @@ Using a typed route pattern means route construction and path extraction are ver
 
 ## Construction
 
+Several construction forms exist. The method-first syntax is the most common and most readable; the others cover less typical use cases.
+
 ### Method-first syntax (recommended)
 
 The primary syntax uses the `Method` extension method `/` to produce a `RoutePattern` directly:
@@ -97,6 +99,8 @@ Each `/` call produces a new `RoutePattern` with a widened type. The combiner in
 
 ## Decoding and Encoding
 
+`RoutePattern` is bidirectional: `RoutePattern#decode` validates a live request against the pattern, and `RoutePattern#encode` rebuilds a request pair from a typed path value.
+
 ### `RoutePattern#decode`
 
 To check whether a method and path match, and extract the typed path value:
@@ -141,6 +145,8 @@ val matches = route.matches(Method.GET, Path("/users"))
 ```
 
 ## Structural Operations
+
+Three structural operations transform an existing `RoutePattern` without building a new one from scratch: `RoutePattern#alternatives`, `RoutePattern#nest`, and `RoutePattern#render`.
 
 ### Alternatives
 
