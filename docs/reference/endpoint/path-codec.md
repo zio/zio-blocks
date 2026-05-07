@@ -26,6 +26,8 @@ URL paths need both matching and generation. A routing library that only matches
 
 ## Construction
 
+We build a `PathCodec` from smart constructors that produce typed segment nodes, from a path string, or by wrapping a `SegmentCodec` directly.
+
 ### Predefined segment constructors
 
 The most common path building blocks are available as smart constructors on the companion:
@@ -73,6 +75,8 @@ There is also an implicit conversion from `SegmentCodec[A]` to `PathCodec[A]` an
 
 ## Composition
 
+Path codecs compose in two ways: sequential concatenation with `/` or `++`, and literal alternatives with `orElse`.
+
 ### Sequential composition with `/` and `++`
 
 `/` and `++` are equivalent: both concatenate two path codecs. The result type is flattened by `Tuples.WithOut` (so `Unit / Int` gives `Int`, not `(Unit, Int)`):
@@ -109,6 +113,8 @@ val either: PathCodec[Unit] =
 `orElse` is restricted to `PathCodec[Unit]` (literal-only) segments. `RouteTree` expands alternatives into separate trie branches via `PathCodec#alternatives`.
 
 ## Decoding and Formatting
+
+`PathCodec` is bidirectional: `PathCodec#decode` turns a runtime `Path` into a typed value, and `PathCodec#format` turns a typed value back into a `Path`.
 
 ### `PathCodec#decode`
 
@@ -155,6 +161,8 @@ val matched = codec.matches(Path("/users"))
 ```
 
 ## Type Transformations
+
+Use these methods to map the typed value that `PathCodec` decodes or encodes without changing the underlying path structure.
 
 ### `PathCodec#transform`
 
