@@ -1224,7 +1224,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode" % "0.4.4",
-      "dev.zio" %% "zio-sbt-source" % "0.4.7-alpha.3+59-e5dee806-SNAPSHOT"
+      "dev.zio" %% "zio-sbt-source" % "0.5.1+3-1c689a23-SNAPSHOT"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1252,7 +1252,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode" % "0.4.4",
-      "dev.zio" %% "zio-sbt-source" % "0.4.7-alpha.3+59-e5dee806-SNAPSHOT"
+      "dev.zio" %% "zio-sbt-source" % "0.5.1+3-1c689a23-SNAPSHOT"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
