@@ -16,9 +16,11 @@ val absent: Maybe[Int]  = Maybe.absent
 
 ## Motivation
 
-When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` eliminates this allocation overhead by leveraging Scala 3's union types and null semantics, making it ideal for performance-critical code paths where frequent allocations would degrade throughput or latency.
+When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` provides an alternative with different trade-offs depending on your Scala version.
 
-Unlike raw `A | Null` unions, `Maybe[A]` wraps null in an opaque type, giving you a dedicated API (`map`, `flatMap`, `filter`, etc.) that feels familiar if you use `Option`, while maintaining zero runtime overhead—just a null check.
+**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and null semantics—every value is either the unwrapped value itself or `null`. This is ideal for performance-critical code where allocations impact throughput or latency. The type is an opaque alias for `A | Null`, giving you a dedicated API (`map`, `flatMap`, `filter`, etc.) with zero runtime wrapper overhead—just null checks.
+
+**On Scala 2.13:** `Maybe[A]` is implemented as a sealed trait (`Present[A]` | `Absent`). Present values allocate a wrapper, so the allocation savings versus `Option` are less pronounced. However, the unified API and interoperability benefits still apply.
 
 ### Why Maybe over Option?
 
@@ -217,8 +219,8 @@ Wraps a value in `Maybe`, treating `null` as `Maybe.absent`:
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
-val present = Maybe(42)      // Maybe[Int] containing 42
-val absent  = Maybe(null)    // Maybe[Any] absent
+val present = Maybe(42)                  // Maybe[Int] containing 42
+val absent: Maybe[String] = Maybe(null)  // Maybe[String] absent
 ```
 
 #### Maybe.present
@@ -656,17 +658,11 @@ Applies one of two functions based on presence:
 import zio.blocks.maybe._
 
 val value: Maybe[Int] = Maybe.present(10)
-val result = value.fold(
-  ifAbsent = -1,
-  ifPresent = (x: Int) => x * 2
-)
+val result = value.fold(-1)((x: Int) => x * 2)
 println(result)  // 20
 
 val absent: Maybe[Int] = Maybe.absent
-val fallback = absent.fold(
-  ifAbsent = -1,
-  ifPresent = (x: Int) => x * 2
-)
+val fallback = absent.fold(-1)((x: Int) => x * 2)
 println(fallback)  // -1
 ```
 
