@@ -115,7 +115,7 @@ val route = Method.GET / "users" / PathCodec.int("id")
 val result: Either[String, Int] = route.decode(Method.GET, Path("/users/42"))
 ```
 
-`decode` returns `Left` if the method does not match or any segment fails to parse, and `Right(value)` with the extracted path value otherwise. HEAD requests automatically fall back to GET for compatibility.
+`RoutePattern#decode` returns `Left` if the method does not match or any segment fails to parse, and `Right(value)` with the extracted path value otherwise. HEAD requests automatically fall back to GET for compatibility.
 
 ### `RoutePattern#encode`
 
@@ -150,7 +150,7 @@ Three structural operations transform an existing `RoutePattern` without buildin
 
 ### Alternatives
 
-`RoutePattern#alternatives` expands `Method.ANY` and `Method.Methods` into a flat list of single-method patterns. This is used by `RouteTree` before inserting into the trie:
+`RoutePattern#alternatives` expands `Method.ANY` and `Method.Methods` into a flat list of single-method patterns. `RouteTree` calls this before inserting into the trie:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
