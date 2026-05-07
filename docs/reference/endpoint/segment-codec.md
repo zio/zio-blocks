@@ -37,7 +37,7 @@ val usersLit: SegmentCodec.Literal = SegmentCodec.literal("users")
 
 ### Typed dynamic segments
 
-Standard typed segment constructors take a name (used for documentation and OpenAPI path parameters):
+Standard typed segment constructors each accept a name string for documentation and OpenAPI path parameter labels:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -54,7 +54,7 @@ The ordering of match priority in the routing trie follows the kind: `Literal` m
 
 ### Trailing segment
 
-`SegmentCodec.Trailing` captures all remaining path segments as a `zio.http.Path`. It is used for wildcard routes and is always the lowest priority in the trie:
+`SegmentCodec.Trailing` captures all remaining path segments as a `zio.http.Path`. Use it for wildcard routes; it always has the lowest priority in the trie:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -155,7 +155,7 @@ val path: Path = seg.format(42)
 
 ### `SegmentCodec#render`
 
-To produce the human-readable name of the segment (used in `PathCodec.render` and OpenAPI):
+To produce the human-readable name of the segment that `PathCodec.render` and OpenAPI generators consume:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
