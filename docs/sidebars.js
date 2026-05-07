@@ -126,7 +126,20 @@ const sidebars = {
               "reference/http-model/schema",
             ]
           },
-          "reference/endpoint",
+          {
+            type: "category",
+            label: "Endpoint",
+            link: { type: "doc", id: "reference/endpoint/index" },
+            items: [
+              "reference/endpoint/endpoint",
+              "reference/endpoint/http-codec",
+              "reference/endpoint/route-pattern",
+              "reference/endpoint/path-codec",
+              "reference/endpoint/segment-codec",
+              "reference/endpoint/auth-type",
+              "reference/endpoint/route-tree",
+            ]
+          },
           "reference/chunk",
           "reference/maybe",
           "path-interpolator",
