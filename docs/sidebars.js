@@ -132,6 +132,7 @@ const sidebars = {
           "path-interpolator",
           "reference/ringbuffer",
           "reference/html",
+          "reference/smithy",
           "reference/datastar",
           {
             type: "category",
