@@ -1,0 +1,185 @@
+---
+id: segment-codec
+title: "SegmentCodec"
+---
+
+`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. Its definition is:
+
+```scala
+sealed trait SegmentCodec[A] {
+  type Prefix <: SegmentCodec.BoundaryTag
+  type Suffix <: SegmentCodec.BoundaryTag
+}
+```
+
+## Motivation
+
+Standard routing libraries treat path segments as plain strings, deferring all parsing to handler code. `SegmentCodec` encodes the type of each segment statically, so the compiler knows whether a segment produces an `Int`, a `UUID`, or a custom domain type. This enables:
+
+- **Type-safe path building**: `PathCodec.int("id")` produces a `PathCodec[Int]`, not `PathCodec[String]`.
+- **Bidirectional conversion**: every `SegmentCodec` can both decode a string into `A` and format an `A` back to a string.
+- **Compile-time combination validation**: the `~` operator is a macro that validates boundary constraints, rejecting combinations like `string ~ string` before the code compiles.
+
+## Segment Kinds
+
+### Literal segments
+
+A `Literal` segment matches exactly one fixed string value. Use `SegmentCodec.literal` with a compile-time string constant:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val usersLit: SegmentCodec.Literal = SegmentCodec.literal("users")
+```
+
+`SegmentCodec.literal` is a macro: it validates that the value is a non-empty, URL-safe, single-segment string at compile time and rejects `""`, `"foo/bar"`, or strings requiring percent-encoding.
+
+### Typed dynamic segments
+
+Standard typed segment constructors take a name (used for documentation and OpenAPI path parameters):
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val boolSeg: SegmentCodec[Boolean]        = SegmentCodec.bool("flag")
+val intSeg: SegmentCodec[Int]             = SegmentCodec.int("id")
+val longSeg: SegmentCodec[Long]           = SegmentCodec.long("id")
+val stringSeg: SegmentCodec[String]       = SegmentCodec.string("slug")
+val uuidSeg: SegmentCodec[java.util.UUID] = SegmentCodec.uuid("id")
+```
+
+The ordering of match priority in the routing trie follows the kind: `Literal` matches first, then `Int`, `Long`, `UUID`, `Bool`, `String`, `Combined`, and `Trailing` last.
+
+### Trailing segment
+
+`SegmentCodec.Trailing` captures all remaining path segments as a `zio.http.Path`. It is used for wildcard routes and is always the lowest priority in the trie:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.Path
+
+val rest: SegmentCodec[Path] = SegmentCodec.Trailing
+```
+
+## Intra-Segment Composition with `~`
+
+The `~` operator combines two `SegmentCodec` values into a `Combined` codec that matches a single path segment containing both parts consecutively. This is useful for version strings like `v42` or prefixed identifiers like `usr-550e8400`:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val versionSeg: SegmentCodec[(Unit, Int)] =
+  SegmentCodec.literal("v") ~ SegmentCodec.int("major")
+```
+
+The resulting codec decodes the string `"v42"` into `((), 42)` and formats `((), 42)` back to `"v42"`.
+
+### Compile-time boundary validation
+
+The `~` operator is a macro that checks `BoundaryTag` phantom types at compile time. Two categories of combination are always rejected:
+
+- **Two string segments**: `SegmentCodec.string("a") ~ SegmentCodec.string("b")` — both are unbounded greedy matchers; the parser cannot know where one ends and the other begins.
+- **Two numeric segments**: `SegmentCodec.int("a") ~ SegmentCodec.int("b")` — numeric segments are also ambiguously bounded.
+
+Combinations that are safe compile successfully:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+// Safe: literal delimiter separates two dynamic segments
+val versionMajorMinor =
+  SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~
+  SegmentCodec.literal("x") ~ SegmentCodec.int("minor")
+
+// Safe: string bounded by uuid on both sides
+val prefixedUuid =
+  SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
+```
+
+Attempting an ambiguous combination like `string ~ string` produces a compiler error describing the constraint violation, not a runtime failure.
+
+## Type Transformations
+
+### `SegmentCodec#transform`
+
+To map the decoded segment value to a different type, use `transform`. Both the decode and encode functions must be total:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+final case class UserId(value: java.util.UUID)
+
+val userIdSeg: SegmentCodec[UserId] =
+  SegmentCodec.uuid("id").transform[UserId](UserId(_), _.value)
+```
+
+`transform` preserves the `BoundaryTag` types of the original codec, so transformed codecs still participate in compile-time `~` boundary validation.
+
+### `SegmentCodec#transformOrFail`
+
+When decoding can fail, use `transformOrFail`. A `Left` result causes segment matching to fail for that candidate:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+final case class PositiveInt(value: Int)
+
+val positiveIntSeg: SegmentCodec[PositiveInt] =
+  SegmentCodec.int("count").transformOrFail[PositiveInt](
+    n => if (n > 0) Right(PositiveInt(n)) else Left(s"Expected positive, got $n"),
+    p => Right(p.value)
+  )
+```
+
+## Formatting and Rendering
+
+### `SegmentCodec#format`
+
+To format a typed value into a single-segment `Path`:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+import zio.http.Path
+
+val seg  = SegmentCodec.int("id")
+val path: Path = seg.format(42)
+```
+
+### `SegmentCodec#render`
+
+To produce the human-readable name of the segment (used in `PathCodec.render` and OpenAPI):
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val intSeg = SegmentCodec.int("id")
+val rendered: String = intSeg.render()
+```
+
+Dynamic segments appear as `{name}` by default. To use a different prefix/suffix, pass them as arguments: `intSeg.render(":", "")` produces `:id`.
+
+## Priority Ordering
+
+When `RouteTree` builds a routing trie, it uses `SegmentCodec.Kind` ordering to resolve ambiguous matches. Literals always win; within dynamic segments, more specific types take priority:
+
+| Priority | Kind       |
+| -------- | ---------- |
+| 1        | `Literal`  |
+| 2        | `Int`      |
+| 3        | `Long`     |
+| 4        | `UUID`     |
+| 5        | `Bool`     |
+| 6        | `String`   |
+| 7        | `Combined` |
+| 8        | `Trailing` |
+
+This ordering ensures that `/users/42` matches an `Int` route before a `String` route, and `/users/active` matches a `String` route because `"active"` is not a valid integer.
