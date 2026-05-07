@@ -105,7 +105,7 @@ The phantom type `CodecKind` (either `Request` or `Response`) on `HttpCodec` mea
 
 Several composition patterns appear regularly when building endpoints.
 
-**Single success response:** Use `.out(Schema[A])` for a 200 OK response with a body:
+**Single success response:** Use `Endpoint#out` for a 200 OK response with a body:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -117,7 +117,7 @@ val getUser = Endpoint(Method.GET / "users" / PathCodec.int("id"))
   .out(Schema.string)
 ```
 
-**Multiple success variants:** Chain additional `.out(status, schema)` calls to add alternatives. The output type widens to an `Either`-based union:
+**Multiple success variants:** Chain additional `Endpoint#out` calls to add alternatives. The output type widens to an `Either`-based union:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -131,7 +131,7 @@ val createOrUpdate = Endpoint(Method.POST / "users")
   .out(Status.Ok, Schema.string)
 ```
 
-**Scala 3 union errors:** Use `.orOutError` to accumulate error types as a Scala 3 union rather than nested `Either`s:
+**Scala 3 union errors:** Use `Endpoint#orOutError` to accumulate error types as a Scala 3 union rather than nested `Either`s:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
