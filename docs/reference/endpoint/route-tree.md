@@ -29,7 +29,7 @@ Within each trie level, literal segments are stored in a `Map[String, ...]` for 
 
 ## Building a `RouteTree`
 
-Start from an empty tree and add patterns with `.add`:
+Start from an empty tree and add patterns with `RouteTree#add`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
