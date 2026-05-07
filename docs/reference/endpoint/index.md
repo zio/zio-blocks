@@ -61,7 +61,7 @@ These seven types form the complete endpoint DSL:
 
 **[AuthType](./auth-type.md)** describes an authentication scheme as a first-class type parameter. Built-in variants include `None`, `Basic`, `Bearer`, and `Digest`; custom schemes and `Or` combinations are also supported.
 
-**[RouteTree](./route-tree.md)** is a routing trie keyed by HTTP method and path. Literals are matched first, then dynamic segments in priority order. It is primarily used by server-side interpreters.
+**[RouteTree](./route-tree.md)** is a routing trie keyed by HTTP method and path. The trie matches literals first, then dynamic segments in priority order. Server-side interpreters use it to build efficient route dispatch tables.
 
 ## How They Work Together
 
@@ -195,4 +195,4 @@ RouteTree (server-side only)
   └─ uses SegmentSubtree    for per-level trie nodes
 ```
 
-Cross-module: `zio-blocks-openapi` consumes `Endpoint` values to generate OpenAPI 3.1 specifications. `zio-blocks-schema` provides the `Schema[A]` instances used by `HttpCodec.Body` for serialization.
+Cross-module: `zio-blocks-openapi` consumes `Endpoint` values to generate OpenAPI 3.1 specifications. `zio-blocks-schema` provides the `Schema[A]` instances that `HttpCodec.Body` uses for serialization.
