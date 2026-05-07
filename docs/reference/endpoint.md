@@ -92,16 +92,29 @@ Two constraints are intentional:
 
 ## Typed authentication
 
-Authentication is part of the endpoint type. Built-in auth constructors keep the request requirement precise:
+Authentication is part of the endpoint type. Built-in auth constructors keep the request requirement precise. Failed authentication returns `Status.NotFound` by default as an intentional information-hiding pattern. Use `unauthorizedStatus(Status.Unauthorized)` when you want standard `401 Unauthorized` behavior:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.{Method, Status}
+
+val secured = Endpoint(Method.GET / "me")
+  .auth(AuthType.Bearer)
+  .unauthorizedStatus(Status.Unauthorized)
+
+val authCodec = secured.auth.codec
+```
+
+This makes it possible to require bearer, basic, or digest auth without dropping down to raw string headers, while still choosing whether unauthorized requests should be hidden behind `404 Not Found` or surfaced as `401 Unauthorized`.
+
+For OAuth-style scope metadata, wrap an auth type with `AuthType.Scoped`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
-val secured = Endpoint(Method.GET / "me").auth(AuthType.Bearer)
-
-val authCodec = secured.auth.codec
+val scoped = Endpoint(Method.GET / "me")
+  .auth(AuthType.Scoped(AuthType.Bearer, List("profile:read", "email:read")))
 ```
-
-This makes it possible to require bearer, basic, or digest auth without dropping down to raw string headers.

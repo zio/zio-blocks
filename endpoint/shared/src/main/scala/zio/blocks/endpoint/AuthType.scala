@@ -21,14 +21,32 @@ import zio.http.{Status, headers}
 
 /**
  * Authentication scheme descriptor aligned with zio-http's typed auth model.
+ *
+ * When authentication fails, the default response status is `Status.NotFound`
+ * rather than `Status.Unauthorized`. This is an intentional security pattern
+ * (information hiding) that avoids revealing whether a protected resource
+ * exists. Override [[unauthorizedStatus]] with [[withUnauthorizedStatus]] if
+ * you want standard `401 Unauthorized` behavior instead.
  */
 sealed trait AuthType { self =>
   type ClientRequirement
 
   def codec: HttpCodec[CodecKind.Request, ClientRequirement]
 
+  /**
+   * The HTTP status code returned when authentication fails.
+   *
+   * Defaults to `Status.NotFound` to avoid revealing protected resources via a
+   * distinct authentication failure response.
+   */
   def unauthorizedStatus: Status = Status.NotFound
 
+  /**
+   * Returns a copy of this auth type with a different unauthorized status.
+   *
+   * Use this to opt into standard `401 Unauthorized` behavior when information
+   * hiding is not desired.
+   */
   def withUnauthorizedStatus(status: Status): AuthType { type ClientRequirement = self.ClientRequirement } =
     AuthType.WithStatus(
       self.asInstanceOf[AuthType { type ClientRequirement = self.ClientRequirement }],
