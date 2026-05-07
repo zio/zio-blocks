@@ -169,7 +169,7 @@ Two operators combine `HttpCodec` values: `++` sequences parts within the same d
 
 ### Sequential composition with `++`
 
-`++` combines two codecs of the same direction into a single codec whose type is the product of both. The result type is computed by `Tuples.WithOut`, which flattens nested tuples:
+`++` combines two codecs of the same direction into a single codec whose type is the product of both. `Tuples.WithOut` computes the result type and flattens nested tuples:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -192,7 +192,7 @@ import zio.http.Status
 
 ### Alternative composition with `|`
 
-`|` combines two codecs as alternatives. The result type is computed by `Eithers.WithOut`, which builds a nested `Either`:
+`|` combines two codecs as alternatives. `Eithers.WithOut` computes the result type, building a nested `Either`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -222,12 +222,12 @@ These codecs use `Schema.transform` internally to parse the raw `Authorization` 
 
 ## Metadata Fields
 
-Every atom node (`Query`, `Header`, `Body`, `StatusCodec`) carries optional metadata used by documentation and tooling:
+Every atom node (`Query`, `Header`, `Body`, `StatusCodec`) carries optional metadata that documentation renderers and OpenAPI generators consume:
 
 | Field        | Type              | Purpose                                        |
 | ------------ | ----------------- | ---------------------------------------------- |
-| `doc`        | `Doc`             | Description for OpenAPI and generated docs     |
-| `examples`   | `Chunk[(String, A)]` | Named example values for OpenAPI spec       |
+| `doc`        | `Doc`             | Free-text description for OpenAPI output       |
+| `examples`   | `Chunk[(String, A)]` | Example values for the OpenAPI spec         |
 | `deprecated` | `Option[Doc]`     | Marks the field as deprecated with a message   |
 | `default`    | `Option[A]`       | Default value (query and header only)          |
 
