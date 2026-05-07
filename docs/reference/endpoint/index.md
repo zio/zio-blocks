@@ -57,7 +57,7 @@ These seven types form the complete endpoint DSL:
 
 **[PathCodec](./path-codec.md)** is a composable path descriptor. Segments are combined with `/`, and literal alternatives with `orElse`. It supports bidirectional path conversion via `decode` and `format`.
 
-**[SegmentCodec](./segment-codec.md)** describes a single URL path segment. It supports typed segment kinds (`bool`, `int`, `long`, `string`, `uuid`) and intra-segment composition via `~`, with ambiguous combinations rejected at compile time.
+**[SegmentCodec](./segment-codec.md)** describes a single URL path segment. It supports typed segment kinds (`SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`) and intra-segment composition via `~`, with ambiguous combinations rejected at compile time.
 
 **[AuthType](./auth-type.md)** describes an authentication scheme as a first-class type parameter. Built-in variants include `None`, `Basic`, `Bearer`, and `Digest`; custom schemes and `Or` combinations are also supported.
 
@@ -146,7 +146,7 @@ val withUnionErrors = Endpoint(Method.GET / "users")
 val typed: Endpoint[Unit, Unit, String | Int, Unit, AuthType.None.type] = withUnionErrors
 ```
 
-**Path prefixing with `nest`:** Use `RoutePattern#nest` to prepend a version prefix to an existing pattern without rewriting it:
+**Path prefixing with `RoutePattern#nest`:** Use `RoutePattern#nest` to prepend a version prefix to an existing pattern without rewriting it:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
