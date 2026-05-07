@@ -110,7 +110,7 @@ val either: PathCodec[Unit] =
   PathCodec.literal("users").orElse(PathCodec.literal("members"))
 ```
 
-`orElse` is restricted to `PathCodec[Unit]` (literal-only) segments. `RouteTree` expands alternatives into separate trie branches via `PathCodec#alternatives`.
+`orElse` accepts any `PathCodec[Unit]` at the type level, but `PathCodec#alternatives` throws an `IllegalStateException` at runtime if a non-literal segment appears in an alternative branch. In practice, only literal segments are safe inside `orElse`.
 
 ## Decoding and Formatting
 

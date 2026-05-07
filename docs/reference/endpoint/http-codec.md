@@ -32,7 +32,7 @@ These are never instantiated — they exist only to parameterize `HttpCodec[K, A
 
 ## Structure
 
-`HttpCodec` is an ADT with six node types:
+`HttpCodec` is an ADT with seven node types:
 
 | Node          | Kind      | Carries                                              |
 | ------------- | --------- | ---------------------------------------------------- |
