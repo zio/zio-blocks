@@ -45,6 +45,46 @@ Before `zio-blocks-codegen`, `zio-http-gen` (OpenAPI → Scala) embedded its own
 
 By extracting IR and emitter into `zio-blocks-codegen`, all generators share one implementation. The cost is low: understand the IR, use it. The benefit is high: consistent, well-tested code generation everywhere.
 
+**The Problem (Before):**
+
+```
+OpenAPI → Scala        Smithy → Scala         Protobuf → Scala
+    ↓                      ↓                        ↓
+[Custom IR]            [Custom IR]             [Custom IR]
+    ↓                      ↓                        ↓
+[Custom Emitter]       [Custom Emitter]        [Custom Emitter]
+    ↓                      ↓                        ↓
+Scala Code             Scala Code              Scala Code
+
+❌ Duplication: Same problem solved 3 times with different code
+❌ Bugs: Fixes in one place don't help others
+❌ Inconsistency: Different styles, formatting, edge cases
+```
+
+**The Solution (After):**
+
+```
+OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → Scala
+    ↓                  ↓                   ↓                    ↓
+    └──────────────────┬─────────────────┘─────────────────────┘
+                       ↓
+              [zio-blocks-codegen]
+                       ↓
+            ┌──────────┴──────────┐
+            ↓                     ↓
+      [IR: Type-safe]     [Emitter: Pure function]
+      representation      (no side effects)
+      of Scala code
+            ↓                     ↓
+            └──────────┬──────────┘
+                       ↓
+                  Scala Code
+
+✅ Single source of truth: One well-tested implementation
+✅ Consistency: All generators use the same emitter
+✅ Reusability: Zero coupling between domain-specific tools
+```
+
 ## Installation
 
 ```scala

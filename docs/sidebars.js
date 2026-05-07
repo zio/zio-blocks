@@ -117,6 +117,22 @@ const sidebars = {
          "reference/combinators",
          "reference/docs",
          "reference/media-type",
+         {
+           type: "category",
+           label: "Code Generation",
+           link: { type: "doc", id: "reference/codegen/index" },
+           items: [
+             "reference/codegen/scala-file",
+             "reference/codegen/type-definition",
+             "reference/codegen/case-class",
+             "reference/codegen/sealed-trait",
+             "reference/codegen/field",
+             "reference/codegen/type-ref",
+             "reference/codegen/scala-emitter",
+             "reference/codegen/emitter-config",
+             "reference/codegen/examples",
+           ]
+         },
           {
             type: "category",
             label: "HTTP Model",
