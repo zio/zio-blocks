@@ -130,7 +130,7 @@ val codec = PathCodec.int("id")
 val result: Either[String, Int] = codec.decode(Path("/42"))
 ```
 
-`decode` returns `Left(message)` when no segment matches or a segment cannot be parsed.
+`PathCodec#decode` returns `Left(message)` when no segment matches or a segment cannot be parsed.
 
 ### `PathCodec#format`
 
@@ -166,7 +166,7 @@ Use these methods to map the typed value that `PathCodec` decodes or encodes wit
 
 ### `PathCodec#transform`
 
-To map the decoded value to a different type without changing the path structure, use `transform`. Both directions must be total:
+To map the decoded value to a different type without changing the path structure, use `PathCodec#transform`. Both directions must be total:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -181,7 +181,7 @@ val userIdCodec: PathCodec[UserId] =
 
 ### `PathCodec#transformOrFail`
 
-When decoding or encoding can fail, use `transformOrFail`. A `Left` from the decode function causes the path not to match:
+When decoding or encoding can fail, use `PathCodec#transformOrFail`. A `Left` from the decode function causes the path not to match:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
