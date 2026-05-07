@@ -143,4 +143,4 @@ val endpoint = Endpoint(Method.GET / "me")
   .unauthorizedStatus(Status.Unauthorized)
 ```
 
-The `unauthorizedStatus` is preserved through `Or` composition — the left auth type's status is used.
+`Or` composition preserves `unauthorizedStatus` — it uses the left auth type's status.
