@@ -557,7 +557,7 @@ modified.foreach { model =>
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `smithy-examples` module. All examples use a consistent book store domain to demonstrate different aspects of the Smithy library.
+All code from this guide is available as runnable examples in the `smithy-examples` module. Examples demonstrate different aspects of the Smithy library.
 
 **1. Clone the repository and navigate to the project:**
 
