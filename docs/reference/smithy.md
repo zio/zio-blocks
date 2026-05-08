@@ -70,15 +70,17 @@ The library provides five core types that work together to parse, query, and ser
 
 The root container for a Smithy model. Contains version, namespace, shapes, metadata, and trait applications.
 
-The trait and companion object expose the following API:
+The case class and companion object expose the following API:
 
 ```scala
-trait SmithyModel {
-  def version: String
-  def namespace: String
-  def shapes: List[ShapeDefinition]
-  def metadata: Map[String, NodeValue]
-  
+case class SmithyModel(
+  version: String,
+  namespace: String,
+  useStatements: List[ShapeId],
+  metadata: Map[String, NodeValue],
+  shapes: List[ShapeDefinition],
+  applyStatements: List[ApplyStatement] = Nil
+) {
   def findShape(name: String): Option[ShapeDefinition]
   def allShapeIds: List[ShapeId]
   def prettyPrint: String
