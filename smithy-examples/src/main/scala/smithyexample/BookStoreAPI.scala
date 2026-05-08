@@ -40,7 +40,6 @@ service BookStoreService {
 operation SearchBooks {
   input: SearchBooksInput
   output: SearchBooksOutput
-  errors: [InvalidSearchQuery]
 }
 
 structure SearchBooksInput {
@@ -116,6 +115,7 @@ structure GetBookInput {
   isbn: String
 }
 
+@error("client")
 structure BookNotFound {
   @required
   message: String
@@ -150,6 +150,7 @@ structure AuthorProfile {
   website: String
 }
 
+@error("client")
 structure AuthorNotFound {
   @required
   message: String
@@ -245,6 +246,7 @@ enum OrderStatus {
   CANCELLED
 }
 
+@error("client")
 structure InvalidCart {
   @required
   message: String
@@ -252,6 +254,7 @@ structure InvalidCart {
   reason: String
 }
 
+@error("client")
 structure OutOfStock {
   @required
   message: String
@@ -266,6 +269,7 @@ structure OutOfStock {
   availableQuantity: Integer
 }
 
+@error("client")
 structure PaymentFailed {
   @required
   message: String
@@ -285,6 +289,7 @@ structure GetOrderInput {
   id: String
 }
 
+@error("client")
 structure OrderNotFound {
   @required
   message: String
