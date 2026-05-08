@@ -1,7 +1,0 @@
-Starting compilation server
-Downloading https://repo1.maven.org/maven2/dev/zio/zio-blocks-docs_3/0.0.28/zio-blocks-docs_3-0.0.28.pom
-Downloading https://repo1.maven.org/maven2/dev/zio/zio-blocks-chunk_3/0.0.28/zio-blocks-chunk_3-0.0.28.pom
-Downloaded https://repo1.maven.org/maven2/dev/zio/zio-blocks-chunk_3/0.0.28/zio-blocks-chunk_3-0.0.28.pom
-Downloaded https://repo1.maven.org/maven2/dev/zio/zio-blocks-docs_3/0.0.28/zio-blocks-docs_3-0.0.28.pom
-Downloading https://repo1.maven.org/maven2/dev/zio/zio-blocks-docs_3/0.0.28/zio-blocks-docs_3-0.0.28.pom.sha1
-Downloading https://repo1.maven.org/maven2/dev/zio/zio-blocks-chunk_3/0.0.28/zio-blocks-chunk_3-0.0.28.pom.sha1
