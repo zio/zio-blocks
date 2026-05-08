@@ -13,7 +13,7 @@ title: "ScalaFile"
 
 ## Construction
 
-Build a `ScalaFile` by providing a package, optional imports, and optional type definitions:
+Build a `ScalaFile` with a package declaration, optional imports, and optional types:
 
 ```scala
 import zio.blocks.codegen.ir._
@@ -42,7 +42,8 @@ val file = ScalaFile(
 ```
 
 ## Key Operations
-\nAll core operations are shown below:
+
+All core operations are shown below:
 
 ### Accessing Components
 
@@ -81,11 +82,12 @@ val sourceCode = ScalaEmitter.emit(file, config)
 ```
 
 ## Examples
-\nPractical examples demonstrate common usage:
+
+Practical examples demonstrate common usage. Each builds a `ScalaFile`, calls `ScalaEmitter.emit()`, and shows the generated output:
 
 ### Example 1: Minimal File
 
-A file with just a package and one case class:
+A file with just a package and one case class (all examples use `zio.blocks.codegen.ir._` and `zio.blocks.codegen.emit._` imports):
 
 ```scala
 import zio.blocks.codegen.ir._
@@ -190,6 +192,4 @@ val generic = ScalaFile(
 - **[`Import`](./import.md)** — import statements (list of `Import` types)
 - **[`TypeDefinition`](./type-definition.md)** — the types defined in the file (case classes, sealed traits, enums, etc.)
 - **[`ScalaEmitter`](./scala-emitter.md)** — the emitter that consumes `ScalaFile` and produces Scala source code
-
-In a typical workflow, you assemble a `ScalaFile`, then pass it to `ScalaEmitter.emit(file, config)` to get formatted source.
 
