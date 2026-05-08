@@ -25,7 +25,7 @@ title: "EmitterConfig"
 
 The `ScalaVersion` enum controls which Scala version syntax the emitter uses:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.emit._
 
 // Target Scala 3: uses enums, derives, * imports, as renames
@@ -39,7 +39,7 @@ val scala2 = EmitterConfig.ScalaVersion.Scala2
 
 Create a default configuration:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.emit._
 
 val default = EmitterConfig()
@@ -48,7 +48,7 @@ val default = EmitterConfig()
 
 With custom settings:
 
-```scala
+```scala mdoc:compile-only
 val custom = EmitterConfig(
   indentWidth = 4,
   sortImports = true,
@@ -65,7 +65,7 @@ All `EmitterConfig` instances provide these operations:
 
 Read configuration values:
 
-```scala
+```scala mdoc:compile-only
 val config = EmitterConfig(indentWidth = 4)
 
 config.indentWidth      // 4
@@ -78,7 +78,7 @@ config.scalaVersion     // ScalaVersion.Scala3 (default)
 
 Modify a configuration:
 
-```scala
+```scala mdoc:compile-only
 val base = EmitterConfig()
 
 val scala2Config = base.copy(
@@ -98,7 +98,7 @@ Here are practical examples showing different configuration scenarios:
 
 The default configuration for most projects:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -120,7 +120,7 @@ ScalaEmitter.emit(file, config)
 
 For projects preferring 4-space indentation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -147,7 +147,7 @@ ScalaEmitter.emit(file, config)
 
 Emits with 4-space indentation:
 
-```scala
+```scala mdoc:compile-only
 package com.example
 
 sealed trait Result
@@ -164,7 +164,7 @@ object Result {
 
 Target Scala 2 syntax for older codebases:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -193,7 +193,7 @@ ScalaEmitter.emit(file, scala2Config)
 
 Emits sealed trait syntax (Scala 2 compatible):
 
-```scala
+```scala mdoc:compile-only
 package com.legacy
 
 import scala.collection._
@@ -210,7 +210,7 @@ object Color {
 
 For projects with strict no-trailing-commas rules:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -237,7 +237,7 @@ ScalaEmitter.emit(file, config)
 
 Emits without trailing comma on last field:
 
-```scala
+```scala mdoc:compile-only
 package com.strict
 
 final case class Options(
@@ -251,7 +251,7 @@ final case class Options(
 
 For projects that manage imports manually:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -278,7 +278,7 @@ ScalaEmitter.emit(file, config)
 
 Preserves import order:
 
-```scala
+```scala mdoc:compile-only
 package com.example
 
 import zio._
@@ -294,7 +294,7 @@ final case class Data(
 
 Combining multiple preferences:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 

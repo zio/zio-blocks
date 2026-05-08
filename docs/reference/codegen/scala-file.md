@@ -15,7 +15,7 @@ title: "ScalaFile"
 
 Build a `ScalaFile` with a package declaration, optional imports, and optional types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val simpleFile = ScalaFile(
@@ -25,7 +25,7 @@ val simpleFile = ScalaFile(
 
 With imports and types:
 
-```scala
+```scala mdoc:compile-only
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example"),
   imports = List(
@@ -49,7 +49,7 @@ All core operations are shown below:
 
 Extract the parts of a `ScalaFile`:
 
-```scala
+```scala mdoc:compile-only
 // Read-only access to all components
 file.packageDecl    // PackageDecl
 file.imports        // List[Import]
@@ -60,7 +60,7 @@ file.types          // List[TypeDefinition]
 
 Modify a file by copying with new values:
 
-```scala
+```scala mdoc:compile-only
 val updatedFile = file.copy(
   types = file.types :+ CaseClass(
     name = "Product",
@@ -73,7 +73,7 @@ val updatedFile = file.copy(
 
 Generate Scala source from the file:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.emit._
 
 val config = EmitterConfig()
@@ -89,7 +89,7 @@ Practical examples demonstrate common usage. Each builds a `ScalaFile`, calls `S
 
 A file with just a package and one case class (all examples use `zio.blocks.codegen.ir._` and `zio.blocks.codegen.emit._` imports):
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -108,7 +108,7 @@ val emitted = ScalaEmitter.emit(minimal, EmitterConfig())
 
 Emits:
 
-```scala
+```scala mdoc:compile-only
 package com.example
 
 final case class Empty()
@@ -118,7 +118,7 @@ final case class Empty()
 
 A file with a sealed trait and case classes:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -146,7 +146,7 @@ val emitted = ScalaEmitter.emit(multiType, EmitterConfig())
 
 Emits:
 
-```scala
+```scala mdoc:compile-only
 package com.payment
 
 import zio._
@@ -163,7 +163,7 @@ object PaymentMethod {
 
 A file demonstrating generic types and selective imports:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val generic = ScalaFile(
