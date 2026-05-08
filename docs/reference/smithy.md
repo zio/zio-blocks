@@ -104,7 +104,7 @@ object SmithyModel {
 }
 ```
 
-## Parsing Models
+## Parsing
 
 Parse Smithy IDL text into structured models using `SmithyModel.parse`, handle errors, and validate round-trips.
 
