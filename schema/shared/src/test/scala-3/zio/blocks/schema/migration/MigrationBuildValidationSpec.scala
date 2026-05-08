@@ -146,18 +146,18 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           assertTrue(result.isLeft)
         }
       },
-      test("buildPartial succeeds even when fields are missing") {
-        case class PersonV1(name: String, age: Int)
-        case class PersonV2(name: String, birthYear: Int)
+      test("builder can be inspected before build") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
 
         given Schema[PersonV1] = Schema.derived[PersonV1]
         given Schema[PersonV2] = Schema.derived[PersonV2]
 
-        val migration = Migration
+        val builder = Migration
           .newBuilder[PersonV1, PersonV2]
-          .buildPartial
+          .addField(_.age, literal(0))
 
-        assertTrue(migration.actions.isEmpty)
+        assertTrue(builder.actions.length == 1)
       },
       test("build succeeds with migrateField for nested type migration") {
         case class AddressV1(street: String, city: String)
@@ -392,6 +392,49 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
           """
         }.map { result =>
           assertTrue(result.isLeft)
+        }
+      },
+      test("build succeeds with migrateField for nested structural target fields") {
+        typeCheck {
+          """
+          import scala.language.reflectiveCalls
+          import scala.reflect.Selectable.reflectiveSelectable
+          import zio.blocks.schema.Schema
+          import zio.blocks.schema.SchemaExpr
+          import zio.blocks.schema.migration.Migration
+
+          type StreetV1 = { def name: String }
+          type AddressV1 = { def street: StreetV1; def city: String }
+          type PersonV1 = { def name: String; def address: AddressV1 }
+
+          type StreetV2 = { def name: String; def number: Int }
+          type AddressV2 = { def street: StreetV2; def city: String }
+          type PersonV2 = { def name: String; def address: AddressV2 }
+
+          given Schema[StreetV1] = Schema.derived[StreetV1]
+          given Schema[AddressV1] = Schema.derived[AddressV1]
+          given Schema[PersonV1] = Schema.derived[PersonV1]
+          given Schema[StreetV2] = Schema.derived[StreetV2]
+          given Schema[AddressV2] = Schema.derived[AddressV2]
+          given Schema[PersonV2] = Schema.derived[PersonV2]
+
+          val streetMigration: Migration[StreetV1, StreetV2] = Migration
+            .newBuilder[StreetV1, StreetV2]
+            .addField(_.number, SchemaExpr.literal(0))
+            .build
+
+          val addressMigration: Migration[AddressV1, AddressV2] = Migration
+            .newBuilder[AddressV1, AddressV2]
+            .migrateField(_.street, streetMigration)
+            .build
+
+          Migration
+            .newBuilder[PersonV1, PersonV2]
+            .migrateField(_.address, addressMigration)
+            .build
+          """
+        }.map { result =>
+          assertTrue(result.isRight)
         }
       }
     ),
