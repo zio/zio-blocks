@@ -623,7 +623,7 @@ For large models (1000+ shapes), consider batching operations rather than repeat
 
 ## Running the Examples
 
-All code from this guide is available as runnable examples in the `smithy-examples` module.
+All code from this guide is available as runnable examples in the `smithy-examples` module. All examples use a consistent book store domain to demonstrate different aspects of the Smithy library.
 
 **1. Clone the repository and navigate to the project:**
 
@@ -650,15 +650,7 @@ Construct Smithy models in code by creating shapes, adding traits, and assemblin
 sbt "smithy-examples/runMain smithyexample.BuildingModelsAndTraits"
 ```
 
-### Step 3: Code Generation from Models
-
-Use Smithy models to generate client and server stubs, showing the foundation for code generation tools:
-
-```bash
-sbt "smithy-examples/runMain smithyexample.CodeGenerationExample"
-```
-
-### Step 4: Validation and Analysis
+### Step 3: Validation and Analysis
 
 Analyze Smithy models for completeness, find deprecated shapes, check for documentation, and validate API contracts:
 
@@ -666,17 +658,9 @@ Analyze Smithy models for completeness, find deprecated shapes, check for docume
 sbt "smithy-examples/runMain smithyexample.ValidationAndAnalysis"
 ```
 
-### Step 5: Complete Example — E-Commerce API
+### Step 4: Complete Example — Book Store API
 
-A complete real-world example showing a full e-commerce API model with parsing, querying, analysis, and code generation:
-
-```bash
-sbt "smithy-examples/runMain smithyexample.CompleteECommerceAPI"
-```
-
-### Step 6: Complete Example — Book Store API
-
-A comprehensive online book store API model demonstrating catalog search, author profiles, and order management with full Smithy 2.0 features:
+A comprehensive end-to-end workflow showing a complete book store API model with parsing, entity analysis, error handling, code generation, and statistics:
 
 ```bash
 sbt "smithy-examples/runMain smithyexample.BookStoreAPI"

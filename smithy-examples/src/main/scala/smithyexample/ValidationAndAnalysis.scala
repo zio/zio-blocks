@@ -3,7 +3,7 @@ package smithyexample
 import zio.blocks.smithy._
 
 /**
- * Smithy — Step 4: Validation and Analysis
+ * Smithy — Step 3: Validation and Analysis
  *
  * This example demonstrates how to analyze Smithy models for completeness, find
  * deprecated shapes, check for documentation, and validate API contracts.
@@ -12,51 +12,51 @@ import zio.blocks.smithy._
  */
 @main def ValidationAndAnalysis(): Unit = {
   val smithyText = """$version: "2"
-namespace inventory.api
+namespace bookstore.api
 
-@deprecated(message: "Use GetProductV2 instead")
-@http(method: "GET", uri: "/products/{id}")
-operation GetProduct {
-  input: GetProductInput
-  output: Product
+@deprecated(message: "Use SearchBooksV2 instead")
+@http(method: "GET", uri: "/books/search")
+operation SearchBooks {
+  input: SearchBooksInput
+  output: SearchBooksOutput
 }
 
-@http(method: "GET", uri: "/v2/products/{id}")
-operation GetProductV2 {
-  input: GetProductV2Input
-  output: ProductV2
+@http(method: "GET", uri: "/v2/books/search")
+operation SearchBooksV2 {
+  input: SearchBooksV2Input
+  output: SearchBooksV2Output
 }
 
-@documentation("Request to get a product")
-structure GetProductInput {
+@documentation("Request to search for books")
+structure SearchBooksInput {
   @required
-  @documentation("The product ID")
-  id: String
+  @documentation("Search query string")
+  query: String
 }
 
-structure GetProductV2Input {
+structure SearchBooksV2Input {
   @required
-  id: String
+  query: String
 }
 
-@documentation("A product in the inventory system")
-structure Product {
+@documentation("A book in the store catalog")
+structure Book {
   @required
-  @documentation("Unique product identifier")
-  id: String
+  @documentation("Unique ISBN identifier")
+  isbn: String
 
   @required
-  name: String
+  title: String
 
   price: Double
 }
 
-structure ProductV2 {
+structure BookV2 {
   @required
-  id: String
+  isbn: String
 
   @required
-  name: String
+  title: String
 
   @required
   @documentation("Price in cents to avoid floating point issues")
@@ -66,8 +66,22 @@ structure ProductV2 {
   available: Boolean
 }
 
+structure SearchBooksOutput {
+  @required
+  books: BookList
+}
+
+structure SearchBooksV2Output {
+  @required
+  books: BookList
+}
+
+list BookList {
+  member: Book
+}
+
 @error("client")
-structure ProductNotFound {
+structure BookNotFound {
   @required
   message: String
 }

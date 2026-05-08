@@ -13,20 +13,25 @@ import zio.blocks.smithy._
 @main def BuildingModelsAndTraits(): Unit = {
   println("=== Building a Smithy Model Programmatically ===\n")
 
-  // Define a Product structure with members
-  val productStructure = StructureShape(
-    name = "Product",
+  // Define a Book structure with members
+  val bookStructure = StructureShape(
+    name = "Book",
     traits = List(
-      TraitApplication.documentation("A product in the catalog")
+      TraitApplication.documentation("A book in the store catalog")
     ),
     members = List(
       MemberDefinition(
-        name = "id",
+        name = "isbn",
         target = ShapeId("smithy.api", "String"),
         traits = List(TraitApplication.required)
       ),
       MemberDefinition(
-        name = "name",
+        name = "title",
+        target = ShapeId("smithy.api", "String"),
+        traits = List(TraitApplication.required)
+      ),
+      MemberDefinition(
+        name = "author",
         target = ShapeId("smithy.api", "String"),
         traits = List(TraitApplication.required)
       ),
@@ -34,34 +39,29 @@ import zio.blocks.smithy._
         name = "price",
         target = ShapeId("smithy.api", "Double"),
         traits = Nil
-      ),
-      MemberDefinition(
-        name = "inStock",
-        target = ShapeId("smithy.api", "Boolean"),
-        traits = Nil
       )
     )
   )
 
-  // Define a GetProduct operation
-  val getProductOperation = OperationShape(
-    name = "GetProduct",
+  // Define a GetBook operation
+  val getBookOperation = OperationShape(
+    name = "GetBook",
     traits = List(
-      TraitApplication.http("GET", "/products/{id}"),
-      TraitApplication.documentation("Retrieve a product by ID")
+      TraitApplication.http("GET", "/books/{isbn}"),
+      TraitApplication.documentation("Retrieve a book by ISBN")
     ),
-    input = Some(ShapeId("example.api", "GetProductInput")),
-    output = Some(ShapeId("example.api", "Product")),
-    errors = List(ShapeId("example.api", "ProductNotFound"))
+    input = Some(ShapeId("bookstore.api", "GetBookInput")),
+    output = Some(ShapeId("bookstore.api", "Book")),
+    errors = List(ShapeId("bookstore.api", "BookNotFound"))
   )
 
   // Define input shape
-  val getProductInput = StructureShape(
-    name = "GetProductInput",
+  val getBookInput = StructureShape(
+    name = "GetBookInput",
     traits = Nil,
     members = List(
       MemberDefinition(
-        name = "id",
+        name = "isbn",
         target = ShapeId("smithy.api", "String"),
         traits = List(TraitApplication.required)
       )
@@ -69,8 +69,8 @@ import zio.blocks.smithy._
   )
 
   // Define error shape
-  val productNotFound = StructureShape(
-    name = "ProductNotFound",
+  val bookNotFound = StructureShape(
+    name = "BookNotFound",
     traits = List(
       TraitApplication.error("client")
     ),
@@ -84,14 +84,14 @@ import zio.blocks.smithy._
   )
 
   // Define service
-  val productService = ServiceShape(
-    name = "ProductService",
+  val bookStoreService = ServiceShape(
+    name = "BookStore",
     traits = List(
-      TraitApplication.documentation("Product catalog API")
+      TraitApplication.documentation("Book store catalog API")
     ),
     version = Some("1.0.0"),
     operations = List(
-      ShapeId("example.api", "GetProduct")
+      ShapeId("bookstore.api", "GetBook")
     ),
     resources = Nil,
     errors = Nil
@@ -100,18 +100,18 @@ import zio.blocks.smithy._
   // Assemble into a complete model
   val model = SmithyModel(
     version = "2.0",
-    namespace = "example.api",
+    namespace = "bookstore.api",
     useStatements = Nil,
     metadata = Map(
       "apiVersion" -> NodeValue.String("1.0.0"),
-      "author"     -> NodeValue.String("Example Corp")
+      "author"     -> NodeValue.String("Book Store Corp")
     ),
     shapes = List(
-      ShapeDefinition("Product", productStructure),
-      ShapeDefinition("GetProductInput", getProductInput),
-      ShapeDefinition("ProductNotFound", productNotFound),
-      ShapeDefinition("GetProduct", getProductOperation),
-      ShapeDefinition("ProductService", productService)
+      ShapeDefinition("Book", bookStructure),
+      ShapeDefinition("GetBookInput", getBookInput),
+      ShapeDefinition("BookNotFound", bookNotFound),
+      ShapeDefinition("GetBook", getBookOperation),
+      ShapeDefinition("BookStore", bookStoreService)
     )
   )
 

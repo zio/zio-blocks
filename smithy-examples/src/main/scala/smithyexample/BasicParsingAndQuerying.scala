@@ -12,36 +12,39 @@ import zio.blocks.smithy._
  */
 @main def BasicParsingAndQuerying(): Unit = {
   val smithyText = """$version: "2"
-namespace example.api
+namespace bookstore.api
 
-@documentation("A user in the system")
-structure User {
+@documentation("A book in the catalog")
+structure Book {
   @required
-  @documentation("Unique user identifier")
-  id: String
+  @documentation("Unique ISBN identifier")
+  isbn: String
 
   @required
-  name: String
+  @documentation("Book title")
+  title: String
 
-  @documentation("User email address")
-  email: String
+  @required
+  @documentation("Author name")
+  author: String
+
+  @documentation("Book price in USD")
+  price: Double
 }
 
-@http(method: "GET", uri: "/users/{id}")
-operation GetUser {
-  input: GetUserInput
-  output: User
-  errors: [UserNotFound]
+@http(method: "GET", uri: "/books/{isbn}")
+operation GetBook {
+  input: GetBookInput
+  output: Book
+  errors: [BookNotFound]
 }
 
-structure GetUserInput {
+structure GetBookInput {
   @required
-  @httpLabel
-  id: String
+  isbn: String
 }
 
-@error("client")
-structure UserNotFound {
+structure BookNotFound {
   @required
   message: String
 }
@@ -54,11 +57,11 @@ structure UserNotFound {
       println(s"  Namespace: ${model.namespace}")
       println(s"  Total shapes: ${model.shapes.length}\n")
 
-      println("=== Finding the User Structure ===\n")
-      model.findShape("User").foreach { userDef =>
-        userDef.shape match {
+      println("=== Finding the Book Structure ===\n")
+      model.findShape("Book").foreach { bookDef =>
+        bookDef.shape match {
           case struct: StructureShape =>
-            println(s"✓ Found shape: ${userDef.name}")
+            println(s"✓ Found shape: ${bookDef.name}")
             println(s"  Type: Structure")
             println(s"  Members: ${struct.members.length}")
             println(s"  Traits: ${struct.traits.length}\n")
@@ -75,7 +78,7 @@ structure UserNotFound {
       }
 
       println("=== Finding the Operation ===\n")
-      model.findShape("GetUser").foreach { opDef =>
+      model.findShape("GetBook").foreach { opDef =>
         opDef.shape match {
           case op: OperationShape =>
             println(s"✓ Found shape: ${opDef.name}")
