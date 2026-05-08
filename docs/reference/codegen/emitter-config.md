@@ -3,7 +3,7 @@ id: emitter-config
 title: "EmitterConfig"
 ---
 
-`EmitterConfig` controls how `ScalaEmitter` formats the generated Scala code. Customize indentation, import sorting, trailing commas, and target Scala version (2 vs 3) by creating a configured instance.
+`EmitterConfig` controls how `ScalaEmitter` formats Scala code. Customize indentation, import sorting, trailing commas, and target Scala version (2 vs 3) by creating a configured instance.
 
 ## Use Cases
 

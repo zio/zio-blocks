@@ -7,6 +7,8 @@ title: "Code Generation"
 
 Core types: `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `Enum`, `Field`, `TypeRef`, `Method`, `Annotation`.
 
+Here's the structure of two core types:
+
 ```scala
 // IR models the structure of Scala code
 final case class ScalaFile(
@@ -34,7 +36,7 @@ Rather than embedding code generation logic into domain-specific tools, you mode
 
 Codegen IR exists to solve a specific problem: **many generators produce the same output (Scala code) but reinvent the emission logic.** Before `zio-blocks-codegen`, each generator (OpenAPI, Smithy, Protobuf, etc.) had its own IR and emitter, leading to duplication, bugs, and inconsistency. By extracting IR and emitter into `zio-blocks-codegen`, all generators share one implementation.
 
-**The Problem (Before):**
+Before `zio-blocks-codegen`, each generator had its own IR and emitter:
 
 ```
 OpenAPI → Scala        Smithy → Scala         Protobuf → Scala
@@ -50,7 +52,7 @@ Scala Code             Scala Code              Scala Code
 ❌ Inconsistency: Different styles, formatting, edge cases
 ```
 
-**The Solution (After):**
+Now with `zio-blocks-codegen`, all generators converge on a single implementation:
 
 ```
 OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → Scala
@@ -75,6 +77,8 @@ OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → S
 ```
 
 ## Installation
+
+Add the library to your project:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
@@ -123,7 +127,7 @@ Here's the typical workflow for a code generator:
 5. Write string to file (or further process it)
 ```
 
-**Composition example**: Building a Scala file with a case class.
+Here's an example of building a Scala file with a case class:
 
 ```
 ScalaFile
@@ -156,7 +160,7 @@ final case class User(
 ) derives Schema
 ```
 
-**Architecture diagram:**
+The architecture flows through three layers:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -188,6 +192,8 @@ final case class User(
 ```
 
 ## Common Patterns
+
+Here are the most common usage patterns:
 
 ### Pattern 1: Building a Simple Case Class
 

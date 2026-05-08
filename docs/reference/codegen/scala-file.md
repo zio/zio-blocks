@@ -83,7 +83,7 @@ val sourceCode = ScalaEmitter.emit(file, config)
 
 ## Examples
 
-Practical examples demonstrate common usage. Each builds a `ScalaFile`, calls `ScalaEmitter.emit()`, and shows the generated output:
+Practical examples demonstrate common usage. Each builds a `ScalaFile`, calls `ScalaEmitter.emit()`, and displays the resulting output:
 
 ### Example 1: Minimal File
 
