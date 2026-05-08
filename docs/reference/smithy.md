@@ -64,7 +64,23 @@ result.foreach { model =>
 
 ## Core Types
 
-The library provides five core types that work together to parse, query, and serialize Smithy models.
+The library provides five core types that work together to parse, query, and serialize Smithy models. The main types work together in a parsing → querying → serialization pipeline:
+
+```
+Smithy IDL Text
+      ↓
+SmithyParser (parses text)
+      ↓
+SmithyModel (contains shapes, metadata, traits)
+      ├─ findShape(name) → ShapeDefinition → Shape (sealed trait)
+      ├─ Shape members reference ShapeId
+      ├─ TraitApplication with NodeValue attributes
+      └─ allShapeIds → List[ShapeId]
+            ↓
+SmithyPrinter (serializes model)
+      ↓
+Smithy IDL Text
+```
 
 ### SmithyModel
 
@@ -539,35 +555,6 @@ modified.foreach { model =>
 }
 ```
 
-## SmithyModel
-
-Here is a summary of the main methods available on `SmithyModel` and related types:
-
-| Method                     | Returns                            | Purpose                             |
-|----------------------------|------------------------------------|-------------------------------------|
-| `parse(input: String)`     | `Either[SmithyError, SmithyModel]` | Parse IDL text to model             |
-| `findShape(name: String)`  | `Option[ShapeDefinition]`          | Find shape by name                  |
-| `allShapeIds`              | `List[ShapeId]`                    | Get all shape identifiers           |
-| `prettyPrint`              | `String`                           | Serialize to IDL (4-space indent)   |
-| `prettyPrint(indent: Int)` | `String`                           | Serialize to IDL with custom indent |
-
-The main types work together in a parsing → querying → serialization pipeline:
-
-```
-Smithy IDL Text
-      ↓
-SmithyParser (parses text)
-      ↓
-SmithyModel (contains shapes, metadata, traits)
-      ├─ findShape(name) → ShapeDefinition → Shape (sealed trait)
-      ├─ Shape members reference ShapeId
-      ├─ TraitApplication with NodeValue attributes
-      └─ allShapeIds → List[ShapeId]
-            ↓
-SmithyPrinter (serializes model)
-      ↓
-Smithy IDL Text
-```
 
 ## Performance Notes
 
