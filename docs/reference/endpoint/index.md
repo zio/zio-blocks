@@ -72,7 +72,7 @@ A typical endpoint definition flows like this:
 2. Create an Endpoint          Endpoint(route)
 3. Describe request input      .query("verbose", Schema.boolean)
                                .header("X-Trace", Schema.string)
-                               .in(Schema.requestBody)
+                               .in(Schema.string)
 4. Describe success output     .out(Schema.string)
                                .out(Status.Created, Schema.int)
 5. Describe error output       .outError(Status.NotFound, Schema.string)

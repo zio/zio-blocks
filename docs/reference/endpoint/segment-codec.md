@@ -74,11 +74,11 @@ The `~` operator combines two `SegmentCodec` values into a `Combined` codec that
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.RoutePattern._
 
-val versionSeg: SegmentCodec[(Unit, Int)] =
+val versionSeg: SegmentCodec[Int] =
   SegmentCodec.literal("v") ~ SegmentCodec.int("major")
 ```
 
-The resulting codec decodes the string `"v42"` into `((), 42)` and formats `((), 42)` back to `"v42"`.
+`Tuples.WithOut` eliminates the `Unit` from the literal, so the resulting codec decodes `"v42"` into `42` and formats `42` back to `"v42"`.
 
 ### Compile-time boundary validation
 
@@ -98,7 +98,7 @@ val versionMajorMinor =
   SegmentCodec.literal("v") ~ SegmentCodec.int("major") ~
   SegmentCodec.literal("x") ~ SegmentCodec.int("minor")
 
-// Safe: string bounded by uuid on both sides
+// Safe: UUID in the middle, bounded by strings on both sides
 val prefixedUuid =
   SegmentCodec.string("prefix") ~ SegmentCodec.uuid("id") ~ SegmentCodec.string("suffix")
 ```
