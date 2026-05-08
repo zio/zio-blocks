@@ -69,7 +69,7 @@ The library provides core types that work together to parse, query, and serializ
 ```
 Smithy IDL Text
       ↓
-SmithyParser (parses text)
+SmithyModel.parse (public API)
       ↓
 SmithyModel (contains shapes, metadata, traits)
       ├─ shapes: List[ShapeDefinition]
@@ -87,7 +87,7 @@ SmithyModel (contains shapes, metadata, traits)
       ├─ ShapeId (namespace + name identifier)
       └─ NodeValue (metadata values: String, Number, Boolean, Array, Object, Null)
             ↓
-SmithyPrinter (serializes model)
+SmithyModel.prettyPrint (public API)
       ↓
 Smithy IDL Text
 ```
