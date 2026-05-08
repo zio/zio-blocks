@@ -131,7 +131,7 @@ SmithyModel.parse(smithyText) match {
 
 ### Handling Parse Errors
 
-Access error details including line and column information when parsing fails:
+Access error details including line and column information when parsing fails. `SmithyError` provides detailed context to help locate and fix issues in your Smithy definitions:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
