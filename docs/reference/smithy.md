@@ -286,7 +286,7 @@ val userStructure = StructureShape(
 )
 
 val model = SmithyModel(
-  version = "2.0",
+  version = "2",
   namespace = "com.example",
   useStatements = Nil,
   metadata = Map.empty,
@@ -328,7 +328,7 @@ Convert a model to valid Smithy IDL text:
 import zio.blocks.smithy._
 
 val model = SmithyModel(
-  version = "2.0",
+  version = "2",
   namespace = "com.example",
   useStatements = Nil,
   metadata = Map.empty,
@@ -349,7 +349,7 @@ Control indentation width when serializing models:
 import zio.blocks.smithy._
 
 val model = SmithyModel(
-  version = "2.0",
+  version = "2",
   namespace = "com.example",
   useStatements = Nil,
   metadata = Map.empty,
