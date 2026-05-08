@@ -250,15 +250,3 @@ val appError = SealedTrait(
   derives = List("Show")
 )
 ```
-
-## Integration
-
-`SealedTrait` works with:
-
-- **[`TypeDefinition`](./type-definition.md)** — `SealedTrait` is a `TypeDefinition` variant
-- **[`SealedTraitCase`](./sealed-trait-case.md)** — represents individual cases (case objects or case classes)
-- **[`CaseClass`](./case-class.md)** — cases can be case classes
-- **[`TypeParam`](./type-param.md)** — for generic sealed traits
-- **[`TypeRef`](./type-ref.md)** — return types and parameter types
-- **[`ScalaEmitter`](./scala-emitter.md)** — emits the sealed trait and its companion object
-
