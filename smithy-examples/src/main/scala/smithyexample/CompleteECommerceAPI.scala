@@ -20,17 +20,14 @@ service ECommerceAPI {
   operations: [ListProducts, GetProduct, CreateOrder, GetOrder]
 }
 
+@http(method: "GET", uri: "/api/v1/products")
 operation ListProducts {
-  @http(method: "GET", uri: "/api/v1/products")
   input: ListProductsInput
   output: ListProductsOutput
 }
 
 structure ListProductsInput {
-  @httpQuery("category")
   category: String
-
-  @httpQuery("limit")
   limit: Integer
 }
 
@@ -46,8 +43,8 @@ list ProductList {
   member: Product
 }
 
+@http(method: "GET", uri: "/api/v1/products/{id}")
 operation GetProduct {
-  @http(method: "GET", uri: "/api/v1/products/{id}")
   input: GetProductInput
   output: Product
   errors: [ProductNotFound]
@@ -55,11 +52,9 @@ operation GetProduct {
 
 structure GetProductInput {
   @required
-  @httpLabel
   id: String
 }
 
-@error("client")
 structure ProductNotFound {
   @required
   message: String
@@ -93,8 +88,8 @@ structure Product {
   category: String
 }
 
+@http(method: "POST", uri: "/api/v1/orders")
 operation CreateOrder {
-  @http(method: "POST", uri: "/api/v1/orders")
   input: CreateOrderInput
   output: Order
   errors: [InvalidRequest, InsufficientStock]
@@ -136,7 +131,6 @@ structure Address {
   zipCode: String
 }
 
-@error("client")
 structure InvalidRequest {
   @required
   message: String
@@ -144,7 +138,6 @@ structure InvalidRequest {
   field: String
 }
 
-@error("client")
 structure InsufficientStock {
   @required
   productId: String
@@ -156,8 +149,8 @@ structure InsufficientStock {
   available: Integer
 }
 
+@http(method: "GET", uri: "/api/v1/orders/{id}")
 operation GetOrder {
-  @http(method: "GET", uri: "/api/v1/orders/{id}")
   input: GetOrderInput
   output: Order
   errors: [OrderNotFound]
@@ -165,11 +158,9 @@ operation GetOrder {
 
 structure GetOrderInput {
   @required
-  @httpLabel
   id: String
 }
 
-@error("client")
 structure OrderNotFound {
   @required
   message: String

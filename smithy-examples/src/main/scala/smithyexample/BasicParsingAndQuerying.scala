@@ -27,8 +27,8 @@ structure User {
   email: String
 }
 
+@http(method: "GET", uri: "/users/{id}")
 operation GetUser {
-  @http(method: "GET", uri: "/users/{id}")
   input: GetUserInput
   output: User
   errors: [UserNotFound]

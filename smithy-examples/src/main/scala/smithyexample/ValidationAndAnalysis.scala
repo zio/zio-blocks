@@ -15,14 +15,14 @@ import zio.blocks.smithy._
 namespace inventory.api
 
 @deprecated(message: "Use GetProductV2 instead")
+@http(method: "GET", uri: "/products/{id}")
 operation GetProduct {
-  @http(method: "GET", uri: "/products/{id}")
   input: GetProductInput
   output: Product
 }
 
+@http(method: "GET", uri: "/v2/products/{id}")
 operation GetProductV2 {
-  @http(method: "GET", uri: "/v2/products/{id}")
   input: GetProductV2Input
   output: ProductV2
 }

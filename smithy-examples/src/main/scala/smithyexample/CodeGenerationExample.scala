@@ -18,14 +18,13 @@ service PetStore {
   operations: [ListPets, GetPet, CreatePet, DeletePet]
 }
 
+@http(method: "GET", uri: "/pets")
 operation ListPets {
-  @http(method: "GET", uri: "/pets")
   input: ListPetsInput
   output: ListPetsOutput
 }
 
 structure ListPetsInput {
-  @httpQuery("limit")
   limit: Integer
 }
 
@@ -38,8 +37,8 @@ list PetList {
   member: Pet
 }
 
+@http(method: "GET", uri: "/pets/{id}")
 operation GetPet {
-  @http(method: "GET", uri: "/pets/{id}")
   input: GetPetInput
   output: Pet
   errors: [PetNotFound]
@@ -47,18 +46,16 @@ operation GetPet {
 
 structure GetPetInput {
   @required
-  @httpLabel
   id: String
 }
 
-@error("client")
 structure PetNotFound {
   @required
   message: String
 }
 
+@http(method: "POST", uri: "/pets")
 operation CreatePet {
-  @http(method: "POST", uri: "/pets")
   input: CreatePetInput
   output: Pet
 }
@@ -73,8 +70,8 @@ structure CreatePetInput {
   age: Integer
 }
 
+@http(method: "DELETE", uri: "/pets/{id}")
 operation DeletePet {
-  @http(method: "DELETE", uri: "/pets/{id}")
   input: DeletePetInput
   output: DeletePetOutput
   errors: [PetNotFound]
@@ -82,7 +79,6 @@ operation DeletePet {
 
 structure DeletePetInput {
   @required
-  @httpLabel
   id: String
 }
 
