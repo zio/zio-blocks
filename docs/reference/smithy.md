@@ -524,68 +524,17 @@ modified.foreach { model =>
 }
 ```
 
-## API Reference
+## SmithyModel
 
-Concise reference for all public methods and types, organized by component.
+Here is a summary of the main methods available on `SmithyModel` and related types:
 
-### SmithyModel
-
-| Method | Returns | Purpose |
-|--------|---------|---------|
-| `parse(input: String)` | `Either[SmithyError, SmithyModel]` | Parse IDL text to model |
-| `findShape(name: String)` | `Option[ShapeDefinition]` | Find shape by name |
-| `allShapeIds` | `List[ShapeId]` | Get all shape identifiers |
-| `prettyPrint` | `String` | Serialize to IDL (4-space indent) |
-| `prettyPrint(indent: Int)` | `String` | Serialize to IDL with custom indent |
-
-### Shape
-
-All shapes have `name: String` and `traits: List[TraitApplication]`.
-
-**Aggregate Shapes** contain members:
-- `StructureShape`: `members: List[MemberDefinition]`
-- `UnionShape`: `members: List[MemberDefinition]`
-- `ListShape`: `member: MemberDefinition`
-- `MapShape`: `key: MemberDefinition`, `value: MemberDefinition`
-
-**Service Shapes**:
-- `ServiceShape`: `operations: List[ShapeId]`, `resources: List[ShapeId]`, `errors: List[ShapeId]`
-- `OperationShape`: `input: Option[ShapeId]`, `output: Option[ShapeId]`, `errors: List[ShapeId]`
-
-**Enum Shapes**:
-- `EnumShape`: `members: List[EnumMember]`
-- `IntEnumShape`: `members: List[IntEnumMember]`
-
-### MemberDefinition
-
-The structure of a member definition:
-
-```scala
-case class MemberDefinition(
-  name: String,
-  target: ShapeId,
-  traits: List[TraitApplication] = Nil
-)
-```
-
-### TraitApplication
-
-The structure of a trait application:
-
-```scala
-case class TraitApplication(
-  id: ShapeId,
-  value: Option[NodeValue]
-)
-```
-
-**Factories**:
-- `TraitApplication.required` — `@required` (no value)
-- `TraitApplication.documentation(text: String)` — `@documentation` with text
-- `TraitApplication.http(method: String, uri: String)` — `@http` with method and URI
-- `TraitApplication.error(value: String)` — `@error` with classification
-
-## Type Integration
+| Method                     | Returns                            | Purpose                             |
+|----------------------------|------------------------------------|-------------------------------------|
+| `parse(input: String)`     | `Either[SmithyError, SmithyModel]` | Parse IDL text to model             |
+| `findShape(name: String)`  | `Option[ShapeDefinition]`          | Find shape by name                  |
+| `allShapeIds`              | `List[ShapeId]`                    | Get all shape identifiers           |
+| `prettyPrint`              | `String`                           | Serialize to IDL (4-space indent)   |
+| `prettyPrint(indent: Int)` | `String`                           | Serialize to IDL with custom indent |
 
 The main types work together in a parsing → querying → serialization pipeline:
 
@@ -604,13 +553,6 @@ SmithyPrinter (serializes model)
       ↓
 Smithy IDL Text
 ```
-
-**Key Relationships**:
-- `SmithyModel` contains all `ShapeDefinition`s and metadata
-- `Shape` is a sealed trait—pattern match to determine type
-- `ShapeId` uniquely identifies shapes by namespace + name
-- `TraitApplication` attaches metadata via `ShapeId` and `NodeValue`
-- `TraitApplication.id` is always a `ShapeId`, not a string name
 
 ## Performance Notes
 
