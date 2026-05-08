@@ -186,15 +186,3 @@ val intersectionType = TypeRef("&", List(
   TypeRef("Comparable")
 ))
 ```
-
-## Integration
-
-`TypeRef` is used extensively in:
-
-- **[`Field`](./field.md)** — fields have `TypeRef` types
-- **[`Method`](./method.md)** — return types are `TypeRef`, parameter types are `TypeRef`
-- **[`CaseClass`](./case-class.md)** — field types are `TypeRef`
-- **[`SealedTrait`](./sealed-trait.md)** — case class fields use `TypeRef`
-- **[`TypeParam`](./type-param.md)** — bounds can use `TypeRef`
-- **[`ScalaEmitter`](./scala-emitter.md)** — emits `TypeRef` as Scala type syntax
-

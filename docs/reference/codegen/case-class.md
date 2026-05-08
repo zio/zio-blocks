@@ -263,18 +263,3 @@ object AppConfig {
   val Default: AppConfig = AppConfig("localhost", 8080)
 }
 ```
-
-## Integration
-
-`CaseClass` works with:
-
-- **[`TypeDefinition`](./type-definition.md)** — `CaseClass` extends the `TypeDefinition` interface
-- **[`Field`](./field.md)** — fields define the structure of a case class
-- **[`TypeRef`](./type-ref.md)** — field types use `TypeRef` representations
-- **[`TypeParam`](./type-param.md)** — add type parameters for generic case classes
-- **[`Annotation`](./annotation.md)** — annotate the class or fields
-- **[`CompanionObject`](./companion-object.md)** — attach an optional companion object with static members
-- **[`ScalaEmitter`](./scala-emitter.md)** — emits the case class as Scala source
-
-In a typical workflow, you build a `CaseClass`, add it to a `ScalaFile`, and emit with `ScalaEmitter`.
-

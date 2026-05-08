@@ -183,13 +183,3 @@ val generic = ScalaFile(
   )
 )
 ```
-
-## Integration
-
-`ScalaFile` is designed to work with:
-
-- **[`PackageDecl`](./package-decl.md)** — the package declaration contained in the file
-- **[`Import`](./import.md)** — import statements (list of `Import` types)
-- **[`TypeDefinition`](./type-definition.md)** — the types defined in the file (case classes, sealed traits, enums, etc.)
-- **[`ScalaEmitter`](./scala-emitter.md)** — the emitter that consumes `ScalaFile` and produces Scala source code
-

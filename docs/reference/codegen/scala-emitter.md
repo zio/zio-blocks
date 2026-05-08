@@ -328,16 +328,3 @@ ScalaEmitter.emit(file, config)
 1. **Pure**: No side effects. Takes IR + config, returns a string. Your code writes files.
 2. **Configurable**: `EmitterConfig` controls formatting. Add options as needed for your generator.
 3. **Cross-Scala**: Targets both Scala 3 (enums, derives, `*` imports) and Scala 2 (sealed traits, `_` imports) from the same IR.
-
-## Integration
-
-`ScalaEmitter` consumes:
-
-- **[`ScalaFile`](./scala-file.md)** — the complete file IR
-- **[`TypeDefinition`](./type-definition.md)** — any type variant
-- **[`TypeRef`](./type-ref.md)** — type references
-- **[`Field`](./field.md)** — case class fields
-- **[`Method`](./method.md)** — methods in objects/classes
-- **[`Annotation`](./annotation.md)** — annotations
-- **[`EmitterConfig`](./emitter-config.md)** — formatting configuration
-

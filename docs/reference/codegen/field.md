@@ -231,17 +231,3 @@ final case class Page[T](
   pageSize: Int
 )
 ```
-
-## Integration
-
-`Field` works with these components:
-
-- **[`CaseClass`](./case-class.md)** — fields define the constructor parameters
-- **[`AbstractClass`](./abstract-class.md)** — abstract class fields
-- **[`SealedTrait`](./sealed-trait.md)** — case classes within sealed traits use fields
-- **[`TypeRef`](./type-ref.md)** — fields reference types via `TypeRef`
-- **[`Annotation`](./annotation.md)** — annotate fields with metadata
-- **[`ScalaEmitter`](./scala-emitter.md)** — emits field syntax in case classes and classes
-
-In typical usage, you create `Field` values, combine them into lists, and pass them to `CaseClass` or `AbstractClass`. The emitter converts them to constructor parameters in the generated Scala code.
-
