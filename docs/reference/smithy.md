@@ -64,7 +64,7 @@ result.foreach { model =>
 
 ## Core Types
 
-The library provides five core types that work together to parse, query, and serialize Smithy models. The main types work together in a parsing → querying → serialization pipeline:
+The library provides core types that work together to parse, query, and serialize Smithy models. The main types work together in a parsing → querying → serialization pipeline:
 
 ```
 Smithy IDL Text
@@ -72,10 +72,20 @@ Smithy IDL Text
 SmithyParser (parses text)
       ↓
 SmithyModel (contains shapes, metadata, traits)
-      ├─ findShape(name) → ShapeDefinition → Shape (sealed trait)
-      ├─ Shape members reference ShapeId
-      ├─ TraitApplication with NodeValue attributes
-      └─ allShapeIds → List[ShapeId]
+      ├─ shapes: List[ShapeDefinition]
+      │   └─ shape: Shape (sealed trait — central type)
+      │       ├─ StructureShape(members: List[MemberDefinition])
+      │       ├─ ListShape(member: MemberDefinition)
+      │       ├─ MapShape(key: MemberDefinition, value: MemberDefinition)
+      │       ├─ ServiceShape(operations, resources, errors)
+      │       ├─ OperationShape(input, output, errors)
+      │       ├─ UnionShape(members: List[MemberDefinition])
+      │       ├─ StringShape, BooleanShape, IntegerShape, etc.
+      │       └─ ... (and other shape subtypes)
+      ├─ MemberDefinition(target: ShapeId, traits: List[TraitApplication])
+      ├─ TraitApplication(id: ShapeId, values: Map[String, NodeValue])
+      ├─ ShapeId (namespace + name identifier)
+      └─ NodeValue (metadata values: String, Number, Boolean, Array, Object, Null)
             ↓
 SmithyPrinter (serializes model)
       ↓
