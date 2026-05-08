@@ -99,7 +99,7 @@ import zio.blocks.smithy._
 
   // Assemble into a complete model
   val model = SmithyModel(
-    version = "2.0",
+    version = "2",
     namespace = "bookstore.api",
     useStatements = Nil,
     metadata = Map(

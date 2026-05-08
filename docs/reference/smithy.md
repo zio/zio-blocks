@@ -82,8 +82,8 @@ SmithyModel (contains shapes, metadata, traits)
       │       ├─ UnionShape(members: List[MemberDefinition])
       │       ├─ StringShape, BooleanShape, IntegerShape, etc.
       │       └─ ... (and other shape subtypes)
-      ├─ MemberDefinition(target: ShapeId, traits: List[TraitApplication])
-      ├─ TraitApplication(id: ShapeId, values: Map[String, NodeValue])
+      ├─ MemberDefinition(name: String, target: ShapeId, traits: List[TraitApplication])
+      ├─ TraitApplication(id: ShapeId, value: Option[NodeValue])
       ├─ ShapeId (namespace + name identifier)
       └─ NodeValue (metadata values: String, Number, Boolean, Array, Object, Null)
             ↓
@@ -397,14 +397,14 @@ service MyService {
   operations: [GetUser, CreateUser]
 }
 
+@http(method: "GET", uri: "/users/{id}")
 operation GetUser {
-  @http(method: "GET", uri: "/users/{id}")
   input: GetUserInput
   output: User
 }
 
+@http(method: "POST", uri: "/users")
 operation CreateUser {
-  @http(method: "POST", uri: "/users")
   input: CreateUserInput
   output: User
 }
