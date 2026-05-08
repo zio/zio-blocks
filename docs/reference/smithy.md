@@ -555,16 +555,6 @@ modified.foreach { model =>
 }
 ```
 
-
-## Performance Notes
-
-- **Parsing** is linear in IDL text size
-- **Shape lookup** via `findShape` is O(n) on number of shapes (use for one-off queries)
-- **Serialization** is linear in model size
-- No lazy evaluation—everything is eagerly loaded into memory
-
-For large models (1000+ shapes), consider batching operations rather than repeated `findShape` calls.
-
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `smithy-examples` module. All examples use a consistent book store domain to demonstrate different aspects of the Smithy library.
