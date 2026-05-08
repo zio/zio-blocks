@@ -82,11 +82,7 @@ SmithyPrinter (serializes model)
 Smithy IDL Text
 ```
 
-### SmithyModel
-
-The root container for a Smithy model. Contains version, namespace, shapes, metadata, and trait applications.
-
-The case class and companion object expose the following API:
+The root container for a Smithy model. Contains version, namespace, shapes, metadata, and trait applications. The case class and companion object expose the following API:
 
 ```scala
 case class SmithyModel(
