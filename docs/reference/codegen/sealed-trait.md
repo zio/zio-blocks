@@ -61,7 +61,8 @@ val option = SealedTrait(
 ```
 
 ## Key Operations
-\nAll core operations are shown below:
+
+All core operations are shown below:
 
 ### Accessing Components
 
@@ -99,7 +100,8 @@ val updated = result.copy(
 ```
 
 ## Examples
-\nPractical examples demonstrate common usage:
+
+Practical examples demonstrate common usage:
 
 ### Example 1: Simple Enum-Like Sealed Trait
 
@@ -259,6 +261,4 @@ val appError = SealedTrait(
 - **[`TypeParam`](./type-param.md)** — for generic sealed traits
 - **[`TypeRef`](./type-ref.md)** — return types and parameter types
 - **[`ScalaEmitter`](./scala-emitter.md)** — emits the sealed trait and its companion object
-
-In typical usage, you build a `SealedTrait`, add it to a `ScalaFile`, and emit with `ScalaEmitter`. This creates both the sealed trait declaration and its companion object with case instances.
 

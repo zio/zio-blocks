@@ -28,22 +28,11 @@ final case class CaseClass(
 
 This module is designed to be a **reusable building block** for any tool that needs to generate Scala code—whether from OpenAPI specifications, Smithy models, Protocol Buffers, JSON Schema, or any other source format.
 
-Rather than embedding code generation logic into domain-specific tools, you model your source data in the codegen IR, then emit clean, formatted Scala. This separation enables:
-
-- **Single source of truth** for Scala code style and correctness
-- **Consistency** across all generated code
-- **Reuse** without importing domain-specific libraries (OpenAPI gen doesn't depend on Smithy gen)
+Rather than embedding code generation logic into domain-specific tools, you model your source data in the codegen IR, then emit clean, formatted Scala. This separation enables single source of truth, consistency, and reuse across all generators without cross-coupling.
 
 ## Motivation
 
-Codegen IR exists to solve a specific problem: **many generators produce the same output (Scala code) but reinvent the emission logic.**
-
-Before `zio-blocks-codegen`, `zio-http-gen` (OpenAPI → Scala) embedded its own IR and emitter. When Smithy, Protobuf, or JSON Schema generators needed the same capability, they either:
-1. Copied the entire implementation (bad: bugs fixed in one place miss the others)
-2. Depended on `zio-http` (bad: unnecessary coupling)
-3. Rolled their own (bad: inconsistent styles and bugs)
-
-By extracting IR and emitter into `zio-blocks-codegen`, all generators share one implementation. The cost is low: understand the IR, use it. The benefit is high: consistent, well-tested code generation everywhere.
+Codegen IR exists to solve a specific problem: **many generators produce the same output (Scala code) but reinvent the emission logic.** Before `zio-blocks-codegen`, each generator (OpenAPI, Smithy, Protobuf, etc.) had its own IR and emitter, leading to duplication, bugs, and inconsistency. By extracting IR and emitter into `zio-blocks-codegen`, all generators share one implementation.
 
 **The Problem (Before):**
 

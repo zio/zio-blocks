@@ -33,7 +33,8 @@ val sourceCode = ScalaEmitter.emit(file, config)
 ```
 
 ## Key Operations
-\nAll core operations are shown below:
+
+All core operations are shown below:
 
 ### Emitting Type References
 
@@ -96,7 +97,8 @@ ScalaEmitter.emit(file, config)
 See [EmitterConfig](./emitter-config.md) for all available options.
 
 ## Examples
-\nPractical examples demonstrate common usage:
+
+Practical examples demonstrate common usage:
 
 ### Example 1: Emit a Complete File
 
@@ -338,6 +340,4 @@ ScalaEmitter.emit(file, config)
 - **[`Method`](./method.md)** — methods in objects/classes
 - **[`Annotation`](./annotation.md)** — annotations
 - **[`EmitterConfig`](./emitter-config.md)** — formatting configuration
-
-In typical usage, you build a complete IR model, then call `ScalaEmitter.emit(file, config)` to get a ready-to-write Scala source string.
 

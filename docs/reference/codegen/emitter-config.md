@@ -360,5 +360,3 @@ When targeting Scala 2, the emitter uses:
 - **[`ScalaEmitter`](./scala-emitter.md)** — respects all configuration settings when emitting code
 - **Your generator** — construct once, reuse across all files you generate
 
-In typical usage, you create one `EmitterConfig` for your entire code generation run, then pass it to every `ScalaEmitter.emit(file, config)` call.
-

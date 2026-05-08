@@ -12,7 +12,6 @@ title: "TypeDefinition"
 - As a base for specific type definitions like `CaseClass`, `SealedTrait`, `Enum`, etc.
 
 ## Variants
-\n`TypeDefinition` has 9 concrete implementations:
 
 `TypeDefinition` has 9 concrete implementations:
 
@@ -41,9 +40,8 @@ sealed trait TypeDefinition {
 ```
 
 ## Choosing the Right Variant
-\nUse this guidance to pick the right `TypeDefinition`:
 
-Use this table to pick the right `TypeDefinition` for your use case:
+Choose the right `TypeDefinition` for your use case:
 
 ### Data Structures
 
@@ -146,9 +144,8 @@ val userId2 = OpaqueType("UserId", underlyingType = TypeRef.Long)
 ```
 
 ## Common Operations
-\nAll `TypeDefinition` variants support:
 
-All `TypeDefinition` variants support:
+All `TypeDefinition` variants support these core operations:
 
 ### Accessing Components
 
@@ -202,7 +199,8 @@ val derived = CaseClass(
 ```
 
 ## Examples
-\nPractical examples demonstrate common usage:
+
+Practical examples demonstrate common usage:
 
 ### Example 1: Combining Types in a File
 

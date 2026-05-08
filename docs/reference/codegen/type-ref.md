@@ -43,7 +43,8 @@ val map = TypeRef.map(TypeRef.String, TypeRef.Int)
 ```
 
 ## Key Operations
-\nAll core operations are shown below:
+
+All core operations are shown below:
 
 ### Accessing Components
 
@@ -68,9 +69,8 @@ val nestedList = TypeRef("List", List(
 ```
 
 ## Primitive Types
-\n`TypeRef` provides factory methods for built-in types:
 
-`TypeRef` provides factory methods for common primitives:
+`TypeRef` provides factory methods for built-in types:
 
 ```scala
 TypeRef.Unit        // Unit
@@ -87,9 +87,8 @@ TypeRef.Any         // Any
 ```
 
 ## Generic Type Factories
-\nConvenience methods simplify common generic patterns:
 
-Convenience methods for common generic types:
+Convenience methods simplify common generic patterns:
 
 ```scala
 TypeRef.optional(TypeRef.String)  // Option[String]
@@ -100,7 +99,8 @@ TypeRef.tuple(TypeRef.String, TypeRef.Int)  // (String, Int)
 ```
 
 ## Examples
-\nPractical examples demonstrate common usage:
+
+Practical examples demonstrate common usage:
 
 ### Example 1: Field Types
 
@@ -197,6 +197,4 @@ val intersectionType = TypeRef("&", List(
 - **[`SealedTrait`](./sealed-trait.md)** — case class fields use `TypeRef`
 - **[`TypeParam`](./type-param.md)** — bounds can use `TypeRef`
 - **[`ScalaEmitter`](./scala-emitter.md)** — emits `TypeRef` as Scala type syntax
-
-In typical usage, you build type references for field types and method return types, then the emitter converts them to Scala type syntax like `List[String]` or `Option[Int]`.
 
