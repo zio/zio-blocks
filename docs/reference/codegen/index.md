@@ -9,7 +9,7 @@ Core types: `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `Enum`, `
 
 Here's the structure of two core types:
 
-```scala mdoc:compile-only
+```scala
 // IR models the structure of Scala code
 final case class ScalaFile(
   packageDecl: PackageDecl,
@@ -80,7 +80,7 @@ OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → S
 
 Add the library to your project:
 
-```scala mdoc:compile-only
+```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 ```
 
@@ -148,7 +148,7 @@ ScalaFile
 
 When you call `ScalaEmitter.emit(file, config)`, it walks this tree and produces:
 
-```scala mdoc:compile-only
+```scala
 package com.example
 
 import zio._
@@ -199,7 +199,7 @@ Here are the most common usage patterns:
 
 Build a case class with fields and derive clauses:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val user = CaseClass(
@@ -216,7 +216,7 @@ val user = CaseClass(
 
 Model ADTs (algebraic data types) as sealed traits with cases:
 
-```scala mdoc:compile-only
+```scala
 val payment = SealedTrait(
   name = "Payment",
   cases = List(
@@ -239,7 +239,7 @@ val payment = SealedTrait(
 
 Define polymorphic types:
 
-```scala mdoc:compile-only
+```scala
 val container = CaseClass(
   name = "Container",
   fields = List(
@@ -253,7 +253,7 @@ val container = CaseClass(
 
 Assemble a complete Scala file ready for emission:
 
-```scala mdoc:compile-only
+```scala
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example"),
   imports = List(
@@ -273,7 +273,7 @@ The emitter handles both **Scala 3** and **Scala 2** natively:
 
 You configure the output via `EmitterConfig`:
 
-```scala mdoc:compile-only
+```scala
 val config = EmitterConfig(
   scalaVersion = EmitterConfig.ScalaVersion.Scala3, // or Scala2
   indentWidth = 2,

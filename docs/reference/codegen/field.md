@@ -15,7 +15,7 @@ title: "Field"
 
 Build a field with a name and type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val id = Field("id", TypeRef.Long)
@@ -25,14 +25,14 @@ val email = Field("email", TypeRef.optional(TypeRef.String))
 
 With default value:
 
-```scala mdoc:compile-only
+```scala
 val timeout = Field("timeout", TypeRef.Long, defaultValue = Some("5000L"))
 val retries = Field("retries", TypeRef.Int, defaultValue = Some("3"))
 ```
 
 With annotations:
 
-```scala mdoc:compile-only
+```scala
 val annotated = Field(
   "id",
   TypeRef.Long,
@@ -48,7 +48,7 @@ All `Field` instances support these operations:
 
 Extract parts of a field:
 
-```scala mdoc:compile-only
+```scala
 val field = Field("age", TypeRef.Int, defaultValue = Some("0"))
 
 field.name           // "age"
@@ -61,7 +61,7 @@ field.annotations    // List[Annotation]
 
 Modify a field:
 
-```scala mdoc:compile-only
+```scala
 val updated = field.copy(
   defaultValue = Some("18"),
   annotations = List(Annotation("min"))
@@ -76,7 +76,7 @@ These examples show practical usage patterns for `Field`:
 
 Create fields for a case class:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -100,7 +100,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.shop
 
 final case class Order(
@@ -115,7 +115,7 @@ final case class Order(
 
 Case class fields with default values:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val config = CaseClass(
@@ -130,7 +130,7 @@ val config = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class DatabaseConfig(
   host: String = "localhost",
   port: Int = 5432,
@@ -142,7 +142,7 @@ final case class DatabaseConfig(
 
 Fields with generic types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val article = CaseClass(
@@ -159,7 +159,7 @@ val article = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Article(
   title: String,
   content: String,
@@ -173,7 +173,7 @@ final case class Article(
 
 Complex field types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val response = CaseClass(
@@ -197,7 +197,7 @@ val response = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Response(
   data: Option[List[String]],
   errors: List[Map[String, String]]
@@ -208,7 +208,7 @@ final case class Response(
 
 Fields using generic type variables:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val page = CaseClass(
@@ -224,7 +224,7 @@ val page = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Page[T](
   items: List[T],
   total: Long,

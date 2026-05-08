@@ -16,7 +16,7 @@ title: "ScalaEmitter"
 
 Emit a complete Scala file:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -40,7 +40,7 @@ All core operations are shown below:
 
 Convert a type reference to Scala syntax:
 
-```scala mdoc:compile-only
+```scala
 // These methods are used internally by emit, but available if you need them:
 ScalaEmitter.emitTypeRef(TypeRef.String)
 // Returns: "String"
@@ -56,7 +56,7 @@ ScalaEmitter.emitTypeRef(TypeRef.map(TypeRef.String, TypeRef.Int))
 
 Emit generic type parameters with bounds:
 
-```scala mdoc:compile-only
+```scala
 val unbounded = TypeParam("T")
 // Emits: "T"
 
@@ -71,7 +71,7 @@ val covariant = TypeParam("T", variance = "+")
 
 Convert annotations to Scala syntax:
 
-```scala mdoc:compile-only
+```scala
 val deprecated = Annotation("deprecated")
 // Emits: "@deprecated"
 
@@ -83,7 +83,7 @@ val withArg = Annotation("Deprecated", args = List("\"Use newMethod instead\""))
 
 The emitter respects `EmitterConfig` settings:
 
-```scala mdoc:compile-only
+```scala
 val config = EmitterConfig(
   indentWidth = 2,              // Spaces per indent level
   sortImports = true,           // Sort import statements
@@ -104,7 +104,7 @@ Practical examples demonstrate common usage:
 
 Generate a Scala file with multiple types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -145,7 +145,7 @@ val sourceCode = ScalaEmitter.emit(file, config)
 
 Generate code for different Scala versions:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -177,7 +177,7 @@ val scala2Code = ScalaEmitter.emit(file, scala2Config)
 
 Scala 3 emits:
 
-```scala mdoc:compile-only
+```scala
 package com.example
 
 enum Status {
@@ -188,7 +188,7 @@ enum Status {
 
 Scala 2 emits:
 
-```scala mdoc:compile-only
+```scala
 package com.example
 
 sealed trait Status
@@ -203,7 +203,7 @@ object Status {
 
 Emit a complete ADT:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -241,7 +241,7 @@ ScalaEmitter.emit(file, config)
 
 Emit polymorphic types with proper type parameter syntax:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -274,7 +274,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.containers
 
 final case class Wrapper[A](value: A)
@@ -289,7 +289,7 @@ final case class Pair[A, B](
 
 Control code style with configuration:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 

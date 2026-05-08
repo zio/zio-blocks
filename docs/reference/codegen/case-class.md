@@ -15,7 +15,7 @@ title: "CaseClass"
 
 Build a case class with a name and field list:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val person = CaseClass(
@@ -30,7 +30,7 @@ val person = CaseClass(
 
 With optional type parameters:
 
-```scala mdoc:compile-only
+```scala
 val box = CaseClass(
   name = "Box",
   fields = List(Field("value", TypeRef("T"))),
@@ -40,7 +40,7 @@ val box = CaseClass(
 
 With derives clauses:
 
-```scala mdoc:compile-only
+```scala
 val user = CaseClass(
   name = "User",
   fields = List(
@@ -59,7 +59,7 @@ All `CaseClass` instances support these core operations:
 
 Extract parts of a case class:
 
-```scala mdoc:compile-only
+```scala
 person.name            // "Person"
 person.fields          // List[Field]
 person.typeParams      // List[TypeParam] (empty if not generic)
@@ -72,7 +72,7 @@ person.isValueClass    // Boolean
 
 Modify a case class:
 
-```scala mdoc:compile-only
+```scala
 val extended = person.copy(
   fields = person.fields :+ Field("phone", TypeRef.String),
   derives = List("Show")
@@ -83,7 +83,7 @@ val extended = person.copy(
 
 Case classes can have companion objects with static members:
 
-```scala mdoc:compile-only
+```scala
 val withCompanion = CaseClass(
   name = "Config",
   fields = List(Field("timeout", TypeRef.Long)),
@@ -105,7 +105,7 @@ Here are concrete examples demonstrating typical `CaseClass` usage patterns:
 
 A basic case class with primitive fields:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -128,7 +128,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.shop
 
 final case class Order(
@@ -142,7 +142,7 @@ final case class Order(
 
 A case class with optional and collection fields:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val user = CaseClass(
@@ -159,7 +159,7 @@ val user = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class User(
   id: Long,
   name: String,
@@ -172,7 +172,7 @@ final case class User(
 
 A polymorphic case class with type parameters:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val page = CaseClass(
@@ -188,7 +188,7 @@ val page = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Page[T](
   items: List[T],
   total: Long,
@@ -200,7 +200,7 @@ final case class Page[T](
 
 Automatic typeclass derivation:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val product = CaseClass(
@@ -216,7 +216,7 @@ val product = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Product(
   id: String,
   name: String,
@@ -228,7 +228,7 @@ final case class Product(
 
 A case class with factory methods in the companion:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val config = CaseClass(
@@ -253,7 +253,7 @@ val config = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class AppConfig(
   host: String,
   port: Int

@@ -31,7 +31,7 @@ title: "TypeDefinition"
 
 Every `TypeDefinition` provides:
 
-```scala mdoc:compile-only
+```scala
 sealed trait TypeDefinition {
   def name: String              // The name of the type
   def annotations: List[Annotation]  // Annotations applied to it
@@ -47,7 +47,7 @@ Choose the right `TypeDefinition` for your use case:
 
 **Case Class** — Immutable record with named fields and automatic `equals`, `hashCode`, `copy`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val user = CaseClass(
@@ -61,13 +61,13 @@ val user = CaseClass(
 
 **Newtype** — Zero-cost wrapper for a single underlying type (e.g., `UserId` wrapping `Long`):
 
-```scala mdoc:compile-only
+```scala
 val userId = Newtype("UserId", TypeRef.Long)
 ```
 
 **Type Alias** — Synonym for an existing type:
 
-```scala mdoc:compile-only
+```scala
 val stringId = TypeAlias("StringId", typeRef = TypeRef.String)
 ```
 
@@ -75,7 +75,7 @@ val stringId = TypeAlias("StringId", typeRef = TypeRef.String)
 
 **Sealed Trait** — Discriminated union type with cases:
 
-```scala mdoc:compile-only
+```scala
 val payment = SealedTrait(
   name = "Payment",
   cases = List(
@@ -89,7 +89,7 @@ val payment = SealedTrait(
 
 **Enum** (Scala 3 only) — Enumeration with simple or parameterized cases:
 
-```scala mdoc:compile-only
+```scala
 val color = Enum(
   name = "Color",
   cases = List(
@@ -104,7 +104,7 @@ val color = Enum(
 
 **Trait** — Open trait for behavior and contracts:
 
-```scala mdoc:compile-only
+```scala
 val comparable = Trait(
   name = "Comparable",
   members = List(
@@ -117,7 +117,7 @@ val comparable = Trait(
 
 **Abstract Class** — Mix of fields and methods, but not instantiable:
 
-```scala mdoc:compile-only
+```scala
 val entity = AbstractClass(
   name = "Entity",
   fields = List(Field("id", TypeRef.Long))
@@ -126,7 +126,7 @@ val entity = AbstractClass(
 
 **Object** — Singleton object with static-like members:
 
-```scala mdoc:compile-only
+```scala
 val utils = ObjectDef(
   name = "Utils",
   members = List(
@@ -139,7 +139,7 @@ val utils = ObjectDef(
 
 **Opaque Type** (Scala 3) — Type-safe wrapper with an underlying type (distinct from `Newtype`):
 
-```scala mdoc:compile-only
+```scala
 val userId2 = OpaqueType("UserId", underlyingType = TypeRef.Long)
 ```
 
@@ -149,7 +149,7 @@ All `TypeDefinition` variants support these core operations:
 
 ### Accessing Components
 
-```scala mdoc:compile-only
+```scala
 val cc = CaseClass("User", List(Field("id", TypeRef.Long)))
 
 cc.name            // "User"
@@ -161,7 +161,7 @@ cc.doc             // Option[String] (documentation)
 
 Add annotations (like `@deprecated` or custom annotations):
 
-```scala mdoc:compile-only
+```scala
 val annotated = CaseClass(
   name = "OldAPI",
   fields = Nil,
@@ -175,7 +175,7 @@ val annotated = CaseClass(
 
 Include scaladoc or javadoc comments:
 
-```scala mdoc:compile-only
+```scala
 val documented = CaseClass(
   name = "User",
   fields = List(Field("id", TypeRef.Long)),
@@ -187,7 +187,7 @@ val documented = CaseClass(
 
 Add derives clauses for automatic typeclass derivation:
 
-```scala mdoc:compile-only
+```scala
 val derived = CaseClass(
   name = "Point",
   fields = List(
@@ -206,7 +206,7 @@ Practical examples demonstrate common usage:
 
 A file with multiple `TypeDefinition` variants:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -244,7 +244,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Defining a polymorphic case class:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 
 val box = CaseClass(
@@ -260,7 +260,7 @@ val box = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Box[A](value: A)
 ```
 

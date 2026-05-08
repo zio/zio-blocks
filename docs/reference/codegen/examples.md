@@ -9,7 +9,7 @@ This page shows complete, runnable examples demonstrating realistic code generat
 
 Build a complete domain model with a case class and sealed trait:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -56,7 +56,7 @@ val code = ScalaEmitter.emit(file, config)
 
 This generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.domain
 
 import zio._
@@ -85,7 +85,7 @@ final case class User(
 
 Build polymorphic types with type parameters:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -128,7 +128,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.types
 
 final case class Container[T](
@@ -148,7 +148,7 @@ object Result {
 
 Generate HTTP API models from scratch:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -210,7 +210,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emit code for both Scala 3 and Scala 2:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -246,7 +246,7 @@ val scala2Code = ScalaEmitter.emit(
 
 Scala 3 output:
 
-```scala mdoc:compile-only
+```scala
 package com.shop.models
 
 enum OrderStatus {
@@ -260,7 +260,7 @@ derives Show
 
 Scala 2 output:
 
-```scala mdoc:compile-only
+```scala
 package com.shop.models
 
 sealed trait OrderStatus
@@ -278,7 +278,7 @@ derives Show
 
 Generate a companion object with utility methods:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -318,7 +318,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.config
 
 final case class AppConfig(
@@ -337,7 +337,7 @@ object AppConfig {
 
 Model deeply nested generic structures:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -378,7 +378,7 @@ ScalaEmitter.emit(file, EmitterConfig(indentWidth = 2))
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.pagination
 
 import scala.collection._
@@ -396,7 +396,7 @@ final case class Page[T](
 
 Add types to a file step by step:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -429,7 +429,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generate multiple files from a single data model:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -481,7 +481,7 @@ These patterns recur across all code generation workflows:
 
 When generating code, you'll often build types incrementally:
 
-```scala mdoc:compile-only
+```scala
 val types = List(
   CaseClass("User", List()),
   CaseClass("Product", List())
@@ -498,7 +498,7 @@ val file = ScalaFile(
 
 Define common types once and compose them:
 
-```scala mdoc:compile-only
+```scala
 // Common error type
 val baseError = SealedTrait(
   "Error",
@@ -524,7 +524,7 @@ val file2 = ScalaFile(
 
 Choose configuration once and apply to all files:
 
-```scala mdoc:compile-only
+```scala
 // Your project's standard config
 val projectConfig = EmitterConfig(
   indentWidth = 2,
@@ -551,7 +551,7 @@ In a real code generator, you'd:
 
 Example structure:
 
-```scala mdoc:compile-only
+```scala
 // Pseudocode: real generators follow this pattern
 
 // def generateFromOpenAPI(spec: OpenAPI): Unit = {
