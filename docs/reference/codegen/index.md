@@ -94,6 +94,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 Supported Scala versions: 2.13.x and 3.x
 
 ## Overview
+
 The module has two key layers:
 1. **IR Layer**: Immutable, strongly-typed models of Scala code structures (files, types, members)
 2. **Emit Layer**: Pure functions that convert IR models to formatted Scala source code
@@ -169,29 +170,29 @@ final case class User(
 **Architecture diagram:**
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Your Generator (OpenAPI, Smithy, Protobuf, JSON Schema)    │
-│ - Parse input format                                        │
-│ - Build IR models (CaseClass, SealedTrait, etc.)          │
-└────────────────┬────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ Your Generator (OpenAPI, Smithy, Protobuf, JSON Schema)  │
+│ - Parse input format                                     │
+│ - Build IR models (CaseClass, SealedTrait, etc.)         │
+└────────────────┬─────────────────────────────────────────┘
                  │ ScalaFile (root IR node)
                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ zio-blocks-codegen IR Layer                                 │
-│ - TypeDefinition (sealed trait)                            │
+┌──────────────────────────────────────────────────────────┐
+│ zio-blocks-codegen IR Layer                              │
+│ - TypeDefinition (sealed trait)                          │
 │ - CaseClass, SealedTrait, Enum, ObjectDef, ...           │
 │ - Field, Method, TypeRef, Annotation, TypeParam          │
-│ - Strongly typed, immutable, composable                   │
-└────────────────┬────────────────────────────────────────────┘
+│ - Strongly typed, immutable, composable                  │
+└────────────────┬─────────────────────────────────────────┘
                  │ IR models
                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│ zio-blocks-codegen Emit Layer                              │
-│ - ScalaEmitter.emit(file, config) → String               │
-│ - Supports Scala 3 (enums, derives, * imports)           │
-│ - Supports Scala 2 (sealed traits, _ imports, fallback)  │
+┌─────────────────────────────────────────────────────────┐
+│ zio-blocks-codegen Emit Layer                           │
+│ - ScalaEmitter.emit(file, config) → String              │
+│ - Supports Scala 3 (enums, derives, * imports)          │
+│ - Supports Scala 2 (sealed traits, _ imports, fallback) │
 │ - EmitterConfig: indent, imports, commas, version       │
-└────────────────┬────────────────────────────────────────────┘
+└────────────────┬────────────────────────────────────────┘
                  │ Formatted Scala source
                  ▼
          (Write to file or further process)
@@ -264,19 +265,11 @@ val file = ScalaFile(
     Import.WildcardImport("zio"),
     Import.SingleImport("zio.blocks.schema", "Schema")
   ),
-  types = List(user, payment)
+  types = List(usr, payment)
 )
 ```
 
-## Integration Points
-\nCodegen IR integrates with:
-
-### Used By Other Modules
-
-- **`zio-blocks-openapi`**: OpenAPI specifications → IR → Scala code
-- Any tool that generates Scala code (Smithy, Protobuf, JSON Schema, etc.)
-
-### Cross-Scala Compatibility
+## Cross-Scala Compatibility
 
 The emitter handles both **Scala 3** and **Scala 2** natively:
 
@@ -294,7 +287,7 @@ val config = EmitterConfig(
 )
 ```
 
-### Design Philosophy
+## Design Philosophy
 
 Three principles guide codegen IR:
 
