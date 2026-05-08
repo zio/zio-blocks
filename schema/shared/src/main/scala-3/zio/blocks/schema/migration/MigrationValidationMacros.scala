@@ -20,6 +20,31 @@ import scala.quoted.*
 
 object MigrationValidationMacros {
 
+  private def refinementFieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
+    import q.reflect.*
+
+    def loop(current: TypeRepr, acc: List[(String, TypeRepr)]): List[(String, TypeRepr)] =
+      current.dealias match {
+        case Refinement(parent, fieldName, fieldInfo) if fieldName != "<none>" =>
+          loop(parent, (fieldName -> fieldInfo) :: acc)
+        case _ => acc
+      }
+
+    loop(tpe, Nil).reverse.toMap
+  }
+
+  private def fieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
+    import q.reflect.*
+
+    val dealiased = tpe.dealias
+    val sym       = dealiased.typeSymbol
+
+    if (sym.flags.is(Flags.Case) && sym.caseFields.nonEmpty)
+      sym.caseFields.map(field => field.name -> dealiased.memberType(field)).toMap
+    else
+      refinementFieldTypes(dealiased)
+  }
+
   def validateMigration[A: Type, B: Type, CS: Type](using
     Quotes
   ): Expr[MigrationComplete[A, B, CS]] = {
@@ -56,8 +81,6 @@ object MigrationValidationMacros {
         errors.append(s"\n  Source fields not handled: ${unhandledSource.mkString(", ")}\n")
         errors.append("  Use dropField, renameField, transformField, or migrateField to handle these fields.\n")
       }
-
-      errors.append("\n  Alternatively, use .buildPartial to skip validation.")
 
       report.errorAndAbort(errors.toString)
     }
@@ -133,41 +156,23 @@ object MigrationValidationMacros {
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[T]
-
-    if (tpe.typeSymbol.flags.is(Flags.Case) && tpe.typeSymbol.caseFields.nonEmpty) {
-      tpe.typeSymbol.caseFields.flatMap { field =>
-        val fieldName = if (prefix.isEmpty) field.name else s"$prefix.${field.name}"
-        val fieldType = tpe.memberType(field)
-
-        if (fieldType.typeSymbol.flags.is(Flags.Case) && fieldType.typeSymbol.caseFields.nonEmpty) {
-          Set(fieldName) ++ extractNestedFieldNames(fieldType, fieldName)
-        } else {
-          Set(fieldName)
-        }
-      }.toSet
-    } else {
-      Set.empty
-    }
+    fieldTypes(tpe).flatMap { case (name, fieldType) =>
+      val fieldName = if (prefix.isEmpty) name else s"$prefix.$name"
+      if (fieldTypes(fieldType).nonEmpty)
+        Set(fieldName) ++ extractNestedFieldNames(fieldType, fieldName)
+      else
+        Set(fieldName)
+    }.toSet
   }
 
-  private def extractNestedFieldNames(using q: Quotes)(tpe: q.reflect.TypeRepr, prefix: String): Set[String] = {
-    import q.reflect.*
-
-    if (tpe.typeSymbol.flags.is(Flags.Case) && tpe.typeSymbol.caseFields.nonEmpty) {
-      tpe.typeSymbol.caseFields.flatMap { field =>
-        val fieldName = s"$prefix.${field.name}"
-        val fieldType = tpe.memberType(field)
-
-        if (fieldType.typeSymbol.flags.is(Flags.Case) && fieldType.typeSymbol.caseFields.nonEmpty) {
-          Set(fieldName) ++ extractNestedFieldNames(fieldType, fieldName)
-        } else {
-          Set(fieldName)
-        }
-      }.toSet
-    } else {
-      Set.empty
-    }
-  }
+  private def extractNestedFieldNames(using q: Quotes)(tpe: q.reflect.TypeRepr, prefix: String): Set[String] =
+    fieldTypes(tpe).flatMap { case (name, fieldType) =>
+      val fieldName = s"$prefix.$name"
+      if (fieldTypes(fieldType).nonEmpty)
+        Set(fieldName) ++ extractNestedFieldNames(fieldType, fieldName)
+      else
+        Set(fieldName)
+    }.toSet
 
   private def computeAutoMappedWithNested[A: Type, B: Type](prefix: String)(using Quotes): Set[String] = {
     import quotes.reflect.*
@@ -175,19 +180,8 @@ object MigrationValidationMacros {
     val sourceType = TypeRepr.of[A]
     val targetType = TypeRepr.of[B]
 
-    val sourceFieldTypes: Map[String, TypeRepr] =
-      if (sourceType.typeSymbol.flags.is(Flags.Case)) {
-        sourceType.typeSymbol.caseFields.map { field =>
-          field.name -> sourceType.memberType(field)
-        }.toMap
-      } else Map.empty
-
-    val targetFieldTypes: Map[String, TypeRepr] =
-      if (targetType.typeSymbol.flags.is(Flags.Case)) {
-        targetType.typeSymbol.caseFields.map { field =>
-          field.name -> targetType.memberType(field)
-        }.toMap
-      } else Map.empty
+    val sourceFieldTypes: Map[String, TypeRepr] = fieldTypes(sourceType)
+    val targetFieldTypes: Map[String, TypeRepr] = fieldTypes(targetType)
 
     val sourceFields = sourceFieldTypes.keySet
     val targetFields = targetFieldTypes.keySet
@@ -208,12 +202,10 @@ object MigrationValidationMacros {
   private def computeAutoMappedNested(using
     q: Quotes
   )(srcType: q.reflect.TypeRepr, tgtType: q.reflect.TypeRepr, prefix: String): Set[String] = {
-    import q.reflect.*
+    val srcFields = fieldTypes(srcType)
+    val tgtFields = fieldTypes(tgtType)
 
-    if (srcType.typeSymbol.flags.is(Flags.Case) && tgtType.typeSymbol.flags.is(Flags.Case)) {
-      val srcFields = srcType.typeSymbol.caseFields.map(f => f.name -> srcType.memberType(f)).toMap
-      val tgtFields = tgtType.typeSymbol.caseFields.map(f => f.name -> tgtType.memberType(f)).toMap
-
+    if (srcFields.nonEmpty && tgtFields.nonEmpty) {
       val commonFields = srcFields.keySet.intersect(tgtFields.keySet)
 
       commonFields.flatMap { fieldName =>
@@ -252,15 +244,8 @@ object MigrationValidationMacros {
   ): Set[String] = {
     import q.reflect.*
 
-    val sourceFieldTypes: Map[String, TypeRepr] =
-      if (sourceType.typeSymbol.flags.is(Flags.Case) && sourceType.typeSymbol.caseFields.nonEmpty)
-        sourceType.typeSymbol.caseFields.map(f => f.name -> sourceType.memberType(f)).toMap
-      else Map.empty
-
-    val targetFieldTypes: Map[String, TypeRepr] =
-      if (targetType.typeSymbol.flags.is(Flags.Case) && targetType.typeSymbol.caseFields.nonEmpty)
-        targetType.typeSymbol.caseFields.map(f => f.name -> targetType.memberType(f)).toMap
-      else Map.empty
+    val sourceFieldTypes: Map[String, TypeRepr] = fieldTypes(sourceType)
+    val targetFieldTypes: Map[String, TypeRepr] = fieldTypes(targetType)
 
     val commonFields = sourceFieldTypes.keySet.intersect(targetFieldTypes.keySet)
 
@@ -285,17 +270,8 @@ object MigrationValidationMacros {
     explicitlyHandled: Set[String],
     prefix: String
   ): Set[String] = {
-    import q.reflect.*
-
-    val srcFields =
-      if (srcType.typeSymbol.flags.is(Flags.Case) && srcType.typeSymbol.caseFields.nonEmpty)
-        srcType.typeSymbol.caseFields.map(f => f.name -> srcType.memberType(f)).toMap
-      else Map.empty
-
-    val tgtFields =
-      if (tgtType.typeSymbol.flags.is(Flags.Case) && tgtType.typeSymbol.caseFields.nonEmpty)
-        tgtType.typeSymbol.caseFields.map(f => f.name -> tgtType.memberType(f)).toMap
-      else Map.empty
+    val srcFields = fieldTypes(srcType)
+    val tgtFields = fieldTypes(tgtType)
 
     val common = srcFields.keySet.intersect(tgtFields.keySet)
 

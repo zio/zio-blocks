@@ -22,6 +22,31 @@ import zio.blocks.schema.SchemaExpr
 
 object MigrationBuilderMacros {
 
+  private def refinementFieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
+    import q.reflect.*
+
+    def loop(current: TypeRepr, acc: List[(String, TypeRepr)]): List[(String, TypeRepr)] =
+      current.dealias match {
+        case Refinement(parent, fieldName, fieldInfo) if fieldName != "<none>" =>
+          loop(parent, (fieldName -> fieldInfo) :: acc)
+        case _ => acc
+      }
+
+    loop(tpe, Nil).reverse.toMap
+  }
+
+  private def fieldTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): Map[String, q.reflect.TypeRepr] = {
+    import q.reflect.*
+
+    val dealiased = tpe.dealias
+    val sym       = dealiased.typeSymbol
+
+    if (sym.flags.is(Flags.Case) && sym.caseFields.nonEmpty)
+      sym.caseFields.map(field => field.name -> dealiased.memberType(field)).toMap
+    else
+      refinementFieldTypes(dealiased)
+  }
+
   def addFieldImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     target: Expr[B => Any],
@@ -221,8 +246,8 @@ object MigrationBuilderMacros {
 
     val sourceFieldPath = extractFieldPathFromTerm(source.asTerm)
 
-    val nestedSourceFields = extractCaseClassFieldNames[F1]
-    val nestedTargetFields = extractCaseClassFieldNames[F2]
+    val nestedSourceFields = extractNestedFieldNames[F1]
+    val nestedTargetFields = extractNestedFieldNames[F2]
 
     var newCSType           = TypeRepr.of[CS]
     val sourceFieldNameType = ConstantType(StringConstant(sourceFieldPath))
@@ -263,21 +288,36 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] =
     migrateFieldExplicitImpl[A, B, F1, F2, CS](builder, source, migration)
 
-  private def extractCaseClassFieldNames[T: Type](using q: Quotes): List[String] = {
+  private def extractNestedFieldNames[T: Type](using q: Quotes): List[String] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[T]
-    val sym = tpe.typeSymbol
+    def loop(tpe: TypeRepr, prefix: String): List[String] =
+      fieldTypes(tpe).toList.flatMap { case (name, fieldType) =>
+        val fieldName = if (prefix.isEmpty) name else s"$prefix.$name"
+        val nested    = loop(fieldType, fieldName)
+        fieldName :: nested
+      }
 
-    if (sym.flags.is(Flags.Case) && sym.caseFields.nonEmpty) {
-      sym.caseFields.map(_.name)
-    } else {
-      Nil
-    }
+    loop(TypeRepr.of[T], "")
   }
 
   private def extractFieldPathFromTerm(term: Any)(using q: Quotes): String = {
     import q.reflect.*
+
+    def structuralFieldAccess(t: Term): Option[(Term, String)] = t match {
+      case TypeApply(
+            Select(
+              Apply(
+                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
+                List(Literal(StringConstant(fieldName)))
+              ),
+              "$asInstanceOf$"
+            ),
+            _
+          ) =>
+        Some((parent, fieldName))
+      case _ => None
+    }
 
     @tailrec
     def toPathBody(t: Term): Term = t match {
@@ -287,9 +327,12 @@ object MigrationBuilderMacros {
     }
 
     def extractPath(t: Term): List[String] = t match {
-      case Select(parent, fieldName) => extractPath(parent) :+ fieldName
-      case Ident(_)                  => Nil
-      case _                         => report.errorAndAbort(s"Cannot extract field path from: ${t.show}")
+      case Select(parent, fieldName)                       => extractPath(parent) :+ fieldName
+      case other if structuralFieldAccess(other).isDefined =>
+        val (parent, fieldName) = structuralFieldAccess(other).get
+        extractPath(parent) :+ fieldName
+      case Ident(_) => Nil
+      case _        => report.errorAndAbort(s"Cannot extract field path from: ${t.show}")
     }
 
     val pathBody = toPathBody(term.asInstanceOf[Term])
@@ -303,6 +346,21 @@ object MigrationBuilderMacros {
   private def extractLeafFieldName(term: Any)(using q: Quotes): String = {
     import q.reflect.*
 
+    def structuralFieldAccess(t: Term): Option[(Term, String)] = t match {
+      case TypeApply(
+            Select(
+              Apply(
+                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
+                List(Literal(StringConstant(fieldName)))
+              ),
+              "$asInstanceOf$"
+            ),
+            _
+          ) =>
+        Some((parent, fieldName))
+      case _ => None
+    }
+
     @tailrec
     def toPathBody(t: Term): Term = t match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
@@ -312,11 +370,12 @@ object MigrationBuilderMacros {
 
     @tailrec
     def extractLastFieldName(t: Term): String = t match {
-      case Select(_, fieldName)                        => fieldName
-      case Inlined(_, _, inner)                        => extractLastFieldName(inner)
-      case Block(List(DefDef(_, _, _, Some(body))), _) => extractLastFieldName(body)
-      case Ident(_)                                    => report.errorAndAbort("Selector must access at least one field")
-      case _                                           => report.errorAndAbort(s"Cannot extract field name from: ${t.show}")
+      case Select(_, fieldName)                            => fieldName
+      case other if structuralFieldAccess(other).isDefined => structuralFieldAccess(other).get._2
+      case Inlined(_, _, inner)                            => extractLastFieldName(inner)
+      case Block(List(DefDef(_, _, _, Some(body))), _)     => extractLastFieldName(body)
+      case Ident(_)                                        => report.errorAndAbort("Selector must access at least one field")
+      case _                                               => report.errorAndAbort(s"Cannot extract field name from: ${t.show}")
     }
 
     val pathBody = toPathBody(term.asInstanceOf[Term])
