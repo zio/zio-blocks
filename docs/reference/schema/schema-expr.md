@@ -3,7 +3,7 @@ id: schema-expr
 title: "SchemaExpr"
 ---
 
-`SchemaExpr[A, +B]` is a **schema-aware expression** that computes a result of type `B` from an input value of type `A`. The input type `A` must be fully described by a [`Schema`](./schema.md), and the expression is built from [optics](./optics.md), literal values, and operators. The fundamental operations are `eval` and `evalDynamic`.
+`SchemaExpr[A, B]` is a **schema-aware expression** that computes a result of type `B` from an input value of type `A`. The input type `A` must be fully described by a [`Schema`](./schema.md), and the expression is built from [optics](./optics.md), literal values, and operators. The fundamental operations are `eval` and `evalDynamic`.
 
 At runtime, `SchemaExpr` is a typed wrapper around `DynamicSchemaExpr`. The typed layer carries the input and output schemas, while the dynamic layer stores the serializable AST. This split is why you will sometimes see both `.dynamic` and `DynamicSchemaExpr` in advanced examples: `SchemaExpr` is the public typed API, and `DynamicSchemaExpr` is the untyped transport/runtime form underneath it.
 
@@ -11,10 +11,14 @@ At runtime, `SchemaExpr` is a typed wrapper around `DynamicSchemaExpr`. The type
 - represents expressions as a reified AST, enabling introspection and serialization
 - supports relational (`===`, `>`, `<`, `>=`, `<=`, `!=`), logical (`&&`, `||`, `!`), arithmetic (`+`, `-`, `*`), and string (`concat`, `matches`, `length`) operations
 - evaluates to `Either[OpticCheck, Seq[B]]`, handling failures and multi-valued results from traversals
-- is covariant in `B`, the output type
+- preserves both input and output schemas at the type level
 
 ```scala
-sealed trait SchemaExpr[A, +B] {
+final case class SchemaExpr[A, B](
+  dynamic: DynamicSchemaExpr,
+  inputSchema: Schema[A],
+  outputSchema: Schema[B]
+) {
   def eval(input: A): Either[OpticCheck, Seq[B]]
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
@@ -248,7 +252,7 @@ If you need the raw dynamic form for serialization, transport, or custom interpr
 Evaluates the expression against an input value, returning the typed result. The result is a `Seq[B]` because traversal-based expressions can produce multiple values.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def eval(input: A): Either[OpticCheck, Seq[B]]
 }
 ```
@@ -284,7 +288,7 @@ When an expression wraps a `Traversal` optic, `eval` returns multiple values —
 Like `eval`, but converts the result to [`DynamicValue`](./dynamic-value.md) instances. This is useful for serialization or when working with schema-agnostic code.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
 ```
@@ -314,7 +318,7 @@ val result = nameExpr.evalDynamic(Person("Alice", 30))
 Combines two boolean-typed expressions with logical AND. Both operands must produce `Boolean` results.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def &&[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
 }
 ```
@@ -343,7 +347,7 @@ val result = isAdultAlice.eval(Person("Alice", 30))
 Combines two boolean-typed expressions with logical OR.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def ||[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
 }
 ```
