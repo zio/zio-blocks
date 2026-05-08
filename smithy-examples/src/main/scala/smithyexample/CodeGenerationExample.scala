@@ -12,89 +12,89 @@ import zio.blocks.smithy._
  */
 @main def CodeGenerationExample(): Unit = {
   val smithyText = """$version: "2"
-namespace petstore.api
+namespace bookstore.api
 
-service PetStore {
-  operations: [ListPets, GetPet, CreatePet, DeletePet]
+service BookStore {
+  operations: [ListBooks, GetBook, CreateBook, DeleteBook]
 }
 
-@http(method: "GET", uri: "/pets")
-operation ListPets {
-  input: ListPetsInput
-  output: ListPetsOutput
+@http(method: "GET", uri: "/books")
+operation ListBooks {
+  input: ListBooksInput
+  output: ListBooksOutput
 }
 
-structure ListPetsInput {
+structure ListBooksInput {
   limit: Integer
 }
 
-structure ListPetsOutput {
+structure ListBooksOutput {
   @required
-  pets: PetList
+  books: BookList
 }
 
-list PetList {
-  member: Pet
+list BookList {
+  member: Book
 }
 
-@http(method: "GET", uri: "/pets/{id}")
-operation GetPet {
-  input: GetPetInput
-  output: Pet
-  errors: [PetNotFound]
+@http(method: "GET", uri: "/books/{id}")
+operation GetBook {
+  input: GetBookInput
+  output: Book
+  errors: [BookNotFound]
 }
 
-structure GetPetInput {
+structure GetBookInput {
   @required
   id: String
 }
 
-structure PetNotFound {
+structure BookNotFound {
   @required
   message: String
 }
 
-@http(method: "POST", uri: "/pets")
-operation CreatePet {
-  input: CreatePetInput
-  output: Pet
+@http(method: "POST", uri: "/books")
+operation CreateBook {
+  input: CreateBookInput
+  output: Book
 }
 
-structure CreatePetInput {
+structure CreateBookInput {
   @required
-  name: String
+  title: String
 
   @required
-  species: String
+  author: String
 
-  age: Integer
+  isbn: String
 }
 
-@http(method: "DELETE", uri: "/pets/{id}")
-operation DeletePet {
-  input: DeletePetInput
-  output: DeletePetOutput
-  errors: [PetNotFound]
+@http(method: "DELETE", uri: "/books/{id}")
+operation DeleteBook {
+  input: DeleteBookInput
+  output: DeleteBookOutput
+  errors: [BookNotFound]
 }
 
-structure DeletePetInput {
+structure DeleteBookInput {
   @required
   id: String
 }
 
-structure DeletePetOutput {}
+structure DeleteBookOutput {}
 
-structure Pet {
+structure Book {
   @required
   id: String
 
   @required
-  name: String
+  title: String
 
   @required
-  species: String
+  author: String
 
-  age: Integer
+  isbn: String
 }
 """
 
@@ -106,7 +106,7 @@ structure Pet {
       println(s"✓ Parsed service model: ${model.namespace}\n")
 
       // Find the service shape
-      val serviceOpt = model.shapes.find(_.name == "PetStore")
+      val serviceOpt = model.shapes.find(_.name == "BookStore")
 
       serviceOpt match {
         case Some(serviceDef) =>
@@ -114,7 +114,7 @@ structure Pet {
             case service: ServiceShape =>
               println(s"=== Generating TypeScript Client ===\n")
               println("// Auto-generated TypeScript client")
-              println("export class PetStoreClient {")
+              println("export class BookStoreClient {")
               println("  private baseUrl: string;")
               println()
               println("  constructor(baseUrl: string) {")
@@ -155,7 +155,7 @@ structure Pet {
 
               println(s"=== Generating Scala Server Trait ===\n")
               println("// Auto-generated Scala service trait")
-              println("trait PetStoreService {")
+              println("trait BookStoreService {")
               println()
 
               service.operations.foreach { opId =>
@@ -196,7 +196,7 @@ structure Pet {
             case _ => println("Service shape is not a service")
           }
 
-        case None => println("Could not find PetStore service")
+        case None => println("Could not find BookStore service")
       }
 
     case Left(error) =>
