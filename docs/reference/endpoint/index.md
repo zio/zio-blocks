@@ -196,3 +196,102 @@ RouteTree (server-side only)
 ```
 
 Cross-module: `zio-blocks-openapi` consumes `Endpoint` values to generate OpenAPI 3.1 specifications. `zio-blocks-schema` provides the `Schema[A]` instances that `HttpCodec.Body` uses for serialization.
+
+## Running the Examples
+
+All code from this section is available as runnable examples in the `endpoint-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
+```
+
+**2. Run individual examples with sbt:**
+
+### Basic Endpoint Definition
+
+Constructs `Endpoint` values from `RoutePattern` and chains request body, query parameters, headers, success outputs, response headers, and typed error variants using the builder DSL.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/BasicEndpointDefinition.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/BasicEndpointDefinition.scala))
+
+```bash
+sbt "endpoint-examples/runMain endpointexamples.BasicEndpointDefinition"
+```
+
+### HttpCodec Smart Constructors and Composition
+
+Builds `HttpCodec` atoms for query parameters, request headers, response headers, request bodies, response bodies, and status codes. Shows sequential composition with `++` and alternative composition with `|`.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/HttpCodecConstruction.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/HttpCodecConstruction.scala))
+
+```bash
+sbt "endpoint-examples/runMain endpointexamples.HttpCodecConstruction"
+```
+
+### PathCodec and SegmentCodec
+
+Demonstrates all `SegmentCodec` kinds, intra-segment composition with `~` for patterns like `v42`, bidirectional `PathCodec` decode and format, `RoutePattern` matching, `nest` for version prefixes, and `transform`/`transformOrFail` for domain type mapping.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/PathAndSegmentCodecs.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/PathAndSegmentCodecs.scala))
+
+```bash
+sbt "endpoint-examples/runMain endpointexamples.PathAndSegmentCodecs"
+```
+
+### AuthType Patterns
+
+Shows all built-in `AuthType` variants (None, Basic, Bearer, Digest), a custom API-key variant, OR composition with `|`, scoped bearer tokens for OAuth scope metadata, and overriding the default unauthorized status.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/AuthTypePatterns.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/AuthTypePatterns.scala))
+
+```bash
+sbt "endpoint-examples/runMain endpointexamples.AuthTypePatterns"
+```
+
+### Complete REST API
+
+Assembles a full users CRUD API combining `Endpoint`, `RoutePattern`, `PathCodec`, `SegmentCodec`, `HttpCodec`, `AuthType`, and `RouteTree`. Demonstrates versioned routes via `nest`, Scala 3 union error types via `orOutError`, and `RouteTree` lookup priority for efficient O(depth) dispatch.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("endpoint-examples/src/main/scala/endpointexamples/CompleteApiDefinition.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/endpoint-examples/src/main/scala/endpointexamples/CompleteApiDefinition.scala))
+
+```bash
+sbt "endpoint-examples/runMain endpointexamples.CompleteApiDefinition"
+```
+
+**3. Or compile all examples at once:**
+
+```bash
+sbt "endpoint-examples/compile"
+```
