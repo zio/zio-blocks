@@ -15,17 +15,17 @@ title: "TypeDefinition"
 
 `TypeDefinition` has 9 concrete implementations:
 
-| Type | Purpose | Scala Feature |
-|------|---------|---------------|
-| `CaseClass` | Product types with fields | Scala 2 & 3 |
-| `SealedTrait` | Sum types (ADTs) with cases | Scala 2 & 3 |
-| `Trait` | Open trait definitions | Scala 2 & 3 |
-| `AbstractClass` | Abstract class definitions | Scala 2 & 3 |
-| `Enum` | Scala 3 enum definitions | Scala 3 only |
-| `ObjectDef` | Singleton objects | Scala 2 & 3 |
-| `OpaqueType` | Opaque type aliases | Scala 3 (Scala 2 fallback to `type` alias) |
-| `Newtype` | Zero-cost wrappers | Scala 2 & 3 |
-| `TypeAlias` | Type aliases | Scala 2 & 3 |
+| Type            | Purpose                     | Scala Feature                              |
+|-----------------|-----------------------------|--------------------------------------------|
+| `CaseClass`     | Product types with fields   | Scala 2 & 3                                |
+| `SealedTrait`   | Sum types (ADTs) with cases | Scala 2 & 3                                |
+| `Trait`         | Open trait definitions      | Scala 2 & 3                                |
+| `AbstractClass` | Abstract class definitions  | Scala 2 & 3                                |
+| `Enum`          | Scala 3 enum definitions    | Scala 3 only                               |
+| `ObjectDef`     | Singleton objects           | Scala 2 & 3                                |
+| `OpaqueType`    | Opaque type aliases         | Scala 3 (Scala 2 fallback to `type` alias) |
+| `Newtype`       | Zero-cost wrappers          | Scala 2 & 3                                |
+| `TypeAlias`     | Type aliases                | Scala 2 & 3                                |
 
 ## Common Interface
 
@@ -263,15 +263,4 @@ Emits:
 ```scala
 final case class Box[A](value: A)
 ```
-
-## Integration
-
-`TypeDefinition` is used in:
-
-- **[`ScalaFile`](./scala-file.md)** — a file contains a list of `TypeDefinition` values
-- **[`Field`](./field.md)** — fields have `TypeRef` types
-- **[`Method`](./method.md)** — methods return types and take parameters
-- **[`ScalaEmitter`](./scala-emitter.md)** — the emitter converts each `TypeDefinition` variant to Scala source
-
-When you call `ScalaEmitter.emit(file, config)`, the emitter pattern-matches on each `TypeDefinition` variant and emits the appropriate Scala syntax.
 
