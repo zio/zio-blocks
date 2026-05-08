@@ -70,6 +70,9 @@ sealed trait Expr[S, A]
 
 object Expr {
 
+  private def unsupportedDynamicExpr(op: String): Nothing =
+    throw new IllegalArgumentException(s"Unsupported DynamicSchemaExpr in example SQL DSL: $op")
+
   // --- Core nodes (superset of SchemaExpr's nodes) ---
   final case class Column[S, A](path: DynamicOptic) extends Expr[S, A]
   final case class Lit[S, A](value: DynamicValue)   extends Expr[S, A]
@@ -136,7 +139,7 @@ object Expr {
         case DynamicSchemaExpr.ArithmeticOperator.Add      => ArithOp.Add
         case DynamicSchemaExpr.ArithmeticOperator.Subtract => ArithOp.Subtract
         case DynamicSchemaExpr.ArithmeticOperator.Multiply => ArithOp.Multiply
-        case _                                             => ArithOp.Add
+        case other                                         => unsupportedDynamicExpr(s"arithmetic operator $other")
       }
       Arithmetic(fromDynamic[S](l).asInstanceOf[Expr[S, Any]], fromDynamic[S](r).asInstanceOf[Expr[S, Any]], arithOp)
 
@@ -148,7 +151,7 @@ object Expr {
         fromDynamic[S](string).asInstanceOf[Expr[S, String]]
       )
     case DynamicSchemaExpr.StringLength(string) => StringLength(fromDynamic[S](string).asInstanceOf[Expr[S, String]])
-    case _                                      => Lit[S, Any](DynamicValue.Null)
+    case other                                  => unsupportedDynamicExpr(other.getClass.getSimpleName)
   }
 }
 
