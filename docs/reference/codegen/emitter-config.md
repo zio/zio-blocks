@@ -14,12 +14,12 @@ title: "EmitterConfig"
 
 ## Configuration Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `indentWidth` | Int | 2 | Spaces per indentation level |
-| `sortImports` | Boolean | true | Sort import statements alphabetically |
-| `trailingCommas` | Boolean | true | Add trailing commas in collections |
-| `scalaVersion` | ScalaVersion | Scala3 | Target Scala version (Scala2 or Scala3) |
+| Field            | Type         | Default | Description                             |
+|------------------|--------------|---------|-----------------------------------------|
+| `indentWidth`    | Int          | 2       | Spaces per indentation level            |
+| `sortImports`    | Boolean      | true    | Sort import statements alphabetically   |
+| `trailingCommas` | Boolean      | true    | Add trailing commas in collections      |
+| `scalaVersion`   | ScalaVersion | Scala3  | Target Scala version (Scala2 or Scala3) |
 
 ## ScalaVersion Enum
 
