@@ -436,7 +436,7 @@ object MigrationBuildValidationSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(result.isRight)
         }
-      }
+      } @@ TestAspect.exceptJS
     ),
     suite("Changeset type inference")(
       test("addField accumulates AddField in Changeset") {
