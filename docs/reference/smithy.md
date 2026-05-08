@@ -666,12 +666,20 @@ Analyze Smithy models for completeness, find deprecated shapes, check for docume
 sbt "smithy-examples/runMain smithyexample.ValidationAndAnalysis"
 ```
 
-### Complete Example: E-Commerce API
+### Step 5: Complete Example — E-Commerce API
 
 A complete real-world example showing a full e-commerce API model with parsing, querying, analysis, and code generation:
 
 ```bash
 sbt "smithy-examples/runMain smithyexample.CompleteECommerceAPI"
+```
+
+### Step 6: Complete Example — Book Store API
+
+A comprehensive online book store API model demonstrating catalog search, author profiles, and order management with full Smithy 2.0 features:
+
+```bash
+sbt "smithy-examples/runMain smithyexample.BookStoreAPI"
 ```
 
 **3. Or compile all examples at once:**
