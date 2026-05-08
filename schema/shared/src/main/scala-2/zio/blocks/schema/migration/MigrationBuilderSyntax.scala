@@ -21,16 +21,22 @@ import zio.blocks.schema.SchemaExpr
 
 object MigrationBuilderMacros {
 
-  private def extractFieldNameFromSelector(c: whitebox.Context)(selector: c.Tree): String = {
+  private def extractFieldPathFromSelector(c: whitebox.Context)(selector: c.Tree): String = {
     import c.universe._
 
-    def extractFromBody(body: c.Tree): String = body match {
-      case Select(_, fieldName) => fieldName.decodedName.toString
-      case _                    => c.abort(c.enclosingPosition, s"Cannot extract field name from selector: ${showRaw(body)}")
+    def extractFromBody(body: c.Tree): List[String] = body match {
+      case Select(parent, fieldName) => extractFromBody(parent) :+ fieldName.decodedName.toString
+      case Ident(_)                  => Nil
+      case _                         => c.abort(c.enclosingPosition, s"Cannot extract field path from selector: ${showRaw(body)}")
     }
 
     selector match {
-      case q"($_) => $body" => extractFromBody(body)
+      case q"($_) => $body" =>
+        val segments = extractFromBody(body)
+        if (segments.isEmpty)
+          c.abort(c.enclosingPosition, "Selector must access at least one field")
+        else
+          segments.mkString(".")
       case _                => c.abort(c.enclosingPosition, s"Expected a lambda expression, got: ${showRaw(selector)}")
     }
   }
@@ -109,7 +115,7 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName    = extractFieldNameFromSelector(c)(target.tree)
+    val fieldName    = extractFieldPathFromSelector(c)(target.tree)
     val addFieldType = createAddFieldType(c)(fieldName)
     val newCSType    = addToChangeset(c)(csType, addFieldType)
 
@@ -138,7 +144,7 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fieldName     = extractFieldNameFromSelector(c)(source.tree)
+    val fieldName     = extractFieldPathFromSelector(c)(source.tree)
     val dropFieldType = createDropFieldType(c)(fieldName)
     val newCSType     = addToChangeset(c)(csType, dropFieldType)
 
@@ -167,8 +173,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName   = extractFieldNameFromSelector(c)(from.tree)
-    val toFieldName     = extractFieldNameFromSelector(c)(to.tree)
+    val fromFieldName   = extractFieldPathFromSelector(c)(from.tree)
+    val toFieldName     = extractFieldPathFromSelector(c)(to.tree)
     val renameFieldType = createRenameFieldType(c)(fromFieldName, toFieldName)
     val newCSType       = addToChangeset(c)(csType, renameFieldType)
 
@@ -201,8 +207,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName      = extractFieldNameFromSelector(c)(from.tree)
-    val toFieldName        = extractFieldNameFromSelector(c)(to.tree)
+    val fromFieldName      = extractFieldPathFromSelector(c)(from.tree)
+    val toFieldName        = extractFieldPathFromSelector(c)(to.tree)
     val transformFieldType = createTransformFieldType(c)(fromFieldName, toFieldName)
     val newCSType          = addToChangeset(c)(csType, transformFieldType)
 
@@ -235,8 +241,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName  = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName  = extractFieldNameFromSelector(c)(target.tree)
+    val sourceFieldName  = extractFieldPathFromSelector(c)(source.tree)
+    val targetFieldName  = extractFieldPathFromSelector(c)(target.tree)
     val mandateFieldType = createMandateFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType        = addToChangeset(c)(csType, mandateFieldType)
 
@@ -270,8 +276,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName      = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName      = extractFieldNameFromSelector(c)(target.tree)
+    val sourceFieldName      = extractFieldPathFromSelector(c)(source.tree)
+    val targetFieldName      = extractFieldPathFromSelector(c)(target.tree)
     val optionalizeFieldType = createOptionalizeFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType            = addToChangeset(c)(csType, optionalizeFieldType)
 
@@ -303,8 +309,8 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName     = extractFieldNameFromSelector(c)(source.tree)
-    val targetFieldName     = extractFieldNameFromSelector(c)(target.tree)
+    val sourceFieldName     = extractFieldPathFromSelector(c)(source.tree)
+    val targetFieldName     = extractFieldPathFromSelector(c)(target.tree)
     val changeFieldTypeType = createChangeFieldTypeType(c)(sourceFieldName, targetFieldName)
     val newCSType           = addToChangeset(c)(csType, changeFieldTypeType)
 
@@ -423,7 +429,7 @@ object MigrationBuilderMacros {
     val f2Type = weakTypeOf[F2]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName = extractFieldNameFromSelector(c)(selector.tree)
+    val sourceFieldName = extractFieldPathFromSelector(c)(selector.tree)
 
     val nestedSourceFields = extractCaseClassFields(c)(f1Type)
     val nestedTargetFields = extractCaseClassFields(c)(f2Type)
@@ -524,8 +530,6 @@ object MigrationValidationMacros {
         errors.append(s"\n  Source fields not handled: ${unhandledSource.mkString(", ")}\n")
         errors.append("  Use dropField, renameField, transformField, or migrateField to handle these fields.\n")
       }
-
-      errors.append("\n  Alternatively, use .buildPartial to skip validation.")
 
       c.abort(c.enclosingPosition, errors.toString)
     }

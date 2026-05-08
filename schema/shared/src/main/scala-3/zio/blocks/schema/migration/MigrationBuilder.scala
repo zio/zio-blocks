@@ -184,7 +184,7 @@ final class MigrationBuilder[A, B, Changeset](
   ): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
-  def buildPartial: Migration[A, B] =
+  private[migration] def buildPartial: Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 }
 

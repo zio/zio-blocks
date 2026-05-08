@@ -229,8 +229,7 @@ object MigrationAction {
 
   /**
    * Replace each element in a collection with the result of evaluating the
-   * expression. The expression is evaluated once against the root input value,
-   * and every element is replaced with the same result.
+   * expression against that element.
    *
    * @param at
    *   The path to the collection
@@ -247,9 +246,8 @@ object MigrationAction {
   // ==================== Map Actions ====================
 
   /**
-   * Replace each key in a map with the result of evaluating the expression. The
-   * expression is evaluated once against the root input value, and every key is
-   * replaced with the same result.
+   * Replace each key in a map with the result of evaluating the expression
+   * against that key.
    *
    * @param at
    *   The path to the map
@@ -264,9 +262,8 @@ object MigrationAction {
   }
 
   /**
-   * Replace each value in a map with the result of evaluating the expression.
-   * The expression is evaluated once against the root input value, and every
-   * value is replaced with the same result.
+   * Replace each value in a map with the result of evaluating the expression
+   * against that value.
    *
    * @param at
    *   The path to the map

@@ -40,6 +40,21 @@ object SelectorMacros {
   def extractFieldNameImpl[S: Type, A: Type](selector: Expr[S => A])(using q: Quotes): Expr[String] = {
     import q.reflect.*
 
+    def structuralFieldAccess(term: Term): Option[(Term, String)] = term match {
+      case TypeApply(
+            Select(
+              Apply(
+                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
+                List(Literal(StringConstant(fieldName)))
+              ),
+              "$asInstanceOf$"
+            ),
+            _
+          ) =>
+        Some((parent, fieldName))
+      case _ => None
+    }
+
     @scala.annotation.tailrec
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
@@ -48,9 +63,10 @@ object SelectorMacros {
     }
 
     def extractLastFieldName(term: Term): String = term match {
-      case Select(_, fieldName) => fieldName
-      case Ident(_)             => report.errorAndAbort("Selector must access at least one field")
-      case _                    => report.errorAndAbort(s"Cannot extract field name from: ${term.show}")
+      case Select(_, fieldName)                            => fieldName
+      case other if structuralFieldAccess(other).isDefined => structuralFieldAccess(other).get._2
+      case Ident(_)                                        => report.errorAndAbort("Selector must access at least one field")
+      case _                                               => report.errorAndAbort(s"Cannot extract field name from: ${term.show}")
     }
 
     val pathBody  = toPathBody(selector.asTerm)
@@ -83,6 +99,21 @@ object SelectorMacros {
         case other       => other.show
       }
 
+    def structuralFieldAccess(term: Term): Option[(Term, String)] = term match {
+      case TypeApply(
+            Select(
+              Apply(
+                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
+                List(Literal(StringConstant(fieldName)))
+              ),
+              "$asInstanceOf$"
+            ),
+            _
+          ) =>
+        Some((parent, fieldName))
+      case _ => None
+    }
+
     def toDynamicOptic(term: Term): Expr[DynamicOptic] = term match {
       // Identity - just the parameter reference
       case Ident(_) =>
@@ -92,6 +123,12 @@ object SelectorMacros {
       case Select(parent, fieldName) =>
         val parentOptic = toDynamicOptic(parent)
         val fieldExpr   = Expr(fieldName)
+        '{ $parentOptic.field($fieldExpr) }
+
+      case other if structuralFieldAccess(other).isDefined =>
+        val (parent, fieldName) = structuralFieldAccess(other).get
+        val parentOptic         = toDynamicOptic(parent)
+        val fieldExpr           = Expr(fieldName)
         '{ $parentOptic.field($fieldExpr) }
 
       // Collection traversal: _.items.each

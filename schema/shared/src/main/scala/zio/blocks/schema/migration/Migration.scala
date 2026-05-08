@@ -117,13 +117,13 @@ object Migration extends MigrationSelectorSyntax with MigrationCompanionVersionS
   def identity[A](implicit schema: Schema[A]): Migration[A, A] =
     new Migration(schema, schema, DynamicMigration.empty)
 
-  def fromAction[A, B](action: MigrationAction)(implicit
+  private[migration] def fromAction[A, B](action: MigrationAction)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, DynamicMigration.single(action))
 
-  def fromActions[A, B](actions: MigrationAction*)(implicit
+  private[migration] def fromActions[A, B](actions: MigrationAction*)(implicit
     sourceSchema: Schema[A],
     targetSchema: Schema[B]
   ): Migration[A, B] =

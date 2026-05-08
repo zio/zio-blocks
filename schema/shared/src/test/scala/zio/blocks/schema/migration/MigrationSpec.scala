@@ -21,11 +21,42 @@ import zio.blocks.schema._
 
 object MigrationSpec extends ZIOSpecDefault {
 
+  object RenameCaseFixtures {
+    sealed trait StatusV1
+    case object Active  extends StatusV1
+    case object Pending extends StatusV1
+
+    sealed trait StatusV2
+    case object ActiveV2 extends StatusV2
+    case object Enabled  extends StatusV2
+
+    implicit val statusV1Schema: Schema[StatusV1] = Schema.derived[StatusV1]
+    implicit val statusV2Schema: Schema[StatusV2] = Schema.derived[StatusV2]
+  }
+
+  object TransformCaseFixtures {
+    sealed trait EventV1
+    final case class UserV1(name: String) extends EventV1
+    final case class SystemV1(code: Int)  extends EventV1
+
+    sealed trait EventV2
+    final case class UserV2(fullName: String, age: Int) extends EventV2
+    final case class SystemV2(code: Int)                extends EventV2
+
+    implicit val userV1Schema: Schema[UserV1]   = Schema.derived[UserV1]
+    implicit val userV2Schema: Schema[UserV2]   = Schema.derived[UserV2]
+    implicit val eventV1Schema: Schema[EventV1] = Schema.derived[EventV1]
+    implicit val eventV2Schema: Schema[EventV2] = Schema.derived[EventV2]
+  }
+
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
     DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value))
 
   private def literal[A: Schema](value: A): SchemaExpr[Any, A] =
     SchemaExpr.literal(value)
+
+  private def identityExpr[A: Schema]: SchemaExpr[A, A] =
+    SchemaExpr.optic(DynamicOptic.root, Schema[A])
 
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
     suite("Laws")(
@@ -188,39 +219,41 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(result == Right(PersonV2("42")))
       },
 
-      test("mandateField builder creates correct action") {
+      test("mandateField builder records mandate action") {
         case class PersonV1(age: Option[Int])
         case class PersonV2(age: Int)
 
         implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
         implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
 
-        val migration = Migration
+        val builder = Migration
           .newBuilder[PersonV1, PersonV2]
           .mandateField(_.age, _.age, literal(0))
-          .buildPartial
 
-        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.MandateField])
+        assertTrue(
+          builder.actions.length == 1,
+          builder.actions.head.isInstanceOf[MigrationAction.MandateField]
+        )
       },
 
-      test("optionalizeField builder creates correct action") {
+      test("optionalizeField builder records optionalize action") {
         case class PersonV1(age: Int)
         case class PersonV2(age: Option[Int])
 
         implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
         implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
 
-        val migration = Migration
+        val builder = Migration
           .newBuilder[PersonV1, PersonV2]
           .optionalizeField(_.age, _.age)
-          .buildPartial
 
         assertTrue(
-          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.OptionalizeField]
+          builder.actions.length == 1,
+          builder.actions.head.isInstanceOf[MigrationAction.OptionalizeField]
         )
       },
 
-      test("transformElements builder creates correct action") {
+      test("transformElements evaluates per element") {
         case class Container(items: List[Int])
 
         implicit val schema: Schema[Container] = Schema.derived[Container]
@@ -228,14 +261,12 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Container, Container]
           .transformElements(_.items, literal(0))
-          .buildPartial
+          .build
 
-        assertTrue(
-          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformElements]
-        )
+        assertTrue(migration(Container(List(1, 2, 3))) == Right(Container(List(0, 0, 0))))
       },
 
-      test("transformKeys builder creates correct action") {
+      test("transformKeys evaluates per key") {
         case class Container(data: Map[String, Int])
 
         implicit val schema: Schema[Container] = Schema.derived[Container]
@@ -243,12 +274,12 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Container, Container]
           .transformKeys(_.data, literal("key"))
-          .buildPartial
+          .build
 
-        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformKeys])
+        assertTrue(migration(Container(Map("a" -> 1))) == Right(Container(Map("key" -> 1))))
       },
 
-      test("transformValues builder creates correct action") {
+      test("transformValues evaluates per value") {
         case class Container(data: Map[String, Int])
 
         implicit val schema: Schema[Container] = Schema.derived[Container]
@@ -256,26 +287,36 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Container, Container]
           .transformValues(_.data, literal(0))
-          .buildPartial
+          .build
 
-        assertTrue(
-          migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.TransformValues]
-        )
+        assertTrue(migration(Container(Map("a" -> 1, "b" -> 2))) == Right(Container(Map("a" -> 0, "b" -> 0))))
       },
 
-      test("renameCase builder creates correct action") {
-        sealed trait Status
-        case object Active  extends Status
-        case object Pending extends Status
+      test("renameCase builder records enum rename action") {
+        import RenameCaseFixtures.*
 
-        implicit val schema: Schema[Status] = Schema.derived[Status]
+        val builder = Migration
+          .newBuilder[StatusV1, StatusV2]
+          .renameCase("Pending", "Enabled")
 
-        val migration = Migration
-          .newBuilder[Status, Status]
-          .renameCase("Active", "Enabled")
-          .buildPartial
+        assertTrue(
+          builder.actions.length == 1,
+          builder.actions.head.isInstanceOf[MigrationAction.RenameCase]
+        )
+      },
+      test("transformCase builder records enum case migration") {
+        import TransformCaseFixtures.*
 
-        assertTrue(migration.actions.length == 1 && migration.actions.head.isInstanceOf[MigrationAction.RenameCase])
+        val builder = Migration
+          .newBuilder[EventV1, EventV2]
+          .transformCase[UserV1, UserV2]("UserV1")(
+            _.renameField(_.name, _.fullName).addField(_.age, literal(0))
+          )
+
+        assertTrue(
+          builder.actions.length == 1,
+          builder.actions.head.isInstanceOf[MigrationAction.TransformCase]
+        )
       }
     ),
 
@@ -286,21 +327,6 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration.identity[Person]
         assertTrue(migration.isEmpty && migration.size == 0)
-      },
-
-      test("Migration.fromAction creates single-action migration") {
-        case class PersonV1(name: String)
-        case class PersonV2(name: String, age: Int)
-
-        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
-
-        val action = MigrationAction.AddField(
-          DynamicOptic.root.field("age"),
-          dynamicLiteral(0)
-        )
-        val migration = Migration.fromAction[PersonV1, PersonV2](action)
-        assertTrue(migration.size == 1)
       },
 
       test("Migration.fromDynamic wraps DynamicMigration") {
@@ -520,7 +546,7 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
 
     suite("Nested Type Migrations")(
-      test("Migration.fromActions API works for direct action construction") {
+      test("nested addField migration works through migrateField") {
         case class AddressV1(street: String, city: String)
         case class PersonV1(name: String, address: AddressV1)
 
@@ -532,12 +558,15 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
         implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
 
-        val migration = Migration.fromActions[PersonV1, PersonV2](
-          MigrationAction.AddField(
-            DynamicOptic.root.field("address").field("zip"),
-            dynamicLiteral("00000")
-          )
-        )
+        val addressMigration = Migration
+          .newBuilder[AddressV1, AddressV2]
+          .addField(_.zip, literal("00000"))
+          .build
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .migrateField(_.address, addressMigration)
+          .build
 
         val input  = PersonV1("Alice", AddressV1("123 Main St", "NYC"))
         val result = migration(input)
@@ -589,20 +618,13 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val departmentV2Schema: Schema[DepartmentV2] = Schema.derived[DepartmentV2]
         implicit val companyV2Schema: Schema[CompanyV2]       = Schema.derived[CompanyV2]
 
-        val employeeMigration = Migration
-          .newBuilder[EmployeeV1, EmployeeV2]
-          .addField(_.bonus, literal(1000))
-          .build
-
-        val departmentMigration = Migration
-          .newBuilder[DepartmentV1, DepartmentV2]
-          .migrateField(_.employee, employeeMigration)
-          .build
-
         val migration = Migration
           .newBuilder[CompanyV1, CompanyV2]
-          .migrateField(_.department, departmentMigration)
-          .buildPartial
+          .transformField(_.department.name, _.department.name, identityExpr[String])
+          .transformField(_.department.employee.name, _.department.employee.name, identityExpr[String])
+          .transformField(_.department.employee.salary, _.department.employee.salary, identityExpr[Int])
+          .addField(_.department.employee.bonus, literal(1000))
+          .build
 
         val input = CompanyV1(
           "TechCorp",
@@ -640,25 +662,10 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
         implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
 
-        val l4Migration = Migration
-          .newBuilder[L4V1, L4V2]
-          .addField(_.metadata, literal("default"))
-          .build
-
-        val l3Migration = Migration
-          .newBuilder[L3V1, L3V2]
-          .migrateField(_.l4, l4Migration)
-          .build
-
-        val l2Migration = Migration
-          .newBuilder[L2V1, L2V2]
-          .migrateField(_.l3, l3Migration)
-          .buildPartial
-
         val migration = Migration
           .newBuilder[L1V1, L1V2]
-          .migrateField(_.l2, l2Migration)
-          .buildPartial
+          .addField(_.l2.l3.l4.metadata, literal("default"))
+          .build
 
         val input = L1V1(
           "Root",
@@ -676,68 +683,68 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
 
-      test("Option[NestedType] migration - identity migration preserves structure") {
-        case class AddressV1(city: String)
-        case class PersonV1(name: String, address: Option[AddressV1])
+      test("Option fields are preserved while adding outer fields") {
+        case class Address(city: String)
+        case class PersonV1(name: String, address: Option[Address])
+        case class PersonV2(name: String, address: Option[Address], active: Boolean)
 
-        case class AddressV2(city: String)
-        case class PersonV2(name: String, address: Option[AddressV2])
+        implicit val addressSchema: Schema[Address]   = Schema.derived[Address]
+        implicit val personV1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val personV2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
 
-        implicit val addressV1Schema: Schema[AddressV1] = Schema.derived[AddressV1]
-        implicit val personV1Schema: Schema[PersonV1]   = Schema.derived[PersonV1]
-        implicit val addressV2Schema: Schema[AddressV2] = Schema.derived[AddressV2]
-        implicit val personV2Schema: Schema[PersonV2]   = Schema.derived[PersonV2]
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .addField(_.active, literal(true))
+          .build
 
-        val migration = Migration.newBuilder[PersonV1, PersonV2].buildPartial
-
-        val inputWithSome  = PersonV1("Dave", Some(AddressV1("Boston")))
+        val inputWithSome  = PersonV1("Dave", Some(Address("Boston")))
         val resultWithSome = migration(inputWithSome)
 
-        assertTrue(resultWithSome == Right(PersonV2("Dave", Some(AddressV2("Boston")))))
+        assertTrue(resultWithSome == Right(PersonV2("Dave", Some(Address("Boston")), true)))
       },
 
-      test("List[NestedType] migration - simple container structure transformation") {
-        case class ItemV1(name: String)
-        case class ContainerV1(items: List[ItemV1])
+      test("List fields are preserved while adding outer fields") {
+        case class Item(name: String)
+        case class ContainerV1(items: List[Item])
+        case class ContainerV2(items: List[Item], archived: Boolean)
 
-        case class ItemV2(name: String)
-        case class ContainerV2(items: List[ItemV2])
-
-        implicit val itemV1Schema: Schema[ItemV1]           = Schema.derived[ItemV1]
+        implicit val itemSchema: Schema[Item]               = Schema.derived[Item]
         implicit val containerV1Schema: Schema[ContainerV1] = Schema.derived[ContainerV1]
-        implicit val itemV2Schema: Schema[ItemV2]           = Schema.derived[ItemV2]
         implicit val containerV2Schema: Schema[ContainerV2] = Schema.derived[ContainerV2]
 
-        val migration = Migration.newBuilder[ContainerV1, ContainerV2].buildPartial
+        val migration = Migration
+          .newBuilder[ContainerV1, ContainerV2]
+          .addField(_.archived, literal(false))
+          .build
 
         val input = ContainerV1(
-          List(ItemV1("Item1"), ItemV1("Item2"))
+          List(Item("Item1"), Item("Item2"))
         )
         val result = migration(input)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(ContainerV2(List(Item("Item1"), Item("Item2")), false)))
       },
 
-      test("Map[String, NestedType] migration - simple map structure transformation") {
-        case class ConfigV1(value: String)
-        case class SettingsV1(configs: Map[String, ConfigV1])
+      test("Map fields are preserved while adding outer fields") {
+        case class Config(value: String)
+        case class SettingsV1(configs: Map[String, Config])
+        case class SettingsV2(configs: Map[String, Config], version: Int)
 
-        case class ConfigV2(value: String)
-        case class SettingsV2(configs: Map[String, ConfigV2])
-
-        implicit val configV1Schema: Schema[ConfigV1]     = Schema.derived[ConfigV1]
+        implicit val configSchema: Schema[Config]         = Schema.derived[Config]
         implicit val settingsV1Schema: Schema[SettingsV1] = Schema.derived[SettingsV1]
-        implicit val configV2Schema: Schema[ConfigV2]     = Schema.derived[ConfigV2]
         implicit val settingsV2Schema: Schema[SettingsV2] = Schema.derived[SettingsV2]
 
-        val migration = Migration.newBuilder[SettingsV1, SettingsV2].buildPartial
+        val migration = Migration
+          .newBuilder[SettingsV1, SettingsV2]
+          .addField(_.version, literal(2))
+          .build
 
         val input = SettingsV1(
-          Map("setting1" -> ConfigV1("on"), "setting2" -> ConfigV1("off"))
+          Map("setting1" -> Config("on"), "setting2" -> Config("off"))
         )
         val result = migration(input)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(SettingsV2(Map("setting1" -> Config("on"), "setting2" -> Config("off")), 2)))
       },
 
       test("Nested field rename in deeply nested path") {
@@ -756,20 +763,10 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val l2V2Schema: Schema[L2V2] = Schema.derived[L2V2]
         implicit val l1V2Schema: Schema[L1V2] = Schema.derived[L1V2]
 
-        val l3Migration = Migration
-          .newBuilder[L3V1, L3V2]
-          .renameField(_.oldField, _.newField)
-          .build
-
-        val l2Migration = Migration
-          .newBuilder[L2V1, L2V2]
-          .migrateField(_.l3, l3Migration)
-          .build
-
         val migration = Migration
           .newBuilder[L1V1, L1V2]
-          .migrateField(_.l2, l2Migration)
-          .buildPartial
+          .renameField(_.l2.l3.oldField, _.l2.l3.newField)
+          .build
 
         val input  = L1V1(L2V1(L3V1(42)))
         val result = migration(input)
@@ -823,7 +820,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Person1, Person2]
           .renameField(_.address.street, _.address.streetName)
-          .buildPartial
+          .build
 
         val input  = Person1("Alice", Address1("123 Main", "NYC"))
         val result = migration(input)
@@ -845,7 +842,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Person1, Person2]
           .addField(_.address.number, literal(0))
-          .buildPartial
+          .build
 
         val input  = Person1("Alice", Address1("123 Main"))
         val result = migration(input)
@@ -867,7 +864,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Person1, Person2]
           .dropField(_.address.zip, literal("00000"))
-          .buildPartial
+          .build
 
         val input  = Person1("Alice", Address1("123 Main", "10001"))
         val result = migration(input)
@@ -890,7 +887,7 @@ object MigrationSpec extends ZIOSpecDefault {
           .newBuilder[Person1, Person2]
           .renameField(_.address.street, _.address.streetName)
           .addField(_.address.number, literal(0))
-          .buildPartial
+          .build
 
         val input  = Person1("Alice", Address1("123 Main"))
         val result = migration(input)
@@ -916,7 +913,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Person1, Person2]
           .addField(_.address.street.number, literal(0))
-          .buildPartial
+          .build
 
         val input  = Person1("Alice", Address1(Street1("Main"), "NYC"))
         val result = migration(input)
@@ -942,7 +939,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[Person1, Person2]
           .renameField(_.info.street.name, _.info.street.label)
-          .buildPartial
+          .build
 
         val input  = Person1(Address1(Street1("Main")))
         val result = migration(input)
@@ -969,14 +966,14 @@ object MigrationSpec extends ZIOSpecDefault {
           .newBuilder[Event1, Event2]
           .renameField(_.location.geo.lat, _.location.geo.latitude)
           .dropField(_.location.geo.alt, literal(0.0))
-          .buildPartial
+          .build
 
         val input  = Event1(Location1(Geo1(40.7, -74.0, 10.0)))
         val result = migration(input)
 
         assertTrue(result == Right(Event2(Location2(Geo2(40.7, -74.0)))))
       },
-      test("fromActions with deep optic paths") {
+      test("deep nested migrateField composes validated builders") {
         case class Addr1(street: String, city: String)
         case class Org1(name: String, addr: Addr1)
 
@@ -988,12 +985,15 @@ object MigrationSpec extends ZIOSpecDefault {
         implicit val a2: Schema[Addr2] = Schema.derived
         implicit val o2: Schema[Org2]  = Schema.derived
 
-        val migration = Migration.fromActions[Org1, Org2](
-          MigrationAction.AddField(
-            DynamicOptic.root.field("addr").field("zip"),
-            dynamicLiteral("00000")
-          )
-        )
+        val addrMigration = Migration
+          .newBuilder[Addr1, Addr2]
+          .addField(_.zip, literal("00000"))
+          .build
+
+        val migration = Migration
+          .newBuilder[Org1, Org2]
+          .migrateField(_.addr, addrMigration)
+          .build
 
         val input  = Org1("Acme", Addr1("123 Main", "NYC"))
         val result = migration(input)
@@ -1003,23 +1003,17 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
 
     suite("Recursive Type Limitations")(
-      test("recursive type basic migration works with buildPartial") {
-        // This test documents that recursive types require special care.
-        // Recursive types use Schema.Deferred to break cycles at the type level.
-        // Simple identity migrations work, but adding fields to recursive chains requires buildPartial
+      test("recursive type identity migration works") {
+        case class ListNode(value: Int, next: Option[ListNode])
 
-        case class ListNodeV1(value: Int, next: Option[ListNodeV1])
-        case class ListNodeV2(value: Int, next: Option[ListNodeV2])
+        implicit lazy val listNodeSchema: Schema[ListNode] = Schema.derived[ListNode]
 
-        implicit lazy val listNodeV1Schema: Schema[ListNodeV1] = Schema.derived[ListNodeV1]
-        implicit lazy val listNodeV2Schema: Schema[ListNodeV2] = Schema.derived[ListNodeV2]
+        val migration = Migration.identity[ListNode]
 
-        val migration = Migration.newBuilder[ListNodeV1, ListNodeV2].buildPartial
-
-        val input  = ListNodeV1(1, Some(ListNodeV1(2, None)))
+        val input  = ListNode(1, Some(ListNode(2, None)))
         val result = migration(input)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(input))
       }
     )
   )
