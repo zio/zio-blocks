@@ -86,7 +86,7 @@ The root container for a Smithy model. Contains version, namespace, shapes, meta
 
 ```scala
 case class SmithyModel(
-  version: String,
+  version: String,           // Smithy version (e.g., "2")
   namespace: String,
   useStatements: List[ShapeId],
   metadata: Map[String, NodeValue],
