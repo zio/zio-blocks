@@ -296,7 +296,7 @@ val model = SmithyModel(
 
 ### Adding Traits
 
-Attach metadata traits to shapes during construction:
+Attach metadata traits to shapes during construction. `TraitApplication` provides companion object helper methods like `required`, `documentation`, and others for common traits:
 
 ```scala mdoc:compile-only
 import zio.blocks.smithy._
