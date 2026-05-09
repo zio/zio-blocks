@@ -29,6 +29,29 @@ object HeaderSpec extends HttpModelBaseSpec {
           headers.rawGet("x-missing") == None
         )
       }
+    ),
+    suite("predefined headers")(
+      test("typed companions are reachable from Header") {
+        assertTrue(
+          Header.Authorization.name == "authorization",
+          Header.ContentType.name == "content-type",
+          Header.CacheControl.name == "cache-control",
+          Header.Cookie.name == "cookie",
+          Header.SetCookie.name == "set-cookie",
+          Header.Host.name == "host",
+          Header.XFrameOptions.name == "x-frame-options",
+          Header.SecWebSocketKey.name == "sec-websocket-key"
+        )
+      },
+      test("nested header values remain reachable through Header") {
+        assertTrue(
+          Header.Authorization.Basic("user", "pass").headerName == "authorization",
+          Header.CacheControl.NoCache.headerName == "cache-control",
+          Header.AcceptRanges.Bytes.headerName == "accept-ranges",
+          Header.Connection.KeepAlive.headerName == "connection",
+          Header.XFrameOptions.Deny.headerName == "x-frame-options"
+        )
+      }
     )
   )
 }
