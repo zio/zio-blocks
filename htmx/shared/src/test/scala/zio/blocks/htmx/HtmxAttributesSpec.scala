@@ -20,6 +20,7 @@ import scala.concurrent.duration.DurationInt
 
 import zio.blocks.html._
 import zio.blocks.schema.Schema
+import zio.blocks.schema.json.Json
 import zio.test._
 import zio.http.{Path, URL}
 
@@ -249,6 +250,7 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       assertTrue(HxParams.parse("none") == Right(HxParams.None)) &&
       assertTrue(HxParams.parse("not page,sort") == Right(HxParams.Not(Seq("page", "sort")))) &&
       assertTrue(HxParams.parse("page,sort") == Right(HxParams.Only(Seq("page", "sort")))) &&
+      assertTrue(HxParams.parse("   ") == Left("HTMX params list must be non-empty")) &&
       assertTrue(HxParams.parse("page,") == Left("HTMX params list cannot contain empty names"))
     },
     test("hxSync renders selector plus strategy") {
@@ -290,6 +292,17 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       val result = div(hxHeaders := HxHeadersValue.from(SearchInput("zio", 2))).render
       assertTrue(result == """<div hx-headers="{&quot;query&quot;:&quot;zio&quot;,&quot;page&quot;:2}"></div>""")
     },
+    test("json helpers and sync strategy parsers cover direct constructors") {
+      val valsResult    = div(hxVals := HxVals.json(Json.Object("query" -> Json.String("zio")))).render
+      val headersResult = div(hxHeaders := HxHeadersValue.json(Json.Object("query" -> Json.String("zio")))).render
+      assertTrue(valsResult == """<div hx-vals="{&quot;query&quot;:&quot;zio&quot;}"></div>""") &&
+      assertTrue(headersResult == """<div hx-headers="{&quot;query&quot;:&quot;zio&quot;}"></div>""") &&
+      assertTrue(HxSyncStrategy.parse("abort") == Right(HxSyncStrategy.Abort)) &&
+      assertTrue(HxSyncStrategy.parse("replace") == Right(HxSyncStrategy.Replace)) &&
+      assertTrue(HxSyncStrategy.parse("drop") == Right(HxSyncStrategy.Drop)) &&
+      assertTrue(HxSyncStrategy.parse("queue") == Right(HxSyncStrategy.Queue)) &&
+      assertTrue(HxSyncStrategy.parse("later") == Left("Unknown HTMX sync strategy: later"))
+    },
     test("hxSwapOob renders swap strategy and selector") {
       val result = div(hxSwapOob := HxSwapOob.using(HxSwap.AfterEnd, HxTarget.css("#messages"))).render
       assertTrue(result == """<div hx-swap-oob="afterend:#messages"></div>""")
@@ -313,6 +326,11 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       assertTrue(ToHtmxValue[Int].toHtmxValue(2) == "2") &&
       assertTrue(ToHtmxValue[Long].toHtmxValue(3L) == "3") &&
       assertTrue(ToHtmxValue[Double].toHtmxValue(0.5) == "0.5")
+    },
+    test("validation helpers reject negative durations and blank filters") {
+      assertTrue(scala.util.Try(HxTrigger.every((-1).seconds)).isFailure) &&
+      assertTrue(scala.util.Try(HxSwap.InnerHTML.swap((-1).seconds)).isFailure) &&
+      assertTrue(scala.util.Try(HxTrigger.click.filter(js"   ")).isFailure)
     },
     test("boolean-style helpers render explicit HTMX booleans") {
       val result =
