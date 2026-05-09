@@ -801,6 +801,10 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -820,6 +824,7 @@ lazy val openapi = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
     Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
   )
   .dependsOn(schema % "compile->compile;test->test", markdown)
