@@ -30,6 +30,9 @@ object StatusSpec extends HttpModelBaseSpec {
       test("Status.NotFound.code == 404") {
         assertTrue(Status.NotFound.code == 404)
       },
+      test("Status.RequestEntityTooLarge.code == 413") {
+        assertTrue(Status.RequestEntityTooLarge.code == 413)
+      },
       test("Status.fromInt(200) == Status.Ok") {
         assertTrue(Status.fromInt(200) == Status.Ok)
       }
@@ -193,6 +196,7 @@ object StatusSpec extends HttpModelBaseSpec {
           Status.LengthRequired.code == 411,
           Status.PreconditionFailed.code == 412,
           Status.PayloadTooLarge.code == 413,
+          Status.RequestEntityTooLarge.code == 413,
           Status.UriTooLong.code == 414,
           Status.UnsupportedMediaType.code == 415,
           Status.RangeNotSatisfiable.code == 416,
