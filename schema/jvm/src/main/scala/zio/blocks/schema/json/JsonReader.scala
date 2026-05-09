@@ -1606,6 +1606,7 @@ final class JsonReader private[json] (
    * @throws JsonCodecError
    *   in cases of reaching the end of input
    */
+  @noinline
   def skip(): Unit = {
     val b   = nextToken(head)
     var pos = head
@@ -1657,7 +1658,6 @@ final class JsonReader private[json] (
    * @return
    *   true if the reader is in use, false otherwise
    */
-  @inline
   private[json] def isInUse: Boolean = top >= 0
 
   /**
@@ -2468,6 +2468,7 @@ final class JsonReader private[json] (
     x
   }
 
+  @noinline
   private[this] def ensureNotLeadingZero(): Unit = {
     var pos = head
     if (
@@ -3490,8 +3491,9 @@ final class JsonReader private[json] (
     else Instant.ofEpochSecond(epochSecond, nano.toLong)
   }
 
-  private[this] def parseSecondOfDay(pos: Int): Long =
-    (parseHourWithColon(pos) * 3600 + parseMinuteWithColon(head) * 60 + parseSecond(head)).toLong
+  @noinline
+  private[this] def parseSecondOfDay(pos: Int): Int =
+    parseHourWithColon(pos) * 3600 + parseMinuteWithColon(head) * 60 + parseSecond(head)
 
   private[this] def parseLocalDate(isRaw: Boolean): LocalDate = {
     val year       = parseYearWithByte('-', head)
@@ -4384,6 +4386,7 @@ final class JsonReader private[json] (
     } else ZoneOffset.ofTotalSeconds((offsetTotal ^ s) - s)
   }
 
+  @inline
   private[this] def epochDay(year: Int, month: Int, day: Int): Long =
     year * 365L + ((year + 3 >> 2) - {
       val cp = year * 1374389535L
@@ -4394,18 +4397,18 @@ final class JsonReader private[json] (
        else if (isLeap(year)) -719530
        else -719531) + day) // 719528 == days 0000 to 1970)
 
-  @inline
+  @noinline
   private[this] def maxDayForYearMonth(year: Int, month: Int): Int =
     if (month != 2) month >> 3 ^ (month | 0x1e)
     else if (isLeap(year)) 29
     else 28
 
-  @inline
+  @noinline
   private[this] def maxDayForMonth(month: Int): Int =
     if (month != 2) month >> 3 ^ (month | 0x1e)
     else 29
 
-  @inline
+  @noinline
   private[this] def isLeap(year: Int): Boolean =
     (year & 0x3) == 0 && (year * -1030792151 - 2061584303 > -1975684958 || (year & 0xf) == 0) // year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 
@@ -4907,15 +4910,18 @@ final class JsonReader private[json] (
     else skipFixedBytes(n, loadMoreOrError(pos))
   }
 
+  @noinline
   private[this] def loadMoreOrError(pos: Int): Int = {
     if ((bbuf eq null) && (in eq null)) endOfInputError()
     loadMore(pos, throwOnEndOfInput = true)
   }
 
+  @noinline
   private[this] def loadMore(pos: Int): Int =
     if ((bbuf eq null) && (in eq null)) pos
     else loadMore(pos, throwOnEndOfInput = false)
 
+  @noinline
   private[this] def loadMore(pos: Int, throwOnEndOfInput: Boolean): Int = {
     var newPos = pos
     val offset =
