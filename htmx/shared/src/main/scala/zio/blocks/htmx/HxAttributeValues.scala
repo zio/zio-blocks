@@ -42,14 +42,15 @@ object HxUrlUpdate {
   }
 
   def apply(value: Boolean): HxUrlUpdate = if (value) Enabled else Disabled
-  def apply(value: String): HxUrlUpdate  = new Url(HtmxSupport.requireNonBlank(value, "HTMX URL update"))
-  def apply(value: Path): HxUrlUpdate    = new Url(value.encode)
-  def apply(value: URL): HxUrlUpdate     = new Url(value.encode)
+  def apply(value: String): HxUrlUpdate  =
+    new Url(HtmxSupport.requireNonBlank(value, "HTMX URL update"))
+  def apply(value: Path): HxUrlUpdate = new Url(value.encode)
+  def apply(value: URL): HxUrlUpdate  = new Url(value.encode)
 
   def parse(value: String): Either[String, HxUrlUpdate] = value.trim.toLowerCase match {
     case "true"  => Right(Enabled)
     case "false" => Right(Disabled)
-    case _        => parseValidated(() => apply(value))
+    case _       => parseValidated(() => apply(value))
   }
 
   private def parseValidated(value: () => HxUrlUpdate): Either[String, HxUrlUpdate] =
