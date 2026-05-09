@@ -69,6 +69,7 @@ final case class Request(
   def body(body: Body): Request          = copy(body = body, headers = headers.set("content-type", body.contentType.render))
   def url(url: URL): Request             = copy(url = url)
   def method(method: Method): Request    = copy(method = method)
+  def path(path: Path): Request          = updateUrl(_.path(path))
   def version(version: Version): Request = copy(version = version)
 
   def updateHeaders(f: Headers => Headers): Request = copy(headers = f(headers))
