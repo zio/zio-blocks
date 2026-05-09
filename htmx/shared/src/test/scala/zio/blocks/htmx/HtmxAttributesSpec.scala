@@ -93,6 +93,10 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       assertTrue(HxSwap.parse("innerHTML focusScroll:maybe") == Left("Invalid boolean value: maybe")) &&
       assertTrue(HxSwap.parse("innerHTML morph:true") == Left("Unsupported HTMX swap modifier: morph:true"))
     },
+    test("hxSwap accepts bare millisecond durations") {
+      val result = div(hxSwap := HxSwap.parse("innerHTML swap:250 settle:1000").toOption.get).render
+      assertTrue(result == """<div hx-swap="innerHTML swap:250ms settle:1s"></div>""")
+    },
     test("hxTrigger renders chained modifiers") {
       val result = div(hxTrigger := HxTrigger.click.delay(500.millis).once.changed).render
       assertTrue(result == """<div hx-trigger="click delay:500ms once changed"></div>""")
@@ -168,12 +172,24 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
     },
     test("hxTarget renders all selector variants") {
       assertTrue(div(hxTarget := HxTarget.this_).render == """<div hx-target="this"></div>""") &&
+      assertTrue(div(hxTarget := HxTarget.`this`).render == """<div hx-target="this"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.This).render == """<div hx-target="this"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.next).render == """<div hx-target="next"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.next(".item")).render == """<div hx-target="next .item"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.previous).render == """<div hx-target="previous"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.previous(".item")).render == """<div hx-target="previous .item"></div>""") &&
       assertTrue(div(hxTarget := HxTarget.css(selector"#result")).render == """<div hx-target="#result"></div>""")
+    },
+    test("hxTarget parses rendered selector forms") {
+      assertTrue(HxTarget.parse("this") == Right(HxTarget.This)) &&
+      assertTrue(HxTarget.parse("closest form") == Right(HxTarget.closest("form"))) &&
+      assertTrue(HxTarget.parse("find .result") == Right(HxTarget.find(".result"))) &&
+      assertTrue(HxTarget.parse("next") == Right(HxTarget.next)) &&
+      assertTrue(HxTarget.parse("previous .panel") == Right(HxTarget.previous(".panel"))) &&
+      assertTrue(HxTarget.parse("#main") == Right(HxTarget.css("#main")))
+    },
+    test("hxTarget rejects blank selectors") {
+      assertTrue(HxTarget.parse("   ") == Left("HTMX target selector must be non-empty"))
     },
     test("hxOn renders event-specific JavaScript handlers") {
       val result = button(hxOn.click := js"doSomething()").render
@@ -182,6 +198,9 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
     test("hxOn supports custom event names") {
       val result = button(hxOn("htmx:afterSwap") := js"refreshUi()").render
       assertTrue(result == """<button hx-on:htmx:afterSwap="refreshUi()"></button>""")
+    },
+    test("hxOn rejects blank custom event names") {
+      assertTrue(scala.util.Try(hxOn("   ")).isFailure)
     },
     test("hxPushUrl accepts boolean or URL updates") {
       val result = div(hxPushUrl := HxUrlUpdate(true), hxReplaceUrl := HxUrlUpdate("/other")).render
@@ -197,6 +216,12 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       assertTrue(
         result == """<div hx-push-url="false" hx-replace-url="/pages/2" hx-get="https://zio.dev/blocks?page=2"></div>"""
       )
+    },
+    test("hxUrlUpdate parses booleans and non-blank paths") {
+      assertTrue(HxUrlUpdate.parse("true") == Right(HxUrlUpdate.Enabled)) &&
+      assertTrue(HxUrlUpdate.parse("false") == Right(HxUrlUpdate.Disabled)) &&
+      assertTrue(HxUrlUpdate.parse(" /next ") == Right(HxUrlUpdate(" /next "))) &&
+      assertTrue(HxUrlUpdate.parse("   ") == Left("HTMX URL update must be non-empty"))
     },
     test("hxSelect and hxIndicator accept CSS selectors") {
       val result = div(hxSelect := selector"#result", hxIndicator := selector".spinner").render
@@ -215,6 +240,17 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       assertTrue(div(hxParams := HxParams.None).render == """<div hx-params="none"></div>""") &&
       assertTrue(div(hxParams := HxParams.only("page", "sort")).render == """<div hx-params="page,sort"></div>""")
     },
+    test("hxParams builders reject blank names") {
+      assertTrue(scala.util.Try(HxParams.not("page", " ")).isFailure) &&
+      assertTrue(scala.util.Try(HxParams.only(" ")).isFailure)
+    },
+    test("hxParams parses rendered strategies") {
+      assertTrue(HxParams.parse("*") == Right(HxParams.All)) &&
+      assertTrue(HxParams.parse("none") == Right(HxParams.None)) &&
+      assertTrue(HxParams.parse("not page,sort") == Right(HxParams.Not(Seq("page", "sort")))) &&
+      assertTrue(HxParams.parse("page,sort") == Right(HxParams.Only(Seq("page", "sort")))) &&
+      assertTrue(HxParams.parse("page,") == Left("HTMX params list cannot contain empty names"))
+    },
     test("hxSync renders selector plus strategy") {
       val result = div(hxSync := HxSync(HxTarget.closest("form"), HxSyncStrategy.Abort)).render
       assertTrue(result == """<div hx-sync="closest form:abort"></div>""")
@@ -231,6 +267,16 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
           hxSync := HxSync(HxTarget.previous("form"), HxSyncStrategy.Queue)
         ).render == """<div hx-sync="previous form:queue"></div>"""
       )
+    },
+    test("hxSync parses rendered sync values") {
+      assertTrue(HxSync.parse("closest form:abort") == Right(HxSync(HxTarget.closest("form"), HxSyncStrategy.Abort))) &&
+      assertTrue(
+        HxSync.parse("input:invalid:queue") == Right(HxSync(HxTarget.css("input:invalid"), HxSyncStrategy.Queue))
+      ) &&
+      assertTrue(HxSync.parse("this:replace") == Right(HxSync(HxTarget.This, HxSyncStrategy.Replace))) &&
+      assertTrue(HxSync.parse("next:drop") == Right(HxSync(HxTarget.next, HxSyncStrategy.Drop))) &&
+      assertTrue(HxSync.parse("oops") == Left("Invalid HTMX sync value: oops")) &&
+      assertTrue(HxSync.parse("this:later") == Left("Invalid HTMX sync value: this:later"))
     },
     test("hxEncoding renders multipart form data") {
       val result = form(hxEncoding := HxEncoding.Multipart).render
@@ -257,8 +303,13 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
       val result = div(hxExt("sse", "morph"), hxDisinherit("hx-target", "hx-swap")).render
       assertTrue(result == """<div hx-ext="sse,morph" hx-disinherit="hx-target hx-swap"></div>""")
     },
+    test("hxExt and hxDisinherit reject blank names") {
+      assertTrue(scala.util.Try(HxExtensions("sse", " ")).isFailure) &&
+      assertTrue(scala.util.Try(HxAttributeNames("hx-target", " ")).isFailure)
+    },
     test("support helpers cover quoting and primitive conversions") {
       assertTrue(HtmxSupport.quoteJson("he said \"hi\"") == "\"he said \\\"hi\\\"\"") &&
+      assertTrue(HtmxSupport.parseDuration("250") == Right(250.millis)) &&
       assertTrue(ToHtmxValue[Int].toHtmxValue(2) == "2") &&
       assertTrue(ToHtmxValue[Long].toHtmxValue(3L) == "3") &&
       assertTrue(ToHtmxValue[Double].toHtmxValue(0.5) == "0.5")
