@@ -35,57 +35,81 @@ object HxTarget {
     def render: String = "this"
   }
 
+  /** Backtick-friendly alias for [[This]]. */
+  def `this`: HxTarget = This
+
   /** Identifier-friendly alias for [[This]]. */
   def this_ : HxTarget = This
 
   /** Targets the closest ancestor matching the selector. */
-  final case class Closest(selector: String) extends HxTarget {
+  final case class Closest private[htmx] (selector: String) extends HxTarget {
     def render: String = "closest " + selector
   }
 
   /** Targets the first descendant matching the selector. */
-  final case class Find(selector: String) extends HxTarget {
+  final case class Find private[htmx] (selector: String) extends HxTarget {
     def render: String = "find " + selector
   }
 
   /** Targets the next sibling, optionally filtered by selector. */
-  final case class Next(selector: Option[String]) extends HxTarget {
+  final case class Next private[htmx] (selector: Option[String]) extends HxTarget {
     def render: String = selector.fold("next")(s => "next " + s)
   }
 
   /** Targets the previous sibling, optionally filtered by selector. */
-  final case class Previous(selector: Option[String]) extends HxTarget {
+  final case class Previous private[htmx] (selector: Option[String]) extends HxTarget {
     def render: String = selector.fold("previous")(s => "previous " + s)
   }
 
   /** Targets the CSS selector as-is. */
-  final case class Css(selector: String) extends HxTarget {
+  final case class Css private[htmx] (selector: String) extends HxTarget {
     def render: String = selector
   }
 
   /** Creates a `closest ...` selector. */
-  def closest(selector: String): HxTarget = Closest(selector)
+  def closest(selector: String): HxTarget = new Closest(HtmxSupport.requireNonBlank(selector, "HTMX closest selector"))
 
   /** Creates a `find ...` selector. */
-  def find(selector: String): HxTarget = Find(selector)
+  def find(selector: String): HxTarget = new Find(HtmxSupport.requireNonBlank(selector, "HTMX find selector"))
 
   /** Targets the next sibling. */
-  def next: HxTarget = Next(None)
+  def next: HxTarget = new Next(None)
 
   /** Targets the next sibling matching the selector. */
-  def next(selector: String): HxTarget = Next(Some(selector))
+  def next(selector: String): HxTarget = new Next(Some(HtmxSupport.requireNonBlank(selector, "HTMX next selector")))
 
   /** Targets the previous sibling. */
-  def previous: HxTarget = Previous(None)
+  def previous: HxTarget = new Previous(None)
 
   /** Targets the previous sibling matching the selector. */
-  def previous(selector: String): HxTarget = Previous(Some(selector))
+  def previous(selector: String): HxTarget =
+    new Previous(Some(HtmxSupport.requireNonBlank(selector, "HTMX previous selector")))
 
   /** Uses a raw CSS selector string. */
-  def css(selector: String): HxTarget = Css(selector)
+  def css(selector: String): HxTarget = new Css(HtmxSupport.requireNonBlank(selector, "HTMX CSS selector"))
 
   /** Uses a typed CSS selector. */
-  def css(selector: CssSelector): HxTarget = Css(selector.render)
+  def css(selector: CssSelector): HxTarget = new Css(selector.render)
+
+  /** Parses a rendered HTMX target selector back into a typed [[HxTarget]]. */
+  def parse(value: String): Either[String, HxTarget] = {
+    val trimmed = value.trim
+    if (trimmed.isEmpty) Left("HTMX target selector must be non-empty")
+    else if (trimmed == "this") Right(This)
+    else if (trimmed == "next") Right(next)
+    else if (trimmed == "previous") Right(previous)
+    else if (trimmed.startsWith("closest ")) parseValidated(() => closest(trimmed.substring(8)))
+    else if (trimmed.startsWith("find ")) parseValidated(() => find(trimmed.substring(5)))
+    else if (trimmed.startsWith("next ")) parseValidated(() => next(trimmed.substring(5)))
+    else if (trimmed.startsWith("previous ")) parseValidated(() => previous(trimmed.substring(9)))
+    else parseValidated(() => css(trimmed))
+  }
+
+  private def parseValidated(target: () => HxTarget): Either[String, HxTarget] =
+    try Right(target())
+    catch {
+      case error: IllegalArgumentException => Left(error.getMessage)
+    }
 
   implicit val toHtmxValue: ToHtmxValue[HxTarget] = new ToHtmxValue[HxTarget] {
     def toHtmxValue(value: HxTarget): String = value.render

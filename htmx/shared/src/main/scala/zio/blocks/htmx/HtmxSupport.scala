@@ -20,6 +20,12 @@ import scala.concurrent.duration.FiniteDuration
 
 private[htmx] object HtmxSupport {
 
+  def requireNonBlank(value: String, label: String): String = {
+    val trimmed = value.trim
+    if (trimmed.isEmpty) throw new IllegalArgumentException(label + " must be non-empty")
+    else trimmed
+  }
+
   def renderDuration(duration: FiniteDuration): String = {
     val millis = duration.toMillis
     if (millis % 1000 == 0) (millis / 1000).toString + "s"
@@ -33,6 +39,10 @@ private[htmx] object HtmxSupport {
     } else if (value.endsWith("s")) {
       val raw = value.substring(0, value.length - 1)
       parseNonNegativeLong(raw).map(FiniteDuration(_, scala.concurrent.duration.SECONDS))
+    } else if (
+      value.forall(_.isDigit) || (value.startsWith("-") && value.drop(1).nonEmpty && value.drop(1).forall(_.isDigit))
+    ) {
+      parseNonNegativeLong(value).map(FiniteDuration(_, scala.concurrent.duration.MILLISECONDS))
     } else Left("Unsupported HTMX duration: " + value)
 
   def requireNonNegativeDuration(duration: FiniteDuration, label: String): FiniteDuration =

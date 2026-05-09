@@ -26,6 +26,12 @@ sealed trait HxTriggerValue extends Product with Serializable {
   def render: String
 }
 
+object HxTriggerValue {
+  implicit val toHtmxValue: ToHtmxValue[HxTriggerValue] = new ToHtmxValue[HxTriggerValue] {
+    def toHtmxValue(value: HxTriggerValue): String = value.render
+  }
+}
+
 /**
  * Typed representation of a single `hx-trigger` declaration.
  *
@@ -54,11 +60,13 @@ final case class HxTrigger private (
   def changed: HxTrigger = withModifier(HxTrigger.Modifier.Changed)
 
   /** Adds or replaces the `from:` modifier. */
-  def from(selector: String): HxTrigger = withModifier(HxTrigger.Modifier.From(selector))
+  def from(selector: String): HxTrigger =
+    withModifier(HxTrigger.Modifier.From(HtmxSupport.requireNonBlank(selector, "HTMX trigger source selector")))
   def from(target: HxTarget): HxTrigger = from(target.render)
 
   /** Adds or replaces the `target:` modifier. */
-  def target(selector: String): HxTrigger = withModifier(HxTrigger.Modifier.Target(selector))
+  def target(selector: String): HxTrigger =
+    withModifier(HxTrigger.Modifier.Target(HtmxSupport.requireNonBlank(selector, "HTMX trigger target selector")))
 
   /** Adds the `consume` modifier. */
   def consume: HxTrigger = withModifier(HxTrigger.Modifier.Consume)
@@ -70,10 +78,19 @@ final case class HxTrigger private (
   def threshold(value: Double): HxTrigger = withModifier(HxTrigger.Modifier.Threshold(value))
 
   /** Adds or replaces the `root:` modifier. */
-  def root(selector: String): HxTrigger = withModifier(HxTrigger.Modifier.Root(selector))
+  def root(selector: String): HxTrigger =
+    withModifier(HxTrigger.Modifier.Root(HtmxSupport.requireNonBlank(selector, "HTMX trigger root selector")))
 
-  /** Replaces the JavaScript filter expression for this trigger. */
-  def filter(expression: Js): HxTrigger = copy(filter = Some(expression))
+  /**
+   * Replaces the JavaScript filter expression for this trigger.
+   *
+   * `Js` is an intentionally raw JavaScript surface. Do not pass unsanitized
+   * user input into this value.
+   */
+  def filter(expression: Js): HxTrigger = {
+    HtmxSupport.requireNonBlank(expression.value, "HTMX trigger filter")
+    copy(filter = Some(expression))
+  }
 
   def render: String = {
     val sb = new java.lang.StringBuilder(event)
@@ -162,7 +179,7 @@ object HxTrigger {
   }
 
   /** Creates a trigger from an arbitrary HTMX event name. */
-  def apply(event: String): HxTrigger = new HxTrigger(event)
+  def apply(event: String): HxTrigger = new HxTrigger(HtmxSupport.requireNonBlank(event, "HTMX trigger event name"))
 
   /** Creates a comma-separated set of multiple trigger declarations. */
   def apply(trigger: HxTrigger, triggers: HxTrigger*): HxTriggerSet =
