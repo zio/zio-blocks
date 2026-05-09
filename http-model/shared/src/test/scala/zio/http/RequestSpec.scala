@@ -222,6 +222,31 @@ object RequestSpec extends HttpModelBaseSpec {
         assertTrue(request.url == newUrl)
       }
     ),
+    suite("path (setter)")(
+      test("replaces only the path") {
+        val request = Request
+          .get(
+            URL(
+              Some(Scheme.HTTPS),
+              Some("example.com"),
+              Some(443),
+              Path("/old"),
+              QueryParams("page" -> "1"),
+              Some("section")
+            )
+          )
+          .path(Path("/new"))
+        assertTrue(
+          request.path == Path("/new"),
+          request.url.path == Path("/new"),
+          request.url.scheme == Some(Scheme.HTTPS),
+          request.url.host == Some("example.com"),
+          request.url.port == Some(443),
+          request.url.queryParams == QueryParams("page" -> "1"),
+          request.url.fragment == Some("section")
+        )
+      }
+    ),
     suite("method (setter)")(
       test("replaces method") {
         val request = Request.get(URL.fromPath(Path.root)).method(Method.POST)
