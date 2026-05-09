@@ -46,10 +46,32 @@ object HxParams {
   }
 
   /** Creates a `not ...` parameter strategy. */
-  def not(first: String, rest: String*): HxParams = Not(first +: rest)
+  def not(first: String, rest: String*): HxParams = Not(validateNames(first +: rest))
 
   /** Creates an allow-list parameter strategy. */
-  def only(first: String, rest: String*): HxParams = Only(first +: rest)
+  def only(first: String, rest: String*): HxParams = Only(validateNames(first +: rest))
+
+  /** Parses a rendered `hx-params` string back into a typed [[HxParams]]. */
+  def parse(value: String): Either[String, HxParams] = {
+    val trimmed = value.trim
+    if (trimmed == "*") Right(All)
+    else if (trimmed == "none") Right(None)
+    else if (trimmed.startsWith("not ")) parseNames(trimmed.substring(4)).map(Not.apply)
+    else parseNames(trimmed).map(Only.apply)
+  }
+
+  private def parseNames(value: String): Either[String, Seq[String]] = {
+    val trimmed = value.trim
+    if (trimmed.isEmpty) Left("HTMX params list must be non-empty")
+    else {
+      val names = trimmed.split(",", -1).toSeq.map(_.trim)
+      if (names.exists(_.isEmpty)) Left("HTMX params list cannot contain empty names")
+      else Right(names)
+    }
+  }
+
+  private def validateNames(names: Seq[String]): Seq[String] =
+    names.map(name => HtmxSupport.requireNonBlank(name, "HTMX param name"))
 
   implicit val toHtmxValue: ToHtmxValue[HxParams] = new ToHtmxValue[HxParams] {
     def toHtmxValue(value: HxParams): String = value.render

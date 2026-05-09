@@ -37,14 +37,26 @@ object HxUrlUpdate {
     def render: String = "false"
   }
 
-  final case class Url(value: String) extends HxUrlUpdate {
+  final case class Url private[htmx] (value: String) extends HxUrlUpdate {
     def render: String = value
   }
 
   def apply(value: Boolean): HxUrlUpdate = if (value) Enabled else Disabled
-  def apply(value: String): HxUrlUpdate  = Url(value)
-  def apply(value: Path): HxUrlUpdate    = Url(value.encode)
-  def apply(value: URL): HxUrlUpdate     = Url(value.encode)
+  def apply(value: String): HxUrlUpdate  = new Url(HtmxSupport.requireNonBlank(value, "HTMX URL update"))
+  def apply(value: Path): HxUrlUpdate    = new Url(value.encode)
+  def apply(value: URL): HxUrlUpdate     = new Url(value.encode)
+
+  def parse(value: String): Either[String, HxUrlUpdate] = value.trim.toLowerCase match {
+    case "true"  => Right(Enabled)
+    case "false" => Right(Disabled)
+    case _        => parseValidated(() => apply(value))
+  }
+
+  private def parseValidated(value: () => HxUrlUpdate): Either[String, HxUrlUpdate] =
+    try Right(value())
+    catch {
+      case error: IllegalArgumentException => Left(error.getMessage)
+    }
 
   implicit val toHtmxValue: ToHtmxValue[HxUrlUpdate] = new ToHtmxValue[HxUrlUpdate] {
     def toHtmxValue(value: HxUrlUpdate): String = value.render
@@ -115,7 +127,11 @@ object HxSwapOob {
 final case class HxAttributeNames private (rendered: String)
 
 object HxAttributeNames {
-  def apply(first: String, rest: String*): HxAttributeNames = HxAttributeNames((first +: rest).mkString(" "))
+  def apply(first: String, rest: String*): HxAttributeNames =
+    HxAttributeNames(validateNames(first +: rest).mkString(" "))
+
+  private def validateNames(names: Seq[String]): Seq[String] =
+    names.map(name => HtmxSupport.requireNonBlank(name, "HTMX attribute name"))
 
   implicit val toHtmxValue: ToHtmxValue[HxAttributeNames] = new ToHtmxValue[HxAttributeNames] {
     def toHtmxValue(value: HxAttributeNames): String = value.rendered
@@ -126,7 +142,11 @@ object HxAttributeNames {
 final case class HxExtensions private (rendered: String)
 
 object HxExtensions {
-  def apply(first: String, rest: String*): HxExtensions = HxExtensions((first +: rest).mkString(","))
+  def apply(first: String, rest: String*): HxExtensions =
+    HxExtensions(validateNames(first +: rest).mkString(","))
+
+  private def validateNames(names: Seq[String]): Seq[String] =
+    names.map(name => HtmxSupport.requireNonBlank(name, "HTMX extension name"))
 
   implicit val toHtmxValue: ToHtmxValue[HxExtensions] = new ToHtmxValue[HxExtensions] {
     def toHtmxValue(value: HxExtensions): String = value.rendered

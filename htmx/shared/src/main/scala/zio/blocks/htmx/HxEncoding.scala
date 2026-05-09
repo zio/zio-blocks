@@ -19,8 +19,11 @@ package zio.blocks.htmx
 /**
  * Encodings supported by the `hx-encoding` attribute.
  *
- * The current DSL exposes HTMX's multipart form encoding for requests that
- * include file uploads or other multipart data.
+ * The current DSL exposes HTMX's explicit multipart form encoding for requests
+ * that include file uploads or other multipart data.
+ *
+ * HTMX's default URL-encoded form behavior is represented by omitting the
+ * attribute entirely, so there is no separate DSL value for the default case.
  */
 sealed trait HxEncoding extends Product with Serializable {
   def render: String

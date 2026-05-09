@@ -61,10 +61,12 @@ private[headers] object HtmxHeaderSupport {
     else Right(trimmed)
   }
 
-  def parseUrlUpdate(value: String): Either[String, HxUrlUpdate] = value.trim.toLowerCase match {
-    case "true"  => Right(HxUrlUpdate.Enabled)
-    case "false" => Right(HxUrlUpdate.Disabled)
-    case _       => parseUrl(value).map(HxUrlUpdate.Url.apply)
+  def parseUrlUpdate(value: String): Either[String, HxUrlUpdate] = HxUrlUpdate.parse(value)
+
+  def parseNonEmpty(value: String, label: String): Either[String, String] = {
+    val trimmed = value.trim
+    if (trimmed.isEmpty) Left(label + " must be non-empty")
+    else Right(trimmed)
   }
 }
 
@@ -113,8 +115,9 @@ final case class HxTargetId(value: String) extends Header {
 
 object HxTargetId extends Header.Typed[HxTargetId] {
   val name: String                                     = "hx-target"
-  def parse(value: String): Either[String, HxTargetId] = Right(HxTargetId(value.trim))
-  def render(h: HxTargetId): String                    = h.renderedValue
+  def parse(value: String): Either[String, HxTargetId] =
+    HtmxHeaderSupport.parseNonEmpty(value, "HX-Target").map(HxTargetId.apply)
+  def render(h: HxTargetId): String = h.renderedValue
 }
 
 /** Typed `HX-Trigger` request header carrying the triggering element id. */
@@ -125,8 +128,9 @@ final case class HxTriggerId(value: String) extends Header {
 
 object HxTriggerId extends Header.Typed[HxTriggerId] {
   val name: String                                      = "hx-trigger"
-  def parse(value: String): Either[String, HxTriggerId] = Right(HxTriggerId(value.trim))
-  def render(h: HxTriggerId): String                    = h.renderedValue
+  def parse(value: String): Either[String, HxTriggerId] =
+    HtmxHeaderSupport.parseNonEmpty(value, "HX-Trigger").map(HxTriggerId.apply)
+  def render(h: HxTriggerId): String = h.renderedValue
 }
 
 /**
@@ -139,8 +143,9 @@ final case class HxTriggerName(value: String) extends Header {
 
 object HxTriggerName extends Header.Typed[HxTriggerName] {
   val name: String                                        = "hx-trigger-name"
-  def parse(value: String): Either[String, HxTriggerName] = Right(HxTriggerName(value.trim))
-  def render(h: HxTriggerName): String                    = h.renderedValue
+  def parse(value: String): Either[String, HxTriggerName] =
+    HtmxHeaderSupport.parseNonEmpty(value, "HX-Trigger-Name").map(HxTriggerName.apply)
+  def render(h: HxTriggerName): String = h.renderedValue
 }
 
 /** Typed `HX-History-Restore-Request` request header. */

@@ -28,6 +28,14 @@ object HxSyncStrategy {
   case object Replace extends HxSyncStrategy { def render: String = "replace" }
   case object Drop    extends HxSyncStrategy { def render: String = "drop"    }
   case object Queue   extends HxSyncStrategy { def render: String = "queue"   }
+
+  def parse(value: String): Either[String, HxSyncStrategy] = value.trim match {
+    case "abort"   => Right(Abort)
+    case "replace" => Right(Replace)
+    case "drop"    => Right(Drop)
+    case "queue"   => Right(Queue)
+    case other     => Left("Unknown HTMX sync strategy: " + other)
+  }
 }
 
 /**
@@ -39,6 +47,22 @@ final case class HxSync(target: HxTarget, strategy: HxSyncStrategy) {
 }
 
 object HxSync {
+  def parse(value: String): Either[String, HxSync] = {
+    val trimmed = value.trim
+    strategies.find { case (_, suffix) => trimmed.endsWith(suffix) } match {
+      case Some((strategy, suffix)) if trimmed.length > suffix.length =>
+        HxTarget.parse(trimmed.substring(0, trimmed.length - suffix.length)).map(HxSync(_, strategy))
+      case _ => Left("Invalid HTMX sync value: " + value)
+    }
+  }
+
+  private val strategies = Seq(
+    HxSyncStrategy.Abort   -> ":abort",
+    HxSyncStrategy.Replace -> ":replace",
+    HxSyncStrategy.Drop    -> ":drop",
+    HxSyncStrategy.Queue   -> ":queue"
+  )
+
   implicit val toHtmxValue: ToHtmxValue[HxSync] = new ToHtmxValue[HxSync] {
     def toHtmxValue(value: HxSync): String = value.render
   }
