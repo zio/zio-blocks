@@ -19,7 +19,7 @@ package zio.blocks.sql
 import java.sql.ResultSet
 import java.util.UUID
 
-class JdbcResultReader(val underlying: ResultSet) extends DbResultReader {
+private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultReader {
 
   private lazy val availableColumns: Set[String] = {
     val meta    = underlying.getMetaData
