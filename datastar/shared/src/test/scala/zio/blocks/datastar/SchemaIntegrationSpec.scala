@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.ToJs
+import zio.http.html.ToJs
 import zio.blocks.schema.Schema
 import zio.test._
 

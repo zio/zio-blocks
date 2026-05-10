@@ -3,7 +3,7 @@ id: datastar
 title: "Datastar"
 ---
 
-`zio-blocks-datastar` provides a type-safe Scala SDK for [Datastar](https://data-star.dev/), the hypermedia framework that brings reactive UIs via server-sent events (SSE). It builds on `zio-blocks-html` for DOM construction and `zio-blocks-schema` for JSON serialization.
+`zio-blocks-datastar` provides a type-safe Scala SDK for [Datastar](https://data-star.dev/), the hypermedia framework that brings reactive UIs via server-sent events (SSE). It builds on `zio-blocks-http-html` for DOM construction and `zio-blocks-schema` for JSON serialization.
 
 ## Installation
 
@@ -20,7 +20,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 A `Signal[A]` represents a named reactive signal on the client. Use `:=` to pair it with a value, producing a `SignalUpdate` ready for SSE transmission:
 
 ```scala
-import zio.blocks.datastar._
+import zio.http.datastar._
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int)
@@ -63,7 +63,7 @@ val sseWithOptions = DatastarEvent
 Send DOM fragments to the client:
 
 ```scala
-import zio.blocks.html._
+import zio.http.html._
 
 val sse = DatastarEvent
   .patchElements(div(id := "status")("Online"))
@@ -95,11 +95,11 @@ val sse = DatastarEvent
 
 ## Attribute DSL
 
-Import `zio.blocks.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-html` DSL:
+Import `zio.http.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-http-html` DSL:
 
 ```scala
-import zio.blocks.html._
-import zio.blocks.datastar._
+import zio.http.html._
+import zio.http.datastar._
 
 val count    = Signal[Int]("count")
 val username = Signal[String]("username")
@@ -289,10 +289,10 @@ DatastarEvent
 
 ## CssSelector
 
-`CssSelector` (from `zio.blocks.html`) constructs CSS selectors with type-safe combinators:
+`CssSelector` (from `zio.http.html`) constructs CSS selectors with type-safe combinators:
 
 ```scala
-import zio.blocks.html._
+import zio.http.html._
 
 CssSelector.id("main")          // #main
 CssSelector.`class`("active")   // .active

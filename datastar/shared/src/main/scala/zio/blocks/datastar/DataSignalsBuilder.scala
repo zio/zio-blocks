@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.Dom
+import zio.http.html.Dom
 
 /**
  * Builds `data-signals:<name>` attributes for a named signal key.

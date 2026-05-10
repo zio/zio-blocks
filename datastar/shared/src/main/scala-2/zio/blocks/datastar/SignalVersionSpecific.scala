@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -34,9 +34,9 @@ private[datastar] object SignalMacros {
         if (!Signal.isValidName(signalName)) {
           c.abort(c.enclosingPosition, Signal.invalidNameMessage(signalName))
         }
-        c.Expr[Signal[A]](q"_root_.zio.blocks.datastar.Signal.unsafeApply[$aTpe]($signalName)")
+        c.Expr[Signal[A]](q"_root_.zio.http.datastar.Signal.unsafeApply[$aTpe]($signalName)")
       case _ =>
-        c.Expr[Signal[A]](q"_root_.zio.blocks.datastar.Signal.checkedApply[$aTpe]($name)")
+        c.Expr[Signal[A]](q"_root_.zio.http.datastar.Signal.checkedApply[$aTpe]($name)")
     }
   }
 }

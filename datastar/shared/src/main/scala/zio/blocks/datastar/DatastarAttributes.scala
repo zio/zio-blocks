@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.Dom
+import zio.http.html.Dom
 import zio.blocks.maybe.Maybe
 
 /**
  * Mixin providing Datastar `data-*` attribute constructors for the HTML DSL.
  *
- * Typical usage is through the package object via
- * `import zio.blocks.datastar._`. The methods in this trait build the Datastar
- * attribute DSL surface, including signal initialization (`dataSignals`),
- * bindings (`dataBind`), event handlers (`dataOn`), DOM updates (`dataText`,
- * `dataShow`, `dataClass`, `dataStyle`, `dataAttr`), and lifecycle hooks
- * (`dataInit`, `dataOnIntersect`, `dataOnInterval`, `dataOnSignalPatch`).
+ * Typical usage is through the package object via `import zio.http.datastar._`.
+ * The methods in this trait build the Datastar attribute DSL surface, including
+ * signal initialization (`dataSignals`), bindings (`dataBind`), event handlers
+ * (`dataOn`), DOM updates (`dataText`, `dataShow`, `dataClass`, `dataStyle`,
+ * `dataAttr`), and lifecycle hooks (`dataInit`, `dataOnIntersect`,
+ * `dataOnInterval`, `dataOnSignalPatch`).
  *
  * Attribute values are rendered as Datastar expressions, not as generic HTML
  * string values. In expression positions use typed values such as [[Signal]],

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import scala.annotation.{implicitAmbiguous, implicitNotFound}
-import zio.blocks.html.ToJs
+import zio.http.html.ToJs
 
 @implicitNotFound(
   "No ToDatastarExpr instance found for type ${A}. Use js\"...\" for Datastar expressions or typed Signal/SignalUpdate values."

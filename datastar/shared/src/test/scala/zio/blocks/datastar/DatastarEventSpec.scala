@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.html._
+import zio.http.html._
 import zio.blocks.schema.Schema
 import zio.test._
 
