@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import java.sql.Connection
 
-class JdbcConnection(val underlying: Connection) extends DbConnection {
+private[sql] class JdbcConnection(val underlying: Connection) extends DbConnection {
 
   def prepareStatement(sql: String): DbPreparedStatement =
     new JdbcPreparedStatement(underlying.prepareStatement(sql))
@@ -39,7 +39,7 @@ class JdbcConnection(val underlying: Connection) extends DbConnection {
   def rollback(): Unit = underlying.rollback()
 }
 
-class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends DbPreparedStatement {
+private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends DbPreparedStatement {
 
   def executeQuery(): DbResultSet =
     new JdbcResultSet(underlying.executeQuery())
@@ -60,7 +60,7 @@ class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends 
   def executeBatch(): Array[Int] = underlying.executeBatch()
 }
 
-class JdbcResultSet(val underlying: java.sql.ResultSet) extends DbResultSet {
+private[sql] class JdbcResultSet(val underlying: java.sql.ResultSet) extends DbResultSet {
 
   def next(): Boolean = underlying.next()
 

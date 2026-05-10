@@ -24,7 +24,7 @@ package zio.blocks.sql
  * application code you should use the extension methods on [[Frag]] or the
  * higher-level [[Repo]] API instead of calling these directly.
  */
-object SqlOps {
+private[sql] object SqlOps {
 
   private def selectLabels[A](reader: DbResultReader, codec: DbCodec[A]): IndexedSeq[String] =
     codec.columns.zipWithIndex.map { case (expectedLabel, offset) =>

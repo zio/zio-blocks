@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import java.sql.PreparedStatement
 
-class JdbcParamWriter(val underlying: PreparedStatement) extends DbParamWriter {
+private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends DbParamWriter {
 
   def setInt(index: Int, value: Int): Unit = underlying.setInt(index, value)
 
