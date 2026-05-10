@@ -3,7 +3,7 @@ id: datastar
 title: "Datastar"
 ---
 
-`zio-blocks-datastar` provides a type-safe Scala SDK for [Datastar](https://data-star.dev/), the hypermedia framework that brings reactive UIs via server-sent events (SSE). It builds on `zio-blocks-http-html` for DOM construction and `zio-blocks-schema` for JSON serialization.
+`zio-blocks-datastar` provides a type-safe Scala SDK for [Datastar](https://data-star.dev/), the hypermedia framework that brings reactive UIs via server-sent events (SSE). It builds on `zio-blocks-html` for DOM construction and `zio-blocks-schema` for JSON serialization.
 
 ## Installation
 
@@ -63,7 +63,7 @@ val sseWithOptions = DatastarEvent
 Send DOM fragments to the client:
 
 ```scala
-import zio.http.html._
+import zio.blocks.html._
 
 val sse = DatastarEvent
   .patchElements(div(id := "status")("Online"))
@@ -95,10 +95,10 @@ val sse = DatastarEvent
 
 ## Attribute DSL
 
-Import `zio.http.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-http-html` DSL:
+Import `zio.http.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-html` DSL:
 
 ```scala
-import zio.http.html._
+import zio.blocks.html._
 import zio.http.datastar._
 
 val count    = Signal[Int]("count")
@@ -289,10 +289,10 @@ DatastarEvent
 
 ## CssSelector
 
-`CssSelector` (from `zio.http.html`) constructs CSS selectors with type-safe combinators:
+`CssSelector` (from `zio.blocks.html`) constructs CSS selectors with type-safe combinators:
 
 ```scala
-import zio.http.html._
+import zio.blocks.html._
 
 CssSelector.id("main")          // #main
 CssSelector.`class`("active")   // .active
