@@ -114,6 +114,18 @@ lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
     "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
 
+lazy val testJS1Scala2Command =
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+
+lazy val testJS1Scala3Command =
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+
+lazy val testJS2Scala2Command =
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
+
+lazy val testJS2Scala3Command =
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
@@ -149,6 +161,8 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
 commands ++= Seq(
   commandForScalaVersion("testJVM", testJVMScala2Command, testJVMScala3Command),
   commandForScalaVersion("testJS", testJSScala2Command, testJSScala3Command),
+  commandForScalaVersion("testJS1", testJS1Scala2Command, testJS1Scala3Command),
+  commandForScalaVersion("testJS2", testJS2Scala2Command, testJS2Scala3Command),
   commandForScalaVersion("docJVM", docJVMScala2Command, docJVMScala3Command),
   commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
 )
