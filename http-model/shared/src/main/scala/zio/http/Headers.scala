@@ -39,17 +39,17 @@ final class Headers private[http] (
   def isEmpty: Boolean  = size == 0
   def nonEmpty: Boolean = size > 0
 
-  def get[H <: Header](headerType: Header.Typed[H]): Option[H] = {
-    val target = headerType.name
+  def get[A](headerCodec: Header.Codec[A]): Option[A] = {
+    val target = headerCodec.name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
       if (names(i) == target) {
         val cached = parsed(i)
-        if (cached ne null) return Some(cached.asInstanceOf[H])
-        headerType.parse(rawValues(i)) match {
-          case Right(h) =>
-            parsed(i) = h.asInstanceOf[AnyRef]
-            return Some(h)
+        if (cached ne null) return Some(cached.asInstanceOf[A])
+        headerCodec.parse(rawValues(i)) match {
+          case Right(value) =>
+            parsed(i) = value.asInstanceOf[AnyRef]
+            return Some(value)
           case Left(_) => // skip unparseable, continue scanning
         }
       }
@@ -92,20 +92,20 @@ final class Headers private[http] (
     builder.result()
   }
 
-  def getAll[H <: Header](headerType: Header.Typed[H]): Chunk[H] = {
-    val target  = headerType.name
-    val builder = Chunk.newBuilder[H]
+  def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
+    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
       if (names(i) == target) {
         val cached = parsed(i)
         if (cached ne null) {
-          builder += cached.asInstanceOf[H]
+          builder += cached.asInstanceOf[A]
         } else {
-          headerType.parse(rawValues(i)) match {
-            case Right(h) =>
-              parsed(i) = h.asInstanceOf[AnyRef]
-              builder += h
+          headerCodec.parse(rawValues(i)) match {
+            case Right(value) =>
+              parsed(i) = value.asInstanceOf[AnyRef]
+              builder += value
             case Left(_) => // skip unparseable entries
           }
         }
