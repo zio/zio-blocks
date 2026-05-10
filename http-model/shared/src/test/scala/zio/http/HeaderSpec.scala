@@ -19,6 +19,13 @@ package zio.http
 import zio.test._
 
 object HeaderSpec extends HttpModelBaseSpec {
+  private object RequestIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-request-id"
+    def parse(value: String): Either[String, String] =
+      if (value.nonEmpty) Right(value) else Left("request id cannot be empty")
+    def render(value: String): String = value
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Header")(
     suite("Custom header")(
       test("custom headers via rawGet") {
@@ -27,6 +34,13 @@ object HeaderSpec extends HttpModelBaseSpec {
           headers.rawGet("x-request-id") == Some("abc-123"),
           headers.rawGet("x-trace-id") == Some("trace-456"),
           headers.rawGet("x-missing") == None
+        )
+      },
+      test("custom header codec can be defined without extending Header") {
+        assertTrue(
+          RequestIdHeader.name == "x-request-id",
+          RequestIdHeader.parse("abc-123") == Right("abc-123"),
+          RequestIdHeader.render("abc-123") == "abc-123"
         )
       }
     ),

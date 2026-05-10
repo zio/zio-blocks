@@ -26,11 +26,13 @@ trait Header {
 
 object Header {
 
-  trait Typed[H <: Header] {
+  trait Codec[A] {
     def name: String
-    def parse(value: String): Either[String, H]
-    def render(h: H): String
+    def parse(value: String): Either[String, A]
+    def render(value: A): String
   }
+
+  trait Typed[H <: Header] extends Codec[H]
 
   val Authorization                 = zio.http.headers.Authorization
   val ProxyAuthorization            = zio.http.headers.ProxyAuthorization
