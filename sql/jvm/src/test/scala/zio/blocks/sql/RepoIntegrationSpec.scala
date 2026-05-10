@@ -69,16 +69,16 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       }
     }
     tx.connect {
-      SqlOps.update(
-        Frag.literal(
+      Frag
+        .literal(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
         )
-      )
-      SqlOps.update(
-        Frag.literal(
+        .update
+      Frag
+        .literal(
           "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
         )
-      )
+        .update
     }
     f(tx)
   }
@@ -98,16 +98,16 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       }
     }
     tx.connect {
-      SqlOps.update(
-        Frag.literal(
+      Frag
+        .literal(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
         )
-      )
-      SqlOps.update(
-        Frag.literal(
+        .update
+      Frag
+        .literal(
           "CREATE TABLE IF NOT EXISTS task (id INTEGER NOT NULL, title TEXT NOT NULL, priority TEXT NOT NULL)"
         )
-      )
+        .update
     }
     testLogger.clear()
     f(tx, testLogger)
@@ -127,11 +127,11 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       }
     }
     tx.connect {
-      SqlOps.update(
-        Frag.literal(
+      Frag
+        .literal(
           "CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL)"
         )
-      )
+        .update
     }
     f(tx)
   }
@@ -395,7 +395,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withAutoIncrementDb { tx =>
           tx.connect {
             val insertFrag = Frag.literal("INSERT INTO user (name, email) VALUES ('Alice', 'alice@test.com')")
-            val keys       = SqlOps.updateReturningKeys[Int](insertFrag)
+            val keys       = insertFrag.updateReturningKeys[Int]
             assertTrue(
               keys == List(1)
             )
@@ -406,17 +406,11 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withAutoIncrementDb { tx =>
           tx.connect {
             val k1 =
-              SqlOps.updateReturningKeys[Int](
-                Frag.literal("INSERT INTO user (name, email) VALUES ('Alice', 'a@test.com')")
-              )
+              Frag.literal("INSERT INTO user (name, email) VALUES ('Alice', 'a@test.com')").updateReturningKeys[Int]
             val k2 =
-              SqlOps.updateReturningKeys[Int](
-                Frag.literal("INSERT INTO user (name, email) VALUES ('Bob', 'b@test.com')")
-              )
+              Frag.literal("INSERT INTO user (name, email) VALUES ('Bob', 'b@test.com')").updateReturningKeys[Int]
             val k3 =
-              SqlOps.updateReturningKeys[Int](
-                Frag.literal("INSERT INTO user (name, email) VALUES ('Charlie', 'c@test.com')")
-              )
+              Frag.literal("INSERT INTO user (name, email) VALUES ('Charlie', 'c@test.com')").updateReturningKeys[Int]
             assertTrue(
               k1 == List(1),
               k2 == List(2),
@@ -510,9 +504,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
             }
           }
           tx.connect {
-            SqlOps.update(
-              Frag.literal("CREATE TABLE IF NOT EXISTS widget (id INTEGER NOT NULL, label TEXT NOT NULL)")
-            )
+            Frag.literal("CREATE TABLE IF NOT EXISTS widget (id INTEGER NOT NULL, label TEXT NOT NULL)").update
             widgetRepo.insert(Widget(1, "Sprocket"))
             val found = widgetRepo.findById(1)
             assertTrue(
@@ -557,7 +549,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withFreshDbAndLogger { (tx, logger) =>
           tx.connect {
             try {
-              SqlOps.update(Frag.literal("INSERT INTO nonexistent_table (id) VALUES (1)"))
+              Frag.literal("INSERT INTO nonexistent_table (id) VALUES (1)").update
             } catch {
               case _: Throwable => ()
             }

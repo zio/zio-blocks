@@ -98,28 +98,22 @@ object TransactorSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("TransactorSpec")(
     test("connect executes queries") {
       transactor.connect {
-        SqlOps.update(Frag.literal("CREATE TABLE IF NOT EXISTS test_connect (id INTEGER NOT NULL)"))
-        SqlOps.update(
-          sql"INSERT INTO test_connect (id) VALUES (${DbValue.DbInt(1)})"
-        )
-        val ids = SqlOps.query[Int](sql"SELECT id FROM test_connect")
+        Frag.literal("CREATE TABLE IF NOT EXISTS test_connect (id INTEGER NOT NULL)").update
+        sql"INSERT INTO test_connect (id) VALUES (${DbValue.DbInt(1)})".update
+        val ids = sql"SELECT id FROM test_connect".query[Int]
         assertTrue(ids == List(1))
       }
     },
     test("INSERT and SELECT roundtrip") {
       transactor.connect {
-        SqlOps.update(
-          Frag.literal(
+        Frag
+          .literal(
             "CREATE TABLE IF NOT EXISTS users (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
           )
-        )
-        SqlOps.update(
-          sql"INSERT INTO users (id, name, email) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("Alice")}, ${DbValue.DbString("alice@example.com")})"
-        )
-        SqlOps.update(
-          sql"INSERT INTO users (id, name, email) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("Bob")}, ${DbValue.DbString("bob@example.com")})"
-        )
-        val users = SqlOps.query[User](sql"SELECT id, name, email FROM users ORDER BY id")
+          .update
+        sql"INSERT INTO users (id, name, email) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("Alice")}, ${DbValue.DbString("alice@example.com")})".update
+        sql"INSERT INTO users (id, name, email) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("Bob")}, ${DbValue.DbString("bob@example.com")})".update
+        val users = sql"SELECT id, name, email FROM users ORDER BY id".query[User]
         assertTrue(
           users.length == 2,
           users.head.id == 1,
@@ -131,19 +125,17 @@ object TransactorSpec extends ZIOSpecDefault {
     },
     test("record decoding uses column labels instead of select order") {
       transactor.connect {
-        SqlOps.update(
-          Frag.literal(
+        Frag
+          .literal(
             "CREATE TABLE IF NOT EXISTS users_by_label (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)"
           )
-        )
-        SqlOps.update(
-          sql"INSERT INTO users_by_label (id, name, email) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("Alice")}, ${DbValue.DbString("alice@example.com")})"
-        )
-        val users = SqlOps.query[User](
-          Frag.literal(
+          .update
+        sql"INSERT INTO users_by_label (id, name, email) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("Alice")}, ${DbValue.DbString("alice@example.com")})".update
+        val users = Frag
+          .literal(
             "SELECT email AS email, id AS id, name AS name FROM users_by_label"
           )
-        )
+          .query[User]
         assertTrue(
           users == List(User(1, "Alice", "alice@example.com"))
         )
@@ -151,34 +143,28 @@ object TransactorSpec extends ZIOSpecDefault {
     },
     test("queryOne returns first result") {
       transactor.connect {
-        SqlOps.update(
-          Frag.literal(
+        Frag
+          .literal(
             "CREATE TABLE IF NOT EXISTS query_one_test (id INTEGER NOT NULL, val TEXT NOT NULL)"
           )
-        )
-        SqlOps.update(
-          sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("first")})"
-        )
-        SqlOps.update(
-          sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("second")})"
-        )
-        val result = SqlOps.queryOne[String](
-          sql"SELECT val FROM query_one_test WHERE id = ${DbValue.DbInt(1)}"
-        )
+          .update
+        sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("first")})".update
+        sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("second")})".update
+        val result = sql"SELECT val FROM query_one_test WHERE id = ${DbValue.DbInt(1)}".queryOne[String]
         assertTrue(result == Some("first"))
       }
     },
     test("empty result returns empty List") {
       transactor.connect {
-        SqlOps.update(Frag.literal("CREATE TABLE IF NOT EXISTS empty_test (id INTEGER NOT NULL)"))
-        val result = SqlOps.query[Int](sql"SELECT id FROM empty_test")
+        Frag.literal("CREATE TABLE IF NOT EXISTS empty_test (id INTEGER NOT NULL)").update
+        val result = sql"SELECT id FROM empty_test".query[Int]
         assertTrue(result.isEmpty)
       }
     },
     test("queryOne on empty result returns None") {
       transactor.connect {
-        SqlOps.update(Frag.literal("CREATE TABLE IF NOT EXISTS empty_one_test (id INTEGER NOT NULL)"))
-        val result = SqlOps.queryOne[Int](sql"SELECT id FROM empty_one_test")
+        Frag.literal("CREATE TABLE IF NOT EXISTS empty_one_test (id INTEGER NOT NULL)").update
+        val result = sql"SELECT id FROM empty_one_test".queryOne[Int]
         assertTrue(result.isEmpty)
       }
     },
@@ -186,15 +172,13 @@ object TransactorSpec extends ZIOSpecDefault {
       val (tx, conn) = sharedConnTransactor()
       try {
         tx.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE tx_commit (id INTEGER NOT NULL, name TEXT NOT NULL)"))
+          Frag.literal("CREATE TABLE tx_commit (id INTEGER NOT NULL, name TEXT NOT NULL)").update
         }
         tx.transact {
-          SqlOps.update(
-            sql"INSERT INTO tx_commit (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("committed")})"
-          )
+          sql"INSERT INTO tx_commit (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("committed")})".update
         }
         tx.connect {
-          val rows = SqlOps.query[String](sql"SELECT name FROM tx_commit")
+          val rows = sql"SELECT name FROM tx_commit".query[String]
           assertTrue(rows == List("committed"))
         }
       } finally conn.close()
@@ -203,70 +187,62 @@ object TransactorSpec extends ZIOSpecDefault {
       val (tx, conn) = sharedConnTransactor()
       try {
         tx.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE tx_rollback (id INTEGER NOT NULL, name TEXT NOT NULL)"))
-          SqlOps.update(
-            sql"INSERT INTO tx_rollback (id, name) VALUES (${DbValue.DbInt(0)}, ${DbValue.DbString("before")})"
-          )
+          Frag.literal("CREATE TABLE tx_rollback (id INTEGER NOT NULL, name TEXT NOT NULL)").update
+          sql"INSERT INTO tx_rollback (id, name) VALUES (${DbValue.DbInt(0)}, ${DbValue.DbString("before")})".update
         }
         try {
           tx.transact {
-            SqlOps.update(
-              sql"INSERT INTO tx_rollback (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("should_rollback")})"
-            )
+            sql"INSERT INTO tx_rollback (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("should_rollback")})".update
             throw new RuntimeException("forced error")
           }
         } catch {
           case _: RuntimeException => ()
         }
         tx.connect {
-          val rows = SqlOps.query[String](sql"SELECT name FROM tx_rollback WHERE id = ${DbValue.DbInt(1)}")
+          val rows = sql"SELECT name FROM tx_rollback WHERE id = ${DbValue.DbInt(1)}".query[String]
           assertTrue(rows.isEmpty)
         }
       } finally conn.close()
     },
     test("update returns affected row count") {
       transactor.connect {
-        SqlOps.update(Frag.literal("CREATE TABLE IF NOT EXISTS count_test (id INTEGER NOT NULL)"))
-        SqlOps.update(
-          sql"INSERT INTO count_test (id) VALUES (${DbValue.DbInt(1)})"
-        )
-        SqlOps.update(
-          sql"INSERT INTO count_test (id) VALUES (${DbValue.DbInt(2)})"
-        )
-        val deleted = SqlOps.update(Frag.literal("DELETE FROM count_test"))
+        Frag.literal("CREATE TABLE IF NOT EXISTS count_test (id INTEGER NOT NULL)").update
+        sql"INSERT INTO count_test (id) VALUES (${DbValue.DbInt(1)})".update
+        sql"INSERT INTO count_test (id) VALUES (${DbValue.DbInt(2)})".update
+        val deleted = Frag.literal("DELETE FROM count_test").update
         assertTrue(deleted == 2)
       }
     },
     suite("type roundtrip tests")(
       test("Long roundtrip") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_long (v INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_long (v) VALUES (${DbValue.DbLong(9876543210L)})")
-          val result = SqlOps.query[Long](sql"SELECT v FROM rt_long")
+          Frag.literal("CREATE TABLE rt_long (v INTEGER NOT NULL)").update
+          sql"INSERT INTO rt_long (v) VALUES (${DbValue.DbLong(9876543210L)})".update
+          val result = sql"SELECT v FROM rt_long".query[Long]
           assertTrue(result == List(9876543210L))
         }
       },
       test("Double roundtrip") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_double (v REAL NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_double (v) VALUES (${DbValue.DbDouble(3.14159)})")
-          val result = SqlOps.query[Double](sql"SELECT v FROM rt_double")
+          Frag.literal("CREATE TABLE rt_double (v REAL NOT NULL)").update
+          sql"INSERT INTO rt_double (v) VALUES (${DbValue.DbDouble(3.14159)})".update
+          val result = sql"SELECT v FROM rt_double".query[Double]
           assertTrue(result == List(3.14159))
         }
       },
       test("Boolean roundtrip") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_bool (v INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(true)})")
-          SqlOps.update(sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(false)})")
-          val result = SqlOps.query[Boolean](sql"SELECT v FROM rt_bool ORDER BY v")
+          Frag.literal("CREATE TABLE rt_bool (v INTEGER NOT NULL)").update
+          sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(true)})".update
+          sql"INSERT INTO rt_bool (v) VALUES (${DbValue.DbBoolean(false)})".update
+          val result = sql"SELECT v FROM rt_bool ORDER BY v".query[Boolean]
           assertTrue(result == List(false, true))
         }
       },
       test("all primitive types roundtrip") {
         transactor.connect {
-          SqlOps.update(
-            Frag.literal(
+          Frag
+            .literal(
               "CREATE TABLE rt_all (" +
                 "int_val INTEGER NOT NULL, " +
                 "long_val INTEGER NOT NULL, " +
@@ -277,11 +253,9 @@ object TransactorSpec extends ZIOSpecDefault {
                 "short_val INTEGER NOT NULL, " +
                 "byte_val INTEGER NOT NULL)"
             )
-          )
-          SqlOps.update(
-            sql"INSERT INTO rt_all VALUES (${DbValue.DbInt(42)}, ${DbValue.DbLong(123456789L)}, ${DbValue.DbDouble(2.718)}, ${DbValue.DbFloat(1.5f)}, ${DbValue.DbBoolean(true)}, ${DbValue.DbString("test")}, ${DbValue.DbShort(100.toShort)}, ${DbValue.DbByte(7.toByte)})"
-          )
-          val result = SqlOps.query[AllTypes](sql"SELECT * FROM rt_all")
+            .update
+          sql"INSERT INTO rt_all VALUES (${DbValue.DbInt(42)}, ${DbValue.DbLong(123456789L)}, ${DbValue.DbDouble(2.718)}, ${DbValue.DbFloat(1.5f)}, ${DbValue.DbBoolean(true)}, ${DbValue.DbString("test")}, ${DbValue.DbShort(100.toShort)}, ${DbValue.DbByte(7.toByte)})".update
+          val result = sql"SELECT * FROM rt_all".query[AllTypes]
           assertTrue(
             result.length == 1,
             result.head.intVal == 42,
@@ -297,14 +271,10 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("DbNull writeParams via Option None roundtrip") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_null (id INTEGER NOT NULL, nick TEXT)"))
-          SqlOps.update(
-            sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("present")})"
-          )
-          SqlOps.update(
-            sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbNull})"
-          )
-          val results = SqlOps.query[WithOption](sql"SELECT id, nick FROM rt_null ORDER BY id")
+          Frag.literal("CREATE TABLE rt_null (id INTEGER NOT NULL, nick TEXT)").update
+          sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("present")})".update
+          sql"INSERT INTO rt_null (id, nick) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbNull})".update
+          val results = sql"SELECT id, nick FROM rt_null ORDER BY id".query[WithOption]
           assertTrue(
             results.length == 2,
             results(0) == WithOption(1, Some("present")),
@@ -314,21 +284,11 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("multiple rows insert and select") {
         transactor.connect {
-          SqlOps.update(
-            Frag.literal("CREATE TABLE rt_multi (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)")
-          )
-          SqlOps.update(
-            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")}, ${DbValue.DbString("a@test.com")})"
-          )
-          SqlOps.update(
-            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")}, ${DbValue.DbString("b@test.com")})"
-          )
-          SqlOps.update(
-            sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")}, ${DbValue.DbString("c@test.com")})"
-          )
-          val results = SqlOps.query[User](
-            sql"SELECT id, name, email FROM rt_multi ORDER BY id"
-          )
+          Frag.literal("CREATE TABLE rt_multi (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)").update
+          sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")}, ${DbValue.DbString("a@test.com")})".update
+          sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")}, ${DbValue.DbString("b@test.com")})".update
+          sql"INSERT INTO rt_multi VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")}, ${DbValue.DbString("c@test.com")})".update
+          val results = sql"SELECT id, name, email FROM rt_multi ORDER BY id".query[User]
           assertTrue(
             results.length == 3,
             results(0) == User(1, "a", "a@test.com"),
@@ -339,10 +299,10 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("queryOne returns None for non-existing row") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_qone (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_qone VALUES (${DbValue.DbInt(1)})")
-          val existing    = SqlOps.queryOne[Int](sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(1)}")
-          val nonExisting = SqlOps.queryOne[Int](sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(999)}")
+          Frag.literal("CREATE TABLE rt_qone (id INTEGER NOT NULL)").update
+          sql"INSERT INTO rt_qone VALUES (${DbValue.DbInt(1)})".update
+          val existing    = sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(1)}".queryOne[Int]
+          val nonExisting = sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(999)}".queryOne[Int]
           assertTrue(
             existing == Some(1),
             nonExisting.isEmpty
@@ -351,8 +311,8 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("BigDecimal writeParams") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_bigdec (v TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_bigdec (v) VALUES (${DbValue.DbBigDecimal(BigDecimal("123.456"))})")
+          Frag.literal("CREATE TABLE rt_bigdec (v TEXT NOT NULL)").update
+          sql"INSERT INTO rt_bigdec (v) VALUES (${DbValue.DbBigDecimal(BigDecimal("123.456"))})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_bigdec")
           try {
             val rs = ps.executeQuery()
@@ -366,10 +326,8 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("Short and Byte writeParams") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_small (s INTEGER NOT NULL, b INTEGER NOT NULL)"))
-          SqlOps.update(
-            sql"INSERT INTO rt_small VALUES (${DbValue.DbShort(32000.toShort)}, ${DbValue.DbByte(127.toByte)})"
-          )
+          Frag.literal("CREATE TABLE rt_small (s INTEGER NOT NULL, b INTEGER NOT NULL)").update
+          sql"INSERT INTO rt_small VALUES (${DbValue.DbShort(32000.toShort)}, ${DbValue.DbByte(127.toByte)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT s, b FROM rt_small")
           try {
             val rs = ps.executeQuery()
@@ -385,8 +343,8 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("Float writeParams and read") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_float (v REAL NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_float (v) VALUES (${DbValue.DbFloat(2.5f)})")
+          Frag.literal("CREATE TABLE rt_float (v REAL NOT NULL)").update
+          sql"INSERT INTO rt_float (v) VALUES (${DbValue.DbFloat(2.5f)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_float")
           try {
             val rs = ps.executeQuery()
@@ -400,17 +358,17 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("Char roundtrip via DbChar") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE rt_char (v TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_char (v) VALUES (${DbValue.DbChar('X')})")
-          val result = SqlOps.query[String](sql"SELECT v FROM rt_char")
+          Frag.literal("CREATE TABLE rt_char (v TEXT NOT NULL)").update
+          sql"INSERT INTO rt_char (v) VALUES (${DbValue.DbChar('X')})".update
+          val result = sql"SELECT v FROM rt_char".query[String]
           assertTrue(result == List("X"))
         }
       },
       test("UUID roundtrip via TEXT") {
         transactor.connect {
           val uuid = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-          SqlOps.update(Frag.literal("CREATE TABLE rt_uuid (v TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_uuid (v) VALUES (${DbValue.DbUUID(uuid)})")
+          Frag.literal("CREATE TABLE rt_uuid (v TEXT NOT NULL)").update
+          sql"INSERT INTO rt_uuid (v) VALUES (${DbValue.DbUUID(uuid)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_uuid")
           try {
             val rs = ps.executeQuery()
@@ -425,8 +383,8 @@ object TransactorSpec extends ZIOSpecDefault {
       test("Duration roundtrip via TEXT") {
         transactor.connect {
           val dur = java.time.Duration.ofHours(2).plusMinutes(30)
-          SqlOps.update(Frag.literal("CREATE TABLE rt_dur (v TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_dur (v) VALUES (${DbValue.DbDuration(dur)})")
+          Frag.literal("CREATE TABLE rt_dur (v TEXT NOT NULL)").update
+          sql"INSERT INTO rt_dur (v) VALUES (${DbValue.DbDuration(dur)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_dur")
           try {
             val rs = ps.executeQuery()
@@ -441,8 +399,8 @@ object TransactorSpec extends ZIOSpecDefault {
       test("Instant writeParams via setTimestamp") {
         transactor.connect {
           val instant = java.time.Instant.parse("2024-06-15T10:30:00Z")
-          SqlOps.update(Frag.literal("CREATE TABLE rt_inst (v TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_inst (v) VALUES (${DbValue.DbInstant(instant)})")
+          Frag.literal("CREATE TABLE rt_inst (v TEXT NOT NULL)").update
+          sql"INSERT INTO rt_inst (v) VALUES (${DbValue.DbInstant(instant)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_inst")
           try {
             val rs = ps.executeQuery()
@@ -457,8 +415,8 @@ object TransactorSpec extends ZIOSpecDefault {
       test("Bytes roundtrip") {
         transactor.connect {
           val bytes = Array[Byte](10, 20, 30, 40, 50)
-          SqlOps.update(Frag.literal("CREATE TABLE rt_bytes (v BLOB NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO rt_bytes (v) VALUES (${DbValue.DbBytes(bytes)})")
+          Frag.literal("CREATE TABLE rt_bytes (v BLOB NOT NULL)").update
+          sql"INSERT INTO rt_bytes (v) VALUES (${DbValue.DbBytes(bytes)})".update
           val ps = summon[DbCon].connection.prepareStatement("SELECT v FROM rt_bytes")
           try {
             val rs = ps.executeQuery()
@@ -472,20 +430,19 @@ object TransactorSpec extends ZIOSpecDefault {
       }
     ),
     suite("Frag extension methods")(
-      test("frag.query delegates to SqlOps.query") {
+      test("frag.query returns decoded rows") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE ext_query (id INTEGER NOT NULL, name TEXT NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})")
-          SqlOps.update(sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})")
-          val viaOps = SqlOps.query[Int](sql"SELECT id FROM ext_query ORDER BY id")
+          Frag.literal("CREATE TABLE ext_query (id INTEGER NOT NULL, name TEXT NOT NULL)").update
+          sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})".update
+          sql"INSERT INTO ext_query VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})".update
           val viaExt = sql"SELECT id FROM ext_query ORDER BY id".query[Int]
-          assertTrue(viaOps == viaExt, viaExt == List(1, 2))
+          assertTrue(viaExt == List(1, 2))
         }
       },
       test("frag.queryOne returns Some for match, None for no match") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE ext_qone (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO ext_qone VALUES (${DbValue.DbInt(42)})")
+          Frag.literal("CREATE TABLE ext_qone (id INTEGER NOT NULL)").update
+          sql"INSERT INTO ext_qone VALUES (${DbValue.DbInt(42)})".update
           val found    = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(42)}".queryOne[Int]
           val notFound = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(999)}".queryOne[Int]
           assertTrue(found == Some(42), notFound.isEmpty)
@@ -493,12 +450,12 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("frag.queryLimit returns at most N rows") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE ext_qlimit (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(1)})")
-          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(2)})")
-          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(3)})")
-          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(4)})")
-          SqlOps.update(sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(5)})")
+          Frag.literal("CREATE TABLE ext_qlimit (id INTEGER NOT NULL)").update
+          sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(1)})".update
+          sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(2)})".update
+          sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(3)})".update
+          sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(4)})".update
+          sql"INSERT INTO ext_qlimit VALUES (${DbValue.DbInt(5)})".update
           val limited = sql"SELECT id FROM ext_qlimit ORDER BY id".queryLimit[Int](2)
           val all     = sql"SELECT id FROM ext_qlimit ORDER BY id".query[Int]
           assertTrue(limited == List(1, 2), all.length == 5)
@@ -506,37 +463,37 @@ object TransactorSpec extends ZIOSpecDefault {
       },
       test("frag.queryLimit with limit larger than result set returns all") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE ext_qlimit2 (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(1)})")
-          SqlOps.update(sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(2)})")
+          Frag.literal("CREATE TABLE ext_qlimit2 (id INTEGER NOT NULL)").update
+          sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(1)})".update
+          sql"INSERT INTO ext_qlimit2 VALUES (${DbValue.DbInt(2)})".update
           val result = sql"SELECT id FROM ext_qlimit2 ORDER BY id".queryLimit[Int](100)
           assertTrue(result == List(1, 2))
         }
       },
       test("frag.update returns affected row count") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE ext_upd (id INTEGER NOT NULL)"))
+          Frag.literal("CREATE TABLE ext_upd (id INTEGER NOT NULL)").update
           sql"INSERT INTO ext_upd VALUES (${DbValue.DbInt(1)})".update
           sql"INSERT INTO ext_upd VALUES (${DbValue.DbInt(2)})".update
           val count = Frag.literal("DELETE FROM ext_upd").update
           assertTrue(count == 2)
         }
       },
-      test("SqlOps.queryLimit stops early") {
+      test("frag.queryLimit stops early") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE qlimit_ops (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(1)})")
-          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(2)})")
-          SqlOps.update(sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(3)})")
-          val result = SqlOps.queryLimit[Int](sql"SELECT id FROM qlimit_ops ORDER BY id", 2)
+          Frag.literal("CREATE TABLE qlimit_ops (id INTEGER NOT NULL)").update
+          sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(1)})".update
+          sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(2)})".update
+          sql"INSERT INTO qlimit_ops VALUES (${DbValue.DbInt(3)})".update
+          val result = sql"SELECT id FROM qlimit_ops ORDER BY id".queryLimit[Int](2)
           assertTrue(result == List(1, 2))
         }
       },
-      test("SqlOps.queryLimit with zero returns empty") {
+      test("frag.queryLimit with zero returns empty") {
         transactor.connect {
-          SqlOps.update(Frag.literal("CREATE TABLE qlimit_zero (id INTEGER NOT NULL)"))
-          SqlOps.update(sql"INSERT INTO qlimit_zero VALUES (${DbValue.DbInt(1)})")
-          val result = SqlOps.queryLimit[Int](sql"SELECT id FROM qlimit_zero", 0)
+          Frag.literal("CREATE TABLE qlimit_zero (id INTEGER NOT NULL)").update
+          sql"INSERT INTO qlimit_zero VALUES (${DbValue.DbInt(1)})".update
+          val result = sql"SELECT id FROM qlimit_zero".queryLimit[Int](0)
           assertTrue(result.isEmpty)
         }
       }
