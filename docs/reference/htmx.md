@@ -3,16 +3,16 @@ id: htmx
 title: "HTMX"
 ---
 
-`zio-blocks-htmx` adds a typed HTMX DSL on top of `zio-blocks-html`, plus typed HTMX request and response headers backed by `zio-blocks-http-model`.
+`zio-blocks-http-htmx` adds a typed HTMX DSL on top of `zio-blocks-html`, plus typed HTMX request and response headers backed by `zio-blocks-http-model`.
 
 ## Installation
 
 ```scala
 // JVM
-libraryDependencies += "dev.zio" %% "zio-blocks-htmx" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 
 // Scala.js
-libraryDependencies += "dev.zio" %%% "zio-blocks-htmx" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
 ## Attribute DSL
@@ -21,7 +21,7 @@ Import both the HTML and HTMX packages:
 
 ```scala
 import zio.blocks.html._
-import zio.blocks.htmx._
+import zio.http.htmx._
 ```
 
 ### Requests, targets, swaps, and triggers
@@ -91,10 +91,10 @@ user input.
 
 ## Typed HTMX Headers
 
-The module also provides typed headers in `zio.blocks.htmx.headers` that work directly with `Request.header` and `Response.header`:
+The module also provides typed headers in `zio.http.htmx.headers` that work directly with `Request.header` and `Response.header`:
 
 ```scala
-import zio.blocks.htmx.headers._
+import zio.http.htmx.headers._
 import zio.http._
 
 val request = Request.get(URL.root).addHeader(HxRequest.name, "true")
