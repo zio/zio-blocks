@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import zio.blocks.html.{dataAttr => _, _}
 import zio.blocks.schema.Schema
@@ -79,7 +79,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       },
       test("dataText := raw String does not compile") {
         typeCheck("""
-          import zio.blocks.datastar._
+          import zio.http.datastar._
           import zio.blocks.html._
           div(dataText := "$count")
         """).map { result =>
@@ -133,7 +133,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       },
       test("dataOn.click := raw String does not compile") {
         typeCheck("""
-          import zio.blocks.datastar._
+          import zio.http.datastar._
           import zio.blocks.html._
           div(dataOn.click := "$count++")
         """).map { result =>
@@ -266,7 +266,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       },
       test("dataInit := raw String does not compile") {
         typeCheck("""
-          import zio.blocks.datastar._
+          import zio.http.datastar._
           import zio.blocks.html._
           div(dataInit := "@get('/data')")
         """).map { result =>

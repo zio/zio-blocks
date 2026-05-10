@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.html.{CssSelector, Dom, Js}
+import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 import zio.http.ServerSentEvent
 

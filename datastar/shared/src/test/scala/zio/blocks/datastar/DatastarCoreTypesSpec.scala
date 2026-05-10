@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.ToJs
+import zio.blocks.html._
 import zio.test._
 
 object DatastarCoreTypesSpec extends ZIOSpecDefault {
@@ -76,7 +76,7 @@ object DatastarCoreTypesSpec extends ZIOSpecDefault {
       test("SignalUpdate constructor is not public") {
         typeCheck("""
           package external
-          import zio.blocks.datastar.SignalUpdate
+          import zio.http.datastar.SignalUpdate
           new SignalUpdate[Int]("count", "42")
         """).map(result => assertTrue(result.isLeft))
       },

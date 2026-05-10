@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.Dom
+import zio.blocks.html._
 
 /**
  * Low-level key for constructing Datastar `data-*` attributes directly.
