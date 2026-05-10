@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaTypes
+import Header._
 
 object NegotiationHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("NegotiationHeaders")(

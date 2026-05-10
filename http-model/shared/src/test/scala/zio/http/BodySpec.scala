@@ -16,7 +16,7 @@
 
 package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 import zio.blocks.streams.Stream
 
@@ -179,6 +179,22 @@ object BodySpec extends HttpModelBaseSpec {
       test("asString decodes with charset") {
         val body = Body.fromString("hello world")
         assertTrue(body.asString() == "hello world")
+      },
+      test("asStringFromContentType uses the body's declared charset") {
+        val bytes = "héllo".getBytes(Charset.ISO_8859_1.name)
+        val body  = Body.fromArray(
+          bytes,
+          ContentType(zio.blocks.mediatype.MediaTypes.text.`plain`, charset = Some(Charset.ISO_8859_1))
+        )
+        assertTrue(body.asStringFromContentType == "héllo")
+      },
+      test("text aliases charset-aware decoding") {
+        val bytes = "héllo".getBytes(Charset.ISO_8859_1.name)
+        val body  = Body.fromArray(
+          bytes,
+          ContentType(zio.blocks.mediatype.MediaTypes.text.`plain`, charset = Some(Charset.ISO_8859_1))
+        )
+        assertTrue(body.text == "héllo")
       },
       test("isEmpty is correct") {
         assertTrue(Body.empty.isEmpty, !Body.fromChunk(Chunk[Byte](1)).isEmpty)
