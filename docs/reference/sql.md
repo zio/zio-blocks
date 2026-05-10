@@ -20,7 +20,7 @@ Key design goals:
 ├─────────────────────────────────────────────────────────┤
 │         Repo[E, ID]  ·  sql"..." interpolator           │
 ├─────────────────────────────────────────────────────────┤
-│              Frag  ·  SqlOps  ·  Table                  │
+│              Frag  ·  Table  ·  Repo                    │
 ├─────────────────────────────────────────────────────────┤
 │          DbCodec[A]  ·  DbResultReader  ·  DbParamWriter│
 ├─────────────────────────────────────────────────────────┤
@@ -383,7 +383,9 @@ dropSql.sql(SqlDialect.PostgreSQL)
 // → "DROP TABLE IF EXISTS user"
 ```
 
-You can also use `Ddl` directly for manual DDL:
+For advanced manual DDL construction, lower-level helpers such as `Ddl` and
+`ColumnDef` are available, but most application code should prefer
+`Table#createTable` / `Table#dropTable`:
 
 ```scala
 import zio.blocks.sql._
@@ -480,7 +482,7 @@ object ProductAverage:
 
 ## Error Handling
 
-All SQL errors surface as `java.sql.SQLException` (or a subclass) wrapped in whatever the calling effect system provides (`scala.util.Try`, `Task`, etc.). `Repo` and `SqlOps` never swallow exceptions — they log via `SqlLogger.onError` and re-throw.
+All SQL errors surface as `java.sql.SQLException` (or a subclass) wrapped in whatever the calling effect system provides (`scala.util.Try`, `Task`, etc.). SQL execution paths do not swallow exceptions — they log via `SqlLogger.onError` and re-throw.
 
 `Transactor.transact` guarantees rollback on any `Throwable`.
 
