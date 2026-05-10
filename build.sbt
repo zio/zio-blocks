@@ -97,39 +97,39 @@ addCommandAlias(
   "golemTest3; golemTest2"
 )
 lazy val testJVMScala2Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; rpcJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
     "openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
 
 lazy val testJVMScala3Command =
-  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
+  "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; rpcJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test"
 
 lazy val testJSScala2Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; rpcJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
     "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
 
 lazy val testJSScala3Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; rpcJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
     "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test"
 
 lazy val docJVMScala2Command =
-  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
+  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; rpcJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
     "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
 
 lazy val docJVMScala3Command =
-  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
+  "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; rpcJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc"
 
 lazy val docJSScala2Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; rpcJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
 
 lazy val docJSScala3Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; rpcJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
@@ -172,6 +172,8 @@ lazy val root = project
     `scope-examples`,
     schema.jvm,
     schema.js,
+    rpc.jvm,
+    rpc.js,
     `schema-avro`,
     `schema-messagepack`.jvm,
     `schema-messagepack`.js,
@@ -445,6 +447,27 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val rpc = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema)
+  .settings(stdSettings("zio-blocks-rpc"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.rpc"))
+  .enablePlugins(BuildInfoPlugin)
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70,
+    coverageExcludedFiles      := Seq(
+      ".*scala-3/zio/blocks/rpc/.*",
+      ".*BuildInfo.*"
+    ).mkString(";")
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
