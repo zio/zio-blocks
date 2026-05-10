@@ -68,7 +68,7 @@ object HttpCodec {
   private def validationFailure(message: String): Nothing =
     throw SchemaError.validationFailed(message)
 
-  private def headerSchema[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): Schema[A] =
+  private def headerSchema[A](headerType: HttpHeader.Codec[A]): Schema[A] =
     Schema[String].transform[A](
       value => headerType.parse(value).fold(validationFailure, identity),
       value => headerType.render(value)
@@ -172,7 +172,7 @@ object HttpCodec {
   ): HttpCodec.Header[CodecKind.Request, A] =
     Header[CodecKind.Request, A](name, schema, default, doc, examples, deprecated)
 
-  def requestHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Request, A] =
+  def requestHeader[A](headerType: HttpHeader.Codec[A]): HttpCodec.Header[CodecKind.Request, A] =
     Header[CodecKind.Request, A](headerType.name, headerSchema(headerType))
 
   def responseHeader[A](
@@ -185,7 +185,7 @@ object HttpCodec {
   ): HttpCodec.Header[CodecKind.Response, A] =
     Header[CodecKind.Response, A](name, schema, default, doc, examples, deprecated)
 
-  def responseHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Response, A] =
+  def responseHeader[A](headerType: HttpHeader.Codec[A]): HttpCodec.Header[CodecKind.Response, A] =
     Header[CodecKind.Response, A](headerType.name, headerSchema(headerType))
 
   def requestBody[A](
