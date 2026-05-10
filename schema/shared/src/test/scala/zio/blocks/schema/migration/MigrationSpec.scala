@@ -293,7 +293,7 @@ object MigrationSpec extends ZIOSpecDefault {
       },
 
       test("renameCase builder records enum rename action") {
-        import RenameCaseFixtures.*
+        import RenameCaseFixtures._
 
         val builder = Migration
           .newBuilder[StatusV1, StatusV2]
@@ -305,7 +305,7 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
       test("transformCase builder records enum case migration") {
-        import TransformCaseFixtures.*
+        import TransformCaseFixtures._
 
         val builder = Migration
           .newBuilder[EventV1, EventV2]
