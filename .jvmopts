@@ -1,5 +1,5 @@
 -Xms2g
--Xmx12g
+-Xmx16g
 -Xss2m
 -XX:+UseG1GC
 -XX:InitialCodeCacheSize=512m
