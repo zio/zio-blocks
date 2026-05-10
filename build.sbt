@@ -746,6 +746,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 67
   )
   .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
@@ -845,6 +847,10 @@ lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(schema % "compile->compile;test->test", markdown)
   .settings(
     libraryDependencies ++= Seq(
