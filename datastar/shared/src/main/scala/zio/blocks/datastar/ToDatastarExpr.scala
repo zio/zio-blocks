@@ -17,7 +17,7 @@
 package zio.http.datastar
 
 import scala.annotation.{implicitAmbiguous, implicitNotFound}
-import zio.http.html.ToJs
+import zio.blocks.html._
 
 @implicitNotFound(
   "No ToDatastarExpr instance found for type ${A}. Use js\"...\" for Datastar expressions or typed Signal/SignalUpdate values."

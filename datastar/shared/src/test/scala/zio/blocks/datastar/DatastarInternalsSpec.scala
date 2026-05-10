@@ -17,7 +17,7 @@
 package zio.http.datastar
 
 import zio.blocks.chunk.Chunk
-import zio.http.html.{CssSelector, Dom, ToJs, _}
+import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.Schema
 import zio.test._

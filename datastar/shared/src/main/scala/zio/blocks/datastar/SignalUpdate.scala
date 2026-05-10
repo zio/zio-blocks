@@ -16,7 +16,7 @@
 
 package zio.http.datastar
 
-import zio.http.html.ToJs
+import zio.blocks.html._
 
 /**
  * A signal name paired with its JSON-serialized value.

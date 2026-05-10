@@ -16,7 +16,7 @@
 
 package zio.http.datastar
 
-import zio.http.html.ToJs
+import zio.blocks.html._
 
 final class DatastarRef private[datastar] (val signalName: String) {
   val value: String = "$" + signalName

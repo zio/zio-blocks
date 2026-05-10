@@ -16,7 +16,7 @@
 
 package zio.http.datastar
 
-import zio.http.html.Dom
+import zio.blocks.html._
 
 /**
  * Low-level key for constructing Datastar `data-*` attributes directly.

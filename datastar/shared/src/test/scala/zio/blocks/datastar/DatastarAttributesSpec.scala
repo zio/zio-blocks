@@ -16,7 +16,7 @@
 
 package zio.http.datastar
 
-import zio.http.html.{dataAttr => _, _}
+import zio.blocks.html.{dataAttr => _, _}
 import zio.blocks.schema.Schema
 import zio.test._
 
@@ -80,7 +80,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataText := raw String does not compile") {
         typeCheck("""
           import zio.http.datastar._
-          import zio.http.html._
+          import zio.blocks.html._
           div(dataText := "$count")
         """).map { result =>
           assertTrue(result.isLeft) &&
@@ -134,7 +134,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataOn.click := raw String does not compile") {
         typeCheck("""
           import zio.http.datastar._
-          import zio.http.html._
+          import zio.blocks.html._
           div(dataOn.click := "$count++")
         """).map { result =>
           assertTrue(result.isLeft) &&
@@ -267,7 +267,7 @@ object DatastarAttributesSpec extends ZIOSpecDefault {
       test("dataInit := raw String does not compile") {
         typeCheck("""
           import zio.http.datastar._
-          import zio.http.html._
+          import zio.blocks.html._
           div(dataInit := "@get('/data')")
         """).map { result =>
           assertTrue(result.isLeft) &&
