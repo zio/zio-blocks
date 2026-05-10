@@ -29,7 +29,7 @@ final case class Request(
   body: Body,
   version: Version
 ) {
-  def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
+  def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
 
   /**
    * Returns this request's content type.

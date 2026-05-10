@@ -20,6 +20,13 @@ import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 
 object RequestSpec extends HttpModelBaseSpec {
+  private object TraceIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-trace-id"
+    def parse(value: String): Either[String, String] =
+      if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+    def render(value: String): String = value
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Request")(
     suite("construction")(
       test("can be constructed with all fields") {
@@ -86,6 +93,16 @@ object RequestSpec extends HttpModelBaseSpec {
       test("returns None for missing header") {
         val request = Request.get(URL.fromPath(Path.root))
         assertTrue(request.header(Header.Host).isEmpty)
+      },
+      test("returns custom typed header without Header subtype") {
+        val request = Request(
+          Method.GET,
+          URL.fromPath(Path.root),
+          Headers("X-Trace-Id" -> "trace-123"),
+          Body.empty,
+          Version.`HTTP/1.1`
+        )
+        assertTrue(request.header(TraceIdHeader) == Some("trace-123"))
       }
     ),
     suite("contentType")(
