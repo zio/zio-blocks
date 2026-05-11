@@ -152,7 +152,11 @@ jobs:
           - java: 17
             platform: JS
             scala: '3.3.x'
-            command: 'testJS docJS'
+            command: 'testJS1 docJS1'
+          - java: 17
+            platform: JS
+            scala: '3.3.x'
+            command: 'testJS2 docJS2'
           - java: 17
             platform: JS
             scala: '3.8.x'

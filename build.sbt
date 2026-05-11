@@ -148,13 +148,13 @@ lazy val docJSScala2Batch2Command =
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
 
 lazy val docJSScala3Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
 
 lazy val docJSScala3Batch2Command =
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
