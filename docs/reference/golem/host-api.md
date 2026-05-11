@@ -26,7 +26,7 @@ object HostApi {
 | **Retry Policy** | Control automatic retry behavior | `getRetryPolicy()`, `setRetryPolicy()` |
 | **Persistence** | Manage oplog persistence strategy | `getOplogPersistenceLevel()`, `setOplogPersistenceLevel()` |
 | **Idempotence** | Toggle idempotent request handling | `getIdempotenceMode()`, `setIdempotenceMode()` |
-| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgentMetadata()`, `updateAgent()` |
+| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgents()`, `updateAgent()` |
 | **Database** | Access relational databases (MySQL, PostgreSQL) | `Rdbms` provides SQL methods |
 | **Key-Value Store** | Persistent key-value storage | `KeyValue` API via `golem.wasi.KeyValue` |
 | **Blobstore** | Large binary object storage | `Blobstore` API via `golem.wasi.Blobstore` |
@@ -91,11 +91,11 @@ HostApi.setRetryPolicy(policy)
 ```
 
 The retry policy controls:
-- **maxAttempts** — How many times to retry before giving up
-- **minDelayNanos** — Starting delay between retries
-- **maxDelayNanos** — Maximum delay between retries
-- **multiplier** — Exponential backoff factor
-- **maxJitterFactor** — Random jitter to prevent thundering herd
+- **maxAttempts** — How many times to retry before giving up (Int)
+- **minDelayNanos** — Starting delay between retries (BigInt, nanoseconds)
+- **maxDelayNanos** — Maximum delay between retries (BigInt, nanoseconds)
+- **multiplier** — Exponential backoff factor (Double)
+- **maxJitterFactor** — Random jitter to prevent thundering herd (Option[Double])
 
 ## Persistence Level Control
 
@@ -143,18 +143,13 @@ import golem.HostApi
 val metadata = HostApi.getSelfMetadata()
 println(s"Agent ID: ${metadata.agentId}")
 println(s"Agent Type: ${metadata.agentType}")
+println(s"Status: ${metadata.status}")
 
-// Get metadata about a specific agent
-val otherMetadata = HostApi.getAgentMetadata("some-agent-id")
-otherMetadata.foreach { m =>
-  println(s"Agent Type: ${m.agentType}")
-}
+// Get metadata about another agent
+val otherMetadata = HostApi.getAgentMetadata(agentId)
 
-// List agent types (all registered types)
-val types = HostApi.getAllAgentTypes()
-
-// Update a specific agent to a new version
-HostApi.updateAgent("target-agent-id", targetVersion = BigInt(2), mode = HostApi.UpdateMode.Crash)
+// Trigger an update (after code deployment)
+HostApi.updateAgent(agentId, targetVersion, updateMode)
 ```
 
 ## Relational Database Access
