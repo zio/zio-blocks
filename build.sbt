@@ -238,7 +238,8 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
-    smithy
+    smithy,
+    `smithy-examples`
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -740,6 +741,16 @@ lazy val smithy = project
     ),
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 76
+  )
+
+lazy val `smithy-examples` = project
+  .settings(stdSettings("zio-blocks-smithy-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(smithy)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -1343,6 +1354,7 @@ lazy val docs = project
     openapi.jvm,
     html.jvm,
     datastar.jvm,
+    smithy,
     htmx.jvm
   )
   .enablePlugins(WebsitePlugin)

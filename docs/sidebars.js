@@ -130,11 +130,12 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "path-interpolator",
-           "reference/ringbuffer",
-           "reference/html",
-           "reference/datastar",
-           "reference/htmx",
-           {
+          "reference/ringbuffer",
+          "reference/html",
+          "reference/smithy",
+          "reference/datastar",
+          "reference/htmx",
+          {
             type: "category",
             label: "Streams",
            link: { type: "doc", id: "reference/streams/index" },

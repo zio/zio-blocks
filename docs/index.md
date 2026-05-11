@@ -631,6 +631,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
+- [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
 - [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
 - [Stream](./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
