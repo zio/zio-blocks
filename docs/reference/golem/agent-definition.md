@@ -1,0 +1,230 @@
+---
+id: agent-definition
+title: "AgentDefinition"
+---
+
+`AgentDefinition[T]` is the compile-time metadata descriptor for an agent type `T`. It encodes the agent's type name, durability mode, constructor, and method signatures. You don't construct `AgentDefinition` directly; the `@agentDefinition` macro generates it automatically.
+
+```scala
+type AgentDefinition[T] = runtime.autowire.AgentDefinition[T]
+```
+
+## Overview
+
+When you decorate a trait with `@agentDefinition`, the Scala 3 macro generates:
+1. A `AgentDefinition[Trait]` instance describing the agent type
+2. RPC request/response handlers
+3. WIT schema types and value codecs
+4. Agent metadata (name, durability mode, constructor info)
+
+You access the `AgentDefinition` when:
+- **Registering an implementation** via `AgentImplementation.registerClass[Trait, Impl]`
+- **Querying agent metadata** (type name, methods, parameters)
+- **Connecting as a client** via `AgentClient.agentType[Trait]`
+
+## Defining an Agent Type
+
+The simplest agent definition requires only the trait name:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+
+@agentDefinition
+trait Counter extends BaseAgent {
+  def increment(): scala.concurrent.Future[Int]
+  def get(): scala.concurrent.Future[Int]
+}
+```
+
+The macro infers:
+- **Type name** — From trait name (`Counter`)
+- **Durability mode** — Default is `Durable` (state persists)
+- **Constructor** — From inner `class Id` (if present)
+- **Methods** — All public methods returning `Future[A]`
+
+## Configuration Options
+
+### Mode: Durable vs. Ephemeral
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.{agentDefinition, DurabilityMode}
+import golem.BaseAgent
+
+// Durable (default): state persists, supports snapshots
+@agentDefinition(mode = DurabilityMode.Durable)
+trait StatefulCounter extends BaseAgent {
+  def increment(): scala.concurrent.Future[Int]
+}
+
+// Ephemeral: fresh instance per invocation, stateless
+@agentDefinition(mode = DurabilityMode.Ephemeral)
+trait StatelessCompute extends BaseAgent {
+  def compute(x: Int): scala.concurrent.Future[Int]
+}
+```
+
+**Durable agents** are ideal for:
+- Stateful applications (counters, accounts, queues)
+- Operations requiring durability guarantees
+- Agents using snapshots for persistence
+
+**Ephemeral agents** are ideal for:
+- Stateless computations (pure functions)
+- Data transformations
+- APIs with no persistent state
+
+### Mount: HTTP Endpoint Mounting
+
+Expose agent methods as HTTP endpoints:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+
+@agentDefinition(mount = "/counters/{id}")
+trait Counter extends BaseAgent {
+  class Id(val id: String)
+  def increment(): scala.concurrent.Future[Int]
+}
+```
+
+With HTTP mounting:
+- Constructor parameters become **path variables** (e.g., `{id}` → `id: String`)
+- Method parameters become **query strings** or **request body**
+- Methods are exposed as POST endpoints
+
+### Custom Type Name
+
+Override the inferred type name:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+
+@agentDefinition(typeName = "custom-counter")
+trait Counter extends BaseAgent {
+  def get(): scala.concurrent.Future[Int]
+}
+```
+
+The default type name is the trait name. Override when you need namespace separation (e.g., "my.company.Counter").
+
+## Method Annotations
+
+Decorate methods with metadata:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.{agentDefinition, description, prompt, endpoint}
+import golem.BaseAgent
+
+@agentDefinition
+trait MyAgent extends BaseAgent {
+  @description("Increment the counter by one")
+  def increment(): scala.concurrent.Future[Int]
+  
+  @prompt("Summarize the state of the agent")
+  def summarize(): scala.concurrent.Future[String]
+  
+  @endpoint("GET", "/api/status")
+  def getStatus(): scala.concurrent.Future[String]
+}
+```
+
+| Annotation | Purpose |
+|------------|---------|
+| `@description` | Human-readable method description (appears in metadata) |
+| `@prompt` | LLM prompt hint (for AI-driven agent invocation) |
+| `@endpoint` | HTTP endpoint (method, path) for HTTP mounting |
+
+## Custom Constructor Types
+
+Agents can require constructor parameters by declaring an inner `class Id`:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+import zio.blocks.schema.Schema
+
+case class UserId(value: String) derives Schema
+
+@agentDefinition
+trait UserAgent extends BaseAgent {
+  class Id(val userId: UserId)
+  def getName(): scala.concurrent.Future[String]
+}
+```
+
+Constructor parameters must have `Schema` instances (derive via `derives Schema` or `Schema.derived`).
+
+## Registering an Implementation
+
+Once you have an `AgentDefinition`, register the implementation:
+
+```scala mdoc:compile-only
+import golem.runtime.annotations.agentImplementation
+import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
+import golem.BaseAgent
+
+@agentDefinition
+trait Counter extends BaseAgent {
+  def increment(): scala.concurrent.Future[Int]
+}
+
+@agentImplementation()
+class CounterImpl() extends Counter {
+  private var count = 0
+  override def increment(): scala.concurrent.Future[Int] =
+    scala.concurrent.Future.successful { count += 1; count }
+}
+
+object CounterModule {
+  val definition: AgentDefinition[Counter] =
+    AgentImplementation.registerClass[Counter, CounterImpl]
+}
+```
+
+The `registerClass` macro:
+1. Validates that `CounterImpl` implements all methods of `Counter`
+2. Generates RPC request/response handlers
+3. Encodes the schema for all parameter/return types
+4. Returns the `AgentDefinition[Counter]` for agent registration
+
+## Querying Agent Type Information
+
+Access metadata from the generated definition:
+
+```scala mdoc:compile-only
+import golem.runtime.autowire.AgentDefinition
+
+def printAgentInfo[T](defn: AgentDefinition[T]): Unit = {
+  println(s"Type: ${defn.name}")
+  println(s"Methods: ${defn.methods}")
+}
+```
+
+## Client-Side Usage
+
+When connecting to a remote agent, use the agent type:
+
+```scala mdoc:compile-only
+import golem.runtime.rpc.AgentClient
+
+val agentType = AgentClient.agentType[Counter]
+// agentType provides: type name, method signatures, schema info
+```
+
+## Relation to Other Types
+
+- **`BaseAgent`** — The trait you extend; decorated with `@agentDefinition`
+- **`AgentImplementation`** — Used to register implementations and generate RPC handlers
+- **`AgentClient`** — Uses the agent type to construct remote client proxies
+- **`GolemSchema`** — Encodes/decodes all parameter and return types
+
+## Best Practices
+
+- **Keep agents focused** — One responsibility per agent type
+- **Use descriptive names** — Trait names become type names; choose clearly
+- **Document with `@description`** — Helps other developers and tooling understand your agent
+- **Use `@prompt` for AI agents** — Provides context for LLM-driven invocation
+- **Prefer constructor simplicity** — Use primitive/simple types in `Id` class

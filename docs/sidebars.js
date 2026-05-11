@@ -148,6 +148,21 @@ const sidebars = {
              "reference/streams/zero-boxing",
            ]
          },
+         {
+           type: "category",
+           label: "Golem SDK",
+           link: { type: "doc", id: "reference/golem/index" },
+           items: [
+             "reference/golem/base-agent",
+             "reference/golem/agent-definition",
+             "reference/golem/host-api",
+             "reference/golem/golem-schema",
+             "reference/golem/transactions",
+             "reference/golem/result",
+             "reference/golem/configuration",
+             "reference/golem/examples",
+           ]
+         },
       ]
     },
     {
