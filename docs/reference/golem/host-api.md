@@ -5,7 +5,7 @@ title: "HostApi"
 
 `HostApi` is the primary Scala.js interface for accessing Golem's runtime APIs. It provides methods to inspect and control agent execution, durability, persistence, and oplog behavior. All methods are final wrappers around the underlying WebAssembly host interface.
 
-```scala
+```scala mdoc:compile-only
 object HostApi {
   def getOplogIndex(): OplogIndex
   def markBeginOperation(): OplogIndex

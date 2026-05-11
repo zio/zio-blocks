@@ -5,7 +5,7 @@ title: "Result"
 
 `Result[Ok, Err]` is a WIT-compatible error type for representing success or failure. It's analogous to Rust's `Result<T, E>` and provides first-class support for error handling in Golem agents. It differs from Scala's `Either[L, R]` in that it's designed for WebAssembly component model serialization.
 
-```scala
+```scala mdoc:compile-only
 object Result {
   type Result[+Ok, +Err] = WitResult[Ok, Err]
 
@@ -112,7 +112,7 @@ trait Calculator extends BaseAgent {
 
 Clients receive the result and can act accordingly:
 
-```scala
+```scala mdoc:compile-only
 import scala.concurrent.Future
 import golem.Result
 
@@ -212,7 +212,7 @@ val error: String = result.unwrapErr() // Throws on success
 
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
-```scala
+```scala mdoc:compile-only
 import golem.runtime.wit.WitResult
 import scala.concurrent.Future
 

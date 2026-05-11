@@ -3,9 +3,11 @@ id: index
 title: "Golem SDK"
 ---
 
-The **ZIO-Golem SDK** is a type-safe Scala library for building agents on the Golem platform. It provides trait-based agent definitions, compile-time macro derivation, and seamless integration with Golem's durability, RPC, and persistence features. Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
+The **ZIO-Golem SDK** is a type-safe Scala library for building agents on the Golem platform. It provides trait-based agent definitions, compile-time macro derivation, and seamless integration with Golem's durability, RPC, and persistence features. 
 
-```scala
+Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
+
+```scala mdoc:compile-only
 // Define an agent interface
 @agentDefinition
 trait Counter extends BaseAgent {

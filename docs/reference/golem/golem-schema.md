@@ -129,7 +129,7 @@ The macro handles this automatically; you only need to know it exists.
 
 For types where derive doesn't work, provide an implicit manually:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.Schema
 import golem.{GolemSchema, StructuredSchema, StructuredValue}
 
@@ -204,7 +204,7 @@ case class Team(
 
 Encoding/decoding can fail:
 
-```scala
+```scala mdoc:compile-only
 import golem.data.GolemSchema
 
 case class Strict(x: Int) derives zio.blocks.schema.Schema

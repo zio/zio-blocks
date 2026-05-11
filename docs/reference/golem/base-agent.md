@@ -5,7 +5,7 @@ title: "BaseAgent"
 
 `BaseAgent` is the foundational trait that all Golem agents must extend. It provides access to agent identity information at runtime and serves as the type marker for agent definitions.
 
-```scala
+```scala mdoc:compile-only
 trait BaseAgent {
   final def agentId: String = ???
   final def agentType: String = ???

@@ -51,7 +51,7 @@ The Golem runtime injects these values at agent startup.
 
 Use the `Config` API to access configuration:
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.Config
 import scala.concurrent.Future
 
