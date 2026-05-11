@@ -56,7 +56,7 @@ val head    = RoutePattern.HEAD
 val options = RoutePattern.OPTIONS
 ```
 
-These are equivalent to `RoutePattern(Method.GET)` etc., with an empty path codec.
+These are equivalent to `RoutePattern(Method.GET)` etc., with an empty path codec. Additional constants like `CONNECT` and `TRACE` are also available for the complete set of HTTP methods.
 
 ### From a `Path` value
 
