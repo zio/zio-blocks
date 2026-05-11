@@ -50,14 +50,15 @@ import scala.concurrent.duration._
   println(s"  Trigger: ${HxTrigger.input.delay(500.millis).changed.render}")
   println(s"  Element: $debouncedSearch\n")
 
-  // Example 2: Rate-limited polling with throttle
-  println("2. Rate-limited polling (at most 1 request per second):")
-  val throttledStatus = div(
+  // Example 2: Rate-limited input with throttle
+  println("2. Rate-limited input events (at most 1 request per second):")
+  val throttledStatus = input(
     id        := "status",
+    `type`    := "text",
     hxPost    := "/api/status",
     hxTrigger := HxTrigger.input.throttle(1.second),
-    hxSwap    := HxSwap.InnerHTML,
-    "Typing status..."
+    hxSwap    := HxSwap.OuterHTML,
+    placeholder := "Type slowly..."
   )
   println(s"  Trigger: ${HxTrigger.input.throttle(1.second).render}")
   println(s"  Element: $throttledStatus\n")
@@ -113,7 +114,7 @@ import scala.concurrent.duration._
     li("Item 2"),
     li("Item 3")
   )
-  println(s"  Trigger: ${HxTrigger.click.target("li").render}")
+  println(s"""  Trigger: ${HxTrigger.click.target("li").render}""")
   println(s"  Element: $eventDelegation\n")
 
   // Example 7: JavaScript filtering
@@ -126,7 +127,7 @@ import scala.concurrent.duration._
     hxTarget    := HxTarget.next("div"),
     hxSwap      := HxSwap.InnerHTML
   )
-  println(s"  Trigger: ${HxTrigger.input.filter(Js("event.target.value.length > 2")).render}")
+  println(s"""  Trigger: ${HxTrigger.input.filter(Js("event.target.value.length > 2")).render}""")
   println(s"  Element: $filteredTrigger\n")
 
   // Example 8: Source control with from modifier
@@ -145,7 +146,7 @@ import scala.concurrent.duration._
       "Search"
     )
   )
-  println(s"  Button trigger: ${HxTrigger.click.from("#query-input").render}")
+  println(s"""  Button trigger: ${HxTrigger.click.from("#query-input").render}""")
   println(s"  Element: $sourceControl\n")
 
   // Example 9: Intersection observer with threshold
@@ -177,7 +178,7 @@ import scala.concurrent.duration._
     hxSwap   := HxSwap.InnerHTML.transition.settle(250.millis)
   )
   println(
-    s"  Complex trigger: ${HxTrigger.input.delay(500.millis).throttle(1.second).changed.filter(Js("event.target.value.trim().length > 0")).render}"
+    s"""  Complex trigger: ${HxTrigger.input.delay(500.millis).throttle(1.second).changed.filter(Js("event.target.value.trim().length > 0")).render}"""
   )
   println(s"  Swap: ${HxSwap.InnerHTML.transition.settle(250.millis).render}")
   println(s"  Element: $complexChain\n")
