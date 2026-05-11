@@ -193,17 +193,23 @@ object Cookie {
     sb.toString
   }
 
-  def renderResponse(cookie: ResponseCookie): String = {
+  def renderResponse(cookie: ResponseCookie): String =
+    renderResponseEither(cookie) match {
+      case Right(value) => value
+      case Left(err)    => throw new IllegalArgumentException(err)
+    }
+
+  def renderResponseEither(cookie: ResponseCookie): Either[String, String] = {
     validateCookieName(cookie.name) match {
-      case Left(err) => throw new IllegalArgumentException(err)
+      case Left(err) => return Left(err)
       case Right(()) => ()
     }
     validateCookieValue(cookie.value) match {
-      case Left(err) => throw new IllegalArgumentException(err)
+      case Left(err) => return Left(err)
       case Right(()) => ()
     }
     if (cookie.sameSite.contains(SameSite.None_) && !cookie.isSecure) {
-      throw new IllegalArgumentException("SameSite=None cookies must also be Secure")
+      return Left("SameSite=None cookies must also be Secure")
     }
 
     val sb = new StringBuilder
@@ -235,7 +241,7 @@ object Cookie {
       case CookiePriority.High   => sb.append("; Priority=High")
     }
 
-    sb.toString
+    Right(sb.toString)
   }
 
   private def validateCookieName(name: String): Either[String, Unit] = {

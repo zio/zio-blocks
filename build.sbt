@@ -140,9 +140,21 @@ lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
 
+lazy val docJSScala2Batch1Command =
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+
+lazy val docJSScala2Batch2Command =
+  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+
+lazy val docJSScala3Batch1Command =
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
+
+lazy val docJSScala3Batch2Command =
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
@@ -164,6 +176,8 @@ commands ++= Seq(
   commandForScalaVersion("testJS1", testJS1Scala2Command, testJS1Scala3Command),
   commandForScalaVersion("testJS2", testJS2Scala2Command, testJS2Scala3Command),
   commandForScalaVersion("docJVM", docJVMScala2Command, docJVMScala3Command),
+  commandForScalaVersion("docJS1", docJSScala2Batch1Command, docJSScala3Batch1Command),
+  commandForScalaVersion("docJS2", docJSScala2Batch2Command, docJSScala3Batch2Command),
   commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
 )
 
@@ -239,7 +253,8 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
-    smithy
+    smithy,
+    `smithy-examples`
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -449,6 +464,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     })
   )
   .jsSettings(
+    Compile / doc / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => (Compile / sources).value
+        case _            => Nil
+      }
+    },
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
       "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
@@ -752,6 +773,16 @@ lazy val smithy = project
     ),
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 76
+  )
+
+lazy val `smithy-examples` = project
+  .settings(stdSettings("zio-blocks-smithy-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(smithy)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
@@ -1355,6 +1386,7 @@ lazy val docs = project
     openapi.jvm,
     html.jvm,
     datastar.jvm,
+    smithy,
     htmx.jvm
   )
   .enablePlugins(WebsitePlugin)

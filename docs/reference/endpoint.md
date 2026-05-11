@@ -66,6 +66,25 @@ val endpoint = Endpoint(Method.POST / "users")
   .outError(Status.BadRequest, Schema.string)
 ```
 
+Custom header codecs can be threaded through the endpoint DSL without defining a dedicated `Header` subtype:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.{Header, Method}
+
+object TraceIdHeader extends Header.Codec[String] {
+  def name: String = "x-trace-id"
+  def parse(value: String): Either[String, String] =
+    if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+  def render(value: String): String = value
+}
+
+val endpointWithHeaders = Endpoint(Method.GET / "users")
+  .header(TraceIdHeader)
+  .outHeader(TraceIdHeader)
+```
+
 ## Scala 3 union errors with `orOutError`
 
 On Scala 3, `orOutError` lets you accumulate error outputs into a real union type instead of nested `Either`s.

@@ -36,20 +36,33 @@ final class Headers private[http] (
   val size: Int
 ) {
 
+  private def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
+    left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
   def isEmpty: Boolean  = size == 0
   def nonEmpty: Boolean = size > 0
 
-  def get[H <: Header](headerType: Header.Typed[H]): Option[H] = {
-    val target = headerType.name
+  /**
+   * Decodes the first header matching the supplied codec.
+   *
+   * Matching is case-insensitive by header name. Parsed values are cached per
+   * header entry and codec instance so different codecs with the same name do
+   * not reuse each other's cached values.
+   */
+  def get[A](headerCodec: Header.Codec[A]): Option[A] = {
+    val target = headerCodec.name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
       if (names(i) == target) {
-        val cached = parsed(i)
-        if (cached ne null) return Some(cached.asInstanceOf[H])
-        headerType.parse(rawValues(i)) match {
-          case Right(h) =>
-            parsed(i) = h.asInstanceOf[AnyRef]
-            return Some(h)
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            return Some(cached.value.asInstanceOf[A])
+          case _ =>
+        }
+        headerCodec.parse(rawValues(i)) match {
+          case Right(value) =>
+            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+            return Some(value)
           case Left(_) => // skip unparseable, continue scanning
         }
       }
@@ -69,6 +82,17 @@ final class Headers private[http] (
     None
   }
 
+  def rawGetLast(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    var i      = size - 1
+    while (i >= 0) {
+      if (names(i) == target) return Some(rawValues(i))
+      i -= 1
+    }
+    None
+  }
+
   def rawGetAll(name: String): Chunk[String] = {
     Headers.validateNameOrThrow(name)
     val target  = name.toLowerCase(Locale.ROOT)
@@ -81,28 +105,42 @@ final class Headers private[http] (
     builder.result()
   }
 
-  def getAll[H <: Header](headerType: Header.Typed[H]): Chunk[H] = {
-    val target  = headerType.name
-    val builder = Chunk.newBuilder[H]
+  /**
+   * Decodes all headers matching the supplied codec.
+   *
+   * Values are returned in header order. Entries that fail to parse for the
+   * requested codec are skipped, and cached values are reused only when they
+   * were produced by the same codec instance.
+   */
+  def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
+    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
       if (names(i) == target) {
-        val cached = parsed(i)
-        if (cached ne null) {
-          builder += cached.asInstanceOf[H]
-        } else {
-          headerType.parse(rawValues(i)) match {
-            case Right(h) =>
-              parsed(i) = h.asInstanceOf[AnyRef]
-              builder += h
-            case Left(_) => // skip unparseable entries
-          }
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            builder += cached.value.asInstanceOf[A]
+          case _ =>
+            headerCodec.parse(rawValues(i)) match {
+              case Right(value) =>
+                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+                builder += value
+              case Left(_) => // skip unparseable entries
+            }
         }
       }
       i += 1
     }
     builder.result()
   }
+
+  def getLast[H <: Header](headerType: Header.Typed[H]): Option[H] = {
+    val all = getAll(headerType)
+    if (all.isEmpty) None else Some(all(all.length - 1))
+  }
+
+  def add(header: Header): Headers = add(header.headerName, header.renderedValue)
 
   def add(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
@@ -131,6 +169,8 @@ final class Headers private[http] (
     builder.add(lowerName, value)
     builder.build()
   }
+
+  def set(header: Header): Headers = set(header.headerName, header.renderedValue)
 
   def remove(name: String): Headers = {
     Headers.validateNameOrThrow(name)
@@ -215,6 +255,8 @@ final class Headers private[http] (
 }
 
 object Headers {
+  private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
+
   val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
 
   /**

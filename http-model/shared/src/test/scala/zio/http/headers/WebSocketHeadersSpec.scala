@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 
 object WebSocketHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("WebSocketHeaders")(
@@ -98,6 +99,11 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(SecWebSocketProtocol(Chunk("chat")).headerName == "sec-websocket-protocol")
+      },
+      test("varargs apply builds websocket protocol list") {
+        assertTrue(
+          SecWebSocketProtocol("chat", "superchat") == SecWebSocketProtocol(Chunk("chat", "superchat"))
+        )
       }
     ),
     suite("SecWebSocketVersion")(

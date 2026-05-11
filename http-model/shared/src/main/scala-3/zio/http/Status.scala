@@ -71,6 +71,7 @@ object Status {
   val LengthRequired: Status              = 411
   val PreconditionFailed: Status          = 412
   val PayloadTooLarge: Status             = 413
+  val RequestEntityTooLarge: Status       = 413
   val UriTooLong: Status                  = 414
   val UnsupportedMediaType: Status        = 415
   val RangeNotSatisfiable: Status         = 416

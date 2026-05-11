@@ -87,6 +87,16 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
   def asString(charset: Charset = Charset.UTF8): String =
     new String(toArray, charset.name)
 
+  /**
+   * Decodes the body using the charset declared in the content type when
+   * present.
+   */
+  def asStringFromContentType: String =
+    asString(contentType.charset.getOrElse(Charset.UTF8))
+
+  /** Alias for [[asStringFromContentType]]. */
+  def text: String = asStringFromContentType
+
   override def toString: String =
     s"Body(length=${length.map(_.toString).getOrElse("unknown")}, contentType=$contentType)"
 }

@@ -16,10 +16,24 @@
 
 package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 
 object HeadersSpec extends HttpModelBaseSpec {
+  private object TraceIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-trace-id"
+    def parse(value: String): Either[String, String] =
+      if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+    def render(value: String): String = value
+  }
+
+  private object TraceIdLengthHeader extends Header.Codec[Int] {
+    def name: String                              = "x-trace-id"
+    def parse(value: String): Either[String, Int] =
+      if (value.startsWith("trace-")) Right(value.length) else Left("trace id must start with trace-")
+    def render(value: Int): String = "trace-" + value.toString
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
     suite("empty")(
       test("is empty") {
@@ -104,59 +118,122 @@ object HeadersSpec extends HttpModelBaseSpec {
     suite("get (typed)")(
       test("parses ContentType header") {
         val h      = Headers("Content-Type" -> "text/html")
-        val result = h.get(headers.ContentType)
+        val result = h.get(Header.ContentType)
         assertTrue(result.isDefined)
       },
       test("parses ContentLength header") {
         val h      = Headers("Content-Length" -> "42")
-        val result = h.get(headers.ContentLength)
-        assertTrue(result == Some(headers.ContentLength(42L)))
+        val result = h.get(Header.ContentLength)
+        assertTrue(result == Some(Header.ContentLength(42L)))
       },
       test("parses Host header") {
         val h      = Headers("Host" -> "example.com:8080")
-        val result = h.get(headers.Host)
-        assertTrue(result == Some(headers.Host("example.com", Some(8080))))
+        val result = h.get(Header.Host)
+        assertTrue(result == Some(Header.Host("example.com", Some(8080))))
       },
       test("returns None for missing header type") {
         val h = Headers("accept" -> "text/html")
-        assertTrue(h.get(headers.ContentLength) == None)
+        assertTrue(h.get(Header.ContentLength) == None)
       },
       test("returns None when parse fails") {
         val h = Headers("content-length" -> "not-a-number")
-        assertTrue(h.get(headers.ContentLength) == None)
+        assertTrue(h.get(Header.ContentLength) == None)
       },
       test("caches parsed result on second call") {
         val h      = Headers("Content-Length" -> "42")
-        val first  = h.get(headers.ContentLength)
-        val second = h.get(headers.ContentLength)
+        val first  = h.get(Header.ContentLength)
+        val second = h.get(Header.ContentLength)
         assertTrue(
-          first == Some(headers.ContentLength(42L)),
-          second == Some(headers.ContentLength(42L))
+          first == Some(Header.ContentLength(42L)),
+          second == Some(Header.ContentLength(42L))
+        )
+      },
+      test("parses custom header codec without Header subtype") {
+        val h      = Headers("X-Trace-Id" -> "trace-123")
+        val result = h.get(TraceIdHeader)
+        assertTrue(result == Some("trace-123"))
+      },
+      test("keeps built-in convenience header values working through Header.Codec") {
+        val h = Headers(
+          "Access-Control-Allow-Headers"     -> "*",
+          "Access-Control-Allow-Credentials" -> "true"
+        )
+        assertTrue(
+          h.get(Header.AccessControlAllowHeaders) == Some(Header.AccessControlAllowHeaders.All),
+          h.get(Header.AccessControlAllowCredentials) == Some(Header.AccessControlAllowCredentials.Allow)
+        )
+      },
+      test("does not reuse cached value across codecs with the same header name") {
+        val h      = Headers("X-Trace-Id" -> "trace-123")
+        val first  = h.get(TraceIdHeader)
+        val second = h.get(TraceIdLengthHeader)
+        val third  = h.get(TraceIdHeader)
+        assertTrue(
+          first == Some("trace-123"),
+          second == Some(9),
+          third == Some("trace-123")
         )
       }
     ),
     suite("getAll")(
       test("returns all matching entries") {
         val h       = Headers("Set-Cookie" -> "a=1", "Host" -> "example.com", "Set-Cookie" -> "b=2")
-        val cookies = h.getAll(headers.SetCookieHeader)
+        val cookies = h.getAll(Header.SetCookieHeader)
         assertTrue(
           cookies.length == 2,
-          cookies(0) == headers.SetCookieHeader("a=1"),
-          cookies(1) == headers.SetCookieHeader("b=2")
+          cookies(0) == Header.SetCookieHeader("a=1"),
+          cookies(1) == Header.SetCookieHeader("b=2")
         )
       },
       test("returns empty Chunk when no matches") {
         val h       = Headers("content-type" -> "text/html")
-        val cookies = h.getAll(headers.SetCookieHeader)
+        val cookies = h.getAll(Header.SetCookieHeader)
         assertTrue(cookies.isEmpty)
       },
       test("returns single-element Chunk for one match") {
         val h     = Headers("Host" -> "example.com")
-        val hosts = h.getAll(headers.Host)
+        val hosts = h.getAll(Header.Host)
         assertTrue(
           hosts.length == 1,
-          hosts(0) == headers.Host("example.com", None)
+          hosts(0) == Header.Host("example.com", None)
         )
+      },
+      test("returns all matching custom header codec values") {
+        val h      = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-2")
+        val traces = h.getAll(TraceIdHeader)
+        assertTrue(traces == Chunk("trace-1", "trace-2"))
+      },
+      test("does not reuse cached values across getAll codecs with the same header name") {
+        val h       = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-22")
+        val strings = h.getAll(TraceIdHeader)
+        val lengths = h.getAll(TraceIdLengthHeader)
+        val again   = h.getAll(TraceIdHeader)
+        assertTrue(
+          strings == Chunk("trace-1", "trace-22"),
+          lengths == Chunk(7, 8),
+          again == Chunk("trace-1", "trace-22")
+        )
+      }
+    ),
+    suite("getLast")(
+      test("returns the last matching typed header") {
+        val h      = Headers("Set-Cookie" -> "a=1", "Set-Cookie" -> "b=2")
+        val cookie = h.getLast(Header.SetCookieHeader)
+        assertTrue(cookie == Some(Header.SetCookieHeader("b=2")))
+      },
+      test("returns None when no matching typed header exists") {
+        val h = Headers("content-type" -> "text/html")
+        assertTrue(h.getLast(Header.SetCookieHeader).isEmpty)
+      }
+    ),
+    suite("rawGetLast")(
+      test("returns the last raw header value") {
+        val h = Headers("Set-Cookie" -> "a=1", "Set-Cookie" -> "b=2")
+        assertTrue(h.rawGetLast("set-cookie") == Some("b=2"))
+      },
+      test("returns None when header is missing") {
+        val h = Headers("content-type" -> "text/html")
+        assertTrue(h.rawGetLast("set-cookie").isEmpty)
       }
     ),
     suite("add")(
@@ -180,11 +257,24 @@ object HeadersSpec extends HttpModelBaseSpec {
       },
       test("does not carry parsed cache") {
         val h  = Headers("Content-Length" -> "42")
-        val _  = h.get(headers.ContentLength) // trigger parse
+        val _  = h.get(Header.ContentLength) // trigger parse
         val h2 = h.add("accept", "text/html")
         // h2 is a fresh Headers, its parsed cache is all-null
         // but get should still work after re-parsing
-        assertTrue(h2.get(headers.ContentLength) == Some(headers.ContentLength(42L)))
+        assertTrue(h2.get(Header.ContentLength) == Some(Header.ContentLength(42L)))
+      }
+    ),
+    suite("typed add/set")(
+      test("add accepts a typed header") {
+        val h = Headers.empty.add(Header.Host("example.com", Some(8080)))
+        assertTrue(h.get(Header.Host) == Some(Header.Host("example.com", Some(8080))))
+      },
+      test("set accepts a typed header") {
+        val h = Headers("host" -> "old.example.com").set(Header.Host("example.com", Some(8080)))
+        assertTrue(
+          h.get(Header.Host) == Some(Header.Host("example.com", Some(8080))),
+          h.size == 1
+        )
       }
     ),
     suite("set")(

@@ -102,7 +102,7 @@ final class ServerSentEvent[+A] private (
   }
 
   override def toString: String =
-    s"ServerSentEvent(data=$data, event=$eventType, id=$eventId, retry=$retryMillis)"
+    s"ServerSentEvent(data=$data, event=${eventType.fold("null")(identity)}, id=${eventId.fold("null")(identity)}, retry=${retryMillis.fold("null")(_.toString)})"
 }
 
 object ServerSentEvent {
