@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 /**
  * Describes how Datastar should patch rendered content into the target element.

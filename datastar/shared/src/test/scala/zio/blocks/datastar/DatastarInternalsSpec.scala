@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.html.{CssSelector, Dom, ToJs, _}
+import zio.blocks.html._
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.Schema
 import zio.test._
@@ -69,7 +69,7 @@ object DatastarInternalsSpec extends ZIOSpecDefault {
       },
       test("raw String is rejected in Datastar expression positions") {
         typeCheck("""
-          import zio.blocks.datastar._
+          import zio.http.datastar._
           ToDatastarExpr[String]
         """).map { result =>
           assertTrue(result.isLeft) &&

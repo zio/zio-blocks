@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 /**
  * Modifies how a Datastar attribute key is cased when rendered by the DSL.

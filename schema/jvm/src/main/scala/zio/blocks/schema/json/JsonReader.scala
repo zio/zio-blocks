@@ -1606,6 +1606,7 @@ final class JsonReader private[json] (
    * @throws JsonCodecError
    *   in cases of reaching the end of input
    */
+  @noinline
   def skip(): Unit = {
     val b   = nextToken(head)
     var pos = head
@@ -1657,7 +1658,6 @@ final class JsonReader private[json] (
    * @return
    *   true if the reader is in use, false otherwise
    */
-  @inline
   private[json] def isInUse: Boolean = top >= 0
 
   /**
@@ -2337,15 +2337,33 @@ final class JsonReader private[json] (
       var buf = this.buf
       var dec = 0
       while (
-        x > -214748 && (pos + 3 < tail || {
+        (x > -214748 && (pos + 3 < tail || {
           pos = loadMore(pos)
           buf = this.buf
           pos + 3 < tail
+        }) || {
+          while (
+            (pos < tail || {
+              pos = loadMore(pos)
+              buf = this.buf
+              pos < tail
+            }) && {
+              b = buf(pos)
+              b >= '0' && b <= '9'
+            }
+          ) {
+            if (
+              x < -214748364 || {
+                x = x * 10 + ('0' - b)
+                x > 0
+              }
+            ) intOverflowError()
+            pos += 1
+          }
+          false
         }) && {
-          dec = ByteArrayAccess.getInt(
-            buf,
-            pos
-          ) - 0x30303030 // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+          // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+          dec = ByteArrayAccess.getInt(buf, pos) - 0x30303030
           ((dec + 0x76767676 | dec) & 0x80808080) == 0 || {
             var d = 0
             while ({
@@ -2357,6 +2375,7 @@ final class JsonReader private[json] (
               dec >>= 8
               pos += 1
             }
+            b = (d + 0x30).toByte
             false
           }
         }
@@ -2365,24 +2384,6 @@ final class JsonReader private[json] (
         x *= 10000
         x -= dec
         pos += 4
-      }
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
-        }
-      ) {
-        if (
-          x < -214748364 || {
-            x = x * 10 + ('0' - b)
-            x > 0
-          }
-        ) intOverflowError()
-        pos += 1
       }
       head = pos
       x ^= s
@@ -2410,15 +2411,33 @@ final class JsonReader private[json] (
       var buf = this.buf
       var dec = 0
       while (
-        x > -922337203685477L && (pos + 3 < tail || {
+        (x > -922337203685477L && (pos + 3 < tail || {
           pos = loadMore(pos)
           buf = this.buf
           pos + 3 < tail
+        }) || {
+          while (
+            (pos < tail || {
+              pos = loadMore(pos)
+              buf = this.buf
+              pos < tail
+            }) && {
+              b = buf(pos)
+              b >= '0' && b <= '9'
+            }
+          ) {
+            if (
+              x < -922337203685477580L || {
+                x = x * 10 + ('0' - b)
+                x > 0
+              }
+            ) longOverflowError()
+            pos += 1
+          }
+          false
         }) && {
-          dec = ByteArrayAccess.getInt(
-            buf,
-            pos
-          ) - 0x30303030 // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+          // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+          dec = ByteArrayAccess.getInt(buf, pos) - 0x30303030
           ((dec + 0x76767676 | dec) & 0x80808080) == 0 || {
             var d = 0
             while ({
@@ -2430,6 +2449,7 @@ final class JsonReader private[json] (
               dec >>= 8
               pos += 1
             }
+            b = (d + 0x30).toByte
             false
           }
         }
@@ -2438,24 +2458,6 @@ final class JsonReader private[json] (
         x *= 10000
         x -= dec
         pos += 4
-      }
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
-        }
-      ) {
-        if (
-          x < -922337203685477580L || {
-            x = x * 10 + ('0' - b)
-            x > 0
-          }
-        ) longOverflowError()
-        pos += 1
       }
       head = pos
       x ^= s
@@ -2466,6 +2468,7 @@ final class JsonReader private[json] (
     x
   }
 
+  @noinline
   private[this] def ensureNotLeadingZero(): Unit = {
     var pos = head
     if (
@@ -2531,15 +2534,32 @@ final class JsonReader private[json] (
         var noFracDigits = true
         var dec          = 0
         while (
-          m10 < 922337203685477L && (pos + 3 < tail || {
+          (m10 < 922337203685477L && (pos + 3 < tail || {
             pos = loadMore(pos)
             buf = this.buf
             pos + 3 < tail
+          }) || {
+            while (
+              (pos < tail || {
+                pos = loadMore(pos)
+                buf = this.buf
+                pos < tail
+              }) && {
+                b = buf(pos)
+                b >= '0' && b <= '9'
+              }
+            ) {
+              if (m10 < 922337203685477580L) {
+                m10 = m10 * 10 + (b - '0')
+                digits += 1
+              }
+              noFracDigits = false
+              pos += 1
+            }
+            false
           }) && {
-            dec = ByteArrayAccess.getInt(
-              buf,
-              pos
-            ) - 0x30303030 // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+            // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+            dec = ByteArrayAccess.getInt(buf, pos) - 0x30303030
             ((dec + 0x76767676 | dec) & 0x80808080) == 0 || {
               var d = 0
               while ({
@@ -2553,6 +2573,7 @@ final class JsonReader private[json] (
                 dec >>= 8
                 pos += 1
               }
+              b = (d + 0x30).toByte
               false
             }
           }
@@ -2563,23 +2584,6 @@ final class JsonReader private[json] (
           noFracDigits = false
           digits += 4
           pos += 4
-        }
-        while (
-          (pos < tail || {
-            pos = loadMore(pos)
-            buf = this.buf
-            pos < tail
-          }) && {
-            b = buf(pos)
-            b >= '0' && b <= '9'
-          }
-        ) {
-          if (m10 < 922337203685477580L) {
-            m10 = m10 * 10 + (b - '0')
-            digits += 1
-          }
-          noFracDigits = false
-          pos += 1
         }
         e10 -= digits
         if (noFracDigits) numberError()
@@ -3487,8 +3491,9 @@ final class JsonReader private[json] (
     else Instant.ofEpochSecond(epochSecond, nano.toLong)
   }
 
-  private[this] def parseSecondOfDay(pos: Int): Long =
-    (parseHourWithColon(pos) * 3600 + parseMinuteWithColon(head) * 60 + parseSecond(head)).toLong
+  @noinline
+  private[this] def parseSecondOfDay(pos: Int): Int =
+    parseHourWithColon(pos) * 3600 + parseMinuteWithColon(head) * 60 + parseSecond(head)
 
   private[this] def parseLocalDate(isRaw: Boolean): LocalDate = {
     val year       = parseYearWithByte('-', head)
@@ -4381,6 +4386,7 @@ final class JsonReader private[json] (
     } else ZoneOffset.ofTotalSeconds((offsetTotal ^ s) - s)
   }
 
+  @inline
   private[this] def epochDay(year: Int, month: Int, day: Int): Long =
     year * 365L + ((year + 3 >> 2) - {
       val cp = year * 1374389535L
@@ -4391,18 +4397,18 @@ final class JsonReader private[json] (
        else if (isLeap(year)) -719530
        else -719531) + day) // 719528 == days 0000 to 1970)
 
-  @inline
+  @noinline
   private[this] def maxDayForYearMonth(year: Int, month: Int): Int =
     if (month != 2) month >> 3 ^ (month | 0x1e)
     else if (isLeap(year)) 29
     else 28
 
-  @inline
+  @noinline
   private[this] def maxDayForMonth(month: Int): Int =
     if (month != 2) month >> 3 ^ (month | 0x1e)
     else 29
 
-  @inline
+  @noinline
   private[this] def isLeap(year: Int): Boolean =
     (year & 0x3) == 0 && (year * -1030792151 - 2061584303 > -1975684958 || (year & 0xf) == 0) // year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
 
@@ -4904,15 +4910,18 @@ final class JsonReader private[json] (
     else skipFixedBytes(n, loadMoreOrError(pos))
   }
 
+  @noinline
   private[this] def loadMoreOrError(pos: Int): Int = {
     if ((bbuf eq null) && (in eq null)) endOfInputError()
     loadMore(pos, throwOnEndOfInput = true)
   }
 
+  @noinline
   private[this] def loadMore(pos: Int): Int =
     if ((bbuf eq null) && (in eq null)) pos
     else loadMore(pos, throwOnEndOfInput = false)
 
+  @noinline
   private[this] def loadMore(pos: Int, throwOnEndOfInput: Boolean): Int = {
     var newPos = pos
     val offset =

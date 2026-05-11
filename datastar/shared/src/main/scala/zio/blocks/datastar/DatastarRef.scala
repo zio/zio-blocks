@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
-import zio.blocks.html.ToJs
+import zio.blocks.html._
 
 final class DatastarRef private[datastar] (val signalName: String) {
   val value: String = "$" + signalName

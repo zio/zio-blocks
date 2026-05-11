@@ -134,6 +134,7 @@ const sidebars = {
           "reference/html",
           "reference/smithy",
           "reference/datastar",
+          "reference/htmx",
           {
             type: "category",
             label: "Streams",

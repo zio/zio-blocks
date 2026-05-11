@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 import zio.blocks.maybe.Maybe
 
