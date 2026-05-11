@@ -33,7 +33,7 @@ trait Counter extends BaseAgent {
 
 // Implement the agent with snapshots
 @agentImplementation()
-class CounterImpl() extends Counter with Snapshotted[Int] {
+class CounterImpl(name: String) extends Counter with Snapshotted[Int] {
   var state: Int = 0
   val stateSchema: Schema[Int] = Schema.derived
   
@@ -177,9 +177,9 @@ trait UserService extends BaseAgent {
 }
 
 @agentImplementation()
-class UserServiceImpl(id: (String)) extends UserService {
+class UserServiceImpl(userId: String) extends UserService {
   override def getProfile(): Future[User] =
-    Future.successful(User(id._1, "John Doe", "john@example.com"))
+    Future.successful(User(userId, "John Doe", "john@example.com"))
   
   override def updateEmail(newEmail: String): Future[Unit] = {
     println(s"Updating email to $newEmail")
@@ -270,16 +270,16 @@ trait DataService extends BaseAgent {
 @agentImplementation()
 class DataServiceImpl() extends DataService {
   override def query(sql: String): Future[String] = {
-    // Get database URL from configuration
-    val dbUrlFuture = Config.getRequired("DATABASE_URL")
+    // Get database URL from configuration (synchronous Either-based API)
+    val dbUrl = Config.get("DATABASE_URL") match {
+      case Right(Some(url)) => url
+      case _ => "localhost"  // fallback
+    }
     
-    // Get API key from secrets
-    val apiKeyFuture = Secret.get("database-api-key")
+    // Get API key from secrets (typed config system)
+    val apiKey = ??? // Injected by runtime as Secret[String]
     
-    for {
-      dbUrl <- dbUrlFuture
-      apiKey <- apiKeyFuture
-    } yield {
+    Future.successful {
       // Use dbUrl and apiKey to execute query
       s"Executed: $sql against $dbUrl"
     }
