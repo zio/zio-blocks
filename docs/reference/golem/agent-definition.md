@@ -110,6 +110,43 @@ trait Counter extends BaseAgent {
 
 The default type name is the trait name. Override when you need namespace separation (e.g., "my.company.Counter").
 
+### Additional Annotation Parameters
+
+The `@agentDefinition` annotation supports these additional parameters:
+
+| Parameter | Type | Default | Purpose |
+|-----------|------|---------|---------|
+| `auth` | Boolean | false | Enable authentication enforcement for agent methods |
+| `cors` | Boolean | false | Enable CORS headers in HTTP responses |
+| `phantomAgent` | Boolean | false | Mark this agent as a phantom agent (pre-provisioned instances) |
+| `webhookSuffix` | String | "" | Append custom suffix to generated webhook URLs |
+| `snapshotting` | Boolean | false | Enable automatic snapshots for durability and recovery |
+
+**Example with multiple parameters:**
+
+```scala
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+
+@agentDefinition(
+  mode = DurabilityMode.Durable,
+  mount = "/api/{id}",
+  auth = true,
+  cors = true,
+  snapshotting = true
+)
+trait SecureStatefulAgent extends BaseAgent {
+  class Id(val id: String)
+  def getData(): scala.concurrent.Future[String]
+}
+```
+
+- **`auth = true`** — Methods require authentication; principal context is available via `@Principal` injection
+- **`cors = true`** — HTTP responses include CORS headers for cross-origin requests
+- **`phantomAgent = true`** — Agent instances can be pre-provisioned with phantom IDs (UUIDs)
+- **`webhookSuffix`** — Customize webhook URL path (e.g., "v2" produces "/api/{id}/method/v2")
+- **`snapshotting = true`** — Enable periodic snapshots for faster recovery and durability checkpoints
+
 ## Method Annotations
 
 Decorate methods with metadata:
@@ -198,8 +235,8 @@ Access metadata from the generated definition:
 import golem.runtime.autowire.AgentDefinition
 
 def printAgentInfo[T](defn: AgentDefinition[T]): Unit = {
-  println(s"Type: ${defn.name}")
-  println(s"Methods: ${defn.methods}")
+  println(s"Type: ${defn.typeName}")
+  println(s"Methods: ${defn.methodMetadata}")
 }
 ```
 
