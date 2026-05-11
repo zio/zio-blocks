@@ -139,7 +139,8 @@ structure BookNotFound {
       }
 
       println(s"Documented shapes: ${documented.length} / ${model.shapes.length}")
-      println(s"Coverage: ${(documented.length * 100) / model.shapes.length}%\n")
+      val coverage = if (model.shapes.nonEmpty) (documented.length * 100) / model.shapes.length else 0
+      println(s"Coverage: $coverage%\n")
 
       if (undocumented.nonEmpty) {
         println("⚠ Undocumented shapes:")
