@@ -90,7 +90,7 @@ import zio.http.Method
 
 final case class ApiKey(value: String)
 
-val apiKeyCodec = HttpCodec.requestHeader("X-Api-Key", Schema.string)
+val apiKeyCodec = HttpCodec.requestHeader("X-Api-Key", Schema.string.transform[ApiKey](ApiKey(_), _.value))
 val apiKeyAuth  = AuthType.Custom(apiKeyCodec)
 val keyEndpoint = Endpoint(Method.GET / "data").auth(apiKeyAuth)
 ```
