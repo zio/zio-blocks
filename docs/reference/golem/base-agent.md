@@ -25,6 +25,13 @@ Every agent in ZIO-Golem implements `BaseAgent`. The trait is parameterless and 
 
 These fields are populated by the Golem host when an agent is instantiated.
 
+**Important:** `BaseAgent` and all agent implementations are **Scala.js-only**. Agents must be compiled to WebAssembly. In `build.sbt`, use `%%%` (Scala.js cross-build) instead of `%%` when adding ZIO-Golem dependencies:
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-golem-macros" % "@VERSION@"
+```
+
 ## Defining an Agent
 
 To create an agent, extend `BaseAgent` and decorate the trait with `@agentDefinition`:
