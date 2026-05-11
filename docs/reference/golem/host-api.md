@@ -26,7 +26,7 @@ object HostApi {
 | **Retry Policy** | Control automatic retry behavior | `getRetryPolicy()`, `setRetryPolicy()` |
 | **Persistence** | Manage oplog persistence strategy | `getOplogPersistenceLevel()`, `setOplogPersistenceLevel()` |
 | **Idempotence** | Toggle idempotent request handling | `getIdempotenceMode()`, `setIdempotenceMode()` |
-| **Agent Registry** | Query running agents, trigger updates | `listAgents()`, `updateAgentType()` |
+| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgentMetadata()`, `updateAgent()` |
 | **Database** | Access relational databases (MySQL, PostgreSQL) | `Rdbms` provides SQL methods |
 | **Key-Value Store** | Persistent key-value storage | `KeyValue` API via `golem.wasi.KeyValue` |
 | **Blobstore** | Large binary object storage | `Blobstore` API via `golem.wasi.Blobstore` |
@@ -81,8 +81,8 @@ import scala.concurrent.Future
 
 val policy = HostApi.RetryPolicy(
   maxAttempts = 3,
-  minDelayNanos = 1_000_000L,      // 1ms
-  maxDelayNanos = 1_000_000_000L,  // 1s
+  minDelayNanos = BigInt(1_000_000),      // 1ms
+  maxDelayNanos = BigInt(1_000_000_000),  // 1s
   multiplier = 2.0,
   maxJitterFactor = Some(0.1)
 )
@@ -140,16 +140,21 @@ Query and manage running agents:
 import golem.HostApi
 
 // Get metadata about this agent
-val metadata = HostApi.getThisAgentMetadata()
+val metadata = HostApi.getSelfMetadata()
 println(s"Agent ID: ${metadata.agentId}")
 println(s"Agent Type: ${metadata.agentType}")
-println(s"Status: ${metadata.status}")
 
-// List all agents (rarely used)
-val allAgents = HostApi.listAgents()
+// Get metadata about a specific agent
+val otherMetadata = HostApi.getAgentMetadata("some-agent-id")
+otherMetadata.foreach { m =>
+  println(s"Agent Type: ${m.agentType}")
+}
 
-// Trigger an update (after code deployment)
-HostApi.updateAgentType()
+// List agent types (all registered types)
+val types = HostApi.getAllAgentTypes()
+
+// Update a specific agent to a new version
+HostApi.updateAgent("target-agent-id", targetVersion = BigInt(2), mode = HostApi.UpdateMode.Crash)
 ```
 
 ## Relational Database Access
