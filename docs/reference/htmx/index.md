@@ -7,6 +7,8 @@ title: HTMX
 
 Core types: `HxTrigger`, `HxSwap`, `HxTarget`, `HxParams`, `HxUrlUpdate`, `HxEncoding`, `HxSync`, `HtmxAttrKey`, `ToHtmxValue`.
 
+Here are the core patterns of typed HTMX construction:
+
 ```scala
 import zio.blocks.html._
 import zio.http.htmx._
@@ -46,6 +48,8 @@ The typed HTMX DSL catches these mistakes at compile time:
 
 ## Installation
 
+Add the HTMX module to your project dependencies:
+
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-htmx" % "@VERSION@"
 ```
@@ -56,9 +60,9 @@ Supported Scala versions: 2.13.x and 3.x. The module is cross-compiled for JVM a
 
 Each type in the module addresses a specific HTMX concern:
 
-**Event Triggering:** `HxTrigger` declares which event fires a request (click, input, load, custom). Modifiers add timing (`delay`, `throttle`), filtering (`filter`), source control (`from`), and queue strategy (`queue`). `HxTriggerSet` composes multiple triggers in a comma-separated list for more complex interactions.
+**Event Triggering:** `HxTrigger` declares which event fires a request (click, input, load, custom). Modifiers add timing (`HxTrigger#delay`, `HxTrigger#throttle`), use `HxTrigger#filter` for filtering, source control (`from`), and queue strategy (`queue`). `HxTriggerSet` composes multiple triggers in a comma-separated list for more complex interactions.
 
-**Swap Strategies:** `HxSwap` selects how the response content replaces the DOM (innerHTML, outerHTML, beforeBegin, etc.). Modifiers control timing (`swap`, `settle`), animation (`transition`), scrolling (`scroll`, `show`), and focus behavior (`focusScroll`, `ignoreTitle`).
+**Swap Strategies:** `HxSwap` selects how the response content replaces the DOM (innerHTML, outerHTML, beforeBegin, etc.). Modifiers control timing with `HxSwap#swap` and `HxSwap#settle`, animation (`transition`), scrolling (`scroll`, `show`), and focus behavior (`focusScroll`, `ignoreTitle`).
 
 **Target Selection:** `HxTarget` selects where swap happens (current element, closest ancestor, next sibling, custom CSS selector). Variants support common patterns like `HxTarget.This`, `HxTarget.closest(selector)`, and `HxTarget.next(selector)`.
 
@@ -68,7 +72,7 @@ Each type in the module addresses a specific HTMX concern:
 
 ## How They Work Together
 
-A typical HTMX request flow combines multiple types: trigger defines when, swap defines what, target defines where, and request control refines how.
+A typical HTMX request flow combines multiple types: trigger defines when, swap defines what, target defines where, and request control refines how. Here is the overall flow:
 
 ```
 User Action
@@ -93,7 +97,7 @@ HxSwap (how: innerHTML, outerHTML, beforeBegin, etc.)
 DOM Updated & Settled
 ```
 
-**Example workflow:** When a user types in a search input, fire a POST request to `/api/search` after a 500ms delay. Send only the query and page parameters. Replace the results section (closest to a `.results` container) with innerHTML strategy, wait 250ms for CSS transitions, then scroll the results into view.
+**Example workflow:** When a user types in a search input, fire a POST request to `/api/search` after a 500ms delay. Send only the query and page parameters. Replace the results section (the closest parent with CSS class `results`) with innerHTML strategy, wait 250ms for CSS transitions, then scroll the results into view:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -110,13 +114,15 @@ input(
 )
 ```
 
-This example shows how types guide each concern: `HxTrigger.input` is compile-checked (not a typo), `delay()` is a method not a string, `HxParams.only()` is exhaustively typed, `HxTarget.closest()` takes a string but validates non-emptiness, and `HxSwap` chains modifiers with type safety.
+This example shows how types guide each concern: `HxTrigger.input` is compile-checked (not a typo), `HxTrigger#delay` is a method not a string, `HxParams.only()` is exhaustively typed, `HxTarget.closest()` takes a string but validates non-emptiness, and `HxSwap` chains modifiers with type safety.
 
 ## Common Patterns
 
+The HTMX DSL supports several common interaction patterns. Here are representative examples:
+
 ### Pattern 1: Progressive Enhancement with Boost
 
-Use `hxBoost := true` to transform regular links and form submissions into HTMX requests, maintaining server-side rendering and graceful degradation.
+Use `hxBoost := true` to transform regular links and form submissions into HTMX requests, maintaining server-side rendering and graceful degradation:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -135,7 +141,7 @@ nav(
 
 ### Pattern 2: Polling and Periodic Updates
 
-Use `HxTrigger.every()` with a duration to poll an endpoint at regular intervals.
+Use `HxTrigger.every()` with a duration to poll an endpoint at regular intervals:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -153,7 +159,7 @@ div(
 
 ### Pattern 3: Chained Modifiers for Complex Interactions
 
-Combine multiple trigger modifiers to refine when and how a request fires.
+Combine multiple trigger modifiers to refine when and how a request fires:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -172,7 +178,7 @@ Modifier methods return updated `HxTrigger` instances, so you can chain: `HxTrig
 
 ### Pattern 4: Out-of-Band Swaps
 
-Update multiple DOM regions with a single response using `hxSwapOob` (out-of-bounds).
+Update multiple DOM regions with a single response using `hxSwapOob` (out-of-bounds):
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -191,7 +197,7 @@ The response contains both the new main content and a separate element targeted 
 
 ### Pattern 5: Conditional Rendering with JavaScript Filters
 
-Use `hxTrigger.filter(Js)` to add a JavaScript condition that gates the request.
+Use `HxTrigger#filter` with the `Js` type to add a JavaScript condition that gates the request:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -218,13 +224,15 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With headers:** The `zio.http.htmx.headers` submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
 
-**Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` can define `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and then be used directly in HTMX attributes.
+**Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
 
 ## Running the Examples
 
 All code from this guide is available as runnable examples in the `zio-blocks-htmx-examples` module.
 
 **1. Clone the repository and navigate to the project:**
+
+Start by cloning the repository and entering the project directory:
 
 ```bash
 git clone https://github.com/zio/zio-blocks-modern.git
@@ -235,7 +243,7 @@ cd zio-blocks-modern
 
 ### Basic Usage
 
-Demonstrates fundamental HTMX attribute construction: triggering requests (hxPost, hxGet), swapping strategies (InnerHTML, OuterHTML), and target selection (This, closest, find). Shows how the typed DSL ensures correct HTMX syntax at compile time.
+Demonstrates fundamental HTMX attribute construction: triggering requests (hxPost, hxGet), swapping strategies (InnerHTML, OuterHTML), and target selection (This, closest, find). Shows how the typed DSL ensures correct HTMX syntax at compile time. Here is the source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -245,13 +253,15 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsa
 
 ([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala))
 
+Run this example with the following command:
+
 ```bash
 sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
 ```
 
 ### Advanced Patterns
 
-Demonstrates complex HTMX interactions: combining multiple triggers, chaining modifiers, controlling request queuing, animation with transitions, and JavaScript-based filtering. Shows how modifiers compose to create sophisticated client-side behaviors.
+Demonstrates complex HTMX interactions: combining multiple triggers, chaining modifiers, controlling request queuing, animation with transitions, and JavaScript-based filtering. Shows how modifiers compose to create sophisticated client-side behaviors. Here is the source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -261,13 +271,15 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Advanced
 
 ([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala))
 
+Run this example with the following command:
+
 ```bash
 sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.AdvancedPatterns"
 ```
 
 ### Complete Example
 
-A realistic e-commerce search and filtering interface combining multiple HTMX attributes: debounced search input, live category filtering, paginated results, out-of-band notifications, and dynamic UI updates. Demonstrates how types compose to create a type-safe, interactive UI.
+A realistic e-commerce search and filtering interface combining multiple HTMX attributes: debounced search input, live category filtering, paginated results, out-of-band notifications, and dynamic UI updates. Demonstrates how types compose to create a type-safe, interactive UI. Here is the source code:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
@@ -277,11 +289,15 @@ SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/Complete
 
 ([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala))
 
+Run this example with the following command:
+
 ```bash
 sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
 ```
 
 **3. Or compile all examples at once:**
+
+To compile all example sources without running them, use:
 
 ```bash
 sbt "zio-blocks-htmx-examples/compile"
