@@ -5,7 +5,7 @@ title: HxTarget
 
 `HxTarget` represents the `hx-target` attribute and related selector-based attributes, declaring where HTMX applies the swap. It supports DOM traversal patterns like "closest ancestor," "first descendant," "next sibling," and raw CSS selectors, eliminating stringly mistakes in selector construction.
 
-Use `HxTarget.This` for the current element, or call traversal methods like `closest()`, `find()`, `next()`, and `previous()` for common patterns. For arbitrary CSS selectors, use `css()`.
+Use `HxTarget.This` for the current element, or call traversal methods like `closest()`, `find()`, `next()`, and `previous()` for common patterns. For arbitrary CSS selectors, use `css()`. Here are the core patterns:
 
 ```scala
 import zio.http.htmx._
@@ -114,7 +114,7 @@ div(
 )
 ```
 
-**`previous`** targets the previous sibling element:
+**`HxTarget.previous`** targets the previous sibling element:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -210,6 +210,8 @@ HxTarget.parse("   ")                 // Left("HTMX target selector must be non-
 
 ## Common Patterns
 
+Selecting the right target element is essential for HTMX interactions. Here are practical patterns for common scenarios:
+
 ### Update a Form Container
 
 When a button inside a form fires a request, target the form to replace all its content:
@@ -287,7 +289,7 @@ tr(
 
 ## Integration with Other Attributes
 
-`HxTarget` is used by multiple HTMX attributes:
+Multiple HTMX attributes accept `HxTarget` values:
 
 - `hxTarget` — Where to apply the swap
 - `hxInclude` — Which elements to include in the request (uses similar selector patterns)
