@@ -37,7 +37,7 @@ object MigrationBuilderMacros {
           c.abort(c.enclosingPosition, "Selector must access at least one field")
         else
           segments.mkString(".")
-      case _                => c.abort(c.enclosingPosition, s"Expected a lambda expression, got: ${showRaw(selector)}")
+      case _ => c.abort(c.enclosingPosition, s"Expected a lambda expression, got: ${showRaw(selector)}")
     }
   }
 
