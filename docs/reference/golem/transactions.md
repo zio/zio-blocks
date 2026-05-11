@@ -12,9 +12,7 @@ object Transactions {
   ): Operation[In, Out, Err]
 
   def infallibleTransaction[A](body: InfallibleTransaction => A): A
-  def fallibleTransaction[A, Err](
-    body: FallibleTransaction[Err] => Either[Err, A]
-  ): Either[TransactionFailure[Err], A]
+  def fallibleTransaction[A, Err](body: FallibleTransaction[Err] => Either[Err, A]): Either[TransactionFailure[Err], A]
 }
 ```
 
@@ -59,7 +57,7 @@ The transaction keeps retrying until all operations succeed. Compensation runs i
 
 ## Fallible Transactions
 
-Use `fallibleTransaction` when you want explicit error handling. The function returns `Either[TransactionFailure[Err], A]`, wrapping any errors from the body with rollback status:
+Use `fallibleTransaction` when you want explicit error handling:
 
 ```scala
 import golem.Transactions
@@ -83,14 +81,48 @@ val result: Either[Transactions.TransactionFailure[String], String] = Transactio
     case Right(msg) => Right(msg)
   }
 }
-
-result match {
-  case Right(msg) => println(s"Success: $msg")
-  case Left(failure) => println(s"Transaction failed: $failure")
-}
 ```
 
-If any operation in the body returns `Left(err)`, the transaction returns `Left(failure)` where `failure` includes both the error and rollback status. Compensation runs automatically.
+If any operation returns `Left(err)`, the transaction returns `Left(TransactionFailure)` and compensation runs. The result wraps errors in `TransactionFailure`, which indicates whether compensations fully succeeded or partially failed.
+
+## TransactionFailure
+
+When a `fallibleTransaction` fails, the result is wrapped in `TransactionFailure[Err]`, a sealed trait with two subtypes:
+
+```scala
+sealed trait TransactionFailure[+Err]
+
+// The transaction failed, but all compensations succeeded
+final case class FailedAndRolledBackCompletely[Err](error: Err) extends TransactionFailure[Err]
+
+// The transaction failed, and some compensations also failed
+final case class FailedAndRolledBackPartially[Err](
+  error: Err,
+  compensationFailure: Err
+) extends TransactionFailure[Err]
+```
+
+This allows you to distinguish between:
+- **`FailedAndRolledBackCompletely`** — Operation failed, but cleanup succeeded; safe to retry or handle gracefully
+- **`FailedAndRolledBackPartially`** — Operation failed AND at least one compensation failed; manual intervention may be needed
+
+```scala
+import golem.Transactions
+
+val result = Transactions.fallibleTransaction { tx =>
+  // ... operations and compensations
+  Right(value)
+}
+
+result match {
+  case Right(value) =>
+    println(s"Success: $value")
+  case Left(Transactions.TransactionFailure.FailedAndRolledBackCompletely(err)) =>
+    println(s"Failed but fully compensated: $err")
+  case Left(Transactions.TransactionFailure.FailedAndRolledBackPartially(err, compErr)) =>
+    println(s"Failed and partially compensated: original=$err, compensation=$compErr")
+}
+```
 
 ## Operation Definition
 
@@ -235,22 +267,19 @@ Transactions provide these guarantees:
 
 **Idempotence requirement:** Operations in infallible transactions must be idempotent because they retry. Use request IDs or timestamps to detect duplicates.
 
-## Integration with Guards
+## Integration with HostApi
 
-Transactions internally use `Guards.markAtomicOperation()` to establish atomic regions and manage oplog state:
+Transactions internally use `HostApi` to track operation boundaries:
 
 ```scala
-// Behind the scenes, transactions call:
-// val guard = Guards.markAtomicOperation()  // Start atomic region
-// try {
-//   ... execute operations and track compensations ...
-// } finally {
-//   guard.drop()  // End atomic region
-// }
-// On failure: compensation runs and then retries (infallible) or returns error (fallible)
+// Behind the scenes, infallibleTransaction calls:
+// HostApi.markBeginOperation()  // Start atomic region
+// ... execute operations ...
+// HostApi.markEndOperation()    // End atomic region
+// On failure: oplog rolls back to begin
 ```
 
-You don't call `Guards` directly; transactions handle all the coordination automatically.
+You don't call `HostApi` directly; transactions handle it.
 
 ## Common Patterns
 
