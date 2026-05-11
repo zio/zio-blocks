@@ -140,7 +140,7 @@ GolemSchema.decode() → Output (Scala type)
 
 Define constructor parameters via an inner `class Id`:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -170,7 +170,7 @@ trait Shard extends BaseAgent {
 
 For ergonomic `.get()` and `.getPhantom()` access, define a companion object:
 
-```scala mdoc:compile-only
+```scala
 import golem.AgentCompanion
 
 object Shard extends AgentCompanion[Shard]
@@ -184,7 +184,7 @@ object Shard extends AgentCompanion[Shard]
 
 Persist state across invocations using snapshots:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.annotations.agentImplementation
 import golem.Snapshotted
 import scala.concurrent.Future
@@ -204,7 +204,7 @@ class StatefulAgentImpl() extends StatefulAgent {
 
 Execute multi-step operations atomically:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val result = Transactions.infallibleTransaction { tx =>
@@ -220,7 +220,7 @@ val result = Transactions.infallibleTransaction { tx =>
 
 Agents can declare configuration fields:
 
-```scala mdoc:compile-only
+```scala
 import golem.config.ConfigSchema
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent

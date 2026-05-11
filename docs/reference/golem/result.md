@@ -20,7 +20,7 @@ object Result {
 
 Use `Result` when you want to return either a success value or an error. It's fully serializable through Golem's schema system and integrates with the WIT component model.
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 import scala.concurrent.Future
 
@@ -33,7 +33,7 @@ def divide(a: Int, b: Int): Result[Double, String] =
 
 ### Success (ok)
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 
 val success: Result[Int, String] = Result.ok(42)
@@ -42,7 +42,7 @@ val success2: Result[String, Nothing] = Result.ok("Hello")
 
 ### Failure (err)
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 
 val failure: Result[Nothing, String] = Result.err("Something went wrong")
@@ -53,7 +53,7 @@ val failure2: Result[Int, Exception] = Result.err(new RuntimeException("Error"))
 
 Convert Scala's `Either` to `Result`:
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 import scala.util.Try
 
@@ -68,7 +68,7 @@ val result2: Result[Int, String] = Result.fromEither(either2)
 
 Convert `Option` to `Result` with a fallback error message:
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 
 val option: Option[String] = Some("value")
@@ -82,7 +82,7 @@ val result2: Result[String, String] = Result.fromOption(emptyOption, "Not found"
 
 Match on success/failure:
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 
 def process(result: Result[Int, String]): String =
@@ -95,7 +95,7 @@ def process(result: Result[Int, String]): String =
 
 Or use the typed variants:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.wit.WitResult
 
 def process(result: WitResult[Int, String]): String =
@@ -109,7 +109,7 @@ def process(result: WitResult[Int, String]): String =
 
 Return `Result` from agent methods to signal success or failure:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.{Result, BaseAgent}
 import scala.concurrent.Future
@@ -123,7 +123,7 @@ trait Calculator extends BaseAgent {
 
 Clients receive the result and can act accordingly:
 
-```scala mdoc:compile-only
+```scala
 import scala.concurrent.Future
 import golem.Result
 
@@ -139,7 +139,7 @@ calc.foreach {
 
 The error type (`Err`) can be any type with a schema:
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 import zio.blocks.schema.Schema
 
@@ -164,7 +164,7 @@ val enumError: Result[String, ApiError] = Result.err(ApiError.NotFound)
 
 `Result` is covariant in both type parameters:
 
-```scala mdoc:compile-only
+```scala
 import golem.Result
 
 val result: Result[Int, String] = Result.ok(42)

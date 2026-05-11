@@ -37,7 +37,7 @@ All methods are Scala.js-only (compiled to WebAssembly).
 
 The **oplog** (operation log) records all side effects. Mark operation boundaries to enable automatic rollback on failure:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 val begin = HostApi.markBeginOperation()
@@ -62,7 +62,7 @@ When an operation fails (throws an exception), Golem automatically:
 
 Access the current oplog position:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 val currentIndex = HostApi.getOplogIndex()
@@ -75,7 +75,7 @@ More commonly, use `markBeginOperation()` and `markEndOperation()` to establish 
 
 Configure automatic retry behavior:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 import scala.concurrent.Future
 
@@ -101,7 +101,7 @@ The retry policy controls:
 
 Control how aggressively the oplog persists:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 // Persist nothing (fastest, least reliable)
@@ -123,7 +123,7 @@ Persistence levels:
 
 Enable or disable idempotent request deduplication:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 HostApi.setIdempotenceMode(true)  // Deduplicate duplicate requests
@@ -136,7 +136,7 @@ When idempotence is enabled, Golem tracks request IDs and suppresses duplicate e
 
 Query and manage running agents:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 // Get metadata about this agent
@@ -156,7 +156,7 @@ HostApi.updateAgentType()
 
 Access MySQL and PostgreSQL databases:
 
-```scala mdoc:compile-only
+```scala
 import golem.host.Rdbms
 import scala.concurrent.Future
 
@@ -167,13 +167,13 @@ val result: Future[List[String]] = Rdbms.queryPostgres(
 )
 ```
 
-See [`Rdbms`](./rdbms.md) for full database API documentation.
+See the `Rdbms` module for full database API documentation.
 
 ## Key-Value Store
 
 Persistent key-value storage beyond the agent's memory:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.KeyValue
 import scala.concurrent.Future
 
@@ -186,7 +186,7 @@ KeyValue.delete("my-key")
 
 Store and retrieve large binary objects:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Blobstore
 import scala.scalajs.js.typedarray.Uint8Array
 import scala.concurrent.Future
@@ -200,7 +200,7 @@ val retrieved: Future[Uint8Array] = Blobstore.get("my-bucket", objectId)
 
 Force commit of the current oplog position (advanced usage):
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 HostApi.oplogCommit(replicas = 1) // Commit to 1 replica

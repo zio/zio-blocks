@@ -30,7 +30,7 @@ Configuration allows agents to access external settings without hardcoding them:
 
 Agents declare configuration via an annotation:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -47,7 +47,7 @@ The Golem runtime injects these values at agent startup.
 
 Use the `Config` API to access configuration:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 
@@ -56,14 +56,14 @@ val requiredKey: Future[String] = Config.getRequired("API_KEY")
 ```
 
 **`get(key)`** — Returns `Option[String]`; `None` if not set:
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 
 Config.get("DEBUG_MODE") // Future[Option[String]]
 ```
 
 **`getRequired(key)`** — Returns `String`; fails if not set:
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 
 Config.getRequired("DATABASE_URL") // Future[String], throws if missing
@@ -73,7 +73,7 @@ Config.getRequired("DATABASE_URL") // Future[String], throws if missing
 
 Access secrets (credentials, API keys) via the `Secret` API:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Secret
 import scala.concurrent.Future
 
@@ -86,7 +86,7 @@ Secrets are handled like configuration but are managed securely by the Golem run
 
 ### Database Connection String
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 
@@ -102,7 +102,7 @@ class DatabaseAgentImpl() extends DatabaseAgent {
 
 ### Feature Flags
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 
@@ -115,7 +115,7 @@ enableCache.map {
 
 ### Timeout Configuration
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 
@@ -141,7 +141,7 @@ Different environments (dev, staging, prod) have different config overrides with
 
 Introspect agent configuration to discover available settings:
 
-```scala mdoc:compile-only
+```scala
 import golem.config.ConfigIntrospection
 import scala.concurrent.Future
 
@@ -155,7 +155,7 @@ Rarely used directly; mostly for tooling and documentation.
 
 For type-safe configuration, declare config fields in the agent trait:
 
-```scala mdoc:compile-only
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -175,7 +175,7 @@ The Golem runtime injects these fields based on configuration.
 
 Configuration access can fail:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 

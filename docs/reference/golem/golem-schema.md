@@ -33,7 +33,7 @@ Once `Schema[A]` exists, `GolemSchema[A]` is derived automatically in the agent 
 
 Use `derives Schema` (Scala 3):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int) derives Schema
@@ -42,7 +42,7 @@ case class Order(id: String, items: List[String]) derives Schema
 
 Or `Schema.derived` (Scala 2):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int)
@@ -55,7 +55,7 @@ object User {
 
 Primitives automatically have schemas:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 // All have implicit schemas
@@ -69,7 +69,7 @@ val doubleSchema: Schema[Double] = implicitly
 
 Schemas for collections and optional types derive automatically:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 import zio.blocks.schema.Schema.derived
 
@@ -85,7 +85,7 @@ case class DataContainer(
 
 Manually encode/decode (rarely needed; handled by the macro):
 
-```scala mdoc:compile-only
+```scala
 import golem.GolemSchema
 import golem.StructuredValue
 
@@ -107,7 +107,7 @@ val decoded: Either[String, Person] = encoded.flatMap(schema.decode(_))
 Schemas support two encoding modes:
 
 **Structured encoding** (for multi-field types):
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 case class Point(x: Int, y: Int) derives Schema
@@ -115,7 +115,7 @@ case class Point(x: Int, y: Int) derives Schema
 ```
 
 **Element encoding** (for single parameters):
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 case class Point(x: Int, y: Int) derives Schema
@@ -129,7 +129,7 @@ The macro handles this automatically; you only need to know it exists.
 
 For types where derive doesn't work, provide an implicit manually:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 import golem.{GolemSchema, StructuredSchema, StructuredValue}
 
@@ -149,7 +149,7 @@ This is rare; most types should derive automatically.
 
 For data with text and binary components, use multimodal schemas:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 import golem.data.multimodal.Multimodal
 
@@ -159,13 +159,13 @@ case class Document(
 ) derives Schema
 ```
 
-See [`Multimodal`](./multimodal.md) for detailed multimodal data handling.
+Multimodal data handling is covered in the data types section.
 
 ## Unstructured Data
 
 For data without a predefined structure (free-form text or binary):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 import golem.data.unstructured.Unstructured
 
@@ -184,7 +184,7 @@ Unstructured data preserves exact bytes/characters without schema interpretation
 
 Schemas compose naturally for nested types:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.Schema
 
 case class Address(street: String, city: String) derives Schema
@@ -204,7 +204,7 @@ case class Team(
 
 Encoding/decoding can fail:
 
-```scala mdoc:compile-only
+```scala
 import golem.GolemSchema
 
 case class Strict(x: Int) derives zio.blocks.schema.Schema

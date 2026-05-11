@@ -29,7 +29,7 @@ Transactions ensure that when multiple operations must succeed together, either 
 
 Use `infallibleTransaction` when all operations must eventually succeed. On failure, compensations run automatically and the transaction retries:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 import scala.concurrent.Future
 
@@ -59,7 +59,7 @@ The transaction keeps retrying until all operations succeed. Compensation runs i
 
 Use `fallibleTransaction` when you want explicit error handling:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val result: Either[String, String] = Transactions.fallibleTransaction { tx =>
@@ -89,7 +89,7 @@ If any operation returns `Left(err)`, the transaction returns `Left(err)` and co
 
 Create an operation with execute and compensation logic:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val operation = Transactions.operation[Int, String, String](
@@ -126,7 +126,7 @@ Retry:          All operations execute again
 
 Compensation receives both the input and the successful output, allowing context-aware rollback:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val transferOp = Transactions.operation[String, Long, String](
@@ -146,7 +146,7 @@ val transferOp = Transactions.operation[String, Long, String](
 
 Use infallible transactions when transient failures are expected:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val result = Transactions.infallibleTransaction { tx =>
@@ -165,7 +165,7 @@ The transaction retries automatically on failure.
 
 Use fallible transactions when you want to fail fast but ensure cleanup:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 import scala.concurrent.Future
 
@@ -191,7 +191,7 @@ val result: Either[String, Int] = Transactions.fallibleTransaction { tx =>
 
 Build multi-step workflows by threading operations together:
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val workflow = Transactions.infallibleTransaction { tx =>
@@ -232,7 +232,7 @@ Transactions provide these guarantees:
 
 Transactions internally use `HostApi` to track operation boundaries:
 
-```scala mdoc:compile-only
+```scala
 // Behind the scenes, infallibleTransaction calls:
 // HostApi.markBeginOperation()  // Start atomic region
 // ... execute operations ...
@@ -246,7 +246,7 @@ You don't call `HostApi` directly; transactions handle it.
 
 ### Pattern 1: Saga with Multiple External Calls
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val saga = Transactions.infallibleTransaction { tx =>
@@ -271,7 +271,7 @@ val saga = Transactions.infallibleTransaction { tx =>
 
 ### Pattern 2: Cascading Updates
 
-```scala mdoc:compile-only
+```scala
 import golem.Transactions
 
 val cascade = Transactions.fallibleTransaction { tx =>
