@@ -79,7 +79,7 @@ Path codecs compose in two ways: sequential concatenation with `/` or `++`, and 
 
 ### Sequential composition with `/` and `++`
 
-`/` and `++` are equivalent: both concatenate two path codecs. The result type is flattened by `Tuples.WithOut` (so `Unit / Int` gives `Int`, not `(Unit, Int)`):
+`/` and `++` are equivalent: both concatenate two path codecs. The result type is flattened automatically (so `Unit / Int` gives `Int`, not `(Unit, Int)`), eliminating `Unit` components:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._

@@ -169,7 +169,7 @@ Two operators combine `HttpCodec` values: `++` sequences parts within the same d
 
 ### Sequential composition with `++`
 
-`++` combines two codecs of the same direction into a single codec whose type is the product of both. `Tuples.WithOut` computes the result type and flattens nested tuples:
+`++` combines two codecs of the same direction into a single codec whose type is the product of both. The result type is automatically flattened, eliminating `Unit` components and nested tuples:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -192,7 +192,7 @@ import zio.http.Status
 
 ### Alternative composition with `|`
 
-`|` combines two codecs as alternatives. `Eithers.WithOut` computes the result type, building a nested `Either`:
+`|` combines two codecs as alternatives. The result type is automatically computed as a nested `Either`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._

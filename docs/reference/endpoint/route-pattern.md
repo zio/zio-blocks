@@ -95,7 +95,7 @@ import zio.http.Method
 val route = Method.GET / "users" / PathCodec.int("id") / "posts"
 ```
 
-Each `/` call produces a new `RoutePattern` with a widened type. The combiner in `Tuples.WithOut` flattens the type: `Unit / Int / Unit` becomes `Int`, not `((Unit, Int), Unit)`.
+Each `/` call produces a new `RoutePattern` with a widened type. The type is automatically flattened, eliminating `Unit` components: `Unit / Int / Unit` becomes `Int`, not `((Unit, Int), Unit)`.
 
 ## Decoding and Encoding
 

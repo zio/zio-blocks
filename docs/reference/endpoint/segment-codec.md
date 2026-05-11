@@ -78,7 +78,7 @@ val versionSeg: SegmentCodec[Int] =
   SegmentCodec.literal("v") ~ SegmentCodec.int("major")
 ```
 
-`Tuples.WithOut` eliminates the `Unit` from the literal, so the resulting codec decodes `"v42"` into `42` and formats `42` back to `"v42"`.
+The type is automatically flattened (eliminating `Unit` from the literal), so the resulting codec decodes `"v42"` into `42` and formats `42` back to `"v42"`.
 
 ### Compile-time boundary validation
 
