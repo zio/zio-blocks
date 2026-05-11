@@ -84,10 +84,10 @@ To use a zio-http typed header instance (which provides its own name and parse/r
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
-import zio.http.headers
+import zio.http.Header
 
-val authHeader: HttpCodec.Header[CodecKind.Request, headers.Authorization] =
-  HttpCodec.requestHeader(headers.Authorization)
+val authHeader: HttpCodec.Header[CodecKind.Request, Header.Authorization] =
+  HttpCodec.requestHeader(Header.Authorization)
 ```
 
 ### Response headers
@@ -210,12 +210,12 @@ Pre-built request codecs for common authorization header schemes are available o
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
-import zio.http.headers
+import zio.http.Header
 
-val basic: HttpCodec[CodecKind.Request, headers.Authorization.Basic]   = HttpCodec.basicAuth
-val bearer: HttpCodec[CodecKind.Request, headers.Authorization.Bearer] = HttpCodec.bearerAuth
-val digest: HttpCodec[CodecKind.Request, headers.Authorization.Digest] = HttpCodec.digestAuth
-val proxy: HttpCodec[CodecKind.Request, headers.ProxyAuthorization]    = HttpCodec.proxyAuthorization
+val basic: HttpCodec[CodecKind.Request, Header.Authorization.Basic]   = HttpCodec.basicAuth
+val bearer: HttpCodec[CodecKind.Request, Header.Authorization.Bearer] = HttpCodec.bearerAuth
+val digest: HttpCodec[CodecKind.Request, Header.Authorization.Digest] = HttpCodec.digestAuth
+val proxy: HttpCodec[CodecKind.Request, Header.ProxyAuthorization]    = HttpCodec.proxyAuthorization
 ```
 
 These codecs use `Schema.transform` internally to parse the raw `Authorization` header string into the typed zio-http auth model, surfacing a `SchemaError` if the scheme does not match.
