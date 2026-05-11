@@ -26,7 +26,11 @@ final case class Response(
   body: Body = Body.empty,
   version: Version = Version.`HTTP/1.1`
 ) {
-  def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
+
+  /**
+   * Decodes the first response header matching the supplied codec.
+   */
+  def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
 
   /**
    * Returns this response's content type.

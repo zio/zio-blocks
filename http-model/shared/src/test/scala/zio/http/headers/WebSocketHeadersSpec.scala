@@ -99,6 +99,11 @@ object WebSocketHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(SecWebSocketProtocol(Chunk("chat")).headerName == "sec-websocket-protocol")
+      },
+      test("varargs apply builds websocket protocol list") {
+        assertTrue(
+          SecWebSocketProtocol("chat", "superchat") == SecWebSocketProtocol(Chunk("chat", "superchat"))
+        )
       }
     ),
     suite("SecWebSocketVersion")(

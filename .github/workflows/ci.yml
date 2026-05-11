@@ -144,9 +144,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17]
-        platform: ['JS']
-        scala: ['2.13.x', '3.3.x', '3.8.x']
+        include:
+          - java: 17
+            platform: JS
+            scala: '2.13.x'
+            command: 'testJS docJS'
+          - java: 17
+            platform: JS
+            scala: '3.3.x'
+            command: 'testJS docJS'
+          - java: 17
+            platform: JS
+            scala: '3.8.x'
+            command: 'testJS1 docJS1'
+          - java: 17
+            platform: JS
+            scala: '3.8.x'
+            command: 'testJS2 docJS2'
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
@@ -160,18 +174,8 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala 2 JS tests and docs
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} testJS docJS
-      - name: Run Scala 3.3 JS tests (batch 1)
-        if: ${{ matrix.scala == '3.3.x' }}
-        run: sbt "++${{ matrix.scala }}; testJS1"
-      - name: Run Scala 3.3 JS tests (batch 2)
-        if: ${{ matrix.scala == '3.3.x' }}
-        run: sbt "++${{ matrix.scala }}; testJS2"
-      - name: Run Scala 3.8 JS tests and docs
-        if: ${{ matrix.scala == '3.8.x' }}
-        run: sbt ++${{ matrix.scala }} testJS docJS
+      - name: Run Scala JS tests
+        run: sbt ++${{ matrix.scala }} ${{ matrix.command }}
 
   testGolem:
     name: Test Golem (Scala 3.8.x / 2.13.x)

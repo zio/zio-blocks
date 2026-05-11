@@ -122,6 +122,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Via(Chunk("1.1 proxy")).headerName == "via")
+      },
+      test("varargs apply builds via entries") {
+        assertTrue(Via("1.0 fred", "1.1 example.com") == Via(Chunk("1.0 fred", "1.1 example.com")))
       }
     ),
     suite("Forwarded")(

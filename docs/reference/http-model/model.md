@@ -149,6 +149,25 @@ val headerCount = allHeaders.length                // Count headers
 val contentType = req.headers.rawGet("content-type") // Get raw string header value (case-insensitive lookup)
 ```
 
+Custom typed headers do not need their own `Header` subtype. Define a `Header.Codec[A]` and reuse it with `Headers`, `Request`, and `Response`:
+
+```scala mdoc:compile-only
+import zio.http._
+
+object TraceIdHeader extends Header.Codec[String] {
+  def name: String = "x-trace-id"
+  def parse(value: String): Either[String, String] =
+    if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+  def render(value: String): String = value
+}
+
+val request = Request
+  .get(URL.parse("https://example.com").toOption.get)
+  .addHeader("x-trace-id", "trace-123")
+
+val traceId = request.header(TraceIdHeader)
+```
+
 ### Creating Responses with Status and Content
 
 Build a JSON response:
