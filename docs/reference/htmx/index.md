@@ -219,3 +219,70 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 **With headers:** The `zio.http.htmx.headers` submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
 
 **Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` can define `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and then be used directly in HTMX attributes.
+
+## Running the Examples
+
+All code from this guide is available as runnable examples in the `zio-blocks-htmx-examples` module.
+
+**1. Clone the repository and navigate to the project:**
+
+```bash
+git clone https://github.com/zio/zio-blocks-modern.git
+cd zio-blocks-modern
+```
+
+**2. Run individual examples with sbt:**
+
+### Basic Usage
+
+Demonstrates fundamental HTMX attribute construction: triggering requests (hxPost, hxGet), swapping strategies (InnerHTML, OuterHTML), and target selection (This, closest, find). Shows how the typed DSL ensures correct HTMX syntax at compile time.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala")
+```
+
+([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala))
+
+```bash
+sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
+```
+
+### Advanced Patterns
+
+Demonstrates complex HTMX interactions: combining multiple triggers, chaining modifiers, controlling request queuing, animation with transitions, and JavaScript-based filtering. Shows how modifiers compose to create sophisticated client-side behaviors.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala")
+```
+
+([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala))
+
+```bash
+sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.AdvancedPatterns"
+```
+
+### Complete Example
+
+A realistic e-commerce search and filtering interface combining multiple HTMX attributes: debounced search input, live category filtering, paginated results, out-of-band notifications, and dynamic UI updates. Demonstrates how types compose to create a type-safe, interactive UI.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala))
+
+```bash
+sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.CompleteExample"
+```
+
+**3. Or compile all examples at once:**
+
+```bash
+sbt "zio-blocks-htmx-examples/compile"
+```
