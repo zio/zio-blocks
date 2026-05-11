@@ -16,7 +16,7 @@ title: "TypeRef"
 
 Create a simple type reference:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val stringType = TypeRef("String")
@@ -26,7 +26,7 @@ val booleanType = TypeRef("Boolean")
 
 With type arguments for generics:
 
-```scala
+```scala mdoc:compile-only
 val listOfString = TypeRef("List", List(TypeRef("String")))
 val mapStringInt = TypeRef("Map", List(TypeRef("String"), TypeRef("Int")))
 val optionalLong = TypeRef("Option", List(TypeRef("Long")))
@@ -34,7 +34,7 @@ val optionalLong = TypeRef("Option", List(TypeRef("Long")))
 
 Using factory methods from the companion object:
 
-```scala
+```scala mdoc:compile-only
 val string = TypeRef.String
 val int = TypeRef.Int
 val optional = TypeRef.optional(TypeRef.String)
@@ -50,7 +50,7 @@ All core operations are shown below:
 
 Extract parts of a type reference:
 
-```scala
+```scala mdoc:compile-only
 val optional = TypeRef("Option", List(TypeRef.String))
 
 optional.name      // "Option"
@@ -61,7 +61,7 @@ optional.typeArgs  // List[TypeRef] = List(TypeRef("String"))
 
 Compose type references:
 
-```scala
+```scala mdoc:compile-only
 val nestedList = TypeRef("List", List(
   TypeRef("Option", List(TypeRef("String")))
 ))
@@ -72,7 +72,7 @@ val nestedList = TypeRef("List", List(
 
 `TypeRef` provides factory methods for built-in types:
 
-```scala
+```scala mdoc:compile-only
 TypeRef.Unit        // Unit
 TypeRef.Boolean     // Boolean
 TypeRef.Byte        // Byte
@@ -90,7 +90,7 @@ TypeRef.Any         // Any
 
 Convenience methods simplify common generic patterns:
 
-```scala
+```scala mdoc:compile-only
 TypeRef.optional(TypeRef.String)  // Option[String]
 TypeRef.list(TypeRef.Int)         // List[Int]
 TypeRef.set(TypeRef.String)       // Set[String]
@@ -106,7 +106,7 @@ Practical examples demonstrate common usage:
 
 Use `TypeRef` to define field types in a case class:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val user = CaseClass(
@@ -124,7 +124,7 @@ val user = CaseClass(
 
 Use `TypeRef` with type variable names:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val container = CaseClass(
@@ -142,7 +142,7 @@ Represents: `Container[T]` with a field `value: T`
 
 Build deeply nested type expressions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val complexType = TypeRef("Map", List(
@@ -160,7 +160,7 @@ val field = Field("data", complexType)
 
 Use fully qualified names for non-standard types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val bigDecimal = TypeRef("java.math.BigDecimal")
@@ -174,7 +174,7 @@ val field2 = Field("metadata", jsonObject)
 
 Represent Scala 3 union and intersection types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 // Represents: String | Int

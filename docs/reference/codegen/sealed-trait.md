@@ -16,7 +16,7 @@ title: "SealedTrait"
 
 Build a sealed trait with cases:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val httpStatus = SealedTrait(
@@ -31,7 +31,7 @@ val httpStatus = SealedTrait(
 
 With case classes as cases:
 
-```scala
+```scala mdoc:compile-only
 val result = SealedTrait(
   name = "Result",
   cases = List(
@@ -47,7 +47,7 @@ val result = SealedTrait(
 
 With type parameters:
 
-```scala
+```scala mdoc:compile-only
 val option = SealedTrait(
   name = "Option",
   typeParams = List(TypeParam("A")),
@@ -68,7 +68,7 @@ All core operations are shown below:
 
 Extract parts of a sealed trait:
 
-```scala
+```scala mdoc:compile-only
 result.name          // "Result"
 result.cases         // List[SealedTraitCase]
 result.typeParams    // List[TypeParam] (empty if not generic)
@@ -80,7 +80,7 @@ result.annotations   // List[Annotation]
 
 Each case is either a `CaseObjectCase` or `CaseClassCase`:
 
-```scala
+```scala mdoc:compile-only
 val caseObj = SealedTraitCase.CaseObjectCase("Unknown")
 
 val caseClass = SealedTraitCase.CaseClassCase(
@@ -92,7 +92,7 @@ val caseClass = SealedTraitCase.CaseClassCase(
 
 Modify a sealed trait:
 
-```scala
+```scala mdoc:compile-only
 val updated = result.copy(
   cases = result.cases :+ SealedTraitCase.CaseObjectCase("Pending"),
   derives = List("Show")
@@ -107,7 +107,7 @@ Practical examples demonstrate common usage:
 
 A sealed trait with only case objects:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -130,7 +130,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala
+```scala mdoc:compile-only
 package com.graphics
 
 sealed trait Color
@@ -146,7 +146,7 @@ object Color {
 
 A sealed trait with both simple and complex cases:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val payment = SealedTrait(
@@ -172,7 +172,7 @@ val payment = SealedTrait(
 
 Emits:
 
-```scala
+```scala mdoc:compile-only
 sealed trait Payment
 
 object Payment {
@@ -195,7 +195,7 @@ derives Show
 
 A polymorphic sealed trait with type parameters:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val either = SealedTrait(
@@ -214,7 +214,7 @@ val either = SealedTrait(
 
 Emits:
 
-```scala
+```scala mdoc:compile-only
 sealed trait Either[L, R]
 
 object Either {
@@ -227,7 +227,7 @@ object Either {
 
 A sealed trait for error handling:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val appError = SealedTrait(

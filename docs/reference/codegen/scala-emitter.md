@@ -16,7 +16,7 @@ title: "ScalaEmitter"
 
 Emit a complete Scala file:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -40,7 +40,10 @@ All core operations are shown below:
 
 Convert a type reference to Scala syntax:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
 // These methods are used internally by emit, but available if you need them:
 ScalaEmitter.emitTypeRef(TypeRef.String)
 // Returns: "String"
@@ -56,14 +59,16 @@ ScalaEmitter.emitTypeRef(TypeRef.map(TypeRef.String, TypeRef.Int))
 
 Emit generic type parameters with bounds:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val unbounded = TypeParam("T")
 // Emits: "T"
 
 val bounded = TypeParam("T", upperBound = Some(TypeRef("Serializable")))
 // Emits: "T <: Serializable"
 
-val covariant = TypeParam("T", variance = "+")
+val covariant = TypeParam("T", variance = Variance.Covariant)
 // Emits: "+T"
 ```
 
@@ -71,24 +76,31 @@ val covariant = TypeParam("T", variance = "+")
 
 Convert annotations to Scala syntax:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val deprecated = Annotation("deprecated")
 // Emits: "@deprecated"
 
-val withArg = Annotation("Deprecated", args = List("\"Use newMethod instead\""))
-// Emits: "@Deprecated(\"Use newMethod instead\")"
+val withArg = Annotation("Deprecated", args = List("message" -> "Use newMethod instead"))
+// Emits: "@Deprecated(message = \"Use newMethod instead\")"
 ```
 
 ## Configuration
 
 The emitter respects `EmitterConfig` settings:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
+
+val file = ScalaFile(PackageDecl("com.example"))
+
 val config = EmitterConfig(
   indentWidth = 2,              // Spaces per indent level
   sortImports = true,           // Sort import statements
   trailingCommas = true,        // Add trailing commas in collections
-  scalaVersion = EmitterConfig.ScalaVersion.Scala3  // Scala version target
+  scala3Syntax = true           // Scala 3 syntax features
 )
 
 ScalaEmitter.emit(file, config)
@@ -104,7 +116,7 @@ Practical examples demonstrate common usage:
 
 Generate a Scala file with multiple types:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -145,7 +157,7 @@ val sourceCode = ScalaEmitter.emit(file, config)
 
 Generate code for different Scala versions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -164,13 +176,13 @@ val file = ScalaFile(
 
 // For Scala 3: emits actual enum
 val scala3Config = EmitterConfig(
-  scalaVersion = EmitterConfig.ScalaVersion.Scala3
+  scala3Syntax = true
 )
 val scala3Code = ScalaEmitter.emit(file, scala3Config)
 
 // For Scala 2: emits sealed trait (fallback)
 val scala2Config = EmitterConfig(
-  scalaVersion = EmitterConfig.ScalaVersion.Scala2
+  scala3Syntax = false
 )
 val scala2Code = ScalaEmitter.emit(file, scala2Config)
 ```
@@ -203,7 +215,7 @@ object Status {
 
 Emit a complete ADT:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -241,7 +253,7 @@ ScalaEmitter.emit(file, config)
 
 Emit polymorphic types with proper type parameter syntax:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -289,7 +301,7 @@ final case class Pair[A, B](
 
 Control code style with configuration:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 

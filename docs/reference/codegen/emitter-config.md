@@ -14,46 +14,34 @@ title: "EmitterConfig"
 
 ## Configuration Fields
 
-| Field            | Type         | Default | Description                             |
-|------------------|--------------|---------|-----------------------------------------|
-| `indentWidth`    | Int          | 2       | Spaces per indentation level            |
-| `sortImports`    | Boolean      | true    | Sort import statements alphabetically   |
-| `trailingCommas` | Boolean      | true    | Add trailing commas in collections      |
-| `scalaVersion`   | ScalaVersion | Scala3  | Target Scala version (Scala2 or Scala3) |
-
-## ScalaVersion Enum
-
-The `ScalaVersion` enum controls which Scala version syntax the emitter uses:
-
-```scala
-import zio.blocks.codegen.emit._
-
-// Target Scala 3: uses enums, derives, * imports, as renames
-val scala3 = EmitterConfig.ScalaVersion.Scala3
-
-// Target Scala 2: uses sealed traits, _ imports, => renames
-val scala2 = EmitterConfig.ScalaVersion.Scala2
-```
+| Field            | Type    | Default | Description                             |
+|------------------|---------|---------|-----------------------------------------|
+| `indentWidth`    | Int     | 2       | Spaces per indentation level            |
+| `sortImports`    | Boolean | true    | Sort import statements alphabetically   |
+| `trailingCommas` | Boolean | true    | Add trailing commas in collections      |
+| `scala3Syntax`   | Boolean | true    | Target Scala 3 syntax features          |
 
 ## Construction
 
 Create a default configuration:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.emit._
 
 val default = EmitterConfig()
-// indentWidth=2, sortImports=true, trailingCommas=true, scalaVersion=Scala3
+// indentWidth=2, sortImports=true, trailingCommas=true, scala3Syntax=true
 ```
 
 With custom settings:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.emit._
+
 val custom = EmitterConfig(
   indentWidth = 4,
   sortImports = true,
   trailingCommas = false,
-  scalaVersion = EmitterConfig.ScalaVersion.Scala2
+  scala3Syntax = false
 )
 ```
 
@@ -65,24 +53,28 @@ All `EmitterConfig` instances provide these operations:
 
 Read configuration values:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.emit._
+
 val config = EmitterConfig(indentWidth = 4)
 
 config.indentWidth      // 4
 config.sortImports      // true (default)
 config.trailingCommas   // true (default)
-config.scalaVersion     // ScalaVersion.Scala3 (default)
+config.scala3Syntax     // true (default)
 ```
 
 ### Building with Copy
 
 Modify a configuration:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.emit._
+
 val base = EmitterConfig()
 
 val scala2Config = base.copy(
-  scalaVersion = EmitterConfig.ScalaVersion.Scala2
+  scala3Syntax = false
 )
 
 val wideIndentConfig = base.copy(
@@ -98,7 +90,7 @@ Here are practical examples showing different configuration scenarios:
 
 The default configuration for most projects:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -120,7 +112,7 @@ ScalaEmitter.emit(file, config)
 
 For projects preferring 4-space indentation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -164,7 +156,7 @@ object Result {
 
 Target Scala 2 syntax for older codebases:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -185,7 +177,7 @@ val file = ScalaFile(
 )
 
 val scala2Config = EmitterConfig(
-  scalaVersion = EmitterConfig.ScalaVersion.Scala2
+  scala3Syntax = false
 )
 
 ScalaEmitter.emit(file, scala2Config)
@@ -210,7 +202,7 @@ object Color {
 
 For projects with strict no-trailing-commas rules:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -251,7 +243,7 @@ final case class Options(
 
 For projects that manage imports manually:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -294,7 +286,7 @@ final case class Data(
 
 Combining multiple preferences:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -323,7 +315,7 @@ val config = EmitterConfig(
   indentWidth = 4,
   sortImports = true,
   trailingCommas = false,
-  scalaVersion = EmitterConfig.ScalaVersion.Scala2
+  scala3Syntax = false
 )
 
 ScalaEmitter.emit(file, config)
@@ -331,7 +323,7 @@ ScalaEmitter.emit(file, config)
 
 ## Cross-Scala Behavior
 
-The `scalaVersion` field affects code generation:
+The `scala3Syntax` field affects code generation:
 
 ### Scala 3 Features
 

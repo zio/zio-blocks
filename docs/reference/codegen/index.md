@@ -199,7 +199,7 @@ Here are the most common usage patterns:
 
 Build a case class with fields and derive clauses:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.codegen.ir._
 
 val user = CaseClass(
@@ -216,7 +216,9 @@ val user = CaseClass(
 
 Model ADTs (algebraic data types) as sealed traits with cases:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val payment = SealedTrait(
   name = "Payment",
   cases = List(
@@ -239,7 +241,9 @@ val payment = SealedTrait(
 
 Define polymorphic types:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val container = CaseClass(
   name = "Container",
   fields = List(
@@ -253,14 +257,33 @@ val container = CaseClass(
 
 Assemble a complete Scala file ready for emission:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
+val user = CaseClass(
+  name = "User",
+  fields = List(
+    Field("id", TypeRef.Long),
+    Field("name", TypeRef.String)
+  ),
+  derives = List("Schema")
+)
+
+val payment = SealedTrait(
+  name = "Payment",
+  cases = List(
+    SealedTraitCase.CaseObjectCase("Cash"),
+    SealedTraitCase.CaseObjectCase("Card")
+  )
+)
+
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example"),
   imports = List(
     Import.WildcardImport("zio"),
     Import.SingleImport("zio.blocks.schema", "Schema")
   ),
-  types = List(usr, payment)
+  types = List(user, payment)
 )
 ```
 
@@ -273,9 +296,11 @@ The emitter handles both **Scala 3** and **Scala 2** natively:
 
 You configure the output via `EmitterConfig`:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.codegen.emit._
+
 val config = EmitterConfig(
-  scalaVersion = EmitterConfig.ScalaVersion.Scala3, // or Scala2
+  scala3Syntax = true,  // true for Scala 3, false for Scala 2
   indentWidth = 2,
   sortImports = true,
   trailingCommas = true
