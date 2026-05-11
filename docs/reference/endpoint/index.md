@@ -43,7 +43,7 @@ Add the dependency to your build definition:
 libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x.
+Supported Scala versions: 3.x (Scala 3 only — the endpoint module uses Scala 3-only DSL and macro code).
 
 ## Overview
 
