@@ -273,17 +273,17 @@ Transactions provide these guarantees:
 
 ## Integration with HostApi
 
-Transactions internally use `HostApi` to track operation boundaries:
+Transactions internally use atomic operations to track boundaries:
 
-```scala
+```scala mdoc:compile-only
 // Behind the scenes, infallibleTransaction calls:
-// HostApi.markBeginOperation()  // Start atomic region
+// Guards.markAtomicOperation()     // Start atomic region
 // ... execute operations ...
-// HostApi.markEndOperation()    // End atomic region
-// On failure: oplog rolls back to begin
+// On failure: HostApi.getOplogIndex() and setOplogIndex() restore state
+// Compensation runs in reverse order (LIFO)
 ```
 
-You don't call `HostApi` directly; transactions handle it.
+You don't call these directly; transactions handle the atomic region management automatically.
 
 ## Common Patterns
 
