@@ -99,13 +99,13 @@ import golem.BaseAgent
 // Default: Durable (state persists across invocations)
 @agentDefinition(mode = DurabilityMode.Durable)
 trait DurableAgent extends BaseAgent {
-  def getState(): java.util.concurrent.Future[String]
+  def getState(): scala.concurrent.Future[String]
 }
 
 // Ephemeral (fresh instance per invocation)
 @agentDefinition(mode = DurabilityMode.Ephemeral)
 trait EphemeralAgent extends BaseAgent {
-  def compute(): java.util.concurrent.Future[Int]
+  def compute(): scala.concurrent.Future[Int]
 }
 ```
 
@@ -123,8 +123,8 @@ import golem.BaseAgent
 trait OrderAgent extends BaseAgent {
   class Id(val orderId: String)
   
-  def getStatus(): java.util.concurrent.Future[String]
-  def cancel(): java.util.concurrent.Future[Unit]
+  def getStatus(): scala.concurrent.Future[String]
+  def cancel(): scala.concurrent.Future[Unit]
 }
 ```
 
