@@ -81,6 +81,16 @@ object Modifier {
    */
   @field case class config(key: String, value: String) extends Term with Reflect
 
+  @field case class encodeTransient() extends Term
+
+  case class discriminator(name: String) extends Reflect
+
+  case class noExtraFields() extends Reflect
+
+  case class fieldNaming(strategy: String) extends Reflect
+
+  case class caseNaming(strategy: String) extends Reflect
+
   implicit lazy val transientSchema: Schema[transient] = new Schema(
     reflect = new Reflect.Record[Binding, transient](
       fields = Chunk.empty,
@@ -161,22 +171,108 @@ object Modifier {
     )
   )
 
+  implicit lazy val encodeTransientSchema: Schema[encodeTransient] = new Schema(
+    reflect = new Reflect.Record[Binding, encodeTransient](
+      fields = Chunk.empty,
+      typeId = TypeId.of[encodeTransient],
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[encodeTransient](encodeTransient()),
+        deconstructor = new ConstantDeconstructor[encodeTransient]
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  implicit lazy val discriminatorSchema: Schema[discriminator] = new Schema(
+    reflect = new Reflect.Record[Binding, discriminator](
+      fields = Chunk.single(Schema[String].reflect.asTerm("name")),
+      typeId = TypeId.of[discriminator],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[discriminator] {
+          def usedRegisters: RegisterOffset                                   = 1
+          def construct(in: Registers, offset: RegisterOffset): discriminator =
+            new discriminator(in.getObject(offset).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[discriminator] {
+          def usedRegisters: RegisterOffset                                                = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: discriminator): Unit =
+            out.setObject(offset, in.name)
+        }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  implicit lazy val noExtraFieldsSchema: Schema[noExtraFields] = new Schema(
+    reflect = new Reflect.Record[Binding, noExtraFields](
+      fields = Chunk.empty,
+      typeId = TypeId.of[noExtraFields],
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[noExtraFields](noExtraFields()),
+        deconstructor = new ConstantDeconstructor[noExtraFields]
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  implicit lazy val fieldNamingSchema: Schema[fieldNaming] = new Schema(
+    reflect = new Reflect.Record[Binding, fieldNaming](
+      fields = Chunk.single(Schema[String].reflect.asTerm("strategy")),
+      typeId = TypeId.of[fieldNaming],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[fieldNaming] {
+          def usedRegisters: RegisterOffset                                 = 1
+          def construct(in: Registers, offset: RegisterOffset): fieldNaming =
+            new fieldNaming(in.getObject(offset).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[fieldNaming] {
+          def usedRegisters: RegisterOffset                                              = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: fieldNaming): Unit =
+            out.setObject(offset, in.strategy)
+        }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  implicit lazy val caseNamingSchema: Schema[caseNaming] = new Schema(
+    reflect = new Reflect.Record[Binding, caseNaming](
+      fields = Chunk.single(Schema[String].reflect.asTerm("strategy")),
+      typeId = TypeId.of[caseNaming],
+      recordBinding = new Binding.Record(
+        constructor = new Constructor[caseNaming] {
+          def usedRegisters: RegisterOffset                                = 1
+          def construct(in: Registers, offset: RegisterOffset): caseNaming =
+            new caseNaming(in.getObject(offset).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[caseNaming] {
+          def usedRegisters: RegisterOffset                                             = 1
+          def deconstruct(out: Registers, offset: RegisterOffset, in: caseNaming): Unit =
+            out.setObject(offset, in.strategy)
+        }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
   implicit lazy val termSchema: Schema[Term] = new Schema(
     reflect = new Reflect.Variant[Binding, Term](
       cases = Chunk(
         transientSchema.reflect.asTerm("transient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
-        configSchema.reflect.asTerm("config")
+        configSchema.reflect.asTerm("config"),
+        encodeTransientSchema.reflect.asTerm("encodeTransient")
       ),
       typeId = TypeId.of[Term],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Term] {
           def discriminate(a: Term): Int = a match {
-            case _: transient => 0
-            case _: rename    => 1
-            case _: alias     => 2
-            case _: config    => 3
+            case _: transient       => 0
+            case _: rename          => 1
+            case _: alias           => 2
+            case _: config          => 3
+            case _: encodeTransient => 4
           }
         },
         matchers = Matchers(
@@ -203,6 +299,12 @@ object Modifier {
               case x: config => x
               case _         => null.asInstanceOf[config]
             }
+          },
+          new Matcher[encodeTransient] {
+            def downcastOrNull(a: Any): encodeTransient = a match {
+              case x: encodeTransient => x
+              case _                  => null.asInstanceOf[encodeTransient]
+            }
           }
         )
       ),
@@ -212,12 +314,22 @@ object Modifier {
 
   implicit lazy val reflectSchema: Schema[Reflect] = new Schema(
     reflect = new Reflect.Variant[Binding, Reflect](
-      cases = Chunk.single(configSchema.reflect.asTerm("config")),
+      cases = Chunk(
+        configSchema.reflect.asTerm("config"),
+        discriminatorSchema.reflect.asTerm("discriminator"),
+        noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
+        fieldNamingSchema.reflect.asTerm("fieldNaming"),
+        caseNamingSchema.reflect.asTerm("caseNaming")
+      ),
       typeId = TypeId.of[Reflect],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Reflect] {
           def discriminate(a: Reflect): Int = a match {
-            case _: config => 0
+            case _: config        => 0
+            case _: discriminator => 1
+            case _: noExtraFields => 2
+            case _: fieldNaming   => 3
+            case _: caseNaming    => 4
           }
         },
         matchers = Matchers(
@@ -225,6 +337,30 @@ object Modifier {
             def downcastOrNull(a: Any): config = a match {
               case x: config => x
               case _         => null.asInstanceOf[config]
+            }
+          },
+          new Matcher[discriminator] {
+            def downcastOrNull(a: Any): discriminator = a match {
+              case x: discriminator => x
+              case _                => null.asInstanceOf[discriminator]
+            }
+          },
+          new Matcher[noExtraFields] {
+            def downcastOrNull(a: Any): noExtraFields = a match {
+              case x: noExtraFields => x
+              case _                => null.asInstanceOf[noExtraFields]
+            }
+          },
+          new Matcher[fieldNaming] {
+            def downcastOrNull(a: Any): fieldNaming = a match {
+              case x: fieldNaming => x
+              case _              => null.asInstanceOf[fieldNaming]
+            }
+          },
+          new Matcher[caseNaming] {
+            def downcastOrNull(a: Any): caseNaming = a match {
+              case x: caseNaming => x
+              case _             => null.asInstanceOf[caseNaming]
             }
           }
         )
@@ -239,16 +375,26 @@ object Modifier {
         transientSchema.reflect.asTerm("transient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
-        configSchema.reflect.asTerm("config")
+        configSchema.reflect.asTerm("config"),
+        encodeTransientSchema.reflect.asTerm("encodeTransient"),
+        discriminatorSchema.reflect.asTerm("discriminator"),
+        noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
+        fieldNamingSchema.reflect.asTerm("fieldNaming"),
+        caseNamingSchema.reflect.asTerm("caseNaming")
       ),
       typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Modifier] {
           def discriminate(a: Modifier): Int = a match {
-            case _: transient => 0
-            case _: rename    => 1
-            case _: alias     => 2
-            case _: config    => 3
+            case _: transient       => 0
+            case _: rename          => 1
+            case _: alias           => 2
+            case _: config          => 3
+            case _: encodeTransient => 4
+            case _: discriminator   => 5
+            case _: noExtraFields   => 6
+            case _: fieldNaming     => 7
+            case _: caseNaming      => 8
           }
         },
         matchers = Matchers(
@@ -274,6 +420,36 @@ object Modifier {
             def downcastOrNull(a: Any): config = a match {
               case x: config => x
               case _         => null.asInstanceOf[config]
+            }
+          },
+          new Matcher[encodeTransient] {
+            def downcastOrNull(a: Any): encodeTransient = a match {
+              case x: encodeTransient => x
+              case _                  => null.asInstanceOf[encodeTransient]
+            }
+          },
+          new Matcher[discriminator] {
+            def downcastOrNull(a: Any): discriminator = a match {
+              case x: discriminator => x
+              case _                => null.asInstanceOf[discriminator]
+            }
+          },
+          new Matcher[noExtraFields] {
+            def downcastOrNull(a: Any): noExtraFields = a match {
+              case x: noExtraFields => x
+              case _                => null.asInstanceOf[noExtraFields]
+            }
+          },
+          new Matcher[fieldNaming] {
+            def downcastOrNull(a: Any): fieldNaming = a match {
+              case x: fieldNaming => x
+              case _              => null.asInstanceOf[fieldNaming]
+            }
+          },
+          new Matcher[caseNaming] {
+            def downcastOrNull(a: Any): caseNaming = a match {
+              case x: caseNaming => x
+              case _             => null.asInstanceOf[caseNaming]
             }
           }
         )

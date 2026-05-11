@@ -188,4 +188,27 @@ object NameMapper {
   case object Identity extends NameMapper {
     override def apply(memberName: String): String = memberName
   }
+
+  /**
+   * Looks up a `NameMapper` by its string representation.
+   *
+   * @param s
+   *   The string representation of the desired `NameMapper`. Supported values
+   *   are: "identity", "snake_case", "camelCase", "kebab-case", "PascalCase".
+   * @return
+   *   The corresponding `NameMapper` instance.
+   * @throws IllegalArgumentException
+   *   if the string does not match any known `NameMapper`.
+   */
+  def fromString(s: String): NameMapper = s match {
+    case "identity"   => Identity
+    case "snake_case" => SnakeCase
+    case "camelCase"  => CamelCase
+    case "kebab-case" => KebabCase
+    case "PascalCase" => PascalCase
+    case _            =>
+      throw new IllegalArgumentException(
+        s"Unknown NameMapper: '$s'. Valid values are: identity, snake_case, camelCase, kebab-case, PascalCase"
+      )
+  }
 }
