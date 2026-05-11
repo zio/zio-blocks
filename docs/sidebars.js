@@ -148,7 +148,7 @@ const sidebars = {
           "reference/datastar",
           {
             type: "category",
-            label: "ZIO Block Streams",
+            label: "ZIO Blocks Streams",
             link: { type: "doc", id: "reference/streams/index" },
             items: [
              "reference/streams/stream",
