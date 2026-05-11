@@ -80,20 +80,7 @@ val result2: Result[String, String] = Result.fromOption(emptyOption, "Not found"
 
 ## Pattern Matching
 
-Match on success/failure:
-
-```scala
-import golem.Result
-
-def process(result: Result[Int, String]): String =
-  result match {
-    case r if r == Result.ok(42) => "Got 42"
-    case r: Result.Ok => s"Success: ${r.ok}"
-    case r: Result.Err => s"Error: ${r.err}"
-  }
-```
-
-Or use the typed variants:
+Match on success/failure using `WitResult` cases:
 
 ```scala
 import golem.runtime.wit.WitResult
