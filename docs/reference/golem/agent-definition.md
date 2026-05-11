@@ -11,7 +11,7 @@ type AgentDefinition[T] = runtime.autowire.AgentDefinition[T]
 
 ## Overview
 
-When you decorate a trait with `@agentDefinition`, the Scala 3 macro generates:
+When you decorate a trait with `@agentDefinition`, the macro (available in both Scala 2.13 and Scala 3) generates:
 1. A `AgentDefinition[Trait]` instance describing the agent type
 2. RPC request/response handlers
 3. WIT schema types and value codecs
@@ -91,8 +91,8 @@ trait Counter extends BaseAgent {
 
 With HTTP mounting:
 - Constructor parameters become **path variables** (e.g., `{id}` → `id: String`)
-- Method parameters become **query strings** or **request body**
-- Methods are exposed as POST endpoints
+- Methods can be exposed as HTTP endpoints using `@endpoint` annotations
+- Method parameters become **query strings** or **request body** (depends on the method annotation)
 
 ### Custom Type Name
 
