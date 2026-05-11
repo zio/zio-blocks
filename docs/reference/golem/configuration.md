@@ -5,19 +5,16 @@ title: "Configuration & Secrets"
 
 Agents can declare configuration fields that are injected by the Golem runtime. Use `Config` for environment-specific values and `Secret` for sensitive credentials.
 
-The following are the primary configuration APIs available in agents (pseudocode):
+The primary configuration API uses `golem.wasi.Config`, which provides synchronous access to configuration values:
 
-```scala
+```scala mdoc:compile-only
 // Configuration API (golem.wasi.Config)
 object Config {
-  def get(key: String): Future[Option[String]]
-  def getRequired(key: String): Future[String]
+  def get(key: String): Either[ConfigError, Option[String]]
 }
 
-// Secrets API (golem.wasi.Secret)
-object Secret {
-  def get(name: String): Future[Option[String]]
-}
+// Secrets are accessed via typed configuration fields
+// They are represented as golem.config.Secret[A] values
 ```
 
 ## Overview
@@ -49,81 +46,88 @@ The Golem runtime injects these values at agent startup.
 
 ## Accessing Config at Runtime
 
-Use the `Config` API to access configuration:
+Use the `Config` API to access configuration synchronously:
 
 ```scala mdoc:compile-only
 import golem.wasi.Config
-import scala.concurrent.Future
 
-val apiKey: Future[Option[String]] = Config.get("API_KEY")
-val requiredKey: Future[String] = Config.getRequired("API_KEY")
+val apiKey: Either[golem.wasi.ConfigError, Option[String]] = Config.get("API_KEY")
+
+apiKey match {
+  case Right(Some(key)) => println(s"API Key: $key")
+  case Right(None) => println("API_KEY not set")
+  case Left(error) => println(s"Config error: $error")
+}
 ```
 
-**`get(key)`** — Returns `Option[String]`; `None` if not set:
-```scala
+**`get(key)`** — Returns `Either[ConfigError, Option[String]]`:
+```scala mdoc:compile-only
 import golem.wasi.Config
 
-Config.get("DEBUG_MODE") // Future[Option[String]]
-```
-
-**`getRequired(key)`** — Returns `String`; fails if not set:
-```scala
-import golem.wasi.Config
-
-Config.getRequired("DATABASE_URL") // Future[String], throws if missing
+val result: Either[golem.wasi.ConfigError, Option[String]] = Config.get("DEBUG_MODE")
 ```
 
 ## Secrets
 
-Access secrets (credentials, API keys) via the `Secret` API:
+Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
-```scala
-import golem.wasi.Secret
-import scala.concurrent.Future
+```scala mdoc:compile-only
+import golem.config.Secret
 
-val token: Future[Option[String]] = Secret.get("github-token")
+val token: Secret[String] = ??? // Injected by the runtime
+val tokenValue: String = token.get()
 ```
 
-Secrets are handled like configuration but are managed securely by the Golem runtime. Never hardcode secrets; always retrieve them at runtime.
+Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to access sensitive credentials rather than retrieving them through the general `Config` API.
 
 ## Configuration Examples
 
 ### Database Connection String
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.Config
 import scala.concurrent.Future
 
 @golem.runtime.annotations.agentImplementation()
 class DatabaseAgentImpl() extends DatabaseAgent {
   override def query(sql: String): Future[String] = {
-    val dbUrl = Config.getRequired("DATABASE_URL")
-    // Use dbUrl to connect
-    Future.successful("result")
+    val dbUrl = Config.get("DATABASE_URL")
+    dbUrl match {
+      case Right(Some(url)) => 
+        // Use url to connect
+        Future.successful("result")
+      case Right(None) => 
+        Future.failed(new Exception("DATABASE_URL not configured"))
+      case Left(error) => 
+        Future.failed(new Exception(s"Config error: $error"))
+    }
   }
 }
 ```
 
 ### Feature Flags
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.Config
-import scala.concurrent.Future
 
-val enableCache: Future[Option[String]] = Config.get("ENABLE_CACHE")
-enableCache.map {
-  case Some("true") => true
+val enableCache: Either[golem.wasi.ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
+val isEnabled = enableCache match {
+  case Right(Some("true")) => true
   case _ => false
 }
 ```
 
 ### Timeout Configuration
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.Config
-import scala.concurrent.Future
 
-val timeoutMs: Future[Int] = Config.getRequired("REQUEST_TIMEOUT_MS").map(_.toInt)
+val timeoutMs: Either[golem.wasi.ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
+val timeout = timeoutMs match {
+  case Right(Some(ms)) => ms.toInt
+  case Right(None) => 5000 // default
+  case Left(_) => 5000 // default on error
+}
 ```
 
 ## Override Configuration
