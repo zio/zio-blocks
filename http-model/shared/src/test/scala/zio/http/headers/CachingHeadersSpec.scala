@@ -348,6 +348,9 @@ object CachingHeadersSpec extends ZIOSpecDefault {
       },
       test("render") {
         assertTrue(Pragma.render(Pragma("no-cache")) == "no-cache")
+      },
+      test("NoCache convenience value renders standard pragma") {
+        assertTrue(Pragma.NoCache == Pragma("no-cache"))
       }
     ),
     suite("Vary")(
@@ -378,6 +381,12 @@ object CachingHeadersSpec extends ZIOSpecDefault {
         val original = Vary.Headers(Chunk("Accept"))
         val rendered = Vary.render(original)
         assertTrue(Vary.parse(rendered) == Right(original))
+      },
+      test("Star alias and varargs apply mirror wildcard and header lists") {
+        assertTrue(
+          Vary.Star == Vary.Any,
+          Vary("Accept", "Origin") == Vary.Headers(Chunk("Accept", "Origin"))
+        )
       }
     )
   )

@@ -318,6 +318,23 @@ object EndpointSpec extends ZIOSpecDefault {
       }
     ),
     suite("HttpCodec")(
+      test("custom header codec constructors accept Header.Codec values") {
+        object TraceIdHeader extends Header.Codec[String] {
+          def name: String                                 = "X-Trace-Id"
+          def parse(value: String): Either[String, String] =
+            if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+          def render(value: String): String = value
+        }
+
+        val requestHeader  = HttpCodec.requestHeader(TraceIdHeader)
+        val responseHeader = HttpCodec.responseHeader(TraceIdHeader)
+
+        assertTrue(
+          requestHeader.name == "X-Trace-Id",
+          responseHeader.name == "X-Trace-Id",
+          requestHeader.schema.fromDynamicValue(Schema.string.toDynamicValue("trace-123")) == Right("trace-123")
+        )
+      },
       test("smart constructors") {
         val q = HttpCodec.query("limit", Schema.int)
         val h = HttpCodec.requestHeader("Authorization", Schema.string)
@@ -452,6 +469,24 @@ object EndpointSpec extends ZIOSpecDefault {
       test("create from route pattern") {
         val ep = Endpoint(Method.GET / "users")
         assertTrue(ep.route.method == Method.GET, ep.auth == AuthType.None)
+      },
+      test("custom header codec overloads are accepted") {
+        assertZIO(
+          typeCheck("""
+            import zio.blocks.endpoint.*
+            import zio.http.Header
+
+            object TraceIdHeader extends Header.Codec[String] {
+              def name: String = "x-trace-id"
+              def parse(value: String): Either[String, String] = Right(value)
+              def render(value: String): String = value
+            }
+
+            val endpoint = Endpoint(Method.GET / "users")
+              .header(TraceIdHeader)
+              .outHeader(TraceIdHeader)
+          """)
+        )(isRight)
       }
     ),
     suite("HttpCodec phantom type")(

@@ -68,7 +68,7 @@ object HttpCodec {
   private def validationFailure(message: String): Nothing =
     throw SchemaError.validationFailed(message)
 
-  private def headerSchema[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): Schema[A] =
+  private def headerSchema[A](headerType: HttpHeader.Codec[A]): Schema[A] =
     Schema[String].transform[A](
       value => headerType.parse(value).fold(validationFailure, identity),
       value => headerType.render(value)
@@ -172,7 +172,10 @@ object HttpCodec {
   ): HttpCodec.Header[CodecKind.Request, A] =
     Header[CodecKind.Request, A](name, schema, default, doc, examples, deprecated)
 
-  def requestHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Request, A] =
+  /**
+   * Builds a request-header codec from a [[zio.http.Header.Codec]].
+   */
+  def requestHeader[A](headerType: HttpHeader.Codec[A]): HttpCodec.Header[CodecKind.Request, A] =
     Header[CodecKind.Request, A](headerType.name, headerSchema(headerType))
 
   def responseHeader[A](
@@ -185,7 +188,10 @@ object HttpCodec {
   ): HttpCodec.Header[CodecKind.Response, A] =
     Header[CodecKind.Response, A](name, schema, default, doc, examples, deprecated)
 
-  def responseHeader[A <: zio.http.Header](headerType: HttpHeader.Typed[A]): HttpCodec.Header[CodecKind.Response, A] =
+  /**
+   * Builds a response-header codec from a [[zio.http.Header.Codec]].
+   */
+  def responseHeader[A](headerType: HttpHeader.Codec[A]): HttpCodec.Header[CodecKind.Response, A] =
     Header[CodecKind.Response, A](headerType.name, headerSchema(headerType))
 
   def requestBody[A](
@@ -218,7 +224,10 @@ object HttpCodec {
 
   val authorization: HttpCodec[CodecKind.Request, HttpHeader.Authorization]   = requestHeader(HttpHeader.Authorization)
   val basicAuth: HttpCodec[CodecKind.Request, HttpHeader.Authorization.Basic] =
-    requestHeader("authorization", authorizationSchema("Basic", { case basic: HttpHeader.Authorization.Basic => basic }))
+    requestHeader(
+      "authorization",
+      authorizationSchema("Basic", { case basic: HttpHeader.Authorization.Basic => basic })
+    )
   val bearerAuth: HttpCodec[CodecKind.Request, HttpHeader.Authorization.Bearer] =
     requestHeader(
       "authorization",

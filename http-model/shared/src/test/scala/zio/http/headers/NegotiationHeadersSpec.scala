@@ -148,6 +148,9 @@ object NegotiationHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(AcceptEncoding.GZip(None).headerName == "accept-encoding")
+      },
+      test("NoPreference convenience value matches wildcard encoding") {
+        assertTrue(AcceptEncoding.NoPreference == AcceptEncoding.Any(None))
       }
     ),
     suite("AcceptLanguage")(
@@ -198,6 +201,9 @@ object NegotiationHeadersSpec extends ZIOSpecDefault {
           parsed.map(_.languages(0).tag) == Right("en-US"),
           parsed.map(_.languages(1).tag) == Right("fr")
         )
+      },
+      test("Any convenience language range uses wildcard tag") {
+        assertTrue(AcceptLanguage.Any == AcceptLanguage.LanguageRange("*"))
       }
     ),
     suite("AcceptRanges")(
@@ -255,6 +261,12 @@ object NegotiationHeadersSpec extends ZIOSpecDefault {
         assertTrue(
           parsed.isRight,
           parsed.map(_.mediaTypes(0).fullType) == Right("application/json")
+        )
+      },
+      test("varargs apply builds multi-media-type patch header") {
+        assertTrue(
+          AcceptPatch(MediaTypes.application.`json`, MediaTypes.text.`plain`) ==
+            AcceptPatch(Chunk(MediaTypes.application.`json`, MediaTypes.text.`plain`))
         )
       }
     )

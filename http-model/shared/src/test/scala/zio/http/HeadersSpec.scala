@@ -20,6 +20,20 @@ import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 
 object HeadersSpec extends HttpModelBaseSpec {
+  private object TraceIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-trace-id"
+    def parse(value: String): Either[String, String] =
+      if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+    def render(value: String): String = value
+  }
+
+  private object TraceIdLengthHeader extends Header.Codec[Int] {
+    def name: String                              = "x-trace-id"
+    def parse(value: String): Either[String, Int] =
+      if (value.startsWith("trace-")) Right(value.length) else Left("trace id must start with trace-")
+    def render(value: Int): String = "trace-" + value.toString
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Headers")(
     suite("empty")(
       test("is empty") {
@@ -133,6 +147,32 @@ object HeadersSpec extends HttpModelBaseSpec {
           first == Some(Header.ContentLength(42L)),
           second == Some(Header.ContentLength(42L))
         )
+      },
+      test("parses custom header codec without Header subtype") {
+        val h      = Headers("X-Trace-Id" -> "trace-123")
+        val result = h.get(TraceIdHeader)
+        assertTrue(result == Some("trace-123"))
+      },
+      test("keeps built-in convenience header values working through Header.Codec") {
+        val h = Headers(
+          "Access-Control-Allow-Headers"     -> "*",
+          "Access-Control-Allow-Credentials" -> "true"
+        )
+        assertTrue(
+          h.get(Header.AccessControlAllowHeaders) == Some(Header.AccessControlAllowHeaders.All),
+          h.get(Header.AccessControlAllowCredentials) == Some(Header.AccessControlAllowCredentials.Allow)
+        )
+      },
+      test("does not reuse cached value across codecs with the same header name") {
+        val h      = Headers("X-Trace-Id" -> "trace-123")
+        val first  = h.get(TraceIdHeader)
+        val second = h.get(TraceIdLengthHeader)
+        val third  = h.get(TraceIdHeader)
+        assertTrue(
+          first == Some("trace-123"),
+          second == Some(9),
+          third == Some("trace-123")
+        )
       }
     ),
     suite("getAll")(
@@ -156,6 +196,22 @@ object HeadersSpec extends HttpModelBaseSpec {
         assertTrue(
           hosts.length == 1,
           hosts(0) == Header.Host("example.com", None)
+        )
+      },
+      test("returns all matching custom header codec values") {
+        val h      = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-2")
+        val traces = h.getAll(TraceIdHeader)
+        assertTrue(traces == Chunk("trace-1", "trace-2"))
+      },
+      test("does not reuse cached values across getAll codecs with the same header name") {
+        val h       = Headers("X-Trace-Id" -> "trace-1", "X-Trace-Id" -> "trace-22")
+        val strings = h.getAll(TraceIdHeader)
+        val lengths = h.getAll(TraceIdLengthHeader)
+        val again   = h.getAll(TraceIdHeader)
+        assertTrue(
+          strings == Chunk("trace-1", "trace-22"),
+          lengths == Chunk(7, 8),
+          again == Chunk("trace-1", "trace-22")
         )
       }
     ),

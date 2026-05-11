@@ -26,15 +26,31 @@ trait Header {
 
 object Header {
 
-  trait Typed[H <: Header] {
+  /**
+   * Type class for typed access to a single HTTP header.
+   *
+   * Implementations provide the canonical header name together with parsing and
+   * rendering logic for a domain value. Parsing failures should return a human-
+   * readable error instead of constructing an invalid value.
+   */
+  trait Codec[A] {
     def name: String
-    def parse(value: String): Either[String, H]
-    def render(h: H): String
+    def parse(value: String): Either[String, A]
+    def render(value: A): String
   }
+
+  /**
+   * Marker trait for built-in header models that are also valid
+   * [[Header.Codec]]s.
+   */
+  trait Typed[H <: Header] extends Codec[H]
 
   final case class Custom(override val headerName: String, rawValue: String) extends Header {
     def renderedValue: String = rawValue
   }
+
+  val Cookie: Typed[CookieHeader]       = CookieHeader
+  val SetCookie: Typed[SetCookieHeader] = SetCookieHeader
 
   sealed trait Authorization extends zio.http.Header {
     def headerName: String    = Authorization.name
@@ -346,6 +362,14 @@ object Header {
   object ContentDisposition extends Typed[ContentDisposition] {
     val name: String = "content-disposition"
 
+    val inline: ContentDisposition     = Inline(None)
+    val attachment: ContentDisposition = Attachment(None)
+
+    def inline(filename: String): ContentDisposition                 = Inline(Some(filename))
+    def attachment(filename: String): ContentDisposition             = Attachment(Some(filename))
+    def formData(name: String): ContentDisposition                   = FormData(name, None)
+    def formData(name: String, filename: String): ContentDisposition = FormData(name, Some(filename))
+
     final case class Attachment(filename: Option[String])             extends ContentDisposition
     final case class Inline(filename: Option[String])                 extends ContentDisposition
     final case class FormData(name: String, filename: Option[String]) extends ContentDisposition
@@ -616,6 +640,9 @@ object Header {
   object Via extends Typed[Via] {
     val name: String = "via"
 
+    def apply(first: String, rest: String*): Via =
+      Via(Chunk.fromIterable(first +: rest))
+
     def parse(value: String): Either[String, Via] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
       if (parts.isEmpty) Left("Empty via header")
@@ -745,6 +772,9 @@ object Header {
 
   object Trailer extends Typed[Trailer] {
     val name: String = "trailer"
+
+    def apply(first: String, rest: String*): Trailer =
+      Trailer(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, Trailer] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
@@ -1081,6 +1111,7 @@ object Header {
 
   object Pragma extends Typed[Pragma] {
     val name: String                                 = "pragma"
+    val NoCache: Pragma                              = Pragma("no-cache")
     def parse(value: String): Either[String, Pragma] = Right(Pragma(value.trim))
     def render(h: Pragma): String                    = h.renderedValue
   }
@@ -1095,6 +1126,11 @@ object Header {
 
     case object Any                                extends Vary
     final case class Headers(names: Chunk[String]) extends Vary
+
+    val Star: Vary = Any
+
+    def apply(first: String, rest: String*): Vary =
+      Headers(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, Vary] = {
       val trimmed = value.trim
@@ -1175,6 +1211,8 @@ object Header {
 
     final case class Multiple(values: Chunk[AcceptEncoding]) extends AcceptEncoding
 
+    val NoPreference: AcceptEncoding = Any(None)
+
     def parse(value: String): Either[String, AcceptEncoding] = {
       val parts = value.split(',').map(_.trim).filter(_.nonEmpty)
       if (parts.isEmpty) Left(s"Invalid accept-encoding: $value")
@@ -1229,6 +1267,8 @@ object Header {
     val name: String = "accept-language"
 
     final case class LanguageRange(tag: String, quality: Double = 1.0)
+
+    val Any: LanguageRange = LanguageRange("*")
 
     def parse(value: String): Either[String, AcceptLanguage] = {
       if (value.trim.isEmpty) return Left("Accept-Language cannot be empty")
@@ -1289,6 +1329,9 @@ object Header {
   object AcceptPatch extends Typed[AcceptPatch] {
     val name: String = "accept-patch"
 
+    def apply(first: MediaType, rest: MediaType*): AcceptPatch =
+      AcceptPatch(Chunk.fromIterable(first +: rest))
+
     def parse(value: String): Either[String, AcceptPatch] = {
       if (value.trim.isEmpty) return Left("Accept-Patch header cannot be empty")
       val parts  = value.split(',').map(_.trim).filter(_.nonEmpty)
@@ -1333,6 +1376,11 @@ object Header {
   object AccessControlAllowMethods extends Typed[AccessControlAllowMethods] {
     val name: String = "access-control-allow-methods"
 
+    val All: AccessControlAllowMethods = AccessControlAllowMethods(Chunk.fromIterable(Method.values))
+
+    def apply(first: Method, rest: Method*): AccessControlAllowMethods =
+      AccessControlAllowMethods(Chunk.fromIterable(first +: rest))
+
     def parse(value: String): Either[String, AccessControlAllowMethods] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-allow-methods header")
@@ -1362,6 +1410,11 @@ object Header {
   object AccessControlAllowHeaders extends Typed[AccessControlAllowHeaders] {
     val name: String = "access-control-allow-headers"
 
+    val All: AccessControlAllowHeaders = AccessControlAllowHeaders(Chunk("*"))
+
+    def apply(first: String, rest: String*): AccessControlAllowHeaders =
+      AccessControlAllowHeaders(Chunk.fromIterable(first +: rest))
+
     def parse(value: String): Either[String, AccessControlAllowHeaders] = {
       val trimmed = value.trim
       if (trimmed.isEmpty) return Left("Empty access-control-allow-headers header")
@@ -1381,10 +1434,14 @@ object Header {
   object AccessControlAllowCredentials extends Typed[AccessControlAllowCredentials] {
     val name: String = "access-control-allow-credentials"
 
+    val Allow: AccessControlAllowCredentials      = AccessControlAllowCredentials(true)
+    val Deny: AccessControlAllowCredentials       = AccessControlAllowCredentials(false)
+    val DoNotAllow: AccessControlAllowCredentials = Deny
+
     def parse(value: String): Either[String, AccessControlAllowCredentials] =
       value.trim.toLowerCase match {
-        case "true"  => Right(AccessControlAllowCredentials(true))
-        case "false" => Right(AccessControlAllowCredentials(false))
+        case "true"  => Right(Allow)
+        case "false" => Right(Deny)
         case other   => Left(s"Invalid access-control-allow-credentials: $other")
       }
 
@@ -1399,6 +1456,11 @@ object Header {
 
   object AccessControlExposeHeaders extends Typed[AccessControlExposeHeaders] {
     val name: String = "access-control-expose-headers"
+
+    val All: AccessControlExposeHeaders = AccessControlExposeHeaders(Chunk("*"))
+
+    def apply(first: String, rest: String*): AccessControlExposeHeaders =
+      AccessControlExposeHeaders(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, AccessControlExposeHeaders] = {
       val trimmed = value.trim
@@ -1438,6 +1500,9 @@ object Header {
 
   object AccessControlRequestHeaders extends Typed[AccessControlRequestHeaders] {
     val name: String = "access-control-request-headers"
+
+    def apply(first: String, rest: String*): AccessControlRequestHeaders =
+      AccessControlRequestHeaders(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, AccessControlRequestHeaders] = {
       val trimmed = value.trim
@@ -1531,6 +1596,19 @@ object Header {
 
   object Allow extends Typed[Allow] {
     val name: String = "allow"
+
+    val OPTIONS: Allow = Allow(Method.OPTIONS)
+    val GET: Allow     = Allow(Method.GET)
+    val HEAD: Allow    = Allow(Method.HEAD)
+    val POST: Allow    = Allow(Method.POST)
+    val PUT: Allow     = Allow(Method.PUT)
+    val PATCH: Allow   = Allow(Method.PATCH)
+    val DELETE: Allow  = Allow(Method.DELETE)
+    val TRACE: Allow   = Allow(Method.TRACE)
+    val CONNECT: Allow = Allow(Method.CONNECT)
+
+    def apply(first: Method, rest: Method*): Allow =
+      Allow(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, Allow] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
@@ -1632,6 +1710,8 @@ object Header {
     case object TrackingAllowed    extends DNT
     case object TrackingNotAllowed extends DNT
     case object Unset              extends DNT
+
+    val NotSpecified: DNT = Unset
 
     def parse(value: String): Either[String, DNT] =
       value.trim match {
@@ -1754,6 +1834,9 @@ object Header {
 
   object SecWebSocketProtocol extends Typed[SecWebSocketProtocol] {
     val name: String = "sec-websocket-protocol"
+
+    def apply(first: String, rest: String*): SecWebSocketProtocol =
+      SecWebSocketProtocol(Chunk.fromIterable(first +: rest))
 
     def parse(value: String): Either[String, SecWebSocketProtocol] = {
       val parts = value.split(",").map(_.trim).filter(_.nonEmpty)
