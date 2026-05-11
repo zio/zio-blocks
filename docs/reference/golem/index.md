@@ -171,9 +171,9 @@ trait Shard extends BaseAgent {
 For ergonomic `.get()` and `.getPhantom()` access, define a companion object:
 
 ```scala
-import golem.AgentCompanion
+import golem.AgentCompanionBase
 
-object Shard extends AgentCompanion[Shard]
+object Shard extends AgentCompanionBase[Shard]
 
 // Now clients can do:
 // val shard = Shard.get("table", 1)
@@ -182,20 +182,24 @@ object Shard extends AgentCompanion[Shard]
 
 ### Pattern 3: Stateful Agent with Snapshots
 
-Persist state across invocations using snapshots:
+Persist state across invocations using snapshots by mixing in the `Snapshotted` trait:
 
 ```scala
 import golem.runtime.annotations.agentImplementation
 import golem.Snapshotted
+import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
+case class CounterState(value: Int)
+
 @agentImplementation()
-class StatefulAgentImpl() extends StatefulAgent {
-  private val state: Snapshotted[Map[String, Int]] = Snapshotted(Map.empty)
+class CounterImpl() extends Counter with Snapshotted[CounterState] {
+  var state: CounterState = CounterState(0)
+  val stateSchema: Schema[CounterState] = Schema.derived
   
-  override def setValue(key: String, value: Int): Future[Unit] = {
-    state.update(m => m + (key -> value))
-    Future.successful(())
+  override def increment(): Future[Int] = Future.successful {
+    state = state.copy(value = state.value + 1)
+    state.value
   }
 }
 ```
