@@ -5,7 +5,7 @@ title: HxSwap
 
 `HxSwap` represents the `hx-swap` attribute, controlling how HTMX replaces DOM content after a successful response. It combines a base strategy (innerHTML, outerHTML, etc.) with optional modifiers that refine timing, animation, scrolling, and focus behavior.
 
-Start from one of the predefined strategies, then call modifier methods to customize timing, animation, and scroll behavior. All modifiers are optional, and calling the same modifier twice replaces the earlier value rather than stacking.
+Start from one of the predefined strategies, then call modifier methods to customize timing, animation, and scroll behavior. All modifiers are optional, and calling the same modifier twice replaces the earlier value rather than stacking. Here are the core patterns:
 
 ```scala
 import zio.http.htmx._
@@ -168,7 +168,7 @@ val swap = HxSwap.InnerHTML.swap(1.second).settle(500.millis).transition
 swap.render  // "innerHTML swap:1s settle:500ms transition:true"
 ```
 
-**`HxSwap.parse(value: String): Either[String, HxSwap]`** parses a rendered HTMX swap string back into a typed `HxSwap` value. The parser accepts the same format produced by `render`:
+**`HxSwap.parse(value: String): Either[String, HxSwap]`** decodes a rendered HTMX swap string into a typed `HxSwap` value. The parser accepts the same format that `render` produces:
 
 ```scala mdoc:compile-only
 import zio.http.htmx._
@@ -190,9 +190,11 @@ HxSwap.parse("innerHTML scroll:middle")  // Left("Invalid HTMX scroll position: 
 
 ## Common Patterns
 
+Effective swap strategies enhance user experience through proper timing and animation. Here are practical usage patterns:
+
 ### Fade-In New Content
 
-Combine `transition` with a `settle` delay to fade in new elements:
+Combine `HxSwap#transition` with `HxSwap#settle` delay to fade in new elements:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -207,7 +209,7 @@ div(
 
 ### Scroll New Content Into View
 
-Use `scroll` with `BeforeEnd` or `AfterEnd` to append content and scroll to it:
+Use `HxSwap#scroll` with `BeforeEnd` or `AfterEnd` to append content and scroll to it:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -224,7 +226,7 @@ div(
 
 ### Replace and Focus
 
-Use `InnerHTML` or `OuterHTML` with `focusScroll` to replace content and move focus:
+Use `InnerHTML` or `OuterHTML` with `HxSwap#focusScroll` to replace content and move focus:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -239,7 +241,7 @@ form(
 
 ### Preserve Animations While Settling
 
-Increase the `settle` delay to let CSS animations complete before HTMX considers the swap done:
+Increase the `HxSwap#settle` delay to let CSS animations complete before HTMX considers the swap done:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -271,4 +273,4 @@ button(
 )
 ```
 
-The `ToHtmxValue[HxSwap]` instance is defined automatically, so you can assign an `HxSwap` value directly using the `:=` operator on the `hxSwap` attribute key.
+The `ToHtmxValue[HxSwap]` type class renders automatically, enabling you to assign `HxSwap` values directly using the `:=` operator on the `hxSwap` attribute key.
