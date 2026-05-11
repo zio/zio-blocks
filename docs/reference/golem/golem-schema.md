@@ -86,8 +86,8 @@ case class DataContainer(
 Manually encode/decode (rarely needed; handled by the macro):
 
 ```scala
-import golem.GolemSchema
-import golem.StructuredValue
+import golem.data.GolemSchema
+import golem.data.StructuredValue
 
 case class Person(name: String, age: Int) derives zio.blocks.schema.Schema
 
