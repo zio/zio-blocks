@@ -144,8 +144,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [17]
-        platform: ['JS']
         include:
           - java: 17
             platform: JS
