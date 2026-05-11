@@ -173,7 +173,7 @@ val intSeg = SegmentCodec.int("id")
 val rendered: String = intSeg.render()
 ```
 
-Dynamic segments appear as `{name}` by default. To use a different prefix/suffix, pass them as arguments: `intSeg.render(":", "")` produces `:id`.
+Dynamic segments appear as `/{name}` by default (including the leading slash). To use a different prefix/suffix, pass them as arguments: `intSeg.render(":", "")` produces `/:id`.
 
 ## Priority Ordering
 
