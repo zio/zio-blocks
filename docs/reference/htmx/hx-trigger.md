@@ -5,7 +5,7 @@ title: HxTrigger
 
 `HxTrigger` represents the `hx-trigger` attribute, declaring which event fires an HTMX request. It combines an event name with optional modifiers that refine timing (delay, throttle), state (once, changed), source (from), queue strategy, and filtering. `HxTriggerSet` composes multiple triggers in a comma-separated list for complex event handling.
 
-Start from a predefined trigger like `HxTrigger.click` or construct one with `HxTrigger("eventName")`. Add modifiers by chaining methods. Modifiers within the same group (e.g., two `delay` calls) replace earlier values; unrelated modifiers accumulate.
+Start from a predefined trigger like `HxTrigger.click` or construct one with `HxTrigger("eventName")`. Add modifiers by chaining methods. Modifiers within the same group (e.g., two `delay` calls) replace earlier values; unrelated modifiers accumulate. Here are the core patterns:
 
 ```scala
 import zio.http.htmx._
@@ -188,6 +188,8 @@ Control how requests queue when multiple triggers fire in quick succession:
 - `HxTrigger.QueueStrategy.All` — Queue all requests and fire them in order (default HTMX behavior).
 - `HxTrigger.QueueStrategy.None` — Abort pending requests and fire the new one immediately.
 
+Here are examples using different queue strategies:
+
 ```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.http.htmx._
@@ -208,7 +210,7 @@ button(
 
 ## Intersection Observer
 
-**`threshold(value: Double)`** adds a `threshold:` modifier for Intersection Observer-based triggers (e.g., `intersect`). The value is a fraction between 0.0 and 1.0:
+**`threshold(value: Double)`** adds a `threshold:` modifier for Intersection Observer-based triggers (e.g., `HxTrigger.intersect`). The value is a fraction between 0.0 and 1.0:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -333,6 +335,8 @@ div(
 ```
 
 ## Common Patterns
+
+`HxTrigger` enables sophisticated event handling through modifiers. Here are practical usage patterns:
 
 ### Debounced Search
 
