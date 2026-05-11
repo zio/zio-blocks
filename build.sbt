@@ -584,6 +584,10 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(chunk, mediatype, streams, maybe)
   .settings(
     libraryDependencies ++= Seq(
@@ -602,6 +606,10 @@ lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(`http-model`, schema)
   .settings(
     libraryDependencies ++= Seq(
@@ -631,6 +639,10 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(`http-model`, schema, combinators, mediatype, markdown)
   .settings(
     libraryDependencies ++= Seq(
@@ -1413,6 +1425,10 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(html, `http-model`)
   .settings(
     libraryDependencies ++= Seq(
@@ -1433,6 +1449,10 @@ lazy val htmx = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(html, schema, `http-model`)
   .settings(
     libraryDependencies ++= Seq(
