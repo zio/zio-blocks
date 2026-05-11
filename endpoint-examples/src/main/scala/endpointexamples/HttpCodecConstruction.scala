@@ -67,10 +67,10 @@ import zio.blocks.schema.Schema
 
   // --- Sequential composition with ++ ---
   // Combines two request-side codecs into a single codec whose value is a tuple
-  val queryAndHeader: HttpCodec[CodecKind.Request, (String, Int)] =
+  val nameAndAgeQuery: HttpCodec[CodecKind.Request, (String, Int)] =
     HttpCodec.query("name", Schema.string) ++ HttpCodec.query("age", Schema.int)
 
-  println(s"Sequential codec: ${queryAndHeader.getClass.getSimpleName}")
+  println(s"Sequential codec: ${nameAndAgeQuery.getClass.getSimpleName}")
 
   // --- Alternative composition with | ---
   // Builds a fallback: try the left codec, then the right
