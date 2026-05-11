@@ -79,7 +79,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 3.x only. The artifacts are cross-platform for JVM and Scala.js.
+Supported Scala versions: Scala 2.13 and Scala 3.x. The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 

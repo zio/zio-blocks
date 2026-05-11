@@ -39,16 +39,25 @@ final case class Request(
    * this method falls back to the body's content type.
    */
   def contentType: Option[ContentType] =
-    header(zio.http.headers.ContentType).map(_.value).orElse(Some(body.contentType))
+    header(Header.ContentType).map(_.value).orElse(Some(body.contentType))
 
   def path: Path = url.path
 
   def queryParams: QueryParams = url.queryParams
 
+  def cookies: zio.blocks.chunk.Chunk[RequestCookie] =
+    header(Header.CookieHeader).map(header => Cookie.parseRequest(header.value)).getOrElse(zio.blocks.chunk.Chunk.empty)
+
   def addHeader(name: String, value: String): Request = copy(headers = headers.add(name, value))
+  def addHeader(header: Header): Request              = copy(headers = headers.add(header))
   def addHeaders(other: Headers): Request             = copy(headers = headers ++ other)
+  def addCookie(cookie: RequestCookie): Request       = {
+    val updatedCookies = cookies :+ cookie
+    setHeader(Header.CookieHeader(Cookie.renderRequest(updatedCookies)))
+  }
   def removeHeader(name: String): Request             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Request = copy(headers = headers.set(name, value))
+  def setHeader(header: Header): Request              = copy(headers = headers.set(header))
 
   /**
    * Returns a copy with the supplied body and a synchronized `Content-Type`

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 
 object SecurityHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SecurityHeaders")(

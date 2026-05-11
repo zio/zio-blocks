@@ -17,7 +17,7 @@
 package zio.blocks.endpoint
 
 import zio.blocks.combinators.Eithers
-import zio.http.{Status, headers}
+import zio.http.{Header, Status}
 
 /**
  * Authentication scheme descriptor aligned with zio-http's typed auth model.
@@ -74,20 +74,20 @@ object AuthType {
   }
 
   case object Basic extends AuthType {
-    type ClientRequirement = headers.Authorization.Basic
-    override val codec: HttpCodec[CodecKind.Request, headers.Authorization.Basic] =
+    type ClientRequirement = Header.Authorization.Basic
+    override val codec: HttpCodec[CodecKind.Request, Header.Authorization.Basic] =
       HttpCodec.basicAuth
   }
 
   case object Bearer extends AuthType {
-    type ClientRequirement = headers.Authorization.Bearer
-    override val codec: HttpCodec[CodecKind.Request, headers.Authorization.Bearer] =
+    type ClientRequirement = Header.Authorization.Bearer
+    override val codec: HttpCodec[CodecKind.Request, Header.Authorization.Bearer] =
       HttpCodec.bearerAuth
   }
 
   case object Digest extends AuthType {
-    type ClientRequirement = headers.Authorization.Digest
-    override val codec: HttpCodec[CodecKind.Request, headers.Authorization.Digest] =
+    type ClientRequirement = Header.Authorization.Digest
+    override val codec: HttpCodec[CodecKind.Request, Header.Authorization.Digest] =
       HttpCodec.digestAuth
   }
 

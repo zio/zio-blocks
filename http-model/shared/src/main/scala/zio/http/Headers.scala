@@ -69,6 +69,17 @@ final class Headers private[http] (
     None
   }
 
+  def rawGetLast(name: String): Option[String] = {
+    Headers.validateNameOrThrow(name)
+    val target = name.toLowerCase(Locale.ROOT)
+    var i      = size - 1
+    while (i >= 0) {
+      if (names(i) == target) return Some(rawValues(i))
+      i -= 1
+    }
+    None
+  }
+
   def rawGetAll(name: String): Chunk[String] = {
     Headers.validateNameOrThrow(name)
     val target  = name.toLowerCase(Locale.ROOT)
@@ -104,6 +115,13 @@ final class Headers private[http] (
     builder.result()
   }
 
+  def getLast[H <: Header](headerType: Header.Typed[H]): Option[H] = {
+    val all = getAll(headerType)
+    if (all.isEmpty) None else Some(all(all.length - 1))
+  }
+
+  def add(header: Header): Headers = add(header.headerName, header.renderedValue)
+
   def add(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)
@@ -131,6 +149,8 @@ final class Headers private[http] (
     builder.add(lowerName, value)
     builder.build()
   }
+
+  def set(header: Header): Headers = set(header.headerName, header.renderedValue)
 
   def remove(name: String): Headers = {
     Headers.validateNameOrThrow(name)

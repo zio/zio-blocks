@@ -16,7 +16,7 @@
 
 package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 
 object CookieSpec extends HttpModelBaseSpec {
@@ -190,6 +190,10 @@ object CookieSpec extends HttpModelBaseSpec {
         }
       ),
       suite("renderResponse")(
+        test("renderResponseEither renders minimal cookie") {
+          val rendered = Cookie.renderResponseEither(ResponseCookie("session", "abc123"))
+          assertTrue(rendered == Right("session=abc123"))
+        },
         test("renders minimal cookie") {
           val rendered = Cookie.renderResponse(ResponseCookie("session", "abc123"))
           assertTrue(rendered == "session=abc123")
@@ -228,6 +232,15 @@ object CookieSpec extends HttpModelBaseSpec {
           assertTrue(
             scala.util.Try(Cookie.renderResponse(ResponseCookie("a", "b", sameSite = Some(SameSite.None_)))).isFailure
           )
+        },
+        test("renderResponseEither rejects SameSite=None without Secure") {
+          assertTrue(
+            Cookie.renderResponseEither(ResponseCookie("a", "b", sameSite = Some(SameSite.None_))) ==
+              Left("SameSite=None cookies must also be Secure")
+          )
+        },
+        test("renderResponseEither rejects invalid cookie names without throwing") {
+          assertTrue(Cookie.renderResponseEither(ResponseCookie("bad name", "b")).isLeft)
         },
         test("renders Expires, Partitioned, and Priority") {
           val rendered = Cookie.renderResponse(
