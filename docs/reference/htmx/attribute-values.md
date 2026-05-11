@@ -7,6 +7,8 @@ This section documents supporting attribute value types and infrastructure for t
 
 ## Attribute Value Types
 
+These types enable specialized data encoding and configuration:
+
 ### HxVals — Custom Values
 
 `HxVals` represents the `hx-vals` attribute, allowing you to send custom data alongside form parameters. It accepts both schema-backed values (automatically JSON-encoded) and raw JSON:
@@ -24,7 +26,7 @@ HxVals.from(Extra(123, "admin"))
 HxVals.json(Json.obj("userId" -> Json.num(123)))
 ```
 
-Use `HxVals.from[T](value)` with an implicit `Schema[T]` to automatically encode any data type to JSON:
+Use `HxVals.from[T](value)` with an implicit `Schema[T]` to automatically encode any data type to JSON. First, set up a schema for your data type:
 
 ```scala mdoc:silent
 import zio.blocks.html._
@@ -37,7 +39,12 @@ object RequestContext {
 }
 ```
 
+Then use it in your form:
+
 ```scala mdoc:compile-only
+import zio.blocks.html._
+import zio.http.htmx._
+
 form(
   hxPost := "/api/action",
   hxVals := HxVals.from(RequestContext(42, "abc123")),
@@ -45,12 +52,14 @@ form(
 )
 ```
 
-Or use `HxVals.json(json)` when you already have JSON:
+Or use `HxVals.json(json)` when you already have JSON. Set up the imports first:
 
 ```scala mdoc:silent
 import zio.blocks.schema.json.Json
 import zio.blocks.chunk.Chunk
 ```
+
+Then construct the JSON:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -234,11 +243,13 @@ div(
 
 ## Infrastructure Types
 
+These types provide the internal machinery for the HTMX DSL:
+
 ### HtmxAttrKey — Typed Attribute Keys
 
 `HtmxAttrKey[-A]` is the typed attribute key binding an attribute name to its expected value type. Unlike plain HTML attributes, HTMX attributes carry compile-time type information, preventing type mismatches.
 
-You don't construct `HtmxAttrKey` directly; instead, you use predefined keys like `hxPost`, `hxSwap`, `hxTarget`, etc., exposed by the `HtmxAttributes` mixin. These keys enforce that assigned values match their declared types:
+The `HtmxAttributes` mixin provides predefined keys like `hxPost`, `hxSwap`, `hxTarget`, etc.; use these rather than constructing `HtmxAttrKey` directly. Each key enforces the correct value type:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -287,7 +298,7 @@ object Priority:
   implicit val schema: Schema[Priority] = Schema.derived
 ```
 
-Now `Priority` values can be used directly in HTMX attributes:
+Use `Priority` values directly in HTMX attributes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
