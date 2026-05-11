@@ -18,7 +18,7 @@ trait Counter extends BaseAgent {
 
 // Implement the agent
 @agentImplementation()
-class CounterImpl(id: (String)) extends Counter {
+class CounterImpl(name: String) extends Counter {
   private var count = 0
   override def increment(): Future[Int] = Future.successful { count += 1; count }
   override def get(): Future[Int] = Future.successful(count)
@@ -58,7 +58,7 @@ libraryDependencies += "dev.zio" %% "zio-golem-model" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
 ```
 
-Supported Scala versions: **3.3.x**, **3.4.x**, **3.5.x**, and **3.6.x**. For Scala.js: use `%%%` instead of `%%`.
+Supported Scala versions: **2.13.x** and **3.8.x**. For Scala.js: use `%%%` instead of `%%`.
 
 ## Overview
 
