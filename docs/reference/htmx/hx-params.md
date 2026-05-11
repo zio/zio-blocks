@@ -5,7 +5,7 @@ title: HxParams
 
 `HxParams` represents the `hx-params` attribute, controlling which form parameters are included in the HTMX request. Instead of sending all form fields, you can explicitly allow or forbid specific parameters through compile-safe domain types.
 
-Use `HxParams.All` to include all parameters, `HxParams.None` to include none, or `HxParams.only()` and `HxParams.not()` to allow/forbid specific names.
+Use `HxParams.All` to include all parameters, `HxParams.None` to include none, or `HxParams.only()` and `HxParams.not()` to allow/forbid specific names. Here are the core patterns:
 
 ```scala
 import zio.http.htmx._
@@ -112,6 +112,8 @@ HxParams.parse("query,,page")          // Left("HTMX params list cannot contain 
 ```
 
 ## Common Patterns
+
+`HxParams` is useful when you need fine-grained control over which form fields are sent to the server. Here are representative usage patterns:
 
 ### Search Without CSRF Token
 
