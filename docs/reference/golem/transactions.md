@@ -67,7 +67,10 @@ val result: Either[Transactions.TransactionFailure[String], String] = Transactio
     _ => Right(42)
   )((_, _) => Right(()))
 
-  val value = tx.execute(step1, ())
+  val value = tx.execute(step1, ()) match {
+    case Left(err) => return Left(err)
+    case Right(v) => v
+  }
 
   val step2 = Transactions.operation[Int, String, String](
     n => if (n > 100) Left("Too large") else Right(s"Value: $n")
@@ -208,7 +211,7 @@ Use fallible transactions when you want to fail fast but ensure cleanup:
 import golem.Transactions
 import scala.concurrent.Future
 
-val result: Either[String, Int] = Transactions.fallibleTransaction { tx =>
+val result: Either[Transactions.TransactionFailure[String], Int] = Transactions.fallibleTransaction { tx =>
   val allocateResource = Transactions.operation[Unit, String, String](
     _ => Right("resource-1")
   )((_, resource) => {
@@ -216,13 +219,14 @@ val result: Either[String, Int] = Transactions.fallibleTransaction { tx =>
     Right(())
   })
 
-  tx.execute(allocateResource, ()) match {
-    case Left(err) => Left(err)
-    case Right(resource) =>
-      // Use resource
-      if (shouldFail) Left("Operation failed")
-      else Right(42)
+  val resource = tx.execute(allocateResource, ()) match {
+    case Left(err) => return Left(err)
+    case Right(r) => r
   }
+
+  // Use resource
+  if (false) Left("Operation failed")
+  else Right(42)
 }
 ```
 

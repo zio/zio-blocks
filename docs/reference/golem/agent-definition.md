@@ -117,10 +117,10 @@ The `@agentDefinition` annotation supports these additional parameters:
 | Parameter | Type | Default | Purpose |
 |-----------|------|---------|---------|
 | `auth` | Boolean | false | Enable authentication enforcement for agent methods |
-| `cors` | Boolean | false | Enable CORS headers in HTTP responses |
+| `cors` | Array[String] | Array.empty | Allowed CORS origins (e.g., Array("https://example.com")); empty means CORS disabled |
 | `phantomAgent` | Boolean | false | Mark this agent as a phantom agent (pre-provisioned instances) |
 | `webhookSuffix` | String | "" | Append custom suffix to generated webhook URLs |
-| `snapshotting` | Boolean | false | Enable automatic snapshots for durability and recovery |
+| `snapshotting` | String | "disabled" | Snapshot strategy: "disabled", "on-success", or other valid values |
 
 **Example with multiple parameters:**
 
@@ -132,8 +132,8 @@ import golem.BaseAgent
   mode = DurabilityMode.Durable,
   mount = "/api/{id}",
   auth = true,
-  cors = true,
-  snapshotting = true
+  cors = Array("https://example.com"),
+  snapshotting = "on-success"
 )
 trait SecureStatefulAgent extends BaseAgent {
   class Id(val id: String)
@@ -142,10 +142,10 @@ trait SecureStatefulAgent extends BaseAgent {
 ```
 
 - **`auth = true`** — Methods require authentication; principal context is available via `@Principal` injection
-- **`cors = true`** — HTTP responses include CORS headers for cross-origin requests
+- **`cors = Array("https://allowed.com")`** — HTTP responses include CORS headers for specified origins; empty array disables CORS
 - **`phantomAgent = true`** — Agent instances can be pre-provisioned with phantom IDs (UUIDs)
 - **`webhookSuffix`** — Customize webhook URL path (e.g., "v2" produces "/api/{id}/method/v2")
-- **`snapshotting = true`** — Enable periodic snapshots for faster recovery and durability checkpoints
+- **`snapshotting = "on-success"`** — Snapshot strategy: "disabled" (no snapshots), "on-success" (after successful execution), or other configured values
 
 ## Method Annotations
 

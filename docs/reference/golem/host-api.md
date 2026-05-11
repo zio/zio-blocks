@@ -26,7 +26,7 @@ object HostApi {
 | **Retry Policy** | Control automatic retry behavior | `getRetryPolicy()`, `setRetryPolicy()` |
 | **Persistence** | Manage oplog persistence strategy | `getOplogPersistenceLevel()`, `setOplogPersistenceLevel()` |
 | **Idempotence** | Toggle idempotent request handling | `getIdempotenceMode()`, `setIdempotenceMode()` |
-| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgents()`, `updateAgent()` |
+| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgentMetadata()`, `updateAgent()` |
 | **Database** | Access relational databases (MySQL, PostgreSQL) | `Rdbms` provides SQL methods |
 | **Key-Value Store** | Persistent key-value storage | `KeyValue` API via `golem.wasi.KeyValue` |
 | **Blobstore** | Large binary object storage | `Blobstore` API via `golem.wasi.Blobstore` |
