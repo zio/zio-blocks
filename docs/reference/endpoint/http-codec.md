@@ -38,7 +38,7 @@ These are never instantiated — they exist only to parameterize `HttpCodec[K, A
 | ------------- | --------- | ---------------------------------------------------- |
 | `Empty`       | both      | No data — neutral element for `++`                  |
 | `Combine`     | both      | Two codecs composed sequentially with `++`           |
-| `Fallback`    | both      | Two codecs composed as alternatives with `\|`        |
+| `Fallback`    | both      | Two codecs composed as alternatives with `&#124;`    |
 | `Query`       | `Request` | Named query parameter with `Schema[A]`               |
 | `Header`      | both      | Named HTTP header with `Schema[A]` (request or response) |
 | `Body`        | both      | Request or response body with `Schema[A]`            |
