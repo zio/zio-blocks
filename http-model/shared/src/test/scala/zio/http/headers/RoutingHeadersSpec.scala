@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 
 object RoutingHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("RoutingHeaders")(
@@ -121,6 +122,9 @@ object RoutingHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Via(Chunk("1.1 proxy")).headerName == "via")
+      },
+      test("varargs apply builds via entries") {
+        assertTrue(Via("1.0 fred", "1.1 example.com") == Via(Chunk("1.0 fred", "1.1 example.com")))
       }
     ),
     suite("Forwarded")(

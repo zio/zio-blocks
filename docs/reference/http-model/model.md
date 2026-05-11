@@ -79,7 +79,7 @@ For cross-platform projects (Scala.js):
 libraryDependencies += "dev.zio" %%% "zio-http-model" % "@VERSION@"
 ```
 
-Supported Scala versions: Scala 3.x only. The artifacts are cross-platform for JVM and Scala.js.
+Supported Scala versions: Scala 2.13 and Scala 3.x. The artifacts are cross-platform for JVM and Scala.js.
 
 ## How They Work Together
 
@@ -147,6 +147,25 @@ val req = Request.get(url).addHeader("content-type", "application/json")
 val allHeaders = req.headers.toList                // All headers as List[(String, String)]
 val headerCount = allHeaders.length                // Count headers
 val contentType = req.headers.rawGet("content-type") // Get raw string header value (case-insensitive lookup)
+```
+
+Custom typed headers do not need their own `Header` subtype. Define a `Header.Codec[A]` and reuse it with `Headers`, `Request`, and `Response`:
+
+```scala mdoc:compile-only
+import zio.http._
+
+object TraceIdHeader extends Header.Codec[String] {
+  def name: String = "x-trace-id"
+  def parse(value: String): Either[String, String] =
+    if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+  def render(value: String): String = value
+}
+
+val request = Request
+  .get(URL.parse("https://example.com").toOption.get)
+  .addHeader("x-trace-id", "trace-123")
+
+val traceId = request.header(TraceIdHeader)
 ```
 
 ### Creating Responses with Status and Content

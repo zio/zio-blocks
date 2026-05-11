@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 import zio.http.Method
 
 object MiscHeadersSpec extends ZIOSpecDefault {
@@ -107,6 +108,16 @@ object MiscHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Allow(Chunk(Method.GET)).headerName == "allow")
+      },
+      test("method convenience values mirror single-method headers") {
+        assertTrue(
+          Allow.GET == Allow(Method.GET),
+          Allow.POST == Allow(Method.POST),
+          Allow.DELETE == Allow(Method.DELETE)
+        )
+      },
+      test("varargs apply builds multi-method allow header") {
+        assertTrue(Allow(Method.GET, Method.POST, Method.PUT) == Allow(Chunk(Method.GET, Method.POST, Method.PUT)))
       }
     ),
     suite("Expect")(

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 
 object ConnectionHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ConnectionHeaders")(
@@ -88,6 +89,9 @@ object ConnectionHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Trailer(Chunk("X")).headerName == "trailer")
+      },
+      test("varargs apply builds trailer header entries") {
+        assertTrue(Trailer("Expires", "Cache-Control") == Trailer(Chunk("Expires", "Cache-Control")))
       }
     ),
     suite("TransferEncoding")(

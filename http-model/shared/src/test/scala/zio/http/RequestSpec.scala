@@ -16,9 +16,17 @@
 
 package zio.http
 
-import zio.test._
+import _root_.zio.test._
+import zio.blocks.chunk.Chunk
 
 object RequestSpec extends HttpModelBaseSpec {
+  private object TraceIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-trace-id"
+    def parse(value: String): Either[String, String] =
+      if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+    def render(value: String): String = value
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Request")(
     suite("construction")(
       test("can be constructed with all fields") {
@@ -75,7 +83,7 @@ object RequestSpec extends HttpModelBaseSpec {
       test("returns typed header from headers") {
         val headers = Headers("host" -> "example.com:8080")
         val request = Request(Method.GET, URL.fromPath(Path.root), headers, Body.empty, Version.`HTTP/1.1`)
-        val host    = request.header(zio.http.headers.Host)
+        val host    = request.header(Header.Host)
         assertTrue(
           host.isDefined,
           host.get.host == "example.com",
@@ -84,7 +92,17 @@ object RequestSpec extends HttpModelBaseSpec {
       },
       test("returns None for missing header") {
         val request = Request.get(URL.fromPath(Path.root))
-        assertTrue(request.header(zio.http.headers.Host).isEmpty)
+        assertTrue(request.header(Header.Host).isEmpty)
+      },
+      test("returns custom typed header without Header subtype") {
+        val request = Request(
+          Method.GET,
+          URL.fromPath(Path.root),
+          Headers("X-Trace-Id" -> "trace-123"),
+          Body.empty,
+          Version.`HTTP/1.1`
+        )
+        assertTrue(request.header(TraceIdHeader) == Some("trace-123"))
       }
     ),
     suite("contentType")(
@@ -178,6 +196,10 @@ object RequestSpec extends HttpModelBaseSpec {
       test("adds a header to request") {
         val request = Request.get(URL.fromPath(Path.root)).addHeader("Accept", "text/html")
         assertTrue(request.headers.rawGet("accept") == Some("text/html"))
+      },
+      test("adds a typed header to request") {
+        val request = Request.get(URL.fromPath(Path.root)).addHeader(Header.Host("example.com", Some(8080)))
+        assertTrue(request.header(Header.Host) == Some(Header.Host("example.com", Some(8080))))
       }
     ),
     suite("addHeaders")(
@@ -206,6 +228,33 @@ object RequestSpec extends HttpModelBaseSpec {
           .addHeader("Accept", "text/html")
           .setHeader("Accept", "application/json")
         assertTrue(request.headers.rawGet("accept") == Some("application/json"))
+      },
+      test("sets a typed header on request") {
+        val request = Request
+          .get(URL.fromPath(Path.root))
+          .setHeader(Header.Host("example.com", Some(8080)))
+        assertTrue(request.header(Header.Host) == Some(Header.Host("example.com", Some(8080))))
+      }
+    ),
+    suite("cookies")(
+      test("parses cookies from Cookie header") {
+        val request = Request.get(URL.fromPath(Path.root)).setHeader("Cookie", "session=abc123; theme=dark")
+        assertTrue(
+          request.cookies == Chunk(RequestCookie("session", "abc123"), RequestCookie("theme", "dark"))
+        )
+      },
+      test("returns empty cookies when Cookie header is absent") {
+        assertTrue(Request.get(URL.fromPath(Path.root)).cookies == Chunk.empty)
+      },
+      test("addCookie appends to existing Cookie header") {
+        val request = Request
+          .get(URL.fromPath(Path.root))
+          .addCookie(RequestCookie("session", "abc123"))
+          .addCookie(RequestCookie("theme", "dark"))
+        assertTrue(
+          request.headers.rawGet("cookie") == Some("session=abc123; theme=dark"),
+          request.cookies == Chunk(RequestCookie("session", "abc123"), RequestCookie("theme", "dark"))
+        )
       }
     ),
     suite("body (setter)")(
@@ -220,6 +269,31 @@ object RequestSpec extends HttpModelBaseSpec {
         val newUrl  = URL.fromPath(Path("/new"))
         val request = Request.get(URL.fromPath(Path("/old"))).url(newUrl)
         assertTrue(request.url == newUrl)
+      }
+    ),
+    suite("path (setter)")(
+      test("replaces only the path") {
+        val request = Request
+          .get(
+            URL(
+              Some(Scheme.HTTPS),
+              Some("example.com"),
+              Some(443),
+              Path("/old"),
+              QueryParams("page" -> "1"),
+              Some("section")
+            )
+          )
+          .path(Path("/new"))
+        assertTrue(
+          request.path == Path("/new"),
+          request.url.path == Path("/new"),
+          request.url.scheme == Some(Scheme.HTTPS),
+          request.url.host == Some("example.com"),
+          request.url.port == Some(443),
+          request.url.queryParams == QueryParams("page" -> "1"),
+          request.url.fragment == Some("section")
+        )
       }
     ),
     suite("method (setter)")(

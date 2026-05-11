@@ -104,7 +104,7 @@ lazy val testJVMScala2Command =
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test"
+    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -112,7 +112,19 @@ lazy val testJSScala2Command =
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+
+lazy val testJS1Scala2Command =
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+
+lazy val testJS1Scala3Command =
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+
+lazy val testJS2Scala2Command =
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
+
+lazy val testJS2Scala3Command =
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
@@ -122,15 +134,27 @@ lazy val docJVMScala2Command =
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
     "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
 
+lazy val docJSScala2Batch1Command =
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+
+lazy val docJSScala2Batch2Command =
+  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+
+lazy val docJSScala3Batch1Command =
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
+
+lazy val docJSScala3Batch2Command =
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
 
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
@@ -149,7 +173,11 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
 commands ++= Seq(
   commandForScalaVersion("testJVM", testJVMScala2Command, testJVMScala3Command),
   commandForScalaVersion("testJS", testJSScala2Command, testJSScala3Command),
+  commandForScalaVersion("testJS1", testJS1Scala2Command, testJS1Scala3Command),
+  commandForScalaVersion("testJS2", testJS2Scala2Command, testJS2Scala3Command),
   commandForScalaVersion("docJVM", docJVMScala2Command, docJVMScala3Command),
+  commandForScalaVersion("docJS1", docJSScala2Batch1Command, docJSScala3Batch1Command),
+  commandForScalaVersion("docJS2", docJSScala2Batch2Command, docJSScala3Batch2Command),
   commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
 )
 
@@ -208,6 +236,8 @@ lazy val root = project
     html.js,
     datastar.jvm,
     datastar.js,
+    htmx.jvm,
+    htmx.js,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCoreJS,
@@ -223,7 +253,8 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
-    smithy
+    smithy,
+    `smithy-examples`
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -433,6 +464,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     })
   )
   .jsSettings(
+    Compile / doc / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => (Compile / sources).value
+        case _            => Nil
+      }
+    },
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
       "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
@@ -542,7 +579,7 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model"))
+  .settings(stdSettings("zio-blocks-http-model"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http"))
   .enablePlugins(BuildInfoPlugin)
@@ -560,7 +597,7 @@ lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
 
 lazy val `http-model-schema` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-http-model-schema"))
+  .settings(stdSettings("zio-blocks-http-model-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.http.schema"))
   .enablePlugins(BuildInfoPlugin)
@@ -738,6 +775,16 @@ lazy val smithy = project
     coverageMinimumBranchTotal := 76
   )
 
+lazy val `smithy-examples` = project
+  .settings(stdSettings("zio-blocks-smithy-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(smithy)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-schema-messagepack"))
@@ -756,6 +803,8 @@ lazy val `schema-messagepack` = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 67
   )
   .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
@@ -811,6 +860,10 @@ lazy val `schema-xml` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(schema % "compile->compile;test->test")
   .settings(
     libraryDependencies ++= Seq(
@@ -829,6 +882,10 @@ lazy val openapi = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(schema % "compile->compile;test->test", markdown)
   .settings(
     libraryDependencies ++= Seq(
@@ -847,6 +904,10 @@ lazy val `schema-yaml` = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(
+    Compile / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false)),
+    Test / scalaJSLinkerConfig ~= (_.withOptimizer(false).withParallel(false))
+  )
   .dependsOn(schema % "compile->compile;test->test", markdown)
   .settings(
     libraryDependencies ++= Seq(
@@ -1324,7 +1385,9 @@ lazy val docs = project
     `http-model-schema`.jvm,
     openapi.jvm,
     html.jvm,
-    datastar.jvm
+    datastar.jvm,
+    smithy,
+    htmx.jvm
   )
   .enablePlugins(WebsitePlugin)
 
@@ -1372,4 +1435,26 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
         Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ => Seq()
     })
+  )
+
+lazy val htmx = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-http-htmx", Seq(Scala3, Scala33)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.http.htmx"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .dependsOn(html, schema, `http-model`)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ => Seq()
+    }),
+    coverageMinimumStmtTotal   := 85,
+    coverageMinimumBranchTotal := 75
   )

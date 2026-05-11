@@ -20,7 +20,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-datastar" % "@VERSION@"
 A `Signal[A]` represents a named reactive signal on the client. Use `:=` to pair it with a value, producing a `SignalUpdate` ready for SSE transmission:
 
 ```scala
-import zio.blocks.datastar._
+import zio.http.datastar._
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int)
@@ -95,11 +95,11 @@ val sse = DatastarEvent
 
 ## Attribute DSL
 
-Import `zio.blocks.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-html` DSL:
+Import `zio.http.datastar._` to get all `data-*` attribute constructors. These integrate with the `zio-blocks-html` DSL:
 
 ```scala
 import zio.blocks.html._
-import zio.blocks.datastar._
+import zio.http.datastar._
 
 val count    = Signal[Int]("count")
 val username = Signal[String]("username")

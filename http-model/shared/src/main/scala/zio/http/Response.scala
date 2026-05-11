@@ -26,7 +26,11 @@ final case class Response(
   body: Body = Body.empty,
   version: Version = Version.`HTTP/1.1`
 ) {
-  def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
+
+  /**
+   * Decodes the first response header matching the supplied codec.
+   */
+  def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
 
   /**
    * Returns this response's content type.
@@ -36,12 +40,28 @@ final case class Response(
    * this method falls back to the body's content type.
    */
   def contentType: Option[ContentType] =
-    header(zio.http.headers.ContentType).map(_.value).orElse(Some(body.contentType))
+    header(Header.ContentType).map(_.value).orElse(Some(body.contentType))
+
+  def cookies: zio.blocks.chunk.Chunk[ResponseCookie] = {
+    val raw     = headers.getAll(Header.SetCookieHeader)
+    val builder = zio.blocks.chunk.Chunk.newBuilder[ResponseCookie]
+    var i       = 0
+    while (i < raw.length) {
+      Cookie.parseResponse(raw(i).value) match {
+        case Right(cookie) => builder += cookie
+        case Left(_)       => ()
+      }
+      i += 1
+    }
+    builder.result()
+  }
 
   def addHeader(name: String, value: String): Response = copy(headers = headers.add(name, value))
+  def addHeader(header: Header): Response              = copy(headers = headers.add(header))
   def addHeaders(other: Headers): Response             = copy(headers = headers ++ other)
   def removeHeader(name: String): Response             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Response = copy(headers = headers.set(name, value))
+  def setHeader(header: Header): Response              = copy(headers = headers.set(header))
 
   /**
    * Returns a copy with the supplied body and a synchronized `Content-Type`
@@ -71,14 +91,23 @@ object Response {
   val internalServerError: Response = Response(Status.InternalServerError)
   val serviceUnavailable: Response  = Response(Status.ServiceUnavailable)
 
-  def text(body: String): Response = {
+  def ok(body: Body): Response =
+    Response(Status.Ok, Headers("content-type" -> body.contentType.render), body)
+
+  def text(body: String): Response =
+    text(Status.Ok, body)
+
+  def text(status: Status, body: String): Response = {
     val responseBody = Body.fromString(body)
-    Response(Status.Ok, Headers("content-type" -> responseBody.contentType.render), responseBody)
+    Response(status, Headers("content-type" -> responseBody.contentType.render), responseBody)
   }
 
   def json(body: String): Response =
+    json(Status.Ok, body)
+
+  def json(status: Status, body: String): Response =
     Response(
-      Status.Ok,
+      status,
       Headers("content-type" -> "application/json"),
       Body.fromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
     )

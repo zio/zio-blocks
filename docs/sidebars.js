@@ -145,7 +145,9 @@ const sidebars = {
           "path-interpolator",
           "reference/ringbuffer",
           "reference/html",
+          "reference/smithy",
           "reference/datastar",
+          "reference/htmx",
           {
             type: "category",
             label: "ZIO Blocks Streams",

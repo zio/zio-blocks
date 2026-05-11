@@ -18,7 +18,7 @@ package zio.http.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.Schema
-import zio.http.Headers
+import zio.http.{Header, Headers}
 
 final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
 
@@ -26,6 +26,18 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
     headers.rawGet(name) match {
       case None      => Left(HeaderError.Missing(name))
       case Some(raw) => StringDecoder.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
+    }
+
+  /**
+   * Decodes the first matching header with a [[Header.Codec]].
+   *
+   * Returns [[HeaderError.Missing]] when the header is absent and
+   * [[HeaderError.Malformed]] when parsing fails.
+   */
+  def header[A](headerCodec: Header.Codec[A]): Either[HeaderError, A] =
+    headers.rawGet(headerCodec.name) match {
+      case None      => Left(HeaderError.Missing(headerCodec.name))
+      case Some(raw) => headerCodec.parse(raw).left.map(e => HeaderError.Malformed(headerCodec.name, raw, e))
     }
 
   def headerAll[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, Chunk[T]] = {
@@ -38,6 +50,29 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
         StringDecoder.decode(values(i), schema) match {
           case Right(v) => builder += v
           case Left(e)  => return Left(HeaderError.Malformed(name, values(i), e))
+        }
+        i += 1
+      }
+      Right(builder.result())
+    }
+  }
+
+  /**
+   * Decodes all matching headers with a [[Header.Codec]].
+   *
+   * Decoding preserves header order and short-circuits on the first malformed
+   * value.
+   */
+  def headerAll[A](headerCodec: Header.Codec[A]): Either[HeaderError, Chunk[A]] = {
+    val values = headers.rawGetAll(headerCodec.name)
+    if (values.isEmpty) Left(HeaderError.Missing(headerCodec.name))
+    else {
+      val builder = Chunk.newBuilder[A]
+      var i       = 0
+      while (i < values.length) {
+        headerCodec.parse(values(i)) match {
+          case Right(value) => builder += value
+          case Left(error)  => return Left(HeaderError.Malformed(headerCodec.name, values(i), error))
         }
         i += 1
       }

@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-package zio
+package zio.http
 
-package object http
+package object htmx extends HtmxAttributes

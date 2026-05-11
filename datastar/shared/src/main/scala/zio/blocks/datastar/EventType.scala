@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.datastar
+package zio.http.datastar
 
 /**
  * Datastar event types emitted via the SSE `event:` field.

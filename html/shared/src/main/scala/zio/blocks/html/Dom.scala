@@ -755,7 +755,19 @@ object Dom {
     }
   }
 
-  private val urlAttributes: Set[String] = Set("href", "src", "action", "formaction")
+  private val urlAttributes: Set[String] = Set(
+    "href",
+    "src",
+    "action",
+    "formaction",
+    "hx-get",
+    "hx-post",
+    "hx-put",
+    "hx-patch",
+    "hx-delete",
+    "hx-push-url",
+    "hx-replace-url"
+  )
 
   private def isUrlAttribute(name: String): Boolean = urlAttributes.contains(name)
 

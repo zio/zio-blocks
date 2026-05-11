@@ -21,7 +21,7 @@ import zio.blocks.combinators.Eithers
 import zio.blocks.combinators.Tuples
 import zio.blocks.mediatype.MediaType
 import zio.blocks.schema.Schema
-import zio.http.Status
+import zio.http.{Header, Status}
 
 /**
  * Top-level endpoint descriptor. Combines a route pattern with
@@ -76,6 +76,14 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     header(HttpCodec.requestHeader(name, schema))
+
+  /**
+   * Adds a typed request header using a [[zio.http.Header.Codec]].
+   */
+  def header[A, I2](headerCodec: Header.Codec[A])(using
+    combiner: Tuples.Tuples.WithOut[Input, A, I2]
+  ): Endpoint[PathInput, I2, Err, Output, Auth] =
+    header(HttpCodec.requestHeader(headerCodec))
 
   def header[A, I2](name: String, schema: Schema[A], doc: Doc)(using
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
@@ -234,6 +242,14 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
   ): Endpoint[PathInput, Input, Err, O2, Auth] =
     outHeader(HttpCodec.responseHeader(name, schema))
+
+  /**
+   * Adds a typed response header using a [[zio.http.Header.Codec]].
+   */
+  def outHeader[A, O2](headerCodec: Header.Codec[A])(using
+    combiner: Tuples.Tuples.WithOut[Output, A, O2]
+  ): Endpoint[PathInput, Input, Err, O2, Auth] =
+    outHeader(HttpCodec.responseHeader(headerCodec))
 
   def outHeader[A, O2](name: String, schema: Schema[A], doc: Doc)(using
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
