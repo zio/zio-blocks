@@ -80,7 +80,7 @@ val result2: Result[String, String] = Result.fromOption(emptyOption, "Not found"
 
 ## Pattern Matching
 
-Match on success/failure using `WitResult` cases:
+Use the typed `WitResult` variant with proper extractors:
 
 ```scala
 import golem.runtime.wit.WitResult
@@ -91,6 +91,8 @@ def process(result: WitResult[Int, String]): String =
     case WitResult.Err(error) => s"Error: $error"
   }
 ```
+
+The import `import golem.runtime.wit.WitResult` is required to access the proper case classes and extractors.
 
 ## Using in Agent Methods
 
@@ -146,6 +148,85 @@ enum ApiError derives Schema:
 
 val enumError: Result[String, ApiError] = Result.err(ApiError.NotFound)
 ```
+
+## Transforming Results
+
+The underlying `WitResult` provides rich transformation methods:
+
+### Map (transform success value)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.ok(42)
+val doubled: WitResult[Int, String] = result.map(_ * 2)
+```
+
+### MapError (transform error value)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.err("failed")
+val transformed: WitResult[Int, Int] = result.mapError(_.length)
+```
+
+### FlatMap (chain result-producing operations)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.ok(10)
+val chained: WitResult[String, String] = result.flatMap { n =>
+  if (n > 0) WitResult.ok(s"Positive: $n")
+  else WitResult.err("Not positive")
+}
+```
+
+### Fold (pattern match without case syntax)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.ok(42)
+val message: String = result.fold(
+  err => s"Error: $err",
+  ok => s"Success: $ok"
+)
+```
+
+### Tap (inspect without altering)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.ok(42)
+result.tap(value => println(s"Computed: $value"))
+```
+
+### Unwrap (extract with throwing)
+```scala
+import golem.runtime.wit.WitResult
+
+val result: WitResult[Int, String] = WitResult.ok(42)
+val value: Int = result.unwrap() // Throws UnwrapError on error
+val error: String = result.unwrapErr() // Throws on success
+```
+
+### UnwrapForWit (extract at WIT boundary)
+
+When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
+
+```scala
+import golem.runtime.wit.WitResult
+import scala.concurrent.Future
+
+def computeResult(): Future[WitResult[Int, String]] = ???
+
+def exportToHost(): Future[Int] = {
+  computeResult().map { result =>
+    // Unwrap for WIT: throws error payload on failure, returns value on success
+    result.unwrapForWit()
+  }
+}
+```
+
+This mirrors the JS SDK behavior where `Result.err` triggers a rejected promise. On the host side, a thrown error payload becomes a failed promise.
 
 ## Variance
 
