@@ -112,7 +112,7 @@ val flexEndpoint = Endpoint(Method.GET / "resource")
   .auth(AuthType.Basic | AuthType.Bearer)
 ```
 
-The `|` operator uses `Eithers.Eithers.WithOut` to compute the combined `ClientRequirement` type. The codec of the resulting `Or` is a `HttpCodec.Fallback` — it tries the left scheme first and falls back to the right.
+The `|` operator uses `Eithers.WithOut` to compute the combined `ClientRequirement` type. The codec of the resulting `Or` is a `HttpCodec.Fallback` — it tries the left scheme first and falls back to the right.
 
 ### `AuthType.Scoped`
 
