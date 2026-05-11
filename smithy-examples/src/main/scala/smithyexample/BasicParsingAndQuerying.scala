@@ -60,6 +60,7 @@ structure GetBookInput {
   isbn: String
 }
 
+@error("client")
 structure BookNotFound {
   @required
   message: String
