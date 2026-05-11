@@ -449,6 +449,12 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
     })
   )
   .jsSettings(
+    Compile / doc / sources := {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) => (Compile / sources).value
+        case _            => Nil
+      }
+    },
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
       "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
