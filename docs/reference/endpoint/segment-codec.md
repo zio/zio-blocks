@@ -3,7 +3,7 @@ id: segment-codec
 title: "SegmentCodec"
 ---
 
-`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. Its definition is:
+`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. The core type-level shape is:
 
 ```scala
 sealed trait SegmentCodec[A] {
@@ -11,6 +11,8 @@ sealed trait SegmentCodec[A] {
   type Suffix <: SegmentCodec.BoundaryTag
 }
 ```
+
+(The trait also includes additional members for documentation, examples, formatting, and rendering.)
 
 ## Motivation
 
