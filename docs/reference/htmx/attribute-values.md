@@ -23,7 +23,7 @@ case class Extra(userId: Int, role: String)
 HxVals.from(Extra(123, "admin"))
 
 // From raw JSON
-HxVals.json(Json.obj("userId" -> Json.num(123)))
+HxVals.json(Json.Object(Chunk("userId" -> Json.Number(123))))
 ```
 
 Use `HxVals.from[T](value)` with an implicit `Schema[T]` to automatically encode any data type to JSON. First, set up a schema for your data type:
@@ -285,17 +285,22 @@ Define your own `ToHtmxValue` instance to make custom domain types work in the H
 import zio.http.htmx._
 import zio.blocks.schema._
 
-enum Priority:
-  case Low, Medium, High
-
-object Priority:
-  implicit val toHtmxValue: ToHtmxValue[Priority] = new ToHtmxValue[Priority]:
-    def toHtmxValue(value: Priority): String = value match
-      case Priority.Low    => "low"
-      case Priority.Medium => "medium"
-      case Priority.High   => "high"
+sealed trait Priority
+object Priority {
+  case object Low extends Priority
+  case object Medium extends Priority
+  case object High extends Priority
+  
+  implicit val toHtmxValue: ToHtmxValue[Priority] = new ToHtmxValue[Priority] {
+    def toHtmxValue(value: Priority): String = value match {
+      case Low    => "low"
+      case Medium => "medium"
+      case High   => "high"
+    }
+  }
   
   implicit val schema: Schema[Priority] = Schema.derived
+}
 ```
 
 Use `Priority` values directly in HTMX attributes:

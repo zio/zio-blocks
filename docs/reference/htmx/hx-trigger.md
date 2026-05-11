@@ -172,8 +172,8 @@ import zio.http.htmx._
 div(
   hxPost := "/item-selected",
   hxTrigger := HxTrigger.click.target(".clickable"),
-  div(id := "clickable", "Item 1"),
-  div(id := "clickable", "Item 2")
+  div(className := "clickable", "Item 1"),
+  div(className := "clickable", "Item 2")
 )
 ```
 

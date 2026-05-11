@@ -42,7 +42,7 @@ HTMX introduces many new attributes and modifier combinations. Writing these as 
 
 The typed HTMX DSL catches these mistakes at compile time:
 - Strategy names are exhaustive case objects: `HxSwap.InnerHTML`, `HxSwap.AfterBegin`, etc.
-- Modifier methods enforce correct grouping: `swap()` and `settle()` are mutually exclusive (later calls replace earlier ones)
+- Modifier methods enforce correct grouping: repeated calls within the same modifier group (`swap()` or `settle()`) replace earlier values, while different groups (`swap`, `settle`, `transition`) can be combined
 - Type-safe attributes like `hxTarget` prevent passing raw strings where structured selectors belong
 - Extensible type class `ToHtmxValue` lets custom domain values render themselves to HTMX syntax
 
@@ -51,7 +51,11 @@ The typed HTMX DSL catches these mistakes at compile time:
 Add the HTMX module to your project dependencies:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-htmx" % "@VERSION@"
+// JVM
+libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
+
+// Scala.js
+libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
 Supported Scala versions: 2.13.x and 3.x. The module is cross-compiled for JVM and Scala.js.
@@ -83,7 +87,7 @@ HxTrigger (when: click, input, load, every N seconds, etc.)
 Request Sent
     ├─ URL: hxPost, hxGet, hxPut, hxPatch, hxDelete
     ├─ Parameters: HxParams (all, none, only, not)
-    ├─ Encoding: HxEncoding (form, json, multipart)
+    ├─ Encoding: HxEncoding (multipart override; default is URL-encoded)
     └─ Synchronization: HxSync (queue strategy, abort behavior)
     ↓
 Response Received
@@ -216,7 +220,7 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With `zio.blocks.html`:** All HTMX attributes integrate seamlessly into the HTML DSL. `HtmxAttributes` is mixed into the `zio.http.htmx` package object, making attributes like `hxPost`, `hxTrigger`, and `hxSwap` directly available when you `import zio.http.htmx._`.
 
-**With `zio.blocks.schema`:** URL-bearing attributes accept `URL` and `Path` types from `zio.http`, which are then rendered to valid URL strings. The `ToHtmxValue` type class provides encoding for `URL`, `Path`, `Schema`, and `Json` values.
+**With `zio.blocks.schema`:** URL-bearing attributes accept `URL` and `Path` types from `zio.http`, which are then rendered to valid URL strings. The `ToHtmxValue` type class provides encoding for `URL`, `Path`, and `Json` values. For domain values, use `HxVals.from(...)` and `HxHeadersValue.from(...)` to encode values via their `Schema` to JSON.
 
 **With CSS selectors:** Attributes that accept selectors (hxTarget, hxSelect, hxDisabledElt, hxIndicator) accept `CssSelector` from `zio.blocks.html`, providing type-safe selector construction.
 

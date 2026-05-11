@@ -42,7 +42,7 @@ Core HTMX strategies define where and how content replaces the DOM:
 - `HxSwap.BeforeEnd` — Inserts the response as the last child of the target element.
 - `HxSwap.AfterEnd` — Inserts the response as a sibling after the target element.
 - `HxSwap.Delete` — Removes the target element; response content is discarded.
-- `HxSwap.NoneSwap` — Returns the response with a 204 (No Content) status code; no DOM update occurs.
+- `HxSwap.NoneSwap` — Prevents any content from being swapped into the DOM; the response is ignored.
 
 All strategies are available as immutable `HxSwap` values, ready for modifier chaining:
 
@@ -81,7 +81,7 @@ import scala.concurrent.duration._
 div(hxSwap := HxSwap.InnerHTML.settle(250.millis))
 ```
 
-Both `swap()` and `settle()` accept any `FiniteDuration` that renders to a valid HTMX duration (milliseconds: `ms`, seconds: `s`, minutes: `m`, etc.). Calling either method twice replaces the first value:
+Both `swap()` and `settle()` accept any `FiniteDuration` that renders to a valid HTMX duration (milliseconds: `ms`, seconds: `s`, or bare integers treated as milliseconds). Calling either method twice replaces the first value:
 
 ```scala mdoc:compile-only
 import zio.http.htmx._
