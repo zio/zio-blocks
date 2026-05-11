@@ -342,5 +342,5 @@ When targeting Scala 2, the emitter uses:
 - **Sealed traits** instead of enums: `sealed trait Color` + `case object Red`
 - **Implicit/given** syntax converts to Scala 2 compatible form
 - **Wildcard imports**: `import scala.collection._`
-- **Rename imports**: `import foo.bar => baz`
+- **Rename imports**: `import foo.{bar => baz}`
 - **Type aliases** instead of opaque types: `type UserId = Long`

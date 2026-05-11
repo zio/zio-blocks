@@ -91,6 +91,9 @@ TypeRef.Long        // Long
 TypeRef.Float       // Float
 TypeRef.Double      // Double
 TypeRef.String      // String
+TypeRef.BigInt      // BigInt
+TypeRef.BigDecimal  // BigDecimal
+TypeRef.Nothing     // Nothing
 TypeRef.Any         // Any
 ```
 
@@ -105,7 +108,7 @@ TypeRef.optional(TypeRef.String)  // Option[String]
 TypeRef.list(TypeRef.Int)         // List[Int]
 TypeRef.set(TypeRef.String)       // Set[String]
 TypeRef.map(TypeRef.String, TypeRef.Int)  // Map[String, Int]
-TypeRef.tuple(TypeRef.String, TypeRef.Int)  // (String, Int)
+TypeRef.tuple(TypeRef.String, TypeRef.Int)  // Tuple2[String, Int]
 ```
 
 ## Examples

@@ -182,19 +182,18 @@ Emits:
 sealed trait Payment
 
 object Payment {
-  final case class CreditCard(
+  case class CreditCard(
     number: String,
     expiry: String
   ) extends Payment
   
-  final case class BankTransfer(
+  case class BankTransfer(
     accountNumber: String
   ) extends Payment
   
   case object Cash extends Payment
   case object Check extends Payment
 }
-derives Show
 ```
 
 ### Example 3: Generic Sealed Trait

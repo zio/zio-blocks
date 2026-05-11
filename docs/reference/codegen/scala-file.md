@@ -113,7 +113,7 @@ Emits:
 ```scala
 package com.example
 
-final case class Empty()
+case class Empty()
 ```
 
 ### Example 2: File with Multiple Types
@@ -156,7 +156,7 @@ import zio._
 sealed trait PaymentMethod
 
 object PaymentMethod {
-  final case class Card(cardNumber: String) extends PaymentMethod
+  case class Card(cardNumber: String) extends PaymentMethod
   case object Cash extends PaymentMethod
 }
 ```
