@@ -3,7 +3,22 @@ id: configuration
 title: "Configuration & Secrets"
 ---
 
-Agents can declare configuration fields that are injected by the Golem runtime at startup. Configuration values are provided per deployment and can vary across environments (dev, staging, prod).
+Agents can declare configuration fields that are injected by the Golem runtime. Use `Config` for environment-specific values and `Secret` for sensitive credentials.
+
+The following are the primary configuration APIs available in agents (pseudocode):
+
+```scala
+// Configuration API (golem.wasi.Config)
+object Config {
+  def get(key: String): Future[Option[String]]
+  def getRequired(key: String): Future[String]
+}
+
+// Secrets API (golem.wasi.Secret)
+object Secret {
+  def get(name: String): Future[Option[String]]
+}
+```
 
 ## Overview
 
@@ -11,155 +26,176 @@ Configuration allows agents to access external settings without hardcoding them:
 
 | Pattern | Purpose | Example |
 |---------|---------|---------|
-| **Typed config fields** | Environment variables, deployment settings | Database URL, API timeout, feature flags |
-| **Secret[T]** | Sensitive credentials with lazy loading | API keys, passwords, tokens |
-| **Defaults** | Optional fields with sensible defaults | Optional feature flags |
+| **Config** | Environment variables, deployment settings | Database URL, API timeout, feature flags |
+| **Secret** | Sensitive credentials | API keys, passwords, tokens |
+| **Override** | Deployment-time customization | Different values for dev/staging/prod |
 
 ## Declaring Configuration Fields
 
-Agents declare configuration by adding fields to the trait. The Golem runtime injects these values at agent startup:
+Agents declare configuration via an annotation:
 
 ```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
-import scala.concurrent.Future
 
 @agentDefinition
 trait ConfiguredAgent extends BaseAgent {
-  val apiKey: String
-  val databaseUrl: String
-  val timeout: Int = 30  // With default value
-  
-  def process(): Future[String]
+  def getApiKey(): scala.concurrent.Future[String]
+  def getTimeout(): scala.concurrent.Future[Int]
 }
 ```
 
-All config fields must have an implicit `Schema[T]` available (derives automatically for standard types).
+The Golem runtime injects these values at agent startup.
 
-## Using Configuration in Implementations
+## Accessing Config at Runtime
 
-Access configuration fields directly in your implementation:
+Use the `Config` API to access configuration:
 
 ```scala
-import golem.runtime.annotations.agentImplementation
+import golem.wasi.Config
 import scala.concurrent.Future
 
-@agentImplementation()
-class ConfiguredAgentImpl(apiKey: String, databaseUrl: String, timeout: Int = 30) extends ConfiguredAgent {
-  override def process(): Future[String] = {
-    val result = s"Connected to $databaseUrl with timeout=$timeout"
-    Future.successful(result)
+val apiKey: Future[Option[String]] = Config.get("API_KEY")
+val requiredKey: Future[String] = Config.getRequired("API_KEY")
+```
+
+**`get(key)`** — Returns `Option[String]`; `None` if not set:
+```scala
+import golem.wasi.Config
+
+Config.get("DEBUG_MODE") // Future[Option[String]]
+```
+
+**`getRequired(key)`** — Returns `String`; fails if not set:
+```scala
+import golem.wasi.Config
+
+Config.getRequired("DATABASE_URL") // Future[String], throws if missing
+```
+
+## Secrets
+
+Access secrets (credentials, API keys) via the `Secret` API:
+
+```scala
+import golem.wasi.Secret
+import scala.concurrent.Future
+
+val token: Future[Option[String]] = Secret.get("github-token")
+```
+
+Secrets are handled like configuration but are managed securely by the Golem runtime. Never hardcode secrets; always retrieve them at runtime.
+
+## Configuration Examples
+
+### Database Connection String
+
+```scala
+import golem.wasi.Config
+import scala.concurrent.Future
+
+@golem.runtime.annotations.agentImplementation()
+class DatabaseAgentImpl() extends DatabaseAgent {
+  override def query(sql: String): Future[String] = {
+    val dbUrl = Config.getRequired("DATABASE_URL")
+    // Use dbUrl to connect
+    Future.successful("result")
   }
 }
 ```
 
-The implementation constructor parameters must match the agent trait's config fields.
-
-## Typed Configuration Example
+### Feature Flags
 
 ```scala
-import golem.runtime.annotations.agentDefinition
-import golem.BaseAgent
+import golem.wasi.Config
 import scala.concurrent.Future
 
-@agentDefinition
-trait DatabaseAgent extends BaseAgent {
-  val host: String
-  val port: Int
-  val username: String
-  
-  def query(sql: String): Future[String]
+val enableCache: Future[Option[String]] = Config.get("ENABLE_CACHE")
+enableCache.map {
+  case Some("true") => true
+  case _ => false
 }
 ```
 
-The Golem runtime automatically provides these values based on deployment configuration.
-
-## Configuration with Secrets
-
-Use `Secret[T]` for sensitive values that should be loaded lazily:
+### Timeout Configuration
 
 ```scala
-import golem.runtime.annotations.agentDefinition
-import golem.BaseAgent
-import golem.config.Secret
+import golem.wasi.Config
 import scala.concurrent.Future
 
-@agentDefinition
-trait SecureAgent extends BaseAgent {
-  val apiKey: Secret[String]
-  val databaseUrl: String
-  
-  def authenticate(): Future[Boolean]
-}
+val timeoutMs: Future[Int] = Config.getRequired("REQUEST_TIMEOUT_MS").map(_.toInt)
 ```
 
-Access the secret value via `.get`:
+## Override Configuration
 
-```scala
-@agentImplementation()
-class SecureAgentImpl(apiKey: Secret[String], databaseUrl: String) extends SecureAgent {
-  override def authenticate(): Future[Boolean] = {
-    val key = apiKey.get
-    // Use key for authentication
-    Future.successful(true)
-  }
-}
-```
-
-## Override Configuration at Deployment
-
-Configuration values are overridden at deployment time via the Golem manifest:
+Configuration values can be overridden at deployment time via the Golem manifest:
 
 ```yaml
 components:
   my-agent:
     templates: scala.js
     config:
-      host: "prod-db.example.com"
-      port: 5432
-      username: "db-user"
-      apiKey: "secret-key-from-vault"
+      DATABASE_URL: "postgres://prod-db:5432/mydb"
+      API_TIMEOUT: "30000"
 ```
 
 Different environments (dev, staging, prod) have different config overrides without code changes.
 
-## Feature Flags
+## Config Schema Introspection
 
-Declare feature flags as configuration:
+Introspect agent configuration to discover available settings:
 
 ```scala
+import golem.config.ConfigIntrospection
+import scala.concurrent.Future
+
+val schema = ConfigIntrospection.getSchema()
+// Inspect available config keys and types
+```
+
+Rarely used directly; mostly for tooling and documentation.
+
+## Typed Configuration
+
+For type-safe configuration, declare config fields in the agent trait:
+
+```scala
+import golem.runtime.annotations.agentDefinition
+import golem.BaseAgent
+
 @agentDefinition
-trait FeatureFlagAgent extends BaseAgent {
-  val enableNewCache: Boolean = false
-  val enableMetrics: Boolean = true
+trait TypedConfigAgent extends BaseAgent {
+  val databaseUrl: String
+  val timeout: Int
+  val enableCache: Boolean = true  // With default
   
-  def process(): Future[String]
+  def connect(): scala.concurrent.Future[String]
 }
 ```
 
-Toggle features at deployment time without recompiling code.
+The Golem runtime injects these fields based on configuration.
 
 ## Error Handling
 
-Configuration fields are injected at startup. If a required field is missing:
+Configuration access can fail:
 
 ```scala
-@agentDefinition
-trait RequiredConfigAgent extends BaseAgent {
-  val requiredUrl: String  // Must be provided; no default
-  
-  def connect(): Future[Unit]
+import golem.wasi.Config
+import scala.concurrent.Future
+
+val result: Future[String] = Config.getRequired("REQUIRED_KEY").recover {
+  case _ => "default-value"
 }
 ```
 
-The Golem runtime will fail agent startup if `requiredUrl` is not provided, failing fast rather than failing at runtime.
+Always handle missing configuration gracefully or fail early at agent startup.
 
 ## Best Practices
 
-- **Use typed config fields** — Let the compiler and macro system handle schema derivation
+- **Use `getRequired()` for critical settings** — Fail fast if not configured
 - **Provide sensible defaults** — Make agents work with minimal configuration
-- **Use environment variable conventions** — Configuration keys typically map to UPPER_CASE names
-- **Fail fast on missing required config** — Use fields without defaults for critical settings
-- **Treat secrets separately** — Use `Secret[T]` for credentials; never log them
-- **Test configuration loading** — Verify agents handle various config values
-- **Document configuration requirements** — List all required and optional config keys in your agent trait
+- **Use environment variable conventions** — UPPER_CASE, underscore-separated
+- **Document configuration** — List all required and optional keys
+- **Treat secrets separately** — Never log secrets or include in error messages
+- **Test configuration loading** — Verify agents handle missing/invalid config
+- **Use feature flags for gradual rollout** — Toggle features without redeployment
