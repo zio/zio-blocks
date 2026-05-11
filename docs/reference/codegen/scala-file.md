@@ -25,7 +25,9 @@ val simpleFile = ScalaFile(
 
 With imports and types:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
+import zio.blocks.codegen.ir._
+
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example"),
   imports = List(
@@ -49,7 +51,7 @@ All core operations are shown below:
 
 Extract the parts of a `ScalaFile`:
 
-```scala mdoc:compile-only
+```scala mdoc
 // Read-only access to all components
 file.packageDecl    // PackageDecl
 file.imports        // List[Import]
@@ -60,7 +62,7 @@ file.types          // List[TypeDefinition]
 
 Modify a file by copying with new values:
 
-```scala mdoc:compile-only
+```scala mdoc
 val updatedFile = file.copy(
   types = file.types :+ CaseClass(
     name = "Product",
@@ -108,7 +110,7 @@ val emitted = ScalaEmitter.emit(minimal, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.example
 
 final case class Empty()
@@ -146,7 +148,7 @@ val emitted = ScalaEmitter.emit(multiType, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.payment
 
 import zio._

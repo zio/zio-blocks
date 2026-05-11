@@ -108,7 +108,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.shop
 
 final case class Order(

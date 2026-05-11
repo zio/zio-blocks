@@ -27,6 +27,8 @@ val booleanType = TypeRef("Boolean")
 With type arguments for generics:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val listOfString = TypeRef("List", List(TypeRef("String")))
 val mapStringInt = TypeRef("Map", List(TypeRef("String"), TypeRef("Int")))
 val optionalLong = TypeRef("Option", List(TypeRef("Long")))
@@ -35,6 +37,8 @@ val optionalLong = TypeRef("Option", List(TypeRef("Long")))
 Using factory methods from the companion object:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val string = TypeRef.String
 val int = TypeRef.Int
 val optional = TypeRef.optional(TypeRef.String)
@@ -51,6 +55,8 @@ All core operations are shown below:
 Extract parts of a type reference:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val optional = TypeRef("Option", List(TypeRef.String))
 
 optional.name      // "Option"
@@ -62,6 +68,7 @@ optional.typeArgs  // List[TypeRef] = List(TypeRef("String"))
 Compose type references:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
 val nestedList = TypeRef("List", List(
   TypeRef("Option", List(TypeRef("String")))
 ))
@@ -73,6 +80,8 @@ val nestedList = TypeRef("List", List(
 `TypeRef` provides factory methods for built-in types:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 TypeRef.Unit        // Unit
 TypeRef.Boolean     // Boolean
 TypeRef.Byte        // Byte
@@ -82,7 +91,6 @@ TypeRef.Long        // Long
 TypeRef.Float       // Float
 TypeRef.Double      // Double
 TypeRef.String      // String
-TypeRef.Char        // Char
 TypeRef.Any         // Any
 ```
 
@@ -91,6 +99,8 @@ TypeRef.Any         // Any
 Convenience methods simplify common generic patterns:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 TypeRef.optional(TypeRef.String)  // Option[String]
 TypeRef.list(TypeRef.Int)         // List[Int]
 TypeRef.set(TypeRef.String)       // Set[String]
