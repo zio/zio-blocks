@@ -44,9 +44,13 @@ val success2: Result[String, Nothing] = Result.ok("Hello")
 
 ```scala
 import golem.Result
+import zio.blocks.schema.Schema
 
 val failure: Result[Nothing, String] = Result.err("Something went wrong")
-val failure2: Result[Int, Exception] = Result.err(new RuntimeException("Error"))
+
+// Custom error type with schema
+case class ApiError(code: Int, message: String) derives Schema
+val failure2: Result[Int, ApiError] = Result.err(ApiError(500, "Internal error"))
 ```
 
 ### From Either
