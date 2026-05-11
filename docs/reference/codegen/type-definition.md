@@ -285,6 +285,6 @@ val box = CaseClass(
 Emits:
 
 ```scala
-final case class Box[A](value: A)
+case class Box[A](value: A)
 ```
 

@@ -111,7 +111,7 @@ Emits:
 ```scala
 package com.shop
 
-final case class Order(
+case class Order(
   id: Long,
   customerId: String,
   total: BigDecimal,
@@ -139,7 +139,7 @@ val config = CaseClass(
 Emits:
 
 ```scala mdoc:compile-only
-final case class DatabaseConfig(
+case class DatabaseConfig(
   host: String = "localhost",
   port: Int = 5432,
   timeout: Long = 30000L
@@ -168,7 +168,7 @@ val article = CaseClass(
 Emits:
 
 ```scala mdoc:compile-only
-final case class Article(
+case class Article(
   title: String,
   content: String,
   author: Option[String],
@@ -206,7 +206,7 @@ val response = CaseClass(
 Emits:
 
 ```scala
-final case class Response(
+case class Response(
   data: Option[List[String]],
   errors: List[Map[String, String]]
 )
@@ -233,7 +233,7 @@ val page = CaseClass(
 Emits:
 
 ```scala
-final case class Page[T](
+case class Page[T](
   items: List[T],
   total: Long,
   pageSize: Int

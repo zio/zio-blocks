@@ -289,9 +289,9 @@ Emits:
 ```scala
 package com.containers
 
-final case class Wrapper[A](value: A)
+case class Wrapper[A](value: A)
 
-final case class Pair[A, B](
+case class Pair[A, B](
   left: A,
   right: B
 )

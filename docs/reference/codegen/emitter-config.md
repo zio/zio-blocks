@@ -145,7 +145,7 @@ package com.example
 sealed trait Result
 
 object Result {
-    final case class Success(
+    case class Success(
         value: String
     ) extends Result
     case object Failure extends Result
@@ -232,7 +232,7 @@ Emits without trailing comma on last field:
 ```scala
 package com.strict
 
-final case class Options(
+case class Options(
   a: String,
   b: Int,
   c: Boolean
@@ -277,7 +277,7 @@ import zio._
 import scala.collection.Seq
 import scala._
 
-final case class Data(
+case class Data(
   items: Seq[String]
 )
 ```
@@ -332,7 +332,7 @@ When targeting Scala 3, the emitter uses:
 - **Enums**: `enum Color { case Red; case Blue }`
 - **Derives**: `derives Show, Eq`
 - **Wildcard imports**: `import scala.collection.*`
-- **Rename imports**: `import foo.bar as baz`
+- **Rename imports**: `import foo.{bar as baz}`
 - **Opaque types**: `opaque type UserId = Long`
 
 ### Scala 2 Fallback

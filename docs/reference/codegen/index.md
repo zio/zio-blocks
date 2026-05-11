@@ -11,13 +11,13 @@ Here's the structure of two core types:
 
 ```scala
 // IR models the structure of Scala code
-final case class ScalaFile(
+case class ScalaFile(
   packageDecl: PackageDecl,
   imports: List[Import] = Nil,
   types: List[TypeDefinition] = Nil
 )
 
-final case class CaseClass(
+case class CaseClass(
   name: String,
   fields: List[Field],
   typeParams: List[TypeParam] = Nil,
@@ -153,7 +153,7 @@ package com.example
 
 import zio._
 
-final case class User(
+case class User(
   id: Long,
   name: String,
   email: Option[String]

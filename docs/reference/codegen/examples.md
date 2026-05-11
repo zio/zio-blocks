@@ -73,7 +73,7 @@ object Error {
 }
 derives Show
 
-final case class User(
+case class User(
   id: Long,
   email: String,
   name: String,
@@ -131,7 +131,7 @@ Generates:
 ```scala
 package com.example.types
 
-final case class Container[T](
+case class Container[T](
   value: T,
   metadata: Map[String, String]
 ) derives Show
@@ -321,7 +321,7 @@ Generates:
 ```scala
 package com.example.config
 
-final case class AppConfig(
+case class AppConfig(
   host: String,
   port: Int,
   timeout: Long
@@ -383,7 +383,7 @@ package com.example.pagination
 
 import scala.collection._
 
-final case class Page[T](
+case class Page[T](
   items: List[T],
   total: Long,
   page: Int,

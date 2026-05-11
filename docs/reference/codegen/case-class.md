@@ -150,7 +150,7 @@ Emits:
 ```scala
 package com.shop
 
-final case class Order(
+case class Order(
   id: Long,
   total: BigDecimal,
   status: String
@@ -179,12 +179,12 @@ val user = CaseClass(
 Emits:
 
 ```scala
-final case class User(
+case class User(
   id: Long,
   name: String,
   email: Option[String],
   tags: List[String]
-) derives Show
+)
 ```
 
 ### Example 3: Generic Case Class
@@ -208,7 +208,7 @@ val page = CaseClass(
 Emits:
 
 ```scala
-final case class Page[T](
+case class Page[T](
   items: List[T],
   total: Long,
   pageSize: Int
@@ -236,7 +236,7 @@ val product = CaseClass(
 Emits:
 
 ```scala
-final case class Product(
+case class Product(
   id: String,
   name: String,
   price: java.math.BigDecimal
@@ -273,7 +273,7 @@ val config = CaseClass(
 Emits:
 
 ```scala mdoc:compile-only
-final case class AppConfig(
+case class AppConfig(
   host: String,
   port: Int
 )
