@@ -67,7 +67,7 @@ object CounterModule {
 2. Inner `class Id(val name: String)` defines constructor parameters
 3. `Snapshotted[Int]` persists the counter value across invocations
 4. `@agentImplementation()` decorates the implementation
-5. `AgentCompanion[Counter]` provides `.get()` client access
+5. `AgentCompanionBase[Counter]` provides `.get()` client access
 6. `AgentImplementation.registerClass[Counter, CounterImpl]` registers the agent
 
 ## Example 2: Multi-Step Order Processing with Transactions
@@ -309,13 +309,25 @@ trait RequestHandler extends golem.BaseAgent {
 
 ### Pattern 2: Stateful Agent with Snapshots
 
-Maintain state across multiple invocations:
+Maintain state across multiple invocations by mixing in the `Snapshotted` trait:
 
 ```scala
-@golem.runtime.annotations.agentImplementation()
-class StatefulImpl() extends Stateful {
-  private val state: golem.Snapshotted[Map[String, Int]] = golem.Snapshotted(Map.empty)
-  // Modify state, it persists automatically
+import golem.runtime.annotations.agentImplementation
+import golem.Snapshotted
+import zio.blocks.schema.Schema
+import scala.concurrent.Future
+
+case class CounterState(value: Int)
+
+@agentImplementation()
+class CounterImpl() extends Counter with Snapshotted[CounterState] {
+  var state: CounterState = CounterState(0)
+  val stateSchema: Schema[CounterState] = Schema.derived
+  
+  override def increment(): Future[Int] = Future.successful {
+    state = state.copy(value = state.value + 1)
+    state.value
+  }
 }
 ```
 

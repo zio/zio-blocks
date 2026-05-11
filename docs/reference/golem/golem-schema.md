@@ -205,7 +205,7 @@ case class Team(
 Encoding/decoding can fail:
 
 ```scala
-import golem.GolemSchema
+import golem.data.GolemSchema
 
 case class Strict(x: Int) derives zio.blocks.schema.Schema
 

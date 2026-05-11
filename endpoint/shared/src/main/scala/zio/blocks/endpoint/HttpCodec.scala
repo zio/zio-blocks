@@ -218,7 +218,10 @@ object HttpCodec {
 
   val authorization: HttpCodec[CodecKind.Request, HttpHeader.Authorization]   = requestHeader(HttpHeader.Authorization)
   val basicAuth: HttpCodec[CodecKind.Request, HttpHeader.Authorization.Basic] =
-    requestHeader("authorization", authorizationSchema("Basic", { case basic: HttpHeader.Authorization.Basic => basic }))
+    requestHeader(
+      "authorization",
+      authorizationSchema("Basic", { case basic: HttpHeader.Authorization.Basic => basic })
+    )
   val bearerAuth: HttpCodec[CodecKind.Request, HttpHeader.Authorization.Bearer] =
     requestHeader(
       "authorization",
