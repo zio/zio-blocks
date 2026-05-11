@@ -81,6 +81,9 @@ object SecurityHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(DNT.TrackingAllowed.headerName == "dnt")
+      },
+      test("NotSpecified convenience value aliases unset") {
+        assertTrue(DNT.NotSpecified == DNT.Unset)
       }
     ),
     suite("UpgradeInsecureRequests")(

@@ -89,6 +89,9 @@ object ConnectionHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(Trailer(Chunk("X")).headerName == "trailer")
+      },
+      test("varargs apply builds trailer header entries") {
+        assertTrue(Trailer("Expires", "Cache-Control") == Trailer(Chunk("Expires", "Cache-Control")))
       }
     ),
     suite("TransferEncoding")(

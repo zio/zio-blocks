@@ -79,6 +79,15 @@ object CorsHeadersSpec extends ZIOSpecDefault {
         val original = AccessControlAllowMethods(Chunk(Method.DELETE, Method.PATCH))
         val rendered = AccessControlAllowMethods.render(original)
         assertTrue(AccessControlAllowMethods.parse(rendered) == Right(original))
+      },
+      test("All convenience value covers all standard methods") {
+        assertTrue(AccessControlAllowMethods.All == AccessControlAllowMethods(Method.values))
+      },
+      test("varargs apply builds allow-methods header") {
+        assertTrue(
+          AccessControlAllowMethods(Method.GET, Method.POST) ==
+            AccessControlAllowMethods(Chunk(Method.GET, Method.POST))
+        )
       }
     ),
     suite("AccessControlAllowHeaders")(
@@ -104,6 +113,18 @@ object CorsHeadersSpec extends ZIOSpecDefault {
         val original = AccessControlAllowHeaders(Chunk("X-Custom"))
         val rendered = AccessControlAllowHeaders.render(original)
         assertTrue(AccessControlAllowHeaders.parse(rendered) == Right(original))
+      },
+      test("All convenience value renders wildcard") {
+        assertTrue(
+          AccessControlAllowHeaders.All == AccessControlAllowHeaders(Chunk("*")),
+          AccessControlAllowHeaders.render(AccessControlAllowHeaders.All) == "*"
+        )
+      },
+      test("varargs apply builds allow-headers list") {
+        assertTrue(
+          AccessControlAllowHeaders("Accept", "Origin") ==
+            AccessControlAllowHeaders(Chunk("Accept", "Origin"))
+        )
       }
     ),
     suite("AccessControlAllowCredentials")(
@@ -130,6 +151,13 @@ object CorsHeadersSpec extends ZIOSpecDefault {
         val original = AccessControlAllowCredentials(true)
         val rendered = AccessControlAllowCredentials.render(original)
         assertTrue(AccessControlAllowCredentials.parse(rendered) == Right(original))
+      },
+      test("Allow and Deny convenience values map to booleans") {
+        assertTrue(
+          AccessControlAllowCredentials.Allow == AccessControlAllowCredentials(true),
+          AccessControlAllowCredentials.Deny == AccessControlAllowCredentials(false),
+          AccessControlAllowCredentials.DoNotAllow == AccessControlAllowCredentials.Deny
+        )
       }
     ),
     suite("AccessControlExposeHeaders")(
@@ -155,6 +183,17 @@ object CorsHeadersSpec extends ZIOSpecDefault {
         val original = AccessControlExposeHeaders(Chunk("Content-Length"))
         val rendered = AccessControlExposeHeaders.render(original)
         assertTrue(AccessControlExposeHeaders.parse(rendered) == Right(original))
+      },
+      test("All convenience value renders wildcard") {
+        assertTrue(
+          AccessControlExposeHeaders.All == AccessControlExposeHeaders(Chunk("*")),
+          AccessControlExposeHeaders.render(AccessControlExposeHeaders.All) == "*"
+        )
+      },
+      test("varargs apply builds expose-headers list") {
+        assertTrue(
+          AccessControlExposeHeaders("X-A", "X-B") == AccessControlExposeHeaders(Chunk("X-A", "X-B"))
+        )
       }
     ),
     suite("AccessControlMaxAge")(
@@ -206,6 +245,12 @@ object CorsHeadersSpec extends ZIOSpecDefault {
         val original = AccessControlRequestHeaders(Chunk("X-Request-Id"))
         val rendered = AccessControlRequestHeaders.render(original)
         assertTrue(AccessControlRequestHeaders.parse(rendered) == Right(original))
+      },
+      test("varargs apply builds request-headers list") {
+        assertTrue(
+          AccessControlRequestHeaders("Accept", "Authorization") ==
+            AccessControlRequestHeaders(Chunk("Accept", "Authorization"))
+        )
       }
     ),
     suite("AccessControlRequestMethod")(
