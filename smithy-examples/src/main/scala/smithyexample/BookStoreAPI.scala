@@ -444,7 +444,7 @@ structure OrderNotFound {
       println("API STATISTICS")
       println("═══════════════════════════════════════════════════════\n")
 
-      println(f"  Total Shapes: ${model.shapes.length}")
+      println(s"  Total Shapes: ${model.shapes.length}")
 
       val shapesByType = model.shapes.groupBy { shapeDef =>
         shapeDef.shape match {
@@ -458,7 +458,7 @@ structure OrderNotFound {
       }
 
       shapesByType.toSeq.sortBy(_._1).foreach { case (shapeType, shapes) =>
-        println(f"    - $shapeType: ${shapes.length}")
+        println(s"    - $shapeType: ${shapes.length}")
       }
 
       val totalDocumentedFields = model.shapes.foldLeft(0) { case (acc, shapeDef) =>
@@ -476,8 +476,8 @@ structure OrderNotFound {
         }
       }
 
-      println(f"\n  Documentation Coverage:")
-      println(f"    - Total Fields: $totalFields")
+      println(s"\n  Documentation Coverage:")
+      println(s"    - Total Fields: $totalFields")
       println(s"    - Documented: $totalDocumentedFields (${
           if (totalFields > 0) (totalDocumentedFields * 100) / totalFields else 0
         }%)")
