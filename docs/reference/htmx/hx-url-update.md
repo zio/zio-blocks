@@ -5,7 +5,7 @@ title: HxUrlUpdate
 
 `HxUrlUpdate` represents the `hx-push-url` and `hx-replace-url` attributes, controlling whether and how the browser's URL bar updates after an HTMX request. You can enable/disable URL updates as booleans or specify a custom URL to push/replace.
 
-Use `HxUrlUpdate.Enabled` or `HxUrlUpdate(true)` to update the URL with the response URL, or pass a custom URL string/Path/URL to update to a different address. Use `HxUrlUpdate.Disabled` or `HxUrlUpdate(false)` to prevent updates.
+Use `HxUrlUpdate.Enabled` or `HxUrlUpdate(true)` to update the URL with the response URL, or pass a custom URL string/Path/URL to update to a different address. Use `HxUrlUpdate.Disabled` or `HxUrlUpdate(false)` to prevent updates. Here are the core patterns:
 
 ```scala
 import zio.http.htmx._
@@ -128,6 +128,8 @@ HxUrlUpdate.parse("/custom")                  // Right(HxUrlUpdate("/custom"))
 
 ## Common Patterns
 
+URL updates enable seamless integration with browser history and bookmarking. Here are representative usage patterns:
+
 ### Progressive Enhancement with URL Updates
 
 Keep the URL in sync with SPA-like navigation while using server-side rendering:
@@ -219,7 +221,7 @@ Both attributes accept the same `HxUrlUpdate` type. Use `replace` for searches, 
 
 ## Integration with Other Attributes
 
-`HxUrlUpdate` is used with `hxPushUrl` and `hxReplaceUrl`, both of which control history and URL bar updates:
+Combine `HxUrlUpdate` with `hxPushUrl` and `hxReplaceUrl` to control history and URL bar updates:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
