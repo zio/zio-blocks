@@ -83,7 +83,7 @@ import zio.http.{Method, Path, Status}
     .orOutError(Status.NotFound, Schema.string)
     .orOutError(Status.Conflict, Schema.int)
 
-  val _: Endpoint[Int, Unit, String | Int, Unit, AuthType.None] = withUnionErrors
+  val _: Endpoint[Int, Unit, String | Int, Unit, AuthType.None.type] = withUnionErrors
 
   // --- Versioned routes via nest ---
   val v1ListUsers = listUsers.route.nest(PathCodec("/api/v1"))
