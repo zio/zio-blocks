@@ -154,47 +154,56 @@ HostApi.updateAgent(agentId, targetVersion, updateMode)
 
 ## Relational Database Access
 
-Access MySQL and PostgreSQL databases:
+Access MySQL and PostgreSQL databases via the resource API:
 
-```scala
-import golem.host.Rdbms
-import scala.concurrent.Future
+```scala mdoc:compile-only
+import golem.wasi.Rdbms
 
-val result: Future[List[String]] = Rdbms.queryPostgres(
-  connectionString = "postgres://localhost/mydb",
-  query = "SELECT name FROM users WHERE id = $1",
-  parameters = List("user123")
-)
+// Open a connection and execute queries
+val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
+val result = connection.query("SELECT name FROM users WHERE id = $1", List("user123"))
+
+result match {
+  case Right(rows) => println(s"Found: $rows")
+  case Left(error) => println(s"Error: $error")
+}
 ```
 
-See the `Rdbms` module for full database API documentation.
+The Rdbms API provides resource-based access to PostgreSQL and MySQL databases with synchronous Either-based error handling.
 
 ## Key-Value Store
 
-Persistent key-value storage beyond the agent's memory:
+Persistent key-value storage beyond the agent's memory using buckets:
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.KeyValue
-import scala.concurrent.Future
 
-val value: Future[Option[String]] = KeyValue.get("my-key")
-KeyValue.set("my-key", "my-value")
-KeyValue.delete("my-key")
+// Open a bucket and access key-value pairs
+val bucket = KeyValue.Bucket.open("my-bucket")
+
+val value: Option[Array[Byte]] = bucket.get("my-key")
+bucket.set("my-key", Array(1, 2, 3))
+bucket.delete("my-key")
 ```
+
+The KeyValue API provides synchronous, resource-based access to persistent storage.
 
 ## Blobstore
 
-Store and retrieve large binary objects:
+Store and retrieve large binary objects using the resource API:
 
-```scala
+```scala mdoc:compile-only
 import golem.wasi.Blobstore
 import scala.scalajs.js.typedarray.Uint8Array
-import scala.concurrent.Future
 
-val data: Uint8Array = ???
-val objectId: Future[String] = Blobstore.put("my-bucket", data)
-val retrieved: Future[Uint8Array] = Blobstore.get("my-bucket", objectId)
+val data: Uint8Array = ??? // binary data to store
+val objectStore = Blobstore.ObjectStore.open("my-bucket")
+
+val objectId: String = objectStore.put(data)
+val retrieved: Option[Uint8Array] = objectStore.get(objectId)
 ```
+
+The Blobstore API provides synchronous, resource-based access to large binary object storage.
 
 ## Oplog Commit
 
