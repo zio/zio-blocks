@@ -12,7 +12,7 @@ A simple counter agent with durable state using snapshots:
 ```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation, description}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import golem.{BaseAgent, AgentCompanion, Snapshotted}
+import golem.{BaseAgent, AgentCompanionBase, Snapshotted}
 import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
@@ -31,26 +31,30 @@ trait Counter extends BaseAgent {
   def reset(): Future[Unit]
 }
 
-// Implement the agent
+// Implement the agent with snapshots
 @agentImplementation()
-class CounterImpl(name: String) extends Counter {
-  private val state: Snapshotted[Int] = Snapshotted(0)
+class CounterImpl() extends Counter with Snapshotted[Int] {
+  var state: Int = 0
+  val stateSchema: Schema[Int] = Schema.derived
   
   override def increment(): Future[Int] =
     Future.successful {
-      state.update(n => n + 1)
-      state.current
+      state = state + 1
+      state
     }
   
   override def get(): Future[Int] =
-    Future.successful(state.current)
+    Future.successful(state)
   
   override def reset(): Future[Unit] =
-    Future.successful(state.set(0))
+    Future.successful {
+      state = 0
+      ()
+    }
 }
 
 // Register for client access
-object Counter extends AgentCompanion[Counter]
+object Counter extends AgentCompanionBase[Counter]
 
 object CounterModule {
   val definition: AgentDefinition[Counter] =
@@ -173,9 +177,9 @@ trait UserService extends BaseAgent {
 }
 
 @agentImplementation()
-class UserServiceImpl(userId: String) extends UserService {
+class UserServiceImpl(id: (String)) extends UserService {
   override def getProfile(): Future[User] =
-    Future.successful(User(userId, "John Doe", "john@example.com"))
+    Future.successful(User(id._1, "John Doe", "john@example.com"))
   
   override def updateEmail(newEmail: String): Future[Unit] = {
     println(s"Updating email to $newEmail")
@@ -249,33 +253,36 @@ object CalculatorModule {
 
 ## Example 5: Configuration and Secrets
 
-Agents declaring configuration fields injected at runtime:
+Agents accessing runtime configuration:
 
 ```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import golem.config.Secret
+import golem.wasi.{Config, Secret}
 import golem.BaseAgent
 import scala.concurrent.Future
 
 @agentDefinition
 trait DataService extends BaseAgent {
-  val databaseUrl: String
-  val apiKey: Secret[String]
-  val maxConnections: Int = 10  // With default
-  
   def query(sql: String): Future[String]
 }
 
 @agentImplementation()
-class DataServiceImpl(databaseUrl: String, apiKey: Secret[String], maxConnections: Int = 10) extends DataService {
+class DataServiceImpl() extends DataService {
   override def query(sql: String): Future[String] = {
-    // Configuration fields are already injected by the runtime
-    val dbUrl = databaseUrl
-    val key = apiKey.get
+    // Get database URL from configuration
+    val dbUrlFuture = Config.getRequired("DATABASE_URL")
     
-    // Use dbUrl and key to execute query
-    Future.successful(s"Executed: $sql against $dbUrl with $maxConnections connections")
+    // Get API key from secrets
+    val apiKeyFuture = Secret.get("database-api-key")
+    
+    for {
+      dbUrl <- dbUrlFuture
+      apiKey <- apiKeyFuture
+    } yield {
+      // Use dbUrl and apiKey to execute query
+      s"Executed: $sql against $dbUrl"
+    }
   }
 }
 
@@ -285,7 +292,7 @@ object DataServiceModule {
 }
 ```
 
-Configuration is provided by the Golem runtime via the manifest at deployment time, allowing different values for each environment (dev/staging/prod) without code changes.
+Configuration is provided by the Golem runtime via the manifest, different for each deployment (dev/staging/prod).
 
 ## Common Composition Patterns
 
