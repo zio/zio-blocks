@@ -83,6 +83,8 @@ The first parameter of `HxSync` is an `HxTarget` specifying which element to syn
 
 **Synchronize the current element:**
 
+Use `HxTarget.This` to synchronize the element that initiates the request:
+
 ```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.http.htmx._
@@ -96,6 +98,8 @@ input(
 
 **Synchronize a parent form:**
 
+Synchronize across all fields in a form using `HxTarget.closest()`:
+
 ```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.http.htmx._
@@ -108,6 +112,8 @@ input(
 ```
 
 **Synchronize multiple fields at once:**
+
+Apply the same sync strategy to multiple fields within a form:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -148,6 +154,8 @@ HxSync.parse("closest form:replace")   // Right(HxSync(HxTarget.closest("form"),
 ```
 
 ## Common Patterns
+
+Synchronization strategies prevent race conditions in interactive forms. Here are practical usage patterns:
 
 ### Search with Last-Value-Wins
 
