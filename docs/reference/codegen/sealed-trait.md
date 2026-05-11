@@ -31,7 +31,9 @@ val httpStatus = SealedTrait(
 
 With case classes as cases:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
+import zio.blocks.codegen.ir._
+
 val result = SealedTrait(
   name = "Result",
   cases = List(
@@ -48,6 +50,8 @@ val result = SealedTrait(
 With type parameters:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val option = SealedTrait(
   name = "Option",
   typeParams = List(TypeParam("A")),
@@ -68,7 +72,7 @@ All core operations are shown below:
 
 Extract parts of a sealed trait:
 
-```scala mdoc:compile-only
+```scala mdoc
 result.name          // "Result"
 result.cases         // List[SealedTraitCase]
 result.typeParams    // List[TypeParam] (empty if not generic)
@@ -81,6 +85,8 @@ result.annotations   // List[Annotation]
 Each case is either a `CaseObjectCase` or `CaseClassCase`:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val caseObj = SealedTraitCase.CaseObjectCase("Unknown")
 
 val caseClass = SealedTraitCase.CaseClassCase(
@@ -92,7 +98,7 @@ val caseClass = SealedTraitCase.CaseClassCase(
 
 Modify a sealed trait:
 
-```scala mdoc:compile-only
+```scala mdoc
 val updated = result.copy(
   cases = result.cases :+ SealedTraitCase.CaseObjectCase("Pending"),
   derives = List("Show")
@@ -130,7 +136,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 package com.graphics
 
 sealed trait Color
@@ -172,7 +178,7 @@ val payment = SealedTrait(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 sealed trait Payment
 
 object Payment {
@@ -214,7 +220,7 @@ val either = SealedTrait(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 sealed trait Either[L, R]
 
 object Either {

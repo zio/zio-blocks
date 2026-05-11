@@ -26,6 +26,8 @@ val email = Field("email", TypeRef.optional(TypeRef.String))
 With default value:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val timeout = Field("timeout", TypeRef.Long, defaultValue = Some("5000L"))
 val retries = Field("retries", TypeRef.Int, defaultValue = Some("3"))
 ```
@@ -33,6 +35,8 @@ val retries = Field("retries", TypeRef.Int, defaultValue = Some("3"))
 With annotations:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val annotated = Field(
   "id",
   TypeRef.Long,
@@ -48,9 +52,13 @@ All `Field` instances support these operations:
 
 Extract parts of a field:
 
-```scala mdoc:compile-only
-val field = Field("age", TypeRef.Int, defaultValue = Some("0"))
+```scala mdoc:silent
+import zio.blocks.codegen.ir._
 
+val field = Field("age", TypeRef.Int, defaultValue = Some("0"))
+```
+
+```scala mdoc
 field.name           // "age"
 field.typeRef        // TypeRef.Int
 field.defaultValue   // Some("0")
@@ -61,7 +69,7 @@ field.annotations    // List[Annotation]
 
 Modify a field:
 
-```scala mdoc:compile-only
+```scala mdoc
 val updated = field.copy(
   defaultValue = Some("18"),
   annotations = List(Annotation("min"))
@@ -197,7 +205,7 @@ val response = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Response(
   data: Option[List[String]],
   errors: List[Map[String, String]]
@@ -224,7 +232,7 @@ val page = CaseClass(
 
 Emits:
 
-```scala mdoc:compile-only
+```scala
 final case class Page[T](
   items: List[T],
   total: Long,

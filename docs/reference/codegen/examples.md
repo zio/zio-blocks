@@ -56,7 +56,7 @@ val code = ScalaEmitter.emit(file, config)
 
 This generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.domain
 
 import zio._
@@ -128,7 +128,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.types
 
 final case class Container[T](
@@ -260,7 +260,7 @@ derives Show
 
 Scala 2 output:
 
-```scala mdoc:compile-only
+```scala
 package com.shop.models
 
 sealed trait OrderStatus
@@ -318,7 +318,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.config
 
 final case class AppConfig(
@@ -378,7 +378,7 @@ ScalaEmitter.emit(file, EmitterConfig(indentWidth = 2))
 
 Generates:
 
-```scala mdoc:compile-only
+```scala
 package com.example.pagination
 
 import scala.collection._
@@ -482,6 +482,8 @@ These patterns recur across all code generation workflows:
 When generating code, you'll often build types incrementally:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 val types = List(
   CaseClass("User", List()),
   CaseClass("Product", List())
@@ -499,6 +501,8 @@ val file = ScalaFile(
 Define common types once and compose them:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
 // Common error type
 val baseError = SealedTrait(
   "Error",
@@ -525,6 +529,8 @@ val file2 = ScalaFile(
 Choose configuration once and apply to all files:
 
 ```scala mdoc:compile-only
+import zio.blocks.codegen.emit._
+
 // Your project's standard config
 val projectConfig = EmitterConfig(
   indentWidth = 2,
