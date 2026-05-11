@@ -12,7 +12,9 @@ object Transactions {
   ): Operation[In, Out, Err]
 
   def infallibleTransaction[A](body: InfallibleTransaction => A): A
-  def fallibleTransaction[E, A](body: FallibleTransaction[E] => Either[E, A]): Either[E, A]
+  def fallibleTransaction[A, Err](
+    body: FallibleTransaction[Err] => Either[Err, A]
+  ): Either[TransactionFailure[Err], A]
 }
 ```
 
@@ -57,12 +59,12 @@ The transaction keeps retrying until all operations succeed. Compensation runs i
 
 ## Fallible Transactions
 
-Use `fallibleTransaction` when you want explicit error handling:
+Use `fallibleTransaction` when you want explicit error handling. The function returns `Either[TransactionFailure[Err], A]`, wrapping any errors from the body with rollback status:
 
 ```scala
 import golem.Transactions
 
-val result: Either[String, String] = Transactions.fallibleTransaction { tx =>
+val result: Either[Transactions.TransactionFailure[String], String] = Transactions.fallibleTransaction { tx =>
   val step1 = Transactions.operation[Unit, Int, String](
     _ => Right(42)
   )((_, _) => Right(()))
@@ -81,9 +83,14 @@ val result: Either[String, String] = Transactions.fallibleTransaction { tx =>
     case Right(msg) => Right(msg)
   }
 }
+
+result match {
+  case Right(msg) => println(s"Success: $msg")
+  case Left(failure) => println(s"Transaction failed: $failure")
+}
 ```
 
-If any operation returns `Left(err)`, the transaction returns `Left(err)` and compensation runs.
+If any operation in the body returns `Left(err)`, the transaction returns `Left(failure)` where `failure` includes both the error and rollback status. Compensation runs automatically.
 
 ## Operation Definition
 
@@ -228,19 +235,22 @@ Transactions provide these guarantees:
 
 **Idempotence requirement:** Operations in infallible transactions must be idempotent because they retry. Use request IDs or timestamps to detect duplicates.
 
-## Integration with HostApi
+## Integration with Guards
 
-Transactions internally use `HostApi` to track operation boundaries:
+Transactions internally use `Guards.markAtomicOperation()` to establish atomic regions and manage oplog state:
 
 ```scala
-// Behind the scenes, infallibleTransaction calls:
-// HostApi.markBeginOperation()  // Start atomic region
-// ... execute operations ...
-// HostApi.markEndOperation()    // End atomic region
-// On failure: oplog rolls back to begin
+// Behind the scenes, transactions call:
+// val guard = Guards.markAtomicOperation()  // Start atomic region
+// try {
+//   ... execute operations and track compensations ...
+// } finally {
+//   guard.drop()  // End atomic region
+// }
+// On failure: compensation runs and then retries (infallible) or returns error (fallible)
 ```
 
-You don't call `HostApi` directly; transactions handle it.
+You don't call `Guards` directly; transactions handle all the coordination automatically.
 
 ## Common Patterns
 
