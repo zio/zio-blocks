@@ -29,6 +29,10 @@ final case class Request(
   body: Body,
   version: Version
 ) {
+
+  /**
+   * Decodes the first request header matching the supplied codec.
+   */
   def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
 
   /**
@@ -66,9 +70,13 @@ final case class Request(
    * This overwrites any existing `Content-Type` header with
    * `body.contentType.render` so the headers remain aligned with the body.
    */
-  def body(body: Body): Request          = copy(body = body, headers = headers.set("content-type", body.contentType.render))
-  def url(url: URL): Request             = copy(url = url)
-  def method(method: Method): Request    = copy(method = method)
+  def body(body: Body): Request       = copy(body = body, headers = headers.set("content-type", body.contentType.render))
+  def url(url: URL): Request          = copy(url = url)
+  def method(method: Method): Request = copy(method = method)
+
+  /**
+   * Returns a copy with the URL path replaced, preserving the other URL parts.
+   */
   def path(path: Path): Request          = updateUrl(_.path(path))
   def version(version: Version): Request = copy(version = version)
 

@@ -28,6 +28,12 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
       case Some(raw) => StringDecoder.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
     }
 
+  /**
+   * Decodes the first matching header with a [[Header.Codec]].
+   *
+   * Returns [[HeaderError.Missing]] when the header is absent and
+   * [[HeaderError.Malformed]] when parsing fails.
+   */
   def header[A](headerCodec: Header.Codec[A]): Either[HeaderError, A] =
     headers.rawGet(headerCodec.name) match {
       case None      => Left(HeaderError.Missing(headerCodec.name))
@@ -51,6 +57,12 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
     }
   }
 
+  /**
+   * Decodes all matching headers with a [[Header.Codec]].
+   *
+   * Decoding preserves header order and short-circuits on the first malformed
+   * value.
+   */
   def headerAll[A](headerCodec: Header.Codec[A]): Either[HeaderError, Chunk[A]] = {
     val values = headers.rawGetAll(headerCodec.name)
     if (values.isEmpty) Left(HeaderError.Missing(headerCodec.name))

@@ -77,6 +77,9 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     header(HttpCodec.requestHeader(name, schema))
 
+  /**
+   * Adds a typed request header using a [[zio.http.Header.Codec]].
+   */
   def header[A, I2](headerCodec: Header.Codec[A])(using
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
@@ -240,6 +243,9 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   ): Endpoint[PathInput, Input, Err, O2, Auth] =
     outHeader(HttpCodec.responseHeader(name, schema))
 
+  /**
+   * Adds a typed response header using a [[zio.http.Header.Codec]].
+   */
   def outHeader[A, O2](headerCodec: Header.Codec[A])(using
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
   ): Endpoint[PathInput, Input, Err, O2, Auth] =

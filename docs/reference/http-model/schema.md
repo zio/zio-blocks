@@ -264,6 +264,23 @@ Missing headers produce a `Missing` error:
 headers.header[Int]("x-missing")
 ```
 
+You can also decode with a custom `Header.Codec[A]` when the header type belongs to your domain instead of the core HTTP model:
+
+```scala mdoc
+import zio.http.{Header, Headers}
+import zio.http.schema._
+
+object TraceIdHeader extends Header.Codec[String] {
+  def name: String = "x-trace-id"
+  def parse(value: String): Either[String, String] =
+    if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+  def render(value: String): String = value
+}
+
+val customHeaders = Headers("x-trace-id" -> "trace-123")
+customHeaders.header(TraceIdHeader)
+```
+
 ```scala mdoc:invisible:reset
 // Scope reset for next section
 ```
@@ -295,6 +312,23 @@ Missing headers return a `Missing` error:
 
 ```scala mdoc
 headers.headerAll[String]("x-missing")
+```
+
+The codec-based overload works for repeated headers as well and reports the first malformed value as `HeaderError.Malformed`:
+
+```scala mdoc
+import zio.http.{Header, Headers}
+import zio.http.schema._
+
+object TraceIdHeader extends Header.Codec[String] {
+  def name: String = "x-trace-id"
+  def parse(value: String): Either[String, String] =
+    if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+  def render(value: String): String = value
+}
+
+val repeatedHeaders = Headers("x-trace-id" -> "trace-1", "x-trace-id" -> "trace-2")
+repeatedHeaders.headerAll(TraceIdHeader)
 ```
 
 ```scala mdoc:invisible:reset

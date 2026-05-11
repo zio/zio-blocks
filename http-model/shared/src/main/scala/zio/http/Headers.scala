@@ -36,19 +36,32 @@ final class Headers private[http] (
   val size: Int
 ) {
 
+  private def sameCodec(left: Header.Codec[_], right: Header.Codec[_]): Boolean =
+    left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
   def isEmpty: Boolean  = size == 0
   def nonEmpty: Boolean = size > 0
 
+  /**
+   * Decodes the first header matching the supplied codec.
+   *
+   * Matching is case-insensitive by header name. Parsed values are cached per
+   * header entry and codec instance so different codecs with the same name do
+   * not reuse each other's cached values.
+   */
   def get[A](headerCodec: Header.Codec[A]): Option[A] = {
     val target = headerCodec.name.toLowerCase(Locale.ROOT)
     var i      = 0
     while (i < size) {
       if (names(i) == target) {
-        val cached = parsed(i)
-        if (cached ne null) return Some(cached.asInstanceOf[A])
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            return Some(cached.value.asInstanceOf[A])
+          case _ =>
+        }
         headerCodec.parse(rawValues(i)) match {
           case Right(value) =>
-            parsed(i) = value.asInstanceOf[AnyRef]
+            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
             return Some(value)
           case Left(_) => // skip unparseable, continue scanning
         }
@@ -92,22 +105,29 @@ final class Headers private[http] (
     builder.result()
   }
 
+  /**
+   * Decodes all headers matching the supplied codec.
+   *
+   * Values are returned in header order. Entries that fail to parse for the
+   * requested codec are skipped, and cached values are reused only when they
+   * were produced by the same codec instance.
+   */
   def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
     val target  = headerCodec.name.toLowerCase(Locale.ROOT)
     val builder = Chunk.newBuilder[A]
     var i       = 0
     while (i < size) {
       if (names(i) == target) {
-        val cached = parsed(i)
-        if (cached ne null) {
-          builder += cached.asInstanceOf[A]
-        } else {
-          headerCodec.parse(rawValues(i)) match {
-            case Right(value) =>
-              parsed(i) = value.asInstanceOf[AnyRef]
-              builder += value
-            case Left(_) => // skip unparseable entries
-          }
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            builder += cached.value.asInstanceOf[A]
+          case _ =>
+            headerCodec.parse(rawValues(i)) match {
+              case Right(value) =>
+                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+                builder += value
+              case Left(_) => // skip unparseable entries
+            }
         }
       }
       i += 1
@@ -235,6 +255,8 @@ final class Headers private[http] (
 }
 
 object Headers {
+  private final class ParsedValue(val codec: Header.Codec[_], val value: AnyRef)
+
   val empty: Headers = new Headers(Array.empty, Array.empty, Array.empty, 0)
 
   /**
