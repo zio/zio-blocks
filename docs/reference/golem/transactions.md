@@ -3,27 +3,27 @@ id: transactions
 title: "Transactions"
 ---
 
-`Transactions` provides helpers for managing atomic, multi-step operations with automatic rollback. It implements the **saga pattern** — executing a sequence of operations and compensating (rolling back) on failure.
+`Transactions` provides helpers for managing atomic, multi-step operations with automatic rollback. It implements the **saga pattern** — executing a sequence of operations and compensating (rolling back) on failure:
 
 ```scala
-// object Transactions {
-//   def operation[In, Out, Err](run: In => Either[Err, Out])(
-//     compensate: (In, Out) => Either[Err, Unit]
-//   ): Operation[In, Out, Err]
-//
-//   def infallibleTransaction[A](body: InfallibleTransaction => A): A
-//   def fallibleTransaction[A, Err](body: FallibleTransaction[Err] => Either[Err, A]): Either[TransactionFailure[Err], A]
-// }
+object Transactions {
+  def operation[In, Out, Err](run: In => Either[Err, Out])(
+    compensate: (In, Out) => Either[Err, Unit]
+  ): Operation[In, Out, Err]
+
+  def infallibleTransaction[A](body: InfallibleTransaction => A): A
+  def fallibleTransaction[A, Err](body: FallibleTransaction[Err] => Either[Err, A]): Either[TransactionFailure[Err], A]
+}
 ```
 
 ## Overview
 
 Transactions ensure that when multiple operations must succeed together, either all succeed or all are compensated (rolled back). ZIO-Golem provides two patterns:
 
-| Pattern | Use Case | Behavior |
-|---------|----------|----------|
+| Pattern        | Use Case                                | Behavior                              |
+|----------------|-----------------------------------------|---------------------------------------|
 | **Infallible** | Operations that must eventually succeed | Retries on failure after compensation |
-| **Fallible** | Operations that can explicitly fail | Returns error; compensation optional |
+| **Fallible**   | Operations that can explicitly fail     | Returns error; compensation optional  |
 
 ## Infallible Transactions
 
@@ -261,28 +261,14 @@ val workflow = Transactions.infallibleTransaction { tx =>
 
 Transactions provide these guarantees:
 
-| Guarantee | Infallible | Fallible |
-|-----------|-----------|----------|
-| All-or-nothing | Yes (retries until all succeed) | Only if all operations succeed |
-| Compensation order | Reverse (LIFO) | Reverse (LIFO) |
-| State preservation | Oplog resets on retry | Oplog reflects compensation |
-| Idempotence | Must be idempotent (retried) | Once per invocation |
+| Guarantee          | Infallible                      | Fallible                       |
+|--------------------|---------------------------------|--------------------------------|
+| All-or-nothing     | Yes (retries until all succeed) | Only if all operations succeed |
+| Compensation order | Reverse (LIFO)                  | Reverse (LIFO)                 |
+| State preservation | Oplog resets on retry           | Oplog reflects compensation    |
+| Idempotence        | Must be idempotent (retried)    | Once per invocation            |
 
 **Idempotence requirement:** Operations in infallible transactions must be idempotent because they retry. Use request IDs or timestamps to detect duplicates.
-
-## Integration with HostApi
-
-Transactions internally use atomic operations to track boundaries:
-
-```scala mdoc:compile-only
-// Behind the scenes, infallibleTransaction calls:
-// Guards.markAtomicOperation()     // Start atomic region
-// ... execute operations ...
-// On failure: HostApi.getOplogIndex() and setOplogIndex() restore state
-// Compensation runs in reverse order (LIFO)
-```
-
-You don't call these directly; transactions handle the atomic region management automatically.
 
 ## Common Patterns
 
