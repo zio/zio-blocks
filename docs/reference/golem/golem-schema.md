@@ -71,47 +71,6 @@ val encoded: Either[String, StructuredValue] = schema.encode(person)
 val decoded: Either[String, Person] = encoded.flatMap(schema.decode(_))
 ```
 
-## Structured vs. Element Encoding
-
-Schemas support two encoding modes:
-
-**Structured encoding** (for multi-field types):
-
-```scala
-import zio.blocks.schema.Schema
-
-case class Point(x: Int, y: Int) derives Schema
-// Encodes as a tuple: (x_value, y_value)
-```
-
-**Element encoding** (for single parameters):
-
-```scala
-import zio.blocks.schema.Schema
-
-case class Point(x: Int, y: Int) derives Schema
-// When used as a method parameter, encoded as a single element
-// (not wrapped in a tuple)
-```
-
-The macro handles this automatically; you only need to know it exists.
-
-## Custom Schema Implementations
-
-For types where derive doesn't work, provide an implicit manually:
-
-```scala
-// For types where derive doesn't work, provide an implicit manually:
-// import zio.blocks.schema.Schema
-// 
-// class CustomDatabase(val connectionString: String)
-// implicit val customDbSchema: Schema[CustomDatabase] = // custom implementation
-//
-// case class DatabaseAgent(db: CustomDatabase) derives Schema
-```
-
-This is rare; most types should derive automatically.
-
 ## Multimodal Types
 
 For data with text and binary components, use multimodal schemas:
@@ -173,32 +132,17 @@ Encoding/decoding can fail:
 
 ```scala
 // Encoding/decoding with schemas:
-// case class Strict(x: Int) derives zio.blocks.schema.Schema
-// 
-// val schema: GolemSchema[Strict] = implicitly
-// 
-// // Encoding succeeds (Scala values are valid)
-// val encoded = schema.encode(Strict(42))
-// // Right(StructuredValue(...))
-// 
-// // Decoding can fail (e.g., wrong type in structured value)
-// val badDecoded = schema.decode(wrongValue)
-// // Left("Type mismatch: expected Int, got String")
+case class Strict(x: Int) derives zio.blocks.schema.Schema
+
+val schema: GolemSchema[Strict] = implicitly
+
+// Encoding succeeds (Scala values are valid)
+val encoded = schema.encode(Strict(42))
+// Right(StructuredValue(...))
+
+// Decoding can fail (e.g., wrong type in structured value)
+val badDecoded = schema.decode(wrongValue)
+// Left("Type mismatch: expected Int, got String")
 ```
 
 Always handle `Either` results when working with schemas directly.
-
-## Relation to Other Types
-
-- **`zio.blocks.schema.Schema`** — The underlying ZIO schema; `GolemSchema` derives from it
-- **`StructuredSchema`, `StructuredValue`** — Low-level schema and value representations
-- **`AgentDefinition`** — Uses `GolemSchema` to describe agent method signatures
-- **`Multimodal`, `Unstructured`** — Specialized schema types for complex data
-
-## Best Practices
-
-- **Use `derives Schema` (Scala 3)** — Simplest, most idiomatic
-- **Provide schemas for custom types early** — Fail fast at compile time, not runtime
-- **Keep types serializable** — Avoid mutable state, side effects, functions in schema types
-- **Test roundtrip encoding** — Verify encode → decode preserves semantics
-- **Compose over custom schemas** — Build larger schemas from derived, smaller ones
