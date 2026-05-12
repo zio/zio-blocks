@@ -9,9 +9,7 @@ The primary configuration API uses `golem.wasi.Config`, which provides synchrono
 
 ```scala mdoc:compile-only
 // Configuration API (golem.wasi.Config)
-object Config {
-  def get(key: String): Either[ConfigError, Option[String]]
-}
+// def get(key: String): Either[ConfigError, Option[String]]
 
 // Secrets are accessed via typed configuration fields
 // They are represented as golem.config.Secret[A] values
@@ -49,22 +47,24 @@ The Golem runtime injects these values at agent startup.
 Use the `Config` API to access configuration synchronously:
 
 ```scala mdoc:compile-only
-import golem.wasi.Config
+// import golem.wasi.Config
+// ConfigError type represents configuration access failures
 
-val apiKey: Either[golem.wasi.ConfigError, Option[String]] = Config.get("API_KEY")
+// val apiKey: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 
-apiKey match {
-  case Right(Some(key)) => println(s"API Key: $key")
-  case Right(None) => println("API_KEY not set")
-  case Left(error) => println(s"Config error: $error")
-}
+// apiKey match {
+//   case Right(Some(key)) => println(s"API Key: $key")
+//   case Right(None) => println("API_KEY not set")
+//   case Left(error) => println(s"Config error: $error")
+// }
 ```
 
 **`get(key)`** — Returns `Either[ConfigError, Option[String]]`:
 ```scala mdoc:compile-only
-import golem.wasi.Config
-
-val result: Either[golem.wasi.ConfigError, Option[String]] = Config.get("DEBUG_MODE")
+// Config.get("DEBUG_MODE") returns Either[ConfigError, Option[String]]
+// Returns Right(Some(value)) if configured
+// Returns Right(None) if not set
+// Returns Left(error) on configuration access failure
 ```
 
 ## Secrets
@@ -72,10 +72,9 @@ val result: Either[golem.wasi.ConfigError, Option[String]] = Config.get("DEBUG_M
 Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
 ```scala mdoc:compile-only
-import golem.config.Secret
-
-val token: Secret[String] = ??? // Injected by the runtime
-val tokenValue: String = token.get()
+// Secrets are injected by the Golem runtime
+// val token: Secret[String] = ??? // Injected at agent startup
+// val tokenValue: String = token.get()
 ```
 
 Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to access sensitive credentials rather than retrieving them through the general `Config` API.
@@ -85,49 +84,38 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 ### Database Connection String
 
 ```scala mdoc:compile-only
-import golem.wasi.Config
-import scala.concurrent.Future
-
-@golem.runtime.annotations.agentImplementation()
-class DatabaseAgentImpl() extends DatabaseAgent {
-  override def query(sql: String): Future[String] = {
-    val dbUrl = Config.get("DATABASE_URL")
-    dbUrl match {
-      case Right(Some(url)) => 
-        // Use url to connect
-        Future.successful("result")
-      case Right(None) => 
-        Future.failed(new Exception("DATABASE_URL not configured"))
-      case Left(error) => 
-        Future.failed(new Exception(s"Config error: $error"))
-    }
-  }
-}
+// In an agent implementation:
+// val dbUrl = Config.get("DATABASE_URL")
+// dbUrl match {
+//   case Right(Some(url)) => 
+//     // Use url to connect
+//     Future.successful("result")
+//   case Right(None) => 
+//     Future.failed(new Exception("DATABASE_URL not configured"))
+//   case Left(error) => 
+//     Future.failed(new Exception(s"Config error: $error"))
+// }
 ```
 
 ### Feature Flags
 
 ```scala mdoc:compile-only
-import golem.wasi.Config
-
-val enableCache: Either[golem.wasi.ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
-val isEnabled = enableCache match {
-  case Right(Some("true")) => true
-  case _ => false
-}
+// val enableCache: Either[ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
+// val isEnabled = enableCache match {
+//   case Right(Some("true")) => true
+//   case _ => false
+// }
 ```
 
 ### Timeout Configuration
 
 ```scala mdoc:compile-only
-import golem.wasi.Config
-
-val timeoutMs: Either[golem.wasi.ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
-val timeout = timeoutMs match {
-  case Right(Some(ms)) => ms.toInt
-  case Right(None) => 5000 // default
-  case Left(_) => 5000 // default on error
-}
+// val timeoutMs: Either[ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
+// val timeout = timeoutMs match {
+//   case Right(Some(ms)) => ms.toInt
+//   case Right(None) => 5000 // default
+//   case Left(_) => 5000 // default on error
+// }
 ```
 
 ## Override Configuration
