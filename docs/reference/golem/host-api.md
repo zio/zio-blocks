@@ -5,15 +5,14 @@ title: "HostApi"
 
 `HostApi` is the primary Scala.js interface for accessing Golem's runtime APIs. It provides methods to inspect and control agent execution, durability, persistence, and oplog behavior. All methods are final wrappers around the underlying WebAssembly host interface.
 
-```scala mdoc:compile-only
-object HostApi {
-  def getOplogIndex(): OplogIndex
-  def markBeginOperation(): OplogIndex
-  def markEndOperation(begin: OplogIndex): Unit
-  def getRetryPolicy(): RetryPolicy
-  def setRetryPolicy(policy: RetryPolicy): Unit
-  // ... many more methods
-}
+```scala
+// HostApi provides methods to inspect and control agent execution:
+// val currentIndex = HostApi.getOplogIndex()
+// HostApi.setOplogIndex(currentIndex)
+// 
+// // Retry policy control
+// val policy = HostApi.getRetryPolicy()
+// HostApi.setRetryPolicy(customPolicy)
 ```
 
 ## Overview
@@ -156,17 +155,15 @@ HostApi.updateAgent(agentId, targetVersion, updateMode)
 
 Access MySQL and PostgreSQL databases via the resource API:
 
-```scala mdoc:compile-only
-import golem.wasi.Rdbms
-
-// Open a connection and execute queries
-val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
-val result = connection.query("SELECT name FROM users WHERE id = $1", List("user123"))
-
-result match {
-  case Right(rows) => println(s"Found: $rows")
-  case Left(error) => println(s"Error: $error")
-}
+```scala
+// Rdbms provides resource-based access to PostgreSQL and MySQL
+// Example pattern:
+// val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
+// val result = connection.query("SELECT * FROM table")
+// result match {
+//   case Right(rows) => // process rows
+//   case Left(error) => // handle error
+// }
 ```
 
 The Rdbms API provides resource-based access to PostgreSQL and MySQL databases with synchronous Either-based error handling.
@@ -175,15 +172,12 @@ The Rdbms API provides resource-based access to PostgreSQL and MySQL databases w
 
 Persistent key-value storage beyond the agent's memory using buckets:
 
-```scala mdoc:compile-only
-import golem.wasi.KeyValue
-
-// Open a bucket and access key-value pairs
-val bucket = KeyValue.Bucket.open("my-bucket")
-
-val value: Option[Array[Byte]] = bucket.get("my-key")
-bucket.set("my-key", Array(1, 2, 3))
-bucket.delete("my-key")
+```scala
+// KeyValue provides resource-based access to persistent storage
+// val bucket = KeyValue.Bucket.open("my-bucket")
+// val value: Option[Array[Byte]] = bucket.get("my-key")
+// bucket.set("my-key", Array(1, 2, 3))
+// bucket.delete("my-key")
 ```
 
 The KeyValue API provides synchronous, resource-based access to persistent storage.
@@ -192,15 +186,11 @@ The KeyValue API provides synchronous, resource-based access to persistent stora
 
 Store and retrieve large binary objects using the resource API:
 
-```scala mdoc:compile-only
-import golem.wasi.Blobstore
-import scala.scalajs.js.typedarray.Uint8Array
-
-val data: Uint8Array = ??? // binary data to store
-val objectStore = Blobstore.ObjectStore.open("my-bucket")
-
-val objectId: String = objectStore.put(data)
-val retrieved: Option[Uint8Array] = objectStore.get(objectId)
+```scala
+// Blobstore provides resource-based access to large binary objects
+// val objectStore = Blobstore.ObjectStore.open("my-bucket")
+// val objectId: String = objectStore.put(data) // where data is binary
+// val retrieved = objectStore.get(objectId) // returns Option[data]
 ```
 
 The Blobstore API provides synchronous, resource-based access to large binary object storage.

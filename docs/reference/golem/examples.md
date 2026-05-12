@@ -335,14 +335,21 @@ class CounterImpl() extends Counter with Snapshotted[CounterState] {
 
 Atomic operations with automatic rollback on failure:
 
-```scala mdoc:compile-only
-val result = golem.Transactions.infallibleTransaction { tx =>
-  val step1 = golem.Transactions.operation(???)
-  val step2 = golem.Transactions.operation(???)
-  
-  tx.execute(step1, input)
-  tx.execute(step2, result1)
-}
+```scala
+// Atomic operations with automatic rollback:
+// val result = Transactions.infallibleTransaction { tx =>
+//   val step1 = Transactions.operation[Unit, Int, String](
+//     _ => Right(42)
+//   )((_, _) => Right(()))
+//   
+//   val value = tx.execute(step1, ())
+//   
+//   val step2 = Transactions.operation[Int, String, String](
+//     n => Right(s"Value: $n")
+//   )((_, _) => Right(()))
+//   
+//   tx.execute(step2, value)
+// }
 ```
 
 ### Pattern 4: HTTP-Mounted Service

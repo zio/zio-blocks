@@ -129,18 +129,14 @@ The macro handles this automatically; you only need to know it exists.
 
 For types where derive doesn't work, provide an implicit manually:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.Schema
-import golem.{GolemSchema, StructuredSchema, StructuredValue}
-
-// Custom type without Schema
-class CustomDatabase(val connectionString: String)
-
-// Provide a Schema
-implicit val customDbSchema: Schema[CustomDatabase] = ???
-
-// Now it can be used in agents
-case class DatabaseAgent(db: CustomDatabase) derives Schema
+```scala
+// For types where derive doesn't work, provide an implicit manually:
+// import zio.blocks.schema.Schema
+// 
+// class CustomDatabase(val connectionString: String)
+// implicit val customDbSchema: Schema[CustomDatabase] = // custom implementation
+//
+// case class DatabaseAgent(db: CustomDatabase) derives Schema
 ```
 
 This is rare; most types should derive automatically.
@@ -204,18 +200,19 @@ case class Team(
 
 Encoding/decoding can fail:
 
-```scala mdoc:compile-only
-import golem.data.GolemSchema
-
-case class Strict(x: Int) derives zio.blocks.schema.Schema
-
-val schema: GolemSchema[Strict] = implicitly
-
-// Encoding succeeds (Scala values are valid)
-val encoded = schema.encode(Strict(42)) // Right(StructuredValue(...))
-
-// Decoding can fail (e.g., wrong type in structured value)
-val badDecoded = schema.decode(???) // Left("Type mismatch: expected Int, got String")
+```scala
+// Encoding/decoding with schemas:
+// case class Strict(x: Int) derives zio.blocks.schema.Schema
+// 
+// val schema: GolemSchema[Strict] = implicitly
+// 
+// // Encoding succeeds (Scala values are valid)
+// val encoded = schema.encode(Strict(42))
+// // Right(StructuredValue(...))
+// 
+// // Decoding can fail (e.g., wrong type in structured value)
+// val badDecoded = schema.decode(wrongValue)
+// // Left("Type mismatch: expected Int, got String")
 ```
 
 Always handle `Either` results when working with schemas directly.

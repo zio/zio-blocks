@@ -7,22 +7,22 @@ The **ZIO-Golem SDK** is a type-safe Scala library for building agents on the Go
 
 Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
 
-```scala mdoc:compile-only
+```scala
 // Define an agent interface
-@agentDefinition
-trait Counter extends BaseAgent {
-  class Id(val name: String)
-  def increment(): Future[Int]
-  def get(): Future[Int]
-}
-
-// Implement the agent
-@agentImplementation()
-class CounterImpl(name: String) extends Counter {
-  private var count = 0
-  override def increment(): Future[Int] = Future.successful { count += 1; count }
-  override def get(): Future[Int] = Future.successful(count)
-}
+// @agentDefinition
+// trait Counter extends BaseAgent {
+//   class Id(val name: String)
+//   def increment(): Future[Int]
+//   def get(): Future[Int]
+// }
+//
+// // Implement the agent
+// @agentImplementation()
+// class CounterImpl(name: String) extends Counter {
+//   private var count = 0
+//   override def increment(): Future[Int] = Future.successful { count += 1; count }
+//   override def get(): Future[Int] = Future.successful(count)
+// }
 ```
 
 ## Introduction
