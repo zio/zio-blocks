@@ -281,7 +281,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
 
-  def render(codec: SegmentCodec[_], prefix: String, suffix: String): String = {
+  def render(codec: SegmentCodec[_], prefix: String = "{", suffix: String = "}"): String = {
     val out                                  = new StringBuilder
     def loop(current: SegmentCodec[_]): Unit =
       current match {

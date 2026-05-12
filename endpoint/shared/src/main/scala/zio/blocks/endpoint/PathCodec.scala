@@ -24,10 +24,9 @@ import zio.http.Path
 
 /**
  * Composable path descriptor. Segments are combined with `/` or `++`, literal
- * alternatives with `orElse`. Use [[PathCodec.decode decode]] /
- * [[PathCodec.format format]] for bidirectional path conversion, and
- * [[PathCodec.alternatives alternatives]] to expand `orElse` branches for
- * routing-trie insertion.
+ * alternatives with `orElse`. Use `decode` / `format` for bidirectional path
+ * conversion, and `alternatives` to expand `orElse` branches for routing-trie
+ * insertion.
  */
 sealed trait PathCodec[A]
 
@@ -82,7 +81,7 @@ object PathCodec {
      *   maps the decoded path value into the exposed type
      * @param encode
      *   maps the exposed type back into the original path representation used
-     *   by [[format]]
+     *   by `format`
      * @return
      *   a path codec with the transformed value type and the same route shape
      *   as `self`
@@ -95,8 +94,8 @@ object PathCodec {
      * path structure.
      *
      * `decode` returning `Left` causes path decoding / matching to fail.
-     * [[format]] remains effectful, so `encode` returning `Left` is propagated
-     * as the `Left` result of [[format]].
+     * `format` remains effectful, so `encode` returning `Left` is propagated as
+     * the `Left` result of `format`.
      *
      * Example: {{ val customerPath = PathCodec .string("id")
      * .transformOrFail[CustomerId](CustomerId.parse, value =>
@@ -106,7 +105,7 @@ object PathCodec {
      *   validates and maps the decoded path value into the exposed type
      * @param encode
      *   validates and maps the exposed type back into the original path
-     *   representation used by [[format]]
+     *   representation used by `format`
      * @return
      *   a path codec with the transformed value type and the same route shape
      *   as `self`
@@ -148,7 +147,10 @@ object PathCodec {
 
   val empty: PathCodec[Unit] = Segment(SegmentCodec.Empty)
 
-  def literal(value: String): PathCodec[Unit]       = Segment(SegmentCodec.literalValidated(value))
+  def literal(value: String): PathCodec[Unit] = {
+    SegmentCodec.validateLiteralValue(value)
+    Segment(SegmentCodec.literalValidated(value))
+  }
   def bool(name: String): PathCodec[Boolean]        = Segment(SegmentCodec.bool(name))
   def int(name: String): PathCodec[Int]             = Segment(SegmentCodec.int(name))
   def long(name: String): PathCodec[Long]           = Segment(SegmentCodec.long(name))

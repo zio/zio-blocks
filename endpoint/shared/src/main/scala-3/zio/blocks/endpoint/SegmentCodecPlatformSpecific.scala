@@ -62,12 +62,12 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
 
   private sealed trait SegmentInfoKind
   private object SegmentInfoKind {
-    case object Literal extends SegmentInfoKind
-    case object Bool extends SegmentInfoKind
-    case object Int extends SegmentInfoKind
-    case object Long extends SegmentInfoKind
-    case object String extends SegmentInfoKind
-    case object UUID extends SegmentInfoKind
+    case object Literal  extends SegmentInfoKind
+    case object Bool     extends SegmentInfoKind
+    case object Int      extends SegmentInfoKind
+    case object Long     extends SegmentInfoKind
+    case object String   extends SegmentInfoKind
+    case object UUID     extends SegmentInfoKind
     case object Trailing extends SegmentInfoKind
   }
 
@@ -166,15 +166,19 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
     else '{ new CanCombine[L, R] {} }
   }
 
-  def literalImpl(valueExpr: Expr[String])(using Quotes): Expr[Literal] = {
+  def literalImpl(valueExpr: Expr[String])(using Quotes): Expr[Literal] =
     valueExpr.value match {
       case Some(value) =>
-        SegmentCodec.validateLiteralValue(value)
-        '{ SegmentCodec.literalValidated(${ Expr(value) }) }
+        try {
+          SegmentCodec.validateLiteralValue(value)
+          '{ SegmentCodec.literalValidated(${ Expr(value) }) }
+        } catch {
+          case error: IllegalArgumentException =>
+            quotes.reflect.report.errorAndAbort(error.getMessage)
+        }
       case None =>
         quotes.reflect.report.errorAndAbort("SegmentCodec.literal requires a string literal known at compile time")
     }
-  }
 
   def transformImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
     codecExpr: Expr[WithBoundaries[A, P, S]],
@@ -206,8 +210,7 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
     import quotes.reflect.*
 
     (left, right) match {
-      case (Some(SegmentInfo(SegmentInfoKind.Trailing, _)), _) |
-          (_, Some(SegmentInfo(SegmentInfoKind.Trailing, _))) =>
+      case (Some(SegmentInfo(SegmentInfoKind.Trailing, _)), _) | (_, Some(SegmentInfo(SegmentInfoKind.Trailing, _))) =>
         report.errorAndAbort("Cannot combine trailing path segments with `~`")
       case (
             Some(SegmentInfo(SegmentInfoKind.String, leftName)),
@@ -244,9 +247,9 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
       case "int" | "IntSeg"       => Some(singleInfo(SegmentInfoKind.Int, stringArg(args, "int")))
       case "long" | "LongSeg"     => Some(singleInfo(SegmentInfoKind.Long, stringArg(args, "long")))
       case "uuid" | "UUIDSeg"     => Some(singleInfo(SegmentInfoKind.UUID, stringArg(args, "uuid")))
-      case "Trailing"              => Some(singleInfo(SegmentInfoKind.Trailing, "trailing"))
-      case "Empty"                 => Some(BoundaryInfo(None, None))
-      case _                        => None
+      case "Trailing"             => Some(singleInfo(SegmentInfoKind.Trailing, "trailing"))
+      case "Empty"                => Some(BoundaryInfo(None, None))
+      case _                      => None
     }
 
     def typeInfo(tpe: TypeRepr): Option[BoundaryInfo] = {
@@ -278,8 +281,8 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
       val fullName = fun.symbol.fullName
       if (
         fullName == "zio.blocks.endpoint.SegmentCodec.literal" || fullName == "zio.blocks.endpoint.SegmentCodec.string" ||
-          fullName == "zio.blocks.endpoint.SegmentCodec.int" || fullName == "zio.blocks.endpoint.SegmentCodec.long" ||
-          fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid"
+        fullName == "zio.blocks.endpoint.SegmentCodec.int" || fullName == "zio.blocks.endpoint.SegmentCodec.long" ||
+        fullName == "zio.blocks.endpoint.SegmentCodec.bool" || fullName == "zio.blocks.endpoint.SegmentCodec.uuid"
       )
         applyInfo(fun.symbol.name, args)
       else if (

@@ -21,24 +21,93 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
+  private def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
+    (suffixBoundary(left), prefixBoundary(right)) match {
+      case (Some((leftKind, _)), Some((rightKind, _))) if leftKind == Kind.Trailing || rightKind == Kind.Trailing =>
+        throw new IllegalArgumentException(
+          s"Cannot combine trailing path segments with `~`: ${boundaryLabel(leftKind)} ~ ${boundaryLabel(rightKind)}"
+        )
+      case (Some((Kind.String, leftName)), Some((Kind.String, rightName))) =>
+        throw new IllegalArgumentException(
+          s"Cannot combine two string segments. Their names are $leftName and $rightName"
+        )
+      case (Some((leftKind, leftName)), Some((rightKind, rightName))) if isNumeric(leftKind) && isNumeric(rightKind) =>
+        throw new IllegalArgumentException(
+          s"Cannot combine two numeric segments. Their names are $leftName and $rightName"
+        )
+      case _ => ()
+    }
+
+  private def prefixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
+    codec match {
+      case Empty                    => None
+      case Literal(value, _, _)     => Some((Kind.Literal, value))
+      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
+      case IntSeg(name, _, _)       => Some((Kind.Int, name))
+      case LongSeg(name, _, _)      => Some((Kind.Long, name))
+      case StringSeg(name, _, _)    => Some((Kind.String, name))
+      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
+      case Trailing                 => Some((Kind.Trailing, "trailing"))
+      case Transform(inner, _, _)   => prefixBoundary(inner)
+      case Combined(left, right, _) =>
+        prefixBoundary(left).orElse(prefixBoundary(right))
+    }
+
+  private def suffixBoundary(codec: SegmentCodec[_]): Option[(Kind, String)] =
+    codec match {
+      case Empty                    => None
+      case Literal(value, _, _)     => Some((Kind.Literal, value))
+      case BoolSeg(name, _, _)      => Some((Kind.Bool, name))
+      case IntSeg(name, _, _)       => Some((Kind.Int, name))
+      case LongSeg(name, _, _)      => Some((Kind.Long, name))
+      case StringSeg(name, _, _)    => Some((Kind.String, name))
+      case UUIDSeg(name, _, _)      => Some((Kind.UUID, name))
+      case Trailing                 => Some((Kind.Trailing, "trailing"))
+      case Transform(inner, _, _)   => suffixBoundary(inner)
+      case Combined(left, right, _) =>
+        suffixBoundary(right).orElse(suffixBoundary(left))
+    }
+
+  private def boundaryLabel(kind: Kind): String =
+    kind match {
+      case Kind.Literal  => "literal"
+      case Kind.Bool     => "bool"
+      case Kind.Int      => "int"
+      case Kind.Long     => "long"
+      case Kind.String   => "string"
+      case Kind.UUID     => "uuid"
+      case Kind.Combined => "combined"
+      case Kind.Trailing => "trailing"
+      case Kind.Empty    => "empty"
+    }
+
+  private def isNumeric(kind: Kind): Boolean = kind == Kind.Int || kind == Kind.Long
+
   implicit final class SegmentCodecOps[A, P <: BoundaryTag, S <: BoundaryTag](
     private val self: WithBoundaries[A, P, S]
   ) {
-    def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(
-      implicit combiner: Tuples.Tuples.WithOut[A, B, C],
+    def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(implicit
+      combiner: Tuples.Tuples.WithOut[A, B, C],
       canCombine: CanCombine[S, P2]
-    ): WithBoundaries[C, P, S2] =
+    ): WithBoundaries[C, P, S2] = {
+      validateCombination(self, that)
       SegmentCodec.combineValidated(self, that, combiner).asInstanceOf[WithBoundaries[C, P, S2]]
+    }
 
-    def ~[C](that: String)(
-      implicit combiner: Tuples.Tuples.WithOut[A, Unit, C],
+    def ~[C](that: String)(implicit
+      combiner: Tuples.Tuples.WithOut[A, Unit, C],
       canCombine: CanCombine[S, BoundaryTag.Literal]
-    ): WithBoundaries[C, P, BoundaryTag.Literal] =
-      SegmentCodec.combineValidated(self, SegmentCodec.literal(that), combiner)
+    ): WithBoundaries[C, P, BoundaryTag.Literal] = {
+      val right = SegmentCodec.literal(that)
+      validateCombination(self, right)
+      SegmentCodec
+        .combineValidated(self, right, combiner)
         .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal]]
+    }
 
     def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] =
-      SegmentCodec.transformValidated[A, B](self, value => Right(decode(value)), value => Right(encode(value)))
+      SegmentCodec
+        .transformValidated[A, B](self, value => Right(decode(value)), value => Right(encode(value)))
         .asInstanceOf[WithBoundaries[B, P, S]]
 
     def transformOrFail[B](

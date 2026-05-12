@@ -22,10 +22,9 @@ import zio.http.{Method, Path}
 
 /**
  * HTTP method paired with a typed path pattern. The primary constructor is
- * `Method.GET / "users" / PathCodec.int("id")`. Use
- * [[RoutePattern.alternatives alternatives]] to expand `orElse` branches,
- * [[RoutePattern.any any]] for catch-all trailing routes, and
- * [[RoutePattern.nest nest]] to prepend a path prefix.
+ * `Method.GET / "users" / PathCodec.int("id")`. Use `alternatives` to expand
+ * `orElse` branches, `RoutePattern.any(Method)` or `RoutePattern.any` for
+ * catch-all trailing routes, and `nest` to prepend a path prefix.
  */
 final case class RoutePattern[A](
   method: Method,
