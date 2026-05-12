@@ -26,7 +26,7 @@ private[telemetry] class InMemorySpanProcessor(capacity: Int = 1024) extends Spa
   override def onStart(span: Span): Unit = ()
 
   override def onEnd(spanData: SpanData): Unit = {
-    val idx = math.abs(writeIndex.getAndIncrement() % capacity)
+    val idx = Math.floorMod(writeIndex.getAndIncrement(), capacity)
     buffer(idx) = spanData
     var c = count.get()
     while (c < capacity) {

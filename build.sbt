@@ -164,7 +164,6 @@ def whenJdkAtLeast(minVersion: Int, command: String): String = {
   val currentVersion = System.getProperty("java.specification.version", "17").toInt
   if (currentVersion >= minVersion) s"; $command" else ""
 }
-
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
     val extracted = Project.extract(state)

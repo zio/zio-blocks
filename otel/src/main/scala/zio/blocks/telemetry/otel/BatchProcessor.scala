@@ -111,19 +111,19 @@ private[otel] final class BatchProcessor[A](
   private def dropOldestIfOverCapacity(): Unit = {
     var done = false
     while (!done) {
-      val currentSize = queueSize.get()
-      if (currentSize <= maxQueueSize) {
+      if (queueSize.get() <= maxQueueSize) {
         done = true
-      } else if (queueSize.compareAndSet(currentSize, currentSize - 1)) {
+      } else {
         val removed = queue.poll()
-        if (removed != null) {
+        if (removed == null) {
+          done = true
+        } else {
+          queueSize.decrementAndGet()
           System.err.println(
             "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
           )
-        } else {
-          queueSize.incrementAndGet()
+          done = true
         }
-        done = true
       }
     }
   }
