@@ -18,20 +18,15 @@ trait GolemSchema[A] {
 
 ## Overview
 
-Every type used in agent method parameters or return values must have a `GolemSchema`. The SDK derives it automatically from `zio.blocks.schema.Schema[A]`.
-
-| Use Case | Derivation | Example |
-|----------|-----------|---------|
-| **Case classes** | `derives Schema` (Scala 3) | `case class User(name: String, age: Int) derives Schema` |
-| **Scala 2** | `Schema.derived` | `implicit val schema: Schema[User] = Schema.derived` |
-| **Custom types** | Manual implementation | Rare; see type class instances |
-| **Collections** | Automatic | `List[A]`, `Option[A]`, `Map[K, V]` all derive |
-
-Once `Schema[A]` exists, `GolemSchema[A]` is derived automatically in the agent registration macro.
+Every type used in agent method parameters or return values must have a `GolemSchema`. The SDK derives it automatically from `zio.blocks.schema.Schema[A]`. Once `Schema[A]` exists, `GolemSchema[A]` is derived automatically in the agent registration macro.
 
 ## Derivation for Case Classes
 
-Use `derives Schema` (Scala 3):
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+  <TabItem value="scala3" label="Scala 3" default>
 
 ```scala
 import zio.blocks.schema.Schema
@@ -40,7 +35,8 @@ case class User(name: String, age: Int) derives Schema
 case class Order(id: String, items: List[String]) derives Schema
 ```
 
-Or `Schema.derived` (Scala 2):
+  </TabItem>
+  <TabItem value="scala2" label="Scala 2">
 
 ```scala
 import zio.blocks.schema.Schema
@@ -51,35 +47,8 @@ object User {
 }
 ```
 
-## Primitive Types
-
-Primitives automatically have schemas:
-
-```scala
-import zio.blocks.schema.Schema
-
-// All have implicit schemas
-val intSchema: Schema[Int] = implicitly
-val stringSchema: Schema[String] = implicitly
-val boolSchema: Schema[Boolean] = implicitly
-val doubleSchema: Schema[Double] = implicitly
-```
-
-## Collections and Optionals
-
-Schemas for collections and optional types derive automatically:
-
-```scala
-import zio.blocks.schema.Schema
-import zio.blocks.schema.Schema.derived
-
-case class DataContainer(
-  names: List[String],           // List[A] has schema if A has schema
-  counts: Map[String, Int],      // Map[K, V] has schema if K, V have schemas
-  maybeAge: Option[Int],         // Option[A] has schema if A has schema
-  tuples: (String, Int)          // Tuples have schemas
-) derives Schema
-```
+  </TabItem>
+</Tabs>
 
 ## Encoding and Decoding
 
@@ -107,6 +76,7 @@ val decoded: Either[String, Person] = encoded.flatMap(schema.decode(_))
 Schemas support two encoding modes:
 
 **Structured encoding** (for multi-field types):
+
 ```scala
 import zio.blocks.schema.Schema
 
@@ -115,6 +85,7 @@ case class Point(x: Int, y: Int) derives Schema
 ```
 
 **Element encoding** (for single parameters):
+
 ```scala
 import zio.blocks.schema.Schema
 
