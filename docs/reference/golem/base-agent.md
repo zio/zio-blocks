@@ -17,10 +17,10 @@ trait BaseAgent {
 
 Every agent in ZIO-Golem implements `BaseAgent`. The trait is parameterless and provides three read-only fields injected by the Golem runtime:
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `agentId` | `String` | Unique identifier for this agent instance |
-| `agentType` | `String` | Type name from `@agentDefinition` |
+| Field       | Type     | Purpose                                       |
+|-------------|----------|-----------------------------------------------|
+| `agentId`   | `String` | Unique identifier for this agent instance     |
+| `agentType` | `String` | Type name from `@agentDefinition`             |
 | `agentName` | `String` | Human-readable name (derived from trait name) |
 
 These fields are populated by the Golem host when an agent is instantiated.
@@ -138,11 +138,6 @@ trait OrderAgent extends BaseAgent {
 Constructor parameters (`orderId`) become HTTP path variables. Method parameters become query strings or request body fields.
 
 ## Relation to Other Types
-
-- **`@agentDefinition`** — Annotation placed on the trait to mark it as an agent type
-- **`AgentDefinition[T]`** — Generated type-level metadata describing agent T
-- **`BaseAgent`** — The trait you extend; provides `agentId`, `agentType`, `agentName`
-- **`AgentImplementation`** — Registers your implementation; generates RPC handlers
 
 The typical flow is:
 
