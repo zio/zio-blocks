@@ -12,7 +12,7 @@ The **Golem SDK** is a type-safe Scala library for building agents on the Golem 
 Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
 
 ```scala
-Define an agent interface
+// Define an agent interface
 @agentDefinition
 trait Counter extends BaseAgent {
   class Id(val name: String)
@@ -31,9 +31,9 @@ class CounterImpl(name: String) extends Counter {
 
 ## Introduction
 
-This module brings **idiomatic Scala** to the Golem platform with zero boilerplate. Instead of writing RPC handlers, schema codecs, and WIT bindings by hand, ZIO-Golem uses Scala 3 macros to derive all of these at compile time from your agent trait.
+This module brings **idiomatic Scala** to the Golem platform with zero boilerplate. Instead of writing RPC handlers, schema codecs, and WIT bindings by hand, Golem SDK uses Scala 3 macros to derive all of these at compile time from your agent trait.
 
-If you're building a distributed, stateful application that needs durability guarantees, agent-to-agent communication, or transaction support, ZIO-Golem provides first-class abstractions for all of these patterns—all type-safe, all compile-checked.
+If you're building a distributed, stateful application that needs durability guarantees, agent-to-agent communication, or transaction support, Golem SDK provides first-class abstractions for all of these patterns—all type-safe, all compile-checked.
 
 ## Motivation
 
@@ -44,7 +44,7 @@ Building agents on Golem traditionally requires:
 - Encoding WIT types and values
 - Managing durability, snapshots, and transaction logic
 
-ZIO-Golem **eliminates boilerplate** by deriving all of this from your trait definition using macros. You write the agent logic; the compiler generates the rest.
+Golem SDK **eliminates boilerplate** by deriving all of this from your trait definition using macros. You write the agent logic; the compiler generates the rest.
 
 **Why Scala?**
 - Type safety: catch bugs at compile time, not runtime
@@ -54,7 +54,7 @@ ZIO-Golem **eliminates boilerplate** by deriving all of this from your trait def
 
 ## Installation
 
-Add the ZIO-Golem SDK to your `build.sbt`:
+Add the Golem SDK to your `build.sbt`:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-golem-core"  % "@VERSION@"
@@ -62,7 +62,9 @@ libraryDependencies += "dev.zio" %%% "zio-golem-model" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
 ```
 
-Supported Scala versions: **2.13.x** and **3.8.x**. For Scala.js: use `%%%` instead of `%%`.
+Supported Scala versions: **2.13.x** and **3.8.x**. 
+
+The Golem SDK is designed to compile to WebAssembly via Scala.js, so is only compatible with Scala versions supported by Scala.js. More details on Golem dependencies can be found in the [Golem Learn Center](https://learn.golem.cloud/how-to-guides/scala/golem-add-scala-dependency).
 
 ## Overview
 
@@ -86,7 +88,7 @@ The module has two main layers:
 
 ## How They Work Together
 
-Agent execution in ZIO-Golem follows this flow:
+Agent execution in Golem follows this flow:
 
 **1. Definition → Registration**
 ```
