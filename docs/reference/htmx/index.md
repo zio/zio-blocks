@@ -58,7 +58,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
-Supported Scala versions: 2.13.x and 3.x. The module is cross-compiled for JVM and Scala.js.
+Supported Scala versions: 3.3.x and 3.8.x. The module is cross-compiled for JVM and Scala.js.
 
 ## Overview
 
@@ -239,8 +239,8 @@ All code from this guide is available as runnable examples in the `zio-blocks-ht
 Start by cloning the repository and entering the project directory:
 
 ```bash
-git clone https://github.com/zio/zio-blocks-modern.git
-cd zio-blocks-modern
+git clone https://github.com/zio/zio-blocks.git
+cd zio-blocks
 ```
 
 **2. Run individual examples with sbt:**
@@ -255,7 +255,7 @@ import docs.SourceFile
 SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/BasicUsage.scala))
 
 Run this example with the following command:
 

@@ -31,7 +31,7 @@ HxTarget.css("#results")
 
 ## Common Targets
 
-**`HxTarget.This` or `HxTarget.this`** targets the element itself (the `this` keyword in HTMX):
+**`HxTarget.This`** targets the element itself (the `this` keyword in HTMX). Backtick-friendly and identifier-friendly aliases are available:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._

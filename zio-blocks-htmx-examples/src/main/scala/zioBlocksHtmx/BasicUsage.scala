@@ -30,112 +30,113 @@ import scala.concurrent.duration._
  *
  * Run with: sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
  */
-object BasicUsage extends App {
+object BasicUsage {
+  def main(args: Array[String]): Unit = {
+    println("=== HTMX Basic Usage Examples ===\n")
 
-  println("=== HTMX Basic Usage Examples ===\n")
+    // Example 1: Simple click trigger with POST
+    println("1. Click trigger with POST request:")
+    val clickButton = button(
+      hxPost    := "/api/action",
+      hxTrigger := HxTrigger.click,
+      "Click me"
+    )
+    println(s"  Rendered: $clickButton\n")
 
-  // Example 1: Simple click trigger with POST
-  println("1. Click trigger with POST request:")
-  val clickButton = button(
-    hxPost    := "/api/action",
-    hxTrigger := HxTrigger.click,
-    "Click me"
-  )
-  println(s"  Rendered: $clickButton\n")
+    // Example 2: Input with GET request
+    println("2. Input with debounced GET request:")
+    val searchInput = input(
+      `type`      := "text",
+      placeholder := "Search...",
+      hxGet       := "/api/search",
+      hxTrigger   := HxTrigger.input.delay(500.millis),
+      hxTarget    := HxTarget.next("div")
+    )
+    println(s"  Rendered: $searchInput\n")
 
-  // Example 2: Input with GET request
-  println("2. Input with debounced GET request:")
-  val searchInput = input(
-    `type`      := "text",
-    placeholder := "Search...",
-    hxGet       := "/api/search",
-    hxTrigger   := HxTrigger.input.delay(500.millis),
-    hxTarget    := HxTarget.next("div")
-  )
-  println(s"  Rendered: $searchInput\n")
+    // Example 3: Different swap strategies
+    println("3. Swap strategies:")
+    val innerHTMLDiv = div(
+      id     := "content",
+      hxGet  := "/api/content",
+      hxSwap := HxSwap.InnerHTML,
+      "Click to load inner content"
+    )
+    val outerHTMLDiv = div(
+      id     := "card",
+      hxPost := "/api/replace",
+      hxSwap := HxSwap.OuterHTML,
+      "This entire div will be replaced"
+    )
+    val appendDiv = div(
+      id     := "messages",
+      hxGet  := "/api/new-message",
+      hxSwap := HxSwap.BeforeEnd.scroll(HxSwap.ScrollPosition.Bottom),
+      "New messages will be appended"
+    )
+    println(s"  InnerHTML: ${innerHTMLDiv}")
+    println(s"  OuterHTML: ${outerHTMLDiv}")
+    println(s"  Append with scroll: ${appendDiv}\n")
 
-  // Example 3: Different swap strategies
-  println("3. Swap strategies:")
-  val innerHTMLDiv = div(
-    id     := "content",
-    hxGet  := "/api/content",
-    hxSwap := HxSwap.InnerHTML,
-    "Click to load inner content"
-  )
-  val outerHTMLDiv = div(
-    id     := "card",
-    hxPost := "/api/replace",
-    hxSwap := HxSwap.OuterHTML,
-    "This entire div will be replaced"
-  )
-  val appendDiv = div(
-    id     := "messages",
-    hxGet  := "/api/new-message",
-    hxSwap := HxSwap.BeforeEnd.scroll(HxSwap.ScrollPosition.Bottom),
-    "New messages will be appended"
-  )
-  println(s"  InnerHTML: ${innerHTMLDiv}")
-  println(s"  OuterHTML: ${outerHTMLDiv}")
-  println(s"  Append with scroll: ${appendDiv}\n")
+    // Example 4: Target selection patterns
+    println("4. Target selection:")
+    val targetThis = button(
+      hxPost   := "/api/toggle",
+      hxTarget := HxTarget.This,
+      "Toggle this button"
+    )
+    val targetClosest = button(
+      hxPost   := "/api/validate",
+      hxTarget := HxTarget.closest("form"),
+      "Validate form"
+    )
+    val targetFind = div(
+      hxGet    := "/api/update",
+      hxTarget := HxTarget.find(".result"),
+      "Content with .result child"
+    )
+    println(s"  This: $targetThis")
+    println(s"  Closest: $targetClosest")
+    println(s"  Find: $targetFind\n")
 
-  // Example 4: Target selection patterns
-  println("4. Target selection:")
-  val targetThis = button(
-    hxPost   := "/api/toggle",
-    hxTarget := HxTarget.This,
-    "Toggle this button"
-  )
-  val targetClosest = button(
-    hxPost   := "/api/validate",
-    hxTarget := HxTarget.closest("form"),
-    "Validate form"
-  )
-  val targetFind = div(
-    hxGet    := "/api/update",
-    hxTarget := HxTarget.find(".result"),
-    "Content with .result child"
-  )
-  println(s"  This: $targetThis")
-  println(s"  Closest: $targetClosest")
-  println(s"  Find: $targetFind\n")
+    // Example 5: Form submission with parameters
+    println("5. Form submission with selective parameters:")
+    val searchForm = form(
+      hxPost    := "/api/search",
+      hxTrigger := HxTrigger.submit,
+      hxParams  := HxParams.only("query", "page"),
+      hxSwap    := HxSwap.InnerHTML,
+      input(`type`  := "text", name   := "query", placeholder := "Query"),
+      input(`type`  := "hidden", name := "page", value        := "1"),
+      input(`type`  := "hidden", name := "unused", value      := "ignored"),
+      button(`type` := "submit", "Search")
+    )
+    println(s"  Form with selective params: $searchForm\n")
 
-  // Example 5: Form submission with parameters
-  println("5. Form submission with selective parameters:")
-  val searchForm = form(
-    hxPost    := "/api/search",
-    hxTrigger := HxTrigger.submit,
-    hxParams  := HxParams.only("query", "page"),
-    hxSwap    := HxSwap.InnerHTML,
-    input(`type`  := "text", name   := "query", placeholder := "Query"),
-    input(`type`  := "hidden", name := "page", value        := "1"),
-    input(`type`  := "hidden", name := "unused", value      := "ignored"),
-    button(`type` := "submit", "Search")
-  )
-  println(s"  Form with selective params: $searchForm\n")
+    // Example 6: Load event with once modifier
+    println("6. Load event with once modifier:")
+    val initialLoadDiv = div(
+      id        := "initial",
+      hxGet     := "/api/bootstrap-data",
+      hxTrigger := HxTrigger.load.once,
+      hxSwap    := HxSwap.InnerHTML,
+      "Loading initial data..."
+    )
+    println(s"  Load once: $initialLoadDiv\n")
 
-  // Example 6: Load event with once modifier
-  println("6. Load event with once modifier:")
-  val initialLoadDiv = div(
-    id        := "initial",
-    hxGet     := "/api/bootstrap-data",
-    hxTrigger := HxTrigger.load.once,
-    hxSwap    := HxSwap.InnerHTML,
-    "Loading initial data..."
-  )
-  println(s"  Load once: $initialLoadDiv\n")
+    // Example 7: Change event on select
+    println("7. Change event on select element:")
+    val selectDropdown = select(
+      name      := "category",
+      hxPost    := "/api/category-changed",
+      hxTrigger := HxTrigger.change,
+      hxTarget  := HxTarget.next("div"),
+      option(value := "all", "All Categories"),
+      option(value := "news", "News"),
+      option(value := "updates", "Updates")
+    )
+    println(s"  Select with change: $selectDropdown\n")
 
-  // Example 7: Change event on select
-  println("7. Change event on select element:")
-  val selectDropdown = select(
-    name      := "category",
-    hxPost    := "/api/category-changed",
-    hxTrigger := HxTrigger.change,
-    hxTarget  := HxTarget.next("div"),
-    option(value := "all", "All Categories"),
-    option(value := "news", "News"),
-    option(value := "updates", "Updates")
-  )
-  println(s"  Select with change: $selectDropdown\n")
-
-  println("✓ Basic usage examples complete")
+    println("✓ Basic usage examples complete")
+  }
 }
