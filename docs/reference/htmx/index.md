@@ -9,7 +9,7 @@ Core types: `HxTrigger`, `HxSwap`, `HxTarget`, `HxParams`, `HxUrlUpdate`, `HxEnc
 
 Here are the core patterns of typed HTMX construction:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.http.htmx._
 import scala.concurrent.duration._

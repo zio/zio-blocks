@@ -259,11 +259,13 @@ import zio.http.htmx._
 
 ul(
   id := "items",
-  button(
-    hxPost := "/add-item",
-    hxTarget := HxTarget.This,
-    hxSwap := HxSwap.BeforeEnd,
-    "Add Item"
+  li(
+    button(
+      hxPost := "/add-item",
+      hxTarget := HxTarget.closest("ul"),
+      hxSwap := HxSwap.BeforeEnd,
+      "Add Item"
+    )
   ),
   li("Item 1")
 )
