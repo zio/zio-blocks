@@ -163,7 +163,7 @@ val path: Path = seg.format(42)
 
 ### `SegmentCodec#render`
 
-To produce the human-readable name of the segment that `PathCodec.render` and OpenAPI generators consume:
+To produce the human-readable representation of the segment for use in OpenAPI path parameters and documentation:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -173,7 +173,7 @@ val intSeg = SegmentCodec.int("id")
 val rendered: String = intSeg.render()
 ```
 
-Dynamic segments appear as `/{name}` by default (including the leading slash). To use a different prefix/suffix, pass them as arguments: `intSeg.render(":", "")` produces `/:id`.
+By default, `SegmentCodec.render` produces `/{name}` for dynamic segments (including the leading slash). This leading slash is part of the segment's representation, not added by path composition. To customize the format, pass prefix and suffix arguments: `intSeg.render(":", "")` produces `/:id`. Literal segments render without the leading slash and are composed by `PathCodec.render` and route builders.
 
 ## Priority Ordering
 

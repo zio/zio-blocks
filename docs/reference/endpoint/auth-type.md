@@ -17,7 +17,7 @@ sealed trait AuthType {
 
 Authentication requirements are often encoded informally — a comment in the handler, a middleware convention, or a bare string header check. `AuthType` makes the auth requirement part of the endpoint's static type. A bearer-secured endpoint has type `Endpoint[..., AuthType.Bearer]`, which means:
 
-- The `auth.codec` field is typed as `HttpCodec[CodecKind.Request, headers.Authorization.Bearer]`, not `HttpCodec[..., String]`.
+- The `auth.codec` field is typed as `HttpCodec[CodecKind.Request, zio.http.Header.Authorization.Bearer]`, not `HttpCodec[..., String]`.
 - Interpreters (server, client, OpenAPI) can inspect the auth type without stringly-typed reflection.
 - Composing auth types with `|` produces a union that the compiler verifies is discriminated.
 
