@@ -607,7 +607,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [JsonDiffer](./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
 - [JSON Schema](./reference/schema/json-schema.md) - JSON Schema generation and validation
 - [CSV Codec](./reference/schema-csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
-- [Formats](./reference/schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [BSON Codec](./reference/schema-bson.md) - MongoDB-compatible BSON serialization with native type support
+- [Formats](./reference/schema/formats.md) - Avro, TOON, MessagePack, Thrift
 - [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations

@@ -72,6 +72,7 @@ const sidebars = {
                      },
                      "reference/schema/xml",
                      "reference/schema-csv",
+                     "reference/schema-bson",
                    ]
                  },
                  "reference/schema/lazy",
