@@ -63,10 +63,9 @@ val transactor = TransactorZIO.fromUrl(
 )
 
 // 4. Execute operations inside a transaction
-val program = transactor.transact { implicit tx =>
+val program: Task[List[User]] = transactor.transact:
   userRepo.insert(User(0L, "Alice", "alice@example.com"))
   userRepo.findAll()
-}
 ```
 
 ## Core Concepts
@@ -311,7 +310,7 @@ require one of these in scope.
 ```scala
 val transactor: Transactor = JdbcTransactor.fromUrl(
   "jdbc:postgresql://localhost/mydb",
-  SqlDialect.Postgres
+  SqlDialect.PostgreSQL
 )
 
 // Read — no transaction needed
@@ -351,10 +350,10 @@ val result: Task[User] = transactor.transact:
 
 ```scala
 val program: ZIO[Any, Throwable, User] =
-  transactor.transactZIO: tx =>
+  transactor.transactZIO:
     for
-      _    <- ZIO.attemptBlocking(userRepo.insert(newUser)(using tx))
-      user <- ZIO.attemptBlocking(userRepo.findById(newUser.id)(using tx))
+      _    <- ZIO.attemptBlocking(userRepo.insert(newUser))
+      user <- ZIO.attemptBlocking(userRepo.findById(newUser.id))
     yield user.get
 ```
 
