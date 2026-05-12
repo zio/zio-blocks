@@ -5,15 +5,15 @@ title: "Result"
 
 `Result[Ok, Err]` is a WIT-compatible error type for representing success or failure. It's analogous to Rust's `Result<T, E>` and provides first-class support for error handling in Golem agents. It differs from Scala's `Either[L, R]` in that it's designed for WebAssembly component model serialization.
 
-Result[Ok, Err] is a type alias for WitResult[Ok, Err], providing methods to construct, manipulate, and convert results:
+`Result[Ok, Err]` is a type alias for `WitResult[Ok, Err]`, providing methods to construct, manipulate, and convert results:
 
 ```scala
-// object Result {
-//   def ok[Ok](value: Ok): Result[Ok, Nothing]
-//   def err[Err](value: Err): Result[Nothing, Err]
-//   def fromEither[Err, Ok](either: Either[Err, Ok]): Result[Ok, Err]
-//   def fromOption[Ok](value: Option[Ok], orElse: => String): Result[Ok, String]
-// }
+object Result {
+  def ok[Ok](value: Ok): Result[Ok, Nothing]
+  def err[Err](value: Err): Result[Nothing, Err]
+  def fromEither[Err, Ok](either: Either[Err, Ok]): Result[Ok, Err]
+  def fromOption[Ok](value: Option[Ok], orElse: => String): Result[Ok, String]
+}
 ```
 
 ## Overview
@@ -117,12 +117,12 @@ trait Calculator extends BaseAgent {
 Clients receive the result and can act accordingly:
 
 ```scala
-// val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
-// 
-// calc.foreach {
-//   case r if r == Result.ok(5.0) => println("Result is 5.0")
-//   case _ => println("Result is not 5.0")
-// }
+val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
+
+calc.foreach {
+  case r if r == Result.ok(5.0) => println("Result is 5.0")
+  case _ => println("Result is not 5.0")
+}
 ```
 
 ## Error Types
@@ -214,42 +214,15 @@ val error: String = result.unwrapErr() // Throws on success
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
 ```scala
-// def computeResult(): Future[WitResult[Int, String]] = 
-//   Future.successful(WitResult.Ok(42))
-// 
-// def exportToHost(): Future[Int] = {
-//   computeResult().map { result =>
-//     // Unwrap for WIT: throws error payload on failure, returns value on success
-//     result.unwrapForWit()
-//   }
-// }
+def computeResult(): Future[WitResult[Int, String]] = 
+  Future.successful(WitResult.Ok(42))
+
+def exportToHost(): Future[Int] = {
+  computeResult().map { result =>
+    // Unwrap for WIT: throws error payload on failure, returns value on success
+    result.unwrapForWit()
+  }
+}
 ```
 
 This mirrors the JS SDK behavior where `Result.err` triggers a rejected promise. On the host side, a thrown error payload becomes a failed promise.
-
-## Variance
-
-`Result` is covariant in both type parameters:
-
-```scala
-import golem.Result
-
-val result: Result[Int, String] = Result.ok(42)
-val widened: Result[Any, Any] = result // Allowed due to covariance
-```
-
-## Relation to Other Types
-
-- **`Either[L, R]`** — Scala's standard error type; use `Result.fromEither()` to convert
-- **`Option[A]`** — Scala's optional type; use `Result.fromOption()` to convert
-- **`WitResult`** — The underlying implementation (rarely used directly)
-- **`GolemSchema`** — `Result` types are fully serializable
-
-## Best Practices
-
-- **Use `Result` for domain errors** — When errors are expected part of the API
-- **Keep error messages concise** — They're serialized and transmitted
-- **Use custom error types** — More informative than strings
-- **Provide context in errors** — Include field names, values, constraints
-- **Document possible errors** — Help clients understand what can fail
-- **Avoid `Result` for unexpected failures** — Use exceptions and HostApi rollback instead
