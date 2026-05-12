@@ -37,10 +37,22 @@ Without a typed endpoint descriptor, HTTP surface definitions are scattered: rou
 
 ## Installation
 
-Add the dependency to your build definition:
+The endpoint module is a cross-platform library (JVM + Scala.js). Add the dependency to your build definition:
 
+**JVM (Scala 3.x):**
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-endpoint" % "@VERSION@"
+```
+
+**Scala.js (Scala 3.x):**
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-endpoint" % "@VERSION@"
+```
+
+**For Scala 3.7+**, the module name is rewritten to `zio-blocks-next-endpoint`:
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-next-endpoint" % "@VERSION@"  // JVM
+libraryDependencies += "dev.zio" %%% "zio-blocks-next-endpoint" % "@VERSION@" // Scala.js
 ```
 
 Supported Scala versions: 3.x (Scala 3 only — the endpoint module uses Scala 3-only DSL and macro code).
