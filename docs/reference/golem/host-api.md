@@ -19,16 +19,16 @@ HostApi.setRetryPolicy(customPolicy)
 
 `HostApi` is your gateway to Golem's advanced features from within agent code:
 
-| Category | Purpose | Example |
-|----------|---------|---------|
-| **Oplog** | Track atomic operation boundaries | `markBeginOperation()`, `markEndOperation()` |
-| **Retry Policy** | Control automatic retry behavior | `getRetryPolicy()`, `setRetryPolicy()` |
-| **Persistence** | Manage oplog persistence strategy | `getOplogPersistenceLevel()`, `setOplogPersistenceLevel()` |
-| **Idempotence** | Toggle idempotent request handling | `getIdempotenceMode()`, `setIdempotenceMode()` |
-| **Agent Registry** | Query running agents, trigger updates | `getSelfMetadata()`, `getAgentMetadata()`, `updateAgent()` |
-| **Database** | Access relational databases (MySQL, PostgreSQL) | `Rdbms` provides SQL methods |
-| **Key-Value Store** | Persistent key-value storage | `KeyValue` API via `golem.wasi.KeyValue` |
-| **Blobstore** | Large binary object storage | `Blobstore` API via `golem.wasi.Blobstore` |
+| Category            | Purpose                                         | Example                                                    |
+|---------------------|-------------------------------------------------|------------------------------------------------------------|
+| **Oplog**           | Track atomic operation boundaries               | `markBeginOperation()`, `markEndOperation()`               |
+| **Retry Policy**    | Control automatic retry behavior                | `getRetryPolicy()`, `setRetryPolicy()`                     |
+| **Persistence**     | Manage oplog persistence strategy               | `getOplogPersistenceLevel()`, `setOplogPersistenceLevel()` |
+| **Idempotence**     | Toggle idempotent request handling              | `getIdempotenceMode()`, `setIdempotenceMode()`             |
+| **Agent Registry**  | Query running agents, trigger updates           | `getSelfMetadata()`, `getAgentMetadata()`, `updateAgent()` |
+| **Database**        | Access relational databases (MySQL, PostgreSQL) | `Rdbms` provides SQL methods                               |
+| **Key-Value Store** | Persistent key-value storage                    | `KeyValue` API via `golem.wasi.KeyValue`                   |
+| **Blobstore**       | Large binary object storage                     | `Blobstore` API via `golem.wasi.Blobstore`                 |
 
 All methods are Scala.js-only (compiled to WebAssembly).
 
@@ -158,12 +158,12 @@ Access MySQL and PostgreSQL databases via the resource API:
 ```scala
 // Rdbms provides resource-based access to PostgreSQL and MySQL
 // Example pattern:
-// val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
-// val result = connection.query("SELECT * FROM table")
-// result match {
-//   case Right(rows) => // process rows
-//   case Left(error) => // handle error
-// }
+val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
+val result = connection.query("SELECT * FROM table")
+result match {
+  case Right(rows) => // process rows
+  case Left(error) => // handle error
+}
 ```
 
 The Rdbms API provides resource-based access to PostgreSQL and MySQL databases with synchronous Either-based error handling.
@@ -174,10 +174,10 @@ Persistent key-value storage beyond the agent's memory using buckets:
 
 ```scala
 // KeyValue provides resource-based access to persistent storage
-// val bucket = KeyValue.Bucket.open("my-bucket")
-// val value: Option[Array[Byte]] = bucket.get("my-key")
-// bucket.set("my-key", Array(1, 2, 3))
-// bucket.delete("my-key")
+val bucket = KeyValue.Bucket.open("my-bucket")
+val value: Option[Array[Byte]] = bucket.get("my-key")
+bucket.set("my-key", Array(1, 2, 3))
+bucket.delete("my-key")
 ```
 
 The KeyValue API provides synchronous, resource-based access to persistent storage.
@@ -188,9 +188,9 @@ Store and retrieve large binary objects using the resource API:
 
 ```scala
 // Blobstore provides resource-based access to large binary objects
-// val objectStore = Blobstore.ObjectStore.open("my-bucket")
-// val objectId: String = objectStore.put(data) // where data is binary
-// val retrieved = objectStore.get(objectId) // returns Option[data]
+val objectStore = Blobstore.ObjectStore.open("my-bucket")
+val objectId: String = objectStore.put(data) // where data is binary
+val retrieved = objectStore.get(objectId) // returns Option[data]
 ```
 
 The Blobstore API provides synchronous, resource-based access to large binary object storage.
@@ -206,19 +206,3 @@ HostApi.oplogCommit(replicas = 1) // Commit to 1 replica
 ```
 
 Normally, Golem handles commit automatically. Use this for explicit control over persistence.
-
-## Relation to Other Types
-
-- **`Transactions`** — Uses `HostApi` internally to track operation boundaries and rollback
-- **`HostApi` layers** — Granular APIs: `OplogApi`, `DurabilityApi`, `ContextApi` (rarely used directly)
-- **`Rdbms`, `KeyValue`, `Blobstore`** — Specialized host API modules
-
-The typical pattern is to use high-level helpers like [`Transactions`](./transactions.md) rather than calling `HostApi` directly.
-
-## Best Practices
-
-- **Use `Transactions` for multi-step operations** — Higher-level and handles compensation automatically
-- **Mark operation boundaries carefully** — Broad regions reduce fine-grained error recovery
-- **Don't manipulate oplog indices** — Use `markBeginOperation()` / `markEndOperation()` instead
-- **Cache retry/persistence settings** — Set once at agent startup, not per-method
-- **Test with failure scenarios** — Verify oplog rollback behaves correctly under failure
