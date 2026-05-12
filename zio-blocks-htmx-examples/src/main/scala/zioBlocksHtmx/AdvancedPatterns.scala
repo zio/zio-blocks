@@ -31,7 +31,7 @@ import scala.concurrent.duration._
  * Run with: sbt "zio-blocks-htmx-examples/runMain
  * zioBlocksHtmx.AdvancedPatterns"
  */
-@main def AdvancedPatterns(): Unit = {
+object AdvancedPatterns extends App {
 
   println("=== HTMX Advanced Patterns ===\n")
 

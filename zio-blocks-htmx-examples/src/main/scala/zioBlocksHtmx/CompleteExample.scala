@@ -31,7 +31,7 @@ import scala.concurrent.duration.DurationInt
  * Run with: sbt "zio-blocks-htmx-examples/runMain
  * zioBlocksHtmx.CompleteExample"
  */
-@main def CompleteExample(): Unit = {
+object CompleteExample extends App {
 
   println("=== HTMX Complete Realistic Example ===\n")
 

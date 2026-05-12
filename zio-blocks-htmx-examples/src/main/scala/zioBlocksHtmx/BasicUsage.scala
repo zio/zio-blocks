@@ -30,7 +30,7 @@ import scala.concurrent.duration._
  *
  * Run with: sbt "zio-blocks-htmx-examples/runMain zioBlocksHtmx.BasicUsage"
  */
-@main def BasicUsage(): Unit = {
+object BasicUsage extends App {
 
   println("=== HTMX Basic Usage Examples ===\n")
 
