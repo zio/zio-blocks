@@ -140,27 +140,13 @@ jobs:
 
   testJS:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - java: 17
-            platform: JS
-            scala: '2.13.x'
-            command: 'testJS docJS'
-          - java: 17
-            platform: JS
-            scala: '3.3.x'
-            command: 'testJS docJS'
-          - java: 17
-            platform: JS
-            scala: '3.8.x'
-            command: 'testJS1 docJS1'
-          - java: 17
-            platform: JS
-            scala: '3.8.x'
-            command: 'testJS2 docJS2'
+        java: [17]
+        platform: ['JS']
+        scala: ['2.13.x', '3.3.x', '3.8.x']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
@@ -175,7 +161,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Run Scala JS tests
-        run: sbt ++${{ matrix.scala }} ${{ matrix.command }}
+        run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:
     name: Test Golem (Scala 3.8.x / 2.13.x)
