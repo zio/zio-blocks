@@ -39,7 +39,7 @@ val publicEndpoint = Endpoint(Method.GET / "health")
 
 ### `AuthType.Basic`
 
-HTTP Basic authentication. The `ClientRequirement` is `headers.Authorization.Basic`:
+HTTP Basic authentication. The `ClientRequirement` is `zio.http.Header.Authorization.Basic`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -54,7 +54,7 @@ val codec = basicEndpoint.auth.codec
 
 ### `AuthType.Bearer`
 
-Bearer token authentication (OAuth 2.0 / JWT). The `ClientRequirement` is `headers.Authorization.Bearer`:
+Bearer token authentication (OAuth 2.0 / JWT). The `ClientRequirement` is `zio.http.Header.Authorization.Bearer`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
@@ -67,7 +67,7 @@ val bearerEndpoint = Endpoint(Method.GET / "me")
 
 ### `AuthType.Digest`
 
-HTTP Digest authentication. The `ClientRequirement` is `headers.Authorization.Digest`:
+HTTP Digest authentication. The `ClientRequirement` is `zio.http.Header.Authorization.Digest`:
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._

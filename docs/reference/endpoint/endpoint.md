@@ -266,7 +266,7 @@ val secured = Endpoint(Method.GET / "me")
   .auth(AuthType.Bearer)
 ```
 
-The `Auth` type parameter carries the `ClientRequirement` associated type, so a bearer-secured endpoint exposes `auth.codec` typed as `HttpCodec[CodecKind.Request, headers.Authorization.Bearer]`. See [AuthType](./auth-type.md) for all variants.
+The `Auth` type parameter carries the `ClientRequirement` associated type, so a bearer-secured endpoint exposes `auth.codec` typed as `HttpCodec[CodecKind.Request, zio.http.Header.Authorization.Bearer]`. See [AuthType](./auth-type.md) for all variants.
 
 To override the HTTP status the server sends when the client does not meet the auth requirement, use `Endpoint#unauthorizedStatus`:
 
