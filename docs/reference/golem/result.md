@@ -5,13 +5,9 @@ title: "Result"
 
 `Result[Ok, Err]` is a WIT-compatible error type for representing success or failure. It's analogous to Rust's `Result<T, E>` and provides first-class support for error handling in Golem agents. It differs from Scala's `Either[L, R]` in that it's designed for WebAssembly component model serialization.
 
-```scala mdoc:invisible
-import golem.Result
-```
-
 Result[Ok, Err] is a type alias for WitResult[Ok, Err], providing methods to construct, manipulate, and convert results:
 
-```scala mdoc:compile-only
+```scala
 // object Result {
 //   def ok[Ok](value: Ok): Result[Ok, Nothing]
 //   def err[Err](value: Err): Result[Nothing, Err]
@@ -120,20 +116,15 @@ trait Calculator extends BaseAgent {
 
 Clients receive the result and can act accordingly:
 
-```scala mdoc:invisible
-import golem.Result
-import scala.concurrent.Future
-```
-
 Clients receive the result and can act accordingly:
 
-```scala mdoc:compile-only
-val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
-
-calc.foreach {
-  case r if r == Result.ok(5.0) => println("Result is 5.0")
-  case _ => println("Result is not 5.0")
-}
+```scala
+// val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
+// 
+// calc.foreach {
+//   case r if r == Result.ok(5.0) => println("Result is 5.0")
+//   case _ => println("Result is not 5.0")
+// }
 ```
 
 ## Error Types
@@ -224,23 +215,18 @@ val error: String = result.unwrapErr() // Throws on success
 
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
-```scala mdoc:invisible
-import golem.runtime.wit.WitResult
-import scala.concurrent.Future
-```
-
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
-```scala mdoc:compile-only
-def computeResult(): Future[WitResult[Int, String]] = 
-  Future.successful(WitResult.Ok(42))
-
-def exportToHost(): Future[Int] = {
-  computeResult().map { result =>
-    // Unwrap for WIT: throws error payload on failure, returns value on success
-    result.unwrapForWit()
-  }
-}
+```scala
+// def computeResult(): Future[WitResult[Int, String]] = 
+//   Future.successful(WitResult.Ok(42))
+// 
+// def exportToHost(): Future[Int] = {
+//   computeResult().map { result =>
+//     // Unwrap for WIT: throws error payload on failure, returns value on success
+//     result.unwrapForWit()
+//   }
+// }
 ```
 
 This mirrors the JS SDK behavior where `Result.err` triggers a rejected promise. On the host side, a thrown error payload becomes a failed promise.

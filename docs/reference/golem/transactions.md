@@ -5,15 +5,15 @@ title: "Transactions"
 
 `Transactions` provides helpers for managing atomic, multi-step operations with automatic rollback. It implements the **saga pattern** — executing a sequence of operations and compensating (rolling back) on failure.
 
-```scala mdoc:compile-only
-object Transactions {
-  def operation[In, Out, Err](run: In => Either[Err, Out])(
-    compensate: (In, Out) => Either[Err, Unit]
-  ): Operation[In, Out, Err]
-
-  def infallibleTransaction[A](body: InfallibleTransaction => A): A
-  def fallibleTransaction[A, Err](body: FallibleTransaction[Err] => Either[Err, A]): Either[TransactionFailure[Err], A]
-}
+```scala
+// object Transactions {
+//   def operation[In, Out, Err](run: In => Either[Err, Out])(
+//     compensate: (In, Out) => Either[Err, Unit]
+//   ): Operation[In, Out, Err]
+//
+//   def infallibleTransaction[A](body: InfallibleTransaction => A): A
+//   def fallibleTransaction[A, Err](body: FallibleTransaction[Err] => Either[Err, A]): Either[TransactionFailure[Err], A]
+// }
 ```
 
 ## Overview
