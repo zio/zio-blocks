@@ -44,8 +44,6 @@ button(
 )
 ```
 
-Backtick-friendly and identifier-friendly aliases are available:
-
 ```scala mdoc:compile-only
 import zio.http.htmx._
 

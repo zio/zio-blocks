@@ -58,7 +58,7 @@ libraryDependencies += "dev.zio" %% "zio-blocks-http-htmx" % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-blocks-http-htmx" % "@VERSION@"
 ```
 
-Supported Scala versions: 3.3.x and 3.8.x. The module is cross-compiled for JVM and Scala.js.
+Supported Scala versions: Scala 3.x. The module is cross-compiled for JVM and Scala.js.
 
 ## Overview
 
@@ -220,7 +220,9 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With `zio.blocks.html`:** All HTMX attributes integrate seamlessly into the HTML DSL. `HtmxAttributes` is mixed into the `zio.http.htmx` package object, making attributes like `hxPost`, `hxTrigger`, and `hxSwap` directly available when you `import zio.http.htmx._`.
 
-**With `zio.blocks.schema`:** URL-bearing attributes accept `URL` and `Path` types from `zio.http`, which are then rendered to valid URL strings. The `ToHtmxValue` type class provides encoding for `URL`, `Path`, and `Json` values. For domain values, use `HxVals.from(...)` and `HxHeadersValue.from(...)` to encode values via their `Schema` to JSON.
+**With `zio.http` URL/Path types:** URL-bearing attributes accept `URL` and `Path` types from `zio.http`, which are then rendered to valid URL strings. The `ToHtmxValue` type class provides encoding for these types.
+
+**With `zio.blocks.schema` for JSON encoding:** For domain values, use `HxVals.from(...)` and `HxHeadersValue.from(...)` to encode values via their `Schema` to JSON. This allows schema-backed types to be automatically JSON-encoded in HTMX attributes.
 
 **With CSS selectors:** Attributes that accept selectors (hxTarget, hxSelect, hxDisabledElt, hxIndicator) accept `CssSelector` from `zio.blocks.html`, providing type-safe selector construction.
 
@@ -273,7 +275,7 @@ import docs.SourceFile
 SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/AdvancedPatterns.scala))
 
 Run this example with the following command:
 
@@ -291,7 +293,7 @@ import docs.SourceFile
 SourceFile.print("zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala")
 ```
 
-([source](https://github.com/zio/zio-blocks-modern/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala))
+([source](https://github.com/zio/zio-blocks/blob/main/zio-blocks-htmx-examples/src/main/scala/zioBlocksHtmx/CompleteExample.scala))
 
 Run this example with the following command:
 

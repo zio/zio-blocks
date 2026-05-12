@@ -74,7 +74,7 @@ form(
 )
 ```
 
-### HxHeaders — Custom Headers
+### HxHeadersValue — Custom Headers
 
 `HxHeadersValue` represents the `hx-headers` attribute, sending custom HTTP headers with HTMX requests. Like `HxVals`, it accepts schema-backed values or raw JSON:
 
