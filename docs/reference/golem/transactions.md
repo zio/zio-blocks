@@ -67,11 +67,6 @@ val result: Either[Transactions.TransactionFailure[String], String] = Transactio
     _ => Right(42)
   )((_, _) => Right(()))
 
-  val value = tx.execute(step1, ()) match {
-    case Left(err) => return Left(err)
-    case Right(v) => v
-  }
-
   val step2 = Transactions.operation[Int, String, String](
     n => if (n > 100) Left("Too large") else Right(s"Value: $n")
   )((n, _) => {
@@ -79,9 +74,13 @@ val result: Either[Transactions.TransactionFailure[String], String] = Transactio
     Right(())
   })
 
-  tx.execute(step2, value) match {
+  tx.execute(step1, ()) match {
     case Left(err) => Left(err)
-    case Right(msg) => Right(msg)
+    case Right(v) =>
+      tx.execute(step2, v) match {
+        case Left(err) => Left(err)
+        case Right(msg) => Right(msg)
+      }
   }
 }
 ```

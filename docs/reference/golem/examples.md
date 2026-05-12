@@ -35,7 +35,7 @@ trait Counter extends BaseAgent {
 @agentImplementation()
 class CounterImpl(name: String) extends Counter with Snapshotted[Int] {
   var state: Int = 0
-  val stateSchema: Schema[Int] = Schema.derived
+  val stateSchema: Schema[Int] = implicitly[Schema[Int]]
   
   override def increment(): Future[Int] =
     Future.successful {
@@ -258,7 +258,8 @@ Agents accessing runtime configuration:
 ```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import golem.wasi.{Config, Secret}
+import golem.wasi.Config
+import golem.config.Secret
 import golem.BaseAgent
 import scala.concurrent.Future
 

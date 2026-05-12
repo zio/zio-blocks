@@ -29,7 +29,7 @@ These fields are populated by the Golem host when an agent is instantiated.
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"
-libraryDependencies += "dev.zio" %%% "zio-golem-macros" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
 ```
 
 ## Defining an Agent

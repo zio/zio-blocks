@@ -53,8 +53,8 @@ ZIO-Golem **eliminates boilerplate** by deriving all of this from your trait def
 Add the ZIO-Golem SDK to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-golem-core" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-golem-model" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-golem-model" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
 ```
 

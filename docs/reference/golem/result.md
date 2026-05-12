@@ -116,8 +116,6 @@ trait Calculator extends BaseAgent {
 
 Clients receive the result and can act accordingly:
 
-Clients receive the result and can act accordingly:
-
 ```scala
 // val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
 // 
@@ -212,8 +210,6 @@ val error: String = result.unwrapErr() // Throws on success
 ```
 
 ### UnwrapForWit (extract at WIT boundary)
-
-When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 

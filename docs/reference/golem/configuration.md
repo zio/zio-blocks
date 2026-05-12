@@ -173,11 +173,8 @@ Configuration access can fail:
 
 ```scala
 import golem.wasi.Config
-import scala.concurrent.Future
 
-val result: Future[String] = Config.getRequired("REQUIRED_KEY").recover {
-  case _ => "default-value"
-}
+val result: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 ```
 
 Always handle missing configuration gracefully or fail early at agent startup.
