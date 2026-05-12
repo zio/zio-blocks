@@ -99,15 +99,6 @@ Use codec.decode(buffer) to deserialize
 Handle CsvError.ParseError or TypeError on failure
 ```
 
-### Type Relationships
-
-- **`CsvCodec[A]`** — Main public API; extends `TextCodec[A]`; provides headers and codec operations
-- **`CsvConfig`** — Shared configuration; controls delimiter, quoting, line termination across all codec operations
-- **`CsvError`** — Sealed hierarchy; `ParseError` for malformed CSV, `TypeError` for field conversion failures
-- **`CsvReader`/`CsvWriter`** — Low-level utilities; handle RFC 4180 parsing/serialization; `CsvCodec` uses these internally for row operations
-- **`CsvCodecDeriver`** — Implements the `Deriver[CsvCodec]` interface; converts `Schema[A]` to `CsvCodec[A]`
-- **`CsvFormat`** — `TextFormat[CsvCodec]` integration point; enables `Schema#derive(CsvFormat)` for codec derivation
-
 ## Common Patterns
 
 This section shows 4 practical patterns for working with CSV codecs in real-world scenarios.
@@ -206,16 +197,6 @@ val codec = Product.schema.derive(CsvFormat)
 val headers = codec.headerNames
 // headers: IndexedSeq[String] = Vector("sku", "name", "price")
 ```
-
-## Integration Points
-
-**With ZIO Schema:** `CsvCodec` derives from any `Schema[A]` via `CsvFormat`, making it compatible with all schema-driven workflows.
-
-**With TextCodec:** `CsvCodec[A]` extends `TextCodec[A]`, which defines `encode(CharBuffer)` and `decode(CharBuffer)` for streaming-friendly codecs.
-
-**With other schema modules:** Use `CsvCodec` alongside schema-json, schema-yaml, or other codecs for multi-format support.
-
----
 
 ## CsvCodec[A]
 
@@ -460,14 +441,6 @@ result match {
     println(s"Parse error: ${err.getMessage}")
 }
 ```
-
-### RFC 4180 Compliance
-
-`CsvReader` follows RFC 4180 rules:
-- Unquoted fields end at delimiters, newlines, or EOF
-- Quoted fields preserve delimiters and newlines as literal content
-- Quote characters within quoted fields are escaped by doubling (e.g., `"He said ""Hello"""` represents `He said "Hello"`)
-- Handles CR, LF, and CRLF line endings uniformly
 
 ---
 
