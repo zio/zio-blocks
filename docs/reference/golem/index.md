@@ -8,21 +8,21 @@ The **ZIO-Golem SDK** is a type-safe Scala library for building agents on the Go
 Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
 
 ```scala
-// Define an agent interface
-// @agentDefinition
-// trait Counter extends BaseAgent {
-//   class Id(val name: String)
-//   def increment(): Future[Int]
-//   def get(): Future[Int]
-// }
-//
-// // Implement the agent
-// @agentImplementation()
-// class CounterImpl(name: String) extends Counter {
-//   private var count = 0
-//   override def increment(): Future[Int] = Future.successful { count += 1; count }
-//   override def get(): Future[Int] = Future.successful(count)
-// }
+Define an agent interface
+@agentDefinition
+trait Counter extends BaseAgent {
+  class Id(val name: String)
+  def increment(): Future[Int]
+  def get(): Future[Int]
+}
+
+// Implement the agent
+@agentImplementation()
+class CounterImpl(name: String) extends Counter {
+  private var count = 0
+  override def increment(): Future[Int] = Future.successful { count += 1; count }
+  override def get(): Future[Int] = Future.successful(count)
+}
 ```
 
 ## Introduction
@@ -239,24 +239,3 @@ trait ConfiguredAgent extends BaseAgent {
 ```
 
 Configuration is provided by the Golem runtime, overridable per deployment.
-
-## Integration Points
-
-ZIO-Golem integrates with the broader ZIO and Golem ecosystems:
-
-**Within ZIO:**
-- `zio.blocks.schema.Schema` — All agent parameter/return types must have a `Schema` (derives automatically via `derives Schema` or `.derived`)
-- `zio.blocks` — Uses zio-blocks for foundational types and patterns
-- ZIO Test — All tests use `zio.test._` framework
-
-**Within Golem:**
-- **WIT** — Agent types compile to Golem's WebAssembly Interface Types
-- **Host API** — `HostApi`, `OplogApi`, `DurabilityApi` wrap `golem:api/host@1.5.0`
-- **Component Model** — Data structures serialize to component-model values
-- **Agent Registry** — Agents register themselves with Golem's runtime
-- **Principal Injection** — Security context (`Principal`) injected into methods via macro
-
-**Related Modules:**
-- `zio-http` — Build HTTP endpoints alongside agents
-- `zio-blocks-schema` — Derive schemas for custom types
-- `golem-cli` — Build, deploy, and manage agents on the Golem platform
