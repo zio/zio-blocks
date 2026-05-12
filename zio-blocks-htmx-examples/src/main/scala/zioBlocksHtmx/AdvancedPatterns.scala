@@ -53,11 +53,11 @@ object AdvancedPatterns extends App {
   // Example 2: Rate-limited input with throttle
   println("2. Rate-limited input events (at most 1 request per second):")
   val throttledStatus = input(
-    id        := "status",
-    `type`    := "text",
-    hxPost    := "/api/status",
-    hxTrigger := HxTrigger.input.throttle(1.second),
-    hxSwap    := HxSwap.OuterHTML,
+    id          := "status",
+    `type`      := "text",
+    hxPost      := "/api/status",
+    hxTrigger   := HxTrigger.input.throttle(1.second),
+    hxSwap      := HxSwap.OuterHTML,
     placeholder := "Type slowly..."
   )
   println(s"  Trigger: ${HxTrigger.input.throttle(1.second).render}")
@@ -178,7 +178,12 @@ object AdvancedPatterns extends App {
     hxSwap   := HxSwap.InnerHTML.transition.settle(250.millis)
   )
   println(
-    s"""  Complex trigger: ${HxTrigger.input.delay(500.millis).throttle(1.second).changed.filter(Js("event.target.value.trim().length > 0")).render}"""
+    s"""  Complex trigger: ${HxTrigger.input
+        .delay(500.millis)
+        .throttle(1.second)
+        .changed
+        .filter(Js("event.target.value.trim().length > 0"))
+        .render}"""
   )
   println(s"  Swap: ${HxSwap.InnerHTML.transition.settle(250.millis).render}")
   println(s"  Element: $complexChain\n")
