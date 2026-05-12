@@ -229,6 +229,7 @@ lazy val root = project
     `http-model-examples`,
     endpoint.jvm,
     endpoint.js,
+    `endpoint-examples`,
     markdown.jvm,
     markdown.js,
     html.jvm,
@@ -402,7 +403,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
   )
 
 lazy val `scope-examples` = project
-  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
+  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(scope.jvm)
   .settings(
     publish / skip             := true,
@@ -666,6 +667,17 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
       }
     }
   )
+
+lazy val `endpoint-examples` = project
+  .in(file("endpoint-examples"))
+  .settings(stdSettings("zio-blocks-endpoint-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .dependsOn(endpoint.jvm)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

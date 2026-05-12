@@ -119,14 +119,27 @@ const sidebars = {
          "reference/media-type",
           {
             type: "category",
-            label: "HTTP Model",
+            label: "ZIO Blocks HTTP Model",
             link: { type: "doc", id: "reference/http-model/index" },
             items: [
               "reference/http-model/model",
               "reference/http-model/schema",
             ]
           },
-          "reference/endpoint",
+          {
+            type: "category",
+            label: "ZIO Blocks Endpoint",
+            link: { type: "doc", id: "reference/endpoint/index" },
+            items: [
+              "reference/endpoint/endpoint",
+              "reference/endpoint/http-codec",
+              "reference/endpoint/route-pattern",
+              "reference/endpoint/path-codec",
+              "reference/endpoint/segment-codec",
+              "reference/endpoint/auth-type",
+              "reference/endpoint/route-tree",
+            ]
+          },
           "reference/chunk",
           "reference/maybe",
           "path-interpolator",
@@ -137,9 +150,9 @@ const sidebars = {
           "reference/htmx",
           {
             type: "category",
-            label: "Streams",
-           link: { type: "doc", id: "reference/streams/index" },
-           items: [
+            label: "ZIO Blocks Streams",
+            link: { type: "doc", id: "reference/streams/index" },
+            items: [
              "reference/streams/stream",
              "reference/streams/pipeline",
              "reference/streams/sink",
