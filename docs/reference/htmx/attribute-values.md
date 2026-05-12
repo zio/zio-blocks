@@ -283,7 +283,6 @@ Define your own `ToHtmxValue` instance to make custom domain types work in the H
 
 ```scala mdoc:silent
 import zio.http.htmx._
-import zio.blocks.schema._
 
 sealed trait Priority
 object Priority {
@@ -298,21 +297,19 @@ object Priority {
       case High   => "high"
     }
   }
-  
-  implicit val schema: Schema[Priority] = Schema.derived
 }
 ```
 
-Use `Priority` values directly in HTMX attributes:
+Use `Priority` values directly in HTMX attributes through the `ToHtmxValue` type class:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
 import zio.http.htmx._
 
-form(
+button(
   hxPost := "/api/task",
-  hxVals := HxVals.from(Priority.High),  // custom type in DSL
-  button("Create Task")
+  hxOn.click := Js(s"console.log('Priority: ${Priority.High.toString()}')"),
+  "Create High Priority Task"
 )
 ```
 
