@@ -173,7 +173,7 @@ val intSeg = SegmentCodec.int("id")
 val rendered: String = intSeg.render()
 ```
 
-By default, `SegmentCodec.render` produces `/{name}` for dynamic segments (including the leading slash). This leading slash is part of the segment's representation, not added by path composition. To customize the format, pass prefix and suffix arguments: `intSeg.render(":", "")` produces `/:id`. Literal segments render without the leading slash and are composed by `PathCodec.render` and route builders.
+By default, `SegmentCodec.render` produces `/{name}` for dynamic segments and `/{value}` for literal segments (including the leading slash in both cases). This leading slash is part of the segment's representation, not added by path composition. To customize the format, pass prefix and suffix arguments: `intSeg.render(":", "")` produces `/:id`. Both dynamic and literal segments always include this leading slash in their rendered form.
 
 ## Priority Ordering
 
