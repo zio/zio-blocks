@@ -8,7 +8,12 @@ import TabItem from '@theme/TabItem';
 
 `zio-schema-csv` is a **schema-driven CSV codec module** for serializing and deserializing Scala types to and from CSV format. It provides RFC 4180-compliant parsing and generation with zero dependencies and support for 27 primitive types plus flat record (case class) types. Core types: `CsvCodec`, `CsvConfig`, `CsvError`, `CsvReader`, `CsvWriter`, `CsvFormat`.
 
-```scala
+The module consists of 7 core types working together in a unified CSV codec pipeline:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.codec.TextCodec
+import java.nio.CharBuffer
+
 final case class CsvCodec[A] extends TextCodec[A] {
   def headerNames: IndexedSeq[String]
   def encode(value: A, output: CharBuffer): Unit
@@ -38,13 +43,13 @@ Rather than writing custom parsers or relying on string-based configuration, you
 
 Add the module to your `build.sbt`:
 
-```scala
+```scala mdoc:compile-only
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
-```scala
+```scala mdoc:compile-only
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
@@ -85,6 +90,8 @@ The CSV codec pipeline flows through these layers:
 
 **Typical workflow:**
 
+A user type flows through the derivation and encoding pipeline as follows:
+
 ```
 User type (e.g., case class Person)
     ↓
@@ -105,11 +112,13 @@ Handle CsvError.ParseError or TypeError on failure
 - **`CsvCodec[A]`** — Main public API; extends `TextCodec[A]`; provides headers and codec operations
 - **`CsvConfig`** — Shared configuration; controls delimiter, quoting, line termination across all codec operations
 - **`CsvError`** — Sealed hierarchy; `ParseError` for malformed CSV, `TypeError` for field conversion failures
-- **`CsvReader`/`CsvWriter`** — Low-level utilities; handle RFC 4180 parsing/serialization; used internally by `CsvCodec`
+- **`CsvReader`/`CsvWriter`** — Low-level utilities; handle RFC 4180 parsing/serialization; `CsvCodec` uses these internally for row operations
 - **`CsvCodecDeriver`** — Implements the `Deriver[CsvCodec]` interface; converts `Schema[A]` to `CsvCodec[A]`
-- **`CsvFormat`** — `TextFormat[CsvCodec]` integration point; used by `Schema#derive(CsvFormat)`
+- **`CsvFormat`** — `TextFormat[CsvCodec]` integration point; enables `Schema#derive(CsvFormat)` for codec derivation
 
 ## Common Patterns
+
+This section shows 4 practical patterns for working with CSV codecs in real-world scenarios.
 
 ### Pattern 1: Derive and Use a Simple Codec
 
@@ -331,9 +340,9 @@ val tsvConfig: CsvConfig = CsvConfig.tsv
 ### Configuration Fields
 
 - **`delimiter`** (default: `','`) — Character separating fields in a row
-- **`quoteChar`** (default: `'"'`) — Character used to quote fields containing delimiters or newlines; quotes within quoted fields are escaped by doubling
+- **`quoteChar`** (default: `'"'`) — Character to quote fields containing delimiters or newlines; escapes quotes within quoted fields by doubling
 - **`lineTerminator`** (default: `"\r\n"`) — Sequence terminating each row (RFC 4180 standard is CRLF)
-- **`hasHeader`** (default: `true`) — Whether the first row is treated as column headers
+- **`hasHeader`** (default: `true`) — Whether the first row contains column headers
 - **`nullValue`** (default: `""`) — String representation for null values
 
 ### Custom Configuration
@@ -490,7 +499,7 @@ val csvLine: String = CsvWriter.writeRow(fields, config)
 
 ### Writing Headers
 
-To write a header row (semantically identical to `writeRow` but communicates intent):
+To write a header row (semantically identical to `CsvWriter#writeRow` but communicates intent):
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.csv._
