@@ -146,19 +146,15 @@ jobs:
       matrix:
         include:
           - java: 17
-            platform: JS
             scala: '2.13.x'
             command: 'testJS docJS'
           - java: 17
-            platform: JS
             scala: '3.3.x'
             command: 'testJS docJS'
           - java: 17
-            platform: JS
             scala: '3.8.x'
             command: 'testJS1 docJS1'
           - java: 17
-            platform: JS
             scala: '3.8.x'
             command: 'testJS2 docJS2'
     steps:
