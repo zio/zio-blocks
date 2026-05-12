@@ -9,7 +9,7 @@ The primary configuration API uses `golem.wasi.Config`, which provides synchrono
 
 ```scala mdoc:compile-only
 // Configuration API (golem.wasi.Config)
-// def get(key: String): Either[ConfigError, Option[String]]
+def get(key: String): Either[ConfigError, Option[String]]
 
 // Secrets are accessed via typed configuration fields
 // They are represented as golem.config.Secret[A] values
@@ -17,13 +17,7 @@ The primary configuration API uses `golem.wasi.Config`, which provides synchrono
 
 ## Overview
 
-Configuration allows agents to access external settings without hardcoding them:
-
-| Pattern | Purpose | Example |
-|---------|---------|---------|
-| **Config** | Environment variables, deployment settings | Database URL, API timeout, feature flags |
-| **Secret** | Sensitive credentials | API keys, passwords, tokens |
-| **Override** | Deployment-time customization | Different values for dev/staging/prod |
+Configuration allows agents to access external settings without hardcoding them.
 
 ## Declaring Configuration Fields
 
@@ -47,21 +41,21 @@ The Golem runtime injects these values at agent startup.
 Use the `Config` API to access configuration synchronously:
 
 ```scala mdoc:compile-only
-// import golem.wasi.Config
+import golem.wasi.Config
 // ConfigError type represents configuration access failures
 
-// val apiKey: Either[ConfigError, Option[String]] = Config.get("API_KEY")
+val apiKey: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 
-// apiKey match {
-//   case Right(Some(key)) => println(s"API Key: $key")
-//   case Right(None) => println("API_KEY not set")
-//   case Left(error) => println(s"Config error: $error")
-// }
+apiKey match {
+  case Right(Some(key)) => println(s"API Key: $key")
+  case Right(None) => println("API_KEY not set")
+  case Left(error) => println(s"Config error: $error")
+}
 ```
 
 **`get(key)`** — Returns `Either[ConfigError, Option[String]]`:
 ```scala mdoc:compile-only
-// Config.get("DEBUG_MODE") returns Either[ConfigError, Option[String]]
+Config.get("DEBUG_MODE") returns Either[ConfigError, Option[String]]
 // Returns Right(Some(value)) if configured
 // Returns Right(None) if not set
 // Returns Left(error) on configuration access failure
@@ -73,8 +67,8 @@ Secrets are accessed through the typed configuration system using `golem.config.
 
 ```scala mdoc:compile-only
 // Secrets are injected by the Golem runtime
-// val token: Secret[String] = ??? // Injected at agent startup
-// val tokenValue: String = token.get()
+val token: Secret[String] = ??? // Injected at agent startup
+val tokenValue: String = token.get()
 ```
 
 Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to access sensitive credentials rather than retrieving them through the general `Config` API.
@@ -85,37 +79,37 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 
 ```scala mdoc:compile-only
 // In an agent implementation:
-// val dbUrl = Config.get("DATABASE_URL")
-// dbUrl match {
-//   case Right(Some(url)) => 
-//     // Use url to connect
-//     Future.successful("result")
-//   case Right(None) => 
-//     Future.failed(new Exception("DATABASE_URL not configured"))
-//   case Left(error) => 
-//     Future.failed(new Exception(s"Config error: $error"))
-// }
+val dbUrl = Config.get("DATABASE_URL")
+dbUrl match {
+  case Right(Some(url)) => 
+    // Use url to connect
+    Future.successful("result")
+  case Right(None) => 
+    Future.failed(new Exception("DATABASE_URL not configured"))
+  case Left(error) => 
+    Future.failed(new Exception(s"Config error: $error"))
+}
 ```
 
 ### Feature Flags
 
-```scala mdoc:compile-only
-// val enableCache: Either[ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
-// val isEnabled = enableCache match {
-//   case Right(Some("true")) => true
-//   case _ => false
-// }
+```scala
+val enableCache: Either[ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
+val isEnabled = enableCache match {
+  case Right(Some("true")) => true
+  case _ => false
+}
 ```
 
 ### Timeout Configuration
 
-```scala mdoc:compile-only
-// val timeoutMs: Either[ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
-// val timeout = timeoutMs match {
-//   case Right(Some(ms)) => ms.toInt
-//   case Right(None) => 5000 // default
-//   case Left(_) => 5000 // default on error
-// }
+```scala
+val timeoutMs: Either[ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
+val timeout = timeoutMs match {
+  case Right(Some(ms)) => ms.toInt
+  case Right(None) => 5000 // default
+  case Left(_) => 5000 // default on error
+}
 ```
 
 ## Override Configuration
@@ -178,13 +172,3 @@ val result: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 ```
 
 Always handle missing configuration gracefully or fail early at agent startup.
-
-## Best Practices
-
-- **Use `getRequired()` for critical settings** — Fail fast if not configured
-- **Provide sensible defaults** — Make agents work with minimal configuration
-- **Use environment variable conventions** — UPPER_CASE, underscore-separated
-- **Document configuration** — List all required and optional keys
-- **Treat secrets separately** — Never log secrets or include in error messages
-- **Test configuration loading** — Verify agents handle missing/invalid config
-- **Use feature flags for gradual rollout** — Toggle features without redeployment
