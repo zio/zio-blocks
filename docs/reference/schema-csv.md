@@ -43,13 +43,13 @@ Rather than writing custom parsers or relying on string-based configuration, you
 
 Add the module to your `build.sbt`:
 
-```scala mdoc:compile-only
+```sbt
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
 For Scala.js, use `%%%` instead of `%%`:
 
-```scala mdoc:compile-only
+```sbt
 libraryDependencies += "dev.zio" %%% "zio-blocks-schema-csv" % "@VERSION@"
 ```
 
