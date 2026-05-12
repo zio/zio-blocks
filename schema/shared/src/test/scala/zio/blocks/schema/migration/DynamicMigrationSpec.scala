@@ -1170,7 +1170,10 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
 
         assertTrue(
-          migration(input).left.exists(_.message.contains("must return exactly one value, got 2"))
+          migration(input).left.exists(error =>
+            error.message.contains("must return exactly one value, got 2") &&
+              error.message.contains(".value")
+          )
         )
       },
       test("empty migration is identity") {
@@ -1565,7 +1568,12 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration     = DynamicMigration.single(
           MigrationAction.TransformField(root.field("x"), selectMissing)
         )
-        assertTrue(migration(input).isLeft)
+        assertTrue(
+          migration(input).left.exists(error =>
+            error.message.contains("Expression evaluation returned no values") &&
+              error.message.contains(".x")
+          )
+        )
       }
     ),
     suite("MigrationAction.reverse additional")(

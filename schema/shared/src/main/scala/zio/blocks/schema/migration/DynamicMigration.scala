@@ -145,7 +145,7 @@ private[migration] object ActionExecutor {
   def execute(action: MigrationAction, value: DynamicValue): Either[SchemaError, DynamicValue] =
     action match {
       case a @ AddField(at, default) =>
-        evalExpr(default, value).flatMap { defaultValue =>
+        evalExpr(default, value, at).flatMap { defaultValue =>
           a.fieldName match {
             case Some(fieldName) => executeAddField(at, fieldName, defaultValue, value)
             case None            => Left(SchemaError.transformFailed(at, "AddField path must end with a Field node"))
@@ -165,7 +165,7 @@ private[migration] object ActionExecutor {
         executeTransformField(at, transform, value)
 
       case MandateField(at, default) =>
-        evalExpr(default, value).flatMap { defaultValue =>
+        evalExpr(default, value, at).flatMap { defaultValue =>
           executeMandate(at, defaultValue, value)
         }
 
@@ -204,7 +204,8 @@ private[migration] object ActionExecutor {
    */
   private def evalExpr(
     expr: DynamicSchemaExpr,
-    input: DynamicValue
+    input: DynamicValue,
+    at: zio.blocks.schema.DynamicOptic
   ): Either[SchemaError, DynamicValue] =
     expr.eval(input).flatMap { results =>
       results match {
@@ -212,14 +213,14 @@ private[migration] object ActionExecutor {
         case Seq()      =>
           Left(
             SchemaError.transformFailed(
-              zio.blocks.schema.DynamicOptic.root,
+              at,
               s"Expression evaluation returned no values"
             )
           )
         case _ =>
           Left(
             SchemaError.transformFailed(
-              zio.blocks.schema.DynamicOptic.root,
+              at,
               s"Expression evaluation must return exactly one value, got ${results.size}"
             )
           )
@@ -302,7 +303,7 @@ private[migration] object ActionExecutor {
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) { currentValue =>
-      evalExpr(transform, currentValue)
+      evalExpr(transform, currentValue, at)
     }
 
   private def executeChangeFieldType(
@@ -311,7 +312,7 @@ private[migration] object ActionExecutor {
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) { currentValue =>
-      evalExpr(converter, currentValue)
+      evalExpr(converter, currentValue, at)
     }
 
   // ==================== Collection/Map Action Execution ====================
@@ -325,7 +326,7 @@ private[migration] object ActionExecutor {
       case DynamicValue.Sequence(elements) =>
         val transformed = elements.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
           case (Right(acc), element) =>
-            evalExpr(transform, element).map(acc :+ _)
+            evalExpr(transform, element, at).map(acc :+ _)
           case (left, _) =>
             left
         }
@@ -344,7 +345,7 @@ private[migration] object ActionExecutor {
         val transformed =
           entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
             case (Right(acc), (key, currentValue)) =>
-              evalExpr(transform, key).map(newKey => acc :+ (newKey -> currentValue))
+              evalExpr(transform, key, at).map(newKey => acc :+ (newKey -> currentValue))
             case (left, _) =>
               left
           }
@@ -363,7 +364,7 @@ private[migration] object ActionExecutor {
         val transformed =
           entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
             case (Right(acc), (key, currentValue)) =>
-              evalExpr(transform, currentValue).map(newValue => acc :+ (key -> newValue))
+              evalExpr(transform, currentValue, at).map(newValue => acc :+ (key -> newValue))
             case (left, _) =>
               left
           }

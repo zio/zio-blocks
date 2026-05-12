@@ -346,6 +346,20 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(migration.size == 1 && migration.dynamicMigration == dynamicMigration)
       },
 
+      test("buildPartial is public and skips completeness validation") {
+        case class PersonV1(name: String)
+        case class PersonV2(name: String, age: Int)
+
+        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .buildPartial
+
+        assertTrue(migration.size == 0 && migration(PersonV1("Alice")).isLeft)
+      },
+
       test("Migration.++ composes migrations") {
         case class PersonV1(name: String)
         case class PersonV2(name: String, age: Int)

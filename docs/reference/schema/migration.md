@@ -221,6 +221,7 @@ For example, `transformElements(_.scores, expr)` runs `expr` separately for ever
 
 ```scala
 def build(using ev: MigrationComplete[A, B, Changeset]): Migration[A, B]
+def buildPartial: Migration[A, B]
 ```
 
 `build` runs macro validation. It checks that every field needed to transform `A` into `B` is either:
@@ -230,7 +231,9 @@ def build(using ev: MigrationComplete[A, B, Changeset]): Migration[A, B]
 
 If the migration is incomplete, the code fails to compile.
 
-This validated `build` step is the public completion path for `MigrationBuilder`. If you need unvalidated or dynamically assembled migrations, work at the `DynamicMigration` layer and wrap it with `Migration.fromDynamic`.
+Use `buildPartial` when you intentionally need to inspect or run an incomplete builder without macro completeness validation. It preserves the actions accumulated by the builder, but runtime application may still fail if the resulting dynamic value cannot be decoded by the target schema.
+
+For fully dynamic migrations assembled without the typed builder API, work at the `DynamicMigration` layer and wrap it with `Migration.fromDynamic`.
 
 ## `DynamicMigration`
 
