@@ -32,7 +32,7 @@ final case class RoutePattern[A](
   pathCodec: PathCodec[A],
   doc: Doc = Doc.empty
 ) {
-  def /[B, C](that: PathCodec[B])(using combiner: Tuples.Tuples.WithOut[A, B, C]): RoutePattern[C] =
+  def /[B, C](that: PathCodec[B])(implicit combiner: Tuples.Tuples.WithOut[A, B, C]): RoutePattern[C] =
     if (that == PathCodec.empty) this.asInstanceOf[RoutePattern[C]]
     else if (pathCodec == PathCodec.empty) copy(pathCodec = that.asInstanceOf[PathCodec[C]])
     else copy(pathCodec = pathCodec ++ that)
@@ -83,7 +83,7 @@ object RoutePattern {
 
   def apply(method: Method, path: Path): RoutePattern[Unit] =
     path.segments.foldLeft(fromMethod(method))((acc, segment) =>
-      acc./[Unit, Unit](PathCodec(SegmentCodec.literalValidated(segment)))(using Tuples.Tuples.leftUnit[Unit])
+      acc./[Unit, Unit](PathCodec(SegmentCodec.literalValidated(segment)))(Tuples.Tuples.leftUnit[Unit])
     )
 
   def apply(method: Method, pathString: String): RoutePattern[Unit] =
@@ -98,7 +98,7 @@ object RoutePattern {
   def any(method: Method): RoutePattern[Path] =
     RoutePattern(method, PathCodec.trailing)
 
-  extension (method: Method) {
+  implicit final class MethodSyntax(private val method: Method) extends AnyVal {
     def /[A](path: PathCodec[A]): RoutePattern[A] =
       RoutePattern(method, path)
   }

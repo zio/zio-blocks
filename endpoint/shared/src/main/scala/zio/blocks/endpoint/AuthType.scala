@@ -53,7 +53,7 @@ sealed trait AuthType { self =>
       status
     )
 
-  def |[ClientReq2, ClientReq](that: AuthType { type ClientRequirement = ClientReq2 })(using
+  def |[ClientReq2, ClientReq](that: AuthType { type ClientRequirement = ClientReq2 })(implicit
     alternator: Eithers.Eithers.WithOut[ClientRequirement, ClientReq2, ClientReq]
   ): AuthType { type ClientRequirement = ClientReq } =
     AuthType.Or(

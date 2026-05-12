@@ -52,12 +52,12 @@ object CodecKind {
  * introducing dedicated interpreter-only AST nodes.
  */
 sealed trait HttpCodec[+K <: CodecKind, A] { self =>
-  def ++[B, C](that: HttpCodec[K @uncheckedVariance, B])(using
+  def ++[B, C](that: HttpCodec[K @uncheckedVariance, B])(implicit
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ): HttpCodec[K, C] =
     HttpCodec.Combine(self, that, combiner)
 
-  def |[B, C](that: HttpCodec[K @uncheckedVariance, B])(using
+  def |[B, C](that: HttpCodec[K @uncheckedVariance, B])(implicit
     alternator: Eithers.Eithers.WithOut[A, B, C]
   ): HttpCodec[K, C] =
     HttpCodec.Fallback(self, that, Alternator.fromEithers(alternator))
