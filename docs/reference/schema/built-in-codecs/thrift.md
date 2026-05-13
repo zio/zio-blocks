@@ -110,7 +110,6 @@ This section shows practical patterns for working with Thrift codecs in real-wor
 
 ### Pattern 1: Derive and Encode a Simple Record
 
-For a case class with primitive fields, derive a codec and encode immediately.
 
 To derive a Thrift codec for a record type and encode a value:
 

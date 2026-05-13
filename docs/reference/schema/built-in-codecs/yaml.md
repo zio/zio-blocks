@@ -120,9 +120,7 @@ This section shows practical patterns for working with YAML codecs in real-world
 
 ### Pattern 1: Derive and Encode a Configuration Record
 
-For a case class with primitive fields, derive a codec and encode to YAML string.
-
-To derive a YAML codec for a record type and encode a value:
+To derive and use a YAML codec for a record type:
 
 ```scala
 import zio.blocks.schema._

@@ -116,9 +116,7 @@ This section shows practical patterns for working with MessagePack codecs in rea
 
 ### Pattern 1: Derive and Encode a Simple Record
 
-For a case class with primitive fields, derive a codec and encode immediately.
-
-To derive a MessagePack codec for a record type and encode a value:
+To derive and use a MessagePack codec for a record type:
 
 ```scala
 import zio.blocks.schema._

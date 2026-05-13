@@ -102,9 +102,7 @@ This section shows 4 practical patterns for working with CSV codecs in real-worl
 
 ### Pattern 1: Derive and Use a Simple Codec
 
-For a case class with primitive fields, derive a codec and serialize/deserialize immediately.
-
-To derive a CSV codec for a record type:
+To derive and use a CSV codec for a record type:
 
 ```scala
 import zio.blocks.schema._
