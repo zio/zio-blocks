@@ -77,7 +77,7 @@ const sidebars = {
              },
              {
                type: "category",
-               label: "Built-in Codecs",
+               label: "Built-in Formats and Codecs",
                link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
                collapsed: false,
                items: [
