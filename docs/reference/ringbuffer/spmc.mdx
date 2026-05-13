@@ -57,7 +57,7 @@ The diagram marks stale slots with a dashed border and a "stale" label in grey.
 
 ## Creating Instances
 
-`SpmcRingBuffer[A]` allows a single producer thread to offer elements while multiple consumer threads concurrently take elements via compare-and-swap on the consumer index.
+`SpmcRingBuffer[A]` allows a single producer thread to offer elements while multiple consumer threads concurrently take elements via compare-and-swap on the consumer index. Use the companion object to instantiate a buffer:
 
 ```scala
 object SpmcRingBuffer {
@@ -65,9 +65,7 @@ object SpmcRingBuffer {
 }
 ```
 
-Creates a new SPMC ring buffer with the given capacity. The capacity must be a positive power of two.
-
-We create an SPMC buffer as follows:
+The capacity must be a positive power of two. To create an SPMC buffer:
 
 ```scala mdoc:compile-only
 import zio.blocks.ringbuffer.SpmcRingBuffer
@@ -77,9 +75,11 @@ val rb = SpmcRingBuffer[java.lang.Integer](64)
 
 ## Operations
 
-### Inserting Elements — `offer`
+`SpmcRingBuffer` provides three core operations for sending and receiving elements:
 
-`SpmcRingBuffer#offer` — Insert an element with this signature:
+### Inserting Elements — `SpmcRingBuffer#offer`
+
+Use `SpmcRingBuffer#offer` to insert an element with this signature:
 
 ```scala
 final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -87,11 +87,11 @@ final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts the element without blocking. Returns `true` if inserted, `false` if the buffer is full. Throws `NullPointerException` if the element is `null`. May be called from the single producer thread only; concurrent calls from multiple threads cause undefined behavior.
+Inserts the element without blocking. Returns `true` on successful insertion, `false` when the buffer is full. Raises `NullPointerException` if the element is `null`. Call only from the single producer thread; concurrent calls from multiple threads cause undefined behavior.
 
-### Removing Elements — `take`
+### Removing Elements — `SpmcRingBuffer#take`
 
-`SpmcRingBuffer#take` — Remove an element with this signature:
+Use `SpmcRingBuffer#take` to remove an element with this signature:
 
 ```scala
 final class SpmcRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -103,6 +103,6 @@ Retrieves and removes an element from the front of the buffer. Returns immediate
 
 ### Checking State — `size`, `isEmpty`, `isFull`
 
-Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
+Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may already modify the buffer.
 
 All four implementations provide the same method signatures: `size`, `isEmpty`, and `isFull`. See the [`SpscRingBuffer` Operations](./spsc.mdx#operations) section for detailed descriptions and examples of these methods.
