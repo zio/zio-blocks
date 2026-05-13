@@ -106,7 +106,7 @@ For a case class with primitive fields, derive a codec and serialize/deserialize
 
 To derive a CSV codec for a record type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 import java.nio.CharBuffer
@@ -131,7 +131,7 @@ When you need tab-separated values (TSV) or a different delimiter, pass a custom
 
 To use a tab-separated format instead of comma-separated:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -149,7 +149,7 @@ CSV errors report the exact row and column where parsing or type conversion fail
 
 To handle parsing errors in a user-friendly way:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 import java.nio.CharBuffer
@@ -180,7 +180,7 @@ Access the derived header names and use them to construct CSV output or validate
 
 To get the column headers for a record type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -203,7 +203,7 @@ Abstract codec for encoding and decoding values to and from CSV format. Extends 
 
 Codecs are derived automatically from `Schema[A]` using `CsvFormat`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -220,7 +220,7 @@ val codec: CsvCodec[User] = User.schema.derive(CsvFormat)
 
 To access the CSV column headers derived from a record type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -238,7 +238,7 @@ val headers: IndexedSeq[String] = codec.headerNames
 
 To serialize a value to CSV format in a `CharBuffer`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 import java.nio.CharBuffer
@@ -261,7 +261,7 @@ val csvLine = buffer.toString
 
 To parse CSV data from a `CharBuffer` into a value:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 import java.nio.CharBuffer
@@ -291,7 +291,7 @@ Configuration for CSV parsing and generation, controlling delimiters, quoting, l
 
 The standard RFC 4180 CSV format:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val config: CsvConfig = CsvConfig.default
@@ -300,7 +300,7 @@ val config: CsvConfig = CsvConfig.default
 
 A tab-separated values (TSV) preset with tabs as delimiters:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val tsvConfig: CsvConfig = CsvConfig.tsv
@@ -319,7 +319,7 @@ val tsvConfig: CsvConfig = CsvConfig.tsv
 
 To use a pipe-delimited format:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val customConfig = CsvConfig(
@@ -343,7 +343,7 @@ All CSV errors track row and column information (both 1-based) for precise error
 
 **ParseError** — Occurs when CSV format is invalid:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val parseError = CsvError.ParseError("Unclosed quoted field", row = 2, column = 15)
@@ -351,7 +351,7 @@ val parseError = CsvError.ParseError("Unclosed quoted field", row = 2, column = 
 
 **TypeError** — Occurs when a field cannot be converted to the expected type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val typeError = CsvError.TypeError(
@@ -366,7 +366,7 @@ val typeError = CsvError.TypeError(
 
 Both error types provide detailed context:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val error = CsvError.ParseError("Unexpected character after closing quote", row = 1, column = 10)
@@ -385,7 +385,7 @@ Low-level CSV row parser implementing RFC 4180 with a state machine approach. Pr
 
 To parse one CSV row starting at a given offset in the input:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val input = "Alice,30,alice@example.com\nBob,25,bob@example.com\n"
@@ -407,7 +407,7 @@ result match {
 
 To parse just the first row as column headers:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val input = "name,age,email\nAlice,30,alice@example.com\n"
@@ -421,7 +421,7 @@ val result: Either[CsvError, (IndexedSeq[String], Int)] =
 
 To parse a complete CSV document (header and all data rows):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val csv = "name,age\nAlice,30\nBob,25\n"
@@ -449,7 +449,7 @@ Low-level CSV row serializer implementing RFC 4180 with proper field escaping.
 
 To serialize one row of fields to CSV format:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val fields: IndexedSeq[String] = Vector("Alice", "30", "alice@example.com")
@@ -463,7 +463,7 @@ val csvLine: String = CsvWriter.writeRow(fields, config)
 
 To write a header row (semantically identical to `CsvWriter#writeRow` but communicates intent):
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val columnNames: IndexedSeq[String] = Vector("name", "age", "email")
@@ -477,7 +477,7 @@ val csvHeader: String = CsvWriter.writeHeader(columnNames, config)
 
 To write a complete CSV document with headers and data rows:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.csv._
 
 val header: IndexedSeq[String] = Vector("product", "quantity")
@@ -518,7 +518,7 @@ Flat case classes (records with no variant or sequence fields) are fully support
 
 To derive a codec for a simple record:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -546,7 +546,7 @@ Integration point with ZIO Schema's format system. Provides `TextFormat[CsvCodec
 
 To derive a CSV codec using the standard format:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 

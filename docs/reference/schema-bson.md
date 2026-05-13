@@ -105,7 +105,7 @@ For a case class with primitive fields, derive a codec and encode immediately.
 
 To derive a BSON codec for a record type and encode a value:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 import org.bson.BsonDocument
@@ -127,7 +127,7 @@ When decoding BSON, errors include location traces showing where the problem occ
 
 To decode a BSON document and handle errors with location information:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 import org.bson.{BsonDocument, BsonString, BsonInt32}
@@ -159,7 +159,7 @@ Sum types (sealed traits with variants) can be encoded in different ways. Config
 
 To configure how variants are encoded in BSON documents:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 
@@ -183,7 +183,7 @@ ObjectId fields can be encoded using BSON's native ObjectId type for compatibili
 
 To enable native BSON ObjectId encoding:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 import zio.blocks.schema.bson.ObjectIdSupport._
@@ -211,7 +211,7 @@ Main codec type for encoding and decoding values to and from BSON format. Contai
 
 To access the encoder and decoder from a codec:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 
@@ -230,7 +230,7 @@ val decoder = codec.decoder
 
 Use the encoder to convert values to BsonValue:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 
@@ -249,7 +249,7 @@ val bsonValue = codec.encoder.toBsonValue(product)
 
 Use the decoder to convert BsonValue back to values:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 import org.bson.BsonValue
@@ -280,7 +280,7 @@ Trait for encoding Scala values to BSON format. Provides methods for writing to 
 
 To encode a value to BsonValue:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 trait BsonEncoder[A] {
@@ -294,7 +294,7 @@ trait BsonEncoder[A] {
 
 Transform the input before encoding using contramap:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 case class WrappedInt(value: Int)
@@ -317,7 +317,7 @@ Trait for decoding BSON values to Scala types. Provides error handling with prec
 
 To decode a BsonValue:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 import org.bson.BsonValue
 
@@ -331,7 +331,7 @@ trait BsonDecoder[A] {
 
 Errors provide location information for debugging:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 case class BsonError(message: String, trace: List[BsonTrace])
@@ -354,7 +354,7 @@ Configuration and derivation system for creating `BsonCodec[A]` instances from `
 
 The `Config` class controls codec behavior:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 val defaultConfig = BsonSchemaCodec.Config
@@ -369,7 +369,7 @@ val customConfig = defaultConfig
 
 Choose how variants are encoded in BSON documents:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 // Wrapper with class name field (default)
@@ -386,7 +386,7 @@ val none = BsonSchemaCodec.SumTypeHandling.NoDiscriminator
 
 To create a codec from a schema:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 
@@ -414,7 +414,7 @@ Error location information for BSON decoding errors. Shows the path to the error
 
 The two types of trace elements:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 sealed trait BsonTrace
@@ -427,7 +427,7 @@ case class Array(idx: Int) extends BsonTrace      // Array index
 
 Convert a trace list to a human-readable path:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema.bson._
 
 val trace = List(
@@ -453,7 +453,7 @@ Special support for `org.bson.types.ObjectId` with automatic detection for nativ
 
 To use ObjectId in your schema, import ObjectIdSupport:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.bson.ObjectIdSupport._
 import org.bson.types.ObjectId

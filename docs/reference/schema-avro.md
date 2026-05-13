@@ -115,7 +115,7 @@ For a case class with primitive fields, derive a codec and encode immediately.
 
 To derive an Avro codec for a record type and encode a value:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -136,7 +136,7 @@ When decoding Avro data, errors include location traces showing where the proble
 
 To decode bytes and handle errors with location information:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -164,7 +164,7 @@ Access the derived Avro schema to verify compatibility or document the serializa
 
 To inspect the Avro schema for a type:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -185,7 +185,7 @@ Recursive types (types that reference themselves) are fully supported with autom
 
 To define and encode a recursive data structure:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -216,7 +216,7 @@ Main codec type for encoding and decoding values to and from Avro binary format.
 
 To get the derived Avro schema from a codec:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -234,7 +234,7 @@ val avroSchema = codec.avroSchema
 
 Use the codec to convert values to byte arrays:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -253,7 +253,7 @@ val bytes = codec.encode(product)
 
 Write encoded values directly to an output stream:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 import java.io.ByteArrayOutputStream
@@ -275,7 +275,7 @@ val bytes = output.toByteArray
 
 Use the codec to convert byte arrays back to values:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -295,7 +295,7 @@ val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 
 Read and decode values from an input stream:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 import java.io.ByteArrayInputStream
@@ -325,7 +325,7 @@ Configuration and derivation system for creating `AvroCodec[A]` instances from `
 
 To create a codec from a schema:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -352,7 +352,7 @@ Case classes (records) are fully supported. Each field becomes a named field in 
 
 To derive a codec for a record:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -371,7 +371,7 @@ Sealed traits and sum types are encoded as Avro union types.
 
 To derive a codec for a sealed trait:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -396,7 +396,7 @@ Integration point with ZIO Schema's format system. Provides `BinaryFormat[AvroCo
 
 To derive an Avro codec using the standard format:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -421,7 +421,7 @@ Avro decoding errors include location traces showing the path through nested str
 
 Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
