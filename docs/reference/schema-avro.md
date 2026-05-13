@@ -9,7 +9,7 @@ The module integrates with Apache Avro to provide native binary serialization wi
 
 ## Motivation
 
-Avro is a powerful serialization format widely used in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+Avro is a powerful serialization format prevalent in distributed systems, messaging platforms, and data pipelines. Manually writing Avro encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-avro` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full Avro type support (records, unions, arrays, maps, nested structures)
 - Automatic Avro schema generation from Scala types
 - Configurable sum type handling (union fields with discriminators)
@@ -160,7 +160,7 @@ result match {
 
 ### Pattern 3: Inspect the Generated Avro Schema
 
-Access the generated Avro schema to verify compatibility or document the serialization format.
+Access the derived Avro schema to verify compatibility or document the serialization format.
 
 To inspect the Avro schema for a type:
 
@@ -214,7 +214,7 @@ Main codec type for encoding and decoding values to and from Avro binary format.
 
 ### Accessing the Avro Schema
 
-To get the generated Avro schema from a codec:
+To get the derived Avro schema from a codec:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
