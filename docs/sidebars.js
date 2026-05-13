@@ -146,13 +146,13 @@ const sidebars = {
           {
             type: "category",
             label: "ZIO Blocks RingBuffer",
-            link: { type: "doc", id: "ringbuffer" },
+            link: { type: "doc", id: "reference/ringbuffer/index" },
             items: [
-              "ringbuffer-spsc",
-              "ringbuffer-spmc",
-              "ringbuffer-mpsc",
-              "ringbuffer-mpmc",
-              "ringbuffer-advanced",
+              "reference/ringbuffer/spsc",
+              "reference/ringbuffer/spmc",
+              "reference/ringbuffer/mpsc",
+              "reference/ringbuffer/mpmc",
+              "reference/ringbuffer/advanced",
             ]
           },
           "reference/html",
