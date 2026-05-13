@@ -70,17 +70,25 @@ const sidebars = {
                          "reference/schema/json-schema",
                        ]
                      },
-                     "reference/schema/xml",
-                     "reference/schema/csv",
-                     "reference/schema/bson",
-                     "reference/schema/avro",
-                     "reference/schema/messagepack",
-                     "reference/schema/thrift",
-                     "reference/schema/yaml",
-                     "reference/schema/toon",
                    ]
                  },
                  "reference/schema/lazy",
+               ]
+             },
+             {
+               type: "category",
+               label: "Built-in Codecs",
+               link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
+               collapsed: false,
+               items: [
+                 "reference/schema/built-in-codecs/avro",
+                 "reference/schema/built-in-codecs/bson",
+                 "reference/schema/built-in-codecs/csv",
+                 "reference/schema/built-in-codecs/messagepack",
+                 "reference/schema/built-in-codecs/thrift",
+                 "reference/schema/built-in-codecs/toon",
+                 "reference/schema/built-in-codecs/xml",
+                 "reference/schema/built-in-codecs/yaml",
                ]
              },
              {

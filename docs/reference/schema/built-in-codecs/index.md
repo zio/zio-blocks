@@ -1,7 +1,7 @@
 ---
-id: formats
-title: "Serialization Formats"
-sidebar_label: "Formats"
+id: index
+title: "Built-in Codecs"
+sidebar_label: "Built-in Codecs"
 ---
 
 ZIO Blocks Schema provides automatic codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for any supported format using the unified `Schema.derive(Format)` pattern.
@@ -24,7 +24,7 @@ trait Format {
 
 It unifies all metadata related to serialization formats, such as MIME type and codec deriver, in a single place. This allows for a consistent API across different formats when deriving codecs from schemas. Having MIME type information helps with runtime content negotiation and format routing, for example in HTTP servers or message queues.
 
-That is, you can easily call [`Schema[A].derive(format)`](./type-class-derivation.md#using-the-deriver-to-derive-type-class-instances) for any format that implements the `Format` trait, and receive a codec that can encode and decode values of type `A` according to the rules of that format.
+That is, you can easily call [`Schema[A].derive(format)`](../type-class-derivation.md#using-the-deriver-to-derive-type-class-instances) for any format that implements the `Format` trait, and receive a codec that can encode and decode values of type `A` according to the rules of that format.
 
 Formats are categorized into `BinaryFormat` and `TextFormat`, which specify the types of input and output for encoding and decoding:
 
@@ -40,9 +40,9 @@ For example, the `JsonFormat` is a `BinaryFormat` that represents a JSON binary 
 object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
 ```
 
-## Built-in Formats
+## Built-in Codecs
 
-Here's a summary of the formats currently supported by ZIO Blocks. Each format provides a `BinaryFormat` object that can be passed to `derive`:
+Here's a summary of the codecs currently supported by ZIO Blocks. Each codec provides a `BinaryFormat` or `TextFormat` object that can be passed to `derive`:
 
 | Format Object       | Codec Type            | MIME Type             | Module                          |
 |---------------------|-----------------------|-----------------------|---------------------------------|
@@ -74,7 +74,7 @@ abstract class MyCodec[A] extends BinaryCodec[A]
 // object MyFormat extends BinaryFormat[MyCodec]("application/x-myformat", myDeriver)
 ```
 
-For details on implementing a `Deriver`, see [Type-class Derivation](./type-class-derivation.md).
+For details on implementing a `Deriver`, see [Type-class Derivation](../type-class-derivation.md).
 
 ## Codec Derivation System
 
@@ -102,7 +102,7 @@ val result: Either[SchemaError, Person] = codec.decode(bytes)
 
 ## JSON Format
 
-JSON format is the most commonly used text-based serialization format. See the dedicated [JSON documentation](json.md) for comprehensive coverage of the `Json` ADT, navigation, and transformation features.
+JSON format is the most commonly used text-based serialization format. See the dedicated [JSON documentation](../json.md) for comprehensive coverage of the `Json` ADT, navigation, and transformation features.
 
 ### Installation
 

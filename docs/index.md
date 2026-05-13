@@ -606,15 +606,15 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [JsonPatch](./reference/schema/json-patch.md) - Diff and patch JSON values
 - [JsonDiffer](./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
 - [JSON Schema](./reference/schema/json-schema.md) - JSON Schema generation and validation
-- [XML](./reference/schema/xml.md) - Zero-dependency XML serialization with fluent navigation and patching
-- [CSV Codec](./reference/schema/csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
-- [BSON Codec](./reference/schema/bson.md) - MongoDB-compatible BSON serialization with native type support
-- [Avro Codec](./reference/schema/avro.md) - Apache Avro binary serialization with automatic schema generation
-- [MessagePack Codec](./reference/schema/messagepack.md) - Compact binary serialization with optimized streaming
-- [Thrift Codec](./reference/schema/thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
-- [YAML Codec](./reference/schema/yaml.md) - Human-readable YAML serialization with JSON interop
-- [TOON Codec](./reference/schema/toon.md) - Compact token-oriented notation 30-60% smaller than JSON, optimized for LLM prompts
-- [Formats](./reference/schema/formats.md) - TOON, Thrift
+- [XML Codec](./reference/schema/built-in-codecs/xml.md) - Zero-dependency XML serialization with fluent navigation and patching
+- [CSV Codec](./reference/schema/built-in-codecs/csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
+- [BSON Codec](./reference/schema/built-in-codecs/bson.md) - MongoDB-compatible BSON serialization with native type support
+- [Avro Codec](./reference/schema/built-in-codecs/avro.md) - Apache Avro binary serialization with automatic schema generation
+- [MessagePack Codec](./reference/schema/built-in-codecs/messagepack.md) - Compact binary serialization with optimized streaming
+- [Thrift Codec](./reference/schema/built-in-codecs/thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
+- [YAML Codec](./reference/schema/built-in-codecs/yaml.md) - Human-readable YAML serialization with JSON interop
+- [TOON Codec](./reference/schema/built-in-codecs/toon.md) - Compact token-oriented notation 30-60% smaller than JSON, optimized for LLM prompts
+- [Built-in Codecs](./reference/schema/built-in-codecs/index.md) - Overview of all supported serialization formats
 - [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
