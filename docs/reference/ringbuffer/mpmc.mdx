@@ -90,7 +90,7 @@ object MpmcRingBuffer {
 
 Creates a new MPMC ring buffer with the given capacity. The capacity must be a power of two >= 2 (the sequence buffer algorithm requires at least 2 slots). A capacity of 1 is valid for `SpscRingBuffer`, `SpmcRingBuffer`, and `MpscRingBuffer`, but `MpmcRingBuffer` needs at least 2 because its sequence stamp mechanism requires a second slot to distinguish the written-but-not-consumed state from the empty state.
 
-We create an MPMC buffer as follows:
+To create an MPMC buffer:
 
 ```scala mdoc:compile-only
 import zio.blocks.ringbuffer.MpmcRingBuffer
@@ -100,9 +100,11 @@ val rb = MpmcRingBuffer[String](128)
 
 ## Operations
 
-### Inserting Elements — `offer`
+`MpmcRingBuffer` provides operations for multiple producers and consumers to exchange elements:
 
-`MpmcRingBuffer#offer` — Insert an element with this signature:
+### Inserting Elements — `MpmcRingBuffer#offer`
+
+Use `MpmcRingBuffer#offer` to insert an element with this signature:
 
 ```scala
 final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -110,11 +112,11 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts the element without blocking. Returns `true` if inserted, `false` if the buffer is full. Throws `NullPointerException` if the element is `null`. Thread-safe; multiple producer threads may call this concurrently.
+Inserts the element without blocking. Returns `true` on successful insertion, `false` when the buffer is full. Raises `NullPointerException` if the element is `null`. Thread-safe; multiple producer threads may call this concurrently.
 
-### Removing Elements — `take`
+### Removing Elements — `MpmcRingBuffer#take`
 
-`MpmcRingBuffer#take` — Remove an element with this signature:
+Use `MpmcRingBuffer#take` to remove an element with this signature:
 
 ```scala
 final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -122,11 +124,11 @@ final class MpmcRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Retrieves and removes an element from the front of the buffer. Returns immediately without blocking. Returns the element, or `null` if the buffer is empty. Thread-safe; multiple consumer threads may call this concurrently.
+Retrieves and removes an element from the front of the buffer. Returns immediately without blocking, providing the element or `null` if the buffer is empty. Thread-safe; multiple consumer threads may call this concurrently.
 
 ### Checking State — `size`, `isEmpty`, `isFull`
 
-Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
+Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may modify the buffer.
 
 All four implementations provide the same method signatures: `size`, `isEmpty`, and `isFull`. See the [`SpscRingBuffer` Operations](./spsc.mdx#operations) section for detailed descriptions and examples of these methods.
 
