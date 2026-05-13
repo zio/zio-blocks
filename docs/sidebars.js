@@ -77,6 +77,7 @@ const sidebars = {
                      "reference/schema-messagepack",
                      "reference/schema-thrift",
                      "reference/schema-yaml",
+                     "reference/schema-toon",
                    ]
                  },
                  "reference/schema/lazy",

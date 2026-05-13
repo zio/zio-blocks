@@ -613,6 +613,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [MessagePack Codec](./reference/schema-messagepack.md) - Compact binary serialization with optimized streaming
 - [Thrift Codec](./reference/schema-thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
 - [YAML Codec](./reference/schema-yaml.md) - Human-readable YAML serialization with JSON interop
+- [TOON Codec](./reference/schema-toon.md) - Compact token-oriented notation 30-60% smaller than JSON, optimized for LLM prompts
 - [Formats](./reference/schema/formats.md) - TOON, Thrift
 - [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
