@@ -17,7 +17,7 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.combinators.Tuples
+import zio.blocks.combinators.{Tuples, Unions}
 import zio.blocks.scope.{Resource, Scope}
 import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, unsafeEvidence}
 import zio.blocks.streams.io.Reader
@@ -1665,5 +1665,29 @@ object Stream {
           }
         }
       }
+
+    /**
+     * Emits all elements of `self` followed by all elements of `that`.
+     *
+     * @param that
+     *   the stream whose elements are emitted after `self`
+     * @tparam E2
+     *   the error type of `that`
+     * @tparam A2
+     *   the non-union element type of `that`
+     * @return
+     *   a stream that emits the direct union of both element types and widens
+     *   the error channel to `E | E2`
+     *
+     * The `Unions` evidence enforces at compile time that the resulting element
+     * type is the direct disjoint union `A | A2`, so duplicate alternatives are
+     * rejected. For three or more alternatives, build the union by left-nesting
+     * successive calls, for example `streamAB.choice(streamC)` where
+     * `streamAB: Stream[E, A | B]` and `streamC: Stream[E2, C]`.
+     */
+    def choice[E2, A2](that: Stream[E2, A2])(using
+      Unions.Unions.WithOut[A, A2, A | A2] /* compile-time only: ensures A and A2 are disjoint */
+    ): Stream[E | E2, A | A2] =
+      self.concat(that)
   }
 }
