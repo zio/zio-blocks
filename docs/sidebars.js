@@ -74,6 +74,7 @@ const sidebars = {
                      "reference/schema-csv",
                      "reference/schema-bson",
                      "reference/schema-avro",
+                     "reference/schema-messagepack",
                    ]
                  },
                  "reference/schema/lazy",

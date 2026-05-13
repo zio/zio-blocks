@@ -609,7 +609,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [CSV Codec](./reference/schema-csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
 - [BSON Codec](./reference/schema-bson.md) - MongoDB-compatible BSON serialization with native type support
 - [Avro Codec](./reference/schema-avro.md) - Apache Avro binary serialization with automatic schema generation
-- [Formats](./reference/schema/formats.md) - TOON, MessagePack, Thrift
+- [MessagePack Codec](./reference/schema-messagepack.md) - Compact binary serialization with optimized streaming
+- [Formats](./reference/schema/formats.md) - TOON, Thrift
 - [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
