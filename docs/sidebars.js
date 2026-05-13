@@ -213,6 +213,7 @@ const sidebars = {
              "reference/streams/writer",
              "reference/streams/concurrent-operators",
              "reference/streams/zero-boxing",
+             "reference/streams/producer-streams",
            ]
          },
       ]
