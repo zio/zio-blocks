@@ -12,7 +12,7 @@ type AgentDefinition[T] = runtime.autowire.AgentDefinition[T]
 ## Overview
 
 When you decorate a trait with `@agentDefinition`, the macro (available in both Scala 2.13 and Scala 3) generates:
-1. A `AgentDefinition[Trait]` instance describing the agent type
+1. An `AgentDefinition[Trait]` instance describing the agent type
 2. RPC request/response handlers
 3. WIT schema types and value codecs
 4. Agent metadata (name, durability mode, constructor info)
@@ -120,7 +120,7 @@ The `@agentDefinition` annotation supports these additional parameters:
 | `cors` | Array[String] | Array.empty | Allowed CORS origins (e.g., Array("https://example.com")); empty means CORS disabled |
 | `phantomAgent` | Boolean | false | Mark this agent as a phantom agent (pre-provisioned instances) |
 | `webhookSuffix` | String | "" | Append custom suffix to generated webhook URLs |
-| `snapshotting` | String | "disabled" | Snapshot strategy: "disabled", "on-success", or other valid values |
+| `snapshotting` | String | "disabled" | Snapshot strategy: "disabled", "enabled", "periodic(duration)", or "every(count)" |
 
 **Example with multiple parameters:**
 
@@ -133,7 +133,7 @@ import golem.BaseAgent
   mount = "/api/{id}",
   auth = true,
   cors = Array("https://example.com"),
-  snapshotting = "on-success"
+  snapshotting = "enabled"
 )
 trait SecureStatefulAgent extends BaseAgent {
   class Id(val id: String)
@@ -145,7 +145,7 @@ trait SecureStatefulAgent extends BaseAgent {
 - **`cors = Array("https://allowed.com")`** — HTTP responses include CORS headers for specified origins; empty array disables CORS
 - **`phantomAgent = true`** — Agent instances can be pre-provisioned with phantom IDs (UUIDs)
 - **`webhookSuffix`** — Customize webhook URL path (e.g., "v2" produces "/api/{id}/method/v2")
-- **`snapshotting = "on-success"`** — Snapshot strategy: "disabled" (no snapshots), "on-success" (after successful execution), or other configured values
+- **`snapshotting = "enabled"`** — Snapshot strategy: "disabled" (no snapshots), "enabled" (after execution), "periodic(duration)" (at regular intervals), or "every(count)" (every N calls)
 
 ## Method Annotations
 

@@ -21,7 +21,7 @@ object Result {
 Use `Result` when you want to return either a success value or an error. It's fully serializable through Golem's schema system and integrates with the WIT component model.
 
 ```scala
-import golem.Result
+import golem.Result.Result
 import scala.concurrent.Future
 
 def divide(a: Int, b: Int): Result[Double, String] =
@@ -34,7 +34,7 @@ def divide(a: Int, b: Int): Result[Double, String] =
 ### Success (ok)
 
 ```scala
-import golem.Result
+import golem.Result.Result
 
 val success: Result[Int, String] = Result.ok(42)
 val success2: Result[String, Nothing] = Result.ok("Hello")
@@ -43,7 +43,7 @@ val success2: Result[String, Nothing] = Result.ok("Hello")
 ### Failure (err)
 
 ```scala
-import golem.Result
+import golem.Result.Result
 import zio.blocks.schema.Schema
 
 val failure: Result[Nothing, String] = Result.err("Something went wrong")
@@ -58,7 +58,7 @@ val failure2: Result[Int, ApiError] = Result.err(ApiError(500, "Internal error")
 Convert Scala's `Either` to `Result`:
 
 ```scala
-import golem.Result
+import golem.Result.Result
 import scala.util.Try
 
 val either: Either[String, Int] = Right(42)
@@ -73,7 +73,7 @@ val result2: Result[Int, String] = Result.fromEither(either2)
 Convert `Option` to `Result` with a fallback error message:
 
 ```scala
-import golem.Result
+import golem.Result.Result
 
 val option: Option[String] = Some("value")
 val result: Result[String, String] = Result.fromOption(option, "Not found")
@@ -104,7 +104,8 @@ Return `Result` from agent methods to signal success or failure:
 
 ```scala
 import golem.runtime.annotations.agentDefinition
-import golem.{Result, BaseAgent}
+import golem.{BaseAgent}
+import golem.Result.Result
 import scala.concurrent.Future
 
 @agentDefinition

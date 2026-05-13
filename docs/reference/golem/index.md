@@ -12,6 +12,10 @@ The **Golem SDK** is a type-safe Scala library for building agents on the Golem 
 Core types: `BaseAgent`, `AgentDefinition`, `HostApi`, `GolemSchema`, `Transactions`, `Result`, and configuration helpers.
 
 ```scala
+import golem.runtime.annotations.{agentDefinition, agentImplementation}
+import golem.BaseAgent
+import scala.concurrent.Future
+
 // Define an agent interface
 @agentDefinition
 trait Counter extends BaseAgent {

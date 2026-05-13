@@ -156,17 +156,21 @@ HostApi.updateAgent(agentId, targetVersion, updateMode)
 Access MySQL and PostgreSQL databases via the resource API:
 
 ```scala
+import golem.host.Rdbms
+
 // Rdbms provides resource-based access to PostgreSQL and MySQL
-// Example pattern:
-val connection = Rdbms.PostgresConnection.open("postgres://localhost/mydb")
-val result = connection.query("SELECT * FROM table")
-result match {
-  case Right(rows) => // process rows
-  case Left(error) => // handle error
+val pgConnection = Rdbms.Postgres.open("postgres://localhost/mydb")
+val mysqlConnection = Rdbms.Mysql.open("mysql://localhost/mydb")
+
+val result = pgConnection match {
+  case Right(conn) => 
+    conn.query("SELECT * FROM table")
+  case Left(error) => 
+    Left(error)
 }
 ```
 
-The Rdbms API provides resource-based access to PostgreSQL and MySQL databases with synchronous Either-based error handling.
+The Rdbms API provides resource-based access to PostgreSQL and MySQL databases, returning `Either[DbError, Connection]` with synchronous query methods.
 
 ## Key-Value Store
 
@@ -184,16 +188,22 @@ The KeyValue API provides synchronous, resource-based access to persistent stora
 
 ## Blobstore
 
-Store and retrieve large binary objects using the resource API:
+Store and retrieve large binary objects using a container-based API:
 
 ```scala
-// Blobstore provides resource-based access to large binary objects
-val objectStore = Blobstore.ObjectStore.open("my-bucket")
-val objectId: String = objectStore.put(data) // where data is binary
-val retrieved = objectStore.get(objectId) // returns Option[data]
+import golem.wasi.Blobstore
+
+// Blobstore provides container-based access to binary objects
+val container = Blobstore.getContainer("my-container")
+
+// Write data to the container
+container.writeData("my-object", Array[Byte](1, 2, 3))
+
+// Read data from the container
+val retrieved = container.getData("my-object") // returns Option[Array[Byte]]
 ```
 
-The Blobstore API provides synchronous, resource-based access to large binary object storage.
+The Blobstore API provides synchronous, container-based access to large binary object storage with `writeData`/`getData` methods.
 
 ## Oplog Commit
 

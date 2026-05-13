@@ -77,7 +77,8 @@ Process orders atomically with automatic compensation on failure:
 ```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import golem.{BaseAgent, Transactions, Result}
+import golem.{BaseAgent, Transactions}
+import golem.Result.Result
 import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
@@ -235,7 +236,8 @@ class CalculatorImpl() extends Calculator {
     val mathServiceType = AgentClient.agentType[MathService]
     val mathService = AgentClient.connect(mathServiceType, ())
     
-    mathService.flatMap(ms => ms.add(x * 2, y * 3))
+    // AgentClient.connect returns the proxy directly in Scala 3
+    mathService.add(x * 2, y * 3)
   }
 }
 
@@ -261,24 +263,27 @@ import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.wasi.Config
 import golem.config.Secret
 import golem.BaseAgent
+import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
+// Configuration case class
+case class DataServiceConfig(databaseUrl: String, apiKey: Secret[String])
+object DataServiceConfig {
+  implicit val schema: Schema[DataServiceConfig] = Schema.derived
+}
+
 @agentDefinition
-trait DataService extends BaseAgent {
+trait DataService extends BaseAgent with golem.config.AgentConfig[DataServiceConfig] {
   def query(sql: String): Future[String]
 }
 
 @agentImplementation()
 class DataServiceImpl() extends DataService {
+  val config: golem.config.Config[DataServiceConfig] = ???
+  
   override def query(sql: String): Future[String] = {
-    // Get database URL from configuration (synchronous Either-based API)
-    val dbUrl = Config.get("DATABASE_URL") match {
-      case Right(Some(url)) => url
-      case _ => "localhost"  // fallback
-    }
-    
-    // Get API key from secrets (typed config system)
-    val apiKey = ??? // Injected by runtime as Secret[String]
+    val dbUrl = config.databaseUrl
+    val apiKey = config.apiKey.get
     
     Future.successful {
       // Use dbUrl and apiKey to execute query

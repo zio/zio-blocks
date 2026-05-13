@@ -218,14 +218,11 @@ val result: Either[Transactions.TransactionFailure[String], Int] = Transactions.
     Right(())
   })
 
-  val resource = tx.execute(allocateResource, ()) match {
-    case Left(err) => return Left(err)
-    case Right(r) => r
+  tx.execute(allocateResource, ()).flatMap { resource =>
+    // Use resource
+    if (false) Left("Operation failed")
+    else Right(42)
   }
-
-  // Use resource
-  if (false) Left("Operation failed")
-  else Right(42)
 }
 ```
 

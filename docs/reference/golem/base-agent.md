@@ -25,12 +25,14 @@ Every agent in ZIO-Golem implements `BaseAgent`. The trait is parameterless and 
 
 These fields are populated by the Golem host when an agent is instantiated.
 
-**Important:** `BaseAgent` and all agent implementations are **Scala.js-only**. Agents must be compiled to WebAssembly. In `build.sbt`, use `%%%` (Scala.js cross-build) instead of `%%` when adding ZIO-Golem dependencies:
+**Important:** `BaseAgent` and all agent implementations are **Scala.js-only**. Agents must be compiled to WebAssembly. In `build.sbt`, use `%%%` (Scala.js cross-build) for Scala.js artifacts and `%%` (JVM-only) for macro/compiler plugins:
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"     // Scala.js artifact
+libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"     // JVM macro artifact
 ```
+
+The `%%%` operator ensures the dependency works with both Scala 2 and 3 Scala.js targets, while `%%` is used for JVM-only tools like the macro compiler plugin.
 
 ## Defining an Agent
 

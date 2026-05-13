@@ -21,20 +21,30 @@ Configuration allows agents to access external settings without hardcoding them.
 
 ## Declaring Configuration Fields
 
-Agents declare configuration via an annotation:
+Agents declare configuration using a separate configuration type that extends `AgentConfig[T]`:
 
 ```scala
 import golem.runtime.annotations.agentDefinition
-import golem.BaseAgent
+import golem.{BaseAgent, Schema}
+
+case class MyConfig(apiKey: String, timeout: Int)
+
+object MyConfig {
+  implicit val schema: Schema[MyConfig] = Schema.derived
+}
 
 @agentDefinition
-trait ConfiguredAgent extends BaseAgent {
-  def getApiKey(): scala.concurrent.Future[String]
-  def getTimeout(): scala.concurrent.Future[Int]
+trait ConfiguredAgent extends BaseAgent with golem.config.AgentConfig[MyConfig] {
+  val config: golem.config.Config[MyConfig]
+  
+  def getApiKey(): scala.concurrent.Future[String] = 
+    scala.concurrent.Future.successful(config.apiKey)
+  def getTimeout(): scala.concurrent.Future[Int] = 
+    scala.concurrent.Future.successful(config.timeout)
 }
 ```
 
-The Golem runtime injects these values at agent startup.
+The Golem runtime detects configuration via the `AgentConfig[T]` mixin and provides the typed config at runtime.
 
 ## Accessing Config at Runtime
 
@@ -66,9 +76,11 @@ Config.get("DEBUG_MODE") returns Either[ConfigError, Option[String]]
 Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
 ```scala mdoc:compile-only
+import golem.config.Secret
+
 // Secrets are injected by the Golem runtime
 val token: Secret[String] = ??? // Injected at agent startup
-val tokenValue: String = token.get()
+val tokenValue: String = token.get
 ```
 
 Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to access sensitive credentials rather than retrieving them through the general `Config` API.
@@ -129,37 +141,39 @@ Different environments (dev, staging, prod) have different config overrides with
 
 ## Config Schema Introspection
 
-Introspect agent configuration to discover available settings:
-
-```scala
-import golem.config.ConfigIntrospection
-import scala.concurrent.Future
-
-val schema = ConfigIntrospection.getSchema()
-// Inspect available config keys and types
-```
-
-Rarely used directly; mostly for tooling and documentation.
+Configuration schemas are automatically discovered by the Golem macro system from your `AgentConfig[T]` type definition. The `Schema[T]` or `ConfigSchema[T]` derives the available config keys and types, which are used by the Golem CLI and tooling for validation and documentation.
 
 ## Typed Configuration
 
-For type-safe configuration, declare config fields in the agent trait:
+For type-safe configuration, extend `AgentConfig[T]` with a configuration case class:
 
 ```scala
 import golem.runtime.annotations.agentDefinition
-import golem.BaseAgent
+import golem.{BaseAgent, Schema}
+import scala.concurrent.Future
+
+case class DatabaseConfig(
+  databaseUrl: String,
+  timeout: Int,
+  enableCache: Boolean = true
+)
+
+object DatabaseConfig {
+  implicit val schema: Schema[DatabaseConfig] = Schema.derived
+}
 
 @agentDefinition
-trait TypedConfigAgent extends BaseAgent {
-  val databaseUrl: String
-  val timeout: Int
-  val enableCache: Boolean = true  // With default
+trait TypedConfigAgent extends BaseAgent with golem.config.AgentConfig[DatabaseConfig] {
+  val config: golem.config.Config[DatabaseConfig]
   
-  def connect(): scala.concurrent.Future[String]
+  def connect(): Future[String] = {
+    val cfg = config
+    Future.successful(s"Connecting to ${cfg.databaseUrl}")
+  }
 }
 ```
 
-The Golem runtime injects these fields based on configuration.
+The Golem macro system automatically discovers your `AgentConfig[T]` mixin and provides the loaded configuration at runtime.
 
 ## Error Handling
 
