@@ -470,9 +470,7 @@ All 27 ZIO Schema primitives are supported:
 
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes an indented key-value pair in the TOON output.
-
-To derive a codec for a record:
+Case classes (records) are fully supported. Each field becomes an indented key-value pair in the TOON output:
 
 ```scala
 import zio.blocks.schema._
@@ -489,9 +487,7 @@ val codec = Address.schema.derive(ToonFormat)
 
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as discriminated variants, with customizable discriminator strategies.
-
-To derive a codec for a sealed trait:
+Sealed traits and sum types are encoded as discriminated variants, with customizable discriminator strategies:
 
 ```scala
 import zio.blocks.schema._

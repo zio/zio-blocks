@@ -338,9 +338,7 @@ All 27 ZIO Schema primitives are supported:
 
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes a named key in the MessagePack map encoding.
-
-To derive a codec for a record:
+Case classes (records) are fully supported. Each field becomes a named key in the MessagePack map encoding:
 
 ```scala
 import zio.blocks.schema._
@@ -357,9 +355,7 @@ val codec = Address.schema.derive(MessagePackFormat)
 
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as MessagePack maps with discriminator fields.
-
-To derive a codec for a sealed trait:
+Sealed traits and sum types are encoded as MessagePack maps with discriminator fields:
 
 ```scala
 import zio.blocks.schema._

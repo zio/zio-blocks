@@ -441,9 +441,7 @@ All 27 ZIO Schema primitives are supported:
 
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes a named key in the YAML mapping.
-
-To derive a codec for a record:
+Case classes (records) are fully supported. Each field becomes a named key in the YAML mapping:
 
 ```scala
 import zio.blocks.schema._
@@ -460,9 +458,7 @@ val codec = Address.schema.derive(YamlCodec)
 
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as YAML mappings with discriminator information.
-
-To derive a codec for a sealed trait:
+Sealed traits and sum types are encoded as YAML mappings with discriminator information:
 
 ```scala
 import zio.blocks.schema._

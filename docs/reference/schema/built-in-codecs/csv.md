@@ -512,9 +512,7 @@ All 27 ZIO Schema primitives are supported:
 
 ### Record Type Support
 
-Flat case classes (records with no variant or sequence fields) are fully supported. Each field becomes a CSV column with the field name as the header.
-
-To derive a codec for a simple record:
+Flat case classes (records with no variant or sequence fields) are fully supported. Each field becomes a CSV column with the field name as the header:
 
 ```scala
 import zio.blocks.schema._

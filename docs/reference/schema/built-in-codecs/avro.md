@@ -346,9 +346,7 @@ All 27 ZIO Schema primitives are supported:
 
 ### Record Type Support
 
-Case classes (records) are fully supported. Each field becomes a named field in the Avro record schema.
-
-To derive a codec for a record:
+Case classes (records) are fully supported. Each field becomes a named field in the Avro record schema:
 
 ```scala
 import zio.blocks.schema._
@@ -365,9 +363,7 @@ val codec = Address.schema.derive(AvroFormat)
 
 ### Variant Type Support
 
-Sealed traits and sum types are encoded as Avro union types.
-
-To derive a codec for a sealed trait:
+Sealed traits and sum types are encoded as Avro union types:
 
 ```scala
 import zio.blocks.schema._
