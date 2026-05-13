@@ -1,7 +1,7 @@
 ---
 id: index
-title: "Built-in Codecs"
-sidebar_label: "Built-in Codecs"
+title: "Built-in Formats and Codecs"
+sidebar_label: "Built-in Formats and Codecs"
 ---
 
 ZIO Blocks Schema provides automatic codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for any supported format using the unified `Schema.derive(Format)` pattern.
