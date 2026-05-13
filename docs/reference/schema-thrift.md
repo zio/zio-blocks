@@ -9,7 +9,7 @@ The module integrates with Apache Thrift to provide native binary serialization 
 
 ## Motivation
 
-Thrift is a compact binary serialization format widely used in distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+Thrift is a compact binary serialization format that appears widely across distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full Thrift type support (all primitives, records, unions, arrays, maps)
 - Automatic schema generation from Scala types
 - Optimized encoding with minimal overhead using TBinaryProtocol
