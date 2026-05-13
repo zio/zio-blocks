@@ -880,6 +880,65 @@ val combined = first ++ second
 val result = combined.runCollect
 ```
 
+### Union Concatenation with `choice` (Scala 3 only)
+
+> `choice` is Scala 3 only because Scala 2's `|` alias maps to `Either`, which would produce wrapped `Either` values in the stream rather than direct union-typed elements. This semantic mismatch makes a cross-version `choice` impractical.
+
+`choice[E2, A2]` emits all elements of the first stream, then all elements of the second stream, just like `++` / `concat`. The difference is that `choice` requires the resulting element type to remain a **direct disjoint union** `A | A2`.
+
+```scala
+trait Stream[+E, +A] {
+  def choice[E2, A2](that: Stream[E2, A2])(using Unions.Unions.WithOut[A, A2, A | A2]): Stream[E | E2, A | A2]
+}
+```
+
+Use `choice` when you want sequential concatenation with a compile-time guarantee that duplicate union alternatives are rejected. The right-hand stream must contribute a non-union element type `A2`; if you want three or more alternatives, build them by left-nesting, for example `(Stream.succeed("left").choice(Stream.succeed(1))).choice(Stream.succeed(true))`.
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val left = Stream.succeed("left")
+val right = Stream.succeed(1)
+
+val combined: Stream[Nothing, String | Int] = left.choice(right)
+```
+
+At runtime, `choice` behaves like `concat`: it emits every element from `self`, then every element from `that`.
+
+```scala mdoc
+import zio.blocks.streams.*
+import zio.blocks.chunk.Chunk
+
+val choiceResult = Stream.succeed("left").choice(Stream.succeed(1)).runCollect
+
+assert(choiceResult == Right(Chunk[String | Int]("left", 1)))
+```
+
+The error channel widens in the same way as `++`:
+
+```scala mdoc
+import zio.blocks.streams.*
+
+val left: Stream[String, String] = Stream.fail("boom")
+val right = Stream.succeed(true)
+
+left.choice(right).runCollect
+```
+
+Unlike plain `++`, `choice` rejects overlapping union alternatives at compile time.
+
+```scala mdoc:compile-only
+import zio.blocks.streams.*
+
+val left = Stream.succeed(1)
+val right = Stream.succeed(2)
+
+// Does not compile: the result would collapse to Int instead of a disjoint union.
+// val invalid = left.choice(right)
+```
+
+Use `++` / `concat` when you just want concatenation. Use `choice` when you want concatenation plus a direct-union guarantee enforced by `Unions`, and left-nest calls when adding a third alternative.
+
 ### Zipping
 
 Zips two streams together as tuples (an extension method, not an instance method):

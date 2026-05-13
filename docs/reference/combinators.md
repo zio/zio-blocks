@@ -6,13 +6,14 @@ title: "Combinators"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, Either types, and union types.
+The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, choices, Either types, and union types.
 
 ## Overview
 
-The combinators module consists of three core modules:
+The combinators module consists of four core modules:
 
 - **Tuples** - Tuple composition with automatic flattening and separation
+- **Choices** - Cross-version branch construction and elimination over `|`
 - **Eithers** - Either canonicalization to left-nested form
 - **Unions** - Union type operations (Scala 3 only)
 
@@ -37,7 +38,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 Supported platforms:
-- **Tuples, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
+- **Tuples, Choices, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
 ## Motivation
@@ -278,6 +279,83 @@ original match {
 }
 ```
 
+## Choices
+
+The `Choices` module exposes direct branch construction and elimination over `|` while preserving cross-version source compatibility.
+
+- In **Scala 3**, `|` is the native union type.
+- In **Scala 2.13**, the `combinators` package provides a Scala-2-only alias `type |[A, B] = Either[A, B]`.
+
+This means the same surface syntax can describe alternatives on both Scala versions, while each platform keeps the most natural underlying representation.
+
+> **Note:** On Scala 3, `Choices.left`, `Choices.right`, and `Choices.separate` require an implicit `Unions.WithOut` evidence in scope. On Scala 2, no implicits are needed. The method names and return types are the same across versions, but call sites are not directly portable without adjusting implicit requirements.
+
+### left / right
+
+Use `Choices.left` and `Choices.right` to construct values for either branch of a two-way choice:
+
+```scala mdoc
+import zio.blocks.combinators.Choices
+
+val leftValue: Int | String  = Choices.left[Int, String](42)
+val rightValue: Int | String = Choices.right[Int, String]("zio")
+```
+
+These constructors are especially useful in shared code that wants `A | B` syntax on Scala 3 while staying source-compatible with Scala 2.
+
+On Scala 2.13, also import the alias from the package object:
+
+```scala
+import zio.blocks.combinators.{Choices, |}
+```
+
+### separate
+
+Use `Choices.separate` to eliminate a choice back into `Either[L, R]`:
+
+```scala mdoc
+import zio.blocks.combinators.Choices
+// Scala 2.13: also import zio.blocks.combinators.{Choices, |}
+
+val separateLeftValue: Int | String = Choices.left[Int, String](42)
+val separateRightValue: Int | String = Choices.right[Int, String]("zio")
+
+Choices.separate[Int, String](separateLeftValue)
+Choices.separate[Int, String](separateRightValue)
+```
+
+### Cross-version behavior
+
+`Choices` exists to let shared APIs talk about alternatives with a single surface syntax:
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2.13">
+
+```scala mdoc:compile-only
+import zio.blocks.combinators.Choices
+// Scala 2.13: also import zio.blocks.combinators.{Choices, |}
+
+val value: Int | String = Choices.left[Int, String](42)
+val separated = Choices.separate[Int, String](value)
+// value is represented as Either[Int, String] underneath
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3.x">
+
+```scala mdoc:compile-only
+import zio.blocks.combinators.Choices
+
+val value: Int | String = Choices.left[Int, String](42)
+val separated = Choices.separate[Int, String](value)
+// value is a native Scala 3 union underneath
+```
+
+  </TabItem>
+</Tabs>
+
+Use `Choices` when you want cross-version shared source over `|`. Use `Unions` when you specifically need Scala-3-only conversion between `Either[L, R]` and native union types.
+
 ## Unions (Scala 3 Only)
 
 The `Unions` module converts between Either types and Scala 3 union types.
@@ -474,6 +552,7 @@ For Scala 2.13 codebases, use `Either` directly or `Eithers` canonicalization in
 | **Tuples.separate**            | ✅          | ✅         | Works identically on both     |
 | **Eithers.combine**            | ✅          | ✅         | No differences                |
 | **Eithers.separate**           | ✅          | ✅         | No differences                |
+| **Choices.left/right/separate**| ✅          | ✅         | Scala 2 uses `Either` alias   |
 | **Unions.combine**             | ❌          | ✅         | Requires Scala 3              |
 | **Unions.separate**            | ❌          | ✅         | Requires Scala 3              |
 | **EmptyTuple as identity**     | ❌          | ✅         | Use `Unit` in Scala 2         |
@@ -486,8 +565,9 @@ When adopting Scala 3, no changes are required for existing `Tuples` and `Either
 
 1. **Adopt `EmptyTuple` idiom**: Use `EmptyTuple` instead of `Unit` when combining with `Tuples` in Scala 3 for consistency with modern tuple syntax. Note that `Unit` remains fully supported and valid—`EmptyTuple` is a stylistic enhancement, not a replacement.
 2. **Simplify tuple builders**: Leverage recursive flattening on both sides to remove manual nesting. In Scala 3, `Tuples.combine((1, "a"), (true, 3.14))` automatically flattens to `(1, "a", true, 3.14)`.
-3. **Adopt `Unions`**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
-4. **Gradual adoption**: Use `Either` in some modules and `Unions` in others during migration. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
+3. **Adopt `Choices` in shared code**: Use `Choices.left`, `Choices.right`, and `Choices.separate` when you want a single `|`-based API shape to compile on both Scala 2 and Scala 3.
+4. **Adopt `Unions` in Scala 3-only code**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
+5. **Gradual adoption**: Use `Choices` in cross-version modules and `Unions` in Scala-3-only modules. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
 
 ## See Also
 
