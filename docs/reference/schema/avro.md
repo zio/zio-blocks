@@ -1,5 +1,5 @@
 ---
-id: schema-avro
+id: avro
 title: "Avro Codec Module"
 ---
 

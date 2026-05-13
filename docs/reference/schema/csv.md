@@ -1,5 +1,5 @@
 ---
-id: schema-csv
+id: csv
 title: "CSV Codec Module"
 ---
 

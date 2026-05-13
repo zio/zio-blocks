@@ -1,5 +1,5 @@
 ---
-id: schema-messagepack
+id: messagepack
 title: "MessagePack Codec Module"
 ---
 

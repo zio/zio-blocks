@@ -1,5 +1,5 @@
 ---
-id: schema-thrift
+id: thrift
 title: "Thrift Codec Module"
 ---
 

@@ -1,5 +1,5 @@
 ---
-id: schema-toon
+id: toon
 title: "TOON Codec Module"
 ---
 

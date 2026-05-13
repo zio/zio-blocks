@@ -1,5 +1,5 @@
 ---
-id: schema-bson
+id: bson
 title: "BSON Codec Module"
 ---
 

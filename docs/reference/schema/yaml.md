@@ -1,5 +1,5 @@
 ---
-id: schema-yaml
+id: yaml
 title: "YAML Codec Module"
 ---
 
