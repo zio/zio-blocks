@@ -147,7 +147,21 @@ const sidebars = {
           "reference/html",
           "reference/smithy",
           "reference/datastar",
-          "reference/htmx",
+          {
+            type: "category",
+            label: "HTMX",
+            link: { type: "doc", id: "reference/htmx/index" },
+            items: [
+              "reference/htmx/hx-swap",
+              "reference/htmx/hx-trigger",
+              "reference/htmx/hx-target",
+              "reference/htmx/hx-params",
+              "reference/htmx/hx-url-update",
+              "reference/htmx/hx-encoding",
+              "reference/htmx/hx-sync",
+              "reference/htmx/attribute-values",
+            ]
+          },
           {
             type: "category",
             label: "ZIO Blocks Streams",

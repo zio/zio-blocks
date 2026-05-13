@@ -238,6 +238,7 @@ lazy val root = project
     datastar.js,
     htmx.jvm,
     htmx.js,
+    `zio-blocks-htmx-examples`,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCoreJS,
@@ -631,6 +632,17 @@ lazy val `http-model-examples` = project
     coverageMinimumBranchTotal := 0
   )
   .dependsOn(`http-model`.jvm)
+
+lazy val `zio-blocks-htmx-examples` = project
+  .in(file("zio-blocks-htmx-examples"))
+  .settings(stdSettings("zio-blocks-htmx-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .dependsOn(htmx.jvm, html.jvm)
 
 lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
