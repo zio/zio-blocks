@@ -70,7 +70,7 @@ const sidebars = {
                          "reference/schema/json-schema",
                        ]
                      },
-                     "reference/schema/xml",
+                     "reference/schema-xml",
                      "reference/schema-csv",
                      "reference/schema-bson",
                      "reference/schema-avro",
