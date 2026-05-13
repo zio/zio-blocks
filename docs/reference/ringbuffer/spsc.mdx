@@ -112,9 +112,11 @@ val rb = SpscRingBuffer[String](16)  // capacity must be power of 2
 
 ## Operations
 
-### Inserting Elements — `offer`
+`SpscRingBuffer` provides operations for sending and receiving elements, as well as querying buffer state:
 
-`SpscRingBuffer#offer` — Insert an element with this signature:
+### Inserting Elements — `SpscRingBuffer#offer`
+
+Use `SpscRingBuffer#offer` to insert an element with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -122,9 +124,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts the element without blocking. Returns `true` if inserted, `false` if the buffer is full. Throws `NullPointerException` if the element is `null`. Must be called from the producer thread only.
+Inserts the element without blocking. Returns `true` on successful insertion, `false` when the buffer is full. Raises `NullPointerException` if the element is `null`. Call only from the producer thread.
 
-We can offer elements and check the return value to handle backpressure:
+To handle backpressure by checking if insertion succeeds:
 
 ```scala mdoc:silent:reset
 import zio.blocks.ringbuffer.SpscRingBuffer
@@ -142,9 +144,9 @@ val result4 = rb.offer("d")
 val result5 = rb.offer("e")
 ```
 
-### Removing Elements — `take`
+### Removing Elements — `SpscRingBuffer#take`
 
-`SpscRingBuffer#take` — Remove an element with this signature:
+Use `SpscRingBuffer#take` to remove an element with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -152,9 +154,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Retrieves and removes an element from the front of the buffer. Returns immediately without blocking. Returns the element, or `null` if the buffer is empty. Must be called from the consumer thread only.
+Retrieves and removes an element from the front of the buffer. Returns immediately without blocking, providing the element or `null` if the buffer is empty. Call only from the consumer thread.
 
-We can take elements in FIFO order from our buffer:
+To retrieve elements in FIFO order:
 
 ```scala mdoc
 rb.take()
@@ -166,9 +168,9 @@ rb.take()
 
 ### Checking State — `size`, `isEmpty`, `isFull`
 
-Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
+Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may modify the buffer.
 
-`SpscRingBuffer#size` — Approximate element count with this signature:
+Use `SpscRingBuffer#size` to get the approximate element count with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -178,7 +180,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 
 Returns the approximate number of elements currently in the buffer. Under concurrent access, the result may be stale. O(1).
 
-`SpscRingBuffer#isEmpty` — Check if empty with this signature:
+Use `SpscRingBuffer#isEmpty` to check if the buffer is empty with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -188,7 +190,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 
 Returns `true` if the buffer contains no elements (approximate). O(1).
 
-`SpscRingBuffer#isFull` — Check if full with this signature:
+Use `SpscRingBuffer#isFull` to check if the buffer is at capacity with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -198,7 +200,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 
 Returns `true` if the buffer is at capacity (approximate). O(1).
 
-All four implementations provide the same three methods. We can check state after operations:
+All four implementations provide the same three methods. To check state after operations:
 
 ```scala mdoc:silent:reset
 import zio.blocks.ringbuffer.SpscRingBuffer
@@ -217,9 +219,9 @@ rb2.isEmpty
 rb2.isFull
 ```
 
-### Batch Operations — `drain` and `fill`
+### Batch Operations — `SpscRingBuffer#drain` and `SpscRingBuffer#fill`
 
-`SpscRingBuffer#drain` — Consume up to N elements with this signature:
+Use `SpscRingBuffer#drain` to consume up to N elements with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -227,9 +229,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained. If the callback throws, all elements passed to it up to that point remain consumed and the buffer is in a consistent state.
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Raises `IllegalArgumentException` if `limit` is negative. Call only from the consumer thread. O(n) where n is the number of elements drained. If the callback raises an exception, all elements passed to it up to that point remain consumed and the buffer stays in a consistent state.
 
-`SpscRingBuffer#fill` — Produce up to N elements with this signature:
+Use `SpscRingBuffer#fill` to produce up to N elements with this signature:
 
 ```scala
 final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -237,9 +239,9 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts up to `limit` elements by calling the `supplier` for each new element. Returns the number of elements actually inserted. Throws `IllegalArgumentException` if `limit` is negative. Throws `NullPointerException` if the supplier returns `null`. Must be called from the producer thread only. O(n) where n is the number of elements inserted.
+Inserts up to `limit` elements by calling the `supplier` for each new element. Returns the number of elements actually inserted. Raises `IllegalArgumentException` if `limit` is negative. Raises `NullPointerException` if the supplier returns `null`. Call only from the producer thread. O(n) where n is the number of elements inserted.
 
-Batch operations help amortize synchronization costs. We can drain multiple elements at once:
+Batch operations amortize synchronization costs. To drain multiple elements at once:
 
 ```scala mdoc:silent:reset
 import zio.blocks.ringbuffer.SpscRingBuffer
@@ -253,7 +255,7 @@ val drained = rb3.drain(collected += _, 10)  // drained = 5
 println(s"Drained items: ${collected.mkString(", ")}")
 ```
 
-Fill avoids repeated `offer` calls when producing elements:
+To avoid repeated `offer` calls when producing elements, use fill:
 
 ```scala mdoc:silent:reset
 import zio.blocks.ringbuffer.SpscRingBuffer
