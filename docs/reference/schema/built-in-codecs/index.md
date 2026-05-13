@@ -102,32 +102,7 @@ val result: Either[SchemaError, Person] = codec.decode(bytes)
 
 ## JSON Format
 
-JSON format is the most commonly used text-based serialization format. See the dedicated [JSON documentation](../json.md) for comprehensive coverage of the `Json` ADT, navigation, and transformation features.
-
-### Installation
-
-JSON support is included in the core schema module:
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "<version>"
-```
-
-### Basic Usage
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json._
-
-case class Person(name: String, age: Int)
-
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-}
-
-val person = Person("Alice", 30)
-val bytes: Array[Byte] = person.toJsonBytes
-val decoded: Either[SchemaError, Person] = bytes.fromJson[Person]
-```
+JSON format is the most commonly used text-based serialization format. JSON support is included in the core schema module. See the dedicated [JSON documentation](../json.md) for comprehensive coverage of the `Json` ADT, navigation, and transformation features.
 
 ## Avro Format
 
