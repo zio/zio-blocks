@@ -7,7 +7,7 @@ title: "Result"
 
 `Result[Ok, Err]` is a type alias for `WitResult[Ok, Err]`, providing methods to construct, manipulate, and convert results:
 
-```scala
+```text
 object Result {
   def ok[Ok](value: Ok): Result[Ok, Nothing]
   def err[Err](value: Err): Result[Nothing, Err]
@@ -21,10 +21,10 @@ object Result {
 Use `Result` when you want to return either a success value or an error. It's fully serializable through Golem's schema system and integrates with the WIT component model.
 
 ```scala
-import golem.Result.Result
+import golem.Result
 import scala.concurrent.Future
 
-def divide(a: Int, b: Int): Result[Double, String] =
+def divide(a: Int, b: Int): Result.Result[Double, String] =
   if (b == 0) Result.err("Division by zero")
   else Result.ok(a.toDouble / b)
 ```
@@ -34,23 +34,23 @@ def divide(a: Int, b: Int): Result[Double, String] =
 ### Success (ok)
 
 ```scala
-import golem.Result.Result
+import golem.Result
 
-val success: Result[Int, String] = Result.ok(42)
-val success2: Result[String, Nothing] = Result.ok("Hello")
+val success: Result.Result[Int, String] = Result.ok(42)
+val success2: Result.Result[String, Nothing] = Result.ok("Hello")
 ```
 
 ### Failure (err)
 
 ```scala
-import golem.Result.Result
+import golem.Result
 import zio.blocks.schema.Schema
 
-val failure: Result[Nothing, String] = Result.err("Something went wrong")
+val failure: Result.Result[Nothing, String] = Result.err("Something went wrong")
 
 // Custom error type with schema
 case class ApiError(code: Int, message: String) derives Schema
-val failure2: Result[Int, ApiError] = Result.err(ApiError(500, "Internal error"))
+val failure2: Result.Result[Int, ApiError] = Result.err(ApiError(500, "Internal error"))
 ```
 
 ### From Either
@@ -58,14 +58,14 @@ val failure2: Result[Int, ApiError] = Result.err(ApiError(500, "Internal error")
 Convert Scala's `Either` to `Result`:
 
 ```scala
-import golem.Result.Result
+import golem.Result
 import scala.util.Try
 
 val either: Either[String, Int] = Right(42)
-val result: Result[Int, String] = Result.fromEither(either)
+val result: Result.Result[Int, String] = Result.fromEither(either)
 
 val either2: Either[String, Int] = Left("Error")
-val result2: Result[Int, String] = Result.fromEither(either2)
+val result2: Result.Result[Int, String] = Result.fromEither(either2)
 ```
 
 ### From Option
@@ -73,13 +73,13 @@ val result2: Result[Int, String] = Result.fromEither(either2)
 Convert `Option` to `Result` with a fallback error message:
 
 ```scala
-import golem.Result.Result
+import golem.Result
 
 val option: Option[String] = Some("value")
-val result: Result[String, String] = Result.fromOption(option, "Not found")
+val result: Result.Result[String, String] = Result.fromOption(option, "Not found")
 
 val emptyOption: Option[String] = None
-val result2: Result[String, String] = Result.fromOption(emptyOption, "Not found")
+val result2: Result.Result[String, String] = Result.fromOption(emptyOption, "Not found")
 ```
 
 ## Pattern Matching
@@ -105,20 +105,20 @@ Return `Result` from agent methods to signal success or failure:
 ```scala
 import golem.runtime.annotations.agentDefinition
 import golem.{BaseAgent}
-import golem.Result.Result
+import golem.Result
 import scala.concurrent.Future
 
 @agentDefinition
 trait Calculator extends BaseAgent {
-  def divide(a: Int, b: Int): Future[Result[Double, String]]
-  def sqrt(x: Double): Future[Result[Double, String]]
+  def divide(a: Int, b: Int): Future[Result.Result[Double, String]]
+  def sqrt(x: Double): Future[Result.Result[Double, String]]
 }
 ```
 
 Clients receive the result and can act accordingly:
 
 ```scala
-val calc: Future[Result[Double, String]] = Future.successful(Result.ok(5.0))
+val calc: Future[Result.Result[Double, String]] = Future.successful(Result.ok(5.0))
 
 calc.foreach {
   case r if r == Result.ok(5.0) => println("Result is 5.0")
@@ -135,11 +135,11 @@ import golem.Result
 import zio.blocks.schema.Schema
 
 // String errors
-val strError: Result[Int, String] = Result.err("Not a number")
+val strError: Result.Result[Int, String] = Result.err("Not a number")
 
 // Custom error types
 case class ValidationError(field: String, message: String) derives Schema
-val customError: Result[Int, ValidationError] =
+val customError: Result.Result[Int, ValidationError] =
   Result.err(ValidationError("age", "Must be positive"))
 
 // Enum errors
@@ -148,7 +148,7 @@ enum ApiError derives Schema:
   case Unauthorized
   case InternalError(msg: String)
 
-val enumError: Result[String, ApiError] = Result.err(ApiError.NotFound)
+val enumError: Result.Result[String, ApiError] = Result.err(ApiError.NotFound)
 ```
 
 ## Transforming Results

@@ -27,7 +27,7 @@ These fields are populated by the Golem host when an agent is instantiated.
 
 **Important:** `BaseAgent` and all agent implementations are **Scala.js-only**. Agents must be compiled to WebAssembly. In `build.sbt`, use `%%%` (Scala.js cross-build) for Scala.js artifacts and `%%` (JVM-only) for macro/compiler plugins:
 
-```scala
+```text
 libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"     // Scala.js artifact
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"     // JVM macro artifact
 ```

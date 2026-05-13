@@ -5,8 +5,8 @@ title: "AgentDefinition"
 
 `AgentDefinition[T]` is the compile-time metadata descriptor for an agent type `T`. It encodes the agent's type name, durability mode, constructor, and method signatures. You don't construct `AgentDefinition` directly; the `@agentDefinition` macro generates it automatically.
 
-```scala
-type AgentDefinition[T] = runtime.autowire.AgentDefinition[T]
+```text
+type AgentDefinition[T] = golem.runtime.autowire.AgentDefinition[T]
 ```
 
 ## Overview

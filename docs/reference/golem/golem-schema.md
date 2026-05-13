@@ -5,7 +5,7 @@ title: "GolemSchema"
 
 `GolemSchema[A]` is the type class for encoding and decoding Scala types to Golem's structured value format. It provides the schema description, encoding to `StructuredValue`, and decoding back to Scala types. You don't implement `GolemSchema` directly; it derives automatically from `zio.blocks.schema.Schema[A]`.
 
-```scala
+```text
 trait GolemSchema[A] {
   def schema: StructuredSchema
   def encode(value: A): Either[String, StructuredValue]
@@ -141,6 +141,7 @@ val encoded = schema.encode(Strict(42))
 // Right(StructuredValue(...))
 
 // Decoding can fail (e.g., wrong type in structured value)
+val wrongValue = StructuredValue.String("invalid")
 val badDecoded = schema.decode(wrongValue)
 // Left("Type mismatch: expected Int, got String")
 ```
