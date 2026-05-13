@@ -76,6 +76,7 @@ const sidebars = {
                      "reference/schema-avro",
                      "reference/schema-messagepack",
                      "reference/schema-thrift",
+                     "reference/schema-yaml",
                    ]
                  },
                  "reference/schema/lazy",

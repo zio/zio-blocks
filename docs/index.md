@@ -612,6 +612,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Avro Codec](./reference/schema-avro.md) - Apache Avro binary serialization with automatic schema generation
 - [MessagePack Codec](./reference/schema-messagepack.md) - Compact binary serialization with optimized streaming
 - [Thrift Codec](./reference/schema-thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
+- [YAML Codec](./reference/schema-yaml.md) - Human-readable YAML serialization with JSON interop
 - [Formats](./reference/schema/formats.md) - TOON, Thrift
 - [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
