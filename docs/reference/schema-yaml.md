@@ -9,7 +9,7 @@ The module integrates with a pure-Scala YAML parser and writer to provide human-
 
 ## Motivation
 
-YAML is a human-readable data format widely used in configuration files, Kubernetes manifests, CI/CD pipelines, and data serialization. Manually writing YAML encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-yaml` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+YAML is a human-readable data format that appears widely across configuration files, Kubernetes manifests, CI/CD pipelines, and data serialization. Manually writing YAML encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-yaml` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full YAML type support (mappings, sequences, scalars, null)
 - Automatic schema generation from Scala types
 - Pretty-printed and compact formatting options
