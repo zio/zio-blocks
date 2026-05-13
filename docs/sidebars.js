@@ -143,7 +143,18 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "path-interpolator",
-          "reference/ringbuffer",
+          {
+            type: "category",
+            label: "ZIO Blocks RingBuffer",
+            link: { type: "doc", id: "ringbuffer" },
+            items: [
+              "ringbuffer-spsc",
+              "ringbuffer-spmc",
+              "ringbuffer-mpsc",
+              "ringbuffer-mpmc",
+              "ringbuffer-advanced",
+            ]
+          },
           "reference/html",
           "reference/smithy",
           "reference/datastar",

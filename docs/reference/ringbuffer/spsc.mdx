@@ -1,0 +1,301 @@
+---
+id: ringbuffer-spsc
+title: "SPSC RingBuffer"
+---
+
+import SpscDiagram from '../SpscDiagram.jsx';
+
+`SpscRingBuffer[A]` is optimized for the simplest and fastest case: exactly one producer thread and one consumer thread. It uses the **FastFlow** algorithm to eliminate all cross-core cache traffic, achieving nanosecond-scale latencies with no volatile reads on the fast path.
+
+## Why FastFlow?
+
+Understanding the FastFlow algorithm helps explain why `SpscRingBuffer` achieves such high performance.
+
+Imagine two threads sharing data with a traditional lock-based queue like `ArrayBlockingQueue`. They use a mutex (lock) to coordinate:
+
+1. Producer thread: acquires lock, adds element, releases lock
+2. Consumer thread: acquires lock, removes element, releases lock
+
+This works, but locks have a cost: when threads contend for the same lock, one thread **blocks** (goes to sleep) while waiting. Waking a thread is expensive (thousands of CPU cycles). Even lock-free queues using `synchronized` or `volatile` reads can cause **cache-coherency traffic**: when one CPU core writes to a variable another core reads, the entire cache line must be invalidated and transferred — a costly operation that slows down both cores.
+
+The fundamental issue: **if the producer has to read what the consumer wrote (or vice versa), their CPU caches constantly fight**. This is called *false sharing* and can reduce throughput by 10x or more on heavily loaded systems.
+
+The problem is that *any* read by the producer of the consumer's state (or vice versa) causes cache line bouncing. So FastFlow's radical idea: **neither side should ever read the other's state**.
+
+Instead, the producer simply **writes data into slots** and marks them non-null. The consumer independently **reads slots** and takes any non-null values. The array slot's null/non-null status itself is the only coordination needed — a *happens-before* relationship written once by the producer, read once by the consumer. No locks, no atomic operations on the fast path, no reading the other side's counters.
+
+The **note-passing analogy**:
+- You (producer) have a row of empty desks between you and your friend (consumer)
+- Empty desk = `null` (available)
+- Note on desk = non-null value (message ready)
+- **You never look at your friend's side** — you just place notes on empty desks
+- **Your friend never looks at your side** — they just pick up notes they see
+- No shouting "are you ready?", no waiting, no lock contention
+
+**This is how FastFlow solves the cache-coherency problem**: since producer and consumer never read each other's counters, there's no cache line bouncing between CPU cores. All coordination happens through the slots themselves, which are written once and read once.
+
+The **look-ahead cache** is a further optimization: the producer maintains a local cached limit (`producerLimit`) so they don't have to check every slot individually. It's like glancing ahead at the next N desks to see if they're empty, without actually bending over to look. This keeps the fast path extremely fast — just a local counter check and an array write.
+
+**Why FastFlow is fast**:
+- **No locks** — no thread ever blocks another
+- **Minimal cache coordination** — producer and consumer touch separate memory locations; the array slot is written once, read once
+- **Write-once, read-once semantics** — the slot's null/non-null status is the handshake
+- **Cache-line padding** — producer and consumer indices padded to separate cache lines, eliminating false sharing
+
+The result: **lock-free** communication that scales linearly with CPU count and achieves nanosecond-scale latencies. This is why FastFlow is the algorithm of choice for SPSC ring buffers in high-performance systems like trading platforms, game engines, and network stacks. (The slow path's retry on full buffers means the algorithm is not wait-free, though contention is rare.)
+
+## Algorithm
+
+`SpscRingBuffer` uses the **FastFlow** pattern, originally developed for the C++ FastFlow framework and popularized in Java by JCTools and the LMAX Disruptor. The core insight: the array element's `null`/non-`null` state **is** the synchronization signal. The producer never reads `consumerIndex`; the consumer never reads `producerIndex`. This eliminates all cross-core cache traffic between the two sides.
+
+**How it works:**
+
+- The producer walks forward through the array, placing elements into slots that are currently `null`. It marks a slot non-`null` after writing. The producer never reads what the consumer has consumed — it only checks its own cached `producerLimit` to know how many slots are available.
+- The consumer walks forward through the array, reading any slot that contains a non-`null` value. After reading, it writes `null` to clear the slot. The consumer never reads the producer's index.
+- The slot's nullness itself is the coordination: written once by the producer, read once by the consumer. No locks, no atomic operations on the fast path, no reading the other side's counters.
+
+**Look-ahead cache:** The producer maintains a local `producerLimit` (derived from `consumerIndex` during slow path). This allows the fast path to check a simple local counter instead of reading the volatile `consumerIndex` on every `offer`. The look-ahead step is `max(1, min(capacity/4, 4096))`, balancing between reducing consumer reads and memory usage.
+
+### Diagram
+
+To see the single-producer single-consumer FastFlow algorithm in action, use this interactive stepper. Type any label, click **Offer** to enqueue or **Take** to dequeue, and watch how the producer and consumer coordinate using only release/acquire semantics — no CAS on either side.
+
+<SpscDiagram />
+
+Here is a complete walkthrough of every variable in the trace, in the order the algorithm computes them.
+
+### `pIdx` — the monotonic producer counter (plain load/store)
+
+The producer reads `pIdx` with a plain load — no atomic operations at all. Since only one thread produces, no synchronization is needed. The producer maintains its own count, never reads `consumerIndex`, and advances `pIdx` after writing with a release store.
+
+### `cIdx` — the monotonic consumer counter
+
+SPSC avoids reading `consumerIndex` entirely. Instead of checking the occupancy formula (`pIdx - cIdx`), the producer reads the array slot at `producerIndex + lookAheadStep` to determine if a slot is free (on the slow path when the look-ahead cache is exhausted). This slot-based approach eliminates all counter reads between producer and consumer.
+
+### `size = pIdx − cIdx` — the occupancy check
+
+Both sides use the same occupancy formula, but only during slow paths (rare). On the fast path, neither side reads the other's counter; they rely on slot nullness (FastFlow) for synchronization.
+
+### `slot = pIdx & mask` or `slot = cIdx & mask` — the circular array index
+
+Identical bitmask arithmetic: `& mask` replaces modulo, giving a slot in `[0, capacity)`.
+
+### `element = buf[slot]` — no CAS, plain slot reads
+
+Unlike SPMC and MPMC, the consumer reads the slot directly with an acquire load — because there's only one consumer, no read-before-CAS is needed. The consumer is the sole owner of the take path. After reading, the consumer nulls the slot with a release store, which serves two purposes: (1) signals to the producer that the slot is free, and (2) releases any bookkeeping updates to other cores via the release semantics.
+
+### Why SPSC doesn't read producer state
+
+The consumer never reads `pIdx`. Instead, it reads the slot directly: if the slot is non-null, data is ready. If null, the buffer is empty. The producer wrote a non-null value via a release store, and the consumer reads via an acquire load, forming a happens-before pair. This is the core of FastFlow: **eliminate cross-core reads entirely**.
+
+The diagram marks slots as "live" (still owned by the producer-consumer pair) or "stale" (consumed but not yet overwritten). Unlike SPMC where consumers CAS and have ordering concerns, SPSC clears immediately because only one consumer exists — there's no race.
+
+## Creating Instances
+
+Ring buffers are instantiated via the companion object's `apply` method. `SpscRingBuffer[A]` uses the FastFlow pattern with a look-ahead cache. On the fast path, the producer checks a cached `producerLimit` to avoid reading `consumerIndex`. When the cached limit is exhausted, the slow path reads the array slot at `producerIndex + lookAheadStep` — never `consumerIndex` directly. This keeps the producer and consumer cache lines fully independent. The consumer uses null/non-null slot reads (FastFlow semantics). Together, these avoid repeated volatile reads and minimize cross-core cache traffic.
+
+```scala
+object SpscRingBuffer {
+  def apply[A <: AnyRef](capacity: Int): SpscRingBuffer[A]
+}
+```
+
+Creates a new SPSC ring buffer with the given capacity. The capacity must be a positive power of two.
+
+We create an SPSC buffer as follows:
+
+```scala mdoc:compile-only
+import zio.blocks.ringbuffer.SpscRingBuffer
+
+val rb = SpscRingBuffer[String](16)  // capacity must be power of 2
+```
+
+## Operations
+
+### Inserting Elements — `offer`
+
+`SpscRingBuffer#offer` — Insert an element with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def offer(a: A): Boolean
+}
+```
+
+Inserts the element without blocking. Returns `true` if inserted, `false` if the buffer is full. Throws `NullPointerException` if the element is `null`. Must be called from the producer thread only.
+
+We can offer elements and check the return value to handle backpressure:
+
+```scala mdoc:silent:reset
+import zio.blocks.ringbuffer.SpscRingBuffer
+
+val rb = SpscRingBuffer[String](4)
+```
+
+When the buffer becomes full, `offer` returns `false`:
+
+```scala mdoc
+val result1 = rb.offer("a")
+val result2 = rb.offer("b")
+val result3 = rb.offer("c")
+val result4 = rb.offer("d")
+val result5 = rb.offer("e")
+```
+
+### Removing Elements — `take`
+
+`SpscRingBuffer#take` — Remove an element with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def take(): A
+}
+```
+
+Retrieves and removes an element from the front of the buffer. Returns immediately without blocking. Returns the element, or `null` if the buffer is empty. Must be called from the consumer thread only.
+
+We can take elements in FIFO order from our buffer:
+
+```scala mdoc
+rb.take()
+rb.take()
+rb.take()
+rb.take()
+rb.take()
+```
+
+### Checking State — `size`, `isEmpty`, `isFull`
+
+Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
+
+`SpscRingBuffer#size` — Approximate element count with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def size: Int
+}
+```
+
+Returns the approximate number of elements currently in the buffer. Under concurrent access, the result may be stale. O(1).
+
+`SpscRingBuffer#isEmpty` — Check if empty with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def isEmpty: Boolean
+}
+```
+
+Returns `true` if the buffer contains no elements (approximate). O(1).
+
+`SpscRingBuffer#isFull` — Check if full with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def isFull: Boolean
+}
+```
+
+Returns `true` if the buffer is at capacity (approximate). O(1).
+
+All four implementations provide the same three methods. We can check state after operations:
+
+```scala mdoc:silent:reset
+import zio.blocks.ringbuffer.SpscRingBuffer
+
+val rb2 = SpscRingBuffer[String](8)
+```
+
+State queries are cheap but approximate under concurrency:
+
+```scala mdoc
+rb2.offer("x")
+rb2.offer("y")
+
+rb2.size
+rb2.isEmpty
+rb2.isFull
+```
+
+### Batch Operations — `drain` and `fill`
+
+`SpscRingBuffer#drain` — Consume up to N elements with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def drain(consumer: A => Unit, limit: Int): Int
+}
+```
+
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained. If the callback throws, all elements passed to it up to that point remain consumed and the buffer is in a consistent state.
+
+`SpscRingBuffer#fill` — Produce up to N elements with this signature:
+
+```scala
+final class SpscRingBuffer[A <: AnyRef](val capacity: Int) {
+  def fill(supplier: () => A, limit: Int): Int
+}
+```
+
+Inserts up to `limit` elements by calling the `supplier` for each new element. Returns the number of elements actually inserted. Throws `IllegalArgumentException` if `limit` is negative. Throws `NullPointerException` if the supplier returns `null`. Must be called from the producer thread only. O(n) where n is the number of elements inserted.
+
+Batch operations help amortize synchronization costs. We can drain multiple elements at once:
+
+```scala mdoc:silent:reset
+import zio.blocks.ringbuffer.SpscRingBuffer
+
+val rb3 = SpscRingBuffer[java.lang.Integer](16)
+(1 to 5).foreach(i => rb3.offer(Integer.valueOf(i)))
+
+val collected = scala.collection.mutable.Buffer[java.lang.Integer]()
+val drained = rb3.drain(collected += _, 10)  // drained = 5
+
+println(s"Drained items: ${collected.mkString(", ")}")
+```
+
+Fill avoids repeated `offer` calls when producing elements:
+
+```scala mdoc:silent:reset
+import zio.blocks.ringbuffer.SpscRingBuffer
+import java.util.concurrent.atomic.AtomicInteger
+
+val rb4 = SpscRingBuffer[String](8)
+val counter = new AtomicInteger(0)
+val filled = rb4.fill(() => { counter.incrementAndGet(); s"item-${counter.get()}" }, 5)
+
+println(s"Filled $filled items")
+```
+
+## Examples
+
+### SPSC: Producer-Consumer Ping-Pong
+
+In a single-producer, single-consumer setup, use `SpscRingBuffer` for maximum throughput. This example demonstrates how two threads communicate efficiently using FastFlow signaling.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("zio-blocks-examples/src/main/scala/ringbuffer/SpscExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/zio-blocks-examples/src/main/scala/ringbuffer/SpscExample.scala))
+
+```bash
+sbt "zio-blocks-examples/runMain ringbuffer.SpscExample"
+```
+
+### Batch Fill and Drain (SPSC)
+
+Use `fill` and `drain` for efficient batch operations. This example shows how to amortize synchronization costs by processing multiple elements at once.
+
+```scala mdoc:passthrough
+import docs.SourceFile
+
+SourceFile.print("zio-blocks-examples/src/main/scala/ringbuffer/BatchExample.scala")
+```
+
+([source](https://github.com/zio/zio-blocks/blob/main/zio-blocks-examples/src/main/scala/ringbuffer/BatchExample.scala))
+
+```bash
+sbt "zio-blocks-examples/runMain ringbuffer.BatchExample"
+```
