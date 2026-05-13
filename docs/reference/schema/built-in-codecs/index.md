@@ -133,14 +133,14 @@ All formats support the full set of ZIO Blocks Schema primitive types:
 
 ## Cross-Platform Support
 
-| Format | JVM | Scala.js |
-|--------|-----|----------|
-| JSON | ✓ | ✓ |
-| TOON | ✓ | ✓ |
-| MessagePack | ✓ | ✓ |
-| Avro | ✓ | ✗ |
-| Thrift | ✓ | ✗ |
-| BSON | ✓ | ✗ |
+| Format      | JVM | Scala.js |
+|-------------|-----|----------|
+| JSON        | ✓   | ✓        |
+| TOON        | ✓   | ✓        |
+| MessagePack | ✓   | ✓        |
+| Avro        | ✓   | ✗        |
+| Thrift      | ✓   | ✗        |
+| BSON        | ✓   | ✗        |
 
 ## Error Handling
 
