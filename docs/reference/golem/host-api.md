@@ -202,11 +202,16 @@ val container = Blobstore.getContainer("my-container")
 // Write data to the container
 container.writeData("my-object", Array[Byte](1, 2, 3))
 
-// Read data from the container
-val retrieved = container.getData("my-object") // returns Option[Array[Byte]]
+// Check if object exists
+val exists = container.hasObject("my-object")
+
+// Read data from the container (requires start and end parameters)
+if (exists) {
+  val data = container.getData("my-object", start = 0, end = 10)
+}
 ```
 
-The Blobstore API provides synchronous, container-based access to large binary object storage with `writeData`/`getData` methods.
+The Blobstore API provides synchronous, container-based access to large binary object storage with `writeData`, `getData(name, start, end)`, and `hasObject` methods.
 
 ## Oplog Commit
 

@@ -38,9 +38,9 @@ trait ConfiguredAgent extends BaseAgent with golem.config.AgentConfig[MyConfig] 
   val config: golem.config.Config[MyConfig]
   
   def getApiKey(): scala.concurrent.Future[String] = 
-    scala.concurrent.Future.successful(config.apiKey)
+    scala.concurrent.Future.successful(config.value.apiKey)
   def getTimeout(): scala.concurrent.Future[Int] = 
-    scala.concurrent.Future.successful(config.timeout)
+    scala.concurrent.Future.successful(config.value.timeout)
 }
 ```
 
@@ -174,7 +174,7 @@ trait TypedConfigAgent extends BaseAgent with golem.config.AgentConfig[DatabaseC
   val config: golem.config.Config[DatabaseConfig]
   
   def connect(): Future[String] = {
-    val cfg = config
+    val cfg = config.value
     Future.successful(s"Connecting to ${cfg.databaseUrl}")
   }
 }

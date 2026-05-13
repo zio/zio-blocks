@@ -282,8 +282,9 @@ class DataServiceImpl() extends DataService {
   val config: golem.config.Config[DataServiceConfig] = ???
   
   override def query(sql: String): Future[String] = {
-    val dbUrl = config.databaseUrl
-    val apiKey = config.apiKey.get
+    val cfg = config.value
+    val dbUrl = cfg.databaseUrl
+    val apiKey = cfg.apiKey.get
     
     Future.successful {
       // Use dbUrl and apiKey to execute query
@@ -377,5 +378,6 @@ One agent calling another:
 ```scala
 val remoteType = golem.runtime.rpc.AgentClient.agentType[RemoteAgent]
 val remote = golem.runtime.rpc.AgentClient.connect(remoteType, constructorArgs)
-remote.flatMap(_.someMethod())
+// In Scala 3, connect returns the proxy directly
+remote.someMethod()
 ```
