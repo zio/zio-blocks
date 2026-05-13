@@ -37,42 +37,42 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   auth: Auth,
   doc: Doc
 ) {
-  def in[I2, I3](codec: HttpCodec[CodecKind.Request, I2])(using
+  def in[I2, I3](codec: HttpCodec[CodecKind.Request, I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ codec)
 
-  def in[I2, I3](schema: Schema[I2])(using
+  def in[I2, I3](schema: Schema[I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ HttpCodec.requestBody(schema))
 
-  def in[I2, I3](schema: Schema[I2], doc: Doc)(using
+  def in[I2, I3](schema: Schema[I2], doc: Doc)(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ HttpCodec.requestBody(schema, doc = doc))
 
-  def in[I2, I3](mediaType: MediaType, schema: Schema[I2])(using
+  def in[I2, I3](mediaType: MediaType, schema: Schema[I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ HttpCodec.requestBody(schema, zio.blocks.chunk.Chunk.single(mediaType)))
 
-  def in[I2, I3](mediaType: MediaType, schema: Schema[I2], doc: Doc)(using
+  def in[I2, I3](mediaType: MediaType, schema: Schema[I2], doc: Doc)(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ HttpCodec.requestBody(schema, zio.blocks.chunk.Chunk.single(mediaType), doc = doc))
 
-  def query[I2, I3](codec: HttpCodec.Query[I2])(using
+  def query[I2, I3](codec: HttpCodec.Query[I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ codec)
 
-  def header[I2, I3](codec: HttpCodec.Header[CodecKind.Request, I2])(using
+  def header[I2, I3](codec: HttpCodec.Header[CodecKind.Request, I2])(implicit
     combiner: Tuples.Tuples.WithOut[Input, I2, I3]
   ): Endpoint[PathInput, I3, Err, Output, Auth] =
     copy(input = input ++ codec)
 
-  def header[A, I2](name: String, schema: Schema[A])(using
+  def header[A, I2](name: String, schema: Schema[A])(implicit
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     header(HttpCodec.requestHeader(name, schema))
@@ -80,49 +80,49 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   /**
    * Adds a typed request header using a [[zio.http.Header.Codec]].
    */
-  def header[A, I2](headerCodec: Header.Codec[A])(using
+  def header[A, I2](headerCodec: Header.Codec[A])(implicit
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     header(HttpCodec.requestHeader(headerCodec))
 
-  def header[A, I2](name: String, schema: Schema[A], doc: Doc)(using
+  def header[A, I2](name: String, schema: Schema[A], doc: Doc)(implicit
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     header(HttpCodec.requestHeader(name, schema, doc = doc))
 
-  def out[O2, O3](codec: HttpCodec[CodecKind.Response, O2])(using
+  def out[O2, O3](codec: HttpCodec[CodecKind.Response, O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = codec | output)
 
-  def out[O2, O3](schema: Schema[O2])(using
+  def out[O2, O3](schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = (HttpCodec.responseBody(schema) ++ HttpCodec.Ok) | output)
 
-  def out[O2, O3](schema: Schema[O2], doc: Doc)(using
+  def out[O2, O3](schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = (HttpCodec.responseBody(schema, doc = doc) ++ HttpCodec.Ok) | output)
 
-  def out[O2, O3](status: Status, schema: Schema[O2])(using
+  def out[O2, O3](status: Status, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = (HttpCodec.responseBody(schema) ++ HttpCodec.status(status)) | output)
 
-  def out[O2, O3](mediaType: MediaType, schema: Schema[O2])(using
+  def out[O2, O3](mediaType: MediaType, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output =
       (HttpCodec.responseBody(schema, mediaTypes = zio.blocks.chunk.Chunk.single(mediaType)) ++ HttpCodec.Ok) | output
     )
 
-  def out[O2, O3](status: Status, schema: Schema[O2], doc: Doc)(using
+  def out[O2, O3](status: Status, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = (HttpCodec.responseBody(schema, doc = doc) ++ HttpCodec.status(status, doc)) | output)
 
-  def out[O2, O3](mediaType: MediaType, schema: Schema[O2], doc: Doc)(using
+  def out[O2, O3](mediaType: MediaType, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(
@@ -133,7 +133,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
       ) ++ HttpCodec.Ok) | output
     )
 
-  def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2])(using
+  def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(
@@ -143,7 +143,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
         )) | output
     )
 
-  def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2], doc: Doc)(using
+  def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(
@@ -152,27 +152,27 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
           .status(status, doc)) | output
     )
 
-  def outError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(using
+  def outError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(error = codec | error)
 
-  def orOutError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(using
+  def orOutError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(error = builder.add(error, codec))
 
-  def outError[E2, E3](status: Status, schema: Schema[E2])(using
+  def outError[E2, E3](status: Status, schema: Schema[E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(error = (HttpCodec.responseBody(schema, name = Some("error-response")) ++ HttpCodec.status(status)) | error)
 
-  def orOutError[E2, E3](status: Status, schema: Schema[E2])(using
+  def orOutError[E2, E3](status: Status, schema: Schema[E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     orOutError(HttpCodec.responseBody(schema, name = Some("error-response")) ++ HttpCodec.status(status))
 
-  def outError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(using
+  def outError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(error =
@@ -180,14 +180,14 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
         .status(status, doc))) | error
     )
 
-  def orOutError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(using
+  def orOutError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     orOutError(
       HttpCodec.responseBody(schema, name = Some("error-response"), doc = doc) ++ HttpCodec.status(status, doc)
     )
 
-  def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(using
+  def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(
@@ -198,7 +198,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
       ) ++ HttpCodec.status(status))) | error
     )
 
-  def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(using
+  def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     orOutError(
@@ -209,7 +209,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
       ) ++ HttpCodec.status(status)
     )
 
-  def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(using
+  def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(
@@ -221,7 +221,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
       ) ++ HttpCodec.status(status, doc))) | error
     )
 
-  def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(using
+  def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     orOutError(
@@ -233,12 +233,12 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
       ) ++ HttpCodec.status(status, doc)
     )
 
-  def outHeader[O2, O3](codec: HttpCodec.Header[CodecKind.Response, O2])(using
+  def outHeader[O2, O3](codec: HttpCodec.Header[CodecKind.Response, O2])(implicit
     combiner: Tuples.Tuples.WithOut[Output, O2, O3]
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = output ++ codec)
 
-  def outHeader[A, O2](name: String, schema: Schema[A])(using
+  def outHeader[A, O2](name: String, schema: Schema[A])(implicit
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
   ): Endpoint[PathInput, Input, Err, O2, Auth] =
     outHeader(HttpCodec.responseHeader(name, schema))
@@ -246,12 +246,12 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   /**
    * Adds a typed response header using a [[zio.http.Header.Codec]].
    */
-  def outHeader[A, O2](headerCodec: Header.Codec[A])(using
+  def outHeader[A, O2](headerCodec: Header.Codec[A])(implicit
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
   ): Endpoint[PathInput, Input, Err, O2, Auth] =
     outHeader(HttpCodec.responseHeader(headerCodec))
 
-  def outHeader[A, O2](name: String, schema: Schema[A], doc: Doc)(using
+  def outHeader[A, O2](name: String, schema: Schema[A], doc: Doc)(implicit
     combiner: Tuples.Tuples.WithOut[Output, A, O2]
   ): Endpoint[PathInput, Input, Err, O2, Auth] =
     outHeader(HttpCodec.responseHeader(name, schema, doc = doc))
@@ -267,7 +267,7 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   def doc(documentation: Doc): Endpoint[PathInput, Input, Err, Output, Auth] =
     copy(doc = documentation)
 
-  def query[A, I2](name: String, schema: Schema[A])(using
+  def query[A, I2](name: String, schema: Schema[A])(implicit
     combiner: Tuples.Tuples.WithOut[Input, A, I2]
   ): Endpoint[PathInput, I2, Err, Output, Auth] =
     copy(input = input ++ HttpCodec.query(name, schema))

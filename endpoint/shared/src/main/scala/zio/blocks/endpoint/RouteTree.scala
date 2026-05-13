@@ -69,6 +69,7 @@ object RouteTree {
     codec match {
       case PathCodec.Segment(seg)           => Chunk(seg)
       case PathCodec.Concat(left, right, _) => flattenPathCodec(left) ++ flattenPathCodec(right)
+      case PathCodec.Transform(inner, _, _) => flattenPathCodec(inner)
       case PathCodec.Fallback(_, _)         =>
         throw new IllegalStateException("Fallback paths must be expanded before flattening")
     }
