@@ -9,7 +9,7 @@ The module integrates with MessagePack specification to provide compact binary s
 
 ## Motivation
 
-MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It is widely used in distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It appears widely across distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full MessagePack type support (all fixint, fixarray, fixmap, ext types, strings, numbers)
 - Automatic schema generation from Scala types
 - Highly optimized encoding with minimal overhead
