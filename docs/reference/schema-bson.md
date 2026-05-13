@@ -186,6 +186,7 @@ To enable native BSON ObjectId encoding:
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
+import zio.blocks.schema.bson.ObjectIdSupport._
 import org.bson.types.ObjectId
 
 case class Document(id: ObjectId, title: String)
