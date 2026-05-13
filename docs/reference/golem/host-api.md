@@ -7,7 +7,7 @@ title: "HostApi"
 
 `HostApi` provides methods to inspect and control agent execution:
 
-```scala mdoc:compile-only
+```scala
 import golem.HostApi
 
 val currentIndex = HostApi.getOplogIndex()
