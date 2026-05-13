@@ -7,7 +7,7 @@ Agents can declare configuration fields that are injected by the Golem runtime. 
 
 The primary configuration API uses `golem.wasi.Config`, which provides synchronous access to configuration values:
 
-```scala mdoc:compile-only
+```
 // Configuration API (golem.wasi.Config)
 def get(key: String): Either[ConfigError, Option[String]]
 
@@ -50,9 +50,9 @@ The Golem runtime detects configuration via the `AgentConfig[T]` mixin and provi
 
 Use the `Config` API to access configuration synchronously:
 
-```scala mdoc:compile-only
+```scala
 import golem.wasi.Config
-// ConfigError type represents configuration access failures
+type ConfigError = String
 
 val apiKey: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 
@@ -64,18 +64,15 @@ apiKey match {
 ```
 
 **`get(key)`** — Returns `Either[ConfigError, Option[String]]`:
-```scala mdoc:compile-only
-Config.get("DEBUG_MODE") returns Either[ConfigError, Option[String]]
-// Returns Right(Some(value)) if configured
-// Returns Right(None) if not set
-// Returns Left(error) on configuration access failure
-```
+- Returns `Right(Some(value))` if configured
+- Returns `Right(None)` if not set
+- Returns `Left(error)` on configuration access failure
 
 ## Secrets
 
 Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
-```scala mdoc:compile-only
+```scala
 import golem.config.Secret
 
 // Secrets are injected by the Golem runtime
@@ -89,7 +86,11 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 
 ### Database Connection String
 
-```scala mdoc:compile-only
+```scala
+import golem.wasi.Config
+import scala.concurrent.Future
+type ConfigError = String
+
 // In an agent implementation:
 val dbUrl = Config.get("DATABASE_URL")
 dbUrl match {
@@ -106,6 +107,9 @@ dbUrl match {
 ### Feature Flags
 
 ```scala
+import golem.wasi.Config
+type ConfigError = String
+
 val enableCache: Either[ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
 val isEnabled = enableCache match {
   case Right(Some("true")) => true
@@ -116,6 +120,9 @@ val isEnabled = enableCache match {
 ### Timeout Configuration
 
 ```scala
+import golem.wasi.Config
+type ConfigError = String
+
 val timeoutMs: Either[ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
 val timeout = timeoutMs match {
   case Right(Some(ms)) => ms.toInt
@@ -181,6 +188,7 @@ Configuration access can fail:
 
 ```scala
 import golem.wasi.Config
+type ConfigError = String
 
 val result: Either[ConfigError, Option[String]] = Config.get("API_KEY")
 ```
