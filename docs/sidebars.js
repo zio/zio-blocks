@@ -55,13 +55,13 @@ const sidebars = {
                  {
                    type: "category",
                    label: "Formats",
-                   link: { type: "doc", id: "reference/schema/formats" },
+                   link: { type: "doc", id: "reference/schema/format" },
                    collapsed: false,
                    items: [
                      {
                        type: "category",
                        label: "Json Format",
-                       link: { type: "doc", id: "reference/schema/formats" },
+                       link: { type: "doc", id: "reference/schema/json" },
                        collapsed: false,
                        items: [
                          "reference/schema/json",
