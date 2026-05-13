@@ -57,7 +57,7 @@ object MpscRingBuffer {
 
 Creates a new MPSC ring buffer with the given capacity. The capacity must be a positive power of two.
 
-We create an MPSC buffer as follows:
+To create an MPSC buffer:
 
 ```scala mdoc:compile-only
 import zio.blocks.ringbuffer.MpscRingBuffer
@@ -67,9 +67,11 @@ val rb = MpscRingBuffer[java.lang.Long](32)
 
 ## Operations
 
-### Inserting Elements — `offer`
+`MpscRingBuffer` supports inserting elements from multiple producers, removing from a single consumer, and batch operations:
 
-`MpscRingBuffer#offer` — Insert an element with this signature:
+### Inserting Elements — `MpscRingBuffer#offer`
+
+Use `MpscRingBuffer#offer` to insert an element with this signature:
 
 ```scala
 final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -77,11 +79,11 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Inserts the element without blocking. Returns `true` if inserted, `false` if the buffer is full. Throws `NullPointerException` if the element is `null`. Thread-safe; multiple producer threads may call this concurrently.
+Inserts the element without blocking. Returns `true` on successful insertion, `false` when the buffer is full. Raises `NullPointerException` if the element is `null`. Thread-safe; multiple producer threads may call this concurrently.
 
-### Removing Elements — `take`
+### Removing Elements — `MpscRingBuffer#take`
 
-`MpscRingBuffer#take` — Remove an element with this signature:
+Use `MpscRingBuffer#take` to remove an element with this signature:
 
 ```scala
 final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -89,17 +91,17 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Retrieves and removes an element from the front of the buffer. Returns immediately without blocking. Returns the element, or `null` if the buffer is empty. Must be called from the single consumer thread only.
+Retrieves and removes an element from the front of the buffer. Returns immediately without blocking, providing the element or `null` if the buffer is empty. Call only from the single consumer thread.
 
 ### Checking State — `size`, `isEmpty`, `isFull`
 
-Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may have modified the buffer.
+Ring buffers provide three query methods to check their state. Note that under concurrent access, these results are **approximate** — by the time the method returns, other threads may modify the buffer.
 
 All four implementations provide the same method signatures: `size`, `isEmpty`, and `isFull`. See the [`SpscRingBuffer` Operations](./spsc.mdx#operations) section for detailed descriptions and examples of these methods.
 
-### Batch Operations — `drain`
+### Batch Operations — `MpscRingBuffer#drain`
 
-`MpscRingBuffer#drain` — Consume up to N elements with this signature:
+Use `MpscRingBuffer#drain` to consume up to N elements with this signature:
 
 ```scala
 final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
@@ -107,7 +109,7 @@ final class MpscRingBuffer[A <: AnyRef](val capacity: Int) {
 }
 ```
 
-Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Throws `IllegalArgumentException` if `limit` is negative. Must be called from the consumer thread only. O(n) where n is the number of elements drained.
+Removes up to `limit` elements from the buffer, passing each to the `consumer` callback. Returns the number of elements actually drained. Raises `IllegalArgumentException` if `limit` is negative. Call only from the consumer thread. O(n) where n is the number of elements drained.
 
 **Note**: Uses relaxed poll semantics and stops at the first `null` slot, which may indicate either an empty buffer or a producer that has claimed a slot but has not yet written its element (mid-write). In the mid-write case, fewer than `limit` elements are returned even though more elements will become available shortly. If the callback throws, all elements passed to it up to that point remain consumed and the buffer is in a consistent state.
 
