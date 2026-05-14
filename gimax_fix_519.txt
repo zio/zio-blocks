@@ -1,0 +1,191 @@
+```scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicValue
+import zio.schema.Schema
+import zio.schema.DynamicValue
+import zio.Chunk
+import zio.prelude._
+
+/**
+ * A pure, serializable migration from schema version A to schema version B.
+ * The migration is represented as an algebraic data type that can be introspected
+ * and used for code generation, DDL generation, etc.
+ */
+sealed trait DynamicMigration { self =>
+  import DynamicMigration._
+
+  /** Apply this migration to a DynamicValue, returning either a new DynamicValue or an error. */
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = self match {
+    case Identity() => Right(value)
+    case AddField(path, default) => addField(value, path, default)
+    case RemoveField(path) => removeField(value, path)
+    case RenameField(path, newName) => renameField(value, path, newName)
+    case TransformField(path, transform) => transformField(value, path, transform)
+    case ReorderFields(paths) => reorderFields(value, paths)
+    case Compose(first, second) => first(value).flatMap(second(_))
+    case Alternative(first, second) => first(value).orElse(second(value))
+    case Lift(f) => f(value)
+  }
+
+  /** Compose this migration with another (this then that). */
+  def andThen(that: DynamicMigration): DynamicMigration = Compose(self, that)
+
+  /** Compose this migration with another (that then this). */
+  def compose(that: DynamicMigration): DynamicMigration = Compose(that, self)
+
+  /** Try this migration first, fall back to another on failure. */
+  def orElse(that: DynamicMigration): DynamicMigration = Alternative(self, that)
+}
+
+object DynamicMigration {
+  /** Identity migration - no transformation. */
+  case class Identity() extends DynamicMigration
+
+  /** Add a field with a default value at the given path. */
+  case class AddField(path: FieldPath, default: DynamicValue) extends DynamicMigration
+
+  /** Remove a field at the given path. */
+  case class RemoveField(path: FieldPath) extends DynamicMigration
+
+  /** Rename a field from old name to new name at the given path. */
+  case class RenameField(path: FieldPath, newName: String) extends DynamicMigration
+
+  /** Transform a field using a function (must be serializable in practice). */
+  case class TransformField(path: FieldPath, transform: DynamicValue => Either[MigrationError, DynamicValue]) extends DynamicMigration
+
+  /** Reorder fields to match a new schema order. */
+  case class ReorderFields(paths: List[FieldPath]) extends DynamicMigration
+
+  /** Sequential composition of two migrations. */
+  case class Compose(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration
+
+  /** Alternative: try first, if fails try second. */
+  case class Alternative(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration
+
+  /** Lift a pure function into a migration (for custom transformations). */
+  case class Lift(f: DynamicValue => Either[MigrationError, DynamicValue]) extends DynamicMigration
+
+  /** A path to a field in a nested record structure. */
+  case class FieldPath(segments: List[String]) {
+    def /(name: String): FieldPath = FieldPath(segments :+ name)
+    def isEmpty: Boolean = segments.isEmpty
+  }
+
+  object FieldPath {
+    val empty: FieldPath = FieldPath(Nil)
+    def apply(name: String): FieldPath = FieldPath(List(name))
+  }
+
+  /** Error type for migration failures. */
+  sealed trait MigrationError extends Exception {
+    def message: String
+    override def getMessage: String = message
+  }
+
+  object MigrationError {
+    case class FieldNotFound(path: FieldPath, available: Set[String]) extends MigrationError {
+      val message: String = s"Field '${path.segments.mkString(".")}' not found. Available fields: ${available.mkString(", ")}"
+    }
+    case class TypeMismatch(expected: String, actual: String) extends MigrationError {
+      val message: String = s"Type mismatch: expected $expected but got $actual"
+    }
+    case class TransformationFailed(path: FieldPath, reason: String) extends MigrationError {
+      val message: String = s"Transformation failed at '${path.segments.mkString(".")}': $reason"
+    }
+    case class GeneralError(message: String) extends MigrationError
+  }
+
+  // Internal helper implementations
+  private def addField(value: DynamicValue, path: FieldPath, default: DynamicValue): Either[MigrationError, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.headOption.getOrElse(return Right(value))
+        if (fields.contains(fieldName)) {
+          Right(value) // field already exists
+        } else {
+          val updatedFields = fields + (fieldName -> default)
+          Right(DynamicValue.Record(updatedFields))
+        }
+      case other => Left(MigrationError.TypeMismatch("Record", other.getClass.getSimpleName))
+    }
+  }
+
+  private def removeField(value: DynamicValue, path: FieldPath): Either[MigrationError, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.headOption.getOrElse(return Right(value))
+        if (fields.contains(fieldName)) {
+          Right(DynamicValue.Record(fields - fieldName))
+        } else {
+          Left(MigrationError.FieldNotFound(path, fields.keySet))
+        }
+      case other => Left(MigrationError.TypeMismatch("Record", other.getClass.getSimpleName))
+    }
+  }
+
+  private def renameField(value: DynamicValue, path: FieldPath, newName: String): Either[MigrationError, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val oldName = path.segments.headOption.getOrElse(return Right(value))
+        fields.get(oldName) match {
+          case Some(fieldValue) =>
+            val updatedFields = fields - oldName + (newName -> fieldValue)
+            Right(DynamicValue.Record(updatedFields))
+          case None => Left(MigrationError.FieldNotFound(path, fields.keySet))
+        }
+      case other => Left(MigrationError.TypeMismatch("Record", other.getClass.getSimpleName))
+    }
+  }
+
+  private def transformField(value: DynamicValue, path: FieldPath, transform: DynamicValue => Either[MigrationError, DynamicValue]): Either[MigrationError, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.headOption.getOrElse(return Right(value))
+        fields.get(fieldName) match {
+          case Some(fieldValue) =>
+            transform(fieldValue).map(newValue => DynamicValue.Record(fields + (fieldName -> newValue)))
+          case None => Left(MigrationError.FieldNotFound(path, fields.keySet))
+        }
+      case other => Left(MigrationError.TypeMismatch("Record", other.getClass.getSimpleName))
+    }
+  }
+
+  private def reorderFields(value: DynamicValue, paths: List[FieldPath]): Either[MigrationError, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val orderedKeys = paths.flatMap(_.segments)
+        val existingKeys = fields.keySet
+        if (orderedKeys.toSet == existingKeys) {
+          val orderedFields = orderedKeys.flatMap(k => fields.get(k).map(v => k -> v))
+          Right(DynamicValue.Record(orderedFields.toMap))
+        } else {
+          Left(MigrationError.GeneralError(s"Field order mismatch: expected $orderedKeys but got $existingKeys"))
+        }
+      case other => Left(MigrationError.TypeMismatch("Record", other.getClass.getSimpleName))
+    }
+  }
+}
+
+/**
+ * Typed migration API that is macro-validated at compile time.
+ * A Migration[A, B] transforms data from schema A to schema B.
+ */
+final case class Migration[A, B](dynamic: DynamicMigration) {
+  /** Apply this migration to a value of type A, producing a value of type B. */
+  def apply(value: A)(implicit schemaA: Schema[A], schemaB: Schema[B]): Either[DynamicMigration.MigrationError, B] = {
+    for {
+      dynamicValue <- Right(DynamicValue.fromSchemaAndValue(schemaA, value))
+      migrated <- dynamic(dynamicValue)
+      result <- DynamicValue.toSchemaAndValue[B](schemaB, migrated).toRight(
+        DynamicMigration.MigrationError.GeneralError("Failed to decode migrated value")
+      )
+    } yield result
+  }
+
+  /** Compose two migrations: this (A -> B) then that (B -> C) => Migration[A, C] */
+  def andThen[C](that: Migration[B, C]): Migration[A, C] = Migration[A, C](dynamic.andThen(that.dynamic))
+
+  /** Compose two migrations: that (C -> A) then this (A -> B) => Migration[C, B] */
+  def compose[C](that:
