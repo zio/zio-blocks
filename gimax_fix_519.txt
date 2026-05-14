@@ -1,0 +1,224 @@
+```scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.Schema
+import zio.blocks.schema.Schema._
+import zio.Chunk
+import scala.annotation.tailrec
+import scala.collection.immutable.ListMap
+
+/**
+ * A pure, serializable migration between two schema versions.
+ * Represents structural transformations as first-class data.
+ */
+sealed trait DynamicMigration extends Product with Serializable {
+  self =>
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  def andThen(next: DynamicMigration): DynamicMigration = DynamicMigration.AndThen(self, next)
+  def compose(prev: DynamicMigration): DynamicMigration = DynamicMigration.AndThen(prev, self)
+}
+
+object DynamicMigration {
+  final case class Identity(schema: Schema[_]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
+  }
+
+  final case class RenameField(path: List[String], oldName: String, newName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      renameField(value, path, oldName, newName)
+  }
+
+  final case class AddField(path: List[String], fieldName: String, default: DynamicValue) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      addField(value, path, fieldName, default)
+  }
+
+  final case class RemoveField(path: List[String], fieldName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      removeField(value, path, fieldName)
+  }
+
+  final case class TransformField(path: List[String], fieldName: String, transform: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      transformField(value, path, fieldName, transform)
+  }
+
+  final case class WrapInSumType(path: List[String], caseName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      wrapInSumType(value, path, caseName)
+  }
+
+  final case class UnwrapSumType(path: List[String], caseName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      unwrapSumType(value, path, caseName)
+  }
+
+  final case class RenameCase(path: List[String], oldName: String, newName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      renameCase(value, path, oldName, newName)
+  }
+
+  final case class AndThen(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      first.apply(value).flatMap(second.apply)
+  }
+
+  // Helper implementations
+  private def renameField(
+    value: DynamicValue,
+    path: List[String],
+    oldName: String,
+    newName: String
+  ): Either[MigrationError, DynamicValue] = value match {
+    case DynamicValue.Record(fields) if path.isEmpty =>
+      fields.get(oldName) match {
+        case Some(fieldValue) =>
+          val newFields = fields - oldName + (newName -> fieldValue)
+          Right(DynamicValue.Record(newFields))
+        case None => Left(MigrationError.FieldNotFound(path, oldName))
+      }
+    case DynamicValue.Record(fields) =>
+      path match {
+        case head :: tail =>
+          fields.get(head) match {
+            case Some(inner) =>
+              renameField(inner, tail, oldName, newName).map { newInner =>
+                DynamicValue.Record(fields + (head -> newInner))
+              }
+            case None => Left(MigrationError.FieldNotFound(Nil, head))
+          }
+        case Nil => // should not happen due to outer check
+          Left(MigrationError.InvalidPath(path))
+      }
+    case other => Left(MigrationError.UnexpectedType(other, "Record"))
+  }
+
+  private def addField(
+    value: DynamicValue,
+    path: List[String],
+    fieldName: String,
+    default: DynamicValue
+  ): Either[MigrationError, DynamicValue] = value match {
+    case DynamicValue.Record(fields) if path.isEmpty =>
+      if (fields.contains(fieldName))
+        Left(MigrationError.FieldAlreadyExists(path, fieldName))
+      else
+        Right(DynamicValue.Record(fields + (fieldName -> default)))
+    case DynamicValue.Record(fields) =>
+      path match {
+        case head :: tail =>
+          fields.get(head) match {
+            case Some(inner) =>
+              addField(inner, tail, fieldName, default).map { newInner =>
+                DynamicValue.Record(fields + (head -> newInner))
+              }
+            case None => Left(MigrationError.FieldNotFound(Nil, head))
+          }
+        case Nil => Left(MigrationError.InvalidPath(path))
+      }
+    case other => Left(MigrationError.UnexpectedType(other, "Record"))
+  }
+
+  private def removeField(
+    value: DynamicValue,
+    path: List[String],
+    fieldName: String
+  ): Either[MigrationError, DynamicValue] = value match {
+    case DynamicValue.Record(fields) if path.isEmpty =>
+      if (fields.contains(fieldName))
+        Right(DynamicValue.Record(fields - fieldName))
+      else
+        Left(MigrationError.FieldNotFound(path, fieldName))
+    case DynamicValue.Record(fields) =>
+      path match {
+        case head :: tail =>
+          fields.get(head) match {
+            case Some(inner) =>
+              removeField(inner, tail, fieldName).map { newInner =>
+                DynamicValue.Record(fields + (head -> newInner))
+              }
+            case None => Left(MigrationError.FieldNotFound(Nil, head))
+          }
+        case Nil => Left(MigrationError.InvalidPath(path))
+      }
+    case other => Left(MigrationError.UnexpectedType(other, "Record"))
+  }
+
+  private def transformField(
+    value: DynamicValue,
+    path: List[String],
+    fieldName: String,
+    transform: DynamicMigration
+  ): Either[MigrationError, DynamicValue] = value match {
+    case DynamicValue.Record(fields) if path.isEmpty =>
+      fields.get(fieldName) match {
+        case Some(fieldValue) =>
+          transform.apply(fieldValue).map { newValue =>
+            DynamicValue.Record(fields + (fieldName -> newValue))
+          }
+        case None => Left(MigrationError.FieldNotFound(path, fieldName))
+      }
+    case DynamicValue.Record(fields) =>
+      path match {
+        case head :: tail =>
+          fields.get(head) match {
+            case Some(inner) =>
+              transformField(inner, tail, fieldName, transform).map { newInner =>
+                DynamicValue.Record(fields + (head -> newInner))
+              }
+            case None => Left(MigrationError.FieldNotFound(Nil, head))
+          }
+        case Nil => Left(MigrationError.InvalidPath(path))
+      }
+    case other => Left(MigrationError.UnexpectedType(other, "Record"))
+  }
+
+  private def wrapInSumType(
+    value: DynamicValue,
+    path: List[String],
+    caseName: String
+  ): Either[MigrationError, DynamicValue] = {
+    @tailrec
+    def go(v: DynamicValue, p: List[String]): Either[MigrationError, DynamicValue] = p match {
+      case Nil => Right(DynamicValue.Enum(caseName, v))
+      case head :: tail =>
+        v match {
+          case DynamicValue.Record(fields) =>
+            fields.get(head) match {
+              case Some(inner) =>
+                go(inner, tail).map { newInner =>
+                  DynamicValue.Record(fields + (head -> newInner))
+                }
+              case None => Left(MigrationError.FieldNotFound(Nil, head))
+            }
+          case other => Left(MigrationError.UnexpectedType(other, "Record"))
+        }
+    }
+    go(value, path)
+  }
+
+  private def unwrapSumType(
+    value: DynamicValue,
+    path: List[String],
+    caseName: String
+  ): Either[MigrationError, DynamicValue] = {
+    @tailrec
+    def go(v: DynamicValue, p: List[String]): Either[MigrationError, DynamicValue] = p match {
+      case Nil =>
+        v match {
+          case DynamicValue.Enum(name, inner) if name == caseName => Right(inner)
+          case DynamicValue.Enum(name, _) => Left(MigrationError.CaseNotFound(Nil, caseName, name))
+          case other => Left(MigrationError.UnexpectedType(other, "Enum"))
+        }
+      case head :: tail =>
+        v match {
+          case DynamicValue.Record(fields) =>
+            fields.get(head) match {
+              case Some(inner) =>
+                go(inner, tail).map { newInner =>
+                  DynamicValue.Record(fields + (head -> newInner))
+                }
+              case None => Left(MigrationError.FieldNotFound(Nil, head))
+            }
