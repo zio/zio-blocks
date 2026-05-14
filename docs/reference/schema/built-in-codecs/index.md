@@ -12,7 +12,7 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Each codec pro
 
 | Format Object       | Codec Type            | MIME Type             | Module                          | Documentation                   |
 |---------------------|-----------------------|-----------------------|---------------------------------|---------------------------------|
-| `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             | [JSON](./json.md)               |
+| `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             | [JSON](./json/index.md)         |
 | `AvroFormat`        | `AvroCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        | [Avro](./avro.md)               |
 | `BsonFormat`        | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        | [BSON](./bson.md)               |
 | `CsvFormat`         | `CsvCodec[A]`         | `text/csv`            | `zio-blocks-schema-csv`         | [CSV](./csv.md)                 |

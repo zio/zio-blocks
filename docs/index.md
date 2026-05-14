@@ -602,10 +602,10 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Serialization
 
 - [Codec & Format](./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](./reference/schema/built-in-codecs/json.md) - JSON codec and parsing
-- [JsonPatch](./reference/schema/built-in-codecs/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](./reference/schema/built-in-codecs/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](./reference/schema/built-in-codecs/json-schema.md) - JSON Schema generation and validation
+- [JSON](./reference/schema/built-in-codecs/json/index.md) - JSON codec and parsing
+- [JsonPatch](./reference/schema/built-in-codecs/json/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](./reference/schema/built-in-codecs/json/json-differ.md) - Compute minimal diffs between JSON values
+- [JSON Schema](./reference/schema/built-in-codecs/json/json-schema.md) - JSON Schema generation and validation
 - [XML Codec](./reference/schema/built-in-codecs/xml.md) - Zero-dependency XML serialization with fluent navigation and patching
 - [CSV Codec](./reference/schema/built-in-codecs/csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
 - [BSON Codec](./reference/schema/built-in-codecs/bson.md) - MongoDB-compatible BSON serialization with native type support
