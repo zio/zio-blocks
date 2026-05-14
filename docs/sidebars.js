@@ -64,7 +64,7 @@ const sidebars = {
                items: [
                  {
                    type: "category",
-                   label: "Json Format",
+                   label: "Json Codec",
                    link: { type: "doc", id: "reference/schema/built-in-codecs/json" },
                    collapsed: false,
                    items: [
