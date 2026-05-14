@@ -931,7 +931,7 @@ import zio.blocks.chunk.Chunk
 
 val choiceResult = Stream.succeed("left").choice(Stream.succeed(1)).runCollect
 
-assert(choiceResult == Right(Chunk[String | Int]("left", 1)))
+assert(choiceResult == Right(Chunk[String | Int]("left", 1))) // Scala 3: raw values
 ```
 
 The error channel widens to accommodate both streams. On Scala 2 this uses subtype widening (`E2 >: E`), while on Scala 3 it produces a union error type (`E | E2`):
@@ -948,7 +948,7 @@ val right = Stream.succeed(true)
 left.choice(right).runCollect
 ```
 
-Unlike plain `++`, `choice` rejects overlapping union alternatives at compile time.
+Unlike plain `++`, `choice` on Scala 3 rejects overlapping union alternatives at compile time (via `Unions` evidence). On Scala 2, this compile-time check is not available.
 
 ```scala mdoc:compile-only
 import zio.blocks.streams.*

@@ -109,8 +109,8 @@ abstract class Stream[+E, +A] {
    * @tparam A2
    *   the element type of `that`
    * @return
-   *   a stream that emits `Left(a)` for each element of `this` and
-   *   `Right(a2)` for each element of `that`, with error type widened to `E2`
+   *   a stream that emits `Left(a)` for each element of `this` and `Right(a2)`
+   *   for each element of `that`, with error type widened to `E2`
    */
   def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
     jtA: JvmType.Infer[A],

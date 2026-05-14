@@ -288,7 +288,7 @@ The `Choices` module exposes direct branch construction and elimination over `|`
 
 This means the same surface syntax can describe alternatives on both Scala versions, while each platform keeps the most natural underlying representation.
 
-> **Note:** `Choices` is fully cross-version. On Scala 3, `Choices.left`, `Choices.right`, and `Choices.separate` require a `using` clause with `Unions.WithOut` evidence. On Scala 2.13, these methods work without any implicit requirements. The method names and return types are identical across versions, making `Choices` suitable for shared code that needs `|` syntax on both platforms.
+> **Note:** `Choices` is fully cross-version. On Scala 3, `Choices.left`, `Choices.right`, and `Choices.separate` automatically summon `Unions.WithOut` evidence via `using`. On Scala 2.13, these methods work without any implicit requirements. Call sites like `Choices.left[Int, String](42)` are identical across versions — no caller-side changes are needed.
 
 ### left / right
 

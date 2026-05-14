@@ -19,7 +19,14 @@ package zio.blocks.combinators
 /**
  * Direct branch construction / elimination over `|`.
  *
- * Scala 3 keeps native union types. Scala 2 can reinterpret the same surface
- * syntax through a version-specific `|` alias.
+ * Scala 3 keeps native union types; `left`, `right`, and `separate` require
+ * compile-time `Unions.WithOut` evidence that enforces disjointness.
+ *
+ * Scala 2 reinterprets `|` as `Either[L, R]`; the same method names work
+ * without implicit evidence, but no compile-time disjointness check is
+ * performed.
+ *
+ * Use `Choices.separate` to normalize elements back to `Either[L, R]` on both
+ * platforms.
  */
 object Choices extends ChoicesPlatformSpecific

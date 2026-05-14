@@ -1669,6 +1669,12 @@ object Stream {
     /**
      * Emits all elements of `self` followed by all elements of `that`.
      *
+     * The `Unions` evidence enforces at compile time that the resulting element
+     * type is the direct disjoint union `A | A2`, so duplicate alternatives are
+     * rejected. For three or more alternatives, build the union by left-nesting
+     * successive calls, for example `streamAB.choice(streamC)` where
+     * `streamAB: Stream[E, A | B]` and `streamC: Stream[E2, C]`.
+     *
      * @param that
      *   the stream whose elements are emitted after `self`
      * @tparam E2
@@ -1678,12 +1684,6 @@ object Stream {
      * @return
      *   a stream that emits the direct union of both element types and widens
      *   the error channel to `E | E2`
-     *
-     * The `Unions` evidence enforces at compile time that the resulting element
-     * type is the direct disjoint union `A | A2`, so duplicate alternatives are
-     * rejected. For three or more alternatives, build the union by left-nesting
-     * successive calls, for example `streamAB.choice(streamC)` where
-     * `streamAB: Stream[E, A | B]` and `streamC: Stream[E2, C]`.
      */
     def choice[E2, A2](that: Stream[E2, A2])(using
       Unions.Unions.WithOut[A, A2, A | A2] /* compile-time only: ensures A and A2 are disjoint */
