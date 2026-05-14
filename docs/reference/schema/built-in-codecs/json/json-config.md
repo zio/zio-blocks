@@ -180,67 +180,13 @@ val result = Json.parse(json, exact)
 
 `MergeStrategy` determines how field conflicts are resolved when merging two JSON objects. It provides strategies for different use cases, from strict validation to lenient concatenation.
 
-### Built-in Strategies
+**Available Strategies:**
+- `Strict` — Fails if the same field appears in both objects
+- `Right` — The right object's values override the left's
+- `Left` — The left object's values take precedence
+- Additional strategies may be available depending on your use case
 
-**Strict Mode (Default):**
-Fails if the same field appears in both objects:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{Json, MergeStrategy}
-
-val left = Json.Object("x" -> Json.Number(1), "y" -> Json.Number(2))
-val right = Json.Object("y" -> Json.Number(20), "z" -> Json.Number(3))
-
-// Strict mode: error because "y" conflicts
-val result = left.merge(right, MergeStrategy.Strict)
-// Left(SchemaError("key 'y' already exists"))
-```
-
-**Lenient Mode (Right Wins):**
-The right object's values override the left's:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{Json, MergeStrategy}
-
-val left = Json.Object("x" -> Json.Number(1), "y" -> Json.Number(2))
-val right = Json.Object("y" -> Json.Number(20), "z" -> Json.Number(3))
-
-// Lenient mode: right wins
-val result = left.merge(right, MergeStrategy.Right)
-// Right({"x": 1, "y": 20, "z": 3})
-```
-
-**Merge Arrays:**
-Combines array values instead of replacing:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{Json, MergeStrategy}
-
-val left = Json.Object("items" -> Json.Array(Json.Number(1), Json.Number(2)))
-val right = Json.Object("items" -> Json.Array(Json.Number(3)))
-
-// Merge arrays
-val result = left.merge(right, MergeStrategy.Concatenate)
-// Right({"items": [1, 2, 3]})
-```
-
-**Recursive Merge:**
-Recursively merges nested objects:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{Json, MergeStrategy}
-
-val left = Json.Object(
-  "config" -> Json.Object("debug" -> Json.Boolean(false), "port" -> Json.Number(8080))
-)
-val right = Json.Object(
-  "config" -> Json.Object("debug" -> Json.Boolean(true))
-)
-
-// Recursive merge
-val result = left.merge(right, MergeStrategy.Recursive)
-// Right({"config": {"debug": true, "port": 8080}})
-```
+For details on merge strategies and their usage, see the Merging section of the [Json](./json.md) documentation.
 
 ## NameMapper
 
@@ -302,28 +248,8 @@ val json = user.toJson
 // {"first-name": "Alice", "last-name": "Smith"}
 ```
 
-**Custom Mapper:**
-Define custom field name transformation:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json.NameMapper
-
-case class User(firstName: String, id: Int)
-object User { 
-  implicit val schema: Schema[User] = Schema.derived
-  implicit val nameMapper: NameMapper = new NameMapper {
-    def map(name: String): String = {
-      // Add prefix to all fields
-      "_" + name
-    }
-  }
-}
-
-val user = User("Alice", 123)
-val json = user.toJson
-// {"_firstName": "Alice", "_id": 123}
-```
+**Custom Mappers:**
+Additional custom name mappers may be available depending on your needs. The built-in mappers (Identity, SnakeCase, KebabCase) cover most common use cases.
 
 ## Combining Configuration
 
