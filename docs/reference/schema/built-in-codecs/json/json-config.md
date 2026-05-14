@@ -15,28 +15,9 @@ The JSON codec module provides four configuration types for controlling encoding
 |--------|------|---------|---------|
 | `indentionStep` | Int | 0 | Spaces per indentation level (0 = compact JSON) |
 | `escapeUnicode` | Boolean | false | Escape non-ASCII characters as `\uXXXX` for ASCII-only output |
-| `sortKeys` | Boolean | false | Alphabetically sort object keys |
-| `nullHandling` | NullHandling | Keep | How to handle null values (Keep, Skip, Null) |
 | `preferredBufSize` | Int | 32768 | Internal buffer size in bytes for streaming |
 
 ### Usage Examples
-
-**Compact Output (Default):**
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json.WriterConfig
-
-case class Product(id: Int, name: String, price: Double)
-object Product { implicit val schema: Schema[Product] = Schema.derived }
-
-val product = Product(1, "Widget", 9.99)
-val json = product.toJson
-
-// Default compact output
-val compact = json.print()
-// {"id":1,"name":"Widget","price":9.99}
-```
 
 **Pretty-Printed Output:**
 
@@ -99,27 +80,6 @@ val ascii = json.print(WriterConfig.withEscapeUnicode(true))
 // {"text":"Hello 世界"}
 ```
 
-**Null Handling:**
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json.{WriterConfig, NullHandling}
-
-case class Data(x: Option[Int], y: Option[String])
-object Data { implicit val schema: Schema[Data] = Schema.derived }
-
-val data = Data(Some(1), None)
-val json = data.toJson
-
-// Skip null fields (smaller output)
-val skipNulls = json.print(WriterConfig.withNullHandling(NullHandling.Skip))
-// {"x":1}
-
-// Explicitly include nulls
-val includeNulls = json.print(WriterConfig.withNullHandling(NullHandling.Keep))
-// {"x":1,"y":null}
-```
-
 ## ReaderConfig
 
 `ReaderConfig` controls how JSON input is parsed and validated during decoding. Use it when calling `Json.parse()` with custom parsing behavior.
@@ -129,9 +89,7 @@ val includeNulls = json.print(WriterConfig.withNullHandling(NullHandling.Keep))
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
 | `checkForEndOfInput` | Boolean | true | Verify no extra input after valid JSON |
-| `maxDepth` | Int | 128 | Maximum nesting depth before error |
 | `preferredCharBufSize` | Int | 8192 | Internal character buffer size |
-| `numberPrecision` | NumberPrecision | Max | Number parsing: Exact, Max, Min |
 
 ### Usage Examples
 
@@ -147,33 +105,6 @@ val lenientConfig = ReaderConfig.withCheckForEndOfInput(false)
 val jsonString = """{"name": "Alice"}   """  // Trailing spaces
 val result = Json.parse(jsonString, lenientConfig)
 // Right(Json.Object(...))
-```
-
-**Deep Nesting Limits:**
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json.{Json, ReaderConfig}
-
-// Restrict nesting depth for security
-val limitedConfig = ReaderConfig.withMaxDepth(10)
-
-val deepJson = """{"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":{"i":{"j":{"k":1}}}}}}}}}}}"""
-val result = Json.parse(deepJson, limitedConfig)
-// Left(SchemaError("nesting depth exceeded"))
-```
-
-**Number Precision Control:**
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json.{Json, ReaderConfig, NumberPrecision}
-
-// Maximum precision (uses BigDecimal internally)
-val exact = ReaderConfig.withNumberPrecision(NumberPrecision.Exact)
-
-val json = """{"pi": 3.14159265358979323846}"""
-val result = Json.parse(json, exact)
 ```
 
 ## MergeStrategy
@@ -278,14 +209,13 @@ val output = json.print(WriterConfig
 ## Performance Implications
 
 - **WriterConfig:** Indentation increases output size but has minimal performance impact
-- **ReaderConfig:** `maxDepth` checks add negligible overhead; `checkForEndOfInput` adds one comparison
-- **MergeStrategy:** Strict is fastest; Recursive requires additional traversals
+- **ReaderConfig:** `checkForEndOfInput` adds one comparison
+- **MergeStrategy:** Strategy choice affects merge performance based on use case
 - **NameMapper:** Applied once per field during schema derivation; zero runtime cost if identity mapping
 
 ## Best Practices
 
 1. **Use WriterConfig for human-readable output only** — Compact output is faster for wire transmission
-2. **Limit maxDepth** for untrusted input to prevent denial-of-service attacks
-3. **Choose MergeStrategy based on use case** — Strict for validation, Lenient for defaults
-4. **Standardize on one NameMapper** across your codebase to avoid confusion
-5. **Cache WriterConfig/ReaderConfig instances** — They're immutable and can be reused
+2. **Choose MergeStrategy based on use case** — Strict for validation, others for defaults
+3. **Standardize on one NameMapper** across your codebase to avoid confusion
+4. **Cache WriterConfig/ReaderConfig instances** — They're immutable and can be reused
