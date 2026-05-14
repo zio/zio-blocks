@@ -1,0 +1,230 @@
+```scala
+// Core migration types for ZIO Schema 2 structural transformations
+
+import zio.schema._
+import zio.schema.DynamicValue
+import zio.schema.Schema
+import zio.schema.StandardType
+import zio.Chunk
+import zio.schema.meta.{Migration, MigrationStep}
+
+/**
+ * Represents a structural transformation between schema versions.
+ * A[Migration[A, B]] describes how to transform data from schema version A to B.
+ * The core is serializable and operates on DynamicValue.
+ */
+sealed trait DynamicMigration extends Product with Serializable {
+  def apply(value: DynamicValue): Either[String, DynamicValue]
+  
+  def andThen[C](that: DynamicMigration): DynamicMigration =
+    DynamicMigration.AndThen(this, that)
+    
+  def compose[C](that: DynamicMigration): DynamicMigration =
+    DynamicMigration.AndThen(that, this)
+}
+
+object DynamicMigration {
+  
+  final case class Identity() extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = Right(value)
+  }
+  
+  final case class AddField(path: List[String], default: DynamicValue) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = value match {
+      case DynamicValue.Record(fields) =>
+        if (fields.exists(_._1 == path.head)) {
+          Left(s"Field ${path.mkString(".")} already exists")
+        } else {
+          Right(DynamicValue.Record(fields :+ (path.head -> default)))
+        }
+      case other => Left(s"Expected Record, got $other")
+    }
+  }
+  
+  final case class RemoveField(path: List[String]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = value match {
+      case DynamicValue.Record(fields) =>
+        val filtered = fields.filterNot(_._1 == path.head)
+        if (filtered.length == fields.length) {
+          Left(s"Field ${path.mkString(".")} not found")
+        } else {
+          Right(DynamicValue.Record(filtered))
+        }
+      case other => Left(s"Expected Record, got $other")
+    }
+  }
+  
+  final case class RenameField(from: List[String], to: List[String]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = value match {
+      case DynamicValue.Record(fields) =>
+        val renamed = fields.map {
+          case (name, v) if name == from.head => (to.head, v)
+          case other => other
+        }
+        if (renamed == fields) {
+          Left(s"Field ${from.mkString(".")} not found")
+        } else {
+          Right(DynamicValue.Record(renamed))
+        }
+      case other => Left(s"Expected Record, got $other")
+    }
+  }
+  
+  final case class TransformField(path: List[String], inner: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = value match {
+      case DynamicValue.Record(fields) =>
+        fields.find(_._1 == path.head) match {
+          case Some((name, fieldValue)) =>
+            inner(fieldValue).map(newValue =>
+              DynamicValue.Record(fields.map {
+                case (n, _) if n == name => (name, newValue)
+                case other => other
+              })
+            )
+          case None => Left(s"Field ${path.mkString(".")} not found")
+        }
+      case other => Left(s"Expected Record, got $other")
+    }
+  }
+  
+  final case class AndThen(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] =
+      first(value).flatMap(second)
+  }
+  
+  final case class MapValues(f: DynamicValue => Either[String, DynamicValue]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] = value match {
+      case DynamicValue.Record(fields) =>
+        val mapped = fields.map { case (k, v) => f(v).map((k, _)) }
+        // Collect errors or build new record
+        val init: Either[String, Chunk[(String, DynamicValue)]] = Right(Chunk.empty)
+        mapped.foldLeft(init) { (acc, next) =>
+          for {
+            accFields <- acc
+            nextField <- next
+          } yield accFields :+ nextField
+        }.map(DynamicValue.Record)
+      case other => Left(s"Expected Record, got $other")
+    }
+  }
+  
+  final case class Sequence(migrations: Chunk[DynamicMigration]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[String, DynamicValue] =
+      migrations.foldLeft[Either[String, DynamicValue]](Right(value)) { (acc, m) =>
+        acc.flatMap(m.apply)
+      }
+  }
+}
+
+/**
+ * Typed, macro-validated migration API.
+ * Migration[A, B] is a type-safe wrapper around DynamicMigration.
+ */
+final case class Migration[A, B](steps: DynamicMigration) {
+  
+  def apply(value: A)(implicit schemaA: Schema[A], schemaB: Schema[B]): Either[String, B] = {
+    val dynamicValue = schemaA.toDynamic(value)
+    steps(dynamicValue).flatMap { dv =>
+      schemaB.fromDynamic(dv) match {
+        case Left(err) => Left(s"Failed to convert to target type: $err")
+        case Right(b) => Right(b)
+      }
+    }
+  }
+  
+  def andThen[C](that: Migration[B, C]): Migration[A, C] =
+    Migration(steps.andThen(that.steps))
+    
+  def compose[Z](that: Migration[Z, A]): Migration[Z, B] =
+    Migration(that.steps.andThen(steps))
+}
+
+object Migration {
+  
+  def identity[A]: Migration[A, A] = Migration(DynamicMigration.Identity())
+  
+  def addField[A, B](name: String, default: DynamicValue): Migration[A, B] =
+    Migration(DynamicMigration.AddField(List(name), default))
+    
+  def removeField[A, B](name: String): Migration[A, B] =
+    Migration(DynamicMigration.RemoveField(List(name)))
+    
+  def renameField[A, B](from: String, to: String): Migration[A, B] =
+    Migration(DynamicMigration.RenameField(List(from), List(to)))
+    
+  def transformField[A, B](name: String, inner: DynamicMigration): Migration[A, B] =
+    Migration(DynamicMigration.TransformField(List(name), inner))
+}
+
+/**
+ * Helper to derive structural types for old schema versions.
+ * In practice, these would be generated by macros.
+ */
+object StructuralType {
+  
+  // Example structural type for PersonV1
+  type PersonV1 = DynamicValue.Record  // Simplified; real structural types would be more precise
+  
+  // Convert a case class to its structural representation
+  def toStructural[A](value: A)(implicit schema: Schema[A]): DynamicValue.Record = {
+    schema.toDynamic(value) match {
+      case r: DynamicValue.Record => r
+      case other => throw new IllegalArgumentException(s"Expected Record, got $other")
+    }
+  }
+}
+
+/**
+ * Example usage and test cases
+ */
+object MigrationExample {
+  
+  // Current schema version
+  case class Person(fullName: String, age: Int, country: String)
+  
+  // Old structural type (no runtime representation)
+  // type PersonV1 = { def name: String; def age: Int }
+  
+  // Migration from V1 to current
+  val v1ToCurrent: Migration[DynamicValue.Record, Person] = {
+    val rename = DynamicMigration.RenameField(List("name"), List("fullName"))
+    val addCountry = DynamicMigration.AddField(List("country"), DynamicValue.String("Unknown"))
+    Migration(rename.andThen(addCountry))
+  }
+  
+  // Test
+  def testMigration(): Unit = {
+    implicit val personSchema: Schema[Person] = Schema.gen[Person]
+    
+    val oldData = DynamicValue.Record(Chunk(
+      "name" -> DynamicValue.String("Alice"),
+      "age" -> DynamicValue.Number(30)
+    ))
+    
+    val result = v1ToCurrent.apply(oldData)
+    result match {
+      case Right(person) => 
+        assert(person.fullName == "Alice")
+        assert(person.age == 30)
+        assert(person.country == "Unknown")
+        println(s"Migration successful: $person")
+      case Left(err) => 
+        println(s"Migration failed: $err")
+    }
+  }
+}
+
+// Test suite
+object MigrationTest extends zio.test.ZIOSpecDefault {
+  import zio.test._
+  import zio.test.Assertion._
+  
+  def spec = suite("MigrationSystem")(
+    test("identity migration preserves value") {
+      val value = DynamicValue.Record(Chunk("a" -> DynamicValue.Number(1)))
+      val migration = DynamicMigration.Identity()
+      assert(migration(value))(isRight(equalTo(value)))
+    },
+    
+    test("add field to record") {
+      val value = DynamicValue.Record(Chunk("
