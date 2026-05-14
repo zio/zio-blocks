@@ -33,21 +33,21 @@ schema.conforms(person)  // true
 
 ## Installation
 
-Add the JSON codec module to your `build.sbt`:
+The JSON codec is included in the ZIO Blocks Schema module. Add it to your `build.sbt`:
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
 ```
 
 For Scala.js projects, use `%%%` instead:
 
 ```scala
-libraryDependencies += "dev.zio" %%% "zio-blocks-schema-json" % "@VERSION@"
+libraryDependencies += "dev.zio" %%% "zio-blocks-schema" % "@VERSION@"
 ```
 
 **Supported Scala versions:** 2.13.x and 3.x
 
-The JSON codec module is part of ZIO Blocks Schema and provides complete type-safe JSON support with no external dependencies beyond core ZIO libraries.
+The JSON codec is fully integrated into ZIO Blocks Schema and provides complete type-safe JSON support with no external dependencies beyond core ZIO libraries.
 
 ## How They Work Together
 
