@@ -16,7 +16,7 @@ A `Patch[S]` represents a sequence of operations that transform a value of type 
 - **Schema Evolution** — Patches work with the schema system, adapting as data structures evolve
 
 :::note
-For **untyped JSON patching** without a schema, use [`JsonPatch`](./built-in-codecs/json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
+For **untyped JSON patching** without a schema, use [`JsonPatch`](./built-in-codecs/json/json-patch.md) instead. `JsonPatch` is optimized for diff-and-apply workflows on raw JSON values and provides compact delta representations without requiring typed optics.
 :::
 
 ```scala
