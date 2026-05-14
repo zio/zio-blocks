@@ -427,6 +427,7 @@ lazy val `scope-benchmarks` = project
 
 lazy val mux = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
+  .jvmConfigure(_.dependsOn(ringbuffer.jvm % "compile->compile;test->test"))
   .settings(stdSettings("zio-blocks-mux"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.mux"))
