@@ -260,17 +260,13 @@ Agents accessing runtime configuration:
 ```scala mdoc:passthrough
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import golem.wasi.Config
 import golem.config.Secret
 import golem.BaseAgent
 import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
 // Configuration case class
-case class DataServiceConfig(databaseUrl: String, apiKey: Secret[String])
-object DataServiceConfig {
-  implicit val schema: Schema[DataServiceConfig] = Schema.derived
-}
+case class DataServiceConfig(databaseUrl: String, apiKey: Secret[String]) derives Schema
 
 @agentDefinition
 trait DataService extends BaseAgent with golem.config.AgentConfig[DataServiceConfig] {
@@ -279,16 +275,13 @@ trait DataService extends BaseAgent with golem.config.AgentConfig[DataServiceCon
 
 @agentImplementation()
 class DataServiceImpl() extends DataService {
-  val config: golem.config.Config[DataServiceConfig] = ???
-  
   override def query(sql: String): Future[String] = {
-    val cfg = config.value
-    val dbUrl = cfg.databaseUrl
-    val apiKey = cfg.apiKey.get
+    // Config is injected via AgentConfig[T] mixin into implementation constructor
+    // Access it via ConfigHolder.current[DataServiceConfig] or constructor parameter
     
     Future.successful {
-      // Use dbUrl and apiKey to execute query
-      s"Executed: $sql against $dbUrl"
+      // Use config to execute query
+      s"Executed: $sql"
     }
   }
 }
@@ -324,12 +317,12 @@ import golem.Snapshotted
 import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
-case class CounterState(value: Int)
+case class CounterState(value: Int) derives Schema
 
 @agentImplementation()
 class CounterImpl() extends Counter with Snapshotted[CounterState] {
   var state: CounterState = CounterState(0)
-  val stateSchema: Schema[CounterState] = Schema.derived
+  val stateSchema: Schema[CounterState] = implicitly[Schema[CounterState]]
   
   override def increment(): Future[Int] = Future.successful {
     state = state.copy(value = state.value + 1)
