@@ -164,9 +164,10 @@ val evenOnly = data.filter { json =>
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.json.Json
 
 // Decode to Scala types
-val selection = json"""{"count": 42}"""
+val selection = Json.parseUnsafe("""{"count": 42}""")
 
 val count: Either[SchemaError, Int] = selection.get("count").as[Int]
 val str: Either[SchemaError, String] = selection.get("count").as[String]  // Left (type mismatch)

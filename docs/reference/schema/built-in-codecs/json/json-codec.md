@@ -169,10 +169,9 @@ val compact = json.print(WriterConfig
   .withEscapeUnicode(true)
 )
 
-// Pretty-printed with sorted keys
+// Pretty-printed with indentation
 val pretty = json.print(WriterConfig
   .withIndentionStep(2)
-  .withSortKeys(true)
 )
 ```
 
@@ -196,8 +195,9 @@ import zio.blocks.schema.json.{Json, ReaderConfig}
 // Lenient parsing (allow trailing whitespace)
 val lenient = ReaderConfig.withCheckForEndOfInput(false)
 
-// Parse with lenient config
-val json = Json.parseUnsafe("""{"x": 1}  """, lenient)
+// Parse with lenient config (using parse with Either)
+val jsonResult = Json.parse("""{"x": 1}  """, lenient)
+val json = jsonResult.getOrElse(Json.Null)
 ```
 
 ## Primitive Type Coverage
@@ -231,12 +231,14 @@ Decoding failures return `Either[SchemaError, A]`, with detailed path informatio
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.json.Json
 
 case class Strict(value: Int)
 object Strict { implicit val schema: Schema[Strict] = Schema.derived }
 
 val invalid = """{"value": "not-an-int"}"""
-val result = invalid.as[Strict]
+val json = Json.parseUnsafe(invalid)
+val result = json.as[Strict]
 // Left(SchemaError(...path: .value, message: "expected Int"))
 ```
 

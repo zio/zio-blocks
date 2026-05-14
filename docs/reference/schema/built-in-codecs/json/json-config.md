@@ -71,15 +71,14 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val user = User("Alice", "alice@example.com", 30)
 val json = user.toJson
 
-// Sorted keys, 4-space indentation
+// 4-space indentation
 val sorted = json.print(WriterConfig
   .withIndentionStep(4)
-  .withSortKeys(true)
 )
 // {
-//     "age": 30,
+//     "name": "Alice",
 //     "email": "alice@example.com",
-//     "name": "Alice"
+//     "age": 30
 // }
 ```
 
@@ -340,14 +339,13 @@ object Config { implicit val schema: Schema[Config] = Schema.derived }
 val config = Config("example.com", 443, None)
 val json = config.toJson
 
-// Pretty-printed, sorted, skip nulls, 4-space indentation
+// Pretty-printed with 4-space indentation
 val output = json.print(WriterConfig
   .withIndentionStep(4)
-  .withSortKeys(true)
 )
 // {
-//     "port": 443,
-//     "server": "example.com"
+//     "server": "example.com",
+//     "port": 443
 // }
 ```
 
