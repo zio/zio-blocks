@@ -17,8 +17,8 @@
 package zio.blocks.config
 
 /**
- * A decoded configuration value paired with the `ConfigSource` that produced it,
- * allowing per-key provenance queries.
+ * A decoded configuration value paired with the `ConfigSource` that produced
+ * it, allowing per-key provenance queries.
  */
 final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
 

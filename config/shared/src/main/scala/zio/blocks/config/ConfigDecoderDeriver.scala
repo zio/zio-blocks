@@ -45,7 +45,7 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
         def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A] =
           source.get(prefix) match {
             case Some(cv) => parsePrimitive(primitiveType, cv.value, prefix, source.sourceId)
-            case None =>
+            case None     =>
               defaultValue match {
                 case Some(v) => new Right(v)
                 case None    => new Left(new ::(ConfigError.MissingKey(prefix, source.sourceId), Nil))
@@ -165,16 +165,18 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
                 case Some(cv) =>
                   decoderMap.get(cv.value) match {
                     case Some(decoder) => decoder.decode(source, prefix)
-                    case None =>
-                      new Left(new ::(
-                        ConfigError.InvalidValue(
-                          typeKey,
-                          cv.value,
-                          s"one of: ${decoderMap.keys.mkString(", ")}",
-                          source.sourceId
-                        ),
-                        Nil
-                      ))
+                    case None          =>
+                      new Left(
+                        new ::(
+                          ConfigError.InvalidValue(
+                            typeKey,
+                            cv.value,
+                            s"one of: ${decoderMap.keys.mkString(", ")}",
+                            source.sourceId
+                          ),
+                          Nil
+                        )
+                      )
                   }
                 case None =>
                   new Left(new ::(ConfigError.MissingKey(typeKey, source.sourceId), Nil))
@@ -225,7 +227,7 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
             if (idx == 0 && errors.isEmpty) {
               source.get(prefix) match {
                 case Some(cv) if cv.value.nonEmpty =>
-                  val parts = cv.value.split(",").map(_.trim)
+                  val parts   = cv.value.split(",").map(_.trim)
                   var partIdx = 0
                   while (partIdx < parts.length) {
                     val partSource = ConfigSource.fromMap(Map(prefix -> parts(partIdx)), source.sourceId)
@@ -270,7 +272,7 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
             val all       = source.getAll(prefix)
             var errors    = List.empty[ConfigError]
             val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
-            val subKeys = all.keys.flatMap { k =>
+            val subKeys   = all.keys.flatMap { k =>
               val suffix =
                 if (dotPrefix.isEmpty) k
                 else if (k.startsWith(dotPrefix)) k.drop(dotPrefix.length)
@@ -344,10 +346,12 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
                 try new Right(wrap(v))
                 catch {
                   case err if NonFatal(err) =>
-                    new Left(new ::(
-                      ConfigError.InvalidValue(prefix, v.toString, typeId.name, source.sourceId, Some(err)),
-                      Nil
-                    ))
+                    new Left(
+                      new ::(
+                        ConfigError.InvalidValue(prefix, v.toString, typeId.name, source.sourceId, Some(err)),
+                        Nil
+                      )
+                    )
                 }
               case l: Left[?, ?] => l.asInstanceOf[Either[::[ConfigError], A]]
             }
@@ -389,15 +393,15 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
   ): Either[::[ConfigError], A] =
     try {
       val value: Any = primitiveType match {
-        case _: PrimitiveType.Unit.type      => ()
-        case _: PrimitiveType.Boolean        => parseBooleanValue(raw)
-        case _: PrimitiveType.Byte           => java.lang.Byte.parseByte(raw)
-        case _: PrimitiveType.Short          => java.lang.Short.parseShort(raw)
-        case _: PrimitiveType.Int            => java.lang.Integer.parseInt(raw)
-        case _: PrimitiveType.Long           => java.lang.Long.parseLong(raw)
-        case _: PrimitiveType.Float          => java.lang.Float.parseFloat(raw)
-        case _: PrimitiveType.Double         => java.lang.Double.parseDouble(raw)
-        case _: PrimitiveType.Char           =>
+        case _: PrimitiveType.Unit.type => ()
+        case _: PrimitiveType.Boolean   => parseBooleanValue(raw)
+        case _: PrimitiveType.Byte      => java.lang.Byte.parseByte(raw)
+        case _: PrimitiveType.Short     => java.lang.Short.parseShort(raw)
+        case _: PrimitiveType.Int       => java.lang.Integer.parseInt(raw)
+        case _: PrimitiveType.Long      => java.lang.Long.parseLong(raw)
+        case _: PrimitiveType.Float     => java.lang.Float.parseFloat(raw)
+        case _: PrimitiveType.Double    => java.lang.Double.parseDouble(raw)
+        case _: PrimitiveType.Char      =>
           if (raw.length == 1) raw.charAt(0)
           else throw new IllegalArgumentException(s"Expected single character, got '$raw'")
         case _: PrimitiveType.String         => raw

@@ -39,11 +39,13 @@ object ConfigSpec extends ConfigBaseSpec {
         assertTrue(result == Right(Db("localhost", 5432)))
       },
       test("loads nested case class") {
-        val source = ConfigSource.fromMap(Map(
-          "db.host" -> "dbhost",
-          "db.port" -> "3306",
-          "name"    -> "myapp"
-        ))
+        val source = ConfigSource.fromMap(
+          Map(
+            "db.host" -> "dbhost",
+            "db.port" -> "3306",
+            "name"    -> "myapp"
+          )
+        )
         val result = Config.load[App](source)
         assertTrue(result == Right(App(Db("dbhost", 3306), "myapp")))
       },
@@ -64,7 +66,7 @@ object ConfigSpec extends ConfigBaseSpec {
       },
       test("throws ConfigLoadException on failure") {
         val source = ConfigSource.fromMap(Map.empty[String, String])
-        val threw = try {
+        val threw  = try {
           Config.loadOrThrow[Db](source)
           false
         } catch {

@@ -22,7 +22,7 @@ import zio.test._
 object JsonConfigSourceSpec extends ZIOSpecDefault {
   def spec = suite("JsonConfigSource")(
     test("parses simple flat JSON object") {
-      val json = """{"key": "value", "number": 42}"""
+      val json   = """{"key": "value", "number": 42}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("key").isDefined) &&
@@ -31,7 +31,7 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("number").get.value == "42")
     },
     test("flattens nested JSON objects with dot-separated keys") {
-      val json = """{"db": {"host": "localhost", "port": 5432}}"""
+      val json   = """{"db": {"host": "localhost", "port": 5432}}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("db.host").isDefined) &&
@@ -40,7 +40,7 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("db.port").get.value == "5432")
     },
     test("handles arrays with indexed keys") {
-      val json = """{"servers": ["server1", "server2", "server3"]}"""
+      val json   = """{"servers": ["server1", "server2", "server3"]}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("servers.0").isDefined) &&
@@ -51,7 +51,7 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("servers.2").get.value == "server3")
     },
     test("handles nested objects within arrays") {
-      val json = """{"items": [{"id": 1, "name": "item1"}, {"id": 2, "name": "item2"}]}"""
+      val json   = """{"items": [{"id": 1, "name": "item1"}, {"id": 2, "name": "item2"}]}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("items.0.id").isDefined) &&
@@ -64,7 +64,7 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("items.1.name").get.value == "item2")
     },
     test("handles boolean values") {
-      val json = """{"enabled": true, "disabled": false}"""
+      val json   = """{"enabled": true, "disabled": false}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("enabled").isDefined) &&
@@ -73,14 +73,14 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("disabled").get.value == "false")
     },
     test("skips null values") {
-      val json = """{"key": "value", "nullKey": null}"""
+      val json   = """{"key": "value", "nullKey": null}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("key").isDefined) &&
       assertTrue(result.toOption.get.get("nullKey").isEmpty)
     },
     test("handles numeric values as strings") {
-      val json = """{"int": 42, "float": 3.14, "negative": -10}"""
+      val json   = """{"int": 42, "float": 3.14, "negative": -10}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("int").isDefined) &&
@@ -91,41 +91,41 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("negative").get.value == "-10")
     },
     test("returns error on invalid JSON") {
-      val json = """{"invalid": json}"""
+      val json   = """{"invalid": json}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isLeft)
     },
     test("tracks provenance with sourceId") {
-      val json = """{"key": "value"}"""
+      val json     = """{"key": "value"}"""
       val sourceId = "custom:source"
-      val result = JsonConfigSource.fromString(json, sourceId)
+      val result   = JsonConfigSource.fromString(json, sourceId)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("key").isDefined) &&
       assertTrue(result.toOption.get.get("key").get.provenance.sourceId == sourceId)
     },
     test("uses default sourceId when not provided") {
-      val json = """{"key": "value"}"""
+      val json   = """{"key": "value"}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("key").isDefined) &&
       assertTrue(result.toOption.get.get("key").get.provenance.sourceId == "json:string")
     },
     test("handles deeply nested structures") {
-      val json = """{"a": {"b": {"c": {"d": "value"}}}}"""
+      val json   = """{"a": {"b": {"c": {"d": "value"}}}}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("a.b.c.d").isDefined) &&
       assertTrue(result.toOption.get.get("a.b.c.d").get.value == "value")
     },
     test("handles empty objects and arrays") {
-      val json = """{"empty_obj": {}, "empty_arr": []}"""
+      val json   = """{"empty_obj": {}, "empty_arr": []}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("empty_obj").isEmpty) &&
       assertTrue(result.toOption.get.get("empty_arr").isEmpty)
     },
     test("getAll returns all keys with matching prefix") {
-      val json = """{"db": {"host": "localhost", "port": 5432}, "app": {"name": "myapp"}}"""
+      val json   = """{"db": {"host": "localhost", "port": 5432}, "app": {"name": "myapp"}}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.getAll("db").size == 2) &&
@@ -133,7 +133,7 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.getAll("db").contains("db.port"))
     },
     test("handles string values with special characters") {
-      val json = """{"path": "/home/user/file.txt", "url": "https://example.com?key=value"}"""
+      val json   = """{"path": "/home/user/file.txt", "url": "https://example.com?key=value"}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("path").isDefined) &&

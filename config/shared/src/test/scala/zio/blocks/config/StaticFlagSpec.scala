@@ -67,7 +67,7 @@ object StaticFlagSpec extends ConfigBaseSpec {
           assertTrue(source == Flag.Source.SystemProperty) &&
           assertTrue(prov match {
             case Provenance.Resolved("sysprop", _, Some("99")) => true
-            case _                                              => false
+            case _                                             => false
           })
         } finally {
           System.clearProperty(flagName)

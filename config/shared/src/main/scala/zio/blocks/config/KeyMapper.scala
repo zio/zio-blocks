@@ -23,7 +23,7 @@ trait KeyMapper {
 
 object KeyMapper {
   val default: KeyMapper = new KeyMapper {
-    def toCanonical(key: String): String = {
+    def toCanonical(key: String): String =
       // UPPER_SNAKE_CASE -> camelCase
       if (key.contains('_')) {
         val parts = key.split('_').map(_.toLowerCase)
@@ -36,7 +36,6 @@ object KeyMapper {
       }
       // camelCase identity
       else key
-    }
 
     def fromCanonical(key: String, target: KeyFormat): String = target match {
       case KeyFormat.CamelCase =>

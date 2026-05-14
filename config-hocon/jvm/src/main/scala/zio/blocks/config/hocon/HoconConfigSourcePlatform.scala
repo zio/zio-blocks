@@ -25,7 +25,7 @@ object HoconConfigSourcePlatform {
     if (!file.exists())
       Left(HoconError(s"File not found: $path", 0, 0))
     else {
-      val source = scala.io.Source.fromFile(file, "UTF-8")
+      val source  = scala.io.Source.fromFile(file, "UTF-8")
       val content =
         try source.mkString
         finally source.close()

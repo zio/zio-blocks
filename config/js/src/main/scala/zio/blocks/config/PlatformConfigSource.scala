@@ -19,9 +19,10 @@ package zio.blocks.config
 import scala.scalajs.js
 
 /**
- * Config source backed by environment variables (Scala.js / Node.js).
- * Uses `process.env` when available. Key lookup converts dots to underscores and uppercases.
- * A missing or undefined env var is treated as absent (None). An empty string `""` is present (Some).
+ * Config source backed by environment variables (Scala.js / Node.js). Uses
+ * `process.env` when available. Key lookup converts dots to underscores and
+ * uppercases. A missing or undefined env var is treated as absent (None). An
+ * empty string `""` is present (Some).
  */
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
@@ -70,8 +71,9 @@ object EnvSource extends ConfigSource {
 }
 
 /**
- * Config source backed by system properties (Scala.js).
- * System properties are not available in JS environments, so this source always returns empty results.
+ * Config source backed by system properties (Scala.js). System properties are
+ * not available in JS environments, so this source always returns empty
+ * results.
  */
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"

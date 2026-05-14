@@ -19,9 +19,9 @@ package zio.blocks.config
 import scala.jdk.CollectionConverters._
 
 /**
- * Config source backed by environment variables (JVM).
- * Key lookup converts dots to underscores and uppercases: `db.host` → `DB_HOST`.
- * A `null` env var is treated as absent (None). An empty string `""` is present (Some).
+ * Config source backed by environment variables (JVM). Key lookup converts dots
+ * to underscores and uppercases: `db.host` → `DB_HOST`. A `null` env var is
+ * treated as absent (None). An empty string `""` is present (Some).
  */
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
@@ -36,10 +36,14 @@ object EnvSource extends ConfigSource {
   def getAll(prefix: String): Map[String, ConfigValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
-    System.getenv().asScala.collect {
-      case (k, v) if envPrefix.isEmpty || k == envPrefix || k.startsWith(dotPrefix) =>
-        k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
-    }.toMap
+    System
+      .getenv()
+      .asScala
+      .collect {
+        case (k, v) if envPrefix.isEmpty || k == envPrefix || k.startsWith(dotPrefix) =>
+          k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+      }
+      .toMap
   }
 
   private def toEnvKey(key: String): String =
@@ -47,8 +51,8 @@ object EnvSource extends ConfigSource {
 }
 
 /**
- * Config source backed by JVM system properties.
- * Key lookup uses the dot-separated path directly.
+ * Config source backed by JVM system properties. Key lookup uses the
+ * dot-separated path directly.
  */
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"

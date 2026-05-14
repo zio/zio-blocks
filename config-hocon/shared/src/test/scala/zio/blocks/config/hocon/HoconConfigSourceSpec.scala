@@ -24,7 +24,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
   def spec: Spec[Any, Any] = suite("HoconConfigSourceSpec")(
     suite("fromString")(
       test("parses simple HOCON into ConfigSource") {
-        val hocon = """
+        val hocon  = """
           db {
             host = "localhost"
             port = 5432
@@ -46,7 +46,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         )
       },
       test("handles nested objects with dot-separated keys") {
-        val hocon = """
+        val hocon  = """
           app {
             db {
               host = "dbhost"
@@ -69,7 +69,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         assertTrue(result.isLeft)
       },
       test("getAll returns all keys under prefix") {
-        val hocon = """
+        val hocon  = """
           db.host = "localhost"
           db.port = 5432
           app.name = "test"
@@ -83,7 +83,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         )
       },
       test("handles arrays with numeric indices") {
-        val hocon = """
+        val hocon  = """
           items = [1, 2, 3]
         """
         val source = HoconConfigSource.fromString(hocon).toOption.get
@@ -94,12 +94,22 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         )
       },
       test("handles substitutions") {
-        val hocon = """
+        val hocon  = """
           base = "localhost"
           db.host = ${base}
         """
         val source = HoconConfigSource.fromString(hocon).toOption.get
         assertTrue(source.get("db.host").get.value == "localhost")
+      },
+      test("HOCON boolean value is stored as string") {
+        val hocon  = """{ enabled = true }"""
+        val source = HoconConfigSource.fromString(hocon).toOption.get
+        assertTrue(source.get("enabled").get.value == "true")
+      },
+      test("HOCON null value results in None from get") {
+        val hocon  = """{ missing = null }"""
+        val source = HoconConfigSource.fromString(hocon).toOption.get
+        assertTrue(source.get("missing").isEmpty)
       }
     ),
     suite("fromStringWithId")(

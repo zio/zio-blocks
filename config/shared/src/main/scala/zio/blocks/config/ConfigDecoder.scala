@@ -19,17 +19,20 @@ package zio.blocks.config
 import zio.blocks.schema.Schema
 
 /**
- * A typeclass for decoding a value of type `A` from a `ConfigSource` rooted at a given key prefix.
+ * A typeclass for decoding a value of type `A` from a `ConfigSource` rooted at
+ * a given key prefix.
  *
- * All errors are accumulated (not fail-fast) and returned as a non-empty list of `ConfigError`.
+ * All errors are accumulated (not fail-fast) and returned as a non-empty list
+ * of `ConfigError`.
  */
 trait ConfigDecoder[A] {
 
   /**
-   * Decode a value of type `A` from the given `source`, using `prefix` as the root path
-   * for key lookups (dot-separated, e.g. "db.host").
+   * Decode a value of type `A` from the given `source`, using `prefix` as the
+   * root path for key lookups (dot-separated, e.g. "db.host").
    *
-   * @return Right(a) on success, Left(errors) with all accumulated errors on failure.
+   * @return
+   *   Right(a) on success, Left(errors) with all accumulated errors on failure.
    */
   def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A]
 }
@@ -39,7 +42,8 @@ object ConfigDecoder {
   def apply[A](implicit decoder: ConfigDecoder[A]): ConfigDecoder[A] = decoder
 
   /**
-   * Derive a `ConfigDecoder[A]` from a `Schema[A]` using the default `ConfigDecoderDeriver`.
+   * Derive a `ConfigDecoder[A]` from a `Schema[A]` using the default
+   * `ConfigDecoderDeriver`.
    */
   def derive[A](implicit schema: Schema[A]): ConfigDecoder[A] =
     schema.deriving(ConfigDecoderDeriver).derive

@@ -19,7 +19,8 @@ package zio.blocks.config
 import scala.util.hashing.MurmurHash3
 
 /**
- * Rollout DSL for selecting values based on path-matching and percentage bucketing.
+ * Rollout DSL for selecting values based on path-matching and percentage
+ * bucketing.
  *
  * Grammar:
  * {{{
@@ -30,7 +31,8 @@ import scala.util.hashing.MurmurHash3
  *   percentage = digits "%"
  * }}}
  *
- * Left-to-right evaluation, first match wins. A bare value (no `@`) is a catch-all.
+ * Left-to-right evaluation, first match wins. A bare value (no `@`) is a
+ * catch-all.
  */
 object Rollout {
 
@@ -48,8 +50,8 @@ object Rollout {
   sealed trait Segment
 
   object Segment {
-    case object Wildcard                     extends Segment
-    final case class Literal(value: String)  extends Segment
+    case object Wildcard                    extends Segment
+    final case class Literal(value: String) extends Segment
   }
 
   def select(expression: String, path: String, bucket: Int): Option[String] =
@@ -74,8 +76,8 @@ object Rollout {
     val pathParts = if (path.isEmpty) Nil else path.split("/").toList
 
     choices.entries.iterator.collectFirst {
-      case Choice.CatchAll(value)                                                    => value
-      case Choice.Targeted(value, selector) if matches(selector, pathParts, bucket)  => value
+      case Choice.CatchAll(value)                                                   => value
+      case Choice.Targeted(value, selector) if matches(selector, pathParts, bucket) => value
     }
   }
 
@@ -156,11 +158,11 @@ object Rollout {
 
   private def matchSegments(selectorSegs: List[Segment], pathParts: List[String]): Boolean =
     (selectorSegs, pathParts) match {
-      case (Nil, Nil)                                      => true
-      case (Nil, _)                                        => false
-      case (_, Nil)                                        => false
-      case (Segment.Wildcard :: restSel, _ :: restPath)    => matchSegments(restSel, restPath)
-      case (Segment.Literal(v) :: restSel, p :: restPath)  => v == p && matchSegments(restSel, restPath)
+      case (Nil, Nil)                                     => true
+      case (Nil, _)                                       => false
+      case (_, Nil)                                       => false
+      case (Segment.Wildcard :: restSel, _ :: restPath)   => matchSegments(restSel, restPath)
+      case (Segment.Literal(v) :: restSel, p :: restPath) => v == p && matchSegments(restSel, restPath)
     }
 
   private def segmentsToString(segments: List[Segment]): String =

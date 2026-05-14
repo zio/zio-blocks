@@ -24,29 +24,19 @@ import scala.util.Try
 /**
  * Typeclass for parsing flag values from strings.
  *
- * @tparam A the type to parse into
+ * @tparam A
+ *   the type to parse into
  */
 trait Flag {
 
   /**
-   * Identifies where a flag's value was resolved from.
-   */
-  sealed trait Source
-
-  object Source {
-    case object SystemProperty                          extends Source
-    case object EnvironmentVariable                     extends Source
-    final case class FlagProviderSource(providerId: String) extends Source
-    case object Default                                 extends Source
-  }
-
-  /**
-   * Global registry of all resolved flag instances (static and dynamic), keyed by flag name.
+   * Global registry of all resolved flag instances (static and dynamic), keyed
+   * by flag name.
    */
   val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
 
   def all: List[Any] = {
-    val buf = List.newBuilder[Any]
+    val buf  = List.newBuilder[Any]
     val iter = registry.values().iterator()
     while (iter.hasNext) buf += iter.next()
     buf.result()
@@ -60,7 +50,7 @@ trait Flag {
     val entries = registry.entrySet().asScala.toList.sortBy(_.getKey)
     if (entries.isEmpty) return "(no flags registered)"
 
-    val rows = entries.map { entry =>
+    val rows: List[(String, String, String, String)] = entries.map { entry =>
       val name = entry.getKey
       val flag = entry.getValue
       flag match {
@@ -136,28 +126,15 @@ trait Flag {
 
   def nearMissWarnings(flagName: String): List[String] = {
     val lowerName = flagName.toLowerCase
-    val props = System.getProperties
-    val iter  = props.stringPropertyNames().iterator()
-    val buf   = List.newBuilder[String]
+    val props     = System.getProperties
+    val iter      = props.stringPropertyNames().iterator()
+    val buf       = List.newBuilder[String]
     while (iter.hasNext) {
       val prop = iter.next()
-      if (prop.toLowerCase == lowerName && prop != flagName) {
+      if (prop.toLowerCase == lowerName && prop != flagName)
         buf += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
-      }
     }
     buf.result()
-  }
-
-  /**
-   * Result of reloading a dynamic flag's expression from its FlagProvider.
-   */
-  sealed trait ReloadResult
-
-  object ReloadResult {
-    case object Unchanged                                extends ReloadResult
-    final case class Updated(oldExpression: String, newExpression: String) extends ReloadResult
-    case object NoProvider                               extends ReloadResult
-    final case class Failed(error: ConfigError)          extends ReloadResult
   }
 
   trait Reader[A] {
@@ -165,9 +142,12 @@ trait Flag {
     /**
      * Parse a flag value from a string.
      *
-     * @param flagName the name of the flag (for error messages)
-     * @param raw the raw string value
-     * @return Either a parsed value or a ConfigError
+     * @param flagName
+     *   the name of the flag (for error messages)
+     * @param raw
+     *   the raw string value
+     * @return
+     *   Either a parsed value or a ConfigError
      */
     def parse(flagName: String, raw: String): Either[ConfigError, A]
 
@@ -180,52 +160,38 @@ trait Flag {
   object Reader {
 
     /**
-     * Marker subclass for scalar types (types whose string representation contains no commas).
-     * Used to enable comma-separated list parsing.
+     * Marker subclass for scalar types (types whose string representation
+     * contains no commas). Used to enable comma-separated list parsing.
      */
     trait Scalar[A] extends Reader[A]
 
-    /**
-     * Create a Reader from a parse function and type name.
-     */
     def apply[A](parseFunc: (String, String) => Either[ConfigError, A], typeNameStr: String): Reader[A] =
       new Reader[A] {
         def parse(flagName: String, raw: String): Either[ConfigError, A] = parseFunc(flagName, raw)
-        def typeName: String = typeNameStr
+        def typeName: String                                             = typeNameStr
       }
 
-    /**
-     * Create a Scalar Reader from a parse function and type name.
-     */
     def scalar[A](parseFunc: (String, String) => Either[ConfigError, A], typeNameStr: String): Scalar[A] =
       new Scalar[A] {
         def parse(flagName: String, raw: String): Either[ConfigError, A] = parseFunc(flagName, raw)
-        def typeName: String = typeNameStr
+        def typeName: String                                             = typeNameStr
       }
-
-    // Built-in readers
 
     implicit val intReader: Scalar[Int] = scalar(
       (flagName, raw) =>
-        Try(raw.toInt).toEither.left.map(e =>
-          ConfigError.InvalidValue(flagName, raw, "Int", "flag", Some(e))
-        ),
+        Try(raw.toInt).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Int", "flag", Some(e))),
       "Int"
     )
 
     implicit val longReader: Scalar[Long] = scalar(
       (flagName, raw) =>
-        Try(raw.toLong).toEither.left.map(e =>
-          ConfigError.InvalidValue(flagName, raw, "Long", "flag", Some(e))
-        ),
+        Try(raw.toLong).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Long", "flag", Some(e))),
       "Long"
     )
 
     implicit val doubleReader: Scalar[Double] = scalar(
       (flagName, raw) =>
-        Try(raw.toDouble).toEither.left.map(e =>
-          ConfigError.InvalidValue(flagName, raw, "Double", "flag", Some(e))
-        ),
+        Try(raw.toDouble).toEither.left.map(e => ConfigError.InvalidValue(flagName, raw, "Double", "flag", Some(e))),
       "Double"
     )
 
@@ -235,14 +201,7 @@ trait Flag {
         if (lower == "true" || lower == "1") Right(true)
         else if (lower == "false" || lower == "0") Right(false)
         else
-          Left(
-            ConfigError.InvalidValue(
-              flagName,
-              raw,
-              "Boolean (true/false or 1/0)",
-              "flag"
-            )
-          )
+          Left(ConfigError.InvalidValue(flagName, raw, "Boolean (true/false or 1/0)", "flag"))
       },
       "Boolean"
     )
@@ -252,20 +211,20 @@ trait Flag {
       "String"
     )
 
-     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
-       Reader(
-         (flagName, raw) => {
-           if (raw.isEmpty) Right(Seq.empty)
-           else {
-             val parts = raw.split(",").map(_.trim).toSeq
-             val results = parts.map(part => reader.parse(flagName, part))
-             val errors = results.collect { case Left(e) => e }
-             if (errors.nonEmpty) Left(errors.head)
-             else Right(results.collect { case Right(v) => v })
-           }
-         },
-         s"Seq[${reader.typeName}]"
-       )
+    implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
+      Reader(
+        (flagName, raw) => {
+          if (raw.isEmpty) Right(Seq.empty)
+          else {
+            val parts   = raw.split(",").map(_.trim).toSeq
+            val results = parts.map(part => reader.parse(flagName, part))
+            val errors  = results.collect { case Left(e) => e }
+            if (errors.nonEmpty) Left(errors.head)
+            else Right(results.collect { case Right(v) => v })
+          }
+        },
+        s"Seq[${reader.typeName}]"
+      )
 
     implicit val durationReader: Scalar[FiniteDuration] = scalar(
       (flagName, raw) => {
@@ -276,33 +235,18 @@ trait Flag {
               val num = numStr.toLong
               unit.toLowerCase match {
                 case "ms" | "millis" | "milliseconds" => new FiniteDuration(num, MILLISECONDS)
-                case "s" | "sec" | "secs" | "seconds"  => new FiniteDuration(num, SECONDS)
-                case "m" | "min" | "mins" | "minutes"  => new FiniteDuration(num, MINUTES)
-                case "h" | "hour" | "hours"            => new FiniteDuration(num, HOURS)
-                case "d" | "day" | "days"              => new FiniteDuration(num, DAYS)
-                case _ =>
-                  throw new IllegalArgumentException(
-                    s"Unknown time unit: $unit. Supported: ms, s, m, h, d"
-                  )
+                case "s" | "sec" | "secs" | "seconds" => new FiniteDuration(num, SECONDS)
+                case "m" | "min" | "mins" | "minutes" => new FiniteDuration(num, MINUTES)
+                case "h" | "hour" | "hours"           => new FiniteDuration(num, HOURS)
+                case "d" | "day" | "days"             => new FiniteDuration(num, DAYS)
+                case _                                =>
+                  throw new IllegalArgumentException(s"Unknown time unit: $unit. Supported: ms, s, m, h, d")
               }
             }.toEither.left.map(e =>
-              ConfigError.InvalidValue(
-                flagName,
-                raw,
-                "Duration (e.g., 10s, 5m, 1h, 100ms, 2d)",
-                "flag",
-                Some(e)
-              )
+              ConfigError.InvalidValue(flagName, raw, "Duration (e.g., 10s, 5m, 1h, 100ms, 2d)", "flag", Some(e))
             )
           case _ =>
-            Left(
-              ConfigError.InvalidValue(
-                flagName,
-                raw,
-                "Duration (e.g., 10s, 5m, 1h, 100ms, 2d)",
-                "flag"
-              )
-            )
+            Left(ConfigError.InvalidValue(flagName, raw, "Duration (e.g., 10s, 5m, 1h, 100ms, 2d)", "flag"))
         }
       },
       "FiniteDuration"
@@ -310,4 +254,29 @@ trait Flag {
   }
 }
 
-object Flag extends Flag
+object Flag extends Flag {
+
+  /**
+   * Identifies where a flag's value was resolved from.
+   */
+  sealed trait Source
+
+  object Source {
+    case object SystemProperty                              extends Source
+    case object EnvironmentVariable                         extends Source
+    final case class FlagProviderSource(providerId: String) extends Source
+    case object Default                                     extends Source
+  }
+
+  /**
+   * Result of reloading a dynamic flag's expression from its FlagProvider.
+   */
+  sealed trait ReloadResult
+
+  object ReloadResult {
+    case object Unchanged                                                  extends ReloadResult
+    final case class Updated(oldExpression: String, newExpression: String) extends ReloadResult
+    case object NoProvider                                                 extends ReloadResult
+    final case class Failed(error: ConfigError)                            extends ReloadResult
+  }
+}

@@ -23,35 +23,39 @@ import zio.blocks.schema.yaml.{Yaml, YamlReader}
  * A ConfigSource adapter for YAML data.
  *
  * Converts YAML documents into flat key-value maps with dot-separated paths.
- * Nested mappings are flattened using dot notation, and sequences use indexed keys.
+ * Nested mappings are flattened using dot notation, and sequences use indexed
+ * keys.
  */
 object YamlConfigSource {
 
   /**
    * Creates a ConfigSource from a YAML string.
    *
-   * @param yaml the YAML content as a string
-   * @param sourceId a unique identifier for this source (default: "yaml:string")
-   * @return Either a ConfigError if parsing fails, or a ConfigSource with flattened YAML data
+   * @param yaml
+   *   the YAML content as a string
+   * @param sourceId
+   *   a unique identifier for this source (default: "yaml:string")
+   * @return
+   *   Either a ConfigError if parsing fails, or a ConfigSource with flattened
+   *   YAML data
    */
-  def fromString(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] = {
+  def fromString(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] =
     try {
-      val parsed = YamlReader.read(yaml)
+      val parsed  = YamlReader.read(yaml)
       val flatMap = flatten(parsed)
       Right(ConfigSource.MapSource(flatMap, sourceId))
     } catch {
       case e: Exception =>
         Left(ConfigError.InvalidValue("yaml", yaml, "valid YAML", sourceId, Some(e)))
     }
-  }
 
   /**
    * Flattens a YAML AST into a Map[String, String] with dot-separated keys.
    *
-   * - Mappings are recursively flattened with dot-separated keys
-   * - Sequences use indexed keys (e.g., "items.0", "items.1")
-   * - Scalars are stored as string values
-   * - Null values are skipped
+   *   - Mappings are recursively flattened with dot-separated keys
+   *   - Sequences use indexed keys (e.g., "items.0", "items.1")
+   *   - Scalars are stored as string values
+   *   - Null values are skipped
    */
   private def flatten(yaml: Yaml): Map[String, String] = {
     val builder = scala.collection.mutable.Map[String, String]()
@@ -59,7 +63,7 @@ object YamlConfigSource {
     builder.toMap
   }
 
-  private def flattenRec(yaml: Yaml, prefix: String, builder: scala.collection.mutable.Map[String, String]): Unit = {
+  private def flattenRec(yaml: Yaml, prefix: String, builder: scala.collection.mutable.Map[String, String]): Unit =
     yaml match {
       case Yaml.Mapping(entries) =>
         entries.foreach { case (keyYaml, valueYaml) =>
@@ -83,7 +87,6 @@ object YamlConfigSource {
         }
 
       case Yaml.NullValue =>
-        // Skip null values
+      // Skip null values
     }
-  }
 }
