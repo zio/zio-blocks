@@ -268,34 +268,10 @@ val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
 
 ## Type Pages
 
-### Core Value & Navigation Types
-
 - **[Json](./json.md)** — The core ADT representing JSON values with six cases (Object, Array, String, Number, Boolean, Null). Covers construction, navigation, modification, transformation, filtering, merging, and encoding.
-
-- **[JsonType](./json-type.md)** — Runtime type information for JSON values. Sealed trait with 6 case objects (ObjectType, ArrayType, StringType, NumberType, BooleanType, NullType) for pattern matching and type-safe value inspection.
-
-- **[JsonSelection](./json-selection.md)** — Fluent API for navigating nested JSON structures. Use `JsonSelection.root` and chain operations like `downField`, `downIndex`, `filter`, `getOption`, `setOption` to traverse unknown JSON at runtime.
-
-### Encoding & Decoding Types
-
-- **[JsonCodec](./json-codec.md)** — Type-safe encoding and decoding between Scala types and JSON. Derive automatically from `Schema[A]`, configure with `WriterConfig` and `ReaderConfig`, and handle errors with `JsonCodecError`.
-
-- **[JSON Configuration](./json-config.md)** — Configure encoding and decoding behavior:
-  - `WriterConfig` — Control indentation, key ordering, escape sequences, and null handling during serialization
-  - `ReaderConfig` — Control strict validation, number parsing, duplicate key handling, and failure modes
-  - `MergeStrategy` — Resolve field conflicts when merging JSON objects
-  - `NameMapper` — Customize field name mapping between Scala types and JSON
-
-### Transformation Types
 
 - **[JsonPatch](./json-patch.md)** — Composable patches for transforming JSON values. Create patches via diff or manually, compose them with `++`, and apply with different failure modes (Strict, Lenient, Clobber).
 
 - **[JsonDiffer](./json-differ.md)** — Diff algorithm computing minimal patches. Uses smart strategies per type: NumberDelta for numbers, LCS-based StringEdit for strings, ArrayEdit with insertion/deletion for arrays, and ObjectEdit for fields.
 
-### Validation Types
-
 - **[JSON Schema](./json-schema.md)** — Full JSON Schema 2020-12 support for validation and code generation. Derive schemas from Scala types, validate JSON, construct schemas manually with builders, and combine with logical operators.
-
-### Supporting Infrastructure
-
-- **[Supporting Types](./json-supporting.md)** — Infrastructure types including validation helpers (NonNegativeInt, PositiveNumber, RegexPattern, UriReference, Anchor), evaluation infrastructure (ValidationOptions, EvaluationResult), and error handling (JsonCodecError, JsonSchemaType).
