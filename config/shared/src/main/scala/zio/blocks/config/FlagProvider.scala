@@ -84,8 +84,17 @@ object FlagProvider {
       providers.values().asScala.toSeq
 
     /** Resolve a flag name across all registered providers. First Some wins. */
-    def resolve(flagName: String): Option[(String, String)] =
-      all.iterator.map(p => p.resolve(flagName).map(v => (v, p.providerId))).collectFirst { case Some(pair) => pair }
+    def resolve(flagName: String): Option[(String, String)] = {
+      val iter = providers.values().iterator()
+      while (iter.hasNext) {
+        val p = iter.next()
+        p.resolve(flagName) match {
+          case Some(v) => return Some((v, p.providerId))
+          case None    => ()
+        }
+      }
+      None
+    }
 
     /** Clear all registered providers (for testing). */
     def clear(): Unit =
