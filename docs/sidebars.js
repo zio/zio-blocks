@@ -68,15 +68,10 @@ const sidebars = {
                    link: { type: "doc", id: "reference/schema/built-in-codecs/json/index" },
                    collapsed: false,
                    items: [
-                     "reference/schema/built-in-codecs/json/json-codec",
-                     "reference/schema/built-in-codecs/json/json-selection",
-                     "reference/schema/built-in-codecs/json/json-type",
                      "reference/schema/built-in-codecs/json/json",
-                     "reference/schema/built-in-codecs/json/json-config",
                      "reference/schema/built-in-codecs/json/json-patch",
                      "reference/schema/built-in-codecs/json/json-differ",
                      "reference/schema/built-in-codecs/json/json-schema",
-                     "reference/schema/built-in-codecs/json/json-supporting",
                    ]
                  },
                  "reference/schema/built-in-codecs/avro",
