@@ -102,21 +102,24 @@ val large = json.print(WriterConfig.withPreferredBufSize(65536))
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.json.Json
 
 case class Product(name: String, price: Double)
 object Product { implicit val schema: Schema[Product] = Schema.derived }
 
-// From JsonSelection
-val json = json"""{"name": "Widget", "price": 9.99}"""
+// From JSON value
+val json = Json.Object("name" -> Json.String("Widget"), "price" -> Json.Number(9.99))
 val product: Either[SchemaError, Product] = json.as[Product]
 
 // From JSON string
 val jsonString = """{"name": "Gadget", "price": 19.99}"""
-val decoded: Either[SchemaError, Product] = jsonString.as[Product]
+val parsed = Json.parseUnsafe(jsonString)
+val decoded: Either[SchemaError, Product] = parsed.as[Product]
 
 // From UTF-8 bytes
 val bytes: Array[Byte] = """{"name":"Tool","price":29.99}""".getBytes
-val fromBytes: Either[SchemaError, Product] = bytes.as[Product]
+val fromBytesJson = Json.parseUnsafe(String(bytes, "UTF-8"))
+val fromBytes: Either[SchemaError, Product] = fromBytesJson.as[Product]
 ```
 
 ### Key Encoding/Decoding

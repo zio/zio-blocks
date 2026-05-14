@@ -164,7 +164,7 @@ Control output formatting and parsing behavior:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.{Json, WriterConfig, ReaderConfig}
+import zio.blocks.schema.json.{Json, WriterConfig}
 
 case class Config(host: String, port: Int)
 object Config {
@@ -177,8 +177,9 @@ val json = config.toJson
 // Encode with custom formatting
 val pretty = json.print(WriterConfig.withIndentionStep(2))
 
-// Decode with strict validation
-val config2: Either[SchemaError, Config] = pretty.as[Config]
+// Decode: parse back to Json, then decode
+val parsed: Json = Json.parseUnsafe(pretty)
+val config2: Either[SchemaError, Config] = parsed.as[Config]
 ```
 
 ### Pattern 6: Compose Multiple Patches
@@ -226,6 +227,7 @@ val dynamic: DynamicValue = json.toDynamicValue
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.json.Json
 
 case class Person(name: String, age: Int)
 object Person {
@@ -237,8 +239,9 @@ val person = Person("Alice", 30)
 val json = person.toJson
 val jsonString = person.toJsonString
 
-// Decode with Schema-based as method
-val decoded: Either[SchemaError, Person] = jsonString.as[Person]
+// Decode: parse and extract with Schema
+val parsed: Json = Json.parseUnsafe(jsonString)
+val decoded: Either[SchemaError, Person] = parsed.as[Person]
 ```
 
 **With patching system:** `JsonPatch` and `JsonDiffer` integrate with generic `Patch` infrastructure:
