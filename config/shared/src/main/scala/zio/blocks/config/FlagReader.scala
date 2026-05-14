@@ -16,6 +16,8 @@
 
 package zio.blocks.config
 
+import java.util.concurrent.ConcurrentHashMap
+
 import scala.concurrent.duration.{FiniteDuration, DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS}
 import scala.util.Try
 
@@ -25,6 +27,24 @@ import scala.util.Try
  * @tparam A the type to parse into
  */
 trait Flag {
+
+  /**
+   * Identifies where a flag's value was resolved from.
+   */
+  sealed trait Source
+
+  object Source {
+    case object SystemProperty                          extends Source
+    case object EnvironmentVariable                     extends Source
+    final case class FlagProviderSource(providerId: String) extends Source
+    case object Default                                 extends Source
+  }
+
+  /**
+   * Global registry of all resolved StaticFlag instances, keyed by flag name.
+   */
+  val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
+
   trait Reader[A] {
 
     /**
