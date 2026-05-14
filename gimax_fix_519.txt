@@ -1,0 +1,224 @@
+```scala
+// Migration.scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.blocks.schema.meta._
+import zio.Chunk
+
+/**
+ * A pure, serializable migration from schema A to schema B.
+ * 
+ * @tparam A the source structural type (compile-time only)
+ * @tparam B the target structural type (compile-time only)
+ */
+sealed trait Migration[+A, +B] extends Product with Serializable {
+  /** Apply this migration to a DynamicValue */
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  
+  /** Compose migrations: first this, then that */
+  def andThen[C](that: Migration[B, C]): Migration[A, C] =
+    Migration.Compose(this, that)
+  
+  /** Invert this migration if possible */
+  def inverse: Option[Migration[B, A]]
+  
+  /** Convert to a serializable DynamicMigration */
+  def toDynamic: DynamicMigration
+}
+
+object Migration {
+  /** Identity migration */
+  case class Identity[A]() extends Migration[A, A] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
+    def inverse: Option[Migration[A, A]] = Some(this)
+    def toDynamic: DynamicMigration = DynamicMigration.Identity
+  }
+  
+  /** Add a field with a default value */
+  case class AddField[A, B, F](
+    fieldName: String,
+    default: F,
+    schema: Schema[F]
+  ) extends Migration[A, B] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val newFields = fields :+ (fieldName -> DynamicValue.fromValue(default, schema))
+          Right(DynamicValue.Record(newFields))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[Migration[B, A]] = Some(RemoveField[B, A, F](fieldName, schema))
+    
+    def toDynamic: DynamicMigration = DynamicMigration.AddField(fieldName, schema)
+  }
+  
+  /** Remove a field */
+  case class RemoveField[A, B, F](
+    fieldName: String,
+    schema: Schema[F]
+  ) extends Migration[A, B] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val filtered = fields.filterNot(_._1 == fieldName)
+          Right(DynamicValue.Record(filtered))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[Migration[B, A]] = Some(AddField[B, A, F](fieldName, ???, schema))
+    
+    def toDynamic: DynamicMigration = DynamicMigration.RemoveField(fieldName, schema)
+  }
+  
+  /** Rename a field */
+  case class RenameField[A, B, F](
+    oldName: String,
+    newName: String,
+    schema: Schema[F]
+  ) extends Migration[A, B] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val updated = fields.map {
+            case (name, v) if name == oldName => (newName, v)
+            case other => other
+          }
+          Right(DynamicValue.Record(updated))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[Migration[B, A]] = Some(RenameField[B, A, F](newName, oldName, schema))
+    
+    def toDynamic: DynamicMigration = DynamicMigration.RenameField(oldName, newName, schema)
+  }
+  
+  /** Transform a field using a sub-migration */
+  case class TransformField[A, B, F1, F2](
+    fieldName: String,
+    migration: Migration[F1, F2]
+  ) extends Migration[A, B] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((name, fieldValue)) =>
+              migration(fieldValue).map { newValue =>
+                val updated = fields.map {
+                  case (n, _) if n == name => (name, newValue)
+                  case other => other
+                }
+                DynamicValue.Record(updated)
+              }
+            case None => Left(MigrationError.FieldNotFound(fieldName))
+          }
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[Migration[B, A]] = 
+      migration.inverse.map(inv => TransformField[B, A, F2, F1](fieldName, inv))
+    
+    def toDynamic: DynamicMigration = DynamicMigration.TransformField(fieldName, migration.toDynamic)
+  }
+  
+  /** Compose two migrations */
+  case class Compose[A, B, C](
+    first: Migration[A, B],
+    second: Migration[B, C]
+  ) extends Migration[A, C] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      first(value).flatMap(second)
+    
+    def inverse: Option[Migration[C, A]] =
+      for {
+        invSecond <- second.inverse
+        invFirst  <- first.inverse
+      } yield invSecond.andThen(invFirst)
+    
+    def toDynamic: DynamicMigration = DynamicMigration.Compose(first.toDynamic, second.toDynamic)
+  }
+  
+  /** Lift a function to a migration (for custom transformations) */
+  case class Lift[A, B](
+    f: DynamicValue => Either[MigrationError, DynamicValue],
+    g: Option[DynamicValue => Either[MigrationError, DynamicValue]]
+  ) extends Migration[A, B] {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = f(value)
+    def inverse: Option[Migration[B, A]] = g.map(inv => Lift[B, A](inv, Some(f)))
+    def toDynamic: DynamicMigration = DynamicMigration.Lift(f, g)
+  }
+}
+
+// DynamicMigration.scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.Chunk
+
+/**
+ * A serializable representation of a migration that operates on DynamicValue.
+ */
+sealed trait DynamicMigration extends Product with Serializable {
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  
+  def andThen(that: DynamicMigration): DynamicMigration =
+    DynamicMigration.Compose(this, that)
+  
+  def inverse: Option[DynamicMigration]
+}
+
+object DynamicMigration {
+  case object Identity extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
+    def inverse: Option[DynamicMigration] = Some(this)
+  }
+  
+  case class AddField(fieldName: String, schema: Schema[_]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val default = schema.defaultValue.getOrElse(DynamicValue.Null)
+          Right(DynamicValue.Record(fields :+ (fieldName -> default)))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[DynamicMigration] = Some(RemoveField(fieldName, schema))
+  }
+  
+  case class RemoveField(fieldName: String, schema: Schema[_]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          Right(DynamicValue.Record(fields.filterNot(_._1 == fieldName)))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[DynamicMigration] = Some(AddField(fieldName, schema))
+  }
+  
+  case class RenameField(oldName: String, newName: String, schema: Schema[_]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val updated = fields.map {
+            case (name, v) if name == oldName => (newName, v)
+            case other => other
+          }
+          Right(DynamicValue.Record(updated))
+        case other => Left(MigrationError.NotARecord(other))
+      }
+    
+    def inverse: Option[DynamicMigration] = Some(RenameField(newName, oldName, schema))
+  }
+  
+  case class TransformField(fieldName: String, migration: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((name, fieldValue)) =>
+              migration(fieldValue).map { newValue =>
+                val updated = fields.map {
+                  case (n, _) if n == name => (name, newValue)
+                  case other => other
