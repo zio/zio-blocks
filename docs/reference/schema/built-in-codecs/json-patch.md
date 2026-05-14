@@ -711,7 +711,7 @@ import zio.blocks.schema.Schema
 val schema: Schema[JsonPatch] = implicitly[Schema[JsonPatch]]
 ```
 
-See [Codec & Format](./codec.md) for how to derive and use codecs.
+See [Codec & Format](../codec.md) for how to derive and use codecs.
 
 ## Examples
 
