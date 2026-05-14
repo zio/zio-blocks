@@ -20,7 +20,7 @@ object Result {
 
 Use `Result` when you want to return either a success value or an error. It's fully serializable through Golem's schema system and integrates with the WIT component model.
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 import scala.concurrent.Future
 
@@ -33,7 +33,7 @@ def divide(a: Int, b: Int): Result.Result[Double, String] =
 
 ### Success (ok)
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 
 val success: Result.Result[Int, String] = Result.ok(42)
@@ -42,7 +42,7 @@ val success2: Result.Result[String, Nothing] = Result.ok("Hello")
 
 ### Failure (err)
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 import zio.blocks.schema.Schema
 
@@ -57,7 +57,7 @@ val failure2: Result.Result[Int, ApiError] = Result.err(ApiError(500, "Internal 
 
 Convert Scala's `Either` to `Result`:
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 import scala.util.Try
 
@@ -72,7 +72,7 @@ val result2: Result.Result[Int, String] = Result.fromEither(either2)
 
 Convert `Option` to `Result` with a fallback error message:
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 
 val option: Option[String] = Some("value")
@@ -86,7 +86,7 @@ val result2: Result.Result[String, String] = Result.fromOption(emptyOption, "Not
 
 Use the typed `WitResult` variant with proper extractors:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 def process(result: WitResult[Int, String]): String =
@@ -102,7 +102,7 @@ The import `import golem.runtime.wit.WitResult` is required to access the proper
 
 Return `Result` from agent methods to signal success or failure:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.{BaseAgent}
 import golem.Result
@@ -117,7 +117,7 @@ trait Calculator extends BaseAgent {
 
 Clients receive the result and can act accordingly:
 
-```scala
+```scala mdoc:passthrough
 val calc: Future[Result.Result[Double, String]] = Future.successful(Result.ok(5.0))
 
 calc.foreach {
@@ -130,7 +130,7 @@ calc.foreach {
 
 The error type (`Err`) can be any type with a schema:
 
-```scala
+```scala mdoc:passthrough
 import golem.Result
 import zio.blocks.schema.Schema
 
@@ -156,7 +156,7 @@ val enumError: Result.Result[String, ApiError] = Result.err(ApiError.NotFound)
 The underlying `WitResult` provides rich transformation methods:
 
 ### Map (transform success value)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.ok(42)
@@ -164,7 +164,7 @@ val doubled: WitResult[Int, String] = result.map(_ * 2)
 ```
 
 ### MapError (transform error value)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.err("failed")
@@ -172,7 +172,7 @@ val transformed: WitResult[Int, Int] = result.mapError(_.length)
 ```
 
 ### FlatMap (chain result-producing operations)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.ok(10)
@@ -183,7 +183,7 @@ val chained: WitResult[String, String] = result.flatMap { n =>
 ```
 
 ### Fold (pattern match without case syntax)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.ok(42)
@@ -194,7 +194,7 @@ val message: String = result.fold(
 ```
 
 ### Tap (inspect without altering)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.ok(42)
@@ -202,7 +202,7 @@ result.tap(value => println(s"Computed: $value"))
 ```
 
 ### Unwrap (extract with throwing)
-```scala
+```scala mdoc:passthrough
 import golem.runtime.wit.WitResult
 
 val result: WitResult[Int, String] = WitResult.ok(42)
@@ -214,7 +214,7 @@ val error: String = result.unwrapErr() // Throws on success
 
 When returning a result across the WIT boundary (from Scala.js back to the host), use `unwrapForWit()`:
 
-```scala
+```scala mdoc:passthrough
 def computeResult(): Future[WitResult[Int, String]] = 
   Future.successful(WitResult.Ok(42))
 

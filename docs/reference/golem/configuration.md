@@ -23,7 +23,7 @@ Configuration allows agents to access external settings without hardcoding them.
 
 Agents declare configuration using a separate configuration type that extends `AgentConfig[T]`:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.{BaseAgent, Schema}
 
@@ -50,7 +50,7 @@ The Golem runtime detects configuration via the `AgentConfig[T]` mixin and provi
 
 Use the `Config` API to access configuration synchronously:
 
-```scala
+```scala mdoc:passthrough
 import golem.wasi.Config
 type ConfigError = String
 
@@ -72,7 +72,7 @@ apiKey match {
 
 Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
-```scala
+```scala mdoc:passthrough
 import golem.config.Secret
 
 // Secrets are injected by the Golem runtime
@@ -86,7 +86,7 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 
 ### Database Connection String
 
-```scala
+```scala mdoc:passthrough
 import golem.wasi.Config
 import scala.concurrent.Future
 type ConfigError = String
@@ -106,7 +106,7 @@ dbUrl match {
 
 ### Feature Flags
 
-```scala
+```scala mdoc:passthrough
 import golem.wasi.Config
 type ConfigError = String
 
@@ -119,7 +119,7 @@ val isEnabled = enableCache match {
 
 ### Timeout Configuration
 
-```scala
+```scala mdoc:passthrough
 import golem.wasi.Config
 type ConfigError = String
 
@@ -154,7 +154,7 @@ Configuration schemas are automatically discovered by the Golem macro system fro
 
 For type-safe configuration, extend `AgentConfig[T]` with a configuration case class:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.{BaseAgent, Schema}
 import scala.concurrent.Future
@@ -186,7 +186,7 @@ The Golem macro system automatically discovers your `AgentConfig[T]` mixin and p
 
 Configuration access can fail:
 
-```scala
+```scala mdoc:passthrough
 import golem.wasi.Config
 type ConfigError = String
 
