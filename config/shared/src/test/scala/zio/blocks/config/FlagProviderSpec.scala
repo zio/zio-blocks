@@ -104,5 +104,5 @@ object FlagProviderSpec extends ConfigBaseSpec {
         assertTrue(provider.resolve("k", "path", Map.empty) == Some("v"))
       }
     )
-  )
+  ) @@ TestAspect.sequential
 }
