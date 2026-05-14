@@ -209,17 +209,17 @@ val result = """{"id": 1, "name": "Widget", "price": 9.99}""".as[Product]
 
 ## When to Use Supporting Types
 
-| Type | Use When |
-|------|----------|
-| `JsonSchemaType` | Building custom JSON Schema derivations |
-| `NonNegativeInt` | Defining schema size constraints |
-| `PositiveNumber` | Defining numeric scales in schemas |
-| `RegexPattern` | Validating string patterns in JSON Schema |
-| `UriReference` | Building schema references and links |
-| `Anchor` | Creating schema fragment identifiers |
-| `ValidationOptions` | Custom schema validation configuration |
-| `EvaluationResult` | Analyzing detailed validation outcomes |
-| `JsonCodecError` | Advanced error handling and diagnostics |
+| Type                | Use When                                  |
+|---------------------|-------------------------------------------|
+| `JsonSchemaType`    | Building custom JSON Schema derivations   |
+| `NonNegativeInt`    | Defining schema size constraints          |
+| `PositiveNumber`    | Defining numeric scales in schemas        |
+| `RegexPattern`      | Validating string patterns in JSON Schema |
+| `UriReference`      | Building schema references and links      |
+| `Anchor`            | Creating schema fragment identifiers      |
+| `ValidationOptions` | Custom schema validation configuration    |
+| `EvaluationResult`  | Analyzing detailed validation outcomes    |
+| `JsonCodecError`    | Advanced error handling and diagnostics   |
 
 Most application code won't interact with these types directly—they're used internally by the codec and schema derivation systems. Use them when extending JSON codec functionality or implementing custom validation logic.
 
