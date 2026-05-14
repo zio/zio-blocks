@@ -25,8 +25,8 @@ object JsonConfigSource {
    * Creates a ConfigSource from a JSON string.
    *
    * Parses the JSON string and flattens it into a map with dot-separated keys.
-   * Objects are recursively flattened with keys joined by dots.
-   * Arrays are indexed with numeric keys (e.g., "array.0", "array.1").
+   * Objects are recursively flattened with keys joined by dots. Arrays are
+   * indexed with numeric keys (e.g., "array.0", "array.1").
    *
    * @param json
    *   The JSON string to parse
@@ -54,7 +54,7 @@ object JsonConfigSource {
    * @return
    *   A map of flattened key-value pairs
    */
-  private def flatten(json: Json, prefix: String): Map[String, String] = {
+  private def flatten(json: Json, prefix: String): Map[String, String] =
     json match {
       case obj: Json.Object =>
         obj.fields.foldLeft(Map.empty[String, String]) { case (acc, (key, value)) =>
@@ -80,5 +80,4 @@ object JsonConfigSource {
       case Json.Null =>
         Map.empty
     }
-  }
 }

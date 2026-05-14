@@ -51,14 +51,14 @@ object HoconParser {
   // ── Internal AST that may contain unresolved substitutions ──────────
 
   private sealed trait RawValue
-  private case class RawObj(fields: Seq[(String, RawValue, Boolean)])    extends RawValue // Boolean = isAppend (+=)
-  private case class RawArr(elements: Seq[RawValue])                     extends RawValue
-  private case class RawStr(value: String)                               extends RawValue
-  private case class RawNum(value: Double)                               extends RawValue
-  private case class RawBool(value: Boolean)                             extends RawValue
-  private case object RawNull                                            extends RawValue
-  private case class RawSubst(path: String, optional: Boolean)           extends RawValue
-  private case class RawConcat(parts: Seq[RawValue])                     extends RawValue
+  private case class RawObj(fields: Seq[(String, RawValue, Boolean)]) extends RawValue // Boolean = isAppend (+=)
+  private case class RawArr(elements: Seq[RawValue])                  extends RawValue
+  private case class RawStr(value: String)                            extends RawValue
+  private case class RawNum(value: Double)                            extends RawValue
+  private case class RawBool(value: Boolean)                          extends RawValue
+  private case object RawNull                                         extends RawValue
+  private case class RawSubst(path: String, optional: Boolean)        extends RawValue
+  private case class RawConcat(parts: Seq[RawValue])                  extends RawValue
 
   // ── Lexer / Parser (pass 1) ────────────────────────────────────────
 
@@ -66,7 +66,7 @@ object HoconParser {
     private val len: Int = input.length
     private var pos: Int = 0
 
-    private def ch: Char   = if (pos < len) input.charAt(pos) else '\u0000'
+    private def ch: Char     = if (pos < len) input.charAt(pos) else '\u0000'
     private def eof: Boolean = pos >= len
 
     private def lineCol: (Int, Int) = {
@@ -88,7 +88,7 @@ object HoconParser {
 
     // ── Whitespace / comment helpers ──────────────────────────────────
 
-    private def skipWhitespaceAndComments(): Unit = {
+    private def skipWhitespaceAndComments(): Unit =
       while (!eof) {
         val c = ch
         if (c == ' ' || c == '\t' || c == '\n') { pos += 1 }
@@ -96,7 +96,6 @@ object HoconParser {
         else if (c == '/' && pos + 1 < len && input.charAt(pos + 1) == '/') skipToEndOfLine()
         else return
       }
-    }
 
     private def skipToEndOfLine(): Unit = {
       while (!eof && ch != '\n') pos += 1
@@ -170,15 +169,16 @@ object HoconParser {
 
     // ── Key parsing ──────────────────────────────────────────────────
 
-    private def parseKey(): String = {
+    private def parseKey(): String =
       if (ch == '"') parseQuotedString()
       else parseUnquotedKey()
-    }
 
     private def parseUnquotedKey(): String = {
-      val sb  = new java.lang.StringBuilder()
-      while (!eof && !isKeySeparator(ch) && ch != '{' && ch != '}' && ch != '[' && ch != ']' &&
-             ch != ',' && ch != '\n' && ch != '#') {
+      val sb = new java.lang.StringBuilder()
+      while (
+        !eof && !isKeySeparator(ch) && ch != '{' && ch != '}' && ch != '[' && ch != ']' &&
+        ch != ',' && ch != '\n' && ch != '#'
+      ) {
         if (ch == '/' && pos + 1 < len && input.charAt(pos + 1) == '/') {
           // start of // comment — stop here
           val result = sb.toString.trim
@@ -205,6 +205,8 @@ object HoconParser {
       val parts = new scala.collection.mutable.ArrayBuffer[RawValue]()
       parts += first
       while (!eof && !isValueTerminator) {
+        skipInlineWhitespace()
+        if (eof || isValueTerminator) return if (parts.size == 1) parts(0) else RawConcat(parts.toSeq)
         val before = pos
         val next   = parseSingleValue(includeCallback)
         if (pos == before) {
@@ -338,7 +340,7 @@ object HoconParser {
       else interpretUnquoted(result)
     }
 
-    private def interpretUnquoted(s: String): RawValue = {
+    private def interpretUnquoted(s: String): RawValue =
       if (s == "true") RawBool(true)
       else if (s == "false") RawBool(false)
       else if (s == "null") RawNull
@@ -355,14 +357,14 @@ object HoconParser {
         } catch { case _: NumberFormatException => () }
         RawStr(s)
       }
-    }
 
     // ── Substitutions ────────────────────────────────────────────────
 
     private def parseSubstitution(): RawValue = {
       pos += 2 // skip ${
-      val optional = if (!eof && ch == '?') { pos += 1; true } else false
-      val sb       = new java.lang.StringBuilder()
+      val optional = if (!eof && ch == '?') { pos += 1; true }
+      else false
+      val sb = new java.lang.StringBuilder()
       while (!eof && ch != '}') {
         sb.append(ch)
         pos += 1
@@ -376,13 +378,13 @@ object HoconParser {
 
     // ── Include ──────────────────────────────────────────────────────
 
-    private def isInclude: Boolean = {
+    private def isInclude: Boolean =
       if (pos + 7 > len) false
-      else input.substring(pos, pos + 7) == "include" && {
-        val after = if (pos + 7 < len) input.charAt(pos + 7) else ' '
-        after == ' ' || after == '"' || after == '\t'
-      }
-    }
+      else
+        input.substring(pos, pos + 7) == "include" && {
+          val after = if (pos + 7 < len) input.charAt(pos + 7) else ' '
+          after == ' ' || after == '"' || after == '\t'
+        }
 
     private def handleInclude(
       includeCallback: String => Option[String],
@@ -422,18 +424,18 @@ object HoconParser {
   }
 
   /**
-   * Build a HoconValue from the raw AST, performing object merging and
-   * += array appends, but leaving substitutions as sentinel Subst nodes.
+   * Build a HoconValue from the raw AST, performing object merging and += array
+   * appends, but leaving substitutions as sentinel Subst nodes.
    */
   private sealed trait MergedValue
-  private case class MObj(fields: Map[String, MergedValue])    extends MergedValue
-  private case class MArr(elements: Seq[MergedValue])          extends MergedValue
-  private case class MStr(value: String)                       extends MergedValue
-  private case class MNum(value: Double)                       extends MergedValue
-  private case class MBool(value: Boolean)                     extends MergedValue
-  private case object MNull                                    extends MergedValue
-  private case class MSubst(path: String, optional: Boolean)   extends MergedValue
-  private case class MConcat(parts: Seq[MergedValue])          extends MergedValue
+  private case class MObj(fields: Map[String, MergedValue])  extends MergedValue
+  private case class MArr(elements: Seq[MergedValue])        extends MergedValue
+  private case class MStr(value: String)                     extends MergedValue
+  private case class MNum(value: Double)                     extends MergedValue
+  private case class MBool(value: Boolean)                   extends MergedValue
+  private case object MNull                                  extends MergedValue
+  private case class MSubst(path: String, optional: Boolean) extends MergedValue
+  private case class MConcat(parts: Seq[MergedValue])        extends MergedValue
 
   private def buildMerged(raw: RawValue): MergedValue = raw match {
     case RawObj(fields) =>
@@ -496,12 +498,12 @@ object HoconParser {
               case MArr(newElements) => Map(key -> MArr(existing ++ newElements))
               case _                 => Map(key -> MArr(existing :+ value))
             }
-          case Some(_)              =>
+          case Some(_) =>
             value match {
               case MArr(newElements) => Map(key -> MArr(newElements))
               case _                 => Map(key -> MArr(Seq(value)))
             }
-          case None                 =>
+          case None =>
             value match {
               case MArr(newElements) => Map(key -> MArr(newElements))
               case _                 => Map(key -> MArr(Seq(value)))
@@ -509,8 +511,8 @@ object HoconParser {
         }
       } else Map(key -> value)
     } else {
-      val key  = parts.head
-      val rest = parts.tail
+      val key   = parts.head
+      val rest  = parts.tail
       val inner = existingRoot.get(key) match {
         case Some(MObj(m)) => wrapInPath(rest, value, isAppend, m)
         case _             => wrapInPath(rest, value, isAppend, Map.empty)
@@ -529,7 +531,7 @@ object HoconParser {
             case MObj(rf) => acc.updated(k, MObj(deepMergeMaps(lf, rf)))
             case _        => acc.updated(k, rv)
           }
-        case _              => acc.updated(k, rv)
+        case _ => acc.updated(k, rv)
       }
     }
 
@@ -576,7 +578,7 @@ object HoconParser {
           lookupPath(root, path) match {
             case Some(found) =>
               resolveSubstitutions(found, root, resolving + path)
-            case None         =>
+            case None =>
               if (optional) Right(HoconValue.Null)
               else Left(s"Unresolved substitution: $${$path}")
           }
@@ -604,9 +606,9 @@ object HoconParser {
   }
 
   private def lookupPath(root: MergedValue, path: String): Option[MergedValue] = {
-    val parts = splitKeyPath(path)
+    val parts                = splitKeyPath(path)
     var current: MergedValue = root
-    var i = 0
+    var i                    = 0
     while (i < parts.length) {
       current match {
         case MObj(fields) =>
@@ -614,7 +616,7 @@ object HoconParser {
             case Some(v) => current = v
             case None    => return None
           }
-        case _            => return None
+        case _ => return None
       }
       i += 1
     }

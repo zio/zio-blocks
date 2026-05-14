@@ -54,20 +54,32 @@ object HoconParserSpec extends ZIOSpecDefault {
       test("parses simple array") {
         val result = parsed("""{ arr = [1, 2, 3] }""")
         assertTrue(
-          result == HoconValue.Obj(Map("arr" -> HoconValue.Arr(Seq(
-            HoconValue.Num(1.0),
-            HoconValue.Num(2.0),
-            HoconValue.Num(3.0)
-          ))))
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Num(1.0),
+                  HoconValue.Num(2.0),
+                  HoconValue.Num(3.0)
+                )
+              )
+            )
+          )
         )
       },
       test("parses array of strings") {
         val result = parsed("""{ arr = ["a", "b"] }""")
         assertTrue(
-          result == HoconValue.Obj(Map("arr" -> HoconValue.Arr(Seq(
-            HoconValue.Str("a"),
-            HoconValue.Str("b")
-          ))))
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Str("a"),
+                  HoconValue.Str("b")
+                )
+              )
+            )
+          )
         )
       },
       test("parses empty array") {
@@ -85,11 +97,17 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map("arr" -> HoconValue.Arr(Seq(
-            HoconValue.Num(1.0),
-            HoconValue.Num(2.0),
-            HoconValue.Num(3.0)
-          ))))
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Num(1.0),
+                  HoconValue.Num(2.0),
+                  HoconValue.Num(3.0)
+                )
+              )
+            )
+          )
         )
       }
     ),
@@ -99,7 +117,7 @@ object HoconParserSpec extends ZIOSpecDefault {
         assertTrue(result == HoconValue.Obj(Map("s" -> HoconValue.Str("hello\nworld"))))
       },
       test("parses multi-line triple-quoted strings") {
-        val input = "{ s = \"\"\"line1\nline2\"\"\" }"
+        val input  = "{ s = \"\"\"line1\nline2\"\"\" }"
         val result = parsed(input)
         assertTrue(result == HoconValue.Obj(Map("s" -> HoconValue.Str("line1\nline2"))))
       },
@@ -167,23 +185,33 @@ object HoconParserSpec extends ZIOSpecDefault {
       test("a.b.c = 1 desugars to nested objects") {
         val result = parsed("a.b.c = 1")
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "a" -> HoconValue.Obj(Map(
-              "b" -> HoconValue.Obj(Map(
-                "c" -> HoconValue.Num(1.0)
-              ))
-            ))
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "a" -> HoconValue.Obj(
+                Map(
+                  "b" -> HoconValue.Obj(
+                    Map(
+                      "c" -> HoconValue.Num(1.0)
+                    )
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("key path with braces") {
         val result = parsed("""{ a.b = "val" }""")
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "a" -> HoconValue.Obj(Map(
-              "b" -> HoconValue.Str("val")
-            ))
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "a" -> HoconValue.Obj(
+                Map(
+                  "b" -> HoconValue.Str("val")
+                )
+              )
+            )
+          )
         )
       }
     ),
@@ -205,12 +233,16 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "db" -> HoconValue.Obj(Map(
-              "host" -> HoconValue.Str("localhost"),
-              "port" -> HoconValue.Num(5432.0)
-            ))
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "db" -> HoconValue.Obj(
+                Map(
+                  "host" -> HoconValue.Str("localhost"),
+                  "port" -> HoconValue.Num(5432.0)
+                )
+              )
+            )
+          )
         )
       },
       test("key path deep-merges with explicit object") {
@@ -221,12 +253,16 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "a" -> HoconValue.Obj(Map(
-              "b" -> HoconValue.Num(1.0),
-              "c" -> HoconValue.Num(2.0)
-            ))
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "a" -> HoconValue.Obj(
+                Map(
+                  "b" -> HoconValue.Num(1.0),
+                  "c" -> HoconValue.Num(2.0)
+                )
+              )
+            )
+          )
         )
       }
     ),
@@ -239,10 +275,12 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "host" -> HoconValue.Str("localhost"),
-            "url"  -> HoconValue.Str("localhost")
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "host" -> HoconValue.Str("localhost"),
+              "url"  -> HoconValue.Str("localhost")
+            )
+          )
         )
       },
       test("resolves nested path substitution") {
@@ -253,10 +291,12 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "db"  -> HoconValue.Obj(Map("host" -> HoconValue.Str("localhost"))),
-            "url" -> HoconValue.Str("localhost")
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "db"  -> HoconValue.Obj(Map("host" -> HoconValue.Str("localhost"))),
+              "url" -> HoconValue.Str("localhost")
+            )
+          )
         )
       },
       test("optional substitution resolves to null when absent") {
@@ -285,11 +325,17 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map("arr" -> HoconValue.Arr(Seq(
-            HoconValue.Num(1.0),
-            HoconValue.Num(2.0),
-            HoconValue.Num(3.0)
-          ))))
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Num(1.0),
+                  HoconValue.Num(2.0),
+                  HoconValue.Num(3.0)
+                )
+              )
+            )
+          )
         )
       },
       test("creates array when appending to non-existent key") {
@@ -310,10 +356,12 @@ object HoconParserSpec extends ZIOSpecDefault {
             |port = 8080""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "host" -> HoconValue.Str("localhost"),
-            "port" -> HoconValue.Num(8080.0)
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "host" -> HoconValue.Str("localhost"),
+              "port" -> HoconValue.Num(8080.0)
+            )
+          )
         )
       },
       test("parses empty input as empty object") {
@@ -331,11 +379,13 @@ object HoconParserSpec extends ZIOSpecDefault {
             |}""".stripMargin
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "a" -> HoconValue.Num(1.0),
-            "b" -> HoconValue.Num(2.0),
-            "c" -> HoconValue.Num(3.0)
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "a" -> HoconValue.Num(1.0),
+              "b" -> HoconValue.Num(2.0),
+              "c" -> HoconValue.Num(3.0)
+            )
+          )
         )
       }
     ),
@@ -370,14 +420,14 @@ object HoconParserSpec extends ZIOSpecDefault {
         val flat   = HoconValue.flatten(result)
         assertTrue(
           flat == Map(
-            "db.host" -> "localhost",
-            "db.port" -> "5432",
+            "db.host"  -> "localhost",
+            "db.port"  -> "5432",
             "app.name" -> "myapp"
           )
         )
       },
       test("flattens arrays with numeric indices") {
-        val input = """{ items = ["a", "b", "c"] }"""
+        val input  = """{ items = ["a", "b", "c"] }"""
         val result = parsed(input)
         val flat   = HoconValue.flatten(result)
         assertTrue(
@@ -389,13 +439,13 @@ object HoconParserSpec extends ZIOSpecDefault {
         )
       },
       test("skips null values in flatten") {
-        val input = """{ a = 1, b = null }"""
+        val input  = """{ a = 1, b = null }"""
         val result = parsed(input)
         val flat   = HoconValue.flatten(result)
         assertTrue(flat == Map("a" -> "1"))
       },
       test("flattens booleans as strings") {
-        val input = """{ enabled = true, disabled = false }"""
+        val input  = """{ enabled = true, disabled = false }"""
         val result = parsed(input)
         val flat   = HoconValue.flatten(result)
         assertTrue(flat == Map("enabled" -> "true", "disabled" -> "false"))
@@ -406,17 +456,21 @@ object HoconParserSpec extends ZIOSpecDefault {
         val included = """extra = "included_value""""
         val input    = """include "other.conf"
                          |main = "main_value"""".stripMargin
-        val result = HoconParser.parse(input, resource =>
-          if (resource == "other.conf") Some(included)
-          else None
+        val result = HoconParser.parse(
+          input,
+          resource =>
+            if (resource == "other.conf") Some(included)
+            else None
         )
         assertTrue(result.isRight) && {
           val v = result.toOption.get
           assertTrue(
-            v == HoconValue.Obj(Map(
-              "extra" -> HoconValue.Str("included_value"),
-              "main"  -> HoconValue.Str("main_value")
-            ))
+            v == HoconValue.Obj(
+              Map(
+                "extra" -> HoconValue.Str("included_value"),
+                "main"  -> HoconValue.Str("main_value")
+              )
+            )
           )
         }
       },
@@ -429,16 +483,26 @@ object HoconParserSpec extends ZIOSpecDefault {
     ),
     suite("nested object without separator")(
       test("key followed by { is a nested object") {
-        val input = """{ server { host = "localhost", port = 80 } }"""
+        val input  = """{ server { host = "localhost", port = 80 } }"""
         val result = parsed(input)
         assertTrue(
-          result == HoconValue.Obj(Map(
-            "server" -> HoconValue.Obj(Map(
-              "host" -> HoconValue.Str("localhost"),
-              "port" -> HoconValue.Num(80.0)
-            ))
-          ))
+          result == HoconValue.Obj(
+            Map(
+              "server" -> HoconValue.Obj(
+                Map(
+                  "host" -> HoconValue.Str("localhost"),
+                  "port" -> HoconValue.Num(80.0)
+                )
+              )
+            )
+          )
         )
+      }
+    ),
+    suite("value with trailing whitespace")(
+      test("extra spaces before closing brace") {
+        val result = parsed("""{ a = 1   }""")
+        assertTrue(result == HoconValue.Obj(Map("a" -> HoconValue.Num(1.0))))
       }
     )
   )

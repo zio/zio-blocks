@@ -20,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.jdk.CollectionConverters._
 
 /**
- * A pluggable source for resolving flag values by name.
- * Providers are consulted before system properties and environment variables.
+ * A pluggable source for resolving flag values by name. Providers are consulted
+ * before system properties and environment variables.
  */
 trait FlagProvider {
 
@@ -45,8 +45,8 @@ trait FlagProvider {
   }
 
   /**
-   * Compose this provider with a fallback. This provider is consulted first;
-   * if it returns None, the fallback is tried.
+   * Compose this provider with a fallback. This provider is consulted first; if
+   * it returns None, the fallback is tried.
    */
   final def orElse(fallback: FlagProvider): FlagProvider = {
     val self = this
@@ -65,8 +65,8 @@ trait FlagProvider {
 object FlagProvider {
 
   /**
-   * Global registry of FlagProvider instances.
-   * Thread-safe via ConcurrentHashMap.
+   * Global registry of FlagProvider instances. Thread-safe via
+   * ConcurrentHashMap.
    */
   object Registry {
     private val providers: ConcurrentHashMap[String, FlagProvider] = new ConcurrentHashMap[String, FlagProvider]()
@@ -106,7 +106,7 @@ object FlagProvider {
    */
   def fromMap(map: Map[String, String], id: String = "map-provider"): FlagProvider =
     new FlagProvider {
-      val providerId: String = id
+      val providerId: String                        = id
       def resolve(flagName: String): Option[String] = map.get(flagName)
     }
 }

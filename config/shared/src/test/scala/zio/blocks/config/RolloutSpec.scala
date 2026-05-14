@@ -52,8 +52,8 @@ object RolloutSpec extends ConfigBaseSpec {
         assertTrue(result.toOption.get.entries.size == 2)
       },
       test("parse percentage selector") {
-        val result = Rollout.parseChoices("canary@prod50%")
-        val choices = result.toOption.get
+        val result   = Rollout.parseChoices("canary@prod50%")
+        val choices  = result.toOption.get
         val targeted = choices.entries.head.asInstanceOf[Rollout.Choice.Targeted]
         assertTrue(targeted.value == "canary") &&
         assertTrue(targeted.selector.percentage == Some(50))
@@ -81,79 +81,95 @@ object RolloutSpec extends ConfigBaseSpec {
         assertTrue(Rollout.evaluateIndex(choices, "any/path", 50) == Some("fallback"))
       },
       test("targeted with exact path match") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "matched",
-            Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "matched",
+              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Some("matched"))
       },
       test("targeted with wildcard match") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "wild",
-            Rollout.Selector(List(Rollout.Segment.Wildcard, Rollout.Segment.Literal("users")), None)
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "wild",
+              Rollout.Selector(List(Rollout.Segment.Wildcard, Rollout.Segment.Literal("users")), None)
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Some("wild"))
       },
       test("path mismatch returns None") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "miss",
-            Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "miss",
+              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "web/pages", 0) == None)
       },
       test("0% never matches") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "never",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(0))
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "never",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(0))
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "path", 0) == None)
       },
       test("100% always matches") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "always",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(100))
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "always",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(100))
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "path", 99) == Some("always"))
       },
       test("percentage bucketing: bucket below threshold matches") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "partial",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "partial",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "path", 25) == Some("partial"))
       },
       test("percentage bucketing: bucket at threshold does not match") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "partial",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "partial",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "path", 50) == None)
       },
       test("first match wins (left to right)") {
-        val choices = Rollout.Choices(List(
-          Rollout.Choice.Targeted(
-            "first",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
-          ),
-          Rollout.Choice.Targeted(
-            "second",
-            Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
+        val choices = Rollout.Choices(
+          List(
+            Rollout.Choice.Targeted(
+              "first",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
+            ),
+            Rollout.Choice.Targeted(
+              "second",
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
+            )
           )
-        ))
+        )
         assertTrue(Rollout.evaluateIndex(choices, "path", 0) == Some("first"))
       }
     ),

@@ -17,15 +17,17 @@
 package zio.blocks.config
 
 /**
- * A flag whose value is resolved exactly once at class-load time and never changes.
+ * A flag whose value is resolved exactly once at class-load time and never
+ * changes.
  *
  * Intended to be extended by Scala `object` definitions:
  * {{{
  *   object MyFlag extends StaticFlag[Int](42)
  * }}}
  *
- * Resolution order: FlagProvider registry → system property → environment variable → default.
- * Throws at class load on parse/validation failure (fail-fast).
+ * Resolution order: FlagProvider registry → system property → environment
+ * variable → default. Throws at class load on parse/validation failure
+ * (fail-fast).
  */
 abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A]) {
 
@@ -35,8 +37,8 @@ abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A]) {
 
   private val resolved: (A, Flag.Source, Provenance) = StaticFlag.resolve(name, envName, default, reader)
 
-  val value: A             = resolved._1
-  val source: Flag.Source   = resolved._2
+  val value: A               = resolved._1
+  val source: Flag.Source    = resolved._2
   val provenance: Provenance = resolved._3
 
   def apply(): A = value
@@ -70,7 +72,7 @@ object StaticFlag {
     envName: String,
     default: A,
     reader: Flag.Reader[A]
-  ): (A, Flag.Source, Provenance) = {
+  ): (A, Flag.Source, Provenance) =
     FlagProvider.Registry.resolve(name) match {
       case Some((rawValue, providerId)) =>
         val parsed = reader.parse(name, rawValue) match {
@@ -100,7 +102,6 @@ object StaticFlag {
           }
         }
     }
-  }
 
   private[config] def register(flag: StaticFlag[_]): Unit = {
     val existing = Flag.registry.putIfAbsent(flag.name, flag)

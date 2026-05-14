@@ -24,15 +24,15 @@ sealed trait HoconValue
 object HoconValue {
   final case class Obj(fields: Map[String, HoconValue]) extends HoconValue
   final case class Arr(elements: Seq[HoconValue])       extends HoconValue
-  final case class Str(value: String)                    extends HoconValue
-  final case class Num(value: Double)                    extends HoconValue
-  final case class Bool(value: Boolean)                  extends HoconValue
-  case object Null                                       extends HoconValue
+  final case class Str(value: String)                   extends HoconValue
+  final case class Num(value: Double)                   extends HoconValue
+  final case class Bool(value: Boolean)                 extends HoconValue
+  case object Null                                      extends HoconValue
 
   /**
    * Flatten a HoconValue into a map of dot-separated key-value pairs. Objects
-   * are recursively flattened. Arrays are indexed numerically (e.g.
-   * "arr.0", "arr.1"). Null values are omitted.
+   * are recursively flattened. Arrays are indexed numerically (e.g. "arr.0",
+   * "arr.1"). Null values are omitted.
    */
   def flatten(value: HoconValue): Map[String, String] =
     flattenRec(value, "")
@@ -49,18 +49,18 @@ object HoconValue {
           val newKey = if (prefix.isEmpty) idx.toString else s"$prefix.$idx"
           acc ++ flattenRec(v, newKey)
         }
-      case Str(s)    => Map(prefix -> s)
-      case Num(n)    =>
+      case Str(s) => Map(prefix -> s)
+      case Num(n) =>
         val s = if (n == n.toLong && !n.isInfinite) n.toLong.toString else n.toString
         Map(prefix -> s)
-      case Bool(b)   => Map(prefix -> b.toString)
-      case Null      => Map.empty
+      case Bool(b) => Map(prefix -> b.toString)
+      case Null    => Map.empty
     }
 
   /**
    * Deep-merge two HoconValues. When both are Obj, fields are merged
-   * recursively with the right side winning on conflicts. Otherwise the
-   * right side replaces the left.
+   * recursively with the right side winning on conflicts. Otherwise the right
+   * side replaces the left.
    */
   def deepMerge(left: HoconValue, right: HoconValue): HoconValue =
     (left, right) match {
@@ -72,6 +72,6 @@ object HoconValue {
           }
         }
         Obj(merged)
-      case (_, r)             => r
+      case (_, r) => r
     }
 }

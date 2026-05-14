@@ -40,29 +40,29 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
 
   private val provenanceSuite = suite("orElse provenance attribution")(
     test("provenance tracks primary source when value comes from primary") {
-      val env     = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
-      val props   = ConfigSource.fromMap(Map("db.host" -> "prop-host"), "sysprop")
-      val source  = env.orElse(props)
-      val result  = source.get("db.host")
+      val env    = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
+      val props  = ConfigSource.fromMap(Map("db.host" -> "prop-host"), "sysprop")
+      val source = env.orElse(props)
+      val result = source.get("db.host")
       assertTrue(
         result.get.provenance == Provenance.Resolved("env", "db.host", Some("env-host"))
       )
     },
     test("provenance tracks fallback source when value comes from fallback") {
-      val env     = ConfigSource.fromMap(Map.empty, "env")
-      val props   = ConfigSource.fromMap(Map("db.host" -> "prop-host"), "sysprop")
-      val source  = env.orElse(props)
-      val result  = source.get("db.host")
+      val env    = ConfigSource.fromMap(Map.empty, "env")
+      val props  = ConfigSource.fromMap(Map("db.host" -> "prop-host"), "sysprop")
+      val source = env.orElse(props)
+      val result = source.get("db.host")
       assertTrue(
         result.get.provenance == Provenance.Resolved("sysprop", "db.host", Some("prop-host"))
       )
     },
     test("three-level chain attributes to correct source") {
-      val env     = ConfigSource.fromMap(Map.empty, "env")
-      val props   = ConfigSource.fromMap(Map.empty, "sysprop")
+      val env      = ConfigSource.fromMap(Map.empty, "env")
+      val props    = ConfigSource.fromMap(Map.empty, "sysprop")
       val defaults = ConfigSource.fromMap(Map("timeout" -> "30"), "defaults")
-      val source  = env.orElse(props).orElse(defaults)
-      val result  = source.get("timeout")
+      val source   = env.orElse(props).orElse(defaults)
+      val result   = source.get("timeout")
       assertTrue(
         result.get.value == "30",
         result.get.provenance == Provenance.Resolved("defaults", "timeout", Some("30"))
@@ -96,9 +96,9 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
 
   private val chainedCompositionSuite = suite("chained composition")(
     test("sourceId reflects full chain") {
-      val a = ConfigSource.fromMap(Map.empty, "a")
-      val b = ConfigSource.fromMap(Map.empty, "b")
-      val c = ConfigSource.fromMap(Map.empty, "c")
+      val a      = ConfigSource.fromMap(Map.empty, "a")
+      val b      = ConfigSource.fromMap(Map.empty, "b")
+      val c      = ConfigSource.fromMap(Map.empty, "c")
       val source = a.orElse(b).orElse(c)
       assertTrue(source.sourceId == "a|b|c")
     },
@@ -141,17 +141,19 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
     test("multi-source composition decodes correctly with per-field provenance") {
       val env      = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
       val yaml     = ConfigSource.fromMap(Map("db.port" -> "5432", "name" -> "yaml-app"), "yaml")
-      val defaults = ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
-      val source   = env.orElse(yaml).orElse(defaults)
-      val result   = Config.load[AppConfig](source)
+      val defaults =
+        ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
+      val source = env.orElse(yaml).orElse(defaults)
+      val result = Config.load[AppConfig](source)
       assertTrue(result == Right(AppConfig(DbConfig("env-host", 5432), "yaml-app")))
     },
     test("loadWithProvenance tracks per-field source across composite source") {
       val env      = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
       val yaml     = ConfigSource.fromMap(Map("db.port" -> "5432", "name" -> "yaml-app"), "yaml")
-      val defaults = ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
-      val source   = env.orElse(yaml).orElse(defaults)
-      val pm       = Config.loadWithProvenance[AppConfig](source).toOption.get
+      val defaults =
+        ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
+      val source = env.orElse(yaml).orElse(defaults)
+      val pm     = Config.loadWithProvenance[AppConfig](source).toOption.get
       assertTrue(
         pm.value == AppConfig(DbConfig("env-host", 5432), "yaml-app"),
         pm.provenanceOf("db.host") == Some(Provenance.Resolved("env", "db.host", Some("env-host"))),
@@ -160,10 +162,10 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       )
     },
     test("four-level chain with each field from different source") {
-      val s1 = ConfigSource.fromMap(Map("db.host" -> "s1-host"), "s1")
-      val s2 = ConfigSource.fromMap(Map("db.port" -> "9999"), "s2")
-      val s3 = ConfigSource.fromMap(Map("name" -> "s3-app"), "s3")
-      val s4 = ConfigSource.fromMap(Map("db.host" -> "s4-host", "db.port" -> "1111", "name" -> "s4-app"), "s4")
+      val s1     = ConfigSource.fromMap(Map("db.host" -> "s1-host"), "s1")
+      val s2     = ConfigSource.fromMap(Map("db.port" -> "9999"), "s2")
+      val s3     = ConfigSource.fromMap(Map("name" -> "s3-app"), "s3")
+      val s4     = ConfigSource.fromMap(Map("db.host" -> "s4-host", "db.port" -> "1111", "name" -> "s4-app"), "s4")
       val source = s1.orElse(s2).orElse(s3).orElse(s4)
       val pm     = Config.loadWithProvenance[AppConfig](source).toOption.get
       assertTrue(

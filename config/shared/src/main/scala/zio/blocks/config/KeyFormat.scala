@@ -19,8 +19,8 @@ package zio.blocks.config
 sealed trait KeyFormat
 
 object KeyFormat {
-  case object CamelCase extends KeyFormat
-  case object SnakeCase extends KeyFormat
-  case object KebabCase extends KeyFormat
+  case object CamelCase      extends KeyFormat
+  case object SnakeCase      extends KeyFormat
+  case object KebabCase      extends KeyFormat
   case object UpperSnakeCase extends KeyFormat
 }

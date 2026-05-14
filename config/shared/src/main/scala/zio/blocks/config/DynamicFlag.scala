@@ -20,17 +20,20 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable
 
 /**
- * A flag whose value is determined by a rollout expression that can be updated at runtime.
+ * A flag whose value is determined by a rollout expression that can be updated
+ * at runtime.
  *
- * Each call to `apply` evaluates the rollout expression against the provided key/attributes
- * and tracks evaluation counters. Use `evaluate` for evaluation without counter tracking.
+ * Each call to `apply` evaluates the rollout expression against the provided
+ * key/attributes and tracks evaluation counters. Use `evaluate` for evaluation
+ * without counter tracking.
  *
  * Intended to be extended by Scala `object` definitions:
  * {{{
  *   object MyFeature extends DynamicFlag[Boolean](false, "true@beta/50; false")
  * }}}
  *
- * Resolution order for initial expression: FlagProvider → system property → env variable → constructor default.
+ * Resolution order for initial expression: FlagProvider → system property → env
+ * variable → constructor default.
  */
 abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit reader: Flag.Reader[A]) {
 
@@ -56,7 +59,8 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   val isDynamic: Boolean = true
 
   /**
-   * Evaluates the rollout expression for the given key and attributes, tracking evaluation counters.
+   * Evaluates the rollout expression for the given key and attributes, tracking
+   * evaluation counters.
    */
   def apply(key: String, attributes: String*): A = {
     incrementCounter(key)
@@ -75,8 +79,8 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   def expression: String = _snapshot.expression
 
   /**
-   * Updates the rollout expression at runtime. Uses lenient validation: parse errors
-   * are silently ignored and the expression remains unchanged.
+   * Updates the rollout expression at runtime. Uses lenient validation: parse
+   * errors are silently ignored and the expression remains unchanged.
    */
   def update(newExpression: String)(implicit allow: AllowUnsafe): Unit = {
     val trimmed = newExpression.trim
@@ -92,12 +96,13 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   }
 
   /**
-   * Reloads the expression from FlagProvider. Returns a ReloadResult indicating what happened.
+   * Reloads the expression from FlagProvider. Returns a ReloadResult indicating
+   * what happened.
    */
   def reload()(implicit allow: AllowUnsafe): Flag.ReloadResult = {
     val resolved = FlagProvider.Registry.resolve(name)
     resolved match {
-      case None => Flag.ReloadResult.NoProvider
+      case None                => Flag.ReloadResult.NoProvider
       case Some((rawValue, _)) =>
         val trimmed = rawValue.trim
         if (trimmed == _snapshot.expression) Flag.ReloadResult.Unchanged
@@ -115,7 +120,8 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   }
 
   /**
-   * Current evaluation counter snapshot (key → count). Thread-safe but approximate.
+   * Current evaluation counter snapshot (key → count). Thread-safe but
+   * approximate.
    */
   def counters: Map[String, Long] = {
     val builder = Map.newBuilder[String, Long]
@@ -224,7 +230,7 @@ object DynamicFlag {
   ): String =
     FlagProvider.Registry.resolve(name) match {
       case Some((rawValue, _)) => rawValue
-      case None =>
+      case None                =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) sysProp
         else {
@@ -242,7 +248,7 @@ object DynamicFlag {
   ): Snapshot[A] =
     Rollout.parseChoices(expression) match {
       case Right(choices) => Snapshot(expression, choices, default, reader)
-      case Left(err) =>
+      case Left(err)      =>
         throw new ExceptionInInitializerError(
           s"DynamicFlag '$name': invalid rollout expression '$expression': ${err.message}"
         )

@@ -32,20 +32,24 @@ object Config {
   }
 
   /**
-   * Load a value of type `A` from the given source, or throw with a formatted error report.
+   * Load a value of type `A` from the given source, or throw with a formatted
+   * error report.
    */
   def loadOrThrow[A](source: ConfigSource)(implicit schema: Schema[A]): A =
     load[A](source) match {
-      case Right(a) => a
+      case Right(a)     => a
       case Left(errors) =>
         val report = formatErrors(errors)
         throw new ConfigLoadException(report, errors)
     }
 
   /**
-   * Load a value of type `A` together with provenance information for each resolved key.
+   * Load a value of type `A` together with provenance information for each
+   * resolved key.
    */
-  def loadWithProvenance[A](source: ConfigSource)(implicit schema: Schema[A]): Either[::[ConfigError], ProvenanceMap[A]] =
+  def loadWithProvenance[A](
+    source: ConfigSource
+  )(implicit schema: Schema[A]): Either[::[ConfigError], ProvenanceMap[A]] =
     load[A](source).map { a =>
       ProvenanceMap(a, source)
     }
@@ -67,5 +71,4 @@ object Config {
 /**
  * Exception thrown by `Config.loadOrThrow` when configuration loading fails.
  */
-final class ConfigLoadException(val report: String, val errors: ::[ConfigError])
-    extends RuntimeException(report)
+final class ConfigLoadException(val report: String, val errors: ::[ConfigError]) extends RuntimeException(report)

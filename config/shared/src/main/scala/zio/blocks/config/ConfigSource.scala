@@ -27,18 +27,21 @@ trait ConfigSource {
   def sourceId: String
 
   /**
-   * Look up a single key and return its value with provenance, or None if absent.
+   * Look up a single key and return its value with provenance, or None if
+   * absent.
    */
   def get(key: String): Option[ConfigValue[String]]
 
   /**
-   * Return all key-value pairs whose keys start with the given prefix (using dot-separated paths).
+   * Return all key-value pairs whose keys start with the given prefix (using
+   * dot-separated paths).
    */
   def getAll(prefix: String): Map[String, ConfigValue[String]]
 
   /**
-   * Compose this source with a fallback. Keys are looked up in this source first;
-   * if absent, the fallback is consulted. Provenance tracks the actual providing source.
+   * Compose this source with a fallback. Keys are looked up in this source
+   * first; if absent, the fallback is consulted. Provenance tracks the actual
+   * providing source.
    */
   final def orElse(fallback: ConfigSource): ConfigSource = new ConfigSource {
     val sourceId: String = s"${ConfigSource.this.sourceId}|${fallback.sourceId}"
@@ -51,8 +54,9 @@ trait ConfigSource {
   }
 
   /**
-   * Prepend a prefix to all key lookups. For example, `source.withPrefix("db").get("host")`
-   * looks up `"db.host"` in the underlying source.
+   * Prepend a prefix to all key lookups. For example,
+   * `source.withPrefix("db").get("host")` looks up `"db.host"` in the
+   * underlying source.
    */
   final def withPrefix(prefix: String): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
@@ -65,8 +69,8 @@ trait ConfigSource {
   }
 
   /**
-   * Apply a key transformation before lookup. The mapper transforms the requested key
-   * before it is passed to the underlying source.
+   * Apply a key transformation before lookup. The mapper transforms the
+   * requested key before it is passed to the underlying source.
    */
   final def withKeyMapper(mapper: KeyMapper, targetFormat: KeyFormat): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
