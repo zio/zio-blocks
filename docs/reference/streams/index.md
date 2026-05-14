@@ -612,7 +612,7 @@ Stream.range(1, 5).run(NioSinks.fromByteBufferInt(outBuf))
 
 // Write to a WritableByteChannel using a stream of bytes
 val outCh = FileChannel.open(
-  Paths.get("output.bin"),
+  Paths.get("data.bin"),
   StandardOpenOption.WRITE, StandardOpenOption.CREATE
 )
 val bytes = Chunk.fromIterable(List[Byte](1, 2, 3, 4, 5))

@@ -143,7 +143,18 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "path-interpolator",
-          "reference/ringbuffer",
+          {
+            type: "category",
+            label: "RingBuffer",
+            link: { type: "doc", id: "reference/ringbuffer/index" },
+            items: [
+              "reference/ringbuffer/spsc",
+              "reference/ringbuffer/spmc",
+              "reference/ringbuffer/mpsc",
+              "reference/ringbuffer/mpmc",
+              "reference/ringbuffer/advanced",
+            ]
+          },
           "reference/html",
           "reference/smithy",
           "reference/datastar",
