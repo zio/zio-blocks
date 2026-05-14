@@ -1,0 +1,185 @@
+```scala
+// Core migration types
+package zio.blocks.migration
+
+import zio.schema._
+import zio.schema.meta._
+import zio.schema.codec._
+import zio.{Chunk, ChunkBuilder}
+
+/**
+ * A pure, serializable representation of a schema migration.
+ * Operates on DynamicValue to allow offline/typed transformations.
+ */
+sealed trait DynamicMigration extends Product with Serializable
+
+object DynamicMigration {
+
+  /** Add a field with a default value */
+  final case class AddField(path: FieldPath, schema: Schema[_], default: DynamicValue) extends DynamicMigration
+
+  /** Remove a field */
+  final case class RemoveField(path: FieldPath) extends DynamicMigration
+
+  /** Rename a field */
+  final case class RenameField(from: FieldPath, to: FieldPath) extends DynamicMigration
+
+  /** Change the type of a field (with a transformation function) */
+  final case class TransformField(path: FieldPath, transform: DynamicValue => Either[String, DynamicValue]) extends DynamicMigration
+
+  /** Reorder fields */
+  final case class ReorderFields(path: FieldPath, order: Chunk[String]) extends DynamicMigration
+
+  /** Nest fields under a new record */
+  final case class NestFields(source: Chunk[FieldPath], target: FieldPath) extends DynamicMigration
+
+  /** Flatten a nested record into parent */
+  final case class FlattenFields(source: FieldPath, target: Chunk[FieldPath]) extends DynamicMigration
+
+  /** Compose migrations sequentially */
+  final case class Compose(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration
+
+  /** Identity migration (no-op) */
+  final case object Identity extends DynamicMigration
+
+  /** Apply a migration to a DynamicValue */
+  def applyMigration(migration: DynamicMigration, value: DynamicValue): Either[String, DynamicValue] = {
+    migration match {
+      case Identity => Right(value)
+      case AddField(path, schema, default) => addField(path, schema, default, value)
+      case RemoveField(path) => removeField(path, value)
+      case RenameField(from, to) => renameField(from, to, value)
+      case TransformField(path, transform) => transformField(path, transform, value)
+      case ReorderFields(path, order) => reorderFields(path, order, value)
+      case NestFields(source, target) => nestFields(source, target, value)
+      case FlattenFields(source, target) => flattenFields(source, target, value)
+      case Compose(first, second) =>
+        applyMigration(first, value).flatMap(applyMigration(second, _))
+    }
+  }
+
+  private def addField(path: FieldPath, schema: Schema[_], default: DynamicValue, value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.last
+        val parentPath = FieldPath(path.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields)
+        val updatedParent = parentFields :+ (fieldName -> default)
+        setFieldsAtPath(parentPath, updatedParent, fields).map(DynamicValue.Record(_))
+      case _ => Left(s"Cannot add field to non-record value: $value")
+    }
+  }
+
+  private def removeField(path: FieldPath, value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.last
+        val parentPath = FieldPath(path.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields).filterNot(_._1 == fieldName)
+        setFieldsAtPath(parentPath, parentFields, fields).map(DynamicValue.Record(_))
+      case _ => Left(s"Cannot remove field from non-record value: $value")
+    }
+  }
+
+  private def renameField(from: FieldPath, to: FieldPath, value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fromName = from.segments.last
+        val toName = to.segments.last
+        val parentPath = FieldPath(from.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields)
+        val renamed = parentFields.map {
+          case (name, v) if name == fromName => (toName, v)
+          case other => other
+        }
+        setFieldsAtPath(parentPath, renamed, fields).map(DynamicValue.Record(_))
+      case _ => Left(s"Cannot rename field in non-record value: $value")
+    }
+  }
+
+  private def transformField(path: FieldPath, transform: DynamicValue => Either[String, DynamicValue], value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val fieldName = path.segments.last
+        val parentPath = FieldPath(path.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields)
+        val transformed = parentFields.map {
+          case (name, v) if name == fieldName =>
+            transform(v) match {
+              case Right(newV) => (name, newV)
+              case Left(err) => return Left(err)
+            }
+          case other => other
+        }
+        setFieldsAtPath(parentPath, transformed, fields).map(DynamicValue.Record(_))
+      case _ => Left(s"Cannot transform field in non-record value: $value")
+    }
+  }
+
+  private def reorderFields(path: FieldPath, order: Chunk[String], value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val parentFields = getFieldsAtPath(path, fields)
+        val fieldMap = parentFields.toMap
+        val reordered = order.flatMap(name => fieldMap.get(name).map((name, _)))
+        if (reordered.size != parentFields.size) {
+          Left(s"Reorder fields: missing fields in order specification")
+        } else {
+          setFieldsAtPath(path, reordered, fields).map(DynamicValue.Record(_))
+        }
+      case _ => Left(s"Cannot reorder fields in non-record value: $value")
+    }
+  }
+
+  private def nestFields(source: Chunk[FieldPath], target: FieldPath, value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val sourceNames = source.map(_.segments.last)
+        val targetName = target.segments.last
+        val parentPath = FieldPath(target.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields)
+        val (toNest, remaining) = parentFields.partition { case (name, _) => sourceNames.contains(name) }
+        val nestedRecord = DynamicValue.Record(toNest)
+        val updatedParent = remaining :+ (targetName -> nestedRecord)
+        setFieldsAtPath(parentPath, updatedParent, fields).map(DynamicValue.Record(_))
+      case _ => Left(s"Cannot nest fields in non-record value: $value")
+    }
+  }
+
+  private def flattenFields(source: FieldPath, target: Chunk[FieldPath], value: DynamicValue): Either[String, DynamicValue] = {
+    value match {
+      case DynamicValue.Record(fields) =>
+        val sourceName = source.segments.last
+        val parentPath = FieldPath(source.segments.init)
+        val parentFields = getFieldsAtPath(parentPath, fields)
+        val sourceOpt = parentFields.find(_._1 == sourceName)
+        sourceOpt match {
+          case Some((_, DynamicValue.Record(nestedFields))) =>
+            val withoutSource = parentFields.filterNot(_._1 == sourceName)
+            val targetNames = target.map(_.segments.last)
+            val (toFlatten, keepNested) = nestedFields.partition { case (name, _) => targetNames.contains(name) }
+            val updatedParent = withoutSource ++ toFlatten ++ keepNested
+            setFieldsAtPath(parentPath, updatedParent, fields).map(DynamicValue.Record(_))
+          case _ => Left(s"Cannot flatten non-record field: $sourceName")
+        }
+      case _ => Left(s"Cannot flatten fields in non-record value: $value")
+    }
+  }
+
+  // Helper functions for field path manipulation
+  private def getFieldsAtPath(path: FieldPath, fields: Chunk[(String, DynamicValue)]): Chunk[(String, DynamicValue)] = {
+    path.segments match {
+      case Chunk() => fields
+      case head +: tail =>
+        fields.find(_._1 == head) match {
+          case Some((_, DynamicValue.Record(nested))) => getFieldsAtPath(FieldPath(tail), nested)
+          case _ => Chunk.empty
+        }
+    }
+  }
+
+  private def setFieldsAtPath(path: FieldPath, newFields: Chunk[(String, DynamicValue)], original: Chunk[(String, DynamicValue)]): Either[String, Chunk[(String, DynamicValue)]] = {
+    path.segments match {
+      case Chunk() => Right(newFields)
+      case head +: tail =>
+        val idx = original.indexWhere
