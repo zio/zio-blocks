@@ -1,0 +1,246 @@
+```scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.Schema
+import zio.blocks.schema.Schema._
+import zio.Chunk
+import scala.annotation.tailrec
+import scala.compiletime.{constValue, erasedValue, summonInline}
+import scala.deriving.Mirror
+
+/**
+ * A pure, serializable migration from schema version A to B.
+ * A is typically a structural type (no runtime representation),
+ * B is typically a concrete case class or enum.
+ */
+sealed trait DynamicMigration extends Product with Serializable {
+  def apply(value: DynamicValue): Either[MigrationError, DynamicValue]
+  def andThen(next: DynamicMigration): DynamicMigration = DynamicMigration.AndThen(this, next)
+  def compose(prev: DynamicMigration): DynamicMigration = prev.andThen(this)
+}
+
+object DynamicMigration {
+  final case class Identity(schema: Schema[_]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Right(value)
+  }
+
+  final case class RenameField(path: List[String], oldName: String, newName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields, schema) =>
+          val newFields = fields.map {
+            case (name, v) if name == oldName => (newName, v)
+            case other => other
+          }
+          Right(DynamicValue.Record(newFields, schema))
+        case _ => Left(MigrationError.NotARecord(value))
+      }
+  }
+
+  final case class AddField(path: List[String], fieldName: String, default: DynamicValue) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields, schema) =>
+          if (fields.exists(_._1 == fieldName))
+            Left(MigrationError.FieldAlreadyExists(fieldName))
+          else
+            Right(DynamicValue.Record(fields :+ (fieldName -> default), schema))
+        case _ => Left(MigrationError.NotARecord(value))
+      }
+  }
+
+  final case class RemoveField(path: List[String], fieldName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields, schema) =>
+          Right(DynamicValue.Record(fields.filterNot(_._1 == fieldName), schema))
+        case _ => Left(MigrationError.NotARecord(value))
+      }
+  }
+
+  final case class TransformField(path: List[String], fieldName: String, transform: DynamicValue => Either[MigrationError, DynamicValue]) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields, schema) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((name, oldValue)) =>
+              transform(oldValue).map(newValue =>
+                DynamicValue.Record(fields.map {
+                  case (n, _) if n == name => (name, newValue)
+                  case other => other
+                }, schema)
+              )
+            case None => Left(MigrationError.FieldNotFound(fieldName))
+          }
+        case _ => Left(MigrationError.NotARecord(value))
+      }
+  }
+
+  final case class AndThen(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      first(value).flatMap(second)
+  }
+
+  final case class Fail(error: MigrationError) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = Left(error)
+  }
+}
+
+sealed trait MigrationError extends Product with Serializable
+object MigrationError {
+  final case class NotARecord(value: DynamicValue) extends MigrationError
+  final case class FieldNotFound(name: String) extends MigrationError
+  final case class FieldAlreadyExists(name: String) extends MigrationError
+  final case class TypeMismatch(expected: Schema[_], actual: DynamicValue) extends MigrationError
+  final case class Custom(message: String) extends MigrationError
+}
+
+/**
+ * Typed, macro-validated migration from A to B.
+ * A is typically a structural type, B is a concrete type.
+ */
+final case class Migration[A, B](
+  dynamicMigration: DynamicMigration,
+  schemaA: Schema[A],
+  schemaB: Schema[B]
+) {
+  def apply(value: A): Either[MigrationError, B] =
+    DynamicValue.fromValue(value, schemaA).flatMap { dv =>
+      dynamicMigration(dv).flatMap { dv2 =>
+        DynamicValue.toValue[B](dv2, schemaB)
+      }
+    }
+
+  def andThen[C](next: Migration[B, C]): Migration[A, C] =
+    Migration(
+      dynamicMigration.andThen(next.dynamicMigration),
+      schemaA,
+      next.schemaB
+    )
+
+  def compose[Z](prev: Migration[Z, A]): Migration[Z, B] =
+    prev.andThen(this)
+}
+
+object Migration {
+  def identity[A](implicit schema: Schema[A]): Migration[A, A] =
+    Migration(DynamicMigration.Identity(schema), schema, schema)
+
+  def renameField[A, B](
+    oldName: String,
+    newName: String
+  )(implicit schemaA: Schema[A], schemaB: Schema[B]): Migration[A, B] =
+    Migration(
+      DynamicMigration.RenameField(Nil, oldName, newName),
+      schemaA,
+      schemaB
+    )
+
+  def addField[A, B](
+    fieldName: String,
+    default: DynamicValue
+  )(implicit schemaA: Schema[A], schemaB: Schema[B]): Migration[A, B] =
+    Migration(
+      DynamicMigration.AddField(Nil, fieldName, default),
+      schemaA,
+      schemaB
+    )
+
+  def removeField[A, B](
+    fieldName: String
+  )(implicit schemaA: Schema[A], schemaB: Schema[B]): Migration[A, B] =
+    Migration(
+      DynamicMigration.RemoveField(Nil, fieldName),
+      schemaA,
+      schemaB
+    )
+
+  def transformField[A, B](
+    fieldName: String,
+    transform: DynamicValue => Either[MigrationError, DynamicValue]
+  )(implicit schemaA: Schema[A], schemaB: Schema[B]): Migration[A, B] =
+    Migration(
+      DynamicMigration.TransformField(Nil, fieldName, transform),
+      schemaA,
+      schemaB
+    )
+}
+
+/**
+ * Macro-based derivation for structural types.
+ * In a real implementation, this would use scala 3 macros.
+ * Here we provide a simplified version using mirrors.
+ */
+object MigrationDerivation {
+  inline def derive[A, B](inline migration: DynamicMigration): Migration[A, B] =
+    ${ deriveImpl[A, B]('migration) }
+
+  private def deriveImpl[A: Type, B: Type](migration: Expr[DynamicMigration])(using Quotes): Expr[Migration[A, B]] = {
+    import quotes.reflect._
+    val schemaAExpr = Expr.summon[Schema[A]].getOrElse(
+      report.errorAndAbort(s"Cannot find Schema for ${Type.show[A]}")
+    )
+    val schemaBExpr = Expr.summon[Schema[B]].getOrElse(
+      report.errorAndAbort(s"Cannot find Schema for ${Type.show[B]}")
+    )
+    '{
+      Migration[A, B](
+        $migration,
+        $schemaAExpr,
+        $schemaBExpr
+      )
+    }
+  }
+}
+
+// Example usage and test cases
+object MigrationExample {
+  // Current version
+  @schema
+  case class Person(fullName: String, age: Int, country: String)
+
+  // Structural type for old version (compile-time only)
+  type PersonV1 = { def name: String; def age: Int }
+
+  // Migration from V1 to current
+  val v1ToCurrent: Migration[PersonV1, Person] = {
+    Migration
+      .renameField[PersonV1, Person]("name", "fullName")
+      .andThen(Migration.addField[PersonV1, Person]("country", DynamicValue.String("Unknown")))
+  }
+
+  // Test
+  def testMigration(): Unit = {
+    // Simulate old data
+    val oldData: PersonV1 = new {
+      val name: String = "Alice"
+      val age: Int = 30
+    }
+
+    v1ToCurrent(oldData) match {
+      case Right(person) =>
+        assert(person.fullName == "Alice")
+        assert(person.age == 30)
+        assert(person.country == "Unknown")
+        println(s"Migration successful: $person")
+      case Left(error) =>
+        println(s"Migration failed: $error")
+    }
+  }
+}
+
+// Test suite
+object MigrationSpec {
+  def run(): Unit = {
+    testIdentity()
+    testRenameField()
+    testAddField()
+    testRemoveField()
+    testComposition()
+    testErrorHandling()
+    println("All tests passed!")
+  }
+
+  private def testIdentity(): Unit = {
