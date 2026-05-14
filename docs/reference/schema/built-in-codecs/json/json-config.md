@@ -7,7 +7,7 @@ The JSON codec module provides four configuration types for controlling encoding
 
 ## WriterConfig
 
-`WriterConfig` controls the formatting and content of encoded JSON output. Use it when calling `.print()` on `Json` values or when encoding values with specific formatting requirements.
+`WriterConfig` controls the formatting and content of encoded JSON output. Use it when calling `Json#print` on `Json` values or when encoding values with specific formatting requirements.
 
 ### Configuration Options
 
@@ -19,7 +19,7 @@ The JSON codec module provides four configuration types for controlling encoding
 
 ### Usage Examples
 
-**Pretty-Printed Output:**
+Pretty-print JSON output with configurable indentation:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -40,7 +40,7 @@ val pretty = json.print(WriterConfig.withIndentionStep(2))
 // }
 ```
 
-**Sorted Keys with Custom Indentation:**
+Configure custom indentation for JSON output:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -63,7 +63,7 @@ val sorted = json.print(WriterConfig
 // }
 ```
 
-**ASCII-Only Output:**
+Escape non-ASCII characters for ASCII-only transmission:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -93,7 +93,7 @@ val ascii = json.print(WriterConfig.withEscapeUnicode(true))
 
 ### Usage Examples
 
-**Lenient Parsing:**
+Allow trailing whitespace after valid JSON during parsing:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -125,8 +125,7 @@ For details on merge strategies and their usage, see the Merging section of the 
 
 ### Built-in Mappers
 
-**Identity (Default):**
-Field names unchanged:
+Use identity mapping to keep field names unchanged:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
