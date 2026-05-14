@@ -51,6 +51,26 @@ object StreamChoiceSharedSpec extends StreamsBaseSpec {
       val result = (Stream.fail("boom"): Stream[String, String]).choice(Stream.succeed(42)).runCollect
       assert(result)(equalTo(Left("boom")))
     },
+    test("error channel widens to common supertype") {
+      sealed trait AppError
+      case class LeftErr(msg: String) extends AppError
+      case class RightErr(code: Int)  extends AppError
+
+      val left: Stream[LeftErr, String] = Stream.fail(LeftErr("oops"))
+      val right: Stream[RightErr, Int]  = Stream.succeed(42)
+      val result                        = left.choice(right).runCollect
+      assert(result)(equalTo(Left(LeftErr("oops"))))
+    },
+    test("right stream error propagation") {
+      sealed trait AppError
+      case class LeftErr(msg: String) extends AppError
+      case class RightErr(code: Int)  extends AppError
+
+      val left: Stream[LeftErr, String] = Stream.succeed("ok")
+      val right: Stream[RightErr, Int]  = Stream.fail(RightErr(404))
+      val result                        = left.choice(right).runCollect
+      assert(result)(equalTo(Left(RightErr(404))))
+    },
     test("type ascription compiles") {
       val _ = Stream.succeed("a").choice(Stream.succeed(1))
       assertTrue(true)

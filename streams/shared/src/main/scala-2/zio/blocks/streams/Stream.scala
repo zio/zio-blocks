@@ -101,6 +101,16 @@ abstract class Stream[+E, +A] {
    * On Scala 2, `|` is an alias for `Either`, so left-stream elements become
    * `Left(a)` and right-stream elements become `Right(a2)`. Use
    * `Choices.separate` to decompose elements back to `Either[A, A2]`.
+   *
+   * @param that
+   *   the stream whose elements are emitted after `this`
+   * @tparam E2
+   *   the error type of `that`, must be a supertype of `E`
+   * @tparam A2
+   *   the element type of `that`
+   * @return
+   *   a stream that emits `Left(a)` for each element of `this` and
+   *   `Right(a2)` for each element of `that`, with error type widened to `E2`
    */
   def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
     jtA: JvmType.Infer[A],

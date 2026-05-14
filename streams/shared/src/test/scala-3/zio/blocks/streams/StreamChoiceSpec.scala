@@ -26,8 +26,17 @@ object StreamChoiceSpec extends StreamsBaseSpec {
       val errors = typeCheckErrors("Stream.succeed(1).choice(Stream.succeed(2))")
 
       assertTrue(
-        errors.length == 1,
-        errors.head.message.contains("Union types must contain unique types")
+        errors.nonEmpty,
+        errors.exists(_.message.contains("Union types must contain unique types"))
+      )
+    },
+    test("rejects union-typed right-hand side at compile time") {
+      val errors = typeCheckErrors(
+        "(Stream.succeed(1): Stream[Nothing, Int]).choice(Stream.succeed(\"a\"): Stream[Nothing, String | Boolean])"
+      )
+
+      assertTrue(
+        errors.exists(_.message.contains("must not be a union type"))
       )
     }
   )

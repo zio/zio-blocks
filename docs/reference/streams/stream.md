@@ -903,9 +903,10 @@ trait Stream[+E, +A] {
   <TabItem value="scala3" label="Scala 3.x">
 
 ```scala
-trait Stream[+E, +A] {
-  def choice[E2 >: E, A2](that: Stream[E2, A2])(using Unions.Unions.WithOut[A, A2, A | A2]): Stream[E2, A | A2]
-}
+extension [E, A](self: Stream[E, A])
+  def choice[E2, A2](that: Stream[E2, A2])(using
+    Unions.Unions.WithOut[A, A2, A | A2]
+  ): Stream[E | E2, A | A2]
 ```
 
   </TabItem>
@@ -933,7 +934,7 @@ val choiceResult = Stream.succeed("left").choice(Stream.succeed(1)).runCollect
 assert(choiceResult == Right(Chunk[String | Int]("left", 1)))
 ```
 
-The error channel widens in the same way as `++`:
+The error channel widens to accommodate both streams. On Scala 2 this uses subtype widening (`E2 >: E`), while on Scala 3 it produces a union error type (`E | E2`):
 
 ```scala mdoc
 import zio.blocks.streams.*
