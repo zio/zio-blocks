@@ -3,7 +3,7 @@ id: mpmc
 title: "MPMC RingBuffer"
 ---
 
-import MpmcDiagram from '../MpmcDiagram.jsx';
+import MpmcDiagram from './MpmcDiagram.jsx';
 
 `MpmcRingBuffer[A]` is the fully general-purpose implementation for systems with multiple producer and consumer threads. It uses the **Vyukov/Dmitry sequence-buffer algorithm**, a sophisticated lock-free design that coordinates all access through monotonically increasing indices and per-slot sequence stamps—making every slot's state self-describing at any moment.
 

@@ -3,7 +3,7 @@ id: mpsc
 title: "MPSC RingBuffer"
 ---
 
-import MpscDiagram from '../MpscDiagram.jsx';
+import MpscDiagram from './MpscDiagram.jsx';
 
 `MpscRingBuffer[A]` handles the inverse case: multiple producer threads safely offering elements to a single consumer thread. It uses a **hybrid design** combining producer-side CAS coordination with a FastFlow-style relaxed-poll consumer, balancing producer contention while keeping the consumer blazingly fast.
 

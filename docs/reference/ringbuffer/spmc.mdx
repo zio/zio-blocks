@@ -3,7 +3,7 @@ id: spmc
 title: "SPMC RingBuffer"
 ---
 
-import SpmcDiagram from '../SpmcDiagram.jsx';
+import SpmcDiagram from './SpmcDiagram.jsx';
 
 `SpmcRingBuffer[A]` allows a single producer thread to efficiently feed multiple consumer threads. It uses an **index-based algorithm** where slot validity is determined by comparing producer and consumer indices, allowing multiple consumers to coordinate safely via CAS operations on a shared consumer index.
 

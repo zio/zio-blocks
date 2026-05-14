@@ -145,7 +145,7 @@ const sidebars = {
           "path-interpolator",
           {
             type: "category",
-            label: "ZIO Blocks RingBuffer",
+            label: "RingBuffer",
             link: { type: "doc", id: "reference/ringbuffer/index" },
             items: [
               "reference/ringbuffer/spsc",
