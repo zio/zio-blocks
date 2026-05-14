@@ -60,7 +60,7 @@ Golem SDK **eliminates boilerplate** by deriving all of this from your trait def
 
 Add the Golem SDK to your `build.sbt`:
 
-```scala
+```sbt
 libraryDependencies += "dev.zio" %%% "zio-golem-core"  % "@VERSION@"
 libraryDependencies += "dev.zio" %%% "zio-golem-model" % "@VERSION@"
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"
@@ -152,7 +152,7 @@ GolemSchema.decode() → Output (Scala type)
 
 Define constructor parameters via an inner `class Id`:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -170,7 +170,7 @@ trait Shard extends BaseAgent {
 ```
 
 When mounting over HTTP, constructor parameters must match path variables:
-```scala
+```scala mdoc:passthrough
 @agentDefinition(mount = "/api/{tableName}/{shardId}")
 trait Shard extends BaseAgent {
   class Id(val tableName: String, val shardId: Int)
@@ -182,7 +182,7 @@ trait Shard extends BaseAgent {
 
 For ergonomic `.get()` and `.getPhantom()` access, define a companion object:
 
-```scala
+```scala mdoc:passthrough
 import golem.AgentCompanionBase
 
 object Shard extends AgentCompanionBase[Shard]
@@ -196,7 +196,7 @@ object Shard extends AgentCompanionBase[Shard]
 
 Persist state across invocations using snapshots by mixing in the `Snapshotted` trait:
 
-```scala
+```scala mdoc:passthrough
 import golem.runtime.annotations.agentImplementation
 import golem.Snapshotted
 import zio.blocks.schema.Schema
@@ -220,7 +220,7 @@ class CounterImpl() extends Counter with Snapshotted[CounterState] {
 
 Execute multi-step operations atomically:
 
-```scala
+```scala mdoc:passthrough
 import golem.Transactions
 
 val result = Transactions.infallibleTransaction { tx =>
@@ -234,18 +234,18 @@ val result = Transactions.infallibleTransaction { tx =>
 
 ### Pattern 5: Configuration & Secrets
 
-Agents can declare configuration fields:
+Agents can declare configuration via the `AgentConfig[T]` pattern:
 
-```scala
-import golem.config.ConfigSchema
+```scala mdoc:passthrough
+import golem.config.{AgentConfig, Config}
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
+import zio.blocks.schema.Schema
+
+case class AppConfig(apiKey: String, timeout: Int = 30) derives Schema
 
 @agentDefinition
-trait ConfiguredAgent extends BaseAgent {
-  val apiKey: String
-  val timeout: Int = 30
-}
+trait ConfiguredAgent extends BaseAgent with AgentConfig[AppConfig]
 ```
 
 Configuration is provided by the Golem runtime, overridable per deployment.
