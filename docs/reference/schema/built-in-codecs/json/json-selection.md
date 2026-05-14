@@ -26,12 +26,12 @@ import zio.blocks.schema.json.{Json, JsonSelection}
 
 val json = Json.parseUnsafe("""{"name": "Alice"}""")
 
-// Get a single field
-val name: JsonSelection = json.get("name")  // Right(Chunk(Json.String("Alice")))
+// Get a single field  
+val name: JsonSelection = json.get("name")
 
-// Get multiple array elements
-val values = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
-val selected: JsonSelection = values.apply(0)  // Right(Chunk(Json.Number(1)))
+// Get array element by index
+val values = Json.parseUnsafe("[1, 2, 3]")
+val selected: JsonSelection = values.get(0)
 ```
 
 ### From Companion Object
@@ -62,21 +62,21 @@ val failure = JsonSelection.fail(SchemaError("not found"))
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val data = Json.Object(
-  "user" -> Json.Object(
-    "name" -> Json.String("Bob"),
-    "email" -> Json.String("bob@example.com")
-  )
-)
+val data = Json.parseUnsafe("""{
+  "user": {
+    "name": "Bob",
+    "email": "bob@example.com"
+  }
+}""")
 
 // Single field access
 val user = data.get("user")
 
 // Chained field access
-val name = data.get("user").get("name")  // JsonSelection
+val name = data.get("user").get("name")
 
-// Access with String key (shorthand)
-val email = data("user")("email")
+// Multiple levels of nesting
+val email = data.get("user").get("email")
 ```
 
 ### Array Navigation
@@ -84,17 +84,17 @@ val email = data("user")("email")
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
-val data = Json.Array(
-  Json.Object("id" -> Json.Number(1), "name" -> Json.String("Alice")),
-  Json.Object("id" -> Json.Number(2), "name" -> Json.String("Bob"))
-)
+val data = Json.parseUnsafe("""[
+  {"id": 1, "name": "Alice"},
+  {"id": 2, "name": "Bob"}
+]""")
 
 // Index access (0-based)
-val first = data(0)  // First array element
+val first = data.get(0)
 
 // Chained index and field access
-val firstName = data(0).get("name")  // "Alice"
-val secondId = data(1).get("id")     // 2
+val firstName = data.get(0).get("name")
+val secondId = data.get(1).get("id")
 ```
 
 ### Path-Based Navigation
@@ -122,35 +122,27 @@ val firstEmpName = data.get(path)  // JsonSelection(Right(Chunk(Json.String("Ali
 ### Filter by Type
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonSelection}
 
-val mixed = Json.Array(
-  Json.String("text"),
-  Json.Number(42),
-  Json.Boolean(true),
-  Json.String("more text")
-)
+val mixed = Json.parseUnsafe("""["text", 42, true, "more text"]""")
 
-// Keep only strings
-val strings = mixed.strings    // JsonSelection with two strings
-val numbers = mixed.numbers    // JsonSelection with one number
-val booleans = mixed.booleans  // JsonSelection with one boolean
+// Create a selection containing all array elements, then filter by type
+val allElements = JsonSelection.succeedMany(mixed.elements)
+val strings = allElements.strings    // JsonSelection with string values
+val numbers = allElements.numbers    // JsonSelection with number values
+val booleans = allElements.booleans  // JsonSelection with boolean values
 ```
 
 ### Filter with Predicate
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonSelection}
 
-val data = Json.Array(
-  Json.Number(1),
-  Json.Number(2),
-  Json.Number(3),
-  Json.Number(4)
-)
+val data = Json.parseUnsafe("[1, 2, 3, 4]")
 
-// Filter elements (select only even numbers)
-val evenOnly = data.filter { json =>
+// Create selection and filter with predicate
+val allElements = JsonSelection.succeedMany(data.elements)
+val evenOnly = allElements.filter { json =>
   json match {
     case Json.Number(n) => n.toInt % 2 == 0
     case _ => false
@@ -177,34 +169,26 @@ val str: Either[SchemaError, String] = selection.get("count").as[String]  // Lef
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonSelection}
 
-val data = Json.Array(
-  Json.String("Alice"),
-  Json.String("Bob"),
-  Json.String("Charlie")
-)
+val data = Json.parseUnsafe("""["Alice", "Bob", "Charlie"]""")
 
-// Decode all strings
-val names: Either[SchemaError, Seq[String]] = data
-  .strings
-  .chunk
-  .map(_.map {
-    case Json.String(s) => s
-  }.toSeq)
+// Create selection of all array elements and decode
+val allElements = JsonSelection.succeedMany(data.elements)
+val names: Either[SchemaError, Seq[String]] = allElements.asAll[String].map(_.toSeq)
 ```
 
 ### Extract Single Value
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonSelection}
 
-val arr = Json.Array(Json.Number(1), Json.Number(2))
+val arr = Json.parseUnsafe("[1, 2]")
 
-// Get exactly one value (fails if 0 or more than 1)
-val single = arr(0).one  // Right(Json.Number(1))
-val multiple = arr.one   // Left(SchemaError("expected single value but got 2"))
+// Get exactly one value from a selection (fails if 0 or more than 1)
+val single = arr.get(0).one    // Right(Json.Number(1))
+val multiple = JsonSelection.succeedMany(arr.elements).one  // Left(SchemaError(...))
 ```
 
 ### Check and Get
@@ -225,13 +209,15 @@ val failed = data.get("notFound").isFailure   // true if field not found
 ## Size and Existence Checks
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonSelection}
 
-val data = Json.Array(Json.Number(1), Json.Number(2), Json.Number(3))
+val data = Json.parseUnsafe("[1, 2, 3]")
 
-val size = data.size        // 3
-val isEmpty = data.isEmpty  // false
-val nonEmpty = data.nonEmpty  // true
+// Create selection and check size
+val selection = JsonSelection.succeedMany(data.elements)
+val size = selection.size        // 3
+val isEmpty = selection.isEmpty  // false
+val nonEmpty = selection.nonEmpty  // true
 ```
 
 ## Modifying Selections
@@ -282,23 +268,20 @@ val maybeValues = result.values      // None if error
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.json.{Json, JsonSelection}
+import zio.blocks.chunk.Chunk
 
 case class User(name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val users = Json.Array(
-  Json.Object("name" -> Json.String("Alice"), "email" -> Json.String("alice@example.com")),
-  Json.Object("name" -> Json.String("Bob"), "email" -> Json.String("bob@example.com"))
-)
+val users = Json.parseUnsafe("""[
+  {"name": "Alice", "email": "alice@example.com"},
+  {"name": "Bob", "email": "bob@example.com"}
+]""")
 
 // Navigate and decode in one chain
-val firstUser: Either[SchemaError, User] = users(0).as[User]
-val allUsers: Either[SchemaError, Seq[User]] = users
-  .chunk
-  .map(_.flatMap {
-    case obj: Json.Object => Some(obj)
-    case _ => None
-  })
+val firstUser: Either[SchemaError, User] = users.get(0).as[User]
+val allUsers: Either[SchemaError, Chunk[User]] = JsonSelection.succeedMany(users.elements).asAll[User]
 ```
 
 ## Performance Notes
