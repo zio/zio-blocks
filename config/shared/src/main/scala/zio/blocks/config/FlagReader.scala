@@ -41,9 +41,21 @@ trait Flag {
   }
 
   /**
-   * Global registry of all resolved StaticFlag instances, keyed by flag name.
+   * Global registry of all resolved flag instances (static and dynamic), keyed by flag name.
    */
   val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
+
+  /**
+   * Result of reloading a dynamic flag's expression from its FlagProvider.
+   */
+  sealed trait ReloadResult
+
+  object ReloadResult {
+    case object Unchanged                                extends ReloadResult
+    final case class Updated(oldExpression: String, newExpression: String) extends ReloadResult
+    case object NoProvider                               extends ReloadResult
+    final case class Failed(error: ConfigError)          extends ReloadResult
+  }
 
   trait Reader[A] {
 
