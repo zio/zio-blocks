@@ -28,7 +28,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 
 **Serialization:**
 - [`Codec`](./codec.md) — Base abstraction for encoding and decoding values between formats
-- [`Formats`](./formats.md) — Unified abstraction bundling serialization and deserialization for a specific format
+- [`Format`](./format.md) — Unified abstraction bundling serialization and deserialization for a specific format
 - [`Type Class Derivation`](./type-class-derivation.md) — Automatic generation of type class instances from schemas
 - [`Syntax`](./syntax.md) — Extension methods for fluent JSON encoding/decoding and patching
 
