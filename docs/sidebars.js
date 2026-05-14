@@ -52,26 +52,7 @@ const sidebars = {
                items: [
                  "reference/schema/type-class-derivation",
                  "reference/schema/codec",
-                 {
-                   type: "category",
-                   label: "Formats",
-                   link: { type: "doc", id: "reference/schema/format" },
-                   collapsed: false,
-                   items: [
-                     {
-                       type: "category",
-                       label: "Json Format",
-                       link: { type: "doc", id: "reference/schema/json" },
-                       collapsed: false,
-                       items: [
-                         "reference/schema/json",
-                         "reference/schema/json-patch",
-                         "reference/schema/json-differ",
-                         "reference/schema/json-schema",
-                       ]
-                     },
-                   ]
-                 },
+                 "reference/schema/format",
                  "reference/schema/lazy",
                ]
              },
@@ -81,6 +62,18 @@ const sidebars = {
                link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
                collapsed: false,
                items: [
+                 {
+                   type: "category",
+                   label: "Json Format",
+                   link: { type: "doc", id: "reference/schema/built-in-codecs/json" },
+                   collapsed: false,
+                   items: [
+                     "reference/schema/built-in-codecs/json",
+                     "reference/schema/built-in-codecs/json-patch",
+                     "reference/schema/built-in-codecs/json-differ",
+                     "reference/schema/built-in-codecs/json-schema",
+                   ]
+                 },
                  "reference/schema/built-in-codecs/avro",
                  "reference/schema/built-in-codecs/bson",
                  "reference/schema/built-in-codecs/csv",

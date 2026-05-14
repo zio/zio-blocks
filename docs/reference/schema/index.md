@@ -33,10 +33,10 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 - [`Syntax`](./syntax.md) — Extension methods for fluent JSON encoding/decoding and patching
 
 **Formats:**
-- [`Json`](./json.md) — Algebraic data type for representing and manipulating JSON values
-- [`JsonPatch`](./json-patch.md) — Composable patch operations transforming one JSON value into another
-- [`JsonDiffer`](./json-differ.md) — Diff algorithm computing minimal patches between JSON values
-- [`JSON Schema`](./json-schema.md) — First-class support for JSON Schema 2020-12
+- [`Json`](./built-in-codecs/json.md) — Algebraic data type for representing and manipulating JSON values
+- [`JsonPatch`](./built-in-codecs/json-patch.md) — Composable patch operations transforming one JSON value into another
+- [`JsonDiffer`](./built-in-codecs/json-differ.md) — Diff algorithm computing minimal patches between JSON values
+- [`JSON Schema`](./built-in-codecs/json-schema.md) — First-class support for JSON Schema 2020-12
 - [`Xml`](./xml.md) — Type-safe, immutable representation of XML document structures
 
 **Validation & Errors:**
