@@ -880,17 +880,33 @@ val combined = first ++ second
 val result = combined.runCollect
 ```
 
-### Union Concatenation with `choice` (Scala 3 only)
-
-> `choice` is Scala 3 only because Scala 2's `|` alias maps to `Either`, which would produce wrapped `Either` values in the stream rather than direct union-typed elements. This semantic mismatch makes a cross-version `choice` impractical.
+### Union Concatenation with `choice`
 
 `choice[E2, A2]` emits all elements of the first stream, then all elements of the second stream, just like `++` / `concat`. The difference is that `choice` requires the resulting element type to remain a **direct disjoint union** `A | A2`.
 
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2.13">
+
 ```scala
 trait Stream[+E, +A] {
-  def choice[E2, A2](that: Stream[E2, A2])(using Unions.Unions.WithOut[A, A2, A | A2]): Stream[E | E2, A | A2]
+  def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
+    jtA: JvmType.Infer[A],
+    jtA2: JvmType.Infer[A2]
+  ): Stream[E2, A | A2]
 }
 ```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3.x">
+
+```scala
+trait Stream[+E, +A] {
+  def choice[E2 >: E, A2](that: Stream[E2, A2])(using Unions.Unions.WithOut[A, A2, A | A2]): Stream[E2, A | A2]
+}
+```
+
+  </TabItem>
+</Tabs>
 
 Use `choice` when you want sequential concatenation with a compile-time guarantee that duplicate union alternatives are rejected. The right-hand stream must contribute a non-union element type `A2`; if you want three or more alternatives, build them by left-nesting, for example `(Stream.succeed("left").choice(Stream.succeed(1))).choice(Stream.succeed(true))`.
 
@@ -919,7 +935,10 @@ The error channel widens in the same way as `++`:
 ```scala mdoc
 import zio.blocks.streams.*
 
-val left: Stream[String, String] = Stream.fail("boom")
+sealed trait ChoiceError
+case class LeftError(msg: String) extends ChoiceError
+
+val left: Stream[ChoiceError, String] = Stream.fail(LeftError("boom"))
 val right = Stream.succeed(true)
 
 left.choice(right).runCollect
