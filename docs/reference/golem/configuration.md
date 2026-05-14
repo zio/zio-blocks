@@ -25,22 +25,15 @@ Agents declare configuration using a separate configuration type that extends `A
 
 ```scala mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
-import golem.{BaseAgent, Schema}
+import golem.BaseAgent
+import zio.blocks.schema.Schema
 
-case class MyConfig(apiKey: String, timeout: Int)
-
-object MyConfig {
-  implicit val schema: Schema[MyConfig] = Schema.derived
-}
+case class MyConfig(apiKey: String, timeout: Int) derives Schema
 
 @agentDefinition
 trait ConfiguredAgent extends BaseAgent with golem.config.AgentConfig[MyConfig] {
-  val config: golem.config.Config[MyConfig]
-  
-  def getApiKey(): scala.concurrent.Future[String] = 
-    scala.concurrent.Future.successful(config.value.apiKey)
-  def getTimeout(): scala.concurrent.Future[Int] = 
-    scala.concurrent.Future.successful(config.value.timeout)
+  def getApiKey(): scala.concurrent.Future[String]
+  def getTimeout(): scala.concurrent.Future[Int]
 }
 ```
 
@@ -52,9 +45,8 @@ Use the `Config` API to access configuration synchronously:
 
 ```scala mdoc:passthrough
 import golem.wasi.Config
-type ConfigError = String
 
-val apiKey: Either[ConfigError, Option[String]] = Config.get("API_KEY")
+val apiKey: Either[Config.ConfigError, Option[String]] = Config.get("API_KEY")
 
 apiKey match {
   case Right(Some(key)) => println(s"API Key: $key")
@@ -89,7 +81,6 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 ```scala mdoc:passthrough
 import golem.wasi.Config
 import scala.concurrent.Future
-type ConfigError = String
 
 // In an agent implementation:
 val dbUrl = Config.get("DATABASE_URL")
@@ -108,9 +99,8 @@ dbUrl match {
 
 ```scala mdoc:passthrough
 import golem.wasi.Config
-type ConfigError = String
 
-val enableCache: Either[ConfigError, Option[String]] = Config.get("ENABLE_CACHE")
+val enableCache = Config.get("ENABLE_CACHE")
 val isEnabled = enableCache match {
   case Right(Some("true")) => true
   case _ => false
@@ -121,9 +111,8 @@ val isEnabled = enableCache match {
 
 ```scala mdoc:passthrough
 import golem.wasi.Config
-type ConfigError = String
 
-val timeoutMs: Either[ConfigError, Option[String]] = Config.get("REQUEST_TIMEOUT_MS")
+val timeoutMs = Config.get("REQUEST_TIMEOUT_MS")
 val timeout = timeoutMs match {
   case Right(Some(ms)) => ms.toInt
   case Right(None) => 5000 // default
@@ -156,27 +145,19 @@ For type-safe configuration, extend `AgentConfig[T]` with a configuration case c
 
 ```scala mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
-import golem.{BaseAgent, Schema}
+import golem.BaseAgent
+import zio.blocks.schema.Schema
 import scala.concurrent.Future
 
 case class DatabaseConfig(
   databaseUrl: String,
   timeout: Int,
   enableCache: Boolean = true
-)
-
-object DatabaseConfig {
-  implicit val schema: Schema[DatabaseConfig] = Schema.derived
-}
+) derives Schema
 
 @agentDefinition
 trait TypedConfigAgent extends BaseAgent with golem.config.AgentConfig[DatabaseConfig] {
-  val config: golem.config.Config[DatabaseConfig]
-  
-  def connect(): Future[String] = {
-    val cfg = config.value
-    Future.successful(s"Connecting to ${cfg.databaseUrl}")
-  }
+  def connect(): Future[String]
 }
 ```
 
@@ -188,9 +169,8 @@ Configuration access can fail:
 
 ```scala mdoc:passthrough
 import golem.wasi.Config
-type ConfigError = String
 
-val result: Either[ConfigError, Option[String]] = Config.get("API_KEY")
+val result = Config.get("API_KEY")
 ```
 
 Always handle missing configuration gracefully or fail early at agent startup.
