@@ -16,13 +16,26 @@
 
 package zio.blocks.config
 
+import zio.blocks.schema.Schema
 import zio.test._
 
 object ConfigSourceCompositionSpec extends ConfigBaseSpec {
+
+  case class DbConfig(host: String, port: Int)
+  object DbConfig {
+    implicit val schema: Schema[DbConfig] = Schema.derived[DbConfig]
+  }
+
+  case class AppConfig(db: DbConfig, name: String)
+  object AppConfig {
+    implicit val schema: Schema[AppConfig] = Schema.derived[AppConfig]
+  }
+
   def spec = suite("ConfigSourceCompositionSpec")(
     provenanceSuite,
     chainedCompositionSuite,
-    combinedTransformSuite
+    combinedTransformSuite,
+    endToEndCompositionSuite
   )
 
   private val provenanceSuite = suite("orElse provenance attribution")(
@@ -120,6 +133,44 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       assertTrue(
         result.get.value == "env-url",
         result.get.provenance == Provenance.Resolved("env", "DATABASE_URL", Some("env-url"))
+      )
+    }
+  )
+
+  private val endToEndCompositionSuite = suite("end-to-end composition with Config.load")(
+    test("multi-source composition decodes correctly with per-field provenance") {
+      val env      = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
+      val yaml     = ConfigSource.fromMap(Map("db.port" -> "5432", "name" -> "yaml-app"), "yaml")
+      val defaults = ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
+      val source   = env.orElse(yaml).orElse(defaults)
+      val result   = Config.load[AppConfig](source)
+      assertTrue(result == Right(AppConfig(DbConfig("env-host", 5432), "yaml-app")))
+    },
+    test("loadWithProvenance tracks per-field source across composite source") {
+      val env      = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
+      val yaml     = ConfigSource.fromMap(Map("db.port" -> "5432", "name" -> "yaml-app"), "yaml")
+      val defaults = ConfigSource.fromMap(Map("db.host" -> "default-host", "db.port" -> "3306", "name" -> "default"), "defaults")
+      val source   = env.orElse(yaml).orElse(defaults)
+      val pm       = Config.loadWithProvenance[AppConfig](source).toOption.get
+      assertTrue(
+        pm.value == AppConfig(DbConfig("env-host", 5432), "yaml-app"),
+        pm.provenanceOf("db.host") == Some(Provenance.Resolved("env", "db.host", Some("env-host"))),
+        pm.provenanceOf("db.port") == Some(Provenance.Resolved("yaml", "db.port", Some("5432"))),
+        pm.provenanceOf("name") == Some(Provenance.Resolved("yaml", "name", Some("yaml-app")))
+      )
+    },
+    test("four-level chain with each field from different source") {
+      val s1 = ConfigSource.fromMap(Map("db.host" -> "s1-host"), "s1")
+      val s2 = ConfigSource.fromMap(Map("db.port" -> "9999"), "s2")
+      val s3 = ConfigSource.fromMap(Map("name" -> "s3-app"), "s3")
+      val s4 = ConfigSource.fromMap(Map("db.host" -> "s4-host", "db.port" -> "1111", "name" -> "s4-app"), "s4")
+      val source = s1.orElse(s2).orElse(s3).orElse(s4)
+      val pm     = Config.loadWithProvenance[AppConfig](source).toOption.get
+      assertTrue(
+        pm.value == AppConfig(DbConfig("s1-host", 9999), "s3-app"),
+        pm.provenanceOf("db.host").get.sourceId == "s1",
+        pm.provenanceOf("db.port").get.sourceId == "s2",
+        pm.provenanceOf("name").get.sourceId == "s3"
       )
     }
   )

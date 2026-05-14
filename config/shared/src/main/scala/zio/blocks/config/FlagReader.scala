@@ -45,6 +45,109 @@ trait Flag {
    */
   val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
 
+  def all: List[Any] = {
+    val buf = List.newBuilder[Any]
+    val iter = registry.values().iterator()
+    while (iter.hasNext) buf += iter.next()
+    buf.result()
+  }
+
+  def get(name: String): Option[Any] =
+    Option(registry.get(name))
+
+  def dump(): String = {
+    import scala.jdk.CollectionConverters._
+    val entries = registry.entrySet().asScala.toList.sortBy(_.getKey)
+    if (entries.isEmpty) return "(no flags registered)"
+
+    val rows = entries.map { entry =>
+      val name = entry.getKey
+      val flag = entry.getValue
+      flag match {
+        case sf: StaticFlag[_] =>
+          (name, sf.source.toString, sf.value.toString, sf.provenance.sourceId)
+        case df: DynamicFlag[_] =>
+          (name, "DynamicFlag", df.expression, "dynamic")
+        case other =>
+          (name, "Unknown", other.toString, "unknown")
+      }
+    }
+
+    val nameWidth  = math.max("Name".length, rows.map(_._1.length).max)
+    val typeWidth  = math.max("Type".length, rows.map(_._2.length).max)
+    val valueWidth = math.max("Value".length, rows.map(_._3.length).max)
+    val srcWidth   = math.max("Source".length, rows.map(_._4.length).max)
+
+    val sb = new StringBuilder
+    sb.append("\u250c")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2510\n")
+
+    sb.append("\u2502 ")
+    sb.append("Name".padTo(nameWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Type".padTo(typeWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Value".padTo(valueWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Source".padTo(srcWidth, ' '))
+    sb.append(" \u2502\n")
+
+    sb.append("\u251c")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2524\n")
+
+    rows.foreach { case (name, tpe, value, src) =>
+      sb.append("\u2502 ")
+      sb.append(name.padTo(nameWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(tpe.padTo(typeWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(value.padTo(valueWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(src.padTo(srcWidth, ' '))
+      sb.append(" \u2502\n")
+    }
+
+    sb.append("\u2514")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2518")
+
+    sb.toString
+  }
+
+  def nearMissWarnings(flagName: String): List[String] = {
+    val lowerName = flagName.toLowerCase
+    val props = System.getProperties
+    val iter  = props.stringPropertyNames().iterator()
+    val buf   = List.newBuilder[String]
+    while (iter.hasNext) {
+      val prop = iter.next()
+      if (prop.toLowerCase == lowerName && prop != flagName) {
+        buf += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
+      }
+    }
+    buf.result()
+  }
+
   /**
    * Result of reloading a dynamic flag's expression from its FlagProvider.
    */
