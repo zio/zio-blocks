@@ -17,7 +17,7 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.combinators.Tuples
+import zio.blocks.combinators.{Choices, Tuples, |}
 import zio.blocks.scope.{Resource, Scope}
 import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, unsafeEvidence}
 import zio.blocks.streams.io.Reader
@@ -93,6 +93,25 @@ abstract class Stream[+E, +A] {
   /** Emits all elements of `this` followed by all elements of `that`. */
   def concat[E1 >: E, A1 >: A](that: Stream[E1, A1]): Stream[E1, A1] =
     new Stream.Concatenated[E1, A1](this.asInstanceOf[Stream[E1, A1]], that)
+
+  /**
+   * Emits all elements of `this` followed by all elements of `that`, wrapping
+   * each element so the result stream carries the disjoint union type `A | A2`.
+   *
+   * On Scala 2, `|` is an alias for `Either`, so left-stream elements become
+   * `Left(a)` and right-stream elements become `Right(a2)`. Use
+   * `Choices.separate` to decompose elements back to `Either[A, A2]`.
+   */
+  def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
+    jtA: JvmType.Infer[A],
+    jtA2: JvmType.Infer[A2]
+  ): Stream[E2, A | A2] = {
+    implicit val jtOut: JvmType.Infer[A | A2] =
+      JvmType.Infer.anyRef.asInstanceOf[JvmType.Infer[A | A2]]
+    this
+      .map[A | A2](a => Choices.left[A, A2](a))
+      .concat(that.map[A | A2](a2 => Choices.right[A, A2](a2)))
+  }
 
   /**
    * Zips this stream with `that`, pairing elements positionally. Shorter stream
