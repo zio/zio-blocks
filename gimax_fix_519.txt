@@ -1,0 +1,214 @@
+```scala
+package zio.blocks.schema.migration
+
+import zio.blocks.schema._
+import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.Schema
+import zio.blocks.schema.Schema._
+import zio.blocks.schema.migration.MigrationError._
+import zio.prelude._
+import zio.{Chunk, NonEmptyChunk}
+
+/**
+ * A pure, algebraic migration system for ZIO Schema 2.
+ *
+ * Represents structural transformations between schema versions as first-class,
+ * serializable data. The system provides a typed, macro-validated user API
+ * (`Migration[A, B]`) built on a pure, serializable core (`DynamicMigration`)
+ * that operates on `DynamicValue`.
+ */
+sealed trait DynamicMigration extends Product with Serializable { self =>
+
+  /**
+   * Apply this migration to a DynamicValue, returning either a new DynamicValue
+   * or a list of errors.
+   */
+  def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue]
+
+  /**
+   * Compose this migration with another migration, creating a new migration
+   * that applies this one first, then the next.
+   */
+  def andThen[B](next: DynamicMigration): DynamicMigration =
+    DynamicMigration.Compose(self, next)
+
+  /**
+   * Compose this migration with another migration, creating a new migration
+   * that applies the other first, then this one.
+   */
+  def compose[B](before: DynamicMigration): DynamicMigration =
+    DynamicMigration.Compose(before, self)
+
+  /**
+   * Invert this migration, if possible.
+   */
+  def inverse: Option[DynamicMigration]
+
+  /**
+   * Validate this migration against the given source and target schemas.
+   */
+  def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit]
+}
+
+object DynamicMigration {
+
+  /**
+   * Identity migration - does nothing.
+   */
+  case object Identity extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      Right(value)
+
+    def inverse: Option[DynamicMigration] = Some(this)
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      if (sourceSchema == targetSchema) Right(())
+      else Left(NonEmptyChunk.single(SchemaMismatch(sourceSchema, targetSchema)))
+  }
+
+  /**
+   * Rename a field in a record.
+   */
+  final case class RenameField(oldName: String, newName: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val updatedFields = fields.map {
+            case (name, v) if name == oldName => (newName, v)
+            case other                        => other
+          }
+          Right(DynamicValue.Record(updatedFields))
+        case other =>
+          Left(NonEmptyChunk.single(TypeMismatch("Record", other.getClass.getSimpleName)))
+      }
+
+    def inverse: Option[DynamicMigration] = Some(RenameField(newName, oldName))
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      (sourceSchema, targetSchema) match {
+        case (Record(sourceFields), Record(targetFields)) =>
+          val sourceFieldNames = sourceFields.map(_.name).toSet
+          val targetFieldNames = targetFields.map(_.name).toSet
+          if (sourceFieldNames.contains(oldName) && targetFieldNames.contains(newName)) Right(())
+          else Left(NonEmptyChunk.single(FieldNotFound(oldName)))
+        case _ =>
+          Left(NonEmptyChunk.single(SchemaMismatch(sourceSchema, targetSchema)))
+      }
+  }
+
+  /**
+   * Add a field with a default value.
+   */
+  final case class AddField(name: String, default: DynamicValue) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          if (fields.exists(_._1 == name))
+            Left(NonEmptyChunk.single(FieldAlreadyExists(name)))
+          else
+            Right(DynamicValue.Record(fields :+ (name -> default)))
+        case other =>
+          Left(NonEmptyChunk.single(TypeMismatch("Record", other.getClass.getSimpleName)))
+      }
+
+    def inverse: Option[DynamicMigration] = Some(RemoveField(name))
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      (sourceSchema, targetSchema) match {
+        case (Record(sourceFields), Record(targetFields)) =>
+          val sourceFieldNames = sourceFields.map(_.name).toSet
+          val targetFieldNames = targetFields.map(_.name).toSet
+          if (!sourceFieldNames.contains(name) && targetFieldNames.contains(name)) Right(())
+          else Left(NonEmptyChunk.single(FieldAlreadyExists(name)))
+        case _ =>
+          Left(NonEmptyChunk.single(SchemaMismatch(sourceSchema, targetSchema)))
+      }
+  }
+
+  /**
+   * Remove a field.
+   */
+  final case class RemoveField(name: String) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          Right(DynamicValue.Record(fields.filterNot(_._1 == name)))
+        case other =>
+          Left(NonEmptyChunk.single(TypeMismatch("Record", other.getClass.getSimpleName)))
+      }
+
+    def inverse: Option[DynamicMigration] = None // Cannot restore removed field without default
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      (sourceSchema, targetSchema) match {
+        case (Record(sourceFields), Record(targetFields)) =>
+          val sourceFieldNames = sourceFields.map(_.name).toSet
+          val targetFieldNames = targetFields.map(_.name).toSet
+          if (sourceFieldNames.contains(name) && !targetFieldNames.contains(name)) Right(())
+          else Left(NonEmptyChunk.single(FieldNotFound(name)))
+        case _ =>
+          Left(NonEmptyChunk.single(SchemaMismatch(sourceSchema, targetSchema)))
+      }
+  }
+
+  /**
+   * Transform a field's value using a sub-migration.
+   */
+  final case class TransformField(name: String, migration: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          val updatedFields = fields.map {
+            case (n, v) if n == name =>
+              migration(v) match {
+                case Right(newValue) => (n, newValue)
+                case Left(errors)    => return Left(errors)
+              }
+            case other => other
+          }
+          Right(DynamicValue.Record(updatedFields))
+        case other =>
+          Left(NonEmptyChunk.single(TypeMismatch("Record", other.getClass.getSimpleName)))
+      }
+
+    def inverse: Option[DynamicMigration] =
+      migration.inverse.map(inv => TransformField(name, inv))
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      (sourceSchema, targetSchema) match {
+        case (Record(sourceFields), Record(targetFields)) =>
+          val sourceField = sourceFields.find(_.name == name)
+          val targetField = targetFields.find(_.name == name)
+          (sourceField, targetField) match {
+            case (Some(sf), Some(tf)) =>
+              migration.validate(sf.schema, tf.schema)
+            case (None, _) =>
+              Left(NonEmptyChunk.single(FieldNotFound(name)))
+            case (_, None) =>
+              Left(NonEmptyChunk.single(FieldNotFound(name)))
+          }
+        case _ =>
+          Left(NonEmptyChunk.single(SchemaMismatch(sourceSchema, targetSchema)))
+      }
+  }
+
+  /**
+   * Compose two migrations sequentially.
+   */
+  final case class Compose(first: DynamicMigration, second: DynamicMigration) extends DynamicMigration {
+    def apply(value: DynamicValue): Either[NonEmptyChunk[MigrationError], DynamicValue] =
+      first(value) match {
+        case Right(intermediate) => second(intermediate)
+        case Left(errors)        => Left(errors)
+      }
+
+    def inverse: Option[DynamicMigration] =
+      for {
+        invSecond <- second.inverse
+        invFirst  <- first.inverse
+      } yield Compose(invSecond, invFirst)
+
+    def validate(sourceSchema: Schema[_], targetSchema: Schema[_]): Either[NonEmptyChunk[MigrationError], Unit] =
+      // We need an intermediate schema for validation; this is a simplified version
+      first.validate(sourceSchema, targetSchema) match {
+        case Right(_) => second.validate(sourceSchema,
