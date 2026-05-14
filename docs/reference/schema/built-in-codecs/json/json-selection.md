@@ -7,7 +7,7 @@ title: "JsonSelection"
 
 ## Overview
 
-`JsonSelection` makes it easy to navigate unknown or deeply nested JSON at runtime without needing to match on `Either` at each step. Chain operations like `.get(key)`, `.apply(index)`, `.filter()`, and `.as[Type]` to build powerful queries.
+`JsonSelection` makes it easy to navigate unknown or deeply nested JSON at runtime without needing to match on `Either` at each step. Chain operations like `JsonSelection#get`, `JsonSelection#apply`, `JsonSelection#filter`, and `JsonSelection#as` to build powerful queries.
 
 **Key characteristics:**
 - **Fluent chaining:** Operations chain naturally without unwrapping intermediate results
@@ -17,9 +17,11 @@ title: "JsonSelection"
 
 ## Creating JsonSelection
 
+You can create `JsonSelection` instances in multiple ways: from existing `Json` values, or using companion object constructors. Each approach is useful for different scenarios—direct navigation for existing JSON, and explicit construction for building selections programmatically.
+
 ### From Json Values
 
-**Direct construction:**
+Create a `JsonSelection` directly from a `Json` value by calling navigation methods:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -35,6 +37,8 @@ val selected: JsonSelection = values.get(0)
 ```
 
 ### From Companion Object
+
+Construct `JsonSelection` instances programmatically using the companion object methods for empty, successful, and failed selections:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -57,7 +61,11 @@ val failure = JsonSelection.fail(SchemaError("not found"))
 
 ## Navigation Operations
 
+Navigate through JSON structures using three complementary approaches: field access for object properties, array indexing for elements, and path expressions for complex nested navigation.
+
 ### Field Navigation
+
+Navigate to object fields using `JsonSelection#get` with a field name:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -81,6 +89,8 @@ val email = data.get("user").get("email")
 
 ### Array Navigation
 
+Access array elements by index using `JsonSelection#apply` or `JsonSelection#get`:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
 
@@ -98,6 +108,8 @@ val secondId = data.get(1).get("id")
 ```
 
 ### Path-Based Navigation
+
+Use path interpolators (e.g., `p".company.employees[0].name"`) to navigate deeply nested structures in a single operation:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -119,7 +131,11 @@ val firstEmpName = data.get(path)  // JsonSelection(Right(Chunk(Json.String("Ali
 
 ## Filtering and Querying
 
+Reduce selections to only the values you need by filtering by JSON type or custom predicates. This enables working with heterogeneous JSON arrays where values may be of different types.
+
 ### Filter by Type
+
+Keep only values of a specific JSON type using type-filtering methods like `JsonSelection#strings`, `JsonSelection#numbers`, and `JsonSelection#booleans`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -134,6 +150,8 @@ val booleans = allElements.booleans  // JsonSelection with boolean values
 ```
 
 ### Filter with Predicate
+
+Use custom predicates with `JsonSelection#filter` to keep only values that match specific conditions:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -152,7 +170,11 @@ val evenOnly = allElements.filter { json =>
 
 ## Extracting Values
 
+Extract concrete values from selections by decoding them to Scala types, checking single vs. multiple values, or inspecting selection state without extraction.
+
 ### Type Decoding
+
+Decode a single selected value to a Scala type using `JsonSelection#as`, which fails if more than one value is selected:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -167,6 +189,8 @@ val str: Either[SchemaError, String] = selection.get("count").as[String]  // Lef
 
 ### Multiple Decoding
 
+Decode all selected values to a collection using `JsonSelection#asAll`, which succeeds even if the selection is empty:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -180,6 +204,8 @@ val names: Either[SchemaError, Seq[String]] = allElements.asAll[String].map(_.to
 
 ### Extract Single Value
 
+Use `JsonSelection#one` to extract exactly one value, failing if the selection contains zero or more than one value:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -192,6 +218,8 @@ val multiple = JsonSelection.succeedMany(arr.elements).one  // Left(SchemaError(
 ```
 
 ### Check and Get
+
+Inspect selection state without extraction using properties like `JsonSelection#values`, `JsonSelection#error`, `JsonSelection#isSuccess`, and `JsonSelection#isFailure`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonSelection}
@@ -208,6 +236,8 @@ val failed = data.get("notFound").isFailure   // true if field not found
 
 ## Size and Existence Checks
 
+Query selection size and emptiness using `JsonSelection#size`, `JsonSelection#isEmpty`, and `JsonSelection#nonEmpty`:
+
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.{Json, JsonSelection}
 
@@ -222,7 +252,7 @@ val nonEmpty = selection.nonEmpty  // true
 
 ## Modifying Selections
 
-### Updating Values
+Use `JsonSelection` to update values at specific paths using `set` for replacement or `modify` for transformation:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -289,4 +319,4 @@ val allUsers: Either[SchemaError, Chunk[User]] = JsonSelection.succeedMany(users
 - **Zero-allocation navigation:** `JsonSelection` itself is a value type (AnyVal) and compiles to no allocation
 - **Lazy chaining:** Operations chain without intermediate allocations; only final extraction materializes values
 - **Error short-circuiting:** Failed selections don't execute further operations
-- **Streaming-friendly:** For large JSON, use `get` selectively rather than iterating over all values
+- **Streaming-friendly:** For large JSON, use `JsonSelection#get` selectively rather than iterating over all values
