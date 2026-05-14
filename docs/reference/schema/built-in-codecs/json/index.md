@@ -3,47 +3,70 @@ id: index
 title: "JSON Codec"
 ---
 
-The JSON codec module provides complete support for working with JSON data in ZIO Blocks. It includes a type-safe ADT for representing JSON values, composable patches for transforming them, a diff algorithm for computing minimal changes, and full JSON Schema 2020-12 support for validation and code generation.
+The JSON codec module provides complete, type-safe support for working with JSON data in ZIO Blocks. It includes an ADT for representing JSON values, a fluent navigation API (`JsonSelection`), configurable encoding/decoding (`JsonCodec` with `WriterConfig`/`ReaderConfig`), composable patches for transformations, a diff algorithm for computing minimal changes, and full JSON Schema 2020-12 support for validation and code generation.
 
-Core types: `Json`, `JsonPatch`, `JsonDiffer`, `JsonSchema`.
+**Core types:** `Json`, `JsonCodec`, `JsonSelection`, `JsonPatch`, `JsonDiffer`, `JsonSchema`, `JsonType`.
 
 ```scala
+import zio.blocks.schema._
+import zio.blocks.schema.json._
+
 // Represent any JSON value
 val person = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
 
-// Navigate and transform
-val updated = person.set(p".age", Json.Number(31))
+// Navigate with fluent API
+val age = person.get("age")  // JsonSelection
 
-// Compute the diff
+// Encode using Schema-based extension methods
+val encoded = person.toJsonString(WriterConfig.default)
+
+// Compute minimal patches
+val updated = person.set(p".age", Json.Number(31))
 val patch = JsonPatch.diff(person, updated)
 
 // Validate against a schema
+case class Person(name: String, age: Int)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
 val schema: JsonSchema = Schema[Person].toJsonSchema
 schema.conforms(person)  // true
 ```
 
 ## How They Work Together
 
-The JSON module revolves around transforming, validating, and understanding JSON data through four complementary operations:
+The JSON module workflow moves through representation, navigation, encoding/decoding, diffing, patching, and validation:
 
 ```
-1. Represent JSON                  →  Json (ADT with 6 cases)
-   ├─ Create from literals, parse, interpolate
-   └─ Navigate, transform, merge, query
-
-2. Compute differences             →  JsonDiffer (diff algorithm)
-   ├─ Handles all JSON types (numbers, strings, arrays, objects)
-   └─ Returns minimal JsonPatch
-
-3. Apply transformations           →  JsonPatch (composable patches)
-   ├─ Create, compose, apply with multiple modes
-   └─ Convert to/from DynamicPatch
-
-4. Validate & generate schemas     →  JsonSchema (JSON Schema 2020-12)
-   ├─ Derive from Scala types
-   ├─ Validate JSON values
-   └─ Generate schemas for documentation
+Parse/Create JSON
+    ↓
+Json (ADT: Object, Array, String, Number, Boolean, Null)
+    ├─ Navigate with JsonSelection (fluent query API)
+    ├─ Understand with JsonType (type information)
+    └─ Transform via JsonPatch (composable operations)
+    ↓
+JsonCodec (encode/decode)
+    ├─ WriterConfig (indent, escaping, order)
+    ├─ ReaderConfig (strict validation, number handling)
+    └─ MergeStrategy (field conflict resolution)
+    ↓
+JsonDiffer (diff algorithm)
+    └─ Produces JsonPatch (minimal changes)
+    ↓
+JsonPatch.apply (transform JSON)
+    ↓
+JsonSchema (validate or generate)
+    ├─ Derive from Scala types
+    ├─ Validate JSON conformance
+    └─ Generate documentation
 ```
+
+**Type Relationships:**
+- `Json` is the central value type; all operations start with or produce it
+- `JsonSelection` provides fluent navigation through nested `Json` structures
+- `JsonCodec` bridges Scala types ↔ `Json` with configurable `WriterConfig` and `ReaderConfig`
+- `JsonDiffer` computes `JsonPatch` by comparing two `Json` values
+- `JsonPatch` transforms `Json` values with composable operations
+- `JsonSchema` validates `Json` conformance and derives from Scala `Schema` types
+- `JsonType` provides type information for `Json` values at runtime
 
 ## Common Patterns
 
@@ -109,7 +132,56 @@ val validJson = Json.Object(
 jsonSchema.conforms(validJson)  // true
 ```
 
-### Pattern 4: Compose Multiple Patches
+### Pattern 4: Navigate and Extract with JsonSelection
+
+Use fluent API to navigate nested structures and extract values:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json.Json
+
+val data = Json.Object(
+  "users" -> Json.Array(
+    Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30)),
+    Json.Object("name" -> Json.String("Bob"), "age" -> Json.Number(25))
+  )
+)
+
+// Navigate to first user's age
+val age: Either[SchemaError, Int] = data
+  .get("users")        // JsonSelection
+  (0)                 // Navigate to first array element
+  .get("age")         // Navigate to age field
+  .as[Int]            // Decode to Int
+
+// Check values
+val ageValue = data.get("users")(0).get("age").one  // Right(Json.Number(30))
+```
+
+### Pattern 5: Encode and Decode with Configuration
+
+Control output formatting and parsing behavior:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.json.{Json, WriterConfig, ReaderConfig}
+
+case class Config(host: String, port: Int)
+object Config {
+  implicit val schema: Schema[Config] = Schema.derived
+}
+
+val config = Config("localhost", 8080)
+val json = config.toJson
+
+// Encode with custom formatting
+val pretty = json.print(WriterConfig.withIndentionStep(2))
+
+// Decode with strict validation
+val config2: Either[SchemaError, Config] = pretty.as[Config]
+```
+
+### Pattern 6: Compose Multiple Patches
 
 Chain multiple transformations into a single patch:
 
@@ -138,7 +210,7 @@ combined.apply(original)
 
 ## Integration Points
 
-**With other codecs:** `Json` values can be converted to and from other formats (Avro, TOON, etc.) via `DynamicValue`:
+**With other codecs:** `Json` values convert to/from other formats (Avro, TOON, etc.) via `DynamicValue`:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema.json.Json
@@ -147,10 +219,10 @@ import zio.blocks.schema.DynamicValue
 val json = Json.parseUnsafe("""{"name": "Alice"}""")
 val dynamic: DynamicValue = json.toDynamicValue
 
-// Now use with other codecs...
+// Convert to other formats using DynamicValue
 ```
 
-**With Schema system:** `Json` values can be encoded/decoded using `Schema`-based derivation:
+**With Schema system:** `Schema` enables automatic JSON encoding/decoding:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -160,30 +232,67 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// Encode to JSON
+// Encode using Schema-based extension methods
 val person = Person("Alice", 30)
 val json = person.toJson
+val jsonString = person.toJsonString
 
-// Decode from JSON
-val decoded: Either[SchemaError, Person] = json.as[Person]
+// Decode with Schema-based as method
+val decoded: Either[SchemaError, Person] = jsonString.as[Person]
 ```
 
-**With patching infrastructure:** `JsonPatch` converts to/from `DynamicPatch` for use in generic patching pipelines:
+**With patching system:** `JsonPatch` and `JsonDiffer` integrate with generic `Patch` infrastructure:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.JsonPatch
+import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.patch.DynamicPatch
 
-val jsonPatch: JsonPatch = ???
+val jsonPatch: JsonPatch = JsonPatch.root(JsonPatch.Op.Set(Json.Null))
 val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
 ```
 
+**With optics and navigation:** `JsonSelection` provides query-like access complementary to `Optic` system:
+
+- `JsonSelection` — runtime navigation through unknown JSON structures
+- `Optic` — compile-time, type-safe navigation through known Scala types
+- Both support nested access, filtering, and composition
+
+**With validation:** `JsonSchema` integrates with Schema `Validation` system:
+
+- Derive `JsonSchema` from Scala `Schema[A]`
+- Validate raw JSON before type-safe decoding
+- Compose with logical operators (allOf, anyOf, oneOf)
+
 ## Type Pages
 
+### Core Value & Navigation Types
+
 - **[Json](./json.md)** — The core ADT representing JSON values with six cases (Object, Array, String, Number, Boolean, Null). Covers construction, navigation, modification, transformation, filtering, merging, and encoding.
+
+- **[JsonType](./json-type.md)** — Runtime type information for JSON values. Sealed trait with 6 case objects (ObjectType, ArrayType, StringType, NumberType, BooleanType, NullType) for pattern matching and type-safe value inspection.
+
+- **[JsonSelection](./json-selection.md)** — Fluent API for navigating nested JSON structures. Use `JsonSelection.root` and chain operations like `downField`, `downIndex`, `filter`, `getOption`, `setOption` to traverse unknown JSON at runtime.
+
+### Encoding & Decoding Types
+
+- **[JsonCodec](./json-codec.md)** — Type-safe encoding and decoding between Scala types and JSON. Derive automatically from `Schema[A]`, configure with `WriterConfig` and `ReaderConfig`, and handle errors with `JsonCodecError`.
+
+- **[JSON Configuration](./json-config.md)** — Configure encoding and decoding behavior:
+  - `WriterConfig` — Control indentation, key ordering, escape sequences, and null handling during serialization
+  - `ReaderConfig` — Control strict validation, number parsing, duplicate key handling, and failure modes
+  - `MergeStrategy` — Resolve field conflicts when merging JSON objects
+  - `NameMapper` — Customize field name mapping between Scala types and JSON
+
+### Transformation Types
 
 - **[JsonPatch](./json-patch.md)** — Composable patches for transforming JSON values. Create patches via diff or manually, compose them with `++`, and apply with different failure modes (Strict, Lenient, Clobber).
 
 - **[JsonDiffer](./json-differ.md)** — Diff algorithm computing minimal patches. Uses smart strategies per type: NumberDelta for numbers, LCS-based StringEdit for strings, ArrayEdit with insertion/deletion for arrays, and ObjectEdit for fields.
 
+### Validation Types
+
 - **[JSON Schema](./json-schema.md)** — Full JSON Schema 2020-12 support for validation and code generation. Derive schemas from Scala types, validate JSON, construct schemas manually with builders, and combine with logical operators.
+
+### Supporting Infrastructure
+
+- **[Supporting Types](./json-supporting.md)** — Infrastructure types including validation helpers (NonNegativeInt, PositiveNumber, RegexPattern, UriReference, Anchor), evaluation infrastructure (ValidationOptions, EvaluationResult), and error handling (JsonCodecError, JsonSchemaType).
