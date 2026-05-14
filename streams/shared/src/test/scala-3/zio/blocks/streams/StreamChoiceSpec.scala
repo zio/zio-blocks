@@ -17,34 +17,11 @@
 package zio.blocks.streams
 
 import scala.compiletime.testing.typeCheckErrors
-import zio.blocks.chunk.Chunk
-import zio.blocks.combinators.Unions
 import zio.test._
 
 object StreamChoiceSpec extends StreamsBaseSpec {
 
-  def spec: Spec[TestEnvironment, Any] = suite("Stream.choice")(
-    test("concatenates disjoint element types using direct unions") {
-      val result = Stream.succeed("left").choice(Stream.succeed(1)).runCollect
-
-      assertTrue(result == Right(Chunk[String | Int]("left", 1)))
-    },
-    test("preserves widened error channel") {
-      val left: Stream[String, String] = Stream.fail("boom")
-      val right                        = Stream.succeed(true)
-
-      val result = left.choice(right).runCollect
-
-      assertTrue(result == Left("boom"))
-    },
-    test("works with explicit Unions evidence for three-way left nesting") {
-      val builder                                      = new StringBuilder("two")
-      val inner: Stream[String, String | CharSequence] =
-        Stream.succeed("one").choice(Stream.succeed(builder))
-      val result = inner.choice(Stream.succeed(true)).runCollect
-
-      assertTrue(result == Right(Chunk[String | CharSequence | Boolean]("one", builder, true)))
-    },
+  def spec: Spec[TestEnvironment, Any] = suite("Stream.choice (compile-time)")(
     test("rejects duplicate choice element types at compile time") {
       val errors = typeCheckErrors("Stream.succeed(1).choice(Stream.succeed(2))")
 
