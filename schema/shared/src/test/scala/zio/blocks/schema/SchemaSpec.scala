@@ -1950,6 +1950,23 @@ object SchemaSpec extends SchemaBaseSpec {
         )
       )
     },
+    test(
+      "doesn't generate schema for classes with encode transient fields that are neither optional nor collection nor have default value"
+    ) {
+      typeCheck {
+        """case class WrongEncodeTransientField(i: Int, @Modifier.encodeTransient() a: String)
+
+           Schema.derived[WrongEncodeTransientField]"""
+      }.map(
+        assert(_)(
+          isLeft(
+            containsString(
+              "Missing default value for transient field 'a' in 'WrongEncodeTransientField'"
+            )
+          )
+        )
+      )
+    },
     typeIdConsistencySuite
   )
 

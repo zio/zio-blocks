@@ -3971,6 +3971,68 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
     implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
   }
 
+  @Modifier.fieldNaming("snake_case")
+  case class AnnotatedFieldNaming(firstName: String, lastName: String)
+
+  object AnnotatedFieldNaming {
+    implicit val schema: Schema[AnnotatedFieldNaming] = Schema.derived
+  }
+
+  @Modifier.fieldNaming("snake_case")
+  case class AnnotatedFieldNamingWithRename(@Modifier.rename("customName") firstName: String, lastName: String)
+
+  object AnnotatedFieldNamingWithRename {
+    implicit val schema: Schema[AnnotatedFieldNamingWithRename] = Schema.derived
+  }
+
+  @Modifier.fieldNaming("snake_case")
+  case class NestedFieldNaming(outerValue: AnnotatedFieldNaming, innerValue: AnnotatedFieldNaming)
+
+  object NestedFieldNaming {
+    implicit val schema: Schema[NestedFieldNaming] = Schema.derived
+  }
+
+  @Modifier.noExtraFields()
+  case class StrictRecord(name: String)
+
+  object StrictRecord {
+    implicit val schema: Schema[StrictRecord] = Schema.derived
+  }
+
+  @Modifier.noExtraFields()
+  case class StrictRecordWithAlias(@Modifier.alias("nickname") name: String)
+
+  object StrictRecordWithAlias {
+    implicit val schema: Schema[StrictRecordWithAlias] = Schema.derived
+  }
+
+  case class EncodeTransientRecord(@Modifier.encodeTransient() computed: Int = 0, name: String)
+
+  object EncodeTransientRecord {
+    implicit val schema: Schema[EncodeTransientRecord] = Schema.derived
+  }
+
+  @Modifier.discriminator("type")
+  sealed trait AnnotatedPet
+
+  object AnnotatedPet {
+    implicit val schema: Schema[AnnotatedPet] = Schema.derived
+
+    case class Dog(name: String) extends AnnotatedPet
+  }
+
+  @Modifier.caseNaming("snake_case")
+  sealed trait AnnotatedStatus
+
+  object AnnotatedStatus {
+    implicit val schema: Schema[AnnotatedStatus] = Schema.derived
+
+    case object ActiveNow extends AnnotatedStatus
+
+    @Modifier.rename("custom_retry")
+    case object RetryLater extends AnnotatedStatus
+  }
+
   sealed trait Pet {
     def name: String
 
