@@ -70,8 +70,10 @@ const sidebars = {
                    collapsed: false,
                    items: [
                      "reference/schema/built-in-codecs/json/json",
+                     "reference/schema/built-in-codecs/json/json-config",
                      "reference/schema/built-in-codecs/json/json-patch",
                      "reference/schema/built-in-codecs/json/json-differ",
+                     "reference/schema/built-in-codecs/json/json-selection",
                      "reference/schema/built-in-codecs/json/json-schema",
                    ]
                  },
