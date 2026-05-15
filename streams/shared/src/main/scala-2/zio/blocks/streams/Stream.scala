@@ -16,8 +16,9 @@
 
 package zio.blocks.streams
 
+import scala.annotation.unchecked.uncheckedVariance
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.combinators.{Choices, Tuples, |}
+import zio.blocks.combinators.{Concat, Tuples}
 import zio.blocks.scope.{Resource, Scope}
 import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, unsafeEvidence}
 import zio.blocks.streams.io.Reader
@@ -66,7 +67,11 @@ abstract class Stream[+E, +A] {
   final override def toString: String = render
 
   /** Alias for [[concat]]. */
-  final def ++[E1 >: E, A1 >: A](that: Stream[E1, A1]): Stream[E1, A1] = concat(that)
+  final def ++[E2, A2, E3, A3](that: Stream[E2, A2])(implicit
+    errorConcat: Concat.Concat.WithOut[E @uncheckedVariance, E2, E3],
+    valueConcat: Concat.Concat.WithOut[A @uncheckedVariance, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E3, A3] = concat(that)
 
   /**
    * Alias for [[orElse]]. The fallback stream is evaluated lazily, only on
@@ -91,37 +96,18 @@ abstract class Stream[+E, +A] {
     via(Pipeline.collect(pf))
 
   /** Emits all elements of `this` followed by all elements of `that`. */
-  def concat[E1 >: E, A1 >: A](that: Stream[E1, A1]): Stream[E1, A1] =
-    new Stream.Concatenated[E1, A1](this.asInstanceOf[Stream[E1, A1]], that)
-
-  /**
-   * Emits all elements of `this` followed by all elements of `that`, wrapping
-   * each element so the result stream carries the disjoint union type `A | A2`.
-   *
-   * On Scala 2, `|` is an alias for `Either`, so left-stream elements become
-   * `Left(a)` and right-stream elements become `Right(a2)`. Use
-   * `Choices.separate` to decompose elements back to `Either[A, A2]`.
-   *
-   * @param that
-   *   the stream whose elements are emitted after `this`
-   * @tparam E2
-   *   the error type of `that`, must be a supertype of `E`
-   * @tparam A2
-   *   the element type of `that`
-   * @return
-   *   a stream that emits `Left(a)` for each element of `this` and `Right(a2)`
-   *   for each element of `that`, with error type widened to `E2`
-   */
-  def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
-    jtA: JvmType.Infer[A],
-    jtA2: JvmType.Infer[A2]
-  ): Stream[E2, A | A2] = {
-    implicit val jtOut: JvmType.Infer[A | A2] =
-      JvmType.Infer.anyRef.asInstanceOf[JvmType.Infer[A | A2]]
-    this
-      .map[A | A2](a => Choices.left[A, A2](a))
-      .concat(that.map[A | A2](a2 => Choices.right[A, A2](a2)))
-  }
+  def concat[E2, A2, E3, A3](that: Stream[E2, A2])(implicit
+    errorConcat: Concat.Concat.WithOut[E @uncheckedVariance, E2, E3],
+    valueConcat: Concat.Concat.WithOut[A @uncheckedVariance, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E3, A3] =
+    if (errorConcat.isIdentityLike && valueConcat.isIdentityLike)
+      new Stream.Concatenated[E3, A3](this.asInstanceOf[Stream[E3, A3]], that.asInstanceOf[Stream[E3, A3]])
+    else
+      new Stream.Concatenated[E3, A3](
+        this.mapError(errorConcat.left).map[A3](valueConcat.left),
+        that.mapError(errorConcat.right).map[A3](valueConcat.right)
+      )
 
   /**
    * Zips this stream with `that`, pairing elements positionally. Shorter stream
@@ -1373,7 +1359,7 @@ object Stream {
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def skip(n: Long): Unit = upstream.skip(n)
     def close(): Unit                = upstream.close()
-    override def reset(): Unit       = throw new UnsupportedOperationException("ErrorMapped does not support reset")
+    override def reset(): Unit       = upstream.reset()
   }
 
   /** A failed stream source that always throws the given StreamError. */
