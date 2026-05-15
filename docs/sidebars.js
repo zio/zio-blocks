@@ -41,6 +41,7 @@ const sidebars = {
                items: [
                  "reference/schema/optics",
                  "reference/schema/dynamic-optic",
+                 "reference/schema/path-interpolator",
                  "reference/schema/schema-expr",
                  "reference/schema/patch",
                ]
@@ -137,7 +138,6 @@ const sidebars = {
           "reference/endpoint",
           "reference/chunk",
           "reference/maybe",
-          "path-interpolator",
           "reference/ringbuffer",
           "reference/html",
           "reference/smithy",
