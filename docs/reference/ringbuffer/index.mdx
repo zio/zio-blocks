@@ -137,9 +137,9 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-ringbuffer" % "@VERSION@"
 
 ZIO Blocks provides four optimized ring buffer implementations. Choose the one matching your producer/consumer thread counts:
 
-- **[SPSC](/docs/reference/ringbuffer/spsc)** — Single Producer, Single Consumer (⚡⚡⚡ **Fastest**)
-- **[SPMC](/docs/reference/ringbuffer/spmc)** — Single Producer, Multiple Consumers
-- **[MPSC](/docs/reference/ringbuffer/mpsc)** — Multiple Producers, Single Consumer
-- **[MPMC](/docs/reference/ringbuffer/mpmc)** — Multiple Producers, Multiple Consumers
+- **[SPSC](./spsc)** — Single Producer, Single Consumer (⚡⚡⚡ **Fastest**)
+- **[SPMC](./spmc)** — Single Producer, Multiple Consumers
+- **[MPSC](./mpsc)** — Multiple Producers, Single Consumer
+- **[MPMC](./mpmc)** — Multiple Producers, Multiple Consumers
 
-For advanced topics including thread safety, cache-line padding, design patterns, and performance characteristics, see [Advanced Usage](/docs/reference/ringbuffer/advanced).
+For advanced topics including thread safety, cache-line padding, design patterns, and performance characteristics, see [Advanced Usage](./advanced).
