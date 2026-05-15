@@ -1569,6 +1569,59 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
           Schema[CamelPascalSnakeKebabCases].derive(JsonCodecDeriver.withFieldNameMapper(CamelCase))
         )
       },
+      test("record with annotation-driven json modifiers") {
+        roundTrip(
+          AnnotatedFieldNaming("Ada", "Lovelace"),
+          """{"first_name":"Ada","last_name":"Lovelace"}"""
+        ) &&
+        roundTrip(
+          AnnotatedFieldNamingWithRename("Ada", "Lovelace"),
+          """{"customName":"Ada","last_name":"Lovelace"}"""
+        ) &&
+        roundTrip(
+          NestedFieldNaming(AnnotatedFieldNaming("Ada", "Lovelace"), AnnotatedFieldNaming("Grace", "Hopper")),
+          """{"outer_value":{"first_name":"Ada","last_name":"Lovelace"},"inner_value":{"first_name":"Grace","last_name":"Hopper"}}"""
+        ) &&
+        roundTrip(
+          EncodeTransientRecord(0, "Ada"),
+          """{"name":"Ada"}"""
+        ) &&
+        decode(
+          """{"computed":7,"name":"Ada"}""",
+          EncodeTransientRecord(7, "Ada")
+        ) &&
+        decodeError(
+          """{"name":"Ada","extra":1}""",
+          "unexpected field \"extra\" at: .",
+          Schema[StrictRecord].derive(JsonCodecDeriver)
+        ) &&
+        decode(
+          """{"nickname":"Ada"}""",
+          StrictRecordWithAlias("Ada")
+        ) &&
+        decodeError(
+          """{"nickname":"Ada","name":"Ada"}""",
+          "duplicated field \"name\" at: .",
+          Schema[StrictRecordWithAlias].derive(JsonCodecDeriver)
+        )
+      },
+      test("record annotation-driven field naming overrides deriver defaults") {
+        val codec = Schema[AnnotatedFieldNaming].derive(JsonCodecDeriver.withFieldNameMapper(KebabCase))
+        roundTrip(
+          AnnotatedFieldNaming("Ada", "Lovelace"),
+          """{"first_name":"Ada","last_name":"Lovelace"}""",
+          codec
+        )
+      },
+      test("invalid annotation-driven field naming strategy fails clearly") {
+        assert(scala.util.Try(Schema[InvalidFieldNaming].derive(JsonCodecDeriver)).toEither)(
+          isLeft(
+            hasError(
+              "Unknown naming strategy 'LOUD_SNAKE'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase"
+            )
+          )
+        )
+      },
       test("record with a custom codec for primitives injected by optic and field renaming using modifier overriding") {
         val codec1 = Record1.schema
           .deriving(JsonCodecDeriver)
@@ -3322,6 +3375,42 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
           codec
         )
       },
+      test("ADT with annotation-driven discriminator and case naming") {
+        roundTrip[AnnotatedPet](
+          AnnotatedPet.Dog("Rex"),
+          """{"type":"Dog","name":"Rex"}""",
+          Schema[AnnotatedPet].derive(JsonCodecDeriver)
+        ) &&
+        roundTrip[AnnotatedStatus](
+          AnnotatedStatus.ActiveNow,
+          """"active_now"""",
+          Schema[AnnotatedStatus].derive(JsonCodecDeriver)
+        ) &&
+        roundTrip[AnnotatedStatus](
+          AnnotatedStatus.RetryLater,
+          """"custom_retry"""",
+          Schema[AnnotatedStatus].derive(JsonCodecDeriver)
+        )
+      },
+      test("annotation-driven discriminator and case naming override deriver defaults") {
+        val codec = Schema[AnnotatedStatus].derive(
+          JsonCodecDeriver
+            .withCaseNameMapper(NameMapper.KebabCase)
+            .withDiscriminatorKind(DiscriminatorKind.Field("kind"))
+        )
+
+        roundTrip[AnnotatedStatus](AnnotatedStatus.ActiveNow, """"active_now"""", codec) &&
+        roundTrip[AnnotatedStatus](AnnotatedStatus.RetryLater, """"custom_retry"""", codec)
+      },
+      test("invalid annotation-driven case naming strategy fails clearly") {
+        assert(scala.util.Try(Schema[InvalidCaseNaming].derive(JsonCodecDeriver)).toEither)(
+          isLeft(
+            hasError(
+              "Unknown naming strategy 'LOUD_SNAKE'. Expected one of: identity, snake_case, camelCase, kebab-case, PascalCase"
+            )
+          )
+        )
+      },
       test("option") {
         roundTrip(Option(42), """42""") &&
         roundTrip[Option[Int]](None, """null""") &&
@@ -4031,6 +4120,22 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
 
     @Modifier.rename("custom_retry")
     case object RetryLater extends AnnotatedStatus
+  }
+
+  @Modifier.fieldNaming("LOUD_SNAKE")
+  case class InvalidFieldNaming(name: String)
+
+  object InvalidFieldNaming {
+    implicit val schema: Schema[InvalidFieldNaming] = Schema.derived
+  }
+
+  @Modifier.caseNaming("LOUD_SNAKE")
+  sealed trait InvalidCaseNaming
+
+  object InvalidCaseNaming {
+    implicit val schema: Schema[InvalidCaseNaming] = Schema.derived
+
+    case object ActiveNow extends InvalidCaseNaming
   }
 
   sealed trait Pet {

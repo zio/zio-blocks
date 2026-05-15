@@ -1944,7 +1944,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(_)(
           isLeft(
             containsString(
-              "Missing default value for transient field 'a' in 'WrongTransientField'"
+              "Missing default value for transient or encodeTransient field 'a' in 'WrongTransientField'"
             )
           )
         )
@@ -1961,7 +1961,7 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(_)(
           isLeft(
             containsString(
-              "Missing default value for transient field 'a' in 'WrongEncodeTransientField'"
+              "Missing default value for transient or encodeTransient field 'a' in 'WrongEncodeTransientField'"
             )
           )
         )

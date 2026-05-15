@@ -238,7 +238,7 @@ object Person {
 
 ### JSON reflect modifiers
 
-These modifiers are consumed by `JsonCodecDeriver` and let you keep JSON-specific settings next to the annotated type instead of passing them programmatically at every call site.
+These reflect modifiers are consumed by `JsonCodecDeriver` and let you keep JSON-specific settings next to the annotated type instead of passing them programmatically at every call site.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -260,7 +260,8 @@ case class UserProfile(
 - `Modifier.noExtraFields()` rejects unknown object fields during decoding.
 - `Modifier.fieldNaming(strategy)` applies a naming strategy to direct record fields.
 - `Modifier.caseNaming(strategy)` applies a naming strategy to variant case names.
-- `Modifier.encodeTransient()` skips a field during encoding but still accepts it during decoding; like `transient`, it requires a default value when the field is neither optional nor a collection.
+
+For field-level JSON behavior, `Modifier.encodeTransient()` skips a field during encoding but still accepts it during decoding; like `transient`, it requires a default value when the field is neither optional nor a collection.
 
 Or add multiple modifiers at once:
 

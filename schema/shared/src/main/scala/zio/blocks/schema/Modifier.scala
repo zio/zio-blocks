@@ -275,20 +275,20 @@ object Modifier {
     reflect = new Reflect.Variant[Binding, Term](
       cases = Chunk(
         transientSchema.reflect.asTerm("transient"),
-        encodeTransientSchema.reflect.asTerm("encodeTransient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
-        configSchema.reflect.asTerm("config")
+        configSchema.reflect.asTerm("config"),
+        encodeTransientSchema.reflect.asTerm("encodeTransient")
       ),
       typeId = TypeId.of[Term],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Term] {
           def discriminate(a: Term): Int = a match {
             case _: transient       => 0
-            case _: encodeTransient => 1
-            case _: rename          => 2
-            case _: alias           => 3
-            case _: config          => 4
+            case _: rename          => 1
+            case _: alias           => 2
+            case _: config          => 3
+            case _: encodeTransient => 4
           }
         },
         matchers = Matchers(
@@ -296,12 +296,6 @@ object Modifier {
             def downcastOrNull(a: Any): transient = a match {
               case x: transient => x
               case _            => null.asInstanceOf[transient]
-            }
-          },
-          new Matcher[encodeTransient] {
-            def downcastOrNull(a: Any): encodeTransient = a match {
-              case x: encodeTransient => x
-              case _                  => null.asInstanceOf[encodeTransient]
             }
           },
           new Matcher[rename] {
@@ -321,6 +315,12 @@ object Modifier {
               case x: config => x
               case _         => null.asInstanceOf[config]
             }
+          },
+          new Matcher[encodeTransient] {
+            def downcastOrNull(a: Any): encodeTransient = a match {
+              case x: encodeTransient => x
+              case _                  => null.asInstanceOf[encodeTransient]
+            }
           }
         )
       ),
@@ -331,24 +331,30 @@ object Modifier {
   implicit lazy val reflectSchema: Schema[Reflect] = new Schema(
     reflect = new Reflect.Variant[Binding, Reflect](
       cases = Chunk(
+        configSchema.reflect.asTerm("config"),
         discriminatorSchema.reflect.asTerm("discriminator"),
         noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
         fieldNamingSchema.reflect.asTerm("fieldNaming"),
-        caseNamingSchema.reflect.asTerm("caseNaming"),
-        configSchema.reflect.asTerm("config")
+        caseNamingSchema.reflect.asTerm("caseNaming")
       ),
       typeId = TypeId.of[Reflect],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Reflect] {
           def discriminate(a: Reflect): Int = a match {
-            case _: discriminator => 0
-            case _: noExtraFields => 1
-            case _: fieldNaming   => 2
-            case _: caseNaming    => 3
-            case _: config        => 4
+            case _: config        => 0
+            case _: discriminator => 1
+            case _: noExtraFields => 2
+            case _: fieldNaming   => 3
+            case _: caseNaming    => 4
           }
         },
         matchers = Matchers(
+          new Matcher[config] {
+            def downcastOrNull(a: Any): config = a match {
+              case x: config => x
+              case _         => null.asInstanceOf[config]
+            }
+          },
           new Matcher[discriminator] {
             def downcastOrNull(a: Any): discriminator = a match {
               case x: discriminator => x
@@ -371,12 +377,6 @@ object Modifier {
             def downcastOrNull(a: Any): caseNaming = a match {
               case x: caseNaming => x
               case _             => null.asInstanceOf[caseNaming]
-            }
-          },
-          new Matcher[config] {
-            def downcastOrNull(a: Any): config = a match {
-              case x: config => x
-              case _         => null.asInstanceOf[config]
             }
           }
         )
@@ -389,28 +389,28 @@ object Modifier {
     reflect = new Reflect.Variant[Binding, Modifier](
       cases = Chunk(
         transientSchema.reflect.asTerm("transient"),
-        encodeTransientSchema.reflect.asTerm("encodeTransient"),
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
+        configSchema.reflect.asTerm("config"),
+        encodeTransientSchema.reflect.asTerm("encodeTransient"),
         discriminatorSchema.reflect.asTerm("discriminator"),
         noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
         fieldNamingSchema.reflect.asTerm("fieldNaming"),
-        caseNamingSchema.reflect.asTerm("caseNaming"),
-        configSchema.reflect.asTerm("config")
+        caseNamingSchema.reflect.asTerm("caseNaming")
       ),
       typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
         discriminator = new Discriminator[Modifier] {
           def discriminate(a: Modifier): Int = a match {
             case _: transient       => 0
-            case _: encodeTransient => 1
-            case _: rename          => 2
-            case _: alias           => 3
-            case _: discriminator   => 4
-            case _: noExtraFields   => 5
-            case _: fieldNaming     => 6
-            case _: caseNaming      => 7
-            case _: config          => 8
+            case _: rename          => 1
+            case _: alias           => 2
+            case _: config          => 3
+            case _: encodeTransient => 4
+            case _: discriminator   => 5
+            case _: noExtraFields   => 6
+            case _: fieldNaming     => 7
+            case _: caseNaming      => 8
           }
         },
         matchers = Matchers(
@@ -418,12 +418,6 @@ object Modifier {
             def downcastOrNull(a: Any): transient = a match {
               case x: transient => x
               case _            => null.asInstanceOf[transient]
-            }
-          },
-          new Matcher[encodeTransient] {
-            def downcastOrNull(a: Any): encodeTransient = a match {
-              case x: encodeTransient => x
-              case _                  => null.asInstanceOf[encodeTransient]
             }
           },
           new Matcher[rename] {
@@ -436,6 +430,18 @@ object Modifier {
             def downcastOrNull(a: Any): alias = a match {
               case x: alias => x
               case _        => null.asInstanceOf[alias]
+            }
+          },
+          new Matcher[config] {
+            def downcastOrNull(a: Any): config = a match {
+              case x: config => x
+              case _         => null.asInstanceOf[config]
+            }
+          },
+          new Matcher[encodeTransient] {
+            def downcastOrNull(a: Any): encodeTransient = a match {
+              case x: encodeTransient => x
+              case _                  => null.asInstanceOf[encodeTransient]
             }
           },
           new Matcher[discriminator] {
@@ -460,12 +466,6 @@ object Modifier {
             def downcastOrNull(a: Any): caseNaming = a match {
               case x: caseNaming => x
               case _             => null.asInstanceOf[caseNaming]
-            }
-          },
-          new Matcher[config] {
-            def downcastOrNull(a: Any): config = a match {
-              case x: config => x
-              case _         => null.asInstanceOf[config]
             }
           }
         )

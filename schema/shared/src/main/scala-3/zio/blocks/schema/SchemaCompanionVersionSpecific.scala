@@ -526,7 +526,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
               !isOption(fTpe) &&
               !isCollection(fTpe)
             ) {
-              fail(s"Missing default value for transient field '$name' in '${tpe.show}'")
+              fail(s"Missing default value for transient or encodeTransient field '$name' in '${tpe.show}'")
             }
             None
           }

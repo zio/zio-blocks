@@ -191,6 +191,16 @@ object NameMapper {
     override def apply(memberName: String): String = memberName
   }
 
+  /**
+   * Parses a built-in naming strategy string into a [[NameMapper]].
+   *
+   * Accepted values are `identity`, `snake_case`, `camelCase`, `kebab-case`,
+   * and `PascalCase`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if the provided strategy name does not match one of the supported
+   *   built-in strategies.
+   */
   def fromString(s: String): NameMapper = s match {
     case "identity"   => Identity
     case "snake_case" => SnakeCase

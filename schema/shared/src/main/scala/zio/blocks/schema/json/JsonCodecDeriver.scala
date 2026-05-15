@@ -725,7 +725,7 @@ class JsonCodecDeriver private[json] (
                 var idx = 0
                 while (idx < len) {
                   val fieldInfo = fieldInfos(idx)
-                  if (fieldInfo.nonTransient && fieldInfo.nonEncodeTransient) {
+                  if (fieldInfo.nonEncodeTransient) {
                     if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(out, baseOffset)
                     else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(out, baseOffset)
                     else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(out, baseOffset)
@@ -810,7 +810,7 @@ class JsonCodecDeriver private[json] (
               var idx = 0
               while (idx < len) {
                 val fieldInfo = fieldInfos(idx)
-                if (fieldInfo.nonTransient && fieldInfo.nonEncodeTransient) {
+                if (fieldInfo.nonEncodeTransient) {
                   if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(regs, builder)
                   else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(regs, builder)
                   else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(regs, builder)

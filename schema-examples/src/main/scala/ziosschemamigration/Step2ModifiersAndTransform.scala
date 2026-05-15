@@ -157,7 +157,7 @@ object Step2ModifiersAndTransform extends App {
   // ─────────────────────────────────────────────────────────────────────────
   // 6. Programmatic modifier attachment (schema.modifier)
   //    ZIO Schema: schema.annotate(annotation)
-  //    ZIO Blocks: schema.modifier(Modifier.config(...))
+  //    ZIO Blocks: schema.modifier(Modifier.discriminator(...))
   // ─────────────────────────────────────────────────────────────────────────
 
   sealed trait Event
