@@ -36,7 +36,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 
 **Formats:**
 - [`JSON Codec`](./built-in-codecs/json/) — Complete JSON support: ADT for JSON values, fluent navigation, encoding/decoding, diffs, patches, and JSON Schema 2020-12 validation
-- [`Xml`](./xml.md) — Type-safe, immutable representation of XML document structures
+- [`Xml`](./built-in-codecs/xml.md) — Type-safe, immutable representation of XML document structures
 
 **Validation & Errors:**
 - [`Validation`](./validation.md) — Declarative constraints on primitive values
