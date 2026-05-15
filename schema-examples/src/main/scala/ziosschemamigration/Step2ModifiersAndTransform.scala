@@ -167,7 +167,7 @@ object Step2ModifiersAndTransform extends App {
     implicit val schema: Schema[Event] =
       Schema
         .derived[Event]
-        .modifier(Modifier.config("json.discriminator", "type"))
+        .modifier(Modifier.discriminator("type"))
   }
 
   println(s"\nEvent schema modifiers: ${Event.schema.reflect.modifiers}")
