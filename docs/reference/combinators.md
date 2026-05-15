@@ -96,20 +96,16 @@ The `Unions` combinator bridges this gap, enabling bidirectional conversion betw
 
 ## Quick Example
 
-Here is how to combine multiple values, widen concatenation results, and canonicalize error types:
+Here is how to combine multiple values and canonicalize error types:
 
 ```scala mdoc
-import zio.blocks.combinators.{Concat, Tuples, Eithers}
+import zio.blocks.combinators.{Tuples, Eithers}
 
 // Aggregate three values into a flattened tuple
 val username: String = "alice"
 val userId: Int = 42
 val email: String = "alice@example.com"
 val userTuple: Tuple3[String, Int, String] = Tuples.combine(username, Tuples.combine(userId, email))
-
-// Scala 2: widen sequential composition the same way Scala 3 unions do
-val branch: Either[String, Int] =
-  implicitly[Concat.Concat.WithOut[String, Int, Either[String, Int]]].left("boom")
 
 // Canonicalize nested Either types to left-nested form
 val validationError: Either[String, Either[String, Boolean]] = Right(Left("invalid email"))
@@ -126,15 +122,12 @@ Its rules are:
 - subtype + supertype => keep the supertype
 - unrelated types => widen to `Either[L, R]` (the Scala 2 encoding of `L | R`)
 
-```scala mdoc:compile-only
-import zio.blocks.combinators.Concat
+For example, Scala 2 infers witnesses equivalent to these shapes:
 
-trait Animal
-final case class Dog(name: String) extends Animal
-
-val same: Concat.Concat.WithOut[Int, Int, Int] = implicitly
-val widened: Concat.Concat.WithOut[Dog, Animal, Animal] = implicitly
-val disjoint: Concat.Concat.WithOut[String, Int, Either[String, Int]] = implicitly
+```scala
+Concat.Concat.WithOut[Int, Int, Int]
+Concat.Concat.WithOut[Dog, Animal, Animal]
+Concat.Concat.WithOut[String, Int, Either[String, Int]]
 ```
 
 Unlike `Choices`, `Concat` is not usually called directly at runtime. It exists mainly so shared Scala-2 APIs can infer the same public result types that Scala 3 expresses with native unions.

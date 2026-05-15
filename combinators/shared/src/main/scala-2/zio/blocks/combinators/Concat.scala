@@ -37,7 +37,7 @@ object Concat {
     implicit val bothNothing: WithOut[Nothing, Nothing, Nothing] =
       new Concat[Nothing, Nothing] {
         type Out = Nothing
-        def isIdentityLike: Boolean     = true
+        def isIdentityLike: Boolean    = true
         def left(l: Nothing): Nothing  = l
         def right(r: Nothing): Nothing = r
       }
@@ -46,16 +46,16 @@ object Concat {
       new Concat[Nothing, R] {
         type Out = R
         def isIdentityLike: Boolean = true
-        def left(l: Nothing): R = l
-        def right(r: R): R      = r
+        def left(l: Nothing): R     = l
+        def right(r: R): R          = r
       }
 
     implicit def rightNothing[L]: WithOut[L, Nothing, L] =
       new Concat[L, Nothing] {
         type Out = L
         def isIdentityLike: Boolean = true
-        def left(l: L): L       = l
-        def right(r: Nothing): L = r
+        def left(l: L): L           = l
+        def right(r: Nothing): L    = r
       }
 
     implicit def derive[L, R]: Concat[L, R] = macro ConcatMacros.concatImpl[L, R]
