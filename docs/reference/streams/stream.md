@@ -864,7 +864,7 @@ Streams can be sequentially concatenated, zipped together, or merged:
 
 ### Sequential Concatenation
 
-`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream.:
+`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream:
 
 ```scala
 trait Stream[+E, +A] {
@@ -872,7 +872,15 @@ trait Stream[+E, +A] {
 }
 ```
 
-The error type is the union of both streams' error types. Evaluation is sequential: the second stream only starts when the first completes:
+The result type follows the same widening rules as Scala 3 unions:
+
+- identical types stay unchanged (`A ++ A => A`)
+- subtypes widen to the supertype (`Dog ++ Animal => Animal`)
+- unrelated types remain disjoint (`String ++ Int => String | Int`)
+
+On Scala 3, `|` is a native union. On Scala 2, `|` is the source-compatible alias from `zio.blocks.combinators`, backed by a Scala-2-only `Concat` typeclass that collapses same/subtype cases and uses `Either` for unrelated types.
+
+Evaluation is sequential: the second stream only starts when the first completes:
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
@@ -883,84 +891,59 @@ val combined = first ++ second
 val result = combined.runCollect
 ```
 
-### Union Concatenation with `choice`
-
-`choice[E2, A2]` emits all elements of the first stream, then all elements of the second stream, just like `++` / `concat`. The difference is that `choice` requires the resulting element type to remain a **direct disjoint union** `A | A2`.
+For unrelated element types, normalize the result with `Choices.separate` when you want explicit `Either` handling in shared code:
 
 <Tabs groupId="scala-version" defaultValue="scala2">
   <TabItem value="scala2" label="Scala 2.13">
 
 ```scala
-trait Stream[+E, +A] {
-  def choice[E2 >: E, A2](that: Stream[E2, A2])(implicit
-    jtA: JvmType.Infer[A],
-    jtA2: JvmType.Infer[A2]
-  ): Stream[E2, A | A2]
-}
+import zio.blocks.combinators.{Choices, |}
+
+val combined: Stream[Nothing, String | Int] =
+  Stream.succeed("left") ++ Stream.succeed(1)
 ```
 
   </TabItem>
   <TabItem value="scala3" label="Scala 3.x">
 
 ```scala
-extension [E, A](self: Stream[E, A])
-  def choice[E2, A2](that: Stream[E2, A2])(using
-    Unions.Unions.WithOut[A, A2, A | A2]
-  ): Stream[E | E2, A | A2]
+val combined: Stream[Nothing, String | Int] =
+  Stream.succeed("left") ++ Stream.succeed(1)
 ```
 
   </TabItem>
 </Tabs>
 
-Use `choice` when you want sequential concatenation with a compile-time guarantee that duplicate union alternatives are rejected. The right-hand stream must contribute a non-union element type `A2`; if you want three or more alternatives, build them by left-nesting, for example `(Stream.succeed("left").choice(Stream.succeed(1))).choice(Stream.succeed(true))`.
-
-```scala mdoc:compile-only
-import zio.blocks.streams.*
-
-val left = Stream.succeed("left")
-val right = Stream.succeed(1)
-
-val combined: Stream[Nothing, String | Int] = left.choice(right)
-```
-
-At runtime, `choice` behaves like `concat`: it emits every element from `self`, then every element from `that`.
-
 ```scala mdoc
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
+import zio.blocks.combinators.Choices
 
-val choiceResult = Stream.succeed("left").choice(Stream.succeed(1)).runCollect
+val concatResult = (Stream.succeed("left") ++ Stream.succeed(1)).runCollect
 
-assert(choiceResult == Right(Chunk[String | Int]("left", 1))) // Scala 3: raw values
+assert(concatResult.map(_.map(Choices.separate[String, Int])) == Right(Chunk(Left("left"), Right(1))))
 ```
 
-The error channel widens to accommodate both streams. On Scala 2 this uses subtype widening (`E2 >: E`), while on Scala 3 it produces a union error type (`E | E2`):
+The error channel follows the same rules. Same/subtype errors collapse; unrelated errors remain disjoint:
 
 ```scala mdoc
 import zio.blocks.streams.*
+import zio.blocks.combinators.Choices
 
-sealed trait ChoiceError
-case class LeftError(msg: String) extends ChoiceError
+sealed trait LeftError
+case class Boom(msg: String) extends LeftError
+case class Missing(code: Int)
 
-val left: Stream[ChoiceError, String] = Stream.fail(LeftError("boom"))
+val left: Stream[LeftError, String] = Stream.fail(Boom("boom"))
 val right = Stream.succeed(true)
 
-left.choice(right).runCollect
+left.runCollect
+
+val failed = left ++ (Stream.fail(Missing(404)): Stream[Missing, Boolean])
+failed.runCollect.left.map(Choices.separate[LeftError, Missing])
 ```
 
-Unlike plain `++`, `choice` on Scala 3 rejects overlapping union alternatives at compile time (via `Unions` evidence). On Scala 2, this compile-time check is not available.
-
-```scala mdoc:compile-only
-import zio.blocks.streams.*
-
-val left = Stream.succeed(1)
-val right = Stream.succeed(2)
-
-// Does not compile: the result would collapse to Int instead of a disjoint union.
-// val invalid = left.choice(right)
-```
-
-Use `++` / `concat` when you just want concatenation. Use `choice` when you want concatenation plus a direct-union guarantee enforced by `Unions`, and left-nest calls when adding a third alternative.
+There is no separate `choice` operator anymore. Use `++` / `concat` for all sequential combination; the result type already reflects the Scala 3-style union semantics.
 
 ### Zipping
 
