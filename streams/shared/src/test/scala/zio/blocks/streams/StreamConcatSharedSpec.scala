@@ -70,11 +70,13 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       final case class LeftErr(msg: String) extends AppError
       final case class RightErr(code: Int)  extends AppError
 
-      val left: Stream[LeftErr, String] = Stream.fail(LeftErr("oops"))
-      val right: Stream[RightErr, Int]  = Stream.succeed(42)
-      val result                        = left ++ right
+      val left: Stream[LeftErr, String]                                         = Stream.fail(LeftErr("oops"))
+      val right: Stream[RightErr, Int]                                          = Stream.succeed(42)
+      val result                                                                = left ++ right
       val actual: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] =
-        result.runCollect.left.map(err => Choices.separate[LeftErr, RightErr](err)).map(_.map(elem => Choices.separate[String, Int](elem)))
+        result.runCollect.left
+          .map(err => Choices.separate[LeftErr, RightErr](err))
+          .map(_.map(elem => Choices.separate[String, Int](elem)))
       val expected: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] = Left(Left(LeftErr("oops")))
       assert(actual)(equalTo(expected))
     },
@@ -83,11 +85,13 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       final case class LeftErr(msg: String) extends AppError
       final case class RightErr(code: Int)  extends AppError
 
-      val left: Stream[LeftErr, String] = Stream.succeed("ok")
-      val right: Stream[RightErr, Int]  = Stream.fail(RightErr(404))
-      val result                        = left ++ right
+      val left: Stream[LeftErr, String]                                         = Stream.succeed("ok")
+      val right: Stream[RightErr, Int]                                          = Stream.fail(RightErr(404))
+      val result                                                                = left ++ right
       val actual: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] =
-        result.runCollect.left.map(err => Choices.separate[LeftErr, RightErr](err)).map(_.map(elem => Choices.separate[String, Int](elem)))
+        result.runCollect.left
+          .map(err => Choices.separate[LeftErr, RightErr](err))
+          .map(_.map(elem => Choices.separate[String, Int](elem)))
       val expected: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] = Left(Right(RightErr(404)))
       assert(actual)(equalTo(expected))
     },
