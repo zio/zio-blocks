@@ -11,11 +11,11 @@ The JSON codec module provides four configuration types for controlling encoding
 
 ### Configuration Options
 
-| Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `indentionStep` | Int | 0 | Spaces per indentation level (0 = compact JSON) |
-| `escapeUnicode` | Boolean | false | Escape non-ASCII characters as `\uXXXX` for ASCII-only output |
-| `preferredBufSize` | Int | 32768 | Internal buffer size in bytes for streaming |
+| Option             | Type    | Default | Purpose                                                       |
+|--------------------|---------|---------|---------------------------------------------------------------|
+| `indentionStep`    | Int     | 0       | Spaces per indentation level (0 = compact JSON)               |
+| `escapeUnicode`    | Boolean | false   | Escape non-ASCII characters as `\uXXXX` for ASCII-only output |
+| `preferredBufSize` | Int     | 32768   | Internal buffer size in bytes for streaming                   |
 
 ### Usage Examples
 
@@ -86,10 +86,10 @@ val ascii = json.print(WriterConfig.withEscapeUnicode(true))
 
 ### Configuration Options
 
-| Option | Type | Default | Purpose |
-|--------|------|---------|---------|
-| `checkForEndOfInput` | Boolean | true | Verify no extra input after valid JSON |
-| `preferredCharBufSize` | Int | 8192 | Internal character buffer size |
+| Option                 | Type    | Default | Purpose                                |
+|------------------------|---------|---------|----------------------------------------|
+| `checkForEndOfInput`   | Boolean | true    | Verify no extra input after valid JSON |
+| `preferredCharBufSize` | Int     | 8192    | Internal character buffer size         |
 
 ### Usage Examples
 
