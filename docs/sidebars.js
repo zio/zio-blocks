@@ -8,7 +8,7 @@ const sidebars = {
       items: [
          {
            type: "category",
-           label: "ZIO Blocks Schema",
+           label: "Schema",
            link: { type: "doc", id: "reference/schema/index" },
            items: [
              {
@@ -126,26 +126,26 @@ const sidebars = {
          "reference/combinators",
          "reference/docs",
          "reference/media-type",
-          {
-            type: "category",
-            label: "HTTP Model",
-            link: { type: "doc", id: "reference/http-model/index" },
-            items: [
-              "reference/http-model/model",
-              "reference/http-model/schema",
-            ]
-          },
-          "reference/endpoint",
-          "reference/chunk",
-          "reference/maybe",
-          "reference/ringbuffer",
-          "reference/html",
-          "reference/smithy",
-          "reference/datastar",
-          "reference/htmx",
-          {
-            type: "category",
-            label: "Streams",
+         {
+           type: "category",
+           label: "HTTP Model",
+           link: { type: "doc", id: "reference/http-model/index" },
+           items: [
+             "reference/http-model/model",
+             "reference/http-model/schema",
+           ]
+         },
+         "reference/endpoint",
+         "reference/chunk",
+         "reference/maybe",
+         "reference/ringbuffer",
+         "reference/html",
+         "reference/smithy",
+         "reference/datastar",
+         "reference/htmx",
+         {
+           type: "category",
+           label: "Streams",
            link: { type: "doc", id: "reference/streams/index" },
            items: [
              "reference/streams/stream",
