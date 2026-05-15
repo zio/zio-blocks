@@ -1,6 +1,7 @@
 ---
 id: index
 title: "HTTP Model"
+sidebar_label: "HTTP Model"
 ---
 
 # HTTP Model
