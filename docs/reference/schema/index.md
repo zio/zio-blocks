@@ -1,6 +1,7 @@
 ---
 id: index
 title: "ZIO Blocks Schema"
+sidebar_label: "Schema"
 ---
 
 ## Introduction
