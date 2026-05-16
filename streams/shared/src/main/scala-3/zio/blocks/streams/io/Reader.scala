@@ -149,10 +149,10 @@ abstract class Reader[+Elem] {
       while (v != s) { b.addOne(v.toByte); v = readInt(s)(using unsafeEvidence) }
       b.result().asInstanceOf[Chunk[A]]
     } else {
-      val b = ChunkBuilder.make[A](16)
+      val b = ChunkBuilder.make[Any](16)
       var v = read[Any](EndOfStream);
-      while (v.asInstanceOf[AnyRef] ne EndOfStream) { b += v.asInstanceOf[A]; v = read[Any](EndOfStream) }
-      b.result()
+      while (v.asInstanceOf[AnyRef] ne EndOfStream) { b += v.asInstanceOf[Any]; v = read[Any](EndOfStream) }
+      b.result().asInstanceOf[Chunk[A]]
     }
   }
 

@@ -111,6 +111,12 @@ object ReaderConstructorSpec extends StreamsBaseSpec {
         val dq    = Reader.fromChunk[Int](chunk)
         assert(drainAll(dq))(equalTo(chunk))
       }
+      ,
+      test("readAll preserves nested Chunk elements") {
+        val nested = Chunk(Chunk(1, 2), Chunk(3), Chunk.empty[Int])
+        val dq     = Reader.fromChunk[Chunk[Int]](nested)
+        assert(dq.readAll())(equalTo(nested))
+      }
     ),
 
     // ---- fromRange -----------------------------------------------------------
