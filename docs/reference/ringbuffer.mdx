@@ -903,6 +903,6 @@ Micro-benchmark your specific workload if latency is critical.
 
 Ring buffers are standalone data structures and do not depend on other ZIO Blocks types. However, they integrate well with:
 
-- **Threading models**: Ring buffers work on raw JVM threads, virtual threads (Loom), or platform-specific threads. Pair with `ZIO.fork` or `Thread` as needed.
+- **Threading models**: Ring buffers work on raw JVM threads, virtual threads (Loom), or platform-specific threads. The virtual-thread path falls back through a `MethodHandle` when `Thread.ofVirtual()` is unavailable. Pair with `ZIO.fork` or `Thread` as needed.
 - **Reactive streams**: Ring buffers can back reactive sources, where producers feed a `Source` and consumers pull from it. The ring buffer provides natural backpressure via `offer`'s return value.
 - **Event loops**: In game engines or event-driven systems, ring buffers connect event producers (input, network) to event dispatchers (main loop) with predictable latency.
