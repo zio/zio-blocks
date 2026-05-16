@@ -52,10 +52,10 @@ private[mux] object PlatformMux {
     streamId: Id,
     mux: JsMux[Id, In, Out]
   ) extends MuxStream[Id, In, Out] {
-    private var state: StreamState                                     = StreamState.Open
+    private var state: StreamState                                      = StreamState.Open
     private val inboundQueue: mutable.ArrayDeque[Either[MuxError, Out]] = mutable.ArrayDeque.empty
-    private val outboundQueue: mutable.ArrayDeque[In]                  = mutable.ArrayDeque.empty
-    private var cancelError: Option[MuxError]                          = None
+    private val outboundQueue: mutable.ArrayDeque[In]                   = mutable.ArrayDeque.empty
+    private var cancelError: Option[MuxError]                           = None
 
     def id: Id = streamId
 
