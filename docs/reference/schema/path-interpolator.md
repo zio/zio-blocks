@@ -458,7 +458,7 @@ This section shows practical examples of using the path interpolator with realis
 
 To access deeply nested fields in a data structure:
 
-```scala mdoc:silent
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 case class Address(street: String, city: String, zipCode: String)
@@ -655,7 +655,7 @@ val emailPath = basePath(p"[*].email")
 
 To navigate and extract values from dynamic data:
 
-```scala mdoc:silent
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 val data: DynamicValue = ...
