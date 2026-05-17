@@ -448,6 +448,7 @@ object YamlReader {
 
     private[this] def parseFlowMappingInline(s: String): Yaml =
       if (s == "{}") Yaml.Mapping.empty
+      else if (s.length < 2) Yaml.Mapping.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Mapping.empty
@@ -471,6 +472,7 @@ object YamlReader {
 
     private[this] def parseFlowSequenceInline(s: String): Yaml =
       if (s == "[]") Yaml.Sequence.empty
+      else if (s.length < 2) Yaml.Sequence.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Sequence.empty
