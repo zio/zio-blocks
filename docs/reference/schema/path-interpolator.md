@@ -9,7 +9,7 @@ The path interpolator `p"..."` is a compile-time string interpolator for constru
 
 Instead of manually constructing optics like this:
 
-```scala
+```scala mdoc:compile-only
 DynamicOptic(Vector(
   DynamicOptic.Node.Field("users"),
   DynamicOptic.Node.Elements,
@@ -19,7 +19,7 @@ DynamicOptic(Vector(
 
 You can write:
 
-```scala
+```scala mdoc:compile-only
 p".users[*].email"
 ```
 
@@ -29,7 +29,7 @@ The interpolator is **type-safe**, **compile-time validated**, and **performance
 
 Import the schema package to enable the path interpolator:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 // Now you can use p"..." anywhere
@@ -52,7 +52,7 @@ This section documents the complete path syntax with examples for each component
 
 Access fields in records using dot notation. The leading dot is optional:
 
-```scala
+```scala mdoc:compile-only
 // With leading dot
 p".name"           // Field("name")
 p".firstName"      // Field("firstName")
@@ -68,7 +68,7 @@ p".user.address.street"
 
 Field names can also include special characters and keywords:
 
-```scala
+```scala mdoc:compile-only
 p"._private"       // Fields starting with underscore
 p".field123"       // Fields with digits
 p".café"           // Unicode field names
@@ -81,7 +81,7 @@ Access sequence elements by index, multiple indices, or ranges.
 
 To access a single element by index:
 
-```scala
+```scala mdoc:compile-only
 p"[0]"             // AtIndex(0)
 p"[42]"            // AtIndex(42)
 p"[2147483647]"    // AtIndex(Int.MaxValue)
@@ -89,7 +89,7 @@ p"[2147483647]"    // AtIndex(Int.MaxValue)
 
 To access multiple elements at specific indices:
 
-```scala
+```scala mdoc:compile-only
 p"[0,1,2]"         // AtIndices(Seq(0, 1, 2))
 p"[0, 2, 5]"       // AtIndices(Seq(0, 2, 5)) - spaces allowed
 p"[5,2,8,1]"       // Order preserved
@@ -97,7 +97,7 @@ p"[5,2,8,1]"       // Order preserved
 
 To select a range of consecutive elements:
 
-```scala
+```scala mdoc:compile-only
 p"[0:5]"           // AtIndices(Seq(0, 1, 2, 3, 4))
 p"[5:8]"           // AtIndices(Seq(5, 6, 7))
 p"[3:4]"           // AtIndices(Seq(3)) - single element
@@ -109,14 +109,14 @@ p"[10:5]"          // AtIndices(Seq.empty) - inverted range
 
 Select all elements in a sequence using wildcard syntax:
 
-```scala
+```scala mdoc:compile-only
 p"[*]"             // Elements - all elements
 p"[:*]"            // Elements - alternative syntax
 ```
 
 To navigate nested sequences:
 
-```scala
+```scala mdoc:compile-only
 p"[*][*]"          // Nested sequences: all elements of all elements
 p"[*][0]"          // First element of each sequence
 ```
@@ -127,7 +127,7 @@ Access map values by key, where keys can be strings, integers, booleans, or char
 
 To use string keys:
 
-```scala
+```scala mdoc:compile-only
 p"""{"host"}"""              // AtMapKey(String("host"))
 p"""{"foo bar"}"""           // Keys with spaces
 p"""{"日本語"}"""             // Unicode keys
@@ -137,7 +137,7 @@ p"""{""}"""                  // Empty string key
 
 To use integer keys:
 
-```scala
+```scala mdoc:compile-only
 p"{42}"                      // AtMapKey(Int(42))
 p"{0}"                       // AtMapKey(Int(0))
 p"{-42}"                     // AtMapKey(Int(-42))
@@ -147,14 +147,14 @@ p"{-2147483648}"             // AtMapKey(Int.MinValue)
 
 To use boolean keys:
 
-```scala
+```scala mdoc:compile-only
 p"{true}"                    // AtMapKey(Boolean(true))
 p"{false}"                   // AtMapKey(Boolean(false))
 ```
 
 To use character keys:
 
-```scala
+```scala mdoc:compile-only
 p"{'a'}"                     // AtMapKey(Char('a'))
 p"{' '}"                     // AtMapKey(Char(' '))
 p"{'9'}"                     // AtMapKey(Char('9'))
@@ -162,7 +162,7 @@ p"{'9'}"                     // AtMapKey(Char('9'))
 
 To use multiple keys of the same or mixed types:
 
-```scala
+```scala mdoc:compile-only
 p"""{"foo", "bar", "baz"}""" // AtMapKeys(Seq(...))
 p"{1, 2, 3}"                 // Multiple integer keys
 p"{true, false}"             // Multiple boolean keys
@@ -176,7 +176,7 @@ p"""{"s", 'c', 42, true}"""  // All supported types
 
 Select all keys or all values in a map:
 
-```scala
+```scala mdoc:compile-only
 p"{*}"             // MapValues - all values
 p"{:*}"            // MapValues - alternative syntax
 p"{*:}"            // MapKeys - all keys
@@ -184,7 +184,7 @@ p"{*:}"            // MapKeys - all keys
 
 To apply map selectors to nested maps:
 
-```scala
+```scala mdoc:compile-only
 p"{*}{*}"          // Nested maps: all values of all values
 p"{*:}{*:}"        // All keys of all keys
 ```
@@ -193,7 +193,7 @@ p"{*:}{*:}"        // All keys of all keys
 
 Navigate into a specific variant case using angle brackets:
 
-```scala
+```scala mdoc:compile-only
 p"<Left>"          // Case("Left")
 p"<Right>"         // Case("Right")
 p"<Some>"          // Case("Some")
@@ -202,7 +202,7 @@ p"<None>"          // Case("None")
 
 Variant case names can include special characters and keywords:
 
-```scala
+```scala mdoc:compile-only
 p"<_Empty>"        // Cases starting with underscore
 p"<Case1>"         // Cases with digits
 p"<café>"          // Unicode case names
@@ -210,7 +210,7 @@ p"<café>"          // Unicode case names
 
 To navigate nested variant cases:
 
-```scala
+```scala mdoc:compile-only
 p"<A><B><C>"       // Nested variants
 ```
 
@@ -220,7 +220,7 @@ Search for values matching a schema pattern anywhere in a data structure using t
 
 To search for nominal types by name:
 
-```scala
+```scala mdoc:compile-only
 p"#Person"         // Find all values of type Person
 p"#User"           // Find all values of type User
 p"#Address"        // Find all values of type Address
@@ -228,7 +228,7 @@ p"#Address"        // Find all values of type Address
 
 To search for primitive types:
 
-```scala
+```scala mdoc:compile-only
 p"#string"         // Find all string values
 p"#int"            // Find all integer values
 p"#boolean"        // Find all boolean values
@@ -237,7 +237,7 @@ p"#uuid"           // Find all UUID values
 
 To search for records with specific field structures:
 
-```scala
+```scala mdoc:compile-only
 p"#record { name: string }"                // Find records with a string 'name' field
 p"#record { name: string, age: int }"      // Find records with both fields
 p"#record { items: list(Person) }"         // Nested schema
@@ -245,13 +245,13 @@ p"#record { items: list(Person) }"         // Nested schema
 
 To search for variants with specific case structures:
 
-```scala
+```scala mdoc:compile-only
 p"#variant { Left: int, Right: string }"   // Find Either-like variants
 ```
 
 To search for collection types:
 
-```scala
+```scala mdoc:compile-only
 p"#list(string)"                           // Find lists of strings
 p"#list(Person)"                           // Find lists of Person
 p"#map(string, int)"                       // Find maps from string to int
@@ -260,13 +260,13 @@ p"#option(Person)"                         // Find optional Person values
 
 To match any value regardless of type:
 
-```scala
+```scala mdoc:compile-only
 p"#_"              // Find any value (matches everything)
 ```
 
 To combine path navigation with schema search:
 
-```scala
+```scala mdoc:compile-only
 p".users#Person"               // Search for Person in users field
 p"#Person.name"                // Find all Person values, then get name
 p".items[*]#Person.email"      // Elements then search then field
@@ -288,7 +288,7 @@ String and character literals support standard escape sequences:
 
 Here are some examples of escape sequences in use:
 
-```scala
+```scala mdoc:compile-only
 p"""{"foo\nbar"}"""          // String key with newline
 p"""{"foo\tbar"}"""          // String key with tab
 p"""{'\n'}"""                // Char key with newline
@@ -304,7 +304,7 @@ Combine different path elements to navigate complex nested structures.
 
 Access sequence elements by index or range through a field:
 
-```scala
+```scala mdoc:compile-only
 p".items[0]"                 // First item
 p".items[*]"                 // All items
 p".items[0,1,2]"             // Items at indices 0, 1, 2
@@ -315,7 +315,7 @@ p".items[0:5]"               // Items 0 through 4
 
 Access map values by key through a field:
 
-```scala
+```scala mdoc:compile-only
 p""".config{"host"}"""       // Map lookup
 p".settings{42}"             // Integer key
 p".lookup{*}"                // All map values
@@ -326,7 +326,7 @@ p".lookup{*:}"               // All map keys
 
 Navigate into variant cases through a field:
 
-```scala
+```scala mdoc:compile-only
 p".result<Success>"          // Variant case
 p".response<Ok>"             // HTTP response variant
 ```
@@ -335,7 +335,7 @@ p".response<Ok>"             // HTTP response variant
 
 Combine different path elements to build complex navigation through nested data:
 
-```scala
+```scala mdoc:compile-only
 // Record in sequence
 p".users[0].name"
 // Equivalent to: Field("users") → AtIndex(0) → Field("name")
@@ -357,7 +357,7 @@ p".response<Ok>.body"
 
 Chain multiple path operators for deeply nested data structures:
 
-```scala
+```scala mdoc:compile-only
 // Complex nested navigation
 p""".root.children[*].metadata{"tags"}[0]"""
 // Field("root") → Field("children") → Elements → 
@@ -373,7 +373,7 @@ p""".a[0]{"k"}<V>.b[*]{*}.c{*:}"""
 
 An empty path refers to the root of the data structure:
 
-```scala
+```scala mdoc:compile-only
 p""                          // Empty path = root
 // Equivalent to: DynamicOptic.root
 // Equivalent to: DynamicOptic(Vector.empty)
@@ -387,7 +387,7 @@ The path interpolator **rejects runtime interpolation** to prevent unsafe dynami
 
 Runtime interpolation will fail to compile:
 
-```scala
+```scala mdoc:compile-only
 val fieldName = "email"
 val path = p".$fieldName"
 // Error: Path interpolator does not support runtime arguments.
@@ -396,7 +396,7 @@ val path = p".$fieldName"
 
 Array indices also cannot be interpolated at runtime:
 
-```scala
+```scala mdoc:compile-only
 val idx = 5
 val path = p"[$idx]"
 // Error: Path interpolator does not support runtime arguments.
@@ -405,7 +405,7 @@ val path = p"[$idx]"
 
 Instead, use only literal strings at compile time:
 
-```scala
+```scala mdoc:compile-only
 val path = p".users[0].email"  // ✓ Works
 ```
 
@@ -413,7 +413,7 @@ val path = p".users[0].email"  // ✓ Works
 
 Invalid syntax is caught at compile time. Here are examples of common errors:
 
-```scala
+```scala mdoc:compile-only
 // Unterminated string
 p"""{"foo"""
 // Error: Unterminated string literal starting at position 1
@@ -437,7 +437,7 @@ p"."
 
 All path parsing and validation occurs at **compile time**. The interpolator generates the exact same bytecode as manual `DynamicOptic` construction. Here's the comparison:
 
-```scala
+```scala mdoc:compile-only
 // These produce identical bytecode:
 p".users[*].email"
 
@@ -458,7 +458,7 @@ This section shows practical examples of using the path interpolator with realis
 
 To access deeply nested fields in a data structure:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Address(street: String, city: String, zipCode: String)
@@ -476,7 +476,7 @@ val street = person.get(streetPath)
 
 To work with sequences and access elements by index or range:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class User(id: Int, email: String, tags: Seq[String])
@@ -496,7 +496,7 @@ val specificUsersPath = p".users[0,2,5]"
 
 To work with map data structures and access values by key:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Config(
@@ -521,9 +521,7 @@ val allPortsPath = p"ports{*:}"
 
 To navigate variant cases in your data structures:
 
-
-
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 sealed trait Result[+A]
@@ -535,7 +533,7 @@ case class Response(result: Result[User])
 
 Use paths to navigate into specific cases:
 
-```scala
+```scala mdoc:compile-only
 // Navigate into Success case
 val successValuePath = p".result<Success>.value"
 
@@ -547,7 +545,7 @@ val errorPath = p".result<Failure>.error"
 
 To extract specific data from complex nested API response structures:
 
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Metadata(tags: Seq[String], version: Int)
@@ -579,7 +577,7 @@ This comparison shows how the path interpolator simplifies optic path constructi
 
 Manual path construction requires verbose imports and careful construction:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.DynamicOptic.Node
 import zio.blocks.schema.DynamicValue
@@ -615,7 +613,7 @@ val path3 = DynamicOptic(Vector(
 
 ### Path Interpolator (After)
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 // Simple path - clean and readable
@@ -644,7 +642,7 @@ These patterns demonstrate effective ways to use the path interpolator in real-w
 
 While runtime variables are not supported, you can compose literal paths at compile time:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 // You can't use runtime variables, but you can compose literal paths:
@@ -657,9 +655,7 @@ val emailPath = basePath(p"[*].email")
 
 To navigate and extract values from dynamic data:
 
-
-
-```scala
+```scala mdoc:silent
 import zio.blocks.schema._
 
 val data: DynamicValue = ...
@@ -675,9 +671,7 @@ val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
 
 To use path interpolators with schema-based optics:
 
-
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 case class User(name: String, email: String)
@@ -696,19 +690,20 @@ val dynamicPath = p".email"
 
 1. **Use the leading dot for clarity**: While optional, `p".field"` is more explicit than `p"field"`:
 
-
-   ```scala
+   ```scala mdoc:compile-only
    val userPath = p".users[0]"
    val emailPath = userPath(p".email")
    ```
 
 4. **Use raw strings for map keys**: Triple-quoted strings avoid escape hell:
-   ```scala
+
+   ```scala mdoc:compile-only
    p"""config{"api.key"}"""  // Better than p"config{\"api.key\"}"
    ```
 
 5. **Document complex paths**: Add comments explaining what nested paths navigate:
-   ```scala
+
+   ```scala mdoc:compile-only
    // Get the first tag from each user's metadata
    val tagsPath = p".users[*].metadata.tags[0]"
    ```
@@ -726,7 +721,7 @@ These limitations ensure compile-time safety and zero runtime overhead.
 
 `DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code:
 
-```scala
+```scala mdoc
 val optic = DynamicOptic.root.field("users").elements.field("email")
 println(optic)  // Output: .users[*].email
 
