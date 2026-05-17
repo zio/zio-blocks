@@ -73,7 +73,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       val left: Stream[LeftErr, String] = Stream.fail(LeftErr("oops"))
       val right: Stream[RightErr, Int]  = Stream.succeed(42)
       val result                        = left ++ right
-      val actual =
+      val actual                        =
         result.runCollect.left.map(err => err: AppError)
       assert(actual)(equalTo(Left(LeftErr("oops"): AppError)))
     },
@@ -85,7 +85,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       val left: Stream[LeftErr, String] = Stream.succeed("ok")
       val right: Stream[RightErr, Int]  = Stream.fail(RightErr(404))
       val result                        = left ++ right
-      val actual =
+      val actual                        =
         result.runCollect.left.map(err => err: AppError)
       assert(actual)(equalTo(Left(RightErr(404): AppError)))
     },
