@@ -16,20 +16,15 @@
 
 package zio.blocks.combinators
 
-private[combinators] trait ChoicesPlatformSpecific {
+private[combinators] trait ConcatCompanionPlatform {
+  implicit def derive[L, R]: Concat.WithOut[L, R, L | R] =
+    new Concat[L, R] {
+      type Out = L | R
 
-  def left[L, R](left: L)(implicit ev: Concat.WithOut[L, R, Either[L, R]]): L | R = {
-    locally(ev)
-    Left(left)
-  }
+      def isIdentityLike: Boolean = true
 
-  def right[L, R](right: R)(implicit ev: Concat.WithOut[L, R, Either[L, R]]): L | R = {
-    locally(ev)
-    Right(right)
-  }
+      def left(l: L): L | R = l
 
-  def separate[L, R](out: L | R)(implicit ev: Concat.WithOut[L, R, Either[L, R]]): Either[L, R] = {
-    locally(ev)
-    out
-  }
+      def right(r: R): L | R = r
+    }
 }

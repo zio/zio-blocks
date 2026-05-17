@@ -16,10 +16,11 @@
 
 package zio.blocks.streams
 
+import scala.annotation.unchecked.uncheckedVariance
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.combinators.Tuples
+import zio.blocks.combinators.{Concat, Tuples}
 import zio.blocks.scope.{Resource, Scope}
-import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, unsafeEvidence}
+import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, pullDouble, pullFloat, pullInt, pullLong}
 import zio.blocks.streams.io.Reader
 
 /**
@@ -43,7 +44,7 @@ abstract class Stream[+E, +A] {
   def render: String
 
   /**
-   * Returns the underlying [[Chunk]] if this stream wraps a known, materialized
+   * Returns the underlying `Chunk` if this stream wraps a known, materialized
    * chunk, `None` otherwise. O(1).
    *
    * Only streams created via [[Stream.fromChunk]], [[Stream.fromArray]], or
@@ -66,33 +67,87 @@ abstract class Stream[+E, +A] {
   final override def toString: String = render
 
   /** Alias for [[concat]]. */
-  final def ++[E2, A2](that: Stream[E2, A2]): Stream[E | E2, A | A2] = concat(that)
+  final def ++[E1 >: E, A2, A3](that: Stream[E1, A2])(implicit
+    valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E1, A3] = concat(that)
 
   /**
    * Alias for [[orElse]]. The fallback stream is evaluated lazily, only on
    * error.
    */
-  def ||[E2, A1](that: => Stream[E2, A1]): Stream[E2, A | A1] =
+  def ||[E1 >: E, A1 >: A](that: => Stream[E1, A1]): Stream[E1, A1] =
     orElse(that)
 
   /** Recovers from all errors by switching to the stream returned by `f`. */
-  def catchAll[E2, A1](f: E => Stream[E2, A1]): Stream[E2, A | A1] =
-    new Stream.CatchAll[E, E2, A | A1](this, f)
+  def catchAll[E2, A1 >: A](f: E => Stream[E2, A1]): Stream[E2, A1] =
+    new Stream.CatchAll[E, E2, A1](this.asInstanceOf[Stream[E, A1]], f)
 
   /**
    * Recovers from non-fatal defects (throwables that are not typed stream
    * errors) matching `f`.
    */
-  def catchDefect[E1, A1](f: PartialFunction[Throwable, Stream[E1, A1]]): Stream[E | E1, A | A1] =
-    new Stream.CatchDefect[E | E1, A | A1](this, f)
+  def catchDefect[E1 >: E, A1 >: A](f: PartialFunction[Throwable, Stream[E1, A1]]): Stream[E1, A1] =
+    new Stream.CatchDefect[E1, A1](this.asInstanceOf[Stream[E1, A1]], f)
 
   /** Applies a partial function, emitting only defined results. */
   def collect[B](pf: PartialFunction[A, B])(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Stream[E, B] =
     via(Pipeline.collect(pf))
 
   /** Emits all elements of `this` followed by all elements of `that`. */
-  def concat[E2, A2](that: Stream[E2, A2]): Stream[E | E2, A | A2] =
-    new Stream.Concatenated[E | E2, A | A2](this, that)
+  def concat[E1 >: E, A2, A3](that: Stream[E1, A2])(implicit
+    valueConcat: Concat.WithOut[A @uncheckedVariance, A2, A3],
+    jtA3: JvmType.Infer[A3]
+  ): Stream[E1, A3] =
+    if (valueConcat.isIdentityLike)
+      new Stream.Concatenated[E1, A3](this.asInstanceOf[Stream[E1, A3]], that.asInstanceOf[Stream[E1, A3]])
+    else
+      new Stream.Concatenated[E1, A3](
+        this.asInstanceOf[Stream[E1, A]].map[A3](valueConcat.left),
+        that.asInstanceOf[Stream[E1, A2]].map[A3](valueConcat.right)
+      )
+
+  /**
+   * Zips this stream with `that`, pairing elements positionally. Shorter stream
+   * determines length. Uses [[zio.blocks.combinators.Tuples]] for flattened
+   * composition: `a && b && c` produces a `Stream` of `(A, B, C)`.
+   */
+  def &&[E1 >: E, A1 >: A, B, C](
+    that: Stream[E1, B]
+  )(implicit t: Tuples.Tuples[A1, B] { type Out = C }): Stream[E1, C] =
+    Stream.fromReader {
+      val left  = Stream.compileToReader(this.asInstanceOf[Stream[Any, Any]])
+      val right =
+        try Stream.compileToReader(that.asInstanceOf[Stream[Any, Any]])
+        catch {
+          case t: Throwable =>
+            try left.close()
+            catch { case s: Throwable => t.addSuppressed(s) }
+            throw t
+        }
+      new io.Reader[C] {
+        def isClosed                        = left.isClosed || right.isClosed
+        def read[O1 >: C](sentinel: O1): O1 = {
+          val l = left.read[Any](EndOfStream)
+          if (l.asInstanceOf[AnyRef] eq EndOfStream) { right.close(); return sentinel }
+          val r = right.read[Any](EndOfStream)
+          if (r.asInstanceOf[AnyRef] eq EndOfStream) { left.close(); return sentinel }
+          t.combine(l.asInstanceOf[A1], r.asInstanceOf[B]).asInstanceOf[O1]
+        }
+        def close(): Unit = {
+          var firstError: Throwable = null
+          try left.close()
+          catch { case t: Throwable => firstError = t }
+          try right.close()
+          catch {
+            case t: Throwable =>
+              if (firstError == null) firstError = t
+              else firstError.addSuppressed(t)
+          }
+          if (firstError != null) throw firstError
+        }
+      }
+    }
 
   /** Counts the number of elements. */
   def count: Either[E, Long] = run(Sink.count)
@@ -134,10 +189,10 @@ abstract class Stream[+E, +A] {
   def find(pred: A => Boolean): Either[E, Option[A]] = run(Sink.find(pred))
 
   /** Maps each element to a stream and flattens the results sequentially. */
-  def flatMap[E2, B](
-    f: A => Stream[E2, B]
-  )(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Stream[E | E2, B] =
-    new Stream.FlatMapped[E, E | E2, A, B](this, f, jtA, jtB)
+  def flatMap[E1 >: E, B](
+    f: A => Stream[E1, B]
+  )(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Stream[E1, B] =
+    new Stream.FlatMapped[E, E1, A, B](this, f, jtA, jtB)
 
   /** Returns `true` if all elements satisfy `pred`, short-circuiting. */
   def forall(pred: A => Boolean): Either[E, Boolean] = run(Sink.forall(pred))
@@ -148,7 +203,7 @@ abstract class Stream[+E, +A] {
   def foreach(f: A => Unit): Either[E, Unit] = runForeach(f)
 
   /**
-   * Groups elements into [[Chunk]]s of size `n`. The last group may be smaller.
+   * Groups elements into `Chunk`s of size `n`. The last group may be smaller.
    */
   def grouped(n: Int): Stream[E, Chunk[A]] = {
     require(n >= 1, s"grouped requires n >= 1, got n=$n")
@@ -162,11 +217,11 @@ abstract class Stream[+E, +A] {
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
               val builder = new ChunkBuilder.Byte()
               var i       = 0
-              var v       = source.readInt(Long.MinValue)(using unsafeEvidence)
+              var v       = pullInt(source, Long.MinValue)
               while (v != Long.MinValue && i < n) {
                 builder.addOne(v.toByte)
                 i += 1
-                if (i < n) v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                if (i < n) v = pullInt(source, Long.MinValue)
               }
               if (i == 0) sentinel else builder.result().asInstanceOf[A1]
             }
@@ -178,11 +233,11 @@ abstract class Stream[+E, +A] {
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
               val builder = new ChunkBuilder.Int()
               var i       = 0
-              var v       = source.readInt(Long.MinValue)(using unsafeEvidence)
+              var v       = pullInt(source, Long.MinValue)
               while (v != Long.MinValue && i < n) {
                 builder.addOne(v.toInt)
                 i += 1
-                if (i < n) v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                if (i < n) v = pullInt(source, Long.MinValue)
               }
               if (i == 0) sentinel else builder.result().asInstanceOf[A1]
             }
@@ -194,11 +249,11 @@ abstract class Stream[+E, +A] {
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
               val builder = new ChunkBuilder.Long()
               var i       = 0
-              var v       = source.readLong(Long.MaxValue)(using unsafeEvidence)
+              var v       = pullLong(source, Long.MaxValue)
               while (v != Long.MaxValue && i < n) {
                 builder.addOne(v)
                 i += 1
-                if (i < n) v = source.readLong(Long.MaxValue)(using unsafeEvidence)
+                if (i < n) v = pullLong(source, Long.MaxValue)
               }
               if (i == 0) sentinel else builder.result().asInstanceOf[A1]
             }
@@ -210,11 +265,11 @@ abstract class Stream[+E, +A] {
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
               val builder = new ChunkBuilder.Float()
               var i       = 0
-              var v       = source.readFloat(Double.MaxValue)(using unsafeEvidence)
+              var v       = pullFloat(source, Double.MaxValue)
               while (v != Double.MaxValue && i < n) {
                 builder.addOne(v.toFloat)
                 i += 1
-                if (i < n) v = source.readFloat(Double.MaxValue)(using unsafeEvidence)
+                if (i < n) v = pullFloat(source, Double.MaxValue)
               }
               if (i == 0) sentinel else builder.result().asInstanceOf[A1]
             }
@@ -226,11 +281,11 @@ abstract class Stream[+E, +A] {
             def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
               val builder = new ChunkBuilder.Double()
               var i       = 0
-              var v       = source.readDouble(Double.MaxValue)(using unsafeEvidence)
+              var v       = pullDouble(source, Double.MaxValue)
               while (v != Double.MaxValue && i < n) {
                 builder.addOne(v)
                 i += 1
-                if (i < n) v = source.readDouble(Double.MaxValue)(using unsafeEvidence)
+                if (i < n) v = pullDouble(source, Double.MaxValue)
               }
               if (i == 0) sentinel else builder.result().asInstanceOf[A1]
             }
@@ -321,15 +376,12 @@ abstract class Stream[+E, +A] {
    * When `E` is `Nothing` (infallible stream), the call is eliminated at
    * compile time and the stream is returned unchanged.
    */
-  inline def mapError[E2](f: E => E2): Stream[E2, A] =
-    scala.compiletime.summonFrom {
-      case _: (E =:= Nothing) => this.asInstanceOf[Stream[E2, A]]
-      case _                  => new Stream.ErrorMapped(this, f)
-    }
+  def mapError[E2](f: E => E2): Stream[E2, A] =
+    new Stream.ErrorMapped(this, f)
 
   /** Falls back to `that` on any error. Alias: `||`. */
-  def orElse[E2, A1](that: => Stream[E2, A1]): Stream[E2, A | A1] =
-    catchAll[E2, A1](_ => that)
+  def orElse[E1 >: E, A1 >: A](that: => Stream[E1, A1]): Stream[E1, A1] =
+    catchAll[E1, A1](_ => that)
 
   /** Restarts this stream from the beginning each time it completes cleanly. */
   def repeated: Stream[E, A] = new Stream.Repeated(this)
@@ -348,7 +400,7 @@ abstract class Stream[+E, +A] {
       case e: StreamError => Left(e.value.asInstanceOf[E2])
     }
 
-  /** Runs the stream and collects all elements into a [[Chunk]]. */
+  /** Runs the stream and collects all elements into a `Chunk`. */
   def runCollect: Either[E, Chunk[A]] = run(Sink.collectAll)
 
   /** Runs the stream, discarding all elements. */
@@ -392,14 +444,14 @@ abstract class Stream[+E, +A] {
             def read[S1 >: S](sentinel: S1): S1 =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
               else {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) sentinel
                 else { state = fB(state, v.toByte); state.asInstanceOf[S1] }
               }
-            override def readInt(sentinel: Long)(using S <:< Int): Long =
+            override def readInt(sentinel: Long)(implicit ev: S <:< Int): Long =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[Byte].toLong }
               else {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) sentinel
                 else { state = fB(state, v.toByte); state.toLong }
               }
@@ -415,14 +467,14 @@ abstract class Stream[+E, +A] {
             def read[S1 >: S](sentinel: S1): S1 =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
               else {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) sentinel
                 else { state = fI(state, v.toInt); state.asInstanceOf[S1] }
               }
-            override def readInt(sentinel: Long)(using S <:< Int): Long =
+            override def readInt(sentinel: Long)(implicit ev: S <:< Int): Long =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[Int].toLong }
               else {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) sentinel
                 else { state = fI(state, v.toInt); state.toLong }
               }
@@ -438,14 +490,14 @@ abstract class Stream[+E, +A] {
             def read[S1 >: S](sentinel: S1): S1 =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
               else {
-                val v = source.readLong(Long.MaxValue)(using unsafeEvidence)
+                val v = pullLong(source, Long.MaxValue)
                 if (v == Long.MaxValue) sentinel
                 else { state = fL(state, v); state.asInstanceOf[S1] }
               }
-            override def readLong(sentinel: Long)(using S <:< Long): Long =
+            override def readLong(sentinel: Long)(implicit ev: S <:< Long): Long =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[Long] }
               else {
-                val v = source.readLong(Long.MaxValue)(using unsafeEvidence)
+                val v = pullLong(source, Long.MaxValue)
                 if (v == Long.MaxValue) sentinel
                 else { state = fL(state, v); state }
               }
@@ -461,14 +513,14 @@ abstract class Stream[+E, +A] {
             def read[S1 >: S](sentinel: S1): S1 =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
               else {
-                val v = source.readFloat(Double.MaxValue)(using unsafeEvidence)
+                val v = pullFloat(source, Double.MaxValue)
                 if (v == Double.MaxValue) sentinel
                 else { state = fF(state, v.toFloat); state.asInstanceOf[S1] }
               }
-            override def readFloat(sentinel: Double)(using S <:< Float): Double =
+            override def readFloat(sentinel: Double)(implicit ev: S <:< Float): Double =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[Float].toDouble }
               else {
-                val v = source.readFloat(Double.MaxValue)(using unsafeEvidence)
+                val v = pullFloat(source, Double.MaxValue)
                 if (v == Double.MaxValue) sentinel
                 else { state = fF(state, v.toFloat); state.toDouble }
               }
@@ -484,14 +536,14 @@ abstract class Stream[+E, +A] {
             def read[S1 >: S](sentinel: S1): S1 =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[S1] }
               else {
-                val v = source.readDouble(Double.MaxValue)(using unsafeEvidence)
+                val v = pullDouble(source, Double.MaxValue)
                 if (v == Double.MaxValue) sentinel
                 else { state = fD(state, v); state.asInstanceOf[S1] }
               }
-            override def readDouble(sentinel: Double)(using S <:< Double): Double =
+            override def readDouble(sentinel: Double)(implicit ev: S <:< Double): Double =
               if (!emittedInit) { emittedInit = true; init.asInstanceOf[Double] }
               else {
-                val v = source.readDouble(Double.MaxValue)(using unsafeEvidence)
+                val v = pullDouble(source, Double.MaxValue)
                 if (v == Double.MaxValue) sentinel
                 else { state = fD(state, v); state }
               }
@@ -536,23 +588,23 @@ abstract class Stream[+E, +A] {
           var i = 0
           if (et eq JvmType.Byte) {
             while (i < count) {
-              if (source.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue) return false; i += 1
+              if (pullInt(source, Long.MinValue) == Long.MinValue) return false; i += 1
             }
           } else if (et eq JvmType.Int) {
             while (i < count) {
-              if (source.readInt(Long.MinValue)(using unsafeEvidence) == Long.MinValue) return false; i += 1
+              if (pullInt(source, Long.MinValue) == Long.MinValue) return false; i += 1
             }
           } else if (et eq JvmType.Long) {
             while (i < count) {
-              if (source.readLong(Long.MaxValue)(using unsafeEvidence) == Long.MaxValue) return false; i += 1
+              if (pullLong(source, Long.MaxValue) == Long.MaxValue) return false; i += 1
             }
           } else if (et eq JvmType.Float) {
             while (i < count) {
-              if (source.readFloat(Double.MaxValue)(using unsafeEvidence) == Double.MaxValue) return false; i += 1
+              if (pullFloat(source, Double.MaxValue) == Double.MaxValue) return false; i += 1
             }
           } else if (et eq JvmType.Double) {
             while (i < count) {
-              if (source.readDouble(Double.MaxValue)(using unsafeEvidence) == Double.MaxValue) return false; i += 1
+              if (pullDouble(source, Double.MaxValue) == Double.MaxValue) return false; i += 1
             }
           } else {
             while (i < count) {
@@ -581,7 +633,7 @@ abstract class Stream[+E, +A] {
               firstWindow = false
               val sizeBeforeFill = buf.size
               while (buf.size < n) {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) {
                   if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
                   else { done = true; return buf.toChunk.asInstanceOf[A1] }
@@ -611,7 +663,7 @@ abstract class Stream[+E, +A] {
               firstWindow = false
               val sizeBeforeFill = buf.size
               while (buf.size < n) {
-                val v = source.readInt(Long.MinValue)(using unsafeEvidence)
+                val v = pullInt(source, Long.MinValue)
                 if (v == Long.MinValue) {
                   if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
                   else { done = true; return buf.toChunk.asInstanceOf[A1] }
@@ -641,7 +693,7 @@ abstract class Stream[+E, +A] {
               firstWindow = false
               val sizeBeforeFill = buf.size
               while (buf.size < n) {
-                val v = source.readLong(Long.MaxValue)(using unsafeEvidence)
+                val v = pullLong(source, Long.MaxValue)
                 if (v == Long.MaxValue) {
                   if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
                   else { done = true; return buf.toChunk.asInstanceOf[A1] }
@@ -671,7 +723,7 @@ abstract class Stream[+E, +A] {
               firstWindow = false
               val sizeBeforeFill = buf.size
               while (buf.size < n) {
-                val v = source.readFloat(Double.MaxValue)(using unsafeEvidence)
+                val v = pullFloat(source, Double.MaxValue)
                 if (v == Double.MaxValue) {
                   if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
                   else { done = true; return buf.toChunk.asInstanceOf[A1] }
@@ -701,7 +753,7 @@ abstract class Stream[+E, +A] {
               firstWindow = false
               val sizeBeforeFill = buf.size
               while (buf.size < n) {
-                val v = source.readDouble(Double.MaxValue)(using unsafeEvidence)
+                val v = pullDouble(source, Double.MaxValue)
                 if (v == Double.MaxValue) {
                   if (buf.size == 0 || buf.size == sizeBeforeFill) { done = true; return sentinel }
                   else { done = true; return buf.toChunk.asInstanceOf[A1] }
@@ -751,10 +803,10 @@ abstract class Stream[+E, +A] {
   /**
    * Opens this stream for manual pull-based consumption within a
    * [[zio.blocks.scope.Scope]]. Use this when you need element-by-element
-   * control rather than running through a [[Sink]]. The returned [[Reader]] is
+   * control rather than running through a [[Sink]]. The returned `Reader` is
    * closed automatically when the scope closes.
    */
-  def start(using scope: Scope): scope.$[Reader[A]] =
+  def start(implicit scope: Scope): scope.$[Reader[A]] =
     scope.allocate(Resource.acquireRelease(compile(0))(_.close()))
 
   /** Emits at most the first `n` elements, then closes. */
@@ -877,7 +929,7 @@ object Stream {
   def fromArray[A](array: Array[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     fromChunk(Chunk.fromArray(array))
 
-  /** Creates a stream backed by a [[Chunk]]. */
+  /** Creates a stream backed by a `Chunk`. */
   def fromChunk[A](chunk: Chunk[A])(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] =
     new FromChunkStream(chunk, jt)
 
@@ -902,8 +954,8 @@ object Stream {
     new FromReader(() => Reader.fromInputStream(is), "Stream.fromInputStreamUnmanaged(...)")
 
   /**
-   * Creates a stream backed by an [[Iterable]]. If the iterable has a known
-   * size, `knownLength` is set.
+   * Creates a stream backed by an `Iterable`. If the iterable has a known size,
+   * `knownLength` is set.
    */
   def fromIterable[A](it: Iterable[A]): Stream[Nothing, A] = {
     val size = it.knownSize
@@ -915,7 +967,7 @@ object Stream {
       new FromReader(() => Reader.fromIterable[A](it), "Stream.fromIterable(...)")
   }
 
-  /** Creates a stream from a lazily-evaluated [[Iterator]]. */
+  /** Creates a stream from a lazily-evaluated `Iterator`. */
   def fromIterator[A](it: => Iterator[A]): Stream[Nothing, A] =
     new FromReader(
       () => {
@@ -952,20 +1004,20 @@ object Stream {
     new FromReader(() => Reader.fromReader(r), "Stream.fromJavaReaderUnmanaged(...)")
 
   /**
-   * Creates a stream of integers from a Scala [[Range]]. The `knownLength` is
-   * set from the range size.
+   * Creates a stream of integers from a Scala `Range`. The `knownLength` is set
+   * from the range size.
    */
   def fromRange(range: Range): Stream[Nothing, Int] =
     new FromReader(() => Reader.fromRange(range), "Stream.fromRange(...)") {
       override def knownLength: Option[Long] = Some(range.size.toLong)
     }
 
-  /** Creates a stream from a lazily-evaluated [[Reader]] (advanced API). */
+  /** Creates a stream from a lazily-evaluated `Reader` (advanced API). */
   def fromReader[E, A](mkReader: => Reader[A]): Stream[E, A] =
     new FromReader(() => mkReader)
 
   /**
-   * Creates a resource-safe stream from a [[Resource]] managed by a [[Scope]].
+   * Creates a resource-safe stream from a `Resource` managed by a [[Scope]].
    */
   def fromResource[R, E, A](resource: Resource[R])(use: R => Stream[E, A]): Stream[E, A] =
     new FromResource(resource, use)
@@ -1058,7 +1110,7 @@ object Stream {
    * [[Interpreter]] to prevent stack overflow during recursive stream
    * compilation.
    */
-  private[streams] inline val DepthCutoff = 100
+  private[streams] val DepthCutoff = 100
 
   /** Recovers from all errors by switching to the stream returned by `f`. */
   private[streams] final class CatchAll[E, E2, A](
@@ -1076,7 +1128,7 @@ object Stream {
 
   /** Catches StreamErrors and switches to a recovery stream. */
   private[streams] final class CatchAllReader[E, A](upstream: Reader[A], f: E => Stream[Any, A]) extends Reader[A] {
-    private var current: Reader[?] = upstream
+    private var current: Reader[_] = upstream
     private var switched           = false
     private val _jvmType: JvmType  = upstream.jvmType
 
@@ -1098,29 +1150,29 @@ object Stream {
         catch { case e: StreamError => doSwitch(e); cur.read(sentinel) }
       } else cur.read(sentinel)
 
-    override def readInt(sentinel: Long)(using A <:< Int): Long =
+    override def readInt(sentinel: Long)(implicit ev: A <:< Int): Long =
       if (!switched) {
-        try current.readInt(sentinel)(using unsafeEvidence)
-        catch { case e: StreamError => doSwitch(e); current.readInt(sentinel)(using unsafeEvidence) }
-      } else current.readInt(sentinel)(using unsafeEvidence)
+        try pullInt(current, sentinel)
+        catch { case e: StreamError => doSwitch(e); pullInt(current, sentinel) }
+      } else pullInt(current, sentinel)
 
-    override def readLong(sentinel: Long)(using A <:< Long): Long =
+    override def readLong(sentinel: Long)(implicit ev: A <:< Long): Long =
       if (!switched) {
-        try current.readLong(sentinel)(using unsafeEvidence)
-        catch { case e: StreamError => doSwitch(e); current.readLong(sentinel)(using unsafeEvidence) }
-      } else current.readLong(sentinel)(using unsafeEvidence)
+        try pullLong(current, sentinel)
+        catch { case e: StreamError => doSwitch(e); pullLong(current, sentinel) }
+      } else pullLong(current, sentinel)
 
-    override def readFloat(sentinel: Double)(using A <:< Float): Double =
+    override def readFloat(sentinel: Double)(implicit ev: A <:< Float): Double =
       if (!switched) {
-        try current.readFloat(sentinel)(using unsafeEvidence)
-        catch { case e: StreamError => doSwitch(e); current.readFloat(sentinel)(using unsafeEvidence) }
-      } else current.readFloat(sentinel)(using unsafeEvidence)
+        try pullFloat(current, sentinel)
+        catch { case e: StreamError => doSwitch(e); pullFloat(current, sentinel) }
+      } else pullFloat(current, sentinel)
 
-    override def readDouble(sentinel: Double)(using A <:< Double): Double =
+    override def readDouble(sentinel: Double)(implicit ev: A <:< Double): Double =
       if (!switched) {
-        try current.readDouble(sentinel)(using unsafeEvidence)
-        catch { case e: StreamError => doSwitch(e); current.readDouble(sentinel)(using unsafeEvidence) }
-      } else current.readDouble(sentinel)(using unsafeEvidence)
+        try pullDouble(current, sentinel)
+        catch { case e: StreamError => doSwitch(e); pullDouble(current, sentinel) }
+      } else pullDouble(current, sentinel)
 
     override def skip(n: Long): Unit = current.skip(n)
     def close(): Unit                = try current.close()
@@ -1146,7 +1198,7 @@ object Stream {
     upstream: Reader[A],
     f: PartialFunction[Throwable, Stream[E, A]]
   ) extends Reader[A] {
-    private var current: Reader[?] = upstream
+    private var current: Reader[_] = upstream
     private var switched           = false
     private val _jvmType: JvmType  = upstream.jvmType
 
@@ -1170,29 +1222,29 @@ object Stream {
         catch { case t: Throwable => if (trySwitch(t)) cur.read(sentinel) else throw t }
       } else cur.read(sentinel)
 
-    override def readInt(sentinel: Long)(using A <:< Int): Long =
+    override def readInt(sentinel: Long)(implicit ev: A <:< Int): Long =
       if (!switched) {
-        try current.readInt(sentinel)(using unsafeEvidence)
-        catch { case t: Throwable => if (trySwitch(t)) current.readInt(sentinel)(using unsafeEvidence) else throw t }
-      } else current.readInt(sentinel)(using unsafeEvidence)
+        try pullInt(current, sentinel)
+        catch { case t: Throwable => if (trySwitch(t)) pullInt(current, sentinel) else throw t }
+      } else pullInt(current, sentinel)
 
-    override def readLong(sentinel: Long)(using A <:< Long): Long =
+    override def readLong(sentinel: Long)(implicit ev: A <:< Long): Long =
       if (!switched) {
-        try current.readLong(sentinel)(using unsafeEvidence)
-        catch { case t: Throwable => if (trySwitch(t)) current.readLong(sentinel)(using unsafeEvidence) else throw t }
-      } else current.readLong(sentinel)(using unsafeEvidence)
+        try pullLong(current, sentinel)
+        catch { case t: Throwable => if (trySwitch(t)) pullLong(current, sentinel) else throw t }
+      } else pullLong(current, sentinel)
 
-    override def readFloat(sentinel: Double)(using A <:< Float): Double =
+    override def readFloat(sentinel: Double)(implicit ev: A <:< Float): Double =
       if (!switched) {
-        try current.readFloat(sentinel)(using unsafeEvidence)
-        catch { case t: Throwable => if (trySwitch(t)) current.readFloat(sentinel)(using unsafeEvidence) else throw t }
-      } else current.readFloat(sentinel)(using unsafeEvidence)
+        try pullFloat(current, sentinel)
+        catch { case t: Throwable => if (trySwitch(t)) pullFloat(current, sentinel) else throw t }
+      } else pullFloat(current, sentinel)
 
-    override def readDouble(sentinel: Double)(using A <:< Double): Double =
+    override def readDouble(sentinel: Double)(implicit ev: A <:< Double): Double =
       if (!switched) {
-        try current.readDouble(sentinel)(using unsafeEvidence)
-        catch { case t: Throwable => if (trySwitch(t)) current.readDouble(sentinel)(using unsafeEvidence) else throw t }
-      } else current.readDouble(sentinel)(using unsafeEvidence)
+        try pullDouble(current, sentinel)
+        catch { case t: Throwable => if (trySwitch(t)) pullDouble(current, sentinel) else throw t }
+      } else pullDouble(current, sentinel)
 
     override def skip(n: Long): Unit = current.skip(n)
     def close(): Unit                = try current.close()
@@ -1288,24 +1340,24 @@ object Stream {
     def read[A1 >: A](sentinel: A1): A1 =
       try upstream.read(sentinel)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
-    override def readInt(sentinel: Long)(using A <:< Int): Long =
-      try upstream.readInt(sentinel)(using unsafeEvidence)
+    override def readInt(sentinel: Long)(implicit ev: A <:< Int): Long =
+      try pullInt(upstream, sentinel)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
-    override def readLong(sentinel: Long)(using A <:< Long): Long =
-      try upstream.readLong(sentinel)(using unsafeEvidence)
+    override def readLong(sentinel: Long)(implicit ev: A <:< Long): Long =
+      try pullLong(upstream, sentinel)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
-    override def readFloat(sentinel: Double)(using A <:< Float): Double =
-      try upstream.readFloat(sentinel)(using unsafeEvidence)
+    override def readFloat(sentinel: Double)(implicit ev: A <:< Float): Double =
+      try pullFloat(upstream, sentinel)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
-    override def readDouble(sentinel: Double)(using A <:< Double): Double =
-      try upstream.readDouble(sentinel)(using unsafeEvidence)
+    override def readDouble(sentinel: Double)(implicit ev: A <:< Double): Double =
+      try pullDouble(upstream, sentinel)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def readByte(): Int =
       try upstream.readByte()
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def skip(n: Long): Unit = upstream.skip(n)
     def close(): Unit                = upstream.close()
-    override def reset(): Unit       = throw new UnsupportedOperationException("ErrorMapped does not support reset")
+    override def reset(): Unit       = upstream.reset()
   }
 
   /** A failed stream source that always throws the given StreamError. */
@@ -1625,45 +1677,4 @@ object Stream {
       new Reader.TakenWhile[A](self.compile(depth), pred)
   }
 
-  /**
-   * Zips this stream with `that`, pairing elements positionally. Shorter stream
-   * determines length. Uses [[zio.blocks.combinators.Tuples]] for flattened
-   * composition: `a && b && c` produces a `Stream` of `(A, B, C)`.
-   */
-  extension [E, A](self: Stream[E, A]) {
-    def &&[E2, B, C](that: Stream[E2, B])(using t: Tuples.Tuples[A, B] { type Out = C }): Stream[E | E2, C] =
-      Stream.fromReader {
-        val left  = compileToReader(self.asInstanceOf[Stream[Any, Any]])
-        val right =
-          try compileToReader(that.asInstanceOf[Stream[Any, Any]])
-          catch {
-            case t: Throwable =>
-              try left.close()
-              catch { case s: Throwable => t.addSuppressed(s) };
-              throw t
-          }
-        new io.Reader[C] {
-          def isClosed                        = left.isClosed || right.isClosed
-          def read[O1 >: C](sentinel: O1): O1 = {
-            val l = left.read[Any](EndOfStream)
-            if (l.asInstanceOf[AnyRef] eq EndOfStream) { right.close(); return sentinel }
-            val r = right.read[Any](EndOfStream)
-            if (r.asInstanceOf[AnyRef] eq EndOfStream) { left.close(); return sentinel }
-            t.combine(l.asInstanceOf[A], r.asInstanceOf[B]).asInstanceOf[O1]
-          }
-          def close(): Unit = {
-            var firstError: Throwable = null
-            try left.close()
-            catch { case t: Throwable => firstError = t }
-            try right.close()
-            catch {
-              case t: Throwable =>
-                if (firstError == null) firstError = t
-                else firstError.addSuppressed(t)
-            }
-            if (firstError != null) throw firstError
-          }
-        }
-      }
-  }
 }

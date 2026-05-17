@@ -310,7 +310,7 @@ The `Choices` module exposes direct branch construction and elimination over `|`
 
 This means the same surface syntax can describe alternatives on both Scala versions, while each platform keeps the most natural underlying representation.
 
-> **Note:** `Choices` is fully cross-version. On Scala 3, `Choices.left`, `Choices.right`, and `Choices.separate` automatically summon `Unions.WithOut` evidence via `using`. On Scala 2.13, these methods work without any implicit requirements. Call sites like `Choices.left[Int, String](42)` are identical across versions — no caller-side changes are needed.
+> **Note:** `Choices` is fully cross-version. On Scala 3, `Choices.left`, `Choices.right`, and `Choices.separate` automatically summon `Unions.WithOut` evidence via `using`. On Scala 2.13, `Choices.left`, `Choices.right`, and `Choices.separate` require a `Concat.WithOut[L, R, Either[L, R]]` implicit — resolved automatically by the `Concat` macro when `L` and `R` are genuinely disjoint types. Same-type or subtype relationships are rejected at compile time, matching Scala 3 behavior. Call sites like `Choices.left[Int, String](42)` are identical across versions — no caller-side changes are needed.
 
 ### left / right
 
@@ -337,7 +337,6 @@ Use `Choices.separate` to eliminate a choice back into `Either[L, R]`:
 
 ```scala mdoc
 import zio.blocks.combinators.Choices
-// Scala 2.13: also import zio.blocks.combinators.{Choices, |}
 
 val separateLeftValue: Int | String = Choices.left[Int, String](42)
 val separateRightValue: Int | String = Choices.right[Int, String]("zio")

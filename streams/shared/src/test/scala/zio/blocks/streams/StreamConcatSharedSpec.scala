@@ -65,35 +65,29 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       val result = (Stream.fail("boom"): Stream[String, String]) ++ Stream.succeed(42)
       assert(result.runCollect)(equalTo(Left("boom")))
     },
-    test("unrelated error types form a disjoint union") {
+    test("unrelated error types widen to common supertype") {
       sealed trait AppError
       final case class LeftErr(msg: String) extends AppError
       final case class RightErr(code: Int)  extends AppError
 
-      val left: Stream[LeftErr, String]                                         = Stream.fail(LeftErr("oops"))
-      val right: Stream[RightErr, Int]                                          = Stream.succeed(42)
-      val result                                                                = left ++ right
-      val actual: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] =
-        result.runCollect.left
-          .map(err => Choices.separate[LeftErr, RightErr](err))
-          .map(_.map(elem => Choices.separate[String, Int](elem)))
-      val expected: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] = Left(Left(LeftErr("oops")))
-      assert(actual)(equalTo(expected))
+      val left: Stream[LeftErr, String] = Stream.fail(LeftErr("oops"))
+      val right: Stream[RightErr, Int]  = Stream.succeed(42)
+      val result                        = left ++ right
+      val actual =
+        result.runCollect.left.map(err => err: AppError)
+      assert(actual)(equalTo(Left(LeftErr("oops"): AppError)))
     },
     test("right stream error propagation") {
       sealed trait AppError
       final case class LeftErr(msg: String) extends AppError
       final case class RightErr(code: Int)  extends AppError
 
-      val left: Stream[LeftErr, String]                                         = Stream.succeed("ok")
-      val right: Stream[RightErr, Int]                                          = Stream.fail(RightErr(404))
-      val result                                                                = left ++ right
-      val actual: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] =
-        result.runCollect.left
-          .map(err => Choices.separate[LeftErr, RightErr](err))
-          .map(_.map(elem => Choices.separate[String, Int](elem)))
-      val expected: Either[Either[LeftErr, RightErr], Chunk[Either[String, Int]]] = Left(Right(RightErr(404)))
-      assert(actual)(equalTo(expected))
+      val left: Stream[LeftErr, String] = Stream.succeed("ok")
+      val right: Stream[RightErr, Int]  = Stream.fail(RightErr(404))
+      val result                        = left ++ right
+      val actual =
+        result.runCollect.left.map(err => err: AppError)
+      assert(actual)(equalTo(Left(RightErr(404): AppError)))
     },
     test("type ascription compiles") {
       val _ = Stream.succeed("a") ++ Stream.succeed(1)

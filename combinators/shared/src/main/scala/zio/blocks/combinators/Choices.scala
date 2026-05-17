@@ -22,9 +22,11 @@ package zio.blocks.combinators
  * Scala 3 keeps native union types; `left`, `right`, and `separate` require
  * compile-time `Unions.WithOut` evidence that enforces disjointness.
  *
- * Scala 2 reinterprets `|` as `Either[L, R]`; the same method names work
- * without implicit evidence, but no compile-time disjointness check is
- * performed.
+ * Scala 2 reinterprets `|` as `Either[L, R]`; `left`, `right`, and `separate`
+ * require `Concat.WithOut` evidence resolved automatically by the `Concat`
+ * macro, which also enforces disjointness at compile time. Same-type or subtype
+ * relationships are rejected. The caller-side syntax is identical across both
+ * versions.
  *
  * Use `Choices.separate` to normalize elements back to `Either[L, R]` on both
  * platforms.

@@ -27,8 +27,8 @@ object ConcatSpec extends ZIOSpecDefault {
   def spec = suite("Concat")(
     suite("same type")(
       test("Concat[Int, Int] resolves Out = Int") {
-        def leftValue[O](implicit c: Concat.Concat.WithOut[Int, Int, O]): O  = c.left(42)
-        def rightValue[O](implicit c: Concat.Concat.WithOut[Int, Int, O]): O = c.right(99)
+        def leftValue[O](implicit c: Concat.WithOut[Int, Int, O]): O  = c.left(42)
+        def rightValue[O](implicit c: Concat.WithOut[Int, Int, O]): O = c.right(99)
 
         val left: Int  = leftValue
         val right: Int = rightValue
@@ -38,7 +38,7 @@ object ConcatSpec extends ZIOSpecDefault {
     ),
     suite("subtype")(
       test("Concat[Dog, Animal] resolves Out = Animal (L <: R)") {
-        def leftValue[O](d: Dog)(implicit c: Concat.Concat.WithOut[Dog, Animal, O]): O = c.left(d)
+        def leftValue[O](d: Dog)(implicit c: Concat.WithOut[Dog, Animal, O]): O = c.left(d)
 
         val d            = Dog("Rex")
         val left: Animal = leftValue(d)
@@ -46,7 +46,7 @@ object ConcatSpec extends ZIOSpecDefault {
         assertTrue(left == (d: Animal))
       },
       test("Concat[Animal, Dog] resolves Out = Animal (R <: L)") {
-        def rightValue[O](d: Dog)(implicit c: Concat.Concat.WithOut[Animal, Dog, O]): O = c.right(d)
+        def rightValue[O](d: Dog)(implicit c: Concat.WithOut[Animal, Dog, O]): O = c.right(d)
 
         val d             = Dog("Rex")
         val right: Animal = rightValue(d)
@@ -54,14 +54,14 @@ object ConcatSpec extends ZIOSpecDefault {
         assertTrue(right == (d: Animal))
       },
       test("Concat[Nothing, Int] resolves Out = Int (Nothing <: Int)") {
-        def rightValue[O](implicit c: Concat.Concat.WithOut[Nothing, Int, O]): O = c.right(42)
+        def rightValue[O](implicit c: Concat.WithOut[Nothing, Int, O]): O = c.right(42)
 
         val right: Int = rightValue
 
         assertTrue(right == 42)
       },
       test("Concat[String, Nothing] resolves Out = String (Nothing <: String)") {
-        def leftValue[O](implicit c: Concat.Concat.WithOut[String, Nothing, O]): O = c.left("hello")
+        def leftValue[O](implicit c: Concat.WithOut[String, Nothing, O]): O = c.left("hello")
 
         val left: String = leftValue
 
@@ -70,8 +70,8 @@ object ConcatSpec extends ZIOSpecDefault {
     ),
     suite("unrelated types")(
       test("Concat[String, Int] resolves Out = Either[String, Int]") {
-        def leftValue[O](implicit c: Concat.Concat.WithOut[String, Int, O]): O  = c.left("hello")
-        def rightValue[O](implicit c: Concat.Concat.WithOut[String, Int, O]): O = c.right(42)
+        def leftValue[O](implicit c: Concat.WithOut[String, Int, O]): O  = c.left("hello")
+        def rightValue[O](implicit c: Concat.WithOut[String, Int, O]): O = c.right(42)
 
         val left: Either[String, Int]  = leftValue
         val right: Either[String, Int] = rightValue
@@ -82,8 +82,8 @@ object ConcatSpec extends ZIOSpecDefault {
     suite("two-implicit feasibility gate")(
       test("two WithOut implicits resolve simultaneously in one method signature") {
         def combine[A, B, C, AB, ABC](a: A, b: B, c: C)(implicit
-          ab: Concat.Concat.WithOut[A, B, AB],
-          abc: Concat.Concat.WithOut[AB, C, ABC]
+          ab: Concat.WithOut[A, B, AB],
+          abc: Concat.WithOut[AB, C, ABC]
         ): (ABC, ABC) = {
           val fromLeft  = abc.left(ab.left(a))
           val fromRight = abc.right(c)

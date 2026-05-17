@@ -117,14 +117,14 @@ abstract class Writer[-Elem] {
    * Specialized Boolean write. Default delegates to generic `write`. Requires
    * implicit evidence that `Boolean` is a subtype of `Elem`.
    */
-  def writeBoolean(value: Boolean)(using Boolean <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeBoolean(value: Boolean)(implicit ev: Boolean <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Blocking byte write. Equivalent to `write(b.asInstanceOf[Elem])` but avoids
    * boxing when `Elem = Byte`. Returns `false` if the writer is closed.
    * Requires implicit evidence that `Byte` is a subtype of `Elem`.
    */
-  def writeByte(b: Byte)(using Byte <:< Elem): Boolean = write(b.asInstanceOf[Elem])
+  def writeByte(b: Byte)(implicit ev: Byte <:< Elem): Boolean = write(b.asInstanceOf[Elem])
 
   /**
    * Blocking bulk byte write. Calls [[writeByte]] for each byte in
@@ -133,7 +133,7 @@ abstract class Writer[-Elem] {
    * the channel closes mid-way. Requires implicit evidence that `Byte` is a
    * subtype of `Elem`.
    */
-  def writeBytes(buf: Array[Byte], offset: Int, len: Int)(using Byte <:< Elem): Int = {
+  def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Elem): Int = {
     var written = 0
     while (written < len) {
       if (!writeByte(buf(offset + written))) return written
@@ -146,37 +146,37 @@ abstract class Writer[-Elem] {
    * Specialized Char write. Default delegates to generic `write`. Requires
    * implicit evidence that `Char` is a subtype of `Elem`.
    */
-  def writeChar(value: Char)(using Char <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeChar(value: Char)(implicit ev: Char <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Specialized Double write. Default delegates to generic `write`. Requires
    * implicit evidence that `Double` is a subtype of `Elem`.
    */
-  def writeDouble(value: Double)(using Double <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeDouble(value: Double)(implicit ev: Double <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Specialized Float write. Default delegates to generic `write`. Requires
    * implicit evidence that `Float` is a subtype of `Elem`.
    */
-  def writeFloat(value: Float)(using Float <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeFloat(value: Float)(implicit ev: Float <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Specialized Int write. Default delegates to generic `write`. Requires
    * implicit evidence that `Int` is a subtype of `Elem`.
    */
-  def writeInt(value: Int)(using Int <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeInt(value: Int)(implicit ev: Int <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Specialized Long write. Default delegates to generic `write`. Requires
    * implicit evidence that `Long` is a subtype of `Elem`.
    */
-  def writeLong(value: Long)(using Long <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeLong(value: Long)(implicit ev: Long <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Specialized Short write. Default delegates to generic `write`. Requires
    * implicit evidence that `Short` is a subtype of `Elem`.
    */
-  def writeShort(value: Short)(using Short <:< Elem): Boolean = write(value.asInstanceOf[Elem])
+  def writeShort(value: Short)(implicit ev: Short <:< Elem): Boolean = write(value.asInstanceOf[Elem])
 
   /**
    * Returns `true` if the next [[write]] would accept a value without blocking
@@ -238,7 +238,7 @@ object Writer {
 
     def write(a: Char): Boolean = writeChar(a)
 
-    override def writeChar(value: Char)(using Char <:< Char): Boolean = {
+    override def writeChar(value: Char)(implicit ev: Char <:< Char): Boolean = {
       if (closed) return false
       try { w.write(value.toInt); true }
       catch { case _: IOException => closed = true; false }
@@ -335,13 +335,13 @@ object Writer {
 
     def write(a: Byte): Boolean = writeByte(a)
 
-    override def writeByte(b: Byte)(using Byte <:< Byte): Boolean = {
+    override def writeByte(b: Byte)(implicit ev: Byte <:< Byte): Boolean = {
       if (closed) return false
       try { os.write(b & 0xff); true }
       catch { case _: IOException => closed = true; false }
     }
 
-    override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(using Byte <:< Byte): Int = {
+    override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
       if (closed) return 0
       if (len == 0) return 0
       try { os.write(buf, offset, len); len }
