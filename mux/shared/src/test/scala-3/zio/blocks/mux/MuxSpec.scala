@@ -268,6 +268,9 @@ object MuxSpec extends ZIOSpecDefault {
     test("closeAll makes pending receives return error") {
       for {
         result <- ZIO.attempt {
+                    // receive() is a non-blocking poll: it returns None when
+                    // empty and Some(msg) when a message is available. After
+                    // closeAll, receive() returns a MuxError instead of None.
                     val mux    = makeMux()
                     val stream = openStream(mux, 1)
                     mux.closeAll(MuxError.MuxClosed)

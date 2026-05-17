@@ -52,10 +52,10 @@ private[mux] object PlatformMux {
     streamId: Id,
     mux: JsMux[Id, In, Out]
   ) extends MuxStream[Id, In, Out] {
-    private var state: StreamState                                      = StreamState.Open
-    private val inboundQueue: mutable.ArrayDeque[Either[MuxError, Out]] = mutable.ArrayDeque.empty
-    private val outboundQueue: mutable.ArrayDeque[In]                   = mutable.ArrayDeque.empty
-    private var cancelError: Option[MuxError]                           = None
+    private var state: StreamState                     = StreamState.Open
+    private val inboundQueue: mutable.ArrayDeque[Out] = mutable.ArrayDeque.empty
+    private val outboundQueue: mutable.ArrayDeque[In] = mutable.ArrayDeque.empty
+    private var cancelError: Option[MuxError]         = None
 
     def id: Id = streamId
 
@@ -68,7 +68,7 @@ private[mux] object PlatformMux {
       }
 
     def receive(): Either[MuxError, Option[Out]] =
-      if (inboundQueue.nonEmpty) inboundQueue.removeHead().map(Some(_))
+      if (inboundQueue.nonEmpty) Right(Some(inboundQueue.removeHead()))
       else if (state == StreamState.Closed)
         cancelError.map(Left(_)).getOrElse(Left(MuxError.StreamClosed(streamId)))
       else Right(None)
@@ -77,7 +77,7 @@ private[mux] object PlatformMux {
       if (state == StreamState.Closed || state == StreamState.HalfClosedRemote)
         Left(MuxError.StreamClosed(streamId))
       else {
-        inboundQueue.append(Right(msg))
+        inboundQueue.append(msg)
         Right(())
       }
 

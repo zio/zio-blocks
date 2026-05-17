@@ -4,7 +4,7 @@ import java.lang.invoke.{MethodHandles, VarHandle}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 
-import zio.blocks.ringbuffer.{MpscRingBuffer, SpscRingBuffer}
+import zio.blocks.ringbuffer.MpscRingBuffer
 
 private[mux] object PlatformMux {
   private val StreamQueueCapacity = 256
@@ -33,7 +33,10 @@ private[mux] object PlatformMux {
       Option(streams.get(id))
 
     def cancel(id: Id, reason: MuxError): Unit = {
-      val stream = streams.remove(id)
+      lock.lock()
+      val stream =
+        try streams.remove(id)
+        finally lock.unlock()
       if (stream != null) stream.cancelWith(reason)
     }
 
@@ -41,18 +44,18 @@ private[mux] object PlatformMux {
       lock.lock()
       try {
         closed = true
-        val it = streams.values().iterator()
-        while (it.hasNext) {
-          it.next().cancelWith(reason)
-          it.remove()
-        }
+        streams.values().forEach(_.cancelWith(reason))
+        streams.clear()
       } finally lock.unlock()
     }
 
     def activeCount: Int = streams.size()
 
-    private[mux] def removeStream(id: Id): Unit =
-      streams.remove(id)
+    private[mux] def removeStream(id: Id): Unit = {
+      lock.lock()
+      try streams.remove(id)
+      finally lock.unlock()
+    }
   }
 
   private sealed trait StreamState
@@ -84,7 +87,7 @@ private[mux] object PlatformMux {
   ) extends JvmMuxStreamFields
       with MuxStream[Id, In, Out] {
     private val inboundQueue  = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
-    private val outboundQueue = new SpscRingBuffer[AnyRef](StreamQueueCapacity)
+    private val outboundQueue = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
 
     def id: Id = streamId
 

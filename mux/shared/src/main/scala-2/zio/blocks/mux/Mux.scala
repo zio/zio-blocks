@@ -35,10 +35,11 @@ object Mux {
  *     is returned) and all previously active streams transition to CLOSED with
  *     the supplied error enqueued for any pending receive.
  *
- * '''Thread safety:''' All operations are safe to call from multiple threads
- * concurrently. The JVM implementation uses `ReentrantLock` for structural
- * mutations and lock-free `ConcurrentHashMap`/`AtomicReference` for per-stream
- * operations.
+ * '''Thread safety:''' `open`, `get`, `cancel`, `closeAll`, and `activeCount`
+ * are safe to call from multiple threads concurrently. Per-stream operations
+ * on [[MuxStream]]: `send` and `offerInbound` are multi-thread safe.
+ * `receive` and `takeOutbound` must each be called from a single consumer
+ * thread at a time (single-consumer contract of the underlying ring buffer).
  *
  * @tparam Id
  *   Stream identifier type (e.g., `Int` for HTTP/2 stream IDs)
@@ -208,8 +209,14 @@ trait MuxStream[Id, In, Out] {
   def isHalfClosed: Boolean
 
   /**
-   * Fully close this stream immediately. Enqueues a terminal error for any
-   * pending receive and removes the stream from the parent Mux.
+   * Fully close this stream immediately.
+   *
+   * Transitions the stream to CLOSED state and enqueues a terminal error.
+   * After this call:
+   *   - `send()` fails with [[MuxError.StreamClosed]].
+   *   - `receive()` drains any already-buffered inbound messages, then
+   *     returns the terminal error once the buffer is empty.
+   *   - `offerInbound()` fails with [[MuxError.StreamClosed]].
    */
   def close(): Unit
 }
