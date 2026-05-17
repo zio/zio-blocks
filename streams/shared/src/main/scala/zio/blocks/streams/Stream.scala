@@ -112,9 +112,9 @@ abstract class Stream[+E, +A] {
    * determines length. Uses [[zio.blocks.combinators.Tuples]] for flattened
    * composition: `a && b && c` produces a `Stream` of `(A, B, C)`.
    */
-  def &&[E1 >: E, A1 >: A, B, C](
+  def &&[E1 >: E, B, C](
     that: Stream[E1, B]
-  )(implicit t: Tuples.Tuples[A1, B] { type Out = C }): Stream[E1, C] =
+  )(implicit t: Tuples.Tuples[A @uncheckedVariance, B] { type Out = C }): Stream[E1, C] =
     Stream.fromReader {
       val left  = Stream.compileToReader(this.asInstanceOf[Stream[Any, Any]])
       val right =
@@ -132,7 +132,7 @@ abstract class Stream[+E, +A] {
           if (l.asInstanceOf[AnyRef] eq EndOfStream) { right.close(); return sentinel }
           val r = right.read[Any](EndOfStream)
           if (r.asInstanceOf[AnyRef] eq EndOfStream) { left.close(); return sentinel }
-          t.combine(l.asInstanceOf[A1], r.asInstanceOf[B]).asInstanceOf[O1]
+          t.combine(l.asInstanceOf[A @uncheckedVariance], r.asInstanceOf[B]).asInstanceOf[O1]
         }
         def close(): Unit = {
           var firstError: Throwable = null
