@@ -54,6 +54,16 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Config] = Schema.derived[Config]
   }
 
+  @Modifier.discriminator("type")
+  sealed trait AnnotatedAnimal
+  case class AnnotatedDog(name: String) extends AnnotatedAnimal
+  object AnnotatedDog {
+    implicit val schema: Schema[AnnotatedDog] = Schema.derived[AnnotatedDog]
+  }
+  object AnnotatedAnimal {
+    implicit val schema: Schema[AnnotatedAnimal] = Schema.derived[AnnotatedAnimal]
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("DynamicSchemaRebindSpec")(
     suite("DynamicSchema.rebind")(
       test("rebinds a simple record schema") {
@@ -104,6 +114,21 @@ object DynamicSchemaRebindSpec extends SchemaBaseSpec {
         val result      = rebound.fromDynamicValue(dynamic)
 
         assertTrue(result == Right(dog))
+      },
+      test("preserves json modifiers through dynamic schema") {
+        val dynamicSchema   = Schema[AnnotatedAnimal].toDynamicSchema
+        val reboundRegistry = BindingResolver.defaults
+          .bind(Binding.of[AnnotatedAnimal])
+          .bind(Binding.of[AnnotatedDog])
+
+        val rebound                = dynamicSchema.rebind[AnnotatedAnimal](reboundRegistry)
+        val value: AnnotatedAnimal = AnnotatedDog("Buddy")
+
+        assertTrue(
+          dynamicSchema.reflect.modifiers.contains(Modifier.discriminator("type")),
+          rebound.reflect.modifiers.contains(Modifier.discriminator("type")),
+          rebound.fromDynamicValue(rebound.toDynamicValue(value)) == Right(value)
+        )
       },
       test("throws RebindException when binding is missing") {
         val dynamicSchema = Schema[Person].toDynamicSchema

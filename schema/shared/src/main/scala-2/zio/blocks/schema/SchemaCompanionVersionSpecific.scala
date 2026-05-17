@@ -379,8 +379,13 @@ private object SchemaCompanionVersionSpecific {
             val defaultValue =
               if (symbol.isParamWithDefault) new Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else {
-                if (modifiers.exists(_.tpe <:< typeOf[Modifier.transient]) && !isOption(fTpe) && !isCollection(fTpe)) {
-                  fail(s"Missing default value for transient field '$name' in '$tpe'")
+                if (
+                  modifiers
+                    .exists(m => m.tpe <:< typeOf[Modifier.transient] || m.tpe <:< typeOf[Modifier.encodeTransient]) &&
+                  !isOption(fTpe) &&
+                  !isCollection(fTpe)
+                ) {
+                  fail(s"Missing default value for transient or encodeTransient field '$name' in '$tpe'")
                 }
                 None
               }

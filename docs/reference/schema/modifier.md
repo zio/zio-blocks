@@ -218,7 +218,7 @@ The `config` modifier extends both `Term` and `Reflect`, making it usable on bot
 
 ## Reflect Modifiers
 
-Reflect modifiers annotate reflect values (types themselves). Currently, only `config` is a reflect modifier.
+Reflect modifiers annotate reflect values (types themselves). Alongside `config`, JSON derivation also understands dedicated reflect modifiers for discriminator selection, field naming, case naming, and rejecting extra fields.
 
 ### config
 
@@ -235,6 +235,33 @@ object Person {
     .modifier(Modifier.config("schema.version", "v2"))
 }
 ```
+
+### JSON reflect modifiers
+
+These reflect modifiers are consumed by `JsonCodecDeriver` and let you keep JSON-specific settings next to the annotated type instead of passing them programmatically at every call site.
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+@Modifier.discriminator("type")
+@Modifier.caseNaming("snake_case")
+sealed trait Event
+
+@Modifier.noExtraFields()
+@Modifier.fieldNaming("snake_case")
+case class UserProfile(
+  @Modifier.rename("userId") id: String,
+  @Modifier.encodeTransient() checksum: Int = 0,
+  displayName: String
+)
+```
+
+- `Modifier.discriminator(name)` overrides the JSON discriminator field for sealed hierarchies.
+- `Modifier.noExtraFields()` rejects unknown object fields during decoding.
+- `Modifier.fieldNaming(strategy)` applies a naming strategy to direct record fields.
+- `Modifier.caseNaming(strategy)` applies a naming strategy to variant case names.
+
+For field-level JSON behavior, `Modifier.encodeTransient()` skips a field during encoding but still accepts it during decoding; like `transient`, it requires a default value when the field is neither optional nor a collection.
 
 Or add multiple modifiers at once:
 
@@ -305,8 +332,13 @@ import zio.blocks.schema._
 
 // Schema instances for individual modifiers
 Schema[Modifier.transient]
+Schema[Modifier.encodeTransient]
 Schema[Modifier.rename]
 Schema[Modifier.alias]
+Schema[Modifier.discriminator]
+Schema[Modifier.noExtraFields]
+Schema[Modifier.fieldNaming]
+Schema[Modifier.caseNaming]
 Schema[Modifier.config]
 
 // Schema instances for modifier traits

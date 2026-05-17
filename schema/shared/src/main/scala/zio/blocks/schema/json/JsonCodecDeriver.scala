@@ -336,8 +336,10 @@ class JsonCodecDeriver private[json] (
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
-      val recordBinding = binding.asInstanceOf[Binding.Record[A]]
-      val len           = fields.length
+      val recordBinding           = binding.asInstanceOf[Binding.Record[A]]
+      val len                     = fields.length
+      val resolvedFieldNameMapper = resolveFieldNameMapper(modifiers, fieldNameMapper)
+      val resolvedRejectExtra     = resolveRejectExtraFields(modifiers, rejectExtraFields)
       if (typeId.isTuple) Lazy {
         val fieldRegisterOffsets = new Array[RegisterOffset](len)
         val fieldTypeTags        = new Array[Int](len)
@@ -623,10 +625,13 @@ class JsonCodecDeriver private[json] (
             field.modifiers.foreach {
               case m: Modifier.rename    => if (name eq null) name = m.name
               case m: Modifier.alias     => map.put(m.name, fieldInfo)
-              case _: Modifier.transient => fieldInfo.nonTransient = false
-              case _                     =>
+              case _: Modifier.transient =>
+                fieldInfo.nonTransient = false
+                fieldInfo.nonEncodeTransient = false
+              case _: Modifier.encodeTransient => fieldInfo.nonEncodeTransient = false
+              case _                           =>
             }
-            if (name eq null) name = fieldNameMapper(field.name)
+            if (name eq null) name = resolvedFieldNameMapper(field.name)
             map.put(name, fieldInfo)
             fieldInfo.setName(name)
             idx += 1
@@ -642,7 +647,7 @@ class JsonCodecDeriver private[json] (
             private[this] val skipNone            = transientNone
             private[this] val skipEmptyCollection = transientEmptyCollection
             private[this] val skipDefaultValue    = transientDefaultValue
-            private[this] val doReject            = rejectExtraFields
+            private[this] val doReject            = resolvedRejectExtra
 
             require(fieldInfos.length <= 128, "expected up to 128 fields")
 
@@ -720,7 +725,7 @@ class JsonCodecDeriver private[json] (
                 var idx = 0
                 while (idx < len) {
                   val fieldInfo = fieldInfos(idx)
-                  if (fieldInfo.nonTransient) {
+                  if (fieldInfo.nonEncodeTransient) {
                     if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(out, baseOffset)
                     else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(out, baseOffset)
                     else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(out, baseOffset)
@@ -805,7 +810,7 @@ class JsonCodecDeriver private[json] (
               var idx = 0
               while (idx < len) {
                 val fieldInfo = fieldInfos(idx)
-                if (fieldInfo.nonTransient) {
+                if (fieldInfo.nonEncodeTransient) {
                   if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(regs, builder)
                   else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(regs, builder)
                   else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(regs, builder)
@@ -999,7 +1004,9 @@ class JsonCodecDeriver private[json] (
           }
         }
       } else {
-        val discr = binding.asInstanceOf[Binding.Variant[A]].discriminator
+        val discr                     = binding.asInstanceOf[Binding.Variant[A]].discriminator
+        val resolvedCaseNameMapper    = resolveCaseNameMapper(modifiers, caseNameMapper)
+        val resolvedDiscriminatorKind = resolveDiscriminatorKind(modifiers, discriminatorKind)
         if (isEnumeration(cases)) Lazy {
           val map = new StringMap[Constructor[?]](cases.length)
 
@@ -1027,7 +1034,7 @@ class JsonCodecDeriver private[json] (
                   case m: Modifier.alias  => map.put(m.name, constructor)
                   case _                  =>
                 }
-                if (name eq null) name = caseNameMapper(case_.name)
+                if (name eq null) name = resolvedCaseNameMapper(case_.name)
                 map.put(name, constructor)
                 new EnumLeafInfo(name, constructor)
               }
@@ -1069,7 +1076,7 @@ class JsonCodecDeriver private[json] (
           }
         }
         else {
-          discriminatorKind match {
+          resolvedDiscriminatorKind match {
             case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(cases) =>
               Lazy {
                 val map = new StringMap[CaseLeafInfo](cases.length)
@@ -1100,7 +1107,7 @@ class JsonCodecDeriver private[json] (
                           aliases.addOne(alias)
                         case _ =>
                       }
-                      if (name eq null) name = caseNameMapper(case_.name)
+                      if (name eq null) name = resolvedCaseNameMapper(case_.name)
                       caseLeafInfo.setName(name)
                       caseLeafInfo.setAliases(aliases.result())
                       map.put(name, caseLeafInfo)
@@ -1292,7 +1299,7 @@ class JsonCodecDeriver private[json] (
                           aliases.addOne(alias)
                         case _ =>
                       }
-                      if (name eq null) name = caseNameMapper(case_.name)
+                      if (name eq null) name = resolvedCaseNameMapper(case_.name)
                       map.put(name, caseLeafInfo)
                       caseLeafInfo.setName(name)
                       caseLeafInfo.setAliases(aliases.result())
@@ -2979,6 +2986,21 @@ class JsonCodecDeriver private[json] (
     if (requireDefaultValueFields) None
     else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
 
+  private[this] def resolveFieldNameMapper(modifiers: Seq[Modifier.Reflect], fallback: NameMapper): NameMapper =
+    modifiers.collectFirst { case m: Modifier.fieldNaming => NameMapper.fromString(m.strategy) }.getOrElse(fallback)
+
+  private[this] def resolveCaseNameMapper(modifiers: Seq[Modifier.Reflect], fallback: NameMapper): NameMapper =
+    modifiers.collectFirst { case m: Modifier.caseNaming => NameMapper.fromString(m.strategy) }.getOrElse(fallback)
+
+  private[this] def resolveDiscriminatorKind(
+    modifiers: Seq[Modifier.Reflect],
+    fallback: DiscriminatorKind
+  ): DiscriminatorKind =
+    modifiers.collectFirst { case m: Modifier.discriminator => DiscriminatorKind.Field(m.name) }.getOrElse(fallback)
+
+  private[this] def resolveRejectExtraFields(modifiers: Seq[Modifier.Reflect], fallback: Boolean): Boolean =
+    if (modifiers.exists(_.isInstanceOf[Modifier.noExtraFields])) true else fallback
+
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
     caseReflect.asVariant.get.variantBinding
       .asInstanceOf[BindingInstance[TC, ?, ?]]
@@ -2998,6 +3020,7 @@ private class FieldInfo(
   val usesNullSentinel: Boolean = false
 ) {
   var nonTransient: Boolean                        = true
+  var nonEncodeTransient: Boolean                  = true
   private[this] var isPredefinedCodec: Boolean     = false
   private[this] var isNonEscapedAsciiName: Boolean = false
   private[this] var name: String                   = null

@@ -488,7 +488,7 @@ sealed trait Event
 @caseName("user_created")
 case class UserCreated(userId: String) extends Event
 
-// ZIO Blocks Schema — use Modifier.rename on the case, Modifier.config for discriminator
+// ZIO Blocks Schema — use Modifier.rename on the case, Modifier.discriminator on the sealed trait
 import zio.blocks.schema._
 
 sealed trait Event
@@ -496,11 +496,14 @@ sealed trait Event
 case class UserCreated(userId: String) extends Event
 ```
 
-For discriminator key configuration on the enclosing sealed trait, use `Modifier.config` on the reflect node after derivation:
+For discriminator key configuration on the enclosing sealed trait, use `Modifier.discriminator` on the sealed trait:
 
 ```scala
+@Modifier.discriminator("type")
+sealed trait Event
+
 implicit val schema: Schema[Event] =
-  Schema.derived[Event].modifier(Modifier.config("json.discriminator", "type"))
+  Schema.derived[Event]
 ```
 
 ### Programmatic Annotation
