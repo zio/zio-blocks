@@ -9,7 +9,7 @@ This page shows complete, runnable examples demonstrating realistic code generat
 
 Build a complete domain model with a case class and sealed trait:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -51,34 +51,12 @@ val file = ScalaFile(
 )
 
 val config = EmitterConfig(indentWidth = 2)
-val code = ScalaEmitter.emit(file, config)
 ```
 
 This generates:
 
-```scala
-package com.example.domain
-
-import zio._
-
-sealed trait Error
-
-object Error {
-  case object NotFound extends Error
-  case object Unauthorized extends Error
-  final case class ValidationError(
-    field: String,
-    message: String
-  ) extends Error
-}
-derives Show
-
-case class User(
-  id: Long,
-  email: String,
-  name: String,
-  active: Boolean = true
-) derives Show, Eq
+```scala mdoc
+val code = ScalaEmitter.emit(file, config)
 ```
 
 ## Example 2: Generic Container Types
