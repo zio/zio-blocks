@@ -1375,7 +1375,9 @@ lazy val docs = project
     html.jvm,
     datastar.jvm,
     smithy,
-    htmx.jvm
+    htmx.jvm,
+    zioGolemModel.jvm,
+    zioGolemMacros
   )
   .enablePlugins(WebsitePlugin)
 

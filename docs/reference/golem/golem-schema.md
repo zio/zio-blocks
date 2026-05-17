@@ -28,7 +28,7 @@ import TabItem from '@theme/TabItem';
 <Tabs>
   <TabItem value="scala3" label="Scala 3" default>
 
-```scala mdoc:passthrough
+```scala
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int) derives Schema
@@ -38,7 +38,7 @@ case class Order(id: String, items: List[String]) derives Schema
   </TabItem>
   <TabItem value="scala2" label="Scala 2">
 
-```scala mdoc:passthrough
+```scala
 import zio.blocks.schema.Schema
 
 case class User(name: String, age: Int)
@@ -54,7 +54,7 @@ object User {
 
 Manually encode/decode (rarely needed; handled by the macro):
 
-```scala mdoc:passthrough
+```scala
 import golem.data.GolemSchema
 import golem.data.StructuredValue
 
@@ -75,7 +75,7 @@ val decoded: Either[String, Person] = encoded.flatMap(schema.decode(_))
 
 For data with text and binary components, use multimodal schemas:
 
-```scala mdoc:passthrough
+```scala
 import zio.blocks.schema.Schema
 import golem.data.multimodal.Multimodal
 
@@ -91,7 +91,7 @@ Multimodal data handling is covered in the data types section.
 
 For data without a predefined structure (free-form text or binary):
 
-```scala mdoc:passthrough
+```scala
 import zio.blocks.schema.Schema
 import golem.data.unstructured.Unstructured
 
@@ -110,7 +110,7 @@ Unstructured data preserves exact bytes/characters without schema interpretation
 
 Schemas compose naturally for nested types:
 
-```scala mdoc:passthrough
+```scala
 import zio.blocks.schema.Schema
 
 case class Address(street: String, city: String) derives Schema
@@ -130,7 +130,7 @@ case class Team(
 
 Encoding/decoding can fail:
 
-```scala mdoc:passthrough
+```scala
 // Encoding/decoding with schemas:
 case class Strict(x: Int) derives zio.blocks.schema.Schema
 

@@ -152,7 +152,7 @@ GolemSchema.decode() → Output (Scala type)
 
 Define constructor parameters via an inner `class Id`:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, description}
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -170,7 +170,7 @@ trait Shard extends BaseAgent {
 ```
 
 When mounting over HTTP, constructor parameters must match path variables:
-```scala mdoc:passthrough
+```scala
 @agentDefinition(mount = "/api/{tableName}/{shardId}")
 trait Shard extends BaseAgent {
   class Id(val tableName: String, val shardId: Int)
@@ -182,7 +182,7 @@ trait Shard extends BaseAgent {
 
 For ergonomic `.get()` and `.getPhantom()` access, define a companion object:
 
-```scala mdoc:passthrough
+```scala
 import golem.AgentCompanionBase
 
 object Shard extends AgentCompanionBase[Shard]
@@ -196,7 +196,7 @@ object Shard extends AgentCompanionBase[Shard]
 
 Persist state across invocations using snapshots by mixing in the `Snapshotted` trait:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentImplementation
 import golem.Snapshotted
 import zio.blocks.schema.Schema
@@ -220,7 +220,7 @@ class CounterImpl() extends Counter with Snapshotted[CounterState] {
 
 Execute multi-step operations atomically:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val result = Transactions.infallibleTransaction { tx =>
@@ -236,7 +236,7 @@ val result = Transactions.infallibleTransaction { tx =>
 
 Agents can declare configuration via the `AgentConfig[T]` pattern:
 
-```scala mdoc:passthrough
+```scala
 import golem.config.{AgentConfig, Config}
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent

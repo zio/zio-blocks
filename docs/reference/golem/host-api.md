@@ -7,7 +7,7 @@ title: "HostApi"
 
 `HostApi` provides methods to inspect and control agent execution:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 val currentIndex = HostApi.getOplogIndex()
@@ -39,7 +39,7 @@ All methods are Scala.js-only (compiled to WebAssembly).
 
 The **oplog** (operation log) records all side effects. Mark operation boundaries to enable automatic rollback on failure:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 val begin = HostApi.markBeginOperation()
@@ -64,7 +64,7 @@ When an operation fails (throws an exception), Golem automatically:
 
 Access the current oplog position:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 val currentIndex = HostApi.getOplogIndex()
@@ -77,7 +77,7 @@ More commonly, use `markBeginOperation()` and `markEndOperation()` to establish 
 
 Configure automatic retry behavior:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 import scala.concurrent.Future
 
@@ -103,7 +103,7 @@ The retry policy controls:
 
 Control how aggressively the oplog persists:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 // Persist nothing (fastest, least reliable)
@@ -125,7 +125,7 @@ Persistence levels:
 
 Enable or disable idempotent request deduplication:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 HostApi.setIdempotenceMode(true)  // Deduplicate duplicate requests
@@ -138,7 +138,7 @@ When idempotence is enabled, Golem tracks request IDs and suppresses duplicate e
 
 Query and manage running agents:
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 // Get metadata about this agent
@@ -158,7 +158,7 @@ HostApi.updateAgent(agentId, targetVersion, updateMode)
 
 Access MySQL and PostgreSQL databases via the resource API:
 
-```scala mdoc:passthrough
+```scala
 import golem.host.Rdbms
 
 // Rdbms provides resource-based access to PostgreSQL and MySQL
@@ -179,7 +179,7 @@ The Rdbms API provides resource-based access to PostgreSQL and MySQL databases, 
 
 Persistent key-value storage beyond the agent's memory using buckets:
 
-```scala mdoc:passthrough
+```scala
 // KeyValue provides resource-based access to persistent storage
 val bucket = KeyValue.Bucket.open("my-bucket")
 val value: Option[Array[Byte]] = bucket.get("my-key")
@@ -193,7 +193,7 @@ The KeyValue API provides synchronous, resource-based access to persistent stora
 
 Store and retrieve large binary objects using a container-based API:
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Blobstore
 
 // Blobstore provides container-based access to binary objects
@@ -217,7 +217,7 @@ The Blobstore API provides synchronous, container-based access to large binary o
 
 Force commit of the current oplog position (advanced usage):
 
-```scala mdoc:passthrough
+```scala
 import golem.HostApi
 
 HostApi.oplogCommit(replicas = 1) // Commit to 1 replica

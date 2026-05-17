@@ -23,7 +23,7 @@ Configuration allows agents to access external settings without hardcoding them.
 
 Agents declare configuration using a separate configuration type that extends `AgentConfig[T]`:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 import zio.blocks.schema.Schema
@@ -43,7 +43,7 @@ The Golem runtime detects configuration via the `AgentConfig[T]` mixin and provi
 
 Use the `Config` API to access configuration synchronously:
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Config
 
 val apiKey: Either[Config.ConfigError, Option[String]] = Config.get("API_KEY")
@@ -64,7 +64,7 @@ apiKey match {
 
 Secrets are accessed through the typed configuration system using `golem.config.Secret[A]`:
 
-```scala mdoc:passthrough
+```scala
 import golem.config.Secret
 
 // Secrets are injected by the Golem runtime
@@ -78,7 +78,7 @@ Secrets are managed securely by the Golem runtime. Always use `Secret[A]` to acc
 
 ### Database Connection String
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Config
 import scala.concurrent.Future
 
@@ -97,7 +97,7 @@ dbUrl match {
 
 ### Feature Flags
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Config
 
 val enableCache = Config.get("ENABLE_CACHE")
@@ -109,7 +109,7 @@ val isEnabled = enableCache match {
 
 ### Timeout Configuration
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Config
 
 val timeoutMs = Config.get("REQUEST_TIMEOUT_MS")
@@ -143,7 +143,7 @@ Configuration schemas are automatically discovered by the Golem macro system fro
 
 For type-safe configuration, extend `AgentConfig[T]` with a configuration case class:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 import zio.blocks.schema.Schema
@@ -167,7 +167,7 @@ The Golem macro system automatically discovers your `AgentConfig[T]` mixin and p
 
 Configuration access can fail:
 
-```scala mdoc:passthrough
+```scala
 import golem.wasi.Config
 
 val result = Config.get("API_KEY")

@@ -5,7 +5,7 @@ title: "BaseAgent"
 
 `BaseAgent` is the foundational trait that all Golem agents must extend. It provides access to agent identity information at runtime and serves as the type marker for agent definitions.
 
-```scala mdoc:compile-only
+```scala
 trait BaseAgent {
   final def agentId: String = ???
   final def agentType: String = ???
@@ -27,7 +27,7 @@ These fields are populated by the Golem host when an agent is instantiated.
 
 **Important:** `BaseAgent` and all agent implementations are **Scala.js-only**. Agents must be compiled to WebAssembly. In `build.sbt`, use `%%%` (Scala.js cross-build) for Scala.js artifacts and `%%` (JVM-only) for macro/compiler plugins:
 
-```text
+```scala
 libraryDependencies += "dev.zio" %%% "zio-golem-core" % "@VERSION@"     // Scala.js artifact
 libraryDependencies += "dev.zio" %% "zio-golem-macros" % "@VERSION@"     // JVM macro artifact
 ```
@@ -38,7 +38,7 @@ The `%%%` operator ensures the dependency works with both Scala 2 and 3 Scala.js
 
 To create an agent, extend `BaseAgent` and decorate the trait with `@agentDefinition`:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -53,7 +53,7 @@ trait MyAgent extends BaseAgent {
 
 Agent constructor parameters are declared via an inner `class Id`:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -68,7 +68,7 @@ trait Shard extends BaseAgent {
 
 The `Id` class defines what values the agent receives at construction time. When mounting over HTTP, these parameters become path variables:
 
-```scala mdoc:passthrough
+```scala
 @agentDefinition(mount = "/api/{tableName}/{shardId}")
 trait Shard extends BaseAgent {
   class Id(val tableName: String, val shardId: Int)
@@ -80,7 +80,7 @@ trait Shard extends BaseAgent {
 
 Within an agent method, use the inherited fields to inspect the running agent:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentImplementation
 import golem.BaseAgent
 import scala.concurrent.Future
@@ -101,7 +101,7 @@ class MyAgentImpl() extends MyAgent {
 
 Agents can operate in two modes, specified via `@agentDefinition`:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, DurabilityMode}
 import golem.BaseAgent
 
@@ -124,7 +124,7 @@ trait EphemeralAgent extends BaseAgent {
 
 When `mount` is specified in `@agentDefinition`, the agent becomes accessible via HTTP:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 

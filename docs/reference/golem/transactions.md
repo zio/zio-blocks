@@ -29,7 +29,7 @@ Transactions ensure that when multiple operations must succeed together, either 
 
 Use `infallibleTransaction` when all operations must eventually succeed. On failure, compensations run automatically and the transaction retries:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 import scala.concurrent.Future
 
@@ -59,7 +59,7 @@ The transaction keeps retrying until all operations succeed. Compensation runs i
 
 Use `fallibleTransaction` when you want explicit error handling:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val result: Either[Transactions.TransactionFailure[String], String] = Transactions.fallibleTransaction { tx =>
@@ -91,7 +91,7 @@ If any operation returns `Left(err)`, the transaction returns `Left(TransactionF
 
 When a `fallibleTransaction` fails, the result is wrapped in `TransactionFailure[Err]`, a sealed trait with two subtypes:
 
-```scala mdoc:passthrough
+```scala
 sealed trait TransactionFailure[+Err]
 
 // The transaction failed, but all compensations succeeded
@@ -108,7 +108,7 @@ This allows you to distinguish between:
 - **`FailedAndRolledBackCompletely`** — Operation failed, but cleanup succeeded; safe to retry or handle gracefully
 - **`FailedAndRolledBackPartially`** — Operation failed AND at least one compensation failed; manual intervention may be needed
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val result = Transactions.fallibleTransaction { tx =>
@@ -130,7 +130,7 @@ result match {
 
 Create an operation with execute and compensation logic:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val operation = Transactions.operation[Int, String, String](
@@ -167,7 +167,7 @@ Retry:          All operations execute again
 
 Compensation receives both the input and the successful output, allowing context-aware rollback:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val transferOp = Transactions.operation[String, Long, String](
@@ -187,7 +187,7 @@ val transferOp = Transactions.operation[String, Long, String](
 
 Use infallible transactions when transient failures are expected:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val result = Transactions.infallibleTransaction { tx =>
@@ -206,7 +206,7 @@ The transaction retries automatically on failure.
 
 Use fallible transactions when you want to fail fast but ensure cleanup:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 import scala.concurrent.Future
 
@@ -230,7 +230,7 @@ val result: Either[Transactions.TransactionFailure[String], Int] = Transactions.
 
 Build multi-step workflows by threading operations together:
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val workflow = Transactions.infallibleTransaction { tx =>
@@ -271,7 +271,7 @@ Transactions provide these guarantees:
 
 ### Pattern 1: Saga with Multiple External Calls
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val saga = Transactions.infallibleTransaction { tx =>
@@ -296,7 +296,7 @@ val saga = Transactions.infallibleTransaction { tx =>
 
 ### Pattern 2: Cascading Updates
 
-```scala mdoc:passthrough
+```scala
 import golem.Transactions
 
 val cascade = Transactions.fallibleTransaction { tx =>

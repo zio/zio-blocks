@@ -9,7 +9,7 @@ This page shows complete, working examples that demonstrate how golem types work
 
 A simple counter agent with durable state using snapshots:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation, description}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.{BaseAgent, AgentCompanionBase, Snapshotted}
@@ -74,7 +74,7 @@ object CounterModule {
 
 Process orders atomically with automatic compensation on failure:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.{BaseAgent, Transactions}
@@ -155,7 +155,7 @@ object OrderProcessorModule {
 
 Expose agent methods as HTTP endpoints:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation, endpoint, description}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.BaseAgent
@@ -204,7 +204,7 @@ Constructor parameters (`userId`) become path variables. Method parameters becom
 
 One agent invoking methods on another:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.runtime.rpc.AgentClient
@@ -257,7 +257,7 @@ object CalculatorModule {
 
 Agents accessing runtime configuration:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.{agentDefinition, agentImplementation}
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.config.Secret
@@ -300,7 +300,7 @@ Configuration is provided by the Golem runtime via the manifest, different for e
 
 Simple request-response with a single async operation:
 
-```scala mdoc:passthrough
+```scala
 @golem.runtime.annotations.agentDefinition
 trait RequestHandler extends golem.BaseAgent {
   def handle(request: String): scala.concurrent.Future[String]
@@ -311,7 +311,7 @@ trait RequestHandler extends golem.BaseAgent {
 
 Maintain state across multiple invocations by mixing in the `Snapshotted` trait:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentImplementation
 import golem.Snapshotted
 import zio.blocks.schema.Schema
@@ -335,7 +335,7 @@ class CounterImpl() extends Counter with Snapshotted[CounterState] {
 
 Atomic operations with automatic rollback on failure:
 
-```scala mdoc:passthrough
+```scala
 // Atomic operations with automatic rollback:
 // val result = Transactions.infallibleTransaction { tx =>
 //   val step1 = Transactions.operation[Unit, Int, String](
@@ -356,7 +356,7 @@ Atomic operations with automatic rollback on failure:
 
 Expose agent as REST API:
 
-```scala mdoc:passthrough
+```scala
 @golem.runtime.annotations.agentDefinition(mount = "/api/{resource}")
 trait RestService extends golem.BaseAgent {
   class Id(val resource: String)
@@ -368,7 +368,7 @@ trait RestService extends golem.BaseAgent {
 
 One agent calling another:
 
-```scala mdoc:passthrough
+```scala
 val remoteType = golem.runtime.rpc.AgentClient.agentType[RemoteAgent]
 val remote = golem.runtime.rpc.AgentClient.connect(remoteType, constructorArgs)
 // In Scala 3, connect returns the proxy directly

@@ -5,7 +5,7 @@ title: "AgentDefinition"
 
 `AgentDefinition[T]` is the compile-time metadata descriptor for an agent type `T`. It encodes the agent's type name, durability mode, constructor, and method signatures. You don't construct `AgentDefinition` directly; the `@agentDefinition` macro generates it automatically.
 
-```text
+```scala
 type AgentDefinition[T] = golem.runtime.autowire.AgentDefinition[T]
 ```
 
@@ -26,7 +26,7 @@ You access the `AgentDefinition` when:
 
 The simplest agent definition requires only the trait name:
 
-```scala mdoc:passthrough
+```scala
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -47,7 +47,7 @@ The macro infers:
 
 ### Mode: Durable vs. Ephemeral
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.{agentDefinition, DurabilityMode}
 import golem.BaseAgent
 
@@ -78,7 +78,7 @@ trait StatelessCompute extends BaseAgent {
 
 Expose agent methods as HTTP endpoints:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -98,7 +98,7 @@ With HTTP mounting:
 
 Override the inferred type name:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -124,7 +124,7 @@ The `@agentDefinition` annotation supports these additional parameters:
 
 **Example with multiple parameters:**
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 
@@ -151,7 +151,7 @@ trait SecureStatefulAgent extends BaseAgent {
 
 Decorate methods with metadata:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.{agentDefinition, description, prompt, endpoint}
 import golem.BaseAgent
 
@@ -178,7 +178,7 @@ trait MyAgent extends BaseAgent {
 
 Agents can require constructor parameters by declaring an inner `class Id`:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.agentDefinition
 import golem.BaseAgent
 import zio.blocks.schema.Schema
@@ -198,7 +198,7 @@ Constructor parameters must have `Schema` instances (derive via `derives Schema`
 
 Once you have an `AgentDefinition`, register the implementation:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.annotations.agentImplementation
 import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
 import golem.BaseAgent
@@ -231,7 +231,7 @@ The `registerClass` macro:
 
 Access metadata from the generated definition:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.autowire.AgentDefinition
 
 def printAgentInfo[T](defn: AgentDefinition[T]): Unit = {
@@ -244,7 +244,7 @@ def printAgentInfo[T](defn: AgentDefinition[T]): Unit = {
 
 When connecting to a remote agent, use the agent type:
 
-```scala mdoc:passthrough
+```scala:passthrough mdoc:passthrough
 import golem.runtime.rpc.AgentClient
 
 val agentType = AgentClient.agentType[Counter]
