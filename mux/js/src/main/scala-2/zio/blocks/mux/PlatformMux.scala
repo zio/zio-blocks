@@ -1,8 +1,26 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.mux
 
 import scala.collection.mutable
 
 private[mux] object PlatformMux {
+
+  private val StreamQueueCapacity = 256
 
   def create[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
     new JsMux[Id, In, Out](capacity)
@@ -52,32 +70,40 @@ private[mux] object PlatformMux {
     streamId: Id,
     mux: JsMux[Id, In, Out]
   ) extends MuxStream[Id, In, Out] {
-    private var state: StreamState                                      = StreamState.Open
-    private val inboundQueue: mutable.ArrayDeque[Either[MuxError, Out]] = mutable.ArrayDeque.empty
-    private val outboundQueue: mutable.ArrayDeque[In]                   = mutable.ArrayDeque.empty
-    private var cancelError: Option[MuxError]                           = None
+    private var state: StreamState                     = StreamState.Open
+    private val inboundQueue: mutable.ArrayDeque[Out] = mutable.ArrayDeque.empty
+    private val outboundQueue: mutable.ArrayDeque[In] = mutable.ArrayDeque.empty
+    private var cancelError: Option[MuxError]         = None
 
     def id: Id = streamId
 
     def send(msg: In): Either[MuxError, Unit] =
-      if (state == StreamState.Closed || state == StreamState.HalfClosedLocal)
+      if (msg.asInstanceOf[AnyRef] eq null)
+        Left(MuxError.ProtocolError("null message"))
+      else if (state == StreamState.Closed || state == StreamState.HalfClosedLocal)
         Left(MuxError.StreamClosed(streamId))
+      else if (outboundQueue.size >= StreamQueueCapacity)
+        Left(MuxError.QueueFull(StreamQueueCapacity))
       else {
         outboundQueue.append(msg)
         Right(())
       }
 
     def receive(): Either[MuxError, Option[Out]] =
-      if (inboundQueue.nonEmpty) inboundQueue.removeHead().map(Some(_))
+      if (inboundQueue.nonEmpty) Right(Some(inboundQueue.removeHead()))
       else if (state == StreamState.Closed)
         cancelError.map(Left(_)).getOrElse(Left(MuxError.StreamClosed(streamId)))
       else Right(None)
 
     def offerInbound(msg: Out): Either[MuxError, Unit] =
-      if (state == StreamState.Closed || state == StreamState.HalfClosedRemote)
+      if (msg.asInstanceOf[AnyRef] eq null)
+        Left(MuxError.ProtocolError("null message"))
+      else if (state == StreamState.Closed || state == StreamState.HalfClosedRemote)
         Left(MuxError.StreamClosed(streamId))
+      else if (inboundQueue.size >= StreamQueueCapacity)
+        Left(MuxError.QueueFull(StreamQueueCapacity))
       else {
-        inboundQueue.append(Right(msg))
+        inboundQueue.append(msg)
         Right(())
       }
 

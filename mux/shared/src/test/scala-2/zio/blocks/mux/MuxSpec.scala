@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.mux
 
 import zio._
@@ -15,7 +31,8 @@ object MuxSpec extends ZIOSpecDefault {
     cancellationSuite,
     backpressureSuite,
     closeAllSuite,
-    edgeCasesSuite
+    edgeCasesSuite,
+    capacityValidationSuite
   )
 
   private val basicOperationsSuite = suite("basic operations")(
@@ -229,6 +246,32 @@ object MuxSpec extends ZIOSpecDefault {
       mux.cancel(0, MuxError.Cancelled(0, "done"))
       val result = mux.open(5)
       assertTrue(result.isRight)
+    },
+    test("send returns QueueFull when outbound queue is full") {
+      val mux    = makeMux()
+      val stream = mux.open(1).toOption.get
+      (0 until 256).foreach(i => stream.send(s"msg-$i"))
+      val result = stream.send("overflow")
+      assertTrue(result == Left(MuxError.QueueFull(256)))
+    },
+    test("offerInbound returns QueueFull when inbound queue is full") {
+      val mux    = makeMux()
+      val stream = mux.open(1).toOption.get
+      (0 until 256).foreach(i => stream.offerInbound(s"msg-$i"))
+      val result = stream.offerInbound("overflow")
+      assertTrue(result == Left(MuxError.QueueFull(256)))
+    },
+    test("send null returns ProtocolError") {
+      val mux    = makeMux()
+      val stream = mux.open(1).toOption.get
+      val result = stream.send(null)
+      assertTrue(result == Left(MuxError.ProtocolError("null message")))
+    },
+    test("offerInbound null returns ProtocolError") {
+      val mux    = makeMux()
+      val stream = mux.open(1).toOption.get
+      val result = stream.offerInbound(null)
+      assertTrue(result == Left(MuxError.ProtocolError("null message")))
     }
   )
 
@@ -245,6 +288,10 @@ object MuxSpec extends ZIOSpecDefault {
     test("closeAll makes pending receives return error") {
       for {
         result <- ZIO.attempt {
+                    // receive() is a non-blocking poll: it returns Right(None)
+                    // when empty and Right(Some(msg)) when a message is
+                    // available. After closeAll, receive() returns Left(error)
+                    // instead of Right(None).
                     val mux    = makeMux()
                     val stream = mux.open(1).toOption.get
                     mux.closeAll(MuxError.MuxClosed)
@@ -258,6 +305,29 @@ object MuxSpec extends ZIOSpecDefault {
       mux.closeAll(MuxError.MuxClosed)
       val result = mux.open(2)
       assertTrue(result == Left(MuxError.MuxClosed))
+    }
+  )
+
+  private val capacityValidationSuite = suite("capacity validation")(
+    test("Mux rejects zero capacity") {
+      assertTrue(
+        try {
+          Mux[Int, String, String](0)
+          false
+        } catch {
+          case _: IllegalArgumentException => true
+        }
+      )
+    },
+    test("Mux rejects negative capacity") {
+      assertTrue(
+        try {
+          Mux[Int, String, String](-1)
+          false
+        } catch {
+          case _: IllegalArgumentException => true
+        }
+      )
     }
   )
 

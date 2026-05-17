@@ -1,10 +1,26 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.mux
 
 import java.lang.invoke.{MethodHandles, VarHandle}
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 
-import zio.blocks.ringbuffer.{MpscRingBuffer, SpscRingBuffer}
+import zio.blocks.ringbuffer.MpscRingBuffer
 
 private[mux] object PlatformMux {
   private val StreamQueueCapacity = 256
@@ -33,7 +49,10 @@ private[mux] object PlatformMux {
       Option(streams.get(id))
 
     def cancel(id: Id, reason: MuxError): Unit = {
-      val stream = streams.remove(id)
+      lock.lock()
+      val stream =
+        try streams.remove(id)
+        finally lock.unlock()
       if (stream != null) stream.cancelWith(reason)
     }
 
@@ -41,18 +60,18 @@ private[mux] object PlatformMux {
       lock.lock()
       try {
         closed = true
-        val it = streams.values().iterator()
-        while (it.hasNext) {
-          it.next().cancelWith(reason)
-          it.remove()
-        }
+        streams.values().forEach(_.cancelWith(reason))
+        streams.clear()
       } finally lock.unlock()
     }
 
     def activeCount: Int = streams.size()
 
-    private[mux] def removeStream(id: Id): Unit =
-      streams.remove(id)
+    private[mux] def removeStream(id: Id): Unit = {
+      lock.lock()
+      try streams.remove(id)
+      finally lock.unlock()
+    }
   }
 
   private sealed trait StreamState
@@ -84,17 +103,21 @@ private[mux] object PlatformMux {
   ) extends JvmMuxStreamFields
       with MuxStream[Id, In, Out] {
     private val inboundQueue  = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
-    private val outboundQueue = new SpscRingBuffer[AnyRef](StreamQueueCapacity)
+    private val outboundQueue = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
 
     def id: Id = streamId
 
     def send(msg: In): Unit | MuxError = {
-      val s = state
-      if (s == StreamState.Closed || s == StreamState.HalfClosedLocal)
-        MuxError.StreamClosed(streamId)
-      else if (outboundQueue.offer(msg.asInstanceOf[AnyRef]))
-        ()
-      else MuxError.CapacityExceeded(StreamQueueCapacity)
+      if (msg.asInstanceOf[AnyRef] eq null)
+        MuxError.ProtocolError("null message")
+      else {
+        val s = state
+        if (s == StreamState.Closed || s == StreamState.HalfClosedLocal)
+          MuxError.StreamClosed(streamId)
+        else if (outboundQueue.offer(msg.asInstanceOf[AnyRef]))
+          ()
+        else MuxError.QueueFull(StreamQueueCapacity)
+      }
     }
 
     def receive(): Option[Out] | MuxError = {
@@ -108,12 +131,16 @@ private[mux] object PlatformMux {
     }
 
     def offerInbound(msg: Out): Unit | MuxError = {
-      val s = state
-      if (s == StreamState.Closed || s == StreamState.HalfClosedRemote)
-        MuxError.StreamClosed(streamId)
-      else if (inboundQueue.offer(msg.asInstanceOf[AnyRef]))
-        ()
-      else MuxError.CapacityExceeded(StreamQueueCapacity)
+      if (msg.asInstanceOf[AnyRef] eq null)
+        MuxError.ProtocolError("null message")
+      else {
+        val s = state
+        if (s == StreamState.Closed || s == StreamState.HalfClosedRemote)
+          MuxError.StreamClosed(streamId)
+        else if (inboundQueue.offer(msg.asInstanceOf[AnyRef]))
+          ()
+        else MuxError.QueueFull(StreamQueueCapacity)
+      }
     }
 
     def takeOutbound(): Option[In] | MuxError = {

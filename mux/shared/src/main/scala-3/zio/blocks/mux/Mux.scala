@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package zio.blocks.mux
 
 /**
@@ -14,8 +30,10 @@ package zio.blocks.mux
  *   Message type received on streams
  */
 object Mux {
-  def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
+  def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out] = {
+    require(capacity > 0, s"Mux capacity must be positive, got $capacity")
     PlatformMux.create[Id, In, Out](capacity)
+  }
 }
 
 /**
@@ -24,8 +42,8 @@ object Mux {
  *
  * Each stream is identified by a unique `Id` and has independent
  * inbound/outbound message queues. The multiplexer enforces a maximum number of
- * concurrent streams (capacity). Attempting to open a stream beyond that limit
- * returns [[MuxError.CapacityExceeded]].
+  * concurrent streams (capacity). Attempting to open a stream beyond that limit
+  * returns [[MuxError.CapacityExceeded]].
  *
  * '''Invariants:'''
  *   - Stream IDs must be unique among active streams; opening a duplicate
@@ -35,10 +53,11 @@ object Mux {
  *     is returned) and all previously active streams transition to CLOSED with
  *     the supplied error enqueued for any pending receive.
  *
- * '''Thread safety:''' All operations are safe to call from multiple threads
- * concurrently. The JVM implementation uses `ReentrantLock` for structural
- * mutations and lock-free `ConcurrentHashMap`/`AtomicReference` for per-stream
- * operations.
+ * '''Thread safety:''' `open`, `get`, `cancel`, `closeAll`, and `activeCount`
+ * are safe to call from multiple threads concurrently. Per-stream operations
+ * on [[MuxStream]]: `send` and `offerInbound` are multi-thread safe.
+ * `receive` and `takeOutbound` must each be called from a single consumer
+ * thread at a time (single-consumer contract of the underlying ring buffer).
  *
  * @tparam Id
  *   Stream identifier type (e.g., `Int` for HTTP/2 stream IDs)
@@ -207,8 +226,14 @@ trait MuxStream[Id, In, Out] {
   def isHalfClosed: Boolean
 
   /**
-   * Fully close this stream immediately. Enqueues a terminal error for any
-   * pending receive and removes the stream from the parent Mux.
+   * Fully close this stream immediately.
+   *
+   * Transitions the stream to CLOSED state and enqueues a terminal error.
+   * After this call:
+   *   - `send()` fails with [[MuxError.StreamClosed]].
+   *   - `receive()` drains any already-buffered inbound messages, then
+   *     returns the terminal error once the buffer is empty.
+   *   - `offerInbound()` fails with [[MuxError.StreamClosed]].
    */
   def close(): Unit
 }
