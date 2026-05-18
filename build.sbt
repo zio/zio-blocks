@@ -1394,6 +1394,7 @@ lazy val docs = project
     `http-model`.jvm,
     `http-model-schema`.jvm,
     openapi.jvm,
+    codegen,
     html.jvm,
     datastar.jvm,
     smithy,

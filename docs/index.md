@@ -21,6 +21,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
 | **Scope** | Compile-time safe resource management and DI | ✅ Available |
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
+| **Codegen** | Generic Scala code generation IR and emitter | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
