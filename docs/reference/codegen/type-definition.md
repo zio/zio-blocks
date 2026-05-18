@@ -15,6 +15,8 @@ title: "TypeDefinition"
 
 `TypeDefinition` has 9 concrete implementations:
 
+**Note:** All major type variants (`CaseClass`, `SealedTrait`, `Enum`, `ObjectDef`, `Trait`, `AbstractClass`) support optional `derives` clauses for automatic typeclass derivation.
+
 | Type            | Purpose                     | Scala Feature                              |
 |-----------------|-----------------------------|--------------------------------------------|
 | `CaseClass`     | Product types with fields   | Scala 2 & 3                                |
@@ -25,7 +27,7 @@ title: "TypeDefinition"
 | `ObjectDef`     | Singleton objects           | Scala 2 & 3                                |
 | `OpaqueType`    | Opaque type aliases         | Scala 3 (Scala 2 fallback to `type` alias) |
 | `Newtype`       | Zero-cost wrappers          | Scala 2 & 3                                |
-| `TypeAlias`     | Type aliases                | Scala 2 & 3                                |
+| `TypeAlias`     | Type aliases (with optional type parameters) | Scala 2 & 3                |
 
 ## Common Interface
 
@@ -73,6 +75,18 @@ val userId = Newtype("UserId", TypeRef.Long)
 import zio.blocks.codegen.ir._
 
 val stringId = TypeAlias("StringId", typeRef = TypeRef.String)
+```
+
+**Type Alias with Type Parameters** — Generic type alias:
+
+```scala mdoc:compile-only
+import zio.blocks.codegen.ir._
+
+val pair = TypeAlias(
+  "Pair",
+  typeRef = TypeRef("Tuple2", List(TypeRef("A"), TypeRef("B"))),
+  typeParams = List(TypeParam("A"), TypeParam("B"))
+)
 ```
 
 ### Sum Types (ADTs)
