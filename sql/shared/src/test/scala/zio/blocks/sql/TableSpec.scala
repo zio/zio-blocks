@@ -85,6 +85,15 @@ object TableSpec extends ZIOSpecDefault {
         val table = Table.derived[SimpleRecord]("my_custom_table")
         assertTrue(table.name == "my_custom_table")
       },
+      test("derived with invalid explicit table name fails fast") {
+        val error = try {
+          Table.derived[SimpleRecord]("user profile")
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL table identifier"))
+      },
       test("derived with explicit name ignores type name") {
         val table = Table.derived[UserProfile]("profiles")
         assertTrue(table.name == "profiles")
@@ -154,6 +163,15 @@ object TableSpec extends ZIOSpecDefault {
           table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL) ==
             "CREATE TABLE IF NOT EXISTS optional_record (\n  id INTEGER NOT NULL,\n  nickname TEXT,\n  alias TEXT\n)"
         )
+      },
+      test("manual tables reject invalid column names when constructed") {
+        val error = try {
+          Table("users", DbCodec.stringCodec, IndexedSeq(ColumnMeta("full name", DbValue.DbString(""), false)))
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL column identifier"))
       }
     )
   )

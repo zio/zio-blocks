@@ -57,6 +57,8 @@ class Repo[E, ID](
     s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
   )
 
+  private val validatedIdColumn = SqlIdentifier.validate("column", idColumn)
+
   private val allCols: String   = table.columns.mkString(", ")
   private val tbl: String       = table.name
   private val codec: DbCodec[E] = table.codec
@@ -72,7 +74,7 @@ class Repo[E, ID](
   /** Finds the row with the given primary key, or `None` if absent. */
   def findById(id: ID)(using con: DbCon): Option[E] = {
     val frag = Frag(
-      IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $idColumn = ", ""),
+      IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
     SqlOps.queryOne[E](frag)(using con, codec)
@@ -137,7 +139,7 @@ class Repo[E, ID](
           ps.addBatch()
         }
         val counts   = ps.executeBatch()
-        val total    = counts.sum
+        val total    = counts.map(count => if (count == java.sql.Statement.SUCCESS_NO_INFO) 0 else count).sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
         con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, IndexedSeq.empty, duration, total))
         total
@@ -158,12 +160,12 @@ class Repo[E, ID](
   def update(entity: E)(using con: DbCon): Int = {
     val entityValues  = codec.toDbValues(entity)
     val idValues      = idCodec.toDbValues(getId(entity))
-    val updatePairs   = table.columns.zip(entityValues).filter(_._1 != idColumn)
+    val updatePairs   = table.columns.zip(entityValues).filter(_._1 != validatedIdColumn)
     val updateColumns = updatePairs.map(_._1)
     val updateValues  = updatePairs.map(_._2)
     if (updateColumns.isEmpty) 0
     else {
-      val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, idColumn, idValues)
+      val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, validatedIdColumn, idValues)
       SqlOps.update(frag)(using con)
     }
   }
@@ -173,7 +175,7 @@ class Repo[E, ID](
    */
   def deleteById(id: ID)(using con: DbCon): Int = {
     val frag = Frag(
-      IndexedSeq(s"DELETE FROM $tbl WHERE $idColumn = ", ""),
+      IndexedSeq(s"DELETE FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
     SqlOps.update(frag)(using con)
