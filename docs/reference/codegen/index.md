@@ -9,7 +9,7 @@ Core types: `ScalaFile`, `TypeDefinition`, `CaseClass`, `SealedTrait`, `Enum`, `
 
 Here's the structure of two core types:
 
-```scala
+```scala mdoc:compile-only
 // IR models the structure of Scala code
 case class ScalaFile(
   packageDecl: PackageDecl,
@@ -80,7 +80,7 @@ OpenAPI → Scala    Smithy → Scala    Protobuf → Scala    JSON Schema → S
 
 Add the library to your project:
 
-```scala
+```scala mdoc:compile-only
 libraryDependencies += "dev.zio" %% "zio-blocks-codegen" % "@VERSION@"
 ```
 
@@ -148,7 +148,7 @@ ScalaFile
 
 When you call `ScalaEmitter.emit(file, config)`, it walks this tree and produces:
 
-```scala
+```scala mdoc:compile-only
 package com.example
 
 import zio._
