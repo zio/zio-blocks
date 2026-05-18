@@ -578,6 +578,7 @@ sealed trait Result[+A]
 case class Success[A](value: A) extends Result[A]
 case class Failure(error: String) extends Result[Nothing]
 
+case class User(name: String)
 case class Response(result: Result[User])
 
 // Navigate into Success case
