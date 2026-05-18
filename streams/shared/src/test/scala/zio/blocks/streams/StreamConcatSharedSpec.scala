@@ -36,7 +36,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("Stream.++ / concat (shared)")(
     test("disjoint concatenation") {
-      val result = Stream.succeed("hello") ++ Stream.succeed(42)
+      val result: Stream[Nothing, String | Int] = Stream.succeed("hello") ++ Stream.succeed(42)
       assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
         equalTo(Right(Chunk(Left("hello"), Right(42))))
       )
