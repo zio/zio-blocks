@@ -22,9 +22,9 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 object JvmJwtCryptoBackend extends JwtCryptoBackend {
-  install()
-
   def install(): Unit = JwtCrypto.backend = this
+
+  val supportedAlgorithms: Set[Algorithm] = Algorithm.all.toSet
 
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]] =
     withCrypto {

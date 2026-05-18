@@ -93,56 +93,51 @@ object Base64Url {
             else Left(JwtError.InvalidToken("invalid base64url character"))
           } else Left(JwtError.InvalidToken("invalid base64url character"))
 
-        while (inputIndex + 3 < s.length) {
-          val result = for {
-            c0 <- decodeChar(s.charAt(inputIndex))
-            c1 <- decodeChar(s.charAt(inputIndex + 1))
-            c2 <- decodeChar(s.charAt(inputIndex + 2))
-            c3 <- decodeChar(s.charAt(inputIndex + 3))
-          } yield {
-            bytes(outputIndex) = ((c0 << 2) | (c1 >>> 4)).toByte
-            bytes(outputIndex + 1) = (((c1 & 0x0f) << 4) | (c2 >>> 2)).toByte
-            bytes(outputIndex + 2) = (((c2 & 0x03) << 6) | c3).toByte
-          }
+        var error: JwtError = null
 
-          result match {
-            case Left(error) => return Left(error)
-            case Right(_)    =>
-              inputIndex += 4
+        while (error == null && inputIndex + 3 < s.length) {
+          (decodeChar(s.charAt(inputIndex)),
+           decodeChar(s.charAt(inputIndex + 1)),
+           decodeChar(s.charAt(inputIndex + 2)),
+           decodeChar(s.charAt(inputIndex + 3))) match {
+            case (Right(c0), Right(c1), Right(c2), Right(c3)) =>
+              bytes(outputIndex)     = ((c0 << 2) | (c1 >>> 4)).toByte
+              bytes(outputIndex + 1) = (((c1 & 0x0f) << 4) | (c2 >>> 2)).toByte
+              bytes(outputIndex + 2) = (((c2 & 0x03) << 6) | c3).toByte
+              inputIndex  += 4
               outputIndex += 3
+            case (Left(e), _, _, _) => error = e
+            case (_, Left(e), _, _) => error = e
+            case (_, _, Left(e), _) => error = e
+            case (_, _, _, Left(e)) => error = e
           }
         }
 
-        val tailLength = s.length - inputIndex
-        if (tailLength == 2) {
-          val result = for {
-            c0 <- decodeChar(s.charAt(inputIndex))
-            c1 <- decodeChar(s.charAt(inputIndex + 1))
-            _ <- if ((c1 & 0x0f) == 0) Right(())
-                 else Left(JwtError.InvalidToken("invalid trailing base64url bits"))
-          } yield bytes(outputIndex) = ((c0 << 2) | (c1 >>> 4)).toByte
-
-          result match {
-            case Left(error) => Left(error)
-            case Right(_)    => Right(bytes)
-          }
-        } else if (tailLength == 3) {
-          val result = for {
-            c0 <- decodeChar(s.charAt(inputIndex))
-            c1 <- decodeChar(s.charAt(inputIndex + 1))
-            c2 <- decodeChar(s.charAt(inputIndex + 2))
-            _ <- if ((c2 & 0x03) == 0) Right(())
-                 else Left(JwtError.InvalidToken("invalid trailing base64url bits"))
-          } yield {
-            bytes(outputIndex) = ((c0 << 2) | (c1 >>> 4)).toByte
-            bytes(outputIndex + 1) = (((c1 & 0x0f) << 4) | (c2 >>> 2)).toByte
-          }
-
-          result match {
-            case Left(error) => Left(error)
-            case Right(_)    => Right(bytes)
-          }
-        } else Right(bytes)
+        if (error != null) Left(error)
+        else {
+          val tailLength = s.length - inputIndex
+          if (tailLength == 2) {
+            for {
+              c0 <- decodeChar(s.charAt(inputIndex))
+              c1 <- decodeChar(s.charAt(inputIndex + 1))
+              _  <- if ((c1 & 0x0f) == 0) Right(()) else Left(JwtError.InvalidToken("invalid trailing base64url bits"))
+            } yield {
+              bytes(outputIndex) = ((c0 << 2) | (c1 >>> 4)).toByte
+              bytes
+            }
+          } else if (tailLength == 3) {
+            for {
+              c0 <- decodeChar(s.charAt(inputIndex))
+              c1 <- decodeChar(s.charAt(inputIndex + 1))
+              c2 <- decodeChar(s.charAt(inputIndex + 2))
+              _  <- if ((c2 & 0x03) == 0) Right(()) else Left(JwtError.InvalidToken("invalid trailing base64url bits"))
+            } yield {
+              bytes(outputIndex)     = ((c0 << 2) | (c1 >>> 4)).toByte
+              bytes(outputIndex + 1) = (((c1 & 0x0f) << 4) | (c2 >>> 2)).toByte
+              bytes
+            }
+          } else Right(bytes)
+        }
       }
     }
   }

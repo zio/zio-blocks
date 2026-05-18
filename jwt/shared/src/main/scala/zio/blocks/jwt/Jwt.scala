@@ -18,17 +18,44 @@ package zio.blocks.jwt
 
 import scala.collection.mutable
 
+/** Platform-specific cryptographic operations for JWT.
+ *
+ *  Call `install()` on a platform backend (e.g. `JvmJwtCryptoBackend.install()`) before
+ *  signing or verifying tokens.  The default backend ([[SharedJwtCryptoBackend]]) supports
+ *  HMAC-SHA2 algorithms only and requires no native dependencies.
+ */
 trait JwtCryptoBackend {
+  /** The set of algorithms this backend supports. Calling sign/verify with an unsupported algorithm returns UnsupportedAlgorithm. */
+  def supportedAlgorithms: Set[Algorithm]
+
+  /** Computes the JWT signature over `data` with `key` using `alg`. */
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]]
 
+  /** Verifies that `signature` over `data` is valid for `key` and `alg`. */
   def verify(data: Array[Byte], signature: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Boolean]
 }
 
+/** Global registry for the active [[JwtCryptoBackend]].
+ *
+ *  Call `JvmJwtCryptoBackend.install()` (JVM) or `JsJwtCryptoBackend.install()` (JS) once at
+ *  application startup.  Until then the default backend handles HMAC algorithms only.
+ */
 object JwtCrypto {
-  var backend: JwtCryptoBackend = SharedJwtCryptoBackend
+  /** The active crypto backend. Install a platform backend (e.g. JvmJwtCryptoBackend) before use. */
+  @volatile var backend: JwtCryptoBackend = SharedJwtCryptoBackend
 }
 
+/** Pure-Scala JWT implementation (RFC 7519).
+ *
+ *  == Minimal usage ==
+ *  {{{
+ *  JvmJwtCryptoBackend.install()          // once at startup
+ *  val token = Jwt.sign(claims, key, Algorithm.HS256).getOrElse(throw new RuntimeException(...))
+ *  val claims = Jwt.decode(token, key, Algorithm.HS256).getOrElse(throw new RuntimeException(...))
+ *  }}}
+ */
 object Jwt {
+  /** Signs `claims` with `key` and `alg`, returning a compact JWT string. */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -36,6 +63,7 @@ object Jwt {
   ): Either[JwtError, String] =
     sign(claims, key, alg, JwtHeader(alg))
 
+  /** Signs `claims` with `key` and `alg` using an explicit `header`. Returns an error if `header.alg != alg`. */
   def sign(
     claims: JwtClaims,
     key: Array[Byte],
@@ -53,6 +81,14 @@ object Jwt {
         .map(signature => signingInput + "." + Base64Url.encode(signature))
     }
 
+  /** Decodes and verifies a compact JWT string.
+   *
+   *  @param token            the compact three-segment JWT
+   *  @param key              the secret or public key bytes
+   *  @param alg              the expected signing algorithm
+   *  @param clockSkewSeconds allowable clock skew in seconds for `exp`/`nbf` validation
+   *  @param issuer           if set, the `iss` claim must match exactly
+   */
   def decode(
     token: String,
     key: Array[Byte],
@@ -71,6 +107,9 @@ object Jwt {
       _         <- validateClaims(claims, clockSkewSeconds, issuer)
     } yield claims
 
+  /** Decodes a compact JWT **without** verifying the signature or validating claims.
+   *  Useful for inspecting the header/payload of an untrusted token.
+   */
   def decodeUnsafe(token: String): Either[JwtError, (JwtHeader, JwtClaims)] =
     for {
       parts  <- splitCompact(token)
@@ -82,8 +121,11 @@ object Jwt {
     val firstDot  = token.indexOf('.')
     val secondDot = if (firstDot >= 0) token.indexOf('.', firstDot + 1) else -1
 
-    if (firstDot <= 0 || secondDot <= firstDot + 1 || secondDot == token.length - 1 || token.indexOf('.', secondDot + 1) >= 0)
-      Left(JwtError.InvalidToken("JWT compact form must contain exactly three segments"))
+    val thirdDot = token.indexOf('.', secondDot + 1)
+    if (firstDot <= 0 || secondDot <= firstDot + 1 || thirdDot >= 0)
+      Left(JwtError.InvalidToken("JWT must have exactly three dot-separated segments"))
+    else if (secondDot == token.length - 1)
+      Left(JwtError.InvalidToken("JWT signature segment must not be empty"))
     else {
       val headerSegment    = token.substring(0, firstDot)
       val payloadSegment   = token.substring(firstDot + 1, secondDot)
@@ -135,10 +177,11 @@ private[jwt] object JwtText {
 
 private[jwt] object JwtJson {
   sealed trait Value
-  case class StringValue(value: String) extends Value
-  case class NumberValue(value: String) extends Value
-  case class BooleanValue(value: Boolean) extends Value
-  case object NullValue extends Value
+  case class StringValue(value: String)    extends Value
+  case class NumberValue(value: String)    extends Value
+  case class BooleanValue(value: Boolean)  extends Value
+  case class ArrayValue(items: List[Value]) extends Value
+  case object NullValue                    extends Value
 
   def parseObject(input: String): Either[JwtError, Map[String, Value]] = {
     val parser = new Parser(input)
@@ -157,6 +200,19 @@ private[jwt] object JwtJson {
       case Some(StringValue(value)) => Right(Some(value))
       case Some(NullValue)          => Right(None)
       case Some(_)                  => Left(JwtError.InvalidToken(s"claim '$key' must be a string"))
+      case None                     => Right(None)
+    }
+
+  /** Parses `aud` per RFC 7519 §4.1.3: either a single string or an array of strings. */
+  def optionalAud(fields: Map[String, Value], key: String): Either[JwtError, Option[Either[String, List[String]]]] =
+    fields.get(key) match {
+      case Some(StringValue(value)) => Right(Some(Left(value)))
+      case Some(ArrayValue(items))  =>
+        val strings = items.collect { case StringValue(s) => s }
+        if (strings.length != items.length) Left(JwtError.InvalidToken(s"claim '$key' array must contain only strings"))
+        else Right(Some(Right(strings)))
+      case Some(NullValue)          => Right(None)
+      case Some(_)                  => Left(JwtError.InvalidToken(s"claim '$key' must be a string or array of strings"))
       case None                     => Right(None)
     }
 
@@ -202,11 +258,12 @@ private[jwt] object JwtJson {
     builder.append('"').toString
   }
 
-  private[this] def renderValue(value: Value): String = value match {
-    case StringValue(text)   => quote(text)
-    case NumberValue(number) => number
-    case BooleanValue(bool)  => if (bool) "true" else "false"
-    case NullValue           => "null"
+  def renderValue(value: Value): String = value match {
+    case StringValue(text)    => quote(text)
+    case NumberValue(number)  => number
+    case BooleanValue(bool)   => if (bool) "true" else "false"
+    case ArrayValue(items)    => items.map(renderValue).mkString("[", ",", "]")
+    case NullValue            => "null"
   }
 
   private[this] def parseLong(value: String): Either[JwtError, Long] =
@@ -279,13 +336,33 @@ private[jwt] object JwtJson {
       input.charAt(index) match {
         case '"' => Some(StringValue(parseString()))
         case '{' => skipNested('{', '}'); None
-        case '[' => skipNested('[', ']'); None
+        case '[' => Some(parseArray())
         case 't' => consumeLiteral("true"); Some(BooleanValue(true))
         case 'f' => consumeLiteral("false"); Some(BooleanValue(false))
         case 'n' => consumeLiteral("null"); Some(NullValue)
         case '-' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' => Some(NumberValue(parseNumber()))
         case _ => fail("invalid JSON value")
       }
+    }
+
+    private[this] def parseArray(): ArrayValue = {
+      expect('[')
+      skipWhitespace()
+
+      val items = scala.collection.mutable.ListBuffer.empty[Value]
+      var done  = false
+
+      if (peek(']')) { index += 1; done = true }
+
+      while (!done) {
+        parseValue().foreach(items += _)
+        skipWhitespace()
+        if (peek(',')) { index += 1; skipWhitespace() }
+        else if (peek(']')) { index += 1; done = true }
+        else fail("expected ',' or ']'")
+      }
+
+      ArrayValue(items.toList)
     }
 
     private[this] def parseString(): String = {
@@ -402,6 +479,8 @@ private[jwt] object JwtJson {
 }
 
 private[jwt] object SharedJwtCryptoBackend extends JwtCryptoBackend {
+  val supportedAlgorithms: Set[Algorithm] = Set(Algorithm.HS256, Algorithm.HS384, Algorithm.HS512)
+
   def sign(data: Array[Byte], key: Array[Byte], alg: Algorithm): Either[JwtError, Array[Byte]] = alg match {
     case Algorithm.HS256 => Right(HmacSha2.hmacSha256(key, data))
     case Algorithm.HS384 => Right(HmacSha2.hmacSha384(key, data))

@@ -18,37 +18,50 @@ package zio.blocks.jwt
 
 import scala.util.control.NoStackTrace
 
+/** A failure that can occur during JWT signing or decoding.
+ *
+ *  All subtypes extend [[scala.util.control.NoStackTrace]] to avoid capturing a stack trace
+ *  on the hot decoding path.
+ */
 sealed trait JwtError extends NoStackTrace {
+  /** Human-readable description of the error. */
   def message: String
 
   override def getMessage: String = message
 }
 
 object JwtError {
+  /** The token is structurally or semantically malformed. */
   case class InvalidToken(reason: String) extends JwtError {
     def message: String = s"Invalid JWT token: $reason"
   }
 
+  /** The token's `exp` claim is in the past. */
   case class ExpiredToken(expiredAt: Long, now: Long) extends JwtError {
     def message: String = s"JWT token expired at $expiredAt (now: $now)"
   }
 
+  /** The token's `nbf` claim is in the future. */
   case class NotYetValid(notBefore: Long, now: Long) extends JwtError {
     def message: String = s"JWT token is not valid before $notBefore (now: $now)"
   }
 
+  /** Cryptographic signature verification failed. */
   case class InvalidSignature(alg: String) extends JwtError {
     def message: String = s"JWT signature verification failed for algorithm $alg"
   }
 
+  /** The active [[JwtCryptoBackend]] does not support this algorithm. */
   case class UnsupportedAlgorithm(alg: String) extends JwtError {
     def message: String = s"Unsupported JWT algorithm: $alg"
   }
 
+  /** A required claim was absent from the token. */
   case class MissingClaim(claim: String) extends JwtError {
     def message: String = s"Missing JWT claim: $claim"
   }
 
+  /** The `alg` header does not match the algorithm the caller requested. */
   case class AlgorithmMismatch(expected: String, found: String) extends JwtError {
     def message: String = s"JWT algorithm mismatch: expected $expected but found $found"
   }

@@ -16,10 +16,13 @@
 
 package zio.blocks.jwt
 
+/** A JWT signing algorithm as defined in RFC 7518. */
 sealed trait Algorithm extends Product with Serializable {
+  /** The algorithm identifier string used in the JWT header `alg` field. */
   def name: String
 }
 
+/** Supported JWT algorithms. Use [[Algorithm.fromString]] to parse an `alg` header value. */
 object Algorithm {
   case object HS256 extends Algorithm {
     val name: String = "HS256"
@@ -73,9 +76,11 @@ object Algorithm {
     val name: String = "EdDSA"
   }
 
+  /** All algorithms known to this library. */
   val all: List[Algorithm] = List(HS256, HS384, HS512, RS256, RS384, RS512, PS256, PS384, PS512, ES256, ES384, ES512, EdDSA)
 
   private[this] val byName: Map[String, Algorithm] = all.map(alg => alg.name -> alg).toMap
 
+  /** Returns the algorithm for a given `alg` string, or `None` if unrecognised. */
   def fromString(s: String): Option[Algorithm] = byName.get(s)
 }

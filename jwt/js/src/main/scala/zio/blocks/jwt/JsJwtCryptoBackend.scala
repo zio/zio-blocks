@@ -21,9 +21,12 @@ import scala.scalajs.js.Dynamic.{ global => g }
 import scala.scalajs.js.typedarray.Int8Array
 
 object JsJwtCryptoBackend extends JwtCryptoBackend {
-  install()
-
   def install(): Unit = JwtCrypto.backend = this
+
+  val supportedAlgorithms: Set[Algorithm] =
+    Set(Algorithm.HS256, Algorithm.HS384, Algorithm.HS512,
+        Algorithm.RS256, Algorithm.RS384, Algorithm.RS512,
+        Algorithm.ES256, Algorithm.ES384, Algorithm.ES512)
 
   private lazy val crypto = g.require("crypto")
 

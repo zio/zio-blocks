@@ -29,7 +29,7 @@ object JwtSpec extends ZIOSpecDefault {
   private val vectorClaims  = JwtClaims(
     sub   = Some("1234567890"),
     iat   = Some(1516239022L),
-    extra = Map("name" -> "John Doe")
+    extra = Map("name" -> JwtJson.StringValue("John Doe"))
   )
   private val issuerClaims  = JwtClaims(sub = Some("test-subject"), iss = Some("test-issuer"))
   private val noIssuerClaims = JwtClaims(sub = Some("test-subject"))
@@ -66,7 +66,7 @@ object JwtSpec extends ZIOSpecDefault {
         val result = Jwt.sign(vectorClaims, key256, Algorithm.HS256).flatMap(t =>
           Jwt.decode(t, key256, Algorithm.HS256)
         )
-        assertTrue(result.map(_.extra.get("name")) == Right(Some("John Doe")))
+        assertTrue(result.map(_.extra.get("name")) == Right(Some(JwtJson.StringValue("John Doe"))))
       }
     ),
     suite("claims validation")(
