@@ -28,9 +28,59 @@ import zio.test.Assertion._
  */
 object StreamConcatSharedSpec extends StreamsBaseSpec {
 
+  final case class Word(value: String)
+  final case class Count(value: Int)
+  final case class Flag(value: Boolean)
+  final case class Ratio(value: Double)
+
+  sealed trait TaggedValue
+  final case class TaggedString(value: String)   extends TaggedValue
+  final case class TaggedInt(value: Int)         extends TaggedValue
+  final case class TaggedBoolean(value: Boolean) extends TaggedValue
+  final case class TaggedDouble(value: Double)   extends TaggedValue
+
   sealed trait Animal
   final case class Dog(name: String) extends Animal
   final case class Cat(name: String) extends Animal
+
+  private def tagStringIntBoolean(
+    value: Either[Either[String, Int], Boolean]
+  ): TaggedValue =
+    value match {
+      case Left(Left(value))  => TaggedString(value)
+      case Left(Right(value)) => TaggedInt(value)
+      case Right(value)       => TaggedBoolean(value)
+    }
+
+  private def tagStringIntBooleanDouble(
+    value: Either[Either[Either[String, Int], Boolean], Double]
+  ): TaggedValue =
+    value match {
+      case Left(left)   => tagStringIntBoolean(left)
+      case Right(value) => TaggedDouble(value)
+    }
+
+  private def tagWordCountFlag(value: Any): TaggedValue =
+    value match {
+      case Word(value)                    => TaggedString(value)
+      case Count(value)                   => TaggedInt(value)
+      case Flag(value)                    => TaggedBoolean(value)
+      case Left(Left(Word(value)))        => TaggedString(value)
+      case Left(Right(Count(value)))      => TaggedInt(value)
+      case Right(Flag(value))             => TaggedBoolean(value)
+    }
+
+  private def tagWordCountFlagRatio(
+    value: Any
+  ): TaggedValue =
+    value match {
+      case Word(value)                      => TaggedString(value)
+      case Count(value)                     => TaggedInt(value)
+      case Flag(value)                      => TaggedBoolean(value)
+      case Ratio(value)                     => TaggedDouble(value)
+      case Left(left)                       => tagWordCountFlag(left)
+      case Right(Ratio(value))              => TaggedDouble(value)
+    }
 
   def spec: Spec[TestEnvironment, Any] = suite("Stream.++ / concat (shared)")(
     test("disjoint concatenation") {
@@ -102,27 +152,27 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       )
     },
     test("three-stream concatenation") {
-      val result: Stream[Nothing, String | Int | Boolean] =
-        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true)
+      val result: Stream[Nothing, Word | Count | Flag] =
+        Stream.succeed(Word("hello")) ++ Stream.succeed(Count(42)) ++ Stream.succeed(Flag(true))
 
-      val normalized = result.runCollect.map(
-        _.map(separateStringIntBoolean)
+      val tagged = result.runCollect.map(
+        _.map(tagWordCountFlag)
       )
 
-      assert(normalized)(
-        equalTo(Right(Chunk(Left(Left("hello")), Left(Right(42)), Right(true))))
+      assert(tagged)(
+        equalTo(Right(Chunk(TaggedString("hello"), TaggedInt(42), TaggedBoolean(true))))
       )
     },
     test("four-stream concatenation") {
-      val result: Stream[Nothing, String | Int | Boolean | Double] =
-        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true) ++ Stream.succeed(3.14)
+      val result: Stream[Nothing, Word | Count | Flag | Ratio] =
+        Stream.succeed(Word("hello")) ++ Stream.succeed(Count(42)) ++ Stream.succeed(Flag(true)) ++ Stream.succeed(Ratio(3.14))
 
-      val normalized = result.runCollect.map(
-        _.map(separateStringIntBooleanDouble)
+      val tagged = result.runCollect.map(
+        _.map(tagWordCountFlagRatio)
       )
 
-      assert(normalized)(
-        equalTo(Right(Chunk(Left(Left(Left("hello"))), Left(Left(Right(42))), Left(Right(true)), Right(3.14))))
+      assert(tagged)(
+        equalTo(Right(Chunk(TaggedString("hello"), TaggedInt(42), TaggedBoolean(true), TaggedDouble(3.14))))
       )
     },
     test("mapError reader reset remains unsupported") {
