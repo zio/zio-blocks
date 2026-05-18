@@ -113,7 +113,7 @@ Practical examples demonstrate common usage:
 
 A sealed trait with only case objects:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -130,30 +130,21 @@ val file = ScalaFile(
   packageDecl = PackageDecl("com.graphics"),
   types = List(color)
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.graphics
-
-sealed trait Color
-
-object Color {
-  case object Red extends Color
-  case object Green extends Color
-  case object Blue extends Color
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 2: Mixed Case Objects and Case Classes
 
 A sealed trait with both simple and complex cases:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val payment = SealedTrait(
   name = "Payment",
@@ -174,34 +165,26 @@ val payment = SealedTrait(
   ),
   derives = List("Show")
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(payment)
+)
 ```
 
 Emits:
 
-```scala
-sealed trait Payment
-
-object Payment {
-  case class CreditCard(
-    number: String,
-    expiry: String
-  ) extends Payment
-  
-  case class BankTransfer(
-    accountNumber: String
-  ) extends Payment
-  
-  case object Cash extends Payment
-  case object Check extends Payment
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 3: Generic Sealed Trait
 
 A polymorphic sealed trait with type parameters:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val either = SealedTrait(
   name = "Either",
@@ -215,25 +198,26 @@ val either = SealedTrait(
     )
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(either)
+)
 ```
 
 Emits:
 
-```scala
-sealed trait Either[L, R]
-
-object Either {
-  final case class Left[L, R](value: L) extends Either[L, R]
-  final case class Right[L, R](value: R) extends Either[L, R]
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 4: Error ADT
 
 A sealed trait for error handling:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val appError = SealedTrait(
   name = "AppError",
@@ -254,4 +238,15 @@ val appError = SealedTrait(
   ),
   derives = List("Show")
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(appError)
+)
+```
+
+Emits:
+
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```

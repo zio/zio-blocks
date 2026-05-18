@@ -230,7 +230,7 @@ Practical examples demonstrate common usage:
 
 A file with multiple `TypeDefinition` variants:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -260,7 +260,11 @@ val file = ScalaFile(
     )
   )
 )
+```
 
+Emits:
+
+```scala mdoc
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -268,8 +272,9 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Defining a polymorphic case class:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val box = CaseClass(
   name = "Box",
@@ -280,11 +285,16 @@ val box = CaseClass(
     TypeParam("A")
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(box)
+)
 ```
 
 Emits:
 
-```scala
-case class Box[A](value: A)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 

@@ -84,7 +84,7 @@ These examples show practical usage patterns for `Field`:
 
 Create fields for a case class:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -102,29 +102,21 @@ val file = ScalaFile(
   packageDecl = PackageDecl("com.shop"),
   types = List(order)
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.shop
-
-case class Order(
-  id: Long,
-  customerId: String,
-  total: BigDecimal,
-  status: String
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 2: Fields with Defaults
 
 Case class fields with default values:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val config = CaseClass(
   name = "DatabaseConfig",
@@ -134,24 +126,26 @@ val config = CaseClass(
     Field("timeout", TypeRef.Long, defaultValue = Some("30000L"))
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(config)
+)
 ```
 
 Emits:
 
-```scala mdoc:compile-only
-case class DatabaseConfig(
-  host: String = "localhost",
-  port: Int = 5432,
-  timeout: Long = 30000L
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 3: Optional and Collection Fields
 
 Fields with generic types:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val article = CaseClass(
   name = "Article",
@@ -163,26 +157,26 @@ val article = CaseClass(
     Field("metadata", TypeRef.map(TypeRef.String, TypeRef.String))
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(article)
+)
 ```
 
 Emits:
 
-```scala mdoc:compile-only
-case class Article(
-  title: String,
-  content: String,
-  author: Option[String],
-  tags: List[String],
-  metadata: Map[String, String]
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 4: Nested Generic Types
 
 Complex field types:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val response = CaseClass(
   name = "Response",
@@ -201,23 +195,26 @@ val response = CaseClass(
     )
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(response)
+)
 ```
 
 Emits:
 
-```scala
-case class Response(
-  data: Option[List[String]],
-  errors: List[Map[String, String]]
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 5: Fields with Type Parameters
 
 Fields using generic type variables:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val page = CaseClass(
   name = "Page",
@@ -228,14 +225,15 @@ val page = CaseClass(
   ),
   typeParams = List(TypeParam("T"))
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(page)
+)
 ```
 
 Emits:
 
-```scala
-case class Page[T](
-  items: List[T],
-  total: Long,
-  pageSize: Int
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```

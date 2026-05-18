@@ -116,7 +116,7 @@ Practical examples demonstrate common usage:
 
 Generate a Scala file with multiple types:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -139,25 +139,19 @@ val file = ScalaFile(
 )
 
 val config = EmitterConfig(indentWidth = 2)
-val sourceCode = ScalaEmitter.emit(file, config)
+```
 
-// sourceCode is:
-// package com.api
-//
-// import scala.collection.Seq
-// import zio._
-//
-// final case class ApiResponse(
-//   status: Int,
-//   data: Option[String]
-// ) derives Show
+Emits:
+
+```scala mdoc
+ScalaEmitter.emit(file, config)
 ```
 
 ### Example 2: Cross-Scala Compatibility
 
 Generate code for different Scala versions:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -189,33 +183,21 @@ val scala2Code = ScalaEmitter.emit(file, scala2Config)
 
 Scala 3 emits:
 
-```scala
-package com.example
-
-enum Status {
-  case Active
-  case Inactive
-}
+```scala mdoc
+scala3Code
 ```
 
 Scala 2 emits:
 
-```scala
-package com.example
-
-sealed trait Status
-
-object Status {
-  case object Active extends Status
-  case object Inactive extends Status
-}
+```scala mdoc
+scala2Code
 ```
 
 ### Example 3: Sealed Trait with Multiple Cases
 
 Emit a complete ADT:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -246,6 +228,11 @@ val file = ScalaFile(
 )
 
 val config = EmitterConfig(trailingCommas = true)
+```
+
+Emits:
+
+```scala mdoc
 ScalaEmitter.emit(file, config)
 ```
 
@@ -253,7 +240,7 @@ ScalaEmitter.emit(file, config)
 
 Emit polymorphic types with proper type parameter syntax:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -280,28 +267,19 @@ val file = ScalaFile(
     )
   )
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.containers
-
-case class Wrapper[A](value: A)
-
-case class Pair[A, B](
-  left: A,
-  right: B
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 5: Formatting Customization
 
 Control code style with configuration:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -329,7 +307,11 @@ val config = EmitterConfig(
   sortImports = true,
   trailingCommas = true
 )
+```
 
+Emits:
+
+```scala mdoc
 ScalaEmitter.emit(file, config)
 ```
 

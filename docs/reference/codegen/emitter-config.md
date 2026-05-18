@@ -90,7 +90,7 @@ Here are practical examples showing different configuration scenarios:
 
 The default configuration for most projects:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -105,6 +105,11 @@ val file = ScalaFile(
 )
 
 val config = EmitterConfig()
+```
+
+Emits:
+
+```scala mdoc
 ScalaEmitter.emit(file, config)
 ```
 
@@ -112,7 +117,7 @@ ScalaEmitter.emit(file, config)
 
 For projects preferring 4-space indentation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -134,29 +139,19 @@ val file = ScalaFile(
 )
 
 val config = EmitterConfig(indentWidth = 4)
-ScalaEmitter.emit(file, config)
 ```
 
 Emits with 4-space indentation:
 
-```scala
-package com.example
-
-sealed trait Result
-
-object Result {
-    case class Success(
-        value: String
-    ) extends Result
-    case object Failure extends Result
-}
+```scala mdoc
+ScalaEmitter.emit(file, config)
 ```
 
 ### Example 3: Scala 2 Compatibility
 
 Target Scala 2 syntax for older codebases:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -179,30 +174,19 @@ val file = ScalaFile(
 val scala2Config = EmitterConfig(
   scala3Syntax = false
 )
-
-ScalaEmitter.emit(file, scala2Config)
 ```
 
 Emits sealed trait syntax (Scala 2 compatible):
 
-```scala
-package com.legacy
-
-import scala.collection._
-
-sealed trait Color
-
-object Color {
-  case object Red extends Color
-  case object Blue extends Color
-}
+```scala mdoc
+ScalaEmitter.emit(file, scala2Config)
 ```
 
 ### Example 4: No Trailing Commas
 
 For projects with strict no-trailing-commas rules:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -223,27 +207,19 @@ val file = ScalaFile(
 val config = EmitterConfig(
   trailingCommas = false
 )
-
-ScalaEmitter.emit(file, config)
 ```
 
 Emits without trailing comma on last field:
 
-```scala
-package com.strict
-
-case class Options(
-  a: String,
-  b: Int,
-  c: Boolean
-)
+```scala mdoc
+ScalaEmitter.emit(file, config)
 ```
 
 ### Example 5: Unsorted Imports
 
 For projects that manage imports manually:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -264,29 +240,19 @@ val file = ScalaFile(
 val config = EmitterConfig(
   sortImports = false  // Keep imports in declaration order
 )
-
-ScalaEmitter.emit(file, config)
 ```
 
 Preserves import order:
 
-```scala
-package com.example
-
-import zio._
-import scala.collection.Seq
-import scala._
-
-case class Data(
-  items: Seq[String]
-)
+```scala mdoc
+ScalaEmitter.emit(file, config)
 ```
 
 ### Example 6: Custom Combination
 
 Combining multiple preferences:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -317,7 +283,11 @@ val config = EmitterConfig(
   trailingCommas = false,
   scala3Syntax = false
 )
+```
 
+Emits:
+
+```scala mdoc
 ScalaEmitter.emit(file, config)
 ```
 

@@ -91,7 +91,7 @@ Practical examples demonstrate common usage. Each builds a `ScalaFile`, calls `S
 
 A file with just a package and one case class (all examples use `zio.blocks.codegen.ir._` and `zio.blocks.codegen.emit._` imports):
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -104,23 +104,19 @@ val minimal = ScalaFile(
     )
   )
 )
-
-val emitted = ScalaEmitter.emit(minimal, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.example
-
-case class Empty()
+```scala mdoc
+ScalaEmitter.emit(minimal, EmitterConfig())
 ```
 
 ### Example 2: File with Multiple Types
 
 A file with a sealed trait and case classes:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -142,31 +138,21 @@ val multiType = ScalaFile(
     )
   )
 )
-
-val emitted = ScalaEmitter.emit(multiType, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.payment
-
-import zio._
-
-sealed trait PaymentMethod
-
-object PaymentMethod {
-  case class Card(cardNumber: String) extends PaymentMethod
-  case object Cash extends PaymentMethod
-}
+```scala mdoc
+ScalaEmitter.emit(multiType, EmitterConfig())
 ```
 
 ### Example 3: File with Imports and Type Parameters
 
 A file demonstrating generic types and selective imports:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val generic = ScalaFile(
   packageDecl = PackageDecl("com.containers"),
@@ -184,4 +170,10 @@ val generic = ScalaFile(
     )
   )
 )
+```
+
+Emits:
+
+```scala mdoc
+ScalaEmitter.emit(generic, EmitterConfig())
 ```
