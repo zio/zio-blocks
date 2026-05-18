@@ -29,6 +29,95 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
 
+## Config
+
+Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
+
+### Key Features
+
+- **Static flags**: Resolve once at class load with `StaticFlag[A]`
+- **Typed config loading**: Decode case classes with `Config.load[A]`
+- **Plugin providers**: Register custom flag providers in `FlagProvider.Registry`
+- **Source composition**: Combine sources with `orElse` and keep provenance
+- **Rollout DSL**: Select values with path and percentage rules
+- **File adapters**: Parse YAML, JSON, and HOCON into `ConfigSource`
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
+```
+
+### Quick Start: StaticFlag
+
+```scala
+import zio.blocks.config.*
+
+object poolSize extends StaticFlag[Int](10)
+
+val size: Int = poolSize()
+```
+
+### Quick Start: Config.load[A]
+
+```scala
+import zio.blocks.config.*
+import zio.blocks.schema.Schema
+
+final case class AppConfig(host: String, port: Int)
+object AppConfig:
+  given Schema[AppConfig] = Schema.derived
+
+val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
+```
+
+### Example: FlagProvider Plugin
+
+```scala
+import zio.blocks.config.*
+
+val provider = FlagProvider.fromMap(Map("myapp.pool.size" -> "20"), "demo")
+FlagProvider.Registry.register(provider)
+
+object poolSize extends StaticFlag[Int](10)
+val size = poolSize()
+```
+
+### Example: ConfigSource Composition with Provenance
+
+```scala
+import zio.blocks.config.*
+
+val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
+val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
+val source   = env.orElse(defaults)
+
+final case class AppConfig(host: String, port: Int)
+object AppConfig:
+  given zio.blocks.schema.Schema[AppConfig] = zio.blocks.schema.Schema.derived
+
+val loaded   = Config.loadWithProvenance[AppConfig](source)
+val hostProv  = loaded.map(_.provenanceOf("host"))
+```
+
+### Example: Rollout DSL
+
+```scala
+import zio.blocks.config.*
+
+val bucket = Rollout.bucketFor("user-123")
+val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
+```
+
+### File Format Adapters
+
+- **YAML**: `zio.blocks.config.yaml.YamlConfigSource.fromString`
+- **JSON**: `zio.blocks.config.json.JsonConfigSource.fromString`
+- **HOCON**: `zio.blocks.config.hocon.HoconConfigSource.fromString`
+
 ## Core Principles
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
