@@ -630,7 +630,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling

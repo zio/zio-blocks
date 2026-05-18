@@ -99,12 +99,14 @@ addCommandAlias(
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
+    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -129,12 +131,14 @@ lazy val testJS2Scala3Command =
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
@@ -156,6 +160,10 @@ lazy val docJSScala3Batch1Command =
 lazy val docJSScala3Batch2Command =
   "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
 
+def whenJdkAtLeast(minVersion: Int, command: String): String = {
+  val currentVersion = System.getProperty("java.specification.version", "17").toInt
+  if (currentVersion >= minVersion) s"; $command" else ""
+}
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
     val extracted = Project.extract(state)
@@ -484,6 +492,93 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
           "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
         )
     })
+  )
+
+lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
+  .settings(stdSettings("zio-blocks-telemetry"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.telemetry"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 55,
+    coverageMinimumBranchTotal := 48,
+    coverageExcludedFiles      := Seq(
+      ".*PlatformExecutor.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    Compile / scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2."))
+        Seq("-Wconf:cat=unchecked:s")
+      else Nil
+    }
+  )
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("25")
+        else Seq(opt)
+      }
+    }
+  )
+  .jsSettings(jsSettings)
+
+lazy val otel = project
+  .in(file("otel"))
+  .settings(stdSettings("zio-blocks-telemetry-otel"))
+  .dependsOn(telemetry.jvm)
+  .settings(buildInfoSettings("zio.blocks.telemetry.otel"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .settings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("25")
+        else Seq(opt)
+      }
+    }
+  )
+
+lazy val telemetryBenchmarks = project
+  .in(file("telemetry-benchmarks"))
+  .settings(stdSettings("zio-blocks-telemetry-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(telemetry.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
