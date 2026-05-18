@@ -94,6 +94,8 @@ val person = CaseClass(
 Each component can be accessed and displayed:
 
 ```scala mdoc
+import zio.blocks.codegen.ir._
+
 person.name            // "Person"
 person.fields          // List[Field]
 person.typeParams      // List[TypeParam] (empty if not generic)
@@ -119,9 +121,11 @@ val person = CaseClass(
 )
 ```
 
-Create a modified copy by adding a new field:
+Create a new version with additional fields:
 
 ```scala mdoc
+import zio.blocks.codegen.ir._
+
 val extended = person.copy(
   fields = person.fields :+ Field("phone", TypeRef.String),
   derives = List("Show")
