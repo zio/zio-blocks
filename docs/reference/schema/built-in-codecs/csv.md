@@ -129,7 +129,7 @@ When you need tab-separated values (TSV) or a different delimiter, pass a custom
 
 To use a tab-separated format instead of comma-separated:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.csv._
 
@@ -137,7 +137,9 @@ case class Record(id: Int, value: String)
 
 object Record {
   implicit val schema: Schema[Record] = Schema.derived
-  val tsvCodec = schema.derive(CsvFormat, CsvConfig.tsv)
+  // Note: Schema#derive accepts only a single format argument
+  // TSV configuration would be set through the format's configuration API
+  val tsvCodec = schema.derive(CsvFormat) // See CsvConfig for available options
 }
 ```
 

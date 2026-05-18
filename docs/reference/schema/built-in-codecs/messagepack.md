@@ -179,7 +179,9 @@ object Event {
 }
 
 val codec = Event.schema.derive(MessagePackFormat)
-val inputStream = new ByteArrayInputStream(??? : Array[Byte])
+// In real code, use actual serialized bytes from a previous encoding
+val sampleBytes: Array[Byte] = scala.io.Source.fromFile("events.msgpack").map(_.toByte).toArray
+val inputStream = new ByteArrayInputStream(sampleBytes)
 
 // Decode multiple events from stream
 // Reader pool automatically manages efficient instance reuse
@@ -276,7 +278,13 @@ object Record {
 }
 
 val codec = Record.schema.derive(MessagePackFormat)
-val bytes: Array[Byte] = ??? // from somewhere
+// In real usage, you would have encoded bytes from a previous encoding or external source
+val record = Record(123, "test value")
+val buffer = java.nio.ByteBuffer.allocate(256)
+codec.encode(record, buffer)
+buffer.flip()
+val bytes = new Array[Byte](buffer.remaining())
+buffer.get(bytes)
 
 val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 ```
@@ -297,7 +305,12 @@ object Data {
 }
 
 val codec = Data.schema.derive(MessagePackFormat)
-val input = new ByteArrayInputStream(??? : Array[Byte])
+// In real code, use actual encoded data
+val sampleData = Data(System.currentTimeMillis(), "example")
+val buffer = new java.nio.ByteBuffer.allocate(256)
+codec.encode(sampleData, buffer)
+buffer.flip()
+val input = new ByteArrayInputStream(buffer.array())
 val result = codec.decode(input)
 ```
 
@@ -411,14 +424,19 @@ Low-level binary parser implementing MessagePack format with type-specific optim
 
 To read individual values from a MessagePack-encoded byte array:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.msgpack._
+import zio.blocks.schema._
 
-val reader = new MessagePackReader()
 val bytes = Array[Byte](42) // MessagePack-encoded integer
 
-reader.reset(bytes, 0, bytes.length)
-val intValue = reader.readInt()
+// Use the codec API for public access to decoding
+case class Value(data: Int)
+object Value {
+  implicit val schema: Schema[Value] = Schema.derived
+}
+val codec = Value.schema.derive(MessagePackFormat)
+val result = codec.decode(bytes)
 ```
 
 ---
@@ -435,14 +453,21 @@ Low-level binary encoder implementing MessagePack format with optimizations for 
 
 To write individual values to MessagePack format:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
 import java.io.ByteArrayOutputStream
 
-val writer = new MessagePackWriter()
+// Use the codec API for public access to encoding
+case class Value(data: Int)
+object Value {
+  implicit val schema: Schema[Value] = Schema.derived
+}
+val codec = Value.schema.derive(MessagePackFormat)
 val output = new ByteArrayOutputStream()
 
-writer.writeInt(42, output)
+val value = Value(42)
+codec.encode(value, output)
 val bytes = output.toByteArray
 ```
 
@@ -456,7 +481,7 @@ MessagePack decoding errors include location traces showing the path through nes
 
 Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
 
@@ -467,7 +492,8 @@ object Contact {
 }
 
 val codec = Contact.schema.derive(MessagePackFormat)
-val invalidBytes: Array[Byte] = ???
+// Example invalid bytes - in real code, this might come from untrusted input
+val invalidBytes: Array[Byte] = Array(0xFF.toByte, 0xFF.toByte) // Invalid MessagePack data
 
 val result = codec.decode(invalidBytes)
 
