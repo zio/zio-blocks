@@ -64,6 +64,7 @@ trait Concat[L, R] {
 }
 
 object Concat extends ConcatCompanionPlatform {
+
   /**
    * Convenience alias for a [[Concat]] instance with a fixed output type.
    *
