@@ -17,16 +17,14 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.combinators.Choices
 import zio.test._
 import zio.test.Assertion._
 
 /**
  * Cross-version tests for `Stream.++` / `Stream.concat`.
  *
- * `Choices.separate` normalizes disjoint unions to `Either[L, R]`, which keeps
- * the assertions identical on Scala 2 (`|` = `Either`) and Scala 3 (native
- * unions).
+ * Disjoint concat results are normalized in the assertions so the shared tests
+ * stay identical on Scala 2 (`|` = `Either`) and Scala 3 (native unions).
  */
 object StreamConcatSharedSpec extends StreamsBaseSpec {
 
@@ -37,7 +35,8 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("Stream.++ / concat (shared)")(
     test("disjoint concatenation") {
       val result: Stream[Nothing, String | Int] = Stream.succeed("hello") ++ Stream.succeed(42)
-      assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
+      val normalized = result.runCollect.map(_.map(separateStringInt))
+      assert(normalized)(
         equalTo(Right(Chunk(Left("hello"), Right(42))))
       )
     },
@@ -51,13 +50,15 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
     },
     test("empty left stream") {
       val result = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
-      assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
+      val normalized = result.runCollect.map(_.map(separateStringInt))
+      assert(normalized)(
         equalTo(Right(Chunk(Right(42))))
       )
     },
     test("empty right stream") {
       val result = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
-      assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
+      val normalized = result.runCollect.map(_.map(separateStringInt))
+      assert(normalized)(
         equalTo(Right(Chunk(Left("hello"))))
       )
     },
@@ -95,7 +96,8 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
     },
     test("multiple elements per side") {
       val result = Stream("a", "b") ++ Stream(1, 2)
-      assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
+      val normalized = result.runCollect.map(_.map(separateStringInt))
+      assert(normalized)(
         equalTo(Right(Chunk(Left("a"), Left("b"), Right(1), Right(2))))
       )
     },
@@ -104,12 +106,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
         Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true)
 
       val normalized = result.runCollect.map(
-        _.map(elem =>
-          Choices.separate[String | Int, Boolean](elem) match {
-            case Left(left)  => Left(Choices.separate[String, Int](left))
-            case Right(bool) => Right(bool)
-          }
-        )
+        _.map(separateStringIntBoolean)
       )
 
       assert(normalized)(
@@ -121,18 +118,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
         Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true) ++ Stream.succeed(3.14)
 
       val normalized = result.runCollect.map(
-        _.map(elem =>
-          Choices.separate[String | Int | Boolean, Double](elem) match {
-            case Left(left3) =>
-              Left(
-                Choices.separate[String | Int, Boolean](left3) match {
-                  case Left(left2)  => Left(Choices.separate[String, Int](left2))
-                  case Right(bool) => Right(bool)
-                }
-              )
-            case Right(double) => Right(double)
-          }
-        )
+        _.map(separateStringIntBooleanDouble)
       )
 
       assert(normalized)(

@@ -18,4 +18,12 @@ package zio.blocks
 
 package object streams {
   type |[+L, +R] = Either[L, R]
+
+  def separateStringInt(value: String | Int): Either[String, Int] = value
+
+  def separateStringIntBoolean(value: String | Int | Boolean): Either[Either[String, Int], Boolean] = value
+
+  def separateStringIntBooleanDouble(
+    value: String | Int | Boolean | Double
+  ): Either[Either[Either[String, Int], Boolean], Double] = value
 }
