@@ -469,4 +469,4 @@ catalog.foreach { p =>
 - **[Schema Reference](../reference/schema/schema.md)** -- Schema derivation and type-level metadata
 - **[Path Interpolator](../path-interpolator.md)** -- String-based path construction with `p"..."` syntax
 
-The `SchemaExpr` expression tree is a sealed trait, making it straightforward to write interpreters that translate queries to SQL, MongoDB filters, Elasticsearch queries, or any other target language. Because each optic carries its `DynamicOptic` path (via `toDynamic`), you can extract field names and paths programmatically for these translations.
+`SchemaExpr` is a typed wrapper around a serializable `DynamicSchemaExpr` tree, making it straightforward to write interpreters that translate queries to SQL, MongoDB filters, Elasticsearch queries, or any other target language. Because each optic carries its `DynamicOptic` path (via `toDynamic`), you can extract field names and paths programmatically for these translations.

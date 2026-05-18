@@ -3,16 +3,22 @@ id: schema-expr
 title: "SchemaExpr"
 ---
 
-`SchemaExpr[A, +B]` is a **schema-aware expression** that computes a result of type `B` from an input value of type `A`. The input type `A` must be fully described by a [`Schema`](./schema.md), and the expression is built from [optics](./optics.md), literal values, and operators. The fundamental operations are `eval` and `evalDynamic`.
+`SchemaExpr[A, B]` is a **schema-aware expression** that computes a result of type `B` from an input value of type `A`. The input type `A` must be fully described by a [`Schema`](./schema.md), and the expression is built from [optics](./optics.md), literal values, and operators. The fundamental operations are `eval` and `evalDynamic`.
+
+At runtime, `SchemaExpr` is a typed wrapper around `DynamicSchemaExpr`. The typed layer carries the input and output schemas, while the dynamic layer stores the serializable AST. This split is why you will sometimes see both `.dynamic` and `DynamicSchemaExpr` in advanced examples: `SchemaExpr` is the public typed API, and `DynamicSchemaExpr` is the untyped transport/runtime form underneath it.
 
 `SchemaExpr`:
 - represents expressions as a reified AST, enabling introspection and serialization
 - supports relational (`===`, `>`, `<`, `>=`, `<=`, `!=`), logical (`&&`, `||`, `!`), arithmetic (`+`, `-`, `*`), and string (`concat`, `matches`, `length`) operations
 - evaluates to `Either[OpticCheck, Seq[B]]`, handling failures and multi-valued results from traversals
-- is covariant in `B`, the output type
+- preserves both input and output schemas at the type level
 
 ```scala
-sealed trait SchemaExpr[A, +B] {
+final case class SchemaExpr[A, B](
+  dynamic: DynamicSchemaExpr,
+  inputSchema: Schema[A],
+  outputSchema: Schema[B]
+) {
   def eval(input: A): Either[OpticCheck, Seq[B]]
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
@@ -84,6 +90,12 @@ Supported Scala versions: 2.13.x and 3.x.
 ## Creating Instances
 
 `SchemaExpr` instances are typically created through **operator syntax on optics** rather than by constructing AST nodes directly. Each operator on `Optic[S, A]` returns a `SchemaExpr[S, B]`.
+
+There are three common construction styles:
+
+- optic/operator syntax such as `Person.age >= 18`
+- literal expressions such as `SchemaExpr.literal[Person, Int](18)`
+- advanced direct construction when you intentionally need to work with the underlying dynamic AST
 
 ### Via Relational Operators on Optics
 
@@ -204,7 +216,7 @@ val adultOrAlice: SchemaExpr[Person, Boolean] = isAdult || isAlice
 
 ### Via Direct AST Construction
 
-For advanced use cases, we can construct `SchemaExpr` nodes directly:
+For advanced use cases, you can construct `SchemaExpr` values directly. In most application code, prefer optic/operator syntax or `SchemaExpr.literal` because they preserve the typed surface and are easier to read.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -217,15 +229,19 @@ object Item extends CompanionOptics[Item] {
   val price: Lens[Item, Int] = $(_.price)
 }
 
-// Construct AST nodes directly
-val lit: SchemaExpr[Item, Int] = new SchemaExpr.Literal(42, Schema[Int])
-val opticExpr: SchemaExpr[Item, Int] = new SchemaExpr.Optic(Item.price)
-val comparison: SchemaExpr[Item, Boolean] = new SchemaExpr.Relational(
+// Construct via factory methods
+val lit: SchemaExpr[Item, Int] = SchemaExpr.literal[Item, Int](42)
+val opticExpr: SchemaExpr[Item, Int] = SchemaExpr.optic[Item, Int](Item.price.toDynamic, Item.schema)
+val comparison: SchemaExpr[Item, Boolean] = SchemaExpr.relational(
   opticExpr,
   lit,
   SchemaExpr.RelationalOperator.GreaterThan
 )
 ```
+
+`SchemaExpr.literal` is the normal way to inject constants into an expression tree. It produces a typed `SchemaExpr[S, A]`, while storing the value internally as a `DynamicSchemaExpr.Literal`. That is usually what you want in user code, including migration builders.
+
+If you need the raw dynamic form for serialization, transport, or custom interpreters, use `.dynamic` on an existing `SchemaExpr` rather than constructing `DynamicSchemaExpr` directly unless you are working on expression internals.
 
 ## Core Operations
 
@@ -236,7 +252,7 @@ val comparison: SchemaExpr[Item, Boolean] = new SchemaExpr.Relational(
 Evaluates the expression against an input value, returning the typed result. The result is a `Seq[B]` because traversal-based expressions can produce multiple values.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def eval(input: A): Either[OpticCheck, Seq[B]]
 }
 ```
@@ -272,7 +288,7 @@ When an expression wraps a `Traversal` optic, `eval` returns multiple values —
 Like `eval`, but converts the result to [`DynamicValue`](./dynamic-value.md) instances. This is useful for serialization or when working with schema-agnostic code.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 }
 ```
@@ -290,7 +306,7 @@ object Person extends CompanionOptics[Person] {
   val name: Lens[Person, String] = $(_.name)
 }
 
-val nameExpr = new SchemaExpr.Optic(Person.name)
+val nameExpr = SchemaExpr.optic[Person, String](Person.name.toDynamic, Person.schema)
 val result = nameExpr.evalDynamic(Person("Alice", 30))
 // Right(List(DynamicValue.Primitive(PrimitiveValue.String("Alice"))))
 ```
@@ -302,7 +318,7 @@ val result = nameExpr.evalDynamic(Person("Alice", 30))
 Combines two boolean-typed expressions with logical AND. Both operands must produce `Boolean` results.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def &&[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
 }
 ```
@@ -331,7 +347,7 @@ val result = isAdultAlice.eval(Person("Alice", 30))
 Combines two boolean-typed expressions with logical OR.
 
 ```scala
-trait SchemaExpr[A, +B] {
+trait SchemaExprLike[A, B] {
   def ||[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
 }
 ```
@@ -355,50 +371,43 @@ val result = isAdultOrAlice.eval(Person("Alice", 12))
 // Right(List(true)) — Alice, even though not adult
 ```
 
-## Subtypes
+## Structure
 
-`SchemaExpr` is a sealed trait with a rich set of case classes representing different expression nodes. These form an **expression AST** that can be inspected, serialized, or translated to other query languages.
+`SchemaExpr` is a typed wrapper. The actual expression AST lives in `DynamicSchemaExpr`, which is a sealed trait of serializable expression nodes. `SchemaExpr` adds the input and output schemas needed to convert between typed values and [`DynamicValue`](./dynamic-value.md).
 
-### Leaf Nodes
+### `DynamicSchemaExpr` leaf nodes
 
-#### `SchemaExpr.Literal`
+#### `DynamicSchemaExpr.Literal`
 
-A constant value that ignores the input and always produces the same result.
+A constant value represented directly as a `DynamicValue`.
 
 ```scala
-object SchemaExpr {
-  case class Literal[S, A](value: A, schema: Schema[A]) extends SchemaExpr[S, A]
+object DynamicSchemaExpr {
+  final case class Literal(value: DynamicValue) extends DynamicSchemaExpr
 }
 ```
 
-The `Literal#eval` always returns `Right(Seq(value))` regardless of the input. The `Literal#schema` parameter enables conversion to `DynamicValue` via `evalDynamic`.
+#### `DynamicSchemaExpr.Select`
 
-#### `SchemaExpr.Optic`
-
-Wraps an [`Optic[A, B]`](./optics.md) to extract values from the input. The behavior depends on the optic type:
+Selects values from the input using a [`DynamicOptic`](./dynamic-optic.md).
 
 ```scala
-object SchemaExpr {
-  case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B]
+object DynamicSchemaExpr {
+  final case class Select(path: DynamicOptic) extends DynamicSchemaExpr
 }
 ```
 
-| Optic Type  | `SchemaExpr.Optic#eval` Behavior                                                      |
-|-------------|---------------------------------------------------------------------------------------|
-| `Lens`      | Always succeeds with a single value                                                   |
-| `Prism`     | Succeeds if the input matches the expected case; otherwise returns `Left(OpticCheck)` |
-| `Optional`  | Succeeds if the value is present; otherwise returns `Left(OpticCheck)`                |
-| `Traversal` | Returns all elements; returns `Left(OpticCheck)` if the collection is empty           |
+`SchemaExpr.optic(...)` and optic operator syntax eventually produce `DynamicSchemaExpr.Select` nodes.
 
-### Unary Operations
+### Unary operations
 
-#### `SchemaExpr.Not`
+#### `DynamicSchemaExpr.Not`
 
 Negates a boolean expression.
 
 ```scala
-object SchemaExpr {
-  case class Not[A](expr: SchemaExpr[A, Boolean]) extends UnaryOp[A, Boolean](expr)
+object DynamicSchemaExpr {
+  final case class Not(expr: DynamicSchemaExpr) extends DynamicSchemaExpr
 }
 ```
 
@@ -421,21 +430,21 @@ val result = inactive.eval(User(active = true))
 // Right(List(false))
 ```
 
-### Binary Operations
+### Binary operations
 
-`Relational`, `Logical`, `Arithmetic`, and `StringConcat` extend `BinaryOp[A, B, C]`, which provides `left` and `right` sub-expressions. `StringRegexMatch` and `StringLength` extend `SchemaExpr` directly — see [Other Operations](#other-operations) below.
+`Relational`, `Logical`, `Arithmetic`, `Bitwise`, and the string binary operations are all represented as `DynamicSchemaExpr` nodes holding child expressions.
 
-#### `SchemaExpr.Relational`
+#### `DynamicSchemaExpr.Relational`
 
 Compares two expressions using a `RelationalOperator`. Returns a boolean result.
 
 ```scala
-object SchemaExpr {
-  case class Relational[A, B](
-    left: SchemaExpr[A, B],
-    right: SchemaExpr[A, B],
+object DynamicSchemaExpr {
+  final case class Relational(
+    left: DynamicSchemaExpr,
+    right: DynamicSchemaExpr,
     operator: RelationalOperator
-  ) extends SchemaExpr[A, Boolean]
+  ) extends DynamicSchemaExpr
 }
 ```
 
@@ -454,17 +463,17 @@ The available `RelationalOperator` values are:
 Equality and inequality (`===`, `!=`) compare values directly. Ordering operators (`<`, `<=`, `>`, `>=`) compare via `DynamicValue` ordering internally.
 :::
 
-#### `SchemaExpr.Logical`
+#### `DynamicSchemaExpr.Logical`
 
 Combines two boolean expressions with a `LogicalOperator`.
 
 ```scala
-object SchemaExpr {
-  case class Logical[A](
-    left: SchemaExpr[A, Boolean],
-    right: SchemaExpr[A, Boolean],
+object DynamicSchemaExpr {
+  final case class Logical(
+    left: DynamicSchemaExpr,
+    right: DynamicSchemaExpr,
     operator: LogicalOperator
-  ) extends SchemaExpr[A, Boolean]
+  ) extends DynamicSchemaExpr
 }
 ```
 
@@ -475,18 +484,18 @@ The available `LogicalOperator` values are:
 | `And`    | `&&`   | Logical conjunction |
 | `Or`     | `\|\|` | Logical disjunction |
 
-#### `SchemaExpr.Arithmetic`
+#### `DynamicSchemaExpr.Arithmetic`
 
 Performs arithmetic on two numeric expressions using an `ArithmeticOperator`. Requires an `IsNumeric[A]` type class instance.
 
 ```scala
-object SchemaExpr {
-  case class Arithmetic[S, A](
-    left: SchemaExpr[S, A],
-    right: SchemaExpr[S, A],
+object DynamicSchemaExpr {
+  final case class Arithmetic(
+    left: DynamicSchemaExpr,
+    right: DynamicSchemaExpr,
     operator: ArithmeticOperator,
-    isNumeric: IsNumeric[A]
-  ) extends SchemaExpr[S, A]
+    numericType: NumericTypeTag
+  ) extends DynamicSchemaExpr
 }
 ```
 
@@ -498,112 +507,29 @@ The available `ArithmeticOperator` values are:
 | `Subtract` | `-`          | Subtraction    |
 | `Multiply` | `*`          | Multiplication |
 
-Supported numeric types via `IsNumeric`: `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal`.
+Supported numeric types include `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `BigInt`, and `BigDecimal`.
 
-#### `SchemaExpr.StringConcat`
+#### Other string and bitwise operations
 
-Concatenates two string expressions.
+`DynamicSchemaExpr` also includes:
 
-```scala
-object SchemaExpr {
-  case class StringConcat[A](
-    left: SchemaExpr[A, String],
-    right: SchemaExpr[A, String]
-  ) extends SchemaExpr[A, String]
-}
-```
+- `StringConcat`
+- `StringRegexMatch`
+- `StringLength`
+- `StringSubstring`
+- `StringTrim`
+- `StringToUpperCase`
+- `StringToLowerCase`
+- `StringReplace`
+- `StringStartsWith`
+- `StringEndsWith`
+- `StringContains`
+- `StringIndexOf`
+- `PrimitiveConversion`
+- `Bitwise`
+- `BitwiseNot`
 
-Created via the `concat` method on string optics:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-case class Greeting(prefix: String)
-
-object Greeting extends CompanionOptics[Greeting] {
-  implicit val schema: Schema[Greeting] = Schema.derived
-
-  val prefix: Lens[Greeting, String] = $(_.prefix)
-}
-
-val withName = Greeting.prefix.concat(", World!")
-val result = withName.eval(Greeting("Hello"))
-// Right(List("Hello, World!"))
-```
-
-### Other Operations
-
-`StringRegexMatch` and `StringLength` extend `SchemaExpr` directly rather than through `UnaryOp` or `BinaryOp`.
-
-#### `SchemaExpr.StringRegexMatch`
-
-Tests whether a string matches a regular expression pattern. Despite having two operands (`regex` and `string`), it extends `SchemaExpr[A, Boolean]` directly.
-
-```scala
-object SchemaExpr {
-  case class StringRegexMatch[A](
-    regex: SchemaExpr[A, String],
-    string: SchemaExpr[A, String]
-  ) extends SchemaExpr[A, Boolean]
-}
-```
-
-Created via the `matches` method on string optics:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-case class Email(address: String)
-
-object Email extends CompanionOptics[Email] {
-  implicit val schema: Schema[Email] = Schema.derived
-
-  val address: Lens[Email, String] = $(_.address)
-}
-
-val isValid = Email.address.matches("^[^@]+@[^@]+\\.[^@]+$")
-val result = isValid.eval(Email("alice@example.com"))
-// Right(List(true))
-```
-
-#### `SchemaExpr.StringLength`
-
-Computes the length of a string expression. This is a unary operation but extends `SchemaExpr[A, Int]` directly rather than `UnaryOp`.
-
-```scala
-object SchemaExpr {
-  case class StringLength[A](
-    string: SchemaExpr[A, String]
-  ) extends SchemaExpr[A, Int]
-}
-```
-
-Created via the `length` method on string optics:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-case class Message(body: String)
-
-object Message extends CompanionOptics[Message] {
-  implicit val schema: Schema[Message] = Schema.derived
-
-  val body: Lens[Message, String] = $(_.body)
-}
-
-val bodyLength = Message.body.length
-val result = bodyLength.eval(Message("Hello!"))
-// Right(List(6))
-```
-
-### Abstract Intermediate Traits
-
-Two sealed traits categorize some expressions by arity:
-
-- **`UnaryOp[A, B]`** — has a single `expr: SchemaExpr[A, B]`. Extended by `Not`.
-- **`BinaryOp[A, B, C]`** — has `left: SchemaExpr[A, B]` and `right: SchemaExpr[A, B]`. Extended by `Relational`, `Logical`, `Arithmetic`, and `StringConcat`.
-
-Not all expression nodes use these traits — `StringRegexMatch` and `StringLength` extend `SchemaExpr` directly. These intermediate traits are useful for pattern matching when you need to generically process the expression tree.
+These are the cases downstream interpreters should consider when translating `SchemaExpr.dynamic` into SQL, filters, or other query languages.
 
 ## Error Handling
 
@@ -631,19 +557,22 @@ result match {
 
 ## Advanced Usage: Building Query DSLs
 
-Because `SchemaExpr` is a sealed, inspectable AST, third-party libraries can pattern-match on the expression tree to translate it into other languages. For example, a database library could translate `SchemaExpr` into SQL:
+Because `SchemaExpr.dynamic` is a sealed, inspectable AST, third-party libraries can translate expressions into other languages. The public entry point should still accept `SchemaExpr`; only the interpreter internals need to cross into `DynamicSchemaExpr`.
 
 ```scala
-// Pseudocode — illustrates the concept
-def toSql[A](expr: SchemaExpr[A, Boolean]): String = expr match {
-  case SchemaExpr.Relational(left, right, op) =>
+// Pseudocode — keeps SchemaExpr as the public API
+def toSql[A, B](expr: SchemaExpr[A, B]): String =
+  toSqlDynamic(expr.dynamic)
+
+def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
+  case DynamicSchemaExpr.Relational(left, right, op) =>
     s"${toSqlValue(left)} ${opToSql(op)} ${toSqlValue(right)}"
-  case SchemaExpr.Logical(left, right, SchemaExpr.LogicalOperator.And) =>
-    s"(${toSql(left)}) AND (${toSql(right)})"
-  case SchemaExpr.Logical(left, right, SchemaExpr.LogicalOperator.Or) =>
-    s"(${toSql(left)}) OR (${toSql(right)})"
-  case SchemaExpr.Not(inner) =>
-    s"NOT (${toSql(inner)})"
+  case DynamicSchemaExpr.Logical(left, right, DynamicSchemaExpr.LogicalOperator.And) =>
+    s"(${toSqlDynamic(left)}) AND (${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Logical(left, right, DynamicSchemaExpr.LogicalOperator.Or) =>
+    s"(${toSqlDynamic(left)}) OR (${toSqlDynamic(right)})"
+  case DynamicSchemaExpr.Not(inner) =>
+    s"NOT (${toSqlDynamic(inner)})"
   // ...
 }
 ```
@@ -658,7 +587,7 @@ This is the key advantage of reified expressions over plain functions — the sa
 
 ### Schema
 
-[Schema](./schema.md) provides the type information needed by `SchemaExpr.Literal` to convert values to `DynamicValue` via `Literal#evalDynamic`. The `IsNumeric` type class (used by `Arithmetic`) also derives from `Schema`.
+[Schema](./schema.md) provides the type information needed to construct typed `SchemaExpr` values and to convert typed results to and from `DynamicValue` during evaluation.
 
 ### DynamicValue
 
