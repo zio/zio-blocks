@@ -280,7 +280,13 @@ object Record {
 }
 
 val codec = Record.schema.derive(AvroFormat)
-val bytes: Array[Byte] = ??? // from somewhere
+// In real usage, bytes would come from a previous encoding or external source
+val record = Record(123, "test")
+val buffer = java.nio.ByteBuffer.allocate(256)
+codec.encode(record, buffer)
+buffer.flip()
+val bytes = new Array[Byte](buffer.remaining())
+buffer.get(bytes)
 
 val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 ```
@@ -301,7 +307,14 @@ object Data {
 }
 
 val codec = Data.schema.derive(AvroFormat)
-val input = new ByteArrayInputStream(??? : Array[Byte])
+// Use encoded bytes from a previous encoding
+val data = Data(System.currentTimeMillis(), "example payload")
+val buffer = java.nio.ByteBuffer.allocate(256)
+codec.encode(data, buffer)
+buffer.flip()
+val bytes = new Array[Byte](buffer.remaining())
+buffer.get(bytes)
+val input = new ByteArrayInputStream(bytes)
 val result = codec.decode(input)
 ```
 
@@ -411,7 +424,7 @@ Avro decoding errors include location traces showing the path through nested str
 
 Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 
@@ -422,7 +435,8 @@ object Contact {
 }
 
 val codec = Contact.schema.derive(AvroFormat)
-val invalidBytes: Array[Byte] = ???
+// Example invalid Avro bytes that will fail decoding
+val invalidBytes: Array[Byte] = Array(0xFF.toByte, 0xFF.toByte)
 
 val result = codec.decode(invalidBytes)
 

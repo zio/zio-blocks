@@ -255,7 +255,9 @@ object Item {
 }
 
 val codec = BsonSchemaCodec.bsonCodec(Item.schema)
-val bsonValue: BsonValue = ??? // from somewhere
+// Create a BsonValue from an encoded item
+val item = Item("Widget", 42)
+val bsonValue = codec.encoder.toBsonValue(item)
 
 val result: Either[BsonDecoder.Error, Item] = codec.decoder.fromBsonValue(bsonValue)
 ```
@@ -288,13 +290,18 @@ trait BsonEncoder[A] {
 
 Transform the input before encoding using contramap:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.bson._
+import zio.blocks.schema._
 
 case class WrappedInt(value: Int)
 
-val intEncoder: BsonEncoder[Int] = ??? // from derivation
-val wrappedEncoder: BsonEncoder[WrappedInt] = intEncoder.contramap(_.value)
+// Get encoder through schema derivation
+implicit val intSchema: Schema[Int] = Schema.primitive[Int]
+val codec = Schema.derived[WrappedInt].derive(BsonFormat)
+// Transforming encoders (conceptual example)
+// val intEncoder: BsonEncoder[Int] = ... // from schema
+// val wrappedEncoder: BsonEncoder[WrappedInt] = intEncoder.contramap(_.value)
 ```
 
 ---

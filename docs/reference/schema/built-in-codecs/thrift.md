@@ -264,7 +264,12 @@ object Record {
 }
 
 val codec = Record.schema.derive(ThriftFormat)
-val bytes: Array[Byte] = ??? // from somewhere
+val record = Record(123, "test")
+val buffer = java.nio.ByteBuffer.allocate(256)
+codec.encode(record, buffer)
+buffer.flip()
+val bytes = new Array[Byte](buffer.remaining())
+buffer.get(bytes)
 
 val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 ```
@@ -285,8 +290,12 @@ object Data {
 }
 
 val codec = Data.schema.derive(ThriftFormat)
-val buffer: ByteBuffer = ??? // from somewhere
-val result = codec.decode(buffer)
+// Use encoded data from a previous encoding
+val data = Data(System.currentTimeMillis(), "example")
+val encBuffer = java.nio.ByteBuffer.allocate(256)
+codec.encode(data, encBuffer)
+encBuffer.flip()
+val result = codec.decode(encBuffer)
 ```
 
 ---
@@ -395,7 +404,7 @@ Thrift decoding errors include location traces showing the path through nested s
 
 Errors render as paths like `.field[0].nested.value` showing exactly where decoding failed:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.thrift._
 
@@ -406,7 +415,8 @@ object Contact {
 }
 
 val codec = Contact.schema.derive(ThriftFormat)
-val invalidBytes: Array[Byte] = ???
+// Example invalid Thrift bytes
+val invalidBytes: Array[Byte] = Array(0xFF.toByte, 0xFF.toByte)
 
 val result = codec.decode(invalidBytes)
 
