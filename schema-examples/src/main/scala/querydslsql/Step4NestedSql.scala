@@ -94,13 +94,7 @@ object Step4NestedSql extends App {
       s"(${toSqlQualifiedDynamic(left)} $sqlOp ${toSqlQualifiedDynamic(right)})"
     case DynamicSchemaExpr.Not(inner)                     => s"NOT (${toSqlQualifiedDynamic(inner)})"
     case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-      val sqlOp = op match {
-        case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-        case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-        case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-        case _                                             => "?"
-      }
-      s"(${toSqlQualifiedDynamic(left)} $sqlOp ${toSqlQualifiedDynamic(right)})"
+      sqlArithmetic(toSqlQualifiedDynamic(left), toSqlQualifiedDynamic(right), op)
     case DynamicSchemaExpr.StringConcat(left, right) =>
       s"CONCAT(${toSqlQualifiedDynamic(left)}, ${toSqlQualifiedDynamic(right)})"
     case DynamicSchemaExpr.StringRegexMatch(regex, string) =>

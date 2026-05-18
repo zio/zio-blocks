@@ -28,27 +28,69 @@ package object querydslsql {
   def columnName(optic: DynamicOptic): String =
     optic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
+  private def quoted(value: String): String = s"'${value.replace("'", "''")}'"
+
+  private def unsupportedSqlLiteral(value: Any): Nothing =
+    throw new IllegalArgumentException(s"Unsupported SQL literal: ${String.valueOf(value)}")
+
   def sqlLiteral(value: Any): String = value match {
-    case s: String  => s"'${s.replace("'", "''")}'"
-    case b: Boolean => if (b) "TRUE" else "FALSE"
-    case n: Number  => n.toString
-    case other      => other.toString
+    case null                                   => "NULL"
+    case s: String                              => quoted(s)
+    case c: Char                                => quoted(c.toString)
+    case b: Boolean                             => if (b) "TRUE" else "FALSE"
+    case n: Number                              => n.toString
+    case v: java.time.temporal.TemporalAccessor => quoted(v.toString)
+    case v: java.time.Duration                  => quoted(v.toString)
+    case v: java.time.Period                    => quoted(v.toString)
+    case v: java.util.Currency                  => quoted(v.getCurrencyCode)
+    case v: java.util.UUID                      => quoted(v.toString)
+    case other                                  => unsupportedSqlLiteral(other)
   }
 
   def sqlLiteralDV(dv: DynamicValue): String = dv match {
     case DynamicValue.Primitive(pv) =>
       pv match {
-        case PrimitiveValue.String(s)  => s"'${s.replace("'", "''")}'"
-        case PrimitiveValue.Boolean(b) => if (b) "TRUE" else "FALSE"
-        case PrimitiveValue.Int(n)     => n.toString
-        case PrimitiveValue.Long(n)    => n.toString
-        case PrimitiveValue.Double(n)  => n.toString
-        case PrimitiveValue.Float(n)   => n.toString
-        case PrimitiveValue.Short(n)   => n.toString
-        case PrimitiveValue.Byte(n)    => n.toString
-        case other                     => other.toString
+        case PrimitiveValue.Unit              => "NULL"
+        case PrimitiveValue.String(s)         => quoted(s)
+        case PrimitiveValue.Char(c)           => quoted(c.toString)
+        case PrimitiveValue.Boolean(b)        => if (b) "TRUE" else "FALSE"
+        case PrimitiveValue.Int(n)            => n.toString
+        case PrimitiveValue.Long(n)           => n.toString
+        case PrimitiveValue.Double(n)         => n.toString
+        case PrimitiveValue.Float(n)          => n.toString
+        case PrimitiveValue.Short(n)          => n.toString
+        case PrimitiveValue.Byte(n)           => n.toString
+        case PrimitiveValue.BigInt(n)         => n.toString
+        case PrimitiveValue.BigDecimal(n)     => n.toString
+        case PrimitiveValue.DayOfWeek(v)      => quoted(v.toString)
+        case PrimitiveValue.Duration(v)       => quoted(v.toString)
+        case PrimitiveValue.Instant(v)        => quoted(v.toString)
+        case PrimitiveValue.LocalDate(v)      => quoted(v.toString)
+        case PrimitiveValue.LocalDateTime(v)  => quoted(v.toString)
+        case PrimitiveValue.LocalTime(v)      => quoted(v.toString)
+        case PrimitiveValue.Month(v)          => quoted(v.toString)
+        case PrimitiveValue.MonthDay(v)       => quoted(v.toString)
+        case PrimitiveValue.OffsetDateTime(v) => quoted(v.toString)
+        case PrimitiveValue.OffsetTime(v)     => quoted(v.toString)
+        case PrimitiveValue.Period(v)         => quoted(v.toString)
+        case PrimitiveValue.Year(v)           => quoted(v.toString)
+        case PrimitiveValue.YearMonth(v)      => quoted(v.toString)
+        case PrimitiveValue.ZoneId(v)         => quoted(v.toString)
+        case PrimitiveValue.ZoneOffset(v)     => quoted(v.toString)
+        case PrimitiveValue.ZonedDateTime(v)  => quoted(v.toString)
+        case PrimitiveValue.Currency(v)       => quoted(v.getCurrencyCode)
+        case PrimitiveValue.UUID(v)           => quoted(v.toString)
       }
-    case other => other.toString
+    case other => unsupportedSqlLiteral(other)
+  }
+
+  def sqlArithmetic(left: String, right: String, op: DynamicSchemaExpr.ArithmeticOperator): String = op match {
+    case DynamicSchemaExpr.ArithmeticOperator.Add      => s"($left + $right)"
+    case DynamicSchemaExpr.ArithmeticOperator.Subtract => s"($left - $right)"
+    case DynamicSchemaExpr.ArithmeticOperator.Multiply => s"($left * $right)"
+    case DynamicSchemaExpr.ArithmeticOperator.Divide   => s"($left / $right)"
+    case DynamicSchemaExpr.ArithmeticOperator.Modulo   => s"($left % $right)"
+    case DynamicSchemaExpr.ArithmeticOperator.Pow      => s"POWER($left, $right)"
   }
 
   // ---------------------------------------------------------------------------
@@ -78,13 +120,7 @@ package object querydslsql {
       s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
     case DynamicSchemaExpr.Not(inner)                     => s"NOT (${toSqlDynamic(inner)})"
     case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-      val sqlOp = op match {
-        case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-        case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-        case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-        case _                                             => "?"
-      }
-      s"(${toSqlDynamic(left)} $sqlOp ${toSqlDynamic(right)})"
+      sqlArithmetic(toSqlDynamic(left), toSqlDynamic(right), op)
     case DynamicSchemaExpr.StringConcat(left, right)       => s"CONCAT(${toSqlDynamic(left)}, ${toSqlDynamic(right)})"
     case DynamicSchemaExpr.StringRegexMatch(regex, string) => s"(${toSqlDynamic(string)} LIKE ${toSqlDynamic(regex)})"
     case DynamicSchemaExpr.StringLength(string)            => s"LENGTH(${toSqlDynamic(string)})"
@@ -143,14 +179,8 @@ package object querydslsql {
       val i = toParameterizedDynamic(inner)
       SqlQuery(s"NOT (${i.sql})", i.params)
     case DynamicSchemaExpr.Arithmetic(left, right, op, _) =>
-      val l     = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
-      val sqlOp = op match {
-        case DynamicSchemaExpr.ArithmeticOperator.Add      => "+"
-        case DynamicSchemaExpr.ArithmeticOperator.Subtract => "-"
-        case DynamicSchemaExpr.ArithmeticOperator.Multiply => "*"
-        case _                                             => "?"
-      }
-      SqlQuery(s"(${l.sql} $sqlOp ${r.sql})", l.params ++ r.params)
+      val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
+      SqlQuery(sqlArithmetic(l.sql, r.sql, op), l.params ++ r.params)
     case DynamicSchemaExpr.StringConcat(left, right) =>
       val l = toParameterizedDynamic(left); val r = toParameterizedDynamic(right)
       SqlQuery(s"CONCAT(${l.sql}, ${r.sql})", l.params ++ r.params)

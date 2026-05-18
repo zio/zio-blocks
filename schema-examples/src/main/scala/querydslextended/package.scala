@@ -60,33 +60,49 @@ package object querydslextended {
   def columnName(optic: DynamicOptic): String =
     optic.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.mkString("_")
 
-  def sqlLiteral[A](value: A, schema: Schema[A]): String = {
-    val dv = schema.toDynamicValue(value)
-    dv match {
-      case p: DynamicValue.Primitive =>
-        p.value match {
-          case _: PrimitiveValue.String  => s"'${value.toString.replace("'", "''")}'"
-          case b: PrimitiveValue.Boolean => if (b.value) "TRUE" else "FALSE"
-          case _                         => value.toString
-        }
-      case _ => value.toString
-    }
-  }
+  private def quoted(value: String): String = s"'${value.replace("'", "''")}'"
+
+  private def unsupportedSqlLiteral(value: Any): Nothing =
+    throw new IllegalArgumentException(s"Unsupported SQL literal: ${String.valueOf(value)}")
+
+  def sqlLiteral[A](value: A, schema: Schema[A]): String =
+    sqlLiteralDV(schema.toDynamicValue(value))
 
   def sqlLiteralDV(dv: DynamicValue): String = dv match {
     case DynamicValue.Primitive(pv) =>
       pv match {
-        case PrimitiveValue.String(s)  => s"'${s.replace("'", "''")}'"
-        case PrimitiveValue.Boolean(b) => if (b) "TRUE" else "FALSE"
-        case PrimitiveValue.Int(n)     => n.toString
-        case PrimitiveValue.Long(n)    => n.toString
-        case PrimitiveValue.Double(n)  => n.toString
-        case PrimitiveValue.Float(n)   => n.toString
-        case PrimitiveValue.Short(n)   => n.toString
-        case PrimitiveValue.Byte(n)    => n.toString
-        case other                     => other.toString
+        case PrimitiveValue.Unit              => "NULL"
+        case PrimitiveValue.String(s)         => quoted(s)
+        case PrimitiveValue.Char(c)           => quoted(c.toString)
+        case PrimitiveValue.Boolean(b)        => if (b) "TRUE" else "FALSE"
+        case PrimitiveValue.Int(n)            => n.toString
+        case PrimitiveValue.Long(n)           => n.toString
+        case PrimitiveValue.Double(n)         => n.toString
+        case PrimitiveValue.Float(n)          => n.toString
+        case PrimitiveValue.Short(n)          => n.toString
+        case PrimitiveValue.Byte(n)           => n.toString
+        case PrimitiveValue.BigInt(n)         => n.toString
+        case PrimitiveValue.BigDecimal(n)     => n.toString
+        case PrimitiveValue.DayOfWeek(v)      => quoted(v.toString)
+        case PrimitiveValue.Duration(v)       => quoted(v.toString)
+        case PrimitiveValue.Instant(v)        => quoted(v.toString)
+        case PrimitiveValue.LocalDate(v)      => quoted(v.toString)
+        case PrimitiveValue.LocalDateTime(v)  => quoted(v.toString)
+        case PrimitiveValue.LocalTime(v)      => quoted(v.toString)
+        case PrimitiveValue.Month(v)          => quoted(v.toString)
+        case PrimitiveValue.MonthDay(v)       => quoted(v.toString)
+        case PrimitiveValue.OffsetDateTime(v) => quoted(v.toString)
+        case PrimitiveValue.OffsetTime(v)     => quoted(v.toString)
+        case PrimitiveValue.Period(v)         => quoted(v.toString)
+        case PrimitiveValue.Year(v)           => quoted(v.toString)
+        case PrimitiveValue.YearMonth(v)      => quoted(v.toString)
+        case PrimitiveValue.ZoneId(v)         => quoted(v.toString)
+        case PrimitiveValue.ZoneOffset(v)     => quoted(v.toString)
+        case PrimitiveValue.ZonedDateTime(v)  => quoted(v.toString)
+        case PrimitiveValue.Currency(v)       => quoted(v.getCurrencyCode)
+        case PrimitiveValue.UUID(v)           => quoted(v.toString)
       }
-    case other => other.toString
+    case other => unsupportedSqlLiteral(other)
   }
 
   // ---------------------------------------------------------------------------
