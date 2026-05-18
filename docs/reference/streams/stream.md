@@ -878,7 +878,7 @@ The result type follows the same widening rules as Scala 3 unions:
 - subtypes widen to the supertype (`Dog ++ Animal => Animal`)
 - unrelated types remain disjoint (`String ++ Int => String | Int`)
 
-On Scala 3, `|` is a native union. On Scala 2, `|` is the source-compatible alias from `zio.blocks.combinators`, backed by a Scala-2-only `Concat` typeclass that collapses same/subtype cases and uses `Either` for unrelated types.
+On Scala 3, disjoint concat results are native unions. On Scala 2, the same disjoint concat results are represented as `Either`, while same/subtype cases still collapse to the wider existing type.
 
 Evaluation is sequential: the second stream only starts when the first completes:
 
@@ -891,15 +891,13 @@ val combined = first ++ second
 val result = combined.runCollect
 ```
 
-For unrelated element types, normalize the result with `Choices.separate` when you want explicit `Either` handling in shared code:
+For unrelated element types, Scala 3 produces a direct union while Scala 2 produces `Either`:
 
 <Tabs groupId="scala-version" defaultValue="scala2">
   <TabItem value="scala2" label="Scala 2.13">
 
 ```scala
-import zio.blocks.combinators.{Choices, |}
-
-val combined: Stream[Nothing, String | Int] =
+val combined: Stream[Nothing, Either[String, Int]] =
   Stream.succeed("left") ++ Stream.succeed(1)
 ```
 
@@ -917,18 +915,16 @@ val combined: Stream[Nothing, String | Int] =
 ```scala mdoc
 import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
-import zio.blocks.combinators.Choices
 
 val concatResult = (Stream.succeed("left") ++ Stream.succeed(1)).runCollect
 
-assert(concatResult.map(_.map(Choices.separate[String, Int])) == Right(Chunk(Left("left"), Right(1))))
+assert(concatResult == Right(Chunk[String | Int]("left", 1)))
 ```
 
 The error channel follows the same rules. Same/subtype errors collapse; unrelated errors remain disjoint:
 
 ```scala mdoc
 import zio.blocks.streams.*
-import zio.blocks.combinators.Choices
 
 sealed trait LeftError
 case class Boom(msg: String) extends LeftError
@@ -940,7 +936,7 @@ val right = Stream.succeed(true)
 left.runCollect
 
 val failed = left ++ (Stream.fail(Missing(404)): Stream[Missing, Boolean])
-failed.runCollect.left.map(Choices.separate[LeftError, Missing])
+failed.runCollect
 ```
 
 There is no separate `choice` operator anymore. Use `++` / `concat` for all sequential combination; the result type already reflects the Scala 3-style union semantics.
