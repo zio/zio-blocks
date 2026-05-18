@@ -10,7 +10,7 @@ Key design goals:
 - **Zero magic** — SQL strings are visible, composable, and inspectable.
 - **Schema-first** — column names, types, and nullability are derived from the same `Schema[A]` you already use for JSON/Avro codecs.
 - **Effect-system agnostic** — the core module (`zio-blocks-sql`) is plain synchronous Scala. A thin `zio-blocks-sql-zio` adapter lifts operations into ZIO effects.
-- **Cross-platform core** — the `sql` module cross-compiles to JVM and Scala.js, while the actual JDBC backend (`JdbcTransactor`, `JdbcConnection`, `sql-zio`) is JVM-only.
+- **Cross-platform core** — the `sql` module cross-compiles to JVM and Scala.js, while the JDBC-backed runtime implementations (`JdbcTransactor`, `sql-zio`) are JVM-only.
 
 ## Overview
 
@@ -165,6 +165,9 @@ val tableName = "users"
 val frag = Frag.literal(s"SELECT count(*) FROM $tableName")
 ```
 
+Do **not** pass user input or unchecked identifiers to `Frag.literal`. Prefer
+derived `Table` / `Repo` metadata, which validates table and column names.
+
 Execute a fragment directly via extension methods:
 
 ```scala
@@ -172,6 +175,12 @@ Execute a fragment directly via extension methods:
 val users: List[User]   = frag.query[User]
 val user:  Option[User] = frag.queryOne[User]
 val count: Int          = sql"DELETE FROM users WHERE active = ${false}".update
+
+// Limit result materialization
+val firstTen: List[User] = frag.queryLimit[User](10)
+
+// Return generated keys when supported by the driver
+val ids: List[Long] = sql"INSERT INTO users(name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```
 
 ### Table[A]
@@ -334,6 +343,10 @@ val transactor = TransactorZIO.fromUrl(
   "alice", "secret",
   SqlDialect.PostgreSQL
 )
+
+For production use, prefer `TransactorZIO.fromDataSource(...)` (or
+`JdbcTransactor` backed by a pooled `DataSource`) so connection pooling is
+handled outside the library.
 ```
 
 **Blocking wrappers** — run a synchronous body on ZIO's blocking thread pool:

@@ -31,22 +31,27 @@ import zio.blocks.schema._
  */
 final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedSeq[ColumnMeta]) {
 
+  private val validatedName        = SqlIdentifier.validate("table", name)
+  private val validatedColumnsMeta = columnsMeta.map { column =>
+    column.copy(name = SqlIdentifier.validate("column", column.name))
+  }
+
   /** Column names in codec order (delegates to `codec.columns`). */
-  def columns: IndexedSeq[String] = codec.columns
+  def columns: IndexedSeq[String] = validatedColumnsMeta.map(_.name)
 
   /**
    * Generates a `CREATE TABLE IF NOT EXISTS` fragment using the column types
    * resolved by `dialect`.
    */
   def createTable(dialect: SqlDialect): Frag = {
-    val columnDefs = columnsMeta.map { column =>
+    val columnDefs = validatedColumnsMeta.map { column =>
       ColumnDef(column.name, dialect.typeName(column.dbValue), nullable = column.nullable)
     }
-    Ddl.createTable(name, columnDefs)
+    Ddl.createTable(validatedName, columnDefs)
   }
 
   /** Generates a `DROP TABLE IF EXISTS` fragment for this table. */
-  def dropTable: Frag = Ddl.dropTable(name)
+  def dropTable: Frag = Ddl.dropTable(validatedName)
 }
 
 object Table {

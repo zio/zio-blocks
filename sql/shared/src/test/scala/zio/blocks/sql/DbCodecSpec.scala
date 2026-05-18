@@ -147,6 +147,53 @@ object DbCodecSpec extends ZIOSpecDefault {
           codec.columnCount == 0,
           codec.toDbValues(()) == IndexedSeq.empty
         )
+      },
+      test("BigDecimal codec fails loudly on SQL NULL") {
+        val codec  = deriveCodec[BigDecimal]
+        val reader = new DbResultReader {
+          def getInt(index: Int): Int                                  = 0
+          def getInt(label: String): Int                               = 0
+          def getLong(index: Int): Long                                = 0L
+          def getLong(label: String): Long                             = 0L
+          def getDouble(index: Int): Double                            = 0d
+          def getDouble(label: String): Double                         = 0d
+          def getFloat(index: Int): Float                              = 0f
+          def getFloat(label: String): Float                           = 0f
+          def getBoolean(index: Int): Boolean                          = false
+          def getBoolean(label: String): Boolean                       = false
+          def getString(index: Int): String                            = null
+          def getString(label: String): String                         = null
+          def getBigDecimal(index: Int): java.math.BigDecimal          = null
+          def getBigDecimal(label: String): java.math.BigDecimal       = null
+          def getBytes(index: Int): Array[Byte]                        = null
+          def getBytes(label: String): Array[Byte]                     = null
+          def getShort(index: Int): Short                              = 0
+          def getShort(label: String): Short                           = 0
+          def getByte(index: Int): Byte                                = 0
+          def getByte(label: String): Byte                             = 0
+          def getLocalDate(index: Int): java.time.LocalDate            = null
+          def getLocalDate(label: String): java.time.LocalDate         = null
+          def getLocalDateTime(index: Int): java.time.LocalDateTime    = null
+          def getLocalDateTime(label: String): java.time.LocalDateTime = null
+          def getLocalTime(index: Int): java.time.LocalTime            = null
+          def getLocalTime(label: String): java.time.LocalTime         = null
+          def getInstant(index: Int): java.time.Instant                = null
+          def getInstant(label: String): java.time.Instant             = null
+          def getDuration(index: Int): java.time.Duration              = null
+          def getDuration(label: String): java.time.Duration           = null
+          def getUUID(index: Int): java.util.UUID                      = null
+          def getUUID(label: String): java.util.UUID                   = null
+          def columnLabel(index: Int): String                          = "value"
+          def hasColumn(label: String): Boolean                        = label == "value"
+          def wasNull: Boolean                                         = true
+        }
+        val error = try {
+          codec.readValue(reader, IndexedSeq("value"))
+          throw new AssertionError("Expected IllegalStateException")
+        } catch {
+          case e: IllegalStateException => e
+        }
+        assertTrue(error.getMessage.contains("Encountered SQL NULL while decoding non-optional BigDecimal"))
       }
     ),
     suite("record derivation")(

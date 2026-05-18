@@ -25,6 +25,13 @@ import zio.blocks.typeid.TypeId
 
 class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
 
+  private val SqlNullType = 0
+
+  private def unexpectedNull(typeName: String): Nothing =
+    throw new IllegalStateException(
+      s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
+    )
+
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
@@ -285,7 +292,7 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
             case None    =>
               var i = 0
               while (i < innerCodec.columnCount) {
-                writer.setNull(startIndex + i, java.sql.Types.NULL)
+                writer.setNull(startIndex + i, SqlNullType)
                 i += 1
               }
           }
@@ -616,11 +623,11 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     val columns: IndexedSeq[String]                                                     = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): BigDecimal = {
       val jbd = reader.getBigDecimal(columnLabels.head)
-      if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
+      if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
     }
     override def readValue(reader: DbResultReader, startIndex: Int): BigDecimal = {
       val jbd = reader.getBigDecimal(startIndex)
-      if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
+      if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
     }
     def writeValue(writer: DbParamWriter, startIndex: Int, value: BigDecimal): Unit =
       writer.setBigDecimal(startIndex, value.bigDecimal)

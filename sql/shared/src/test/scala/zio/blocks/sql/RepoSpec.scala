@@ -97,6 +97,20 @@ object RepoSpec extends ZIOSpecDefault {
           repo.idColumn == "id",
           repo.table.columns == IndexedSeq("id", "name")
         )
+      },
+      test("rejects invalid explicit id column names") {
+        case class Item(id: Int, name: String)
+        object Item {
+          implicit val schema: Schema[Item] = Schema.derived
+        }
+        val table = Table.derived[Item]
+        val error = try {
+          Repo(table, "id; DROP TABLE item", DbCodec.intCodec, (_: Item).id)
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("Invalid SQL column identifier"))
       }
     ),
     suite("derived with zero args")(

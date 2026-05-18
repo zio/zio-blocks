@@ -37,6 +37,11 @@ trait DbCodec[A] {
 }
 
 object DbCodec {
+  private def unexpectedNull(typeName: String): Nothing =
+    throw new IllegalStateException(
+      s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
+    )
+
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
 
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
@@ -102,7 +107,7 @@ object DbCodec {
     val columns: IndexedSeq[String]                                                     = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): BigDecimal = {
       val jbd = reader.getBigDecimal(columnLabels.head)
-      if (jbd != null) scala.BigDecimal(jbd) else null.asInstanceOf[BigDecimal]
+      if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
     }
     def writeValue(writer: DbParamWriter, startIndex: Int, value: BigDecimal): Unit =
       writer.setBigDecimal(startIndex, value.bigDecimal)

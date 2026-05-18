@@ -26,6 +26,8 @@ package zio.blocks.sql
  */
 private[sql] object SqlOps {
 
+  private val SqlNullType = 0
+
   private def selectLabels[A](reader: DbResultReader, codec: DbCodec[A]): IndexedSeq[String] =
     codec.columns.zipWithIndex.map { case (expectedLabel, offset) =>
       if (reader.hasColumn(expectedLabel)) expectedLabel
@@ -186,7 +188,7 @@ private[sql] object SqlOps {
     while (i < params.length) {
       val idx = i + 1
       params(i) match {
-        case DbValue.DbNull             => writer.setNull(idx, java.sql.Types.NULL)
+        case DbValue.DbNull             => writer.setNull(idx, SqlNullType)
         case DbValue.DbInt(v)           => writer.setInt(idx, v)
         case DbValue.DbLong(v)          => writer.setLong(idx, v)
         case DbValue.DbDouble(v)        => writer.setDouble(idx, v)
