@@ -12,6 +12,10 @@ If `sbt --client` is causing trouble, try:
 sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
 ```
 
+## Policies
+
+- [Symbolic Operator Policy](SYMBOLIC_OPS_POLICY.md) — Rules for when symbolic operators are allowed in APIs. Consult before adding or reviewing any symbolic method.
+
 ## Mindset
 
 **sbt is slow—minutes per compile/test.** Wasted cycles waste hours.
