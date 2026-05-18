@@ -1,6 +1,7 @@
 ---
 id: index
 title: "ZIO Blocks Schema"
+sidebar_label: "Schema"
 ---
 
 ## Introduction
@@ -22,22 +23,20 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 **Navigation & Transformation:**
 - [`Optics`](./optics.md) — Reflective optics for type-safe, composable access to nested data structures
 - [`DynamicOptic`](./dynamic-optic.md) — Runtime path through nested data structures
+- [`Path Interpolator`](./path-interpolator.md) — Compile-time string interpolator `p"..."` for constructing `DynamicOptic` instances
 - [`SchemaExpr`](./schema-expr.md) — Schema-aware expressions for evaluation and query language translation
 - [`Patch`](./patch.md) — Type-safe, serializable transformations of data structures
 - [`Modifier`](./modifier.md) — Mechanism to attach metadata and configuration to schema elements
 
 **Serialization:**
 - [`Codec`](./codec.md) — Base abstraction for encoding and decoding values between formats
-- [`Formats`](./formats.md) — Unified abstraction bundling serialization and deserialization for a specific format
+- [`Format`](./format.md) — Unified abstraction bundling serialization and deserialization for a specific format
 - [`Type Class Derivation`](./type-class-derivation.md) — Automatic generation of type class instances from schemas
 - [`Syntax`](./syntax.md) — Extension methods for fluent JSON encoding/decoding and patching
 
 **Formats:**
-- [`Json`](./json.md) — Algebraic data type for representing and manipulating JSON values
-- [`JsonPatch`](./json-patch.md) — Composable patch operations transforming one JSON value into another
-- [`JsonDiffer`](./json-differ.md) — Diff algorithm computing minimal patches between JSON values
-- [`JSON Schema`](./json-schema.md) — First-class support for JSON Schema 2020-12
-- [`Xml`](./xml.md) — Type-safe, immutable representation of XML document structures
+- [`JSON Codec`](./built-in-codecs/json/) — Complete JSON support: ADT for JSON values, fluent navigation, encoding/decoding, diffs, patches, and JSON Schema 2020-12 validation
+- [`Xml`](./built-in-codecs/xml.md) — Type-safe, immutable representation of XML document structures
 
 **Validation & Errors:**
 - [`Validation`](./validation.md) — Declarative constraints on primitive values

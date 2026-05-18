@@ -309,7 +309,7 @@ combinedPatch.apply(personJson)
 
 ### Converting
 
-`toDynamicPatch` converts a `JsonPatch` to a [`DynamicPatch`](./patch.md). This is always safe — every JSON operation maps to a corresponding dynamic operation. `NumberDelta` widens to `BigDecimalDelta`:
+`toDynamicPatch` converts a `JsonPatch` to a `DynamicPatch`. This is always safe — every JSON operation maps to a corresponding dynamic operation. `NumberDelta` widens to `BigDecimalDelta`:
 
 ```scala
 case class JsonPatch(ops: Chunk[JsonPatch.JsonPatchOp]) {
@@ -698,7 +698,7 @@ val dynPatch: DynamicPatch               = jsonPatch.toDynamicPatch
 val back: Either[SchemaError, JsonPatch] = JsonPatch.fromDynamicPatch(dynPatch)
 ```
 
-See [Patching](./patch.md) for the typed `Patch[S]` API.
+For the typed `Patch[S]` API, see the Patching documentation.
 
 ### Serialization
 
@@ -711,7 +711,7 @@ import zio.blocks.schema.Schema
 val schema: Schema[JsonPatch] = implicitly[Schema[JsonPatch]]
 ```
 
-See [Codec & Format](./codec.md) for how to derive and use codecs.
+For codec derivation and usage details, see the Codec & Format documentation.
 
 ## Examples
 
