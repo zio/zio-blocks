@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.{Into, SchemaError}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates converting an external DTO into a validated domain model.
 // A custom Into instance is provided for Email so the macro can wire it

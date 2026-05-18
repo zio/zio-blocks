@@ -18,7 +18,7 @@ package bindingresolvers
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates left-biased precedence when combining resolvers with ++.
 object BindingResolverChainExample extends App {

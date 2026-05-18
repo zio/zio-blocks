@@ -17,7 +17,7 @@
 package stream
 
 import zio.blocks.streams.Stream
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object StreamFlatMapExample extends App {
   println("=== Stream FlatMap and Nested Streams ===\n")

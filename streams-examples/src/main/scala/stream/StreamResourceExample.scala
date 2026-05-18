@@ -17,7 +17,7 @@
 package stream
 
 import zio.blocks.streams.Stream
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 import scala.collection.mutable.Buffer
 
 object StreamResourceExample extends App {

@@ -17,7 +17,7 @@
 package jsonpatch
 
 import zio.blocks.schema.json.{Json, JsonPatch}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object JsonPatchDiffAndApplyExample extends App {
 

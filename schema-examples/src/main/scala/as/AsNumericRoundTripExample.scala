@@ -17,7 +17,7 @@
 package as
 
 import zio.blocks.schema.As
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // As.derived pairs widening with narrowing automatically.
 // Widening (Int → Long) is lossless and always returns Right.

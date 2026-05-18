@@ -19,7 +19,7 @@ package jsonpatch
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.json.JsonPatch.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object JsonPatchOperationsExample extends App {
 

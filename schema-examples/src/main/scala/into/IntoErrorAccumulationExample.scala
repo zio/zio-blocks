@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.{Into, SchemaError}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates that Into collects ALL field errors into one SchemaError
 // rather than stopping at the first failure.
