@@ -138,7 +138,6 @@ Emits:
 
 ```scala mdoc
 import zio.blocks.codegen.emit._
-import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -180,7 +179,6 @@ Emits:
 
 ```scala mdoc
 import zio.blocks.codegen.emit._
-import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -214,7 +212,6 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
-import zio.blocks.codegen.emit._
 import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
@@ -256,7 +253,6 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
-import zio.blocks.codegen.emit._
 import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```

@@ -111,7 +111,6 @@ Emits:
 
 ```scala mdoc
 import zio.blocks.codegen.emit._
-import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -294,7 +293,6 @@ val config = EmitterConfig(
 Emits:
 
 ```scala mdoc
-import zio.blocks.codegen.emit._
 import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
