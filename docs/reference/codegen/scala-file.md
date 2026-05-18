@@ -52,6 +52,7 @@ All core operations are shown below:
 Extract the parts of a `ScalaFile`:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 // Read-only access to all components
 file.packageDecl    // PackageDecl
 file.imports        // List[Import]
@@ -63,6 +64,7 @@ file.types          // List[TypeDefinition]
 Modify a file by copying with new values:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 val updatedFile = file.copy(
   types = file.types :+ CaseClass(
     name = "Product",
@@ -109,6 +111,8 @@ val minimal = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(minimal, EmitterConfig())
 ```
 
@@ -143,6 +147,8 @@ val multiType = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(multiType, EmitterConfig())
 ```
 
@@ -175,5 +181,7 @@ val generic = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(generic, EmitterConfig())
 ```

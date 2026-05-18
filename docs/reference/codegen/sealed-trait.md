@@ -73,6 +73,7 @@ All core operations are shown below:
 Extract parts of a sealed trait:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 result.name          // "Result"
 result.cases         // List[SealedTraitCase]
 result.typeParams    // List[TypeParam] (empty if not generic)
@@ -99,6 +100,7 @@ val caseClass = SealedTraitCase.CaseClassCase(
 Modify a sealed trait:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 val updated = result.copy(
   cases = result.cases :+ SealedTraitCase.CaseObjectCase("Pending"),
   derives = List("Show")
@@ -135,6 +137,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -175,6 +179,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -208,6 +214,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -248,5 +256,7 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```

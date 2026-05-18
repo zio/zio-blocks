@@ -144,6 +144,8 @@ val config = EmitterConfig(indentWidth = 2)
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -184,12 +186,14 @@ val scala2Code = ScalaEmitter.emit(file, scala2Config)
 Scala 3 emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 scala3Code
 ```
 
 Scala 2 emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 scala2Code
 ```
 
@@ -233,6 +237,8 @@ val config = EmitterConfig(trailingCommas = true)
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -272,6 +278,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -312,6 +320,8 @@ val config = EmitterConfig(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 

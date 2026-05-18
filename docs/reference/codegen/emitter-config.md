@@ -110,6 +110,8 @@ val config = EmitterConfig()
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -144,6 +146,7 @@ val config = EmitterConfig(indentWidth = 4)
 Emits with 4-space indentation:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -179,6 +182,7 @@ val scala2Config = EmitterConfig(
 Emits sealed trait syntax (Scala 2 compatible):
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, scala2Config)
 ```
 
@@ -212,6 +216,7 @@ val config = EmitterConfig(
 Emits without trailing comma on last field:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -245,6 +250,7 @@ val config = EmitterConfig(
 Preserves import order:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 
@@ -288,6 +294,8 @@ val config = EmitterConfig(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, config)
 ```
 

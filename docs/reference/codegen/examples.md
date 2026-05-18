@@ -56,6 +56,7 @@ val config = EmitterConfig(indentWidth = 2)
 This generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 val code = ScalaEmitter.emit(file, config)
 ```
 
@@ -105,6 +106,7 @@ val file = ScalaFile(
 Generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -171,6 +173,7 @@ val file = ScalaFile(
 Generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -215,12 +218,14 @@ val scala2Code = ScalaEmitter.emit(
 Scala 3 output:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 scala3Code
 ```
 
 Scala 2 output:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 scala2Code
 ```
 
@@ -267,6 +272,7 @@ val file = ScalaFile(
 Generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -314,6 +320,7 @@ val file = ScalaFile(
 Generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig(indentWidth = 2))
 ```
 
@@ -350,6 +357,7 @@ val file = ScalaFile(
 Generates:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -400,12 +408,14 @@ val errorsCode = ScalaEmitter.emit(errorsFile, config)
 Models output:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 modelsCode
 ```
 
 Errors output:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
 errorsCode
 ```
 
@@ -493,7 +503,7 @@ In a real code generator, you'd:
 
 Example structure:
 
-```scala mdoc:compile-only
+```scala
 // Pseudocode: real generators follow this pattern
 
 // def generateFromOpenAPI(spec: OpenAPI): Unit = {
