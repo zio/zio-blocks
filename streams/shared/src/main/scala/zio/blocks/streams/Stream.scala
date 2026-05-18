@@ -1357,7 +1357,7 @@ object Stream {
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def skip(n: Long): Unit = upstream.skip(n)
     def close(): Unit                = upstream.close()
-    override def reset(): Unit       = upstream.reset()
+    override def reset(): Unit       = throw new UnsupportedOperationException("ErrorMapped does not support reset")
   }
 
   /** A failed stream source that always throws the given StreamError. */

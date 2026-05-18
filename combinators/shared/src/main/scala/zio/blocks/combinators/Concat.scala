@@ -16,17 +16,64 @@
 
 package zio.blocks.combinators
 
+/**
+ * Typeclass describing the element type produced by sequential concatenation of
+ * values of type `L` and `R`.
+ *
+ * Same-type and subtype relationships collapse to the wider existing type,
+ * while disjoint concatenation is provided by platform-specific derivation.
+ * `Stream.concat` uses [[isIdentityLike]] to decide whether it can reuse
+ * elements as-is or must wrap/project them through [[left]] and [[right]].
+ *
+ * @tparam L
+ *   left element type
+ * @tparam R
+ *   right element type
+ */
 trait Concat[L, R] {
   type Out
 
+  /**
+   * True when both input sides can be viewed directly as [[Out]] without
+   * allocating wrapper values.
+   *
+   * @return
+   *   whether concat can reuse existing elements as the output type
+   */
   def isIdentityLike: Boolean
 
+  /**
+   * Projects a left-side value into the concat output type.
+   *
+   * @param l
+   *   left-side value
+   * @return
+   *   the value represented as [[Out]]
+   */
   def left(l: L): Out
 
+  /**
+   * Projects a right-side value into the concat output type.
+   *
+   * @param r
+   *   right-side value
+   * @return
+   *   the value represented as [[Out]]
+   */
   def right(r: R): Out
 }
 
 object Concat extends ConcatCompanionPlatform {
+  /**
+   * Convenience alias for a [[Concat]] instance with a fixed output type.
+   *
+   * @tparam L
+   *   left element type
+   * @tparam R
+   *   right element type
+   * @tparam O
+   *   concat output type
+   */
   type WithOut[L, R, O] = _root_.zio.blocks.combinators.Concat[L, R] { type Out = O }
 
   implicit val bothNothing: WithOut[Nothing, Nothing, Nothing] =

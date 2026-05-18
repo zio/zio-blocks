@@ -247,6 +247,15 @@ object TypeInferenceSpec extends ZIOSpecDefault {
       }
     ),
     suite("Edge cases and complex scenarios")(
+      test("Concat handles Nothing edge cases without ambiguity") {
+        val errors = typeCheckErrors("""
+          import zio.blocks.combinators.Concat
+          val c1 = summon[Concat.WithOut[Nothing, Int, Int]]
+          val c2 = summon[Concat.WithOut[String, Nothing, String]]
+          val c3 = summon[Concat.WithOut[Nothing, Nothing, Nothing]]
+        """)
+        assertTrue(errors.isEmpty)
+      },
       test("chained tuple combines maintain correct inference") {
         val errors = typeCheckErrors("""
           import zio.blocks.combinators.Tuples

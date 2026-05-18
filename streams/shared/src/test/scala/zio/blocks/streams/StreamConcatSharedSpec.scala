@@ -90,7 +90,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assert(actual)(equalTo(Left(RightErr(404): AppError)))
     },
     test("type ascription compiles") {
-      val _ = Stream.succeed("a") ++ Stream.succeed(1)
+      val _: Stream[Nothing, String | Int] = Stream.succeed("a") ++ Stream.succeed(1)
       assertTrue(true)
     },
     test("multiple elements per side") {
@@ -98,6 +98,58 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assert(result.runCollect.map(_.map(elem => Choices.separate[String, Int](elem))))(
         equalTo(Right(Chunk(Left("a"), Left("b"), Right(1), Right(2))))
       )
+    },
+    test("three-stream concatenation") {
+      val result: Stream[Nothing, String | Int | Boolean] =
+        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true)
+
+      val normalized = result.runCollect.map(
+        _.map(elem =>
+          Choices.separate[String | Int, Boolean](elem) match {
+            case Left(left)  => Left(Choices.separate[String, Int](left))
+            case Right(bool) => Right(bool)
+          }
+        )
+      )
+
+      assert(normalized)(
+        equalTo(Right(Chunk(Left(Left("hello")), Left(Right(42)), Right(true))))
+      )
+    },
+    test("four-stream concatenation") {
+      val result: Stream[Nothing, String | Int | Boolean | Double] =
+        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true) ++ Stream.succeed(3.14)
+
+      val normalized = result.runCollect.map(
+        _.map(elem =>
+          Choices.separate[String | Int | Boolean, Double](elem) match {
+            case Left(left3) =>
+              Left(
+                Choices.separate[String | Int, Boolean](left3) match {
+                  case Left(left2)  => Left(Choices.separate[String, Int](left2))
+                  case Right(bool) => Right(bool)
+                }
+              )
+            case Right(double) => Right(double)
+          }
+        )
+      )
+
+      assert(normalized)(
+        equalTo(Right(Chunk(Left(Left(Left("hello"))), Left(Left(Right(42))), Left(Right(true)), Right(3.14))))
+      )
+    },
+    test("mapError reader reset remains unsupported") {
+      val reader = Stream.fail("boom").mapError(identity).compile(0)
+      val result =
+        try {
+          reader.reset()
+          false
+        } catch {
+          case e: UnsupportedOperationException => e.getMessage == "ErrorMapped does not support reset"
+        }
+
+      assertTrue(result)
     }
   )
 }
