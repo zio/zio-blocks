@@ -76,7 +76,7 @@ val person = CaseClass(
 )
 ```
 
-Access each component:
+Access each component by reading their properties:
 
 ```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
@@ -90,6 +90,8 @@ val person = CaseClass(
   )
 )
 ```
+
+Each component can be accessed and displayed:
 
 ```scala mdoc
 person.name            // "Person"
@@ -102,7 +104,7 @@ person.isValueClass    // Boolean
 
 ### Building with Copy
 
-Modify a case class with the copy method:
+Use the copy method to modify a case class:
 
 ```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
@@ -116,6 +118,8 @@ val person = CaseClass(
   )
 )
 ```
+
+Create a modified copy by adding a new field:
 
 ```scala mdoc
 val extended = person.copy(
