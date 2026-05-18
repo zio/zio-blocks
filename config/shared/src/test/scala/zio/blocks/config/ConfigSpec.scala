@@ -16,20 +16,25 @@
 
 package zio.blocks.config
 
+import zio.blocks.context.Context
 import zio.blocks.schema.Schema
+import zio.blocks.scope.{Resource, Scope, Unscoped, Wire}
 import zio.test._
 
 object ConfigSpec extends ConfigBaseSpec {
 
   case class Db(host: String, port: Int)
   object Db {
-    implicit val schema: Schema[Db] = Schema.derived[Db]
+    implicit val schema: Schema[Db]     = Schema.derived[Db]
+    implicit val unscoped: Unscoped[Db] = Unscoped.derived[Db]
   }
 
   case class App(db: Db, name: String)
   object App {
     implicit val schema: Schema[App] = Schema.derived[App]
   }
+
+  final class DbService(val config: Db)
 
   def spec = suite("ConfigSpec")(
     suite("Config.load")(
@@ -53,9 +58,62 @@ object ConfigSpec extends ConfigBaseSpec {
         val source = ConfigSource.fromMap(Map.empty[String, String])
         val result = Config.load[Db](source)
         result match {
-          case Left(errors) => assertTrue(errors.length >= 2)
-          case Right(_)     => assertTrue(false)
+          case Left(errors) =>
+            errors.head match {
+              case c: ConfigError.Composite => assertTrue(c.errors.length >= 2)
+              case _                        => assertTrue(false)
+            }
+          case Right(_) => assertTrue(false)
         }
+      }
+    ),
+    suite("Config.wire")(
+      test("loads typed config from an injected ConfigSource") {
+        val source = ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "wire-test")
+        val result = Scope.global.scoped { scope =>
+          Config.wire[Db].make(scope, Context[ConfigSource](source))
+        }
+        assertTrue(result == Db("localhost", 5432))
+      },
+      test("loads typed config from an injected prefixed ConfigSource") {
+        val source = ConfigSource.fromMap(Map("db.host" -> "localhost", "db.port" -> "5432"), "wire-test")
+        val result = Scope.global.scoped { scope =>
+          Config.wire[Db]("db").make(scope, Context[ConfigSource](source))
+        }
+        assertTrue(result == Db("localhost", 5432))
+      },
+      test("respects composed source precedence") {
+        val primary  = ConfigSource.fromMap(Map("host" -> "primary-host"), "primary")
+        val fallback = ConfigSource.fromMap(Map("host" -> "fallback-host", "port" -> "5432"), "fallback")
+        val source   = primary.orElse(fallback)
+        val result   = Scope.global.scoped { scope =>
+          Config.wire[Db].make(scope, Context[ConfigSource](source))
+        }
+        assertTrue(result == Db("primary-host", 5432))
+      },
+      test("throws ConfigLoadException with accumulated errors on failure") {
+        val source = ConfigSource.fromMap(Map.empty[String, String], "wire-failure")
+        val threw  =
+          try {
+            Scope.global.scoped { scope =>
+              Config.wire[Db].make(scope, Context[ConfigSource](source))
+            }
+            false
+          } catch {
+            case e: ConfigLoadException =>
+              e.errors.head.isInstanceOf[ConfigError.Composite] && e.report.contains("error(s)")
+          }
+        assertTrue(threw)
+      },
+      test("integrates with Resource.from by injecting ConfigSource as a leaf") {
+        val source   = ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "wire-graph")
+        val resource = Resource.from[DbService](Wire(source), Config.wire[Db])
+        val config   = Scope.global.scoped { scope =>
+          import scope._
+          val service = allocate(resource)
+          $(service)(_.config)
+        }
+        assertTrue(config == Db("localhost", 5432))
       }
     ),
     suite("Config.loadOrThrow")(
@@ -71,7 +129,7 @@ object ConfigSpec extends ConfigBaseSpec {
           false
         } catch {
           case e: ConfigLoadException =>
-            e.errors.length >= 2 && e.report.contains("error(s)")
+            e.errors.head.isInstanceOf[ConfigError.Composite] && e.report.contains("error(s)")
         }
         assertTrue(threw)
       }

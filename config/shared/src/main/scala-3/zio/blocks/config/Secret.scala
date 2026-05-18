@@ -16,4 +16,10 @@
 
 package zio.blocks.config
 
-private[config] object AllowUnsafe
+trait SecretPackage extends SecretPackageBase {
+  opaque type Secret[+A] = A
+
+  protected def secretApply[A](value: A): Secret[A] = value
+
+  protected def secretUnwrap[A](secret: Secret[A]): A = secret
+}

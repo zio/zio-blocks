@@ -17,6 +17,7 @@
 package zio.blocks.config
 
 import zio.blocks.schema.Schema
+import zio.blocks.scope.Wire
 
 /**
  * Entry point for loading typed configuration from a `ConfigSource`.
@@ -24,12 +25,37 @@ import zio.blocks.schema.Schema
 object Config {
 
   /**
-   * Load a value of type `A` from the given source.
+   * Create a shared config wire that decodes `A` from an injected
+   * [[ConfigSource]].
    */
+  def wire[A](implicit schema: Schema[A]): Wire.Shared[ConfigSource, A] =
+    Wire.Shared.fromFunction { (_, ctx) =>
+      loadOrThrow[A](ctx.get[ConfigSource])
+    }
+
+  /**
+   * Create a shared config wire that decodes `A` from an injected
+   * [[ConfigSource]] under the specified prefix.
+   */
+  def wire[A](prefix: String)(implicit schema: Schema[A]): Wire.Shared[ConfigSource, A] =
+    Wire.Shared.fromFunction { (_, ctx) =>
+      loadOrThrow[A](ctx.get[ConfigSource].withPrefix(prefix))
+    }
+
   def load[A](source: ConfigSource)(implicit schema: Schema[A]): Either[::[ConfigError], A] = {
     val decoder = ConfigDecoder.derive[A]
     decoder.decode(source, "")
   }
+
+  def load[A](source: ConfigSource, deriver: ConfigDecoderDeriver)(implicit
+    schema: Schema[A]
+  ): Either[::[ConfigError], A] = {
+    val decoder = schema.deriving(deriver).derive
+    decoder.decode(source, "")
+  }
+
+  def withKeyFormat(source: ConfigSource, format: KeyFormat): ConfigSource =
+    source.withKeyMapper(KeyMapper.default, format)
 
   /**
    * Load a value of type `A` from the given source, or throw with a formatted

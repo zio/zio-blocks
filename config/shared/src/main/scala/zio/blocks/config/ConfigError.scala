@@ -57,9 +57,9 @@ object ConfigError {
     def message: String = s"Required key '$path' is missing"
   }
 
-  case class UnknownDiscriminator(path: String, found: String, expected: Seq[String])
-      extends ConfigDerivationError {
-    def message: String = s"Unknown discriminator value '$found' at '$path'; expected one of: ${expected.mkString(", ")}"
+  case class UnknownDiscriminator(path: String, found: String, expected: Seq[String]) extends ConfigDerivationError {
+    def message: String =
+      s"Unknown discriminator value '$found' at '$path'; expected one of: ${expected.mkString(", ")}"
   }
 
   case class MissingDiscriminatorKey(path: String, key: String) extends ConfigDerivationError {

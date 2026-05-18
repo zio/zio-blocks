@@ -17,7 +17,6 @@
 package zio.blocks.schema.migration
 
 import scala.language.reflectiveCalls
-import scala.reflect.Selectable.reflectiveSelectable
 import zio.blocks.schema._
 import zio.test._
 

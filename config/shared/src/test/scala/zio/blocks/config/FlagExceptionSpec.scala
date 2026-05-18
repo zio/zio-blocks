@@ -17,9 +17,26 @@
 package zio.blocks.config
 
 import zio.test._
+import zio.test.TestAspect
 
 object FlagExceptionSpec extends ZIOSpecDefault {
   import FlagException._
+
+  // Flags defined at object level so class names end with '$' and pass validateObjectName.
+  object DupRegTestFlag extends StaticFlag[Int](0)
+  object DupDynTestFlag extends DynamicFlag[Int](0, "0")
+
+  final class StaticDuplicateHolder {
+    object DuplicateFlag extends StaticFlag[Int](0)
+  }
+
+  final class DynamicDuplicateHolder {
+    object DuplicateFlag extends DynamicFlag[Int](0, "0")
+  }
+
+  final class InvalidDynamicInitHolder {
+    object InvalidDynamicFlag extends DynamicFlag[Int](0, "")
+  }
 
   def spec = suite("FlagExceptionSpec")(
     suite("FlagValueParseException")(
@@ -79,47 +96,19 @@ object FlagExceptionSpec extends ZIOSpecDefault {
     ),
     suite("FlagDuplicateNameException")(
       test("formats message with flag name and existing class") {
-        val ex = FlagDuplicateNameException("my.Flag", "com.example.OldFlag")
-        assertTrue(
-          ex.getMessage == "Duplicate flag name 'my.Flag': already registered by com.example.OldFlag"
-        )
+        val ex = FlagDuplicateNameException("my.Flag")
+        assertTrue(ex.getMessage == "Duplicate flag name 'my.Flag'")
       },
       test("getMessage contains flag name") {
-        val ex = FlagDuplicateNameException("my.Flag", "com.example.OldFlag")
+        val ex = FlagDuplicateNameException("my.Flag")
         assertTrue(ex.getMessage.contains("my.Flag"))
       },
-      test("getMessage contains existing class") {
-        val ex = FlagDuplicateNameException("my.Flag", "com.example.OldFlag")
-        assertTrue(ex.getMessage.contains("com.example.OldFlag"))
-      },
       test("extends FlagException") {
-        val ex: FlagException = FlagDuplicateNameException("f", "c")
+        val ex: FlagException = FlagDuplicateNameException("f")
         assertTrue(ex.isInstanceOf[FlagException])
       },
       test("has no stack trace") {
-        val ex = FlagDuplicateNameException("f", "c")
-        assertTrue(ex.getStackTrace.length == 0)
-      }
-    ),
-    suite("FlagValidationFailedException")(
-      test("formats message with flag name and details") {
-        val ex = FlagValidationFailedException("cache.size", "value must be positive")
-        assertTrue(ex.getMessage == "Flag validation failed for 'cache.size': value must be positive")
-      },
-      test("getMessage contains flag name") {
-        val ex = FlagValidationFailedException("cache.size", "details")
-        assertTrue(ex.getMessage.contains("cache.size"))
-      },
-      test("getMessage contains details") {
-        val ex = FlagValidationFailedException("f", "value must be positive")
-        assertTrue(ex.getMessage.contains("value must be positive"))
-      },
-      test("extends FlagException") {
-        val ex: FlagException = FlagValidationFailedException("f", "d")
-        assertTrue(ex.isInstanceOf[FlagException])
-      },
-      test("has no stack trace") {
-        val ex = FlagValidationFailedException("f", "d")
+        val ex = FlagDuplicateNameException("f")
         assertTrue(ex.getStackTrace.length == 0)
       }
     ),
@@ -151,64 +140,13 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         assertTrue(ex.getStackTrace.length == 0)
       }
     ),
-    suite("FlagRolloutParseException")(
-      test("formats message with expression and details") {
-        val ex = FlagRolloutParseException("true@beta/50;", "empty choice after ';'")
-        assertTrue(
-          ex.getMessage == "Rollout parse error in expression 'true@beta/50;': empty choice after ';'"
-        )
-      },
-      test("getMessage contains expression") {
-        val ex = FlagRolloutParseException("true@beta/50;", "details")
-        assertTrue(ex.getMessage.contains("true@beta/50;"))
-      },
-      test("getMessage contains details") {
-        val ex = FlagRolloutParseException("expr", "empty choice after ';'")
-        assertTrue(ex.getMessage.contains("empty choice after ';'"))
-      },
-      test("extends FlagException") {
-        val ex: FlagException = FlagRolloutParseException("e", "d")
-        assertTrue(ex.isInstanceOf[FlagException])
-      },
-      test("has no stack trace") {
-        val ex = FlagRolloutParseException("e", "d")
-        assertTrue(ex.getStackTrace.length == 0)
-      }
-    ),
-    suite("FlagChoiceParseException")(
-      test("formats message with choice and details") {
-        val ex = FlagChoiceParseException("@missing-value", "empty value before '@'")
-        assertTrue(
-          ex.getMessage == "Choice parse error in '@missing-value': empty value before '@'"
-        )
-      },
-      test("getMessage contains choice") {
-        val ex = FlagChoiceParseException("@missing-value", "details")
-        assertTrue(ex.getMessage.contains("@missing-value"))
-      },
-      test("getMessage contains details") {
-        val ex = FlagChoiceParseException("choice", "empty value before '@'")
-        assertTrue(ex.getMessage.contains("empty value before '@'"))
-      },
-      test("extends FlagException") {
-        val ex: FlagException = FlagChoiceParseException("c", "d")
-        assertTrue(ex.isInstanceOf[FlagException])
-      },
-      test("has no stack trace") {
-        val ex = FlagChoiceParseException("c", "d")
-        assertTrue(ex.getStackTrace.length == 0)
-      }
-    ),
     suite("common properties")(
       test("all variants are FlagException") {
         val variants: List[FlagException] = List(
           FlagValueParseException("f", "v", "T"),
           FlagNameException("f", "d"),
-          FlagDuplicateNameException("f", "c"),
-          FlagValidationFailedException("f", "d"),
-          FlagExpressionParseException("f", "e", "d"),
-          FlagRolloutParseException("e", "d"),
-          FlagChoiceParseException("c", "d")
+          FlagDuplicateNameException("f"),
+          FlagExpressionParseException("f", "e", "d")
         )
         assertTrue(variants.forall(_.isInstanceOf[FlagException]))
       },
@@ -216,11 +154,8 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         val variants: List[FlagException] = List(
           FlagValueParseException("f", "v", "T"),
           FlagNameException("f", "d"),
-          FlagDuplicateNameException("f", "c"),
-          FlagValidationFailedException("f", "d"),
-          FlagExpressionParseException("f", "e", "d"),
-          FlagRolloutParseException("e", "d"),
-          FlagChoiceParseException("c", "d")
+          FlagDuplicateNameException("f"),
+          FlagExpressionParseException("f", "e", "d")
         )
         assertTrue(variants.forall(_.isInstanceOf[Exception]))
       },
@@ -228,14 +163,103 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         val variants: List[FlagException] = List(
           FlagValueParseException("f", "v", "T"),
           FlagNameException("f", "d"),
-          FlagDuplicateNameException("f", "c"),
-          FlagValidationFailedException("f", "d"),
-          FlagExpressionParseException("f", "e", "d"),
-          FlagRolloutParseException("e", "d"),
-          FlagChoiceParseException("c", "d")
+          FlagDuplicateNameException("f"),
+          FlagExpressionParseException("f", "e", "d")
         )
         assertTrue(variants.forall(_.getStackTrace.length == 0))
       }
-    )
+    ),
+    suite("production throw sites")(
+      test("StaticFlag.deriveName throws FlagNameException for non-object class") {
+        val result = scala.util.Try(StaticFlag.deriveName(classOf[String]))
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagNameException])
+      },
+      test("DynamicFlag.deriveName throws FlagNameException for non-object class") {
+        val result = scala.util.Try(DynamicFlag.deriveName(classOf[String]))
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagNameException])
+      },
+      test(
+        "StaticFlag.resolve wraps parse failures in ExceptionInInitializerError with FlagValueParseException cause"
+      ) {
+        val flagName = "test.flagexspec.badparse"
+        System.setProperty(flagName, "not-a-number")
+        val result =
+          try {
+            StaticFlag.resolve[Int](flagName, "TEST_FLAGEXSPEC_BADPARSE", 0, Flag.Reader.intReader)
+            Left("should have thrown")
+          } catch {
+            case e: ExceptionInInitializerError => Right(e)
+          } finally {
+            System.clearProperty(flagName)
+          }
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.getCause.isInstanceOf[FlagValueParseException]) &&
+        assertTrue(
+          result.toOption.get.getCause
+            .asInstanceOf[FlagValueParseException]
+            .cause
+            .exists(_.getMessage.contains("not-a-number"))
+        )
+      },
+      test("DynamicFlag.initSnapshot wraps expression parse failures in ExceptionInInitializerError") {
+        val result =
+          try {
+            DynamicFlag.initSnapshot("test.flag.init", "", 0, Flag.Reader.intReader)
+            Left("should have thrown")
+          } catch {
+            case e: ExceptionInInitializerError => Right(e)
+          }
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.getCause.isInstanceOf[FlagExpressionParseException])
+      },
+      test("StaticFlag.register throws FlagDuplicateNameException when name already registered") {
+        // Temporarily replace the registry entry with a sentinel to simulate a prior registrant
+        val original = Flag.registry.get(DupRegTestFlag.name)
+        Flag.registry.put(DupRegTestFlag.name, new Object())
+        val result = scala.util.Try(StaticFlag.register(DupRegTestFlag))
+        Flag.registry.put(DupRegTestFlag.name, original)
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagDuplicateNameException])
+      },
+      test("DynamicFlag.register throws FlagDuplicateNameException when name already registered") {
+        val original = Flag.registry.get(DupDynTestFlag.name)
+        Flag.registry.put(DupDynTestFlag.name, new Object())
+        val result = scala.util.Try(DynamicFlag.register(DupDynTestFlag))
+        Flag.registry.put(DupDynTestFlag.name, original)
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagDuplicateNameException])
+      },
+      test("StaticFlag duplicate registration path throws FlagDuplicateNameException") {
+        val first  = new StaticDuplicateHolder().DuplicateFlag
+        val result =
+          try scala.util.Try(new StaticDuplicateHolder().DuplicateFlag)
+          finally Flag.registry.remove(first.name, first)
+
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagDuplicateNameException])
+      },
+      test("DynamicFlag duplicate registration path throws FlagDuplicateNameException") {
+        val first  = new DynamicDuplicateHolder().DuplicateFlag
+        val result =
+          try scala.util.Try(new DynamicDuplicateHolder().DuplicateFlag)
+          finally Flag.registry.remove(first.name, first)
+
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagDuplicateNameException])
+      },
+      test("DynamicFlag field initializer wraps FlagExpressionParseException in ExceptionInInitializerError") {
+        val result =
+          try {
+            new InvalidDynamicInitHolder().InvalidDynamicFlag
+            Left("should have thrown")
+          } catch {
+            case e: ExceptionInInitializerError => Right(e)
+          }
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.getCause.isInstanceOf[FlagExpressionParseException])
+      }
+    ) @@ TestAspect.sequential
   )
 }

@@ -26,14 +26,14 @@ import scala.jdk.CollectionConverters._
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
 
-  def get(key: String): Option[ConfigValue[String]] = {
+  def get(key: String): Option[SourceValue[String]] = {
     val envKey = toEnvKey(key)
     val raw    = System.getenv(envKey)
     if (raw == null) None
-    else Some(ConfigValue(raw, Provenance.Resolved(sourceId, envKey, Some(raw))))
+    else Some(SourceValue(raw, Provenance.Resolved(sourceId, envKey, Some(raw))))
   }
 
-  def getAll(prefix: String): Map[String, ConfigValue[String]] = {
+  def getAll(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
     System
@@ -41,7 +41,7 @@ object EnvSource extends ConfigSource {
       .asScala
       .collect {
         case (k, v) if envPrefix.isEmpty || k == envPrefix || k.startsWith(dotPrefix) =>
-          k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+          k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
       }
       .toMap
   }
@@ -57,17 +57,17 @@ object EnvSource extends ConfigSource {
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"
 
-  def get(key: String): Option[ConfigValue[String]] = {
+  def get(key: String): Option[SourceValue[String]] = {
     val raw = System.getProperty(key)
     if (raw == null) None
-    else Some(ConfigValue(raw, Provenance.Resolved(sourceId, key, Some(raw))))
+    else Some(SourceValue(raw, Provenance.Resolved(sourceId, key, Some(raw))))
   }
 
-  def getAll(prefix: String): Map[String, ConfigValue[String]] = {
+  def getAll(prefix: String): Map[String, SourceValue[String]] = {
     val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
     System.getProperties.asScala.collect {
       case (k, v) if prefix.isEmpty || k == prefix || k.startsWith(dotPrefix) =>
-        k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+        k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
     }.toMap
   }
 }

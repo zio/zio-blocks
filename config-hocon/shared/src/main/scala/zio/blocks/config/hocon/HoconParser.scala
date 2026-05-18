@@ -164,6 +164,8 @@ object HoconParser {
           skipComma()
         }
       }
+      // `while(true)` keeps the parser structure simple; this return satisfies the
+      // type checker even though control flow exits above.
       buf.toSeq // unreachable but needed for compiler
     }
 
@@ -253,6 +255,8 @@ object HoconParser {
         buf += parseValue(includeCallback)
         skipComma()
       }
+      // `while(true)` is intentional here; this return is only present to satisfy
+      // the type checker after the early returns above.
       RawArr(buf.toSeq) // unreachable
     }
 
@@ -381,7 +385,13 @@ object HoconParser {
     private def isInclude: Boolean =
       if (pos + 7 > len) false
       else
-        input.substring(pos, pos + 7) == "include" && {
+        input.charAt(pos) == 'i' &&
+        input.charAt(pos + 1) == 'n' &&
+        input.charAt(pos + 2) == 'c' &&
+        input.charAt(pos + 3) == 'l' &&
+        input.charAt(pos + 4) == 'u' &&
+        input.charAt(pos + 5) == 'd' &&
+        input.charAt(pos + 6) == 'e' && {
           val after = if (pos + 7 < len) input.charAt(pos + 7) else ' '
           after == ' ' || after == '"' || after == '\t'
         }
@@ -556,15 +566,15 @@ object HoconParser {
         Right(HoconValue.Obj(result))
 
       case MArr(elements) =>
-        var result = Seq.empty[HoconValue]
-        val it     = elements.iterator
+        val builder = new scala.collection.mutable.ArrayBuffer[HoconValue](elements.size)
+        val it      = elements.iterator
         while (it.hasNext) {
           resolveSubstitutions(it.next(), root, resolving) match {
-            case Right(resolved) => result = result :+ resolved
+            case Right(resolved) => builder += resolved
             case Left(err)       => return Left(err)
           }
         }
-        Right(HoconValue.Arr(result))
+        Right(HoconValue.Arr(builder.toSeq))
 
       case MStr(v)  => Right(HoconValue.Str(v))
       case MNum(v)  => Right(HoconValue.Num(v))

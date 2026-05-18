@@ -16,4 +16,4 @@
 
 package zio.blocks.config
 
-private[config] object AllowUnsafe
+final case class SourceValue[A](value: A, provenance: Provenance)

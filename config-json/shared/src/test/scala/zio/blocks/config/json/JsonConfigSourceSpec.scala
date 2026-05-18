@@ -16,7 +16,7 @@
 
 package zio.blocks.config.json
 
-import zio.blocks.config.{ConfigError, ConfigSource}
+import zio.blocks.config.ConfigSource
 import zio.test._
 
 object JsonConfigSourceSpec extends ZIOSpecDefault {

@@ -17,6 +17,7 @@
 package zio.blocks.config
 
 import zio.test._
+import zio.test.TestAspect
 
 object StaticFlagSpec extends ConfigBaseSpec {
 
@@ -74,21 +75,73 @@ object StaticFlagSpec extends ConfigBaseSpec {
         }
       }
     ),
-    suite("FlagProvider resolution")(
-      test("FlagProvider takes priority over system property") {
+    suite("FlagSource resolution")(
+      test("FlagSource takes priority over system property") {
         val flagName = "test.provider.flag"
         val envName  = "TEST_PROVIDER_FLAG"
         System.setProperty(flagName, "from-sysprop")
-        FlagProvider.Registry.clear()
-        FlagProvider.Registry.register(FlagProvider.fromMap(Map(flagName -> "from-provider"), id = "test"))
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(FlagSource.fromMap(Map(flagName -> "from-provider"), id = "test"))
         try {
           val (value, source, _) =
             StaticFlag.resolve[String](flagName, envName, "default", Flag.Reader.stringReader)
           assertTrue(value == "from-provider") &&
-          assertTrue(source == Flag.Source.FlagProviderSource("test"))
+          assertTrue(source == Flag.Source.FlagSourceValue("test"))
         } finally {
           System.clearProperty(flagName)
-          FlagProvider.Registry.clear()
+          FlagSource.Registry.clear()
+        }
+      },
+      test("accepts default provenance from FlagSource") {
+        val flagName = "test.provider.default-provenance.flag"
+        val envName  = "TEST_PROVIDER_DEFAULT_PROVENANCE_FLAG"
+
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(new FlagSource {
+          val sourceId: String = "test-default"
+
+          def get(name: String): Option[SourceValue[String]] =
+            if (name == flagName) Some(SourceValue("from-default-provenance", Provenance.Default))
+            else None
+        })
+
+        try {
+          val (value, source, prov) =
+            StaticFlag.resolve[String](flagName, envName, "fallback", Flag.Reader.stringReader)
+
+          assertTrue(value == "from-default-provenance") &&
+          assertTrue(source == Flag.Source.FlagSourceValue(Provenance.Default.sourceId)) &&
+          assertTrue(prov == Provenance.Default)
+        } finally {
+          FlagSource.Registry.clear()
+        }
+      },
+      test("preserves merged provenance from FlagSource") {
+        val flagName = "test.provider.merged-provenance.flag"
+        val envName  = "TEST_PROVIDER_MERGED_PROVENANCE_FLAG"
+        val merged   = Provenance.Merged(
+          Provenance.Resolved("primary", "primary.key", Some("from-primary")),
+          Provenance.Resolved("fallback", "fallback.key", Some("from-fallback"))
+        )
+
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(new FlagSource {
+          val sourceId: String = "test-merged"
+
+          def get(name: String): Option[SourceValue[String]] =
+            if (name == flagName) Some(SourceValue("from-primary", merged))
+            else None
+        })
+
+        try {
+          val (value, source, prov) =
+            StaticFlag.resolve[String](flagName, envName, "fallback", Flag.Reader.stringReader)
+
+          assertTrue(value == "from-primary") &&
+          assertTrue(source == Flag.Source.FlagSourceValue(merged.sourceId)) &&
+          assertTrue(prov == merged)
+        } finally {
+          FlagSource.Registry.clear()
         }
       }
     ),
@@ -101,31 +154,30 @@ object StaticFlagSpec extends ConfigBaseSpec {
       }
     ),
     suite("fail-fast")(
-      test("throws on unparseable system property") {
+      test("throws ExceptionInInitializerError wrapping FlagValueParseException on unparseable system property") {
         val flagName = "test.badparse.flag"
         val envName  = "TEST_BADPARSE_FLAG"
         System.setProperty(flagName, "not-a-number")
-        try {
-          val threw = try {
+        val result =
+          try {
             StaticFlag.resolve[Int](flagName, envName, 0, Flag.Reader.intReader)
-            false
+            Left("should have thrown")
           } catch {
-            case _: Throwable => true
+            case e: ExceptionInInitializerError => Right(e)
+          } finally {
+            System.clearProperty(flagName)
           }
-          assertTrue(threw)
-        } finally {
-          System.clearProperty(flagName)
-        }
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.getCause.isInstanceOf[FlagException.FlagValueParseException])
       }
     ),
     suite("validation")(
-      test("rejects non-object usage via class name check") {
-        val result = scala.util.Try {
-          StaticFlag.deriveName(classOf[String])
-        }
+      test("rejects non-object usage with FlagNameException") {
+        val result = scala.util.Try(StaticFlag.deriveName(classOf[String]))
         assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagException.FlagNameException]) &&
         assertTrue(result.failed.get.getMessage.contains("Scala object"))
       }
     )
-  )
+  ) @@ TestAspect.sequential
 }

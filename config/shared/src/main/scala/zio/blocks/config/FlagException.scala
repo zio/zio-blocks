@@ -31,13 +31,7 @@ import scala.util.control.NoStackTrace
  *   - [[FlagException.FlagNameException]] — flag name is structurally invalid
  *   - [[FlagException.FlagDuplicateNameException]] — flag name already
  *     registered
- *   - [[FlagException.FlagValidationFailedException]] — flag value failed
- *     semantic validation
  *   - [[FlagException.FlagExpressionParseException]] — rollout expression is
- *     malformed
- *   - [[FlagException.FlagRolloutParseException]] — rollout parse failure
- *     (context-free)
- *   - [[FlagException.FlagChoiceParseException]] — individual choice segment is
  *     malformed
  */
 sealed abstract class FlagException extends Exception with NoStackTrace {
@@ -49,6 +43,10 @@ object FlagException {
   /**
    * Thrown when a raw flag value string cannot be parsed into the expected
    * type.
+   *
+   * Thrown by [[StaticFlag]] during object initialisation when the value
+   * supplied via a [[FlagSource]], system property, or environment variable
+   * cannot be parsed by the flag's [[Flag.Reader]].
    *
    * @param flagName
    *   the name of the flag whose value failed to parse
@@ -75,6 +73,10 @@ object FlagException {
    * Thrown when a flag name fails structural validation (e.g. the defining
    * class is not a Scala object, or is a lambda / anonymous class).
    *
+   * Thrown by [[StaticFlag]] and [[DynamicFlag]] during object initialisation
+   * when the runtime class name does not conform to the expected Scala object
+   * naming convention.
+   *
    * @param flagName
    *   the class name that was rejected
    * @param details
@@ -88,31 +90,23 @@ object FlagException {
    * Thrown when a flag name is registered more than once in the global
    * registry.
    *
-   * @param flagName
-   *   the duplicated flag name
-   * @param existingClass
-   *   fully-qualified class name of the already-registered flag
-   */
-  final case class FlagDuplicateNameException(flagName: String, existingClass: String) extends FlagException {
-    override def getMessage: String =
-      s"Duplicate flag name '$flagName': already registered by $existingClass"
-  }
-
-  /**
-   * Thrown when a parsed flag value fails semantic / business-rule validation.
+   * Thrown by [[StaticFlag]] and [[DynamicFlag]] when a second object with an
+   * identical derived name attempts to register itself.
    *
    * @param flagName
-   *   the name of the flag that failed validation
-   * @param details
-   *   human-readable description of the validation rule that was violated
+   *   the duplicated flag name
    */
-  final case class FlagValidationFailedException(flagName: String, details: String) extends FlagException {
-    override def getMessage: String = s"Flag validation failed for '$flagName': $details"
+  final case class FlagDuplicateNameException(flagName: String) extends FlagException {
+    override def getMessage: String = s"Duplicate flag name '$flagName'"
   }
 
   /**
    * Thrown when the rollout expression associated with a named flag cannot be
    * parsed.
+   *
+   * Thrown by [[DynamicFlag]] during object initialisation when the initial
+   * rollout expression (from a [[FlagSource]], system property, environment
+   * variable, or constructor default) is malformed.
    *
    * @param flagName
    *   the name of the flag whose expression is malformed
@@ -128,33 +122,5 @@ object FlagException {
   ) extends FlagException {
     override def getMessage: String =
       s"Invalid rollout expression '$expression' for flag '$flagName': $details"
-  }
-
-  /**
-   * Thrown when a rollout expression cannot be parsed outside the context of a
-   * specific flag (e.g. during standalone validation or tooling).
-   *
-   * @param expression
-   *   the raw expression string that could not be parsed
-   * @param details
-   *   human-readable description of the parse failure
-   */
-  final case class FlagRolloutParseException(expression: String, details: String) extends FlagException {
-    override def getMessage: String =
-      s"Rollout parse error in expression '$expression': $details"
-  }
-
-  /**
-   * Thrown when an individual choice segment within a rollout expression cannot
-   * be parsed.
-   *
-   * @param choice
-   *   the raw choice string (e.g. `"value@segment/100%"`) that was malformed
-   * @param details
-   *   human-readable description of the parse failure
-   */
-  final case class FlagChoiceParseException(choice: String, details: String) extends FlagException {
-    override def getMessage: String =
-      s"Choice parse error in '$choice': $details"
   }
 }

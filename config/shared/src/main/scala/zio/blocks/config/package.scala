@@ -16,4 +16,4 @@
 
 package zio.blocks
 
-package object config
+package object config extends SecretPackage

@@ -17,8 +17,12 @@
 package zio.blocks.config
 
 import zio.test._
+import zio.test.TestAspect
 
 object FlagDumpSpec extends ConfigBaseSpec {
+
+  object PlainFlag  extends StaticFlag[String]("plain-value")
+  object SecretFlag extends StaticFlag[Secret[String]](Secret("hunter2"))
 
   def spec = suite("FlagDumpSpec")(
     suite("Flag.all and Flag.get")(
@@ -34,6 +38,17 @@ object FlagDumpSpec extends ConfigBaseSpec {
       test("returns table or empty message") {
         val dumped = Flag.dump()
         assertTrue(dumped.nonEmpty)
+      },
+      test("redacts secret flag values while keeping plain values") {
+        val _      = (PlainFlag.value, SecretFlag.value) // force initialization
+        val dumped = Flag.dump()
+        assertTrue(
+          dumped.contains(PlainFlag.name),
+          dumped.contains("plain-value"),
+          dumped.contains(SecretFlag.name),
+          dumped.contains("<secret>"),
+          !dumped.contains("hunter2")
+        )
       }
     ),
     suite("Flag.nearMissWarnings")(
@@ -59,5 +74,5 @@ object FlagDumpSpec extends ConfigBaseSpec {
         assertTrue(warnings.isEmpty)
       }
     )
-  )
+  ) @@ TestAspect.sequential
 }

@@ -25,21 +25,23 @@ package zio.blocks.config
  *   object MyFlag extends StaticFlag[Int](42)
  * }}}
  *
- * Resolution order: FlagProvider registry → system property → environment
+ * Resolution order: FlagSource registry → system property → environment
  * variable → default. Throws at class load on parse/validation failure
  * (fail-fast).
  */
-abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A]) {
+abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A], displayable: Displayable[A]) {
 
   val name: String = StaticFlag.deriveName(getClass)
 
   private val envName: String = name.replace('.', '_').toUpperCase
 
-  private val resolved: (A, Flag.Source, Provenance) = StaticFlag.resolve(name, envName, default, reader)
+  private val resolved: (A, Flag.Source, Provenance) =
+    StaticFlag.resolve(name, envName, default, reader)
 
   val value: A               = resolved._1
   val source: Flag.Source    = resolved._2
   val provenance: Provenance = resolved._3
+  val displayValue: String   = displayable.display(value)
 
   def apply(): A = value
 
@@ -58,12 +60,14 @@ object StaticFlag {
 
   private def validateObjectName(className: String): Unit = {
     if (!className.endsWith("$"))
-      throw new IllegalArgumentException(
-        s"StaticFlag must be defined as a Scala object, but got class name: $className"
+      throw FlagException.FlagNameException(
+        className,
+        s"must be defined as a Scala object, but got class name: $className"
       )
     if (className.contains("$$Lambda$") || className.contains("$$anon"))
-      throw new IllegalArgumentException(
-        s"StaticFlag must be defined as a Scala object, not a lambda or anonymous class: $className"
+      throw FlagException.FlagNameException(
+        className,
+        s"must be defined as a Scala object, not a lambda or anonymous class: $className"
       )
   }
 
@@ -73,29 +77,20 @@ object StaticFlag {
     default: A,
     reader: Flag.Reader[A]
   ): (A, Flag.Source, Provenance) =
-    FlagProvider.Registry.resolve(name) match {
-      case Some((rawValue, providerId)) =>
-        val parsed = reader.parse(name, rawValue) match {
-          case Right(v) => v
-          case Left(e)  => throw new ExceptionInInitializerError(s"StaticFlag '$name': ${e.message}")
-        }
-        (parsed, Flag.Source.FlagProviderSource(providerId), Provenance.Resolved(providerId, name, Some(rawValue)))
+    FlagSource.Registry.resolve(name) match {
+      case Some(SourceValue(rawValue, provenance)) =>
+        val parsed = parseOrThrow(name, rawValue, reader)
+        (parsed, Flag.Source.FlagSourceValue(provenance.sourceId), provenance)
 
       case None =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) {
-          val parsed = reader.parse(name, sysProp) match {
-            case Right(v) => v
-            case Left(e)  => throw new ExceptionInInitializerError(s"StaticFlag '$name': ${e.message}")
-          }
+          val parsed = parseOrThrow(name, sysProp, reader)
           (parsed, Flag.Source.SystemProperty, Provenance.Resolved("sysprop", name, Some(sysProp)))
         } else {
           val envVal = System.getenv(envName)
           if (envVal != null) {
-            val parsed = reader.parse(name, envVal) match {
-              case Right(v) => v
-              case Left(e)  => throw new ExceptionInInitializerError(s"StaticFlag '$name': ${e.message}")
-            }
+            val parsed = parseOrThrow(name, envVal, reader)
             (parsed, Flag.Source.EnvironmentVariable, Provenance.Resolved("env", envName, Some(envVal)))
           } else {
             (default, Flag.Source.Default, Provenance.Default)
@@ -103,11 +98,18 @@ object StaticFlag {
         }
     }
 
+  private def parseOrThrow[A](name: String, rawValue: String, reader: Flag.Reader[A]): A =
+    reader.parse(name, rawValue) match {
+      case Right(value) => value
+      case Left(error)  =>
+        throw new ExceptionInInitializerError(
+          FlagException.FlagValueParseException(name, rawValue, reader.typeName, Some(error))
+        )
+    }
+
   private[config] def register(flag: StaticFlag[_]): Unit = {
     val existing = Flag.registry.putIfAbsent(flag.name, flag)
     if (existing != null && (existing.asInstanceOf[AnyRef] ne flag.asInstanceOf[AnyRef]))
-      throw new IllegalStateException(
-        s"Duplicate StaticFlag name '${flag.name}': already registered by ${existing.getClass.getName}"
-      )
+      throw FlagException.FlagDuplicateNameException(flag.name)
   }
 }

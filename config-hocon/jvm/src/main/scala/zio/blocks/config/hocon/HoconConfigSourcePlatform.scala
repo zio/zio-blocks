@@ -16,20 +16,55 @@
 
 package zio.blocks.config.hocon
 
-import zio.blocks.config.ConfigSource
+import zio.blocks.config.{ConfigError, ConfigSource}
 
 object HoconConfigSourcePlatform {
 
-  def fromFile(path: String): Either[HoconError, ConfigSource] = {
-    val file = new java.io.File(path)
-    if (!file.exists())
-      Left(HoconError(s"File not found: $path", 0, 0))
-    else {
-      val source  = scala.io.Source.fromFile(file, "UTF-8")
-      val content =
-        try source.mkString
-        finally source.close()
-      HoconConfigSource.fromStringWithId(content, s"hocon:${file.getName}")
+  def fromFile(
+    path: String,
+    allowedBase: Option[java.io.File] = None,
+    maxIncludeDepth: Int = 10
+  ): Either[ConfigError, ConfigSource] = {
+    val file      = new java.io.File(path)
+    val canonical = file.getCanonicalFile
+
+    val traversalError = allowedBase.flatMap { base =>
+      val baseCanon = base.getCanonicalFile
+      if (!canonical.getPath.startsWith(baseCanon.getPath))
+        Some(Left(ConfigError.ParseError(path, "hocon:file", s"path inside ${base.getPath}", None)))
+      else None
+    }
+
+    traversalError.getOrElse {
+      if (!canonical.exists())
+        Left(ConfigError.ParseError(path, "hocon:file", "existing file", None))
+      else {
+        val source  = scala.io.Source.fromFile(canonical, "UTF-8")
+        val content =
+          try source.mkString
+          finally source.close()
+
+        val baseDir                            = canonical.getParentFile
+        var includeDepth                       = 0
+        val callback: String => Option[String] = { resource =>
+          includeDepth += 1
+          if (includeDepth > maxIncludeDepth)
+            throw HoconError(s"Include depth exceeded ($maxIncludeDepth)", 0, 0)
+          val incFile = new java.io.File(baseDir, resource).getCanonicalFile
+          allowedBase.foreach { base =>
+            val baseCanon = base.getCanonicalFile
+            if (!incFile.getPath.startsWith(baseCanon.getPath))
+              throw HoconError(s"Include path traversal: $resource resolves outside ${base.getPath}", 0, 0)
+          }
+          if (incFile.exists()) {
+            val src = scala.io.Source.fromFile(incFile, "UTF-8")
+            try Some(src.mkString)
+            finally src.close()
+          } else None
+        }
+
+        HoconConfigSource.fromStringWithCallback(content, s"hocon:${canonical.getName}", callback)
+      }
     }
   }
 }

@@ -20,12 +20,24 @@ import zio.test._
 
 object ConfigSourceSpec extends ConfigBaseSpec {
   def spec = suite("ConfigSourceSpec")(
+    sourceSuite,
     mapSourceSuite,
     orElseSuite,
     withPrefixSuite,
     withKeyMapperSuite,
     envSourceSuite,
     sysPropSourceSuite
+  )
+
+  private val sourceSuite = suite("Source")(
+    test("ConfigSource exposes Source id and get") {
+      val source: FlagSource = ConfigSource.fromMap(Map("db.host" -> "localhost"), "cfg")
+      val result             = source.get("db.host")
+      assertTrue(
+        source.sourceId == "cfg",
+        result.map(_.value) == Some("localhost")
+      )
+    }
   )
 
   private val mapSourceSuite = suite("MapSource")(

@@ -73,12 +73,18 @@ object Rollout {
   }
 
   def evaluateIndex(choices: Choices, path: String, bucket: Int): Option[String] = {
-    val pathParts = if (path.isEmpty) Nil else path.split("/").toList
-
-    choices.entries.iterator.collectFirst {
-      case Choice.CatchAll(value)                                                   => value
-      case Choice.Targeted(value, selector) if matches(selector, pathParts, bucket) => value
+    val pathParts = if (path.isEmpty) Array.empty[String] else path.split("/")
+    val entries   = choices.entries
+    var idx       = 0
+    while (idx < entries.size) {
+      entries(idx) match {
+        case Choice.CatchAll(value)                                                          => return Some(value)
+        case Choice.Targeted(value, selector) if matches(selector, pathParts.toList, bucket) => return Some(value)
+        case _                                                                               =>
+      }
+      idx += 1
     }
+    None
   }
 
   def bucketFor(key: String): Int =

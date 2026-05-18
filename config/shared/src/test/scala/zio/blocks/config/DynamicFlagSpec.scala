@@ -137,39 +137,39 @@ object DynamicFlagSpec extends ConfigBaseSpec {
       }
     ),
     suite("reload")(
-      test("returns NoProvider when no FlagProvider registered") {
+      test("returns NoSource when no FlagSource registered") {
         object NoProviderFlag extends DynamicFlag[Int](0, "1")
-        FlagProvider.Registry.clear()
-        assertTrue(NoProviderFlag.reload() == Flag.ReloadResult.NoProvider)
+        FlagSource.Registry.clear()
+        assertTrue(NoProviderFlag.reload() == Flag.ReloadResult.NoSource)
       },
       test("returns Unchanged when provider value matches current expression") {
-        FlagProvider.Registry.clear()
-        FlagProvider.Registry.register(
-          FlagProvider.fromMap(Map(ReloadUnchangedFlag.name -> "1"), id = "test-reload")
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(
+          FlagSource.fromMap(Map(ReloadUnchangedFlag.name -> "1"), id = "test-reload")
         )
         val result = ReloadUnchangedFlag.reload()
-        FlagProvider.Registry.clear()
+        FlagSource.Registry.clear()
         assertTrue(result == Flag.ReloadResult.Unchanged)
       },
       test("returns Updated and changes expression when provider has new value") {
         object ReloadableFlag extends DynamicFlag[Int](0, "1")
-        FlagProvider.Registry.clear()
-        FlagProvider.Registry.register(
-          FlagProvider.fromMap(Map(ReloadableFlag.name -> "99"), id = "test-reload2")
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(
+          FlagSource.fromMap(Map(ReloadableFlag.name -> "99"), id = "test-reload2")
         )
         val result = ReloadableFlag.reload()
-        FlagProvider.Registry.clear()
+        FlagSource.Registry.clear()
         assertTrue(result == Flag.ReloadResult.Updated("1", "99")) &&
         assertTrue(ReloadableFlag("k") == 99)
       },
       test("returns Failed on invalid provider value") {
         object FailReloadFlag extends DynamicFlag[Int](0, "1")
-        FlagProvider.Registry.clear()
-        FlagProvider.Registry.register(
-          FlagProvider.fromMap(Map(FailReloadFlag.name -> ""), id = "test-reload3")
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(
+          FlagSource.fromMap(Map(FailReloadFlag.name -> ""), id = "test-reload3")
         )
         val result = FailReloadFlag.reload()
-        FlagProvider.Registry.clear()
+        FlagSource.Registry.clear()
         assertTrue(result.isInstanceOf[Flag.ReloadResult.Failed])
       }
     ) @@ TestAspect.sequential,
@@ -181,35 +181,36 @@ object DynamicFlagSpec extends ConfigBaseSpec {
         assertTrue(Flag.registry.get(SimpleBoolFlag.name).asInstanceOf[AnyRef] eq SimpleBoolFlag.asInstanceOf[AnyRef])
       }
     ),
-    suite("FlagProvider integration")(
-      test("initial expression resolved from FlagProvider") {
+    suite("FlagSource integration")(
+      test("initial expression resolved from FlagSource") {
         val flagName = "zio.blocks.config.DynamicFlagSpec.ProviderInitFlag"
-        FlagProvider.Registry.clear()
-        FlagProvider.Registry.register(
-          FlagProvider.fromMap(Map(flagName -> "provider-value"), id = "test-init")
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(
+          FlagSource.fromMap(Map(flagName -> "provider-value"), id = "test-init")
         )
         val expr = DynamicFlag.resolveInitialExpression(flagName, "IGNORED", "default-expr")
-        FlagProvider.Registry.clear()
+        FlagSource.Registry.clear()
         assertTrue(expr == "provider-value")
       }
     ) @@ TestAspect.sequential,
     suite("fail-fast at init")(
-      test("throws on invalid default expression") {
-        val threw = try {
-          DynamicFlag.initSnapshot("test", "", 0, Flag.Reader.intReader)
-          false
-        } catch {
-          case _: Throwable => true
-        }
-        assertTrue(threw)
+      test("throws ExceptionInInitializerError wrapping FlagExpressionParseException on invalid default expression") {
+        val result =
+          try {
+            DynamicFlag.initSnapshot("test", "", 0, Flag.Reader.intReader)
+            Left("should have thrown")
+          } catch {
+            case e: ExceptionInInitializerError => Right(e)
+          }
+        assertTrue(result.isRight) &&
+        assertTrue(result.toOption.get.getCause.isInstanceOf[FlagException.FlagExpressionParseException])
       }
     ),
     suite("validation")(
-      test("rejects non-object usage") {
-        val result = scala.util.Try {
-          DynamicFlag.deriveName(classOf[String])
-        }
+      test("rejects non-object usage with FlagNameException") {
+        val result = scala.util.Try(DynamicFlag.deriveName(classOf[String]))
         assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[FlagException.FlagNameException]) &&
         assertTrue(result.failed.get.getMessage.contains("Scala object"))
       }
     )

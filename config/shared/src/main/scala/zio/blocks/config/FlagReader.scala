@@ -55,7 +55,7 @@ trait Flag {
       val flag = entry.getValue
       flag match {
         case sf: StaticFlag[_] =>
-          (name, sf.source.toString, sf.value.toString, sf.provenance.sourceId)
+          (name, sf.source.toString, sf.displayValue, sf.provenance.sourceId)
         case df: DynamicFlag[_] =>
           (name, "DynamicFlag", df.expression, "dynamic")
         case other =>
@@ -198,10 +198,10 @@ trait Flag {
     implicit val booleanReader: Scalar[Boolean] = scalar(
       (flagName, raw) => {
         val lower = raw.toLowerCase
-        if (lower == "true" || lower == "1") Right(true)
-        else if (lower == "false" || lower == "0") Right(false)
+        if (lower == "true" || lower == "1" || lower == "yes" || lower == "on") Right(true)
+        else if (lower == "false" || lower == "0" || lower == "no" || lower == "off") Right(false)
         else
-          Left(ConfigError.InvalidValue(flagName, raw, "Boolean (true/false or 1/0)", "flag"))
+          Left(ConfigError.InvalidValue(flagName, raw, "Boolean (true/false/1/0/yes/no/on/off)", "flag"))
       },
       "Boolean"
     )
@@ -210,6 +210,14 @@ trait Flag {
       (_, raw) => Right(raw),
       "String"
     )
+
+    implicit def secretReader[A](implicit reader: Reader[A]): Reader[Secret[A]] =
+      new Reader[Secret[A]] {
+        def parse(flagName: String, raw: String): Either[ConfigError, Secret[A]] =
+          reader.parse(flagName, raw).map(Secret.apply)
+
+        def typeName: String = s"Secret[${reader.typeName}]"
+      }
 
     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
       Reader(
@@ -262,21 +270,21 @@ object Flag extends Flag {
   sealed trait Source
 
   object Source {
-    case object SystemProperty                              extends Source
-    case object EnvironmentVariable                         extends Source
-    final case class FlagProviderSource(providerId: String) extends Source
-    case object Default                                     extends Source
+    case object SystemProperty                         extends Source
+    case object EnvironmentVariable                    extends Source
+    final case class FlagSourceValue(sourceId: String) extends Source
+    case object Default                                extends Source
   }
 
   /**
-   * Result of reloading a dynamic flag's expression from its FlagProvider.
+   * Result of reloading a dynamic flag's expression from its FlagSource.
    */
   sealed trait ReloadResult
 
   object ReloadResult {
     case object Unchanged                                                  extends ReloadResult
     final case class Updated(oldExpression: String, newExpression: String) extends ReloadResult
-    case object NoProvider                                                 extends ReloadResult
+    case object NoSource                                                   extends ReloadResult
     final case class Failed(error: ConfigError)                            extends ReloadResult
   }
 }

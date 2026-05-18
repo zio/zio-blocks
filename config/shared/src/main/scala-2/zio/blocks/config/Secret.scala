@@ -16,4 +16,12 @@
 
 package zio.blocks.config
 
-final case class ConfigValue[A](value: A, provenance: Provenance)
+private[config] trait Tag
+
+trait SecretPackage extends SecretPackageBase {
+  type Secret[+A] = A with Tag
+
+  protected def secretApply[A](value: A): Secret[A] = value.asInstanceOf[Secret[A]]
+
+  protected def secretUnwrap[A](secret: Secret[A]): A = secret.asInstanceOf[A]
+}

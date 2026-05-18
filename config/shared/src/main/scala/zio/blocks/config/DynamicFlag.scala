@@ -32,7 +32,7 @@ import scala.collection.mutable
  *   object MyFeature extends DynamicFlag[Boolean](false, "true@beta/50; false")
  * }}}
  *
- * Resolution order for initial expression: FlagProvider → system property → env
+ * Resolution order for initial expression: FlagSource → system property → env
  * variable → constructor default.
  */
 abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit reader: Flag.Reader[A]) {
@@ -52,6 +52,9 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   @volatile private var _countersBounded: Boolean = false
 
   private val OverflowBucket: String = "other"
+
+  private val _parseErrorCount: java.util.concurrent.atomic.LongAdder =
+    new java.util.concurrent.atomic.LongAdder()
 
   private val _history: mutable.ArrayDeque[DynamicFlag.UpdateRecord] =
     new mutable.ArrayDeque[DynamicFlag.UpdateRecord]()
@@ -93,10 +96,10 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   }
 
   def reload(): Flag.ReloadResult = {
-    val resolved = FlagProvider.Registry.resolve(name)
+    val resolved = FlagSource.Registry.resolve(name)
     resolved match {
-      case None                => Flag.ReloadResult.NoProvider
-      case Some((rawValue, _)) =>
+      case None                           => Flag.ReloadResult.NoSource
+      case Some(SourceValue(rawValue, _)) =>
         val trimmed = rawValue.trim
         if (trimmed == _snapshot.expression) Flag.ReloadResult.Unchanged
         else
@@ -134,15 +137,30 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
       _history.reverseIterator.toList
     }
 
+  /**
+   * Count of evaluations where a matched rollout value could not be parsed and
+   * the call fell back to the flag default. Thread-safe; approximate. A
+   * non-zero value indicates misconfigured rollout expressions.
+   */
+  def parseErrorCount: Long = _parseErrorCount.sum()
+
   private def evaluateInternal(key: String, attributes: Seq[String]): A = {
     val snap   = _snapshot
     val bucket = Rollout.bucketFor(key)
-    val path   = if (attributes.isEmpty) key else (key +: attributes).mkString("/")
+    val path   =
+      if (attributes.isEmpty) key
+      else {
+        val sb = new StringBuilder(key)
+        attributes.foreach { a => sb.append('/'); sb.append(a) }
+        sb.toString
+      }
     Rollout.evaluateIndex(snap.choices, path, bucket) match {
       case Some(raw) =>
         snap.reader.parse(name, raw) match {
           case Right(v) => v
-          case Left(_)  => snap.default
+          case Left(_)  =>
+            _parseErrorCount.increment()
+            snap.default
         }
       case None => snap.default
     }
@@ -185,6 +203,11 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
 
 object DynamicFlag {
 
+  /**
+   * Soft limit: once this many distinct keys have been seen, new keys are
+   * counted under the `"other"` overflow bucket rather than their own entry. No
+   * exception is thrown; existing counters continue to work normally.
+   */
   private[config] val MaxDistinctKeys: Int = 100
   private[config] val MaxHistorySize: Int  = 10
 
@@ -207,12 +230,14 @@ object DynamicFlag {
 
   private def validateObjectName(className: String): Unit = {
     if (!className.endsWith("$"))
-      throw new IllegalArgumentException(
-        s"DynamicFlag must be defined as a Scala object, but got class name: $className"
+      throw FlagException.FlagNameException(
+        className,
+        s"must be defined as a Scala object, but got class name: $className"
       )
     if (className.contains("$$Lambda$") || className.contains("$$anon"))
-      throw new IllegalArgumentException(
-        s"DynamicFlag must be defined as a Scala object, not a lambda or anonymous class: $className"
+      throw FlagException.FlagNameException(
+        className,
+        s"must be defined as a Scala object, not a lambda or anonymous class: $className"
       )
   }
 
@@ -221,9 +246,9 @@ object DynamicFlag {
     envName: String,
     defaultExpression: String
   ): String =
-    FlagProvider.Registry.resolve(name) match {
-      case Some((rawValue, _)) => rawValue
-      case None                =>
+    FlagSource.Registry.resolve(name) match {
+      case Some(SourceValue(rawValue, _)) => rawValue
+      case None                           =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) sysProp
         else {
@@ -243,15 +268,13 @@ object DynamicFlag {
       case Right(choices) => Snapshot(expression, choices, default, reader)
       case Left(err)      =>
         throw new ExceptionInInitializerError(
-          s"DynamicFlag '$name': invalid rollout expression '$expression': ${err.message}"
+          FlagException.FlagExpressionParseException(name, expression, err.message)
         )
     }
 
   private[config] def register(flag: DynamicFlag[_]): Unit = {
     val existing = Flag.registry.putIfAbsent(flag.name, flag)
     if (existing != null && (existing.asInstanceOf[AnyRef] ne flag.asInstanceOf[AnyRef]))
-      throw new IllegalStateException(
-        s"Duplicate DynamicFlag name '${flag.name}': already registered by ${existing.getClass.getName}"
-      )
+      throw FlagException.FlagDuplicateNameException(flag.name)
   }
 }

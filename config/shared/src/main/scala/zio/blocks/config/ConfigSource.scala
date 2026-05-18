@@ -19,7 +19,7 @@ package zio.blocks.config
 /**
  * A source of configuration key-value pairs.
  */
-trait ConfigSource {
+trait ConfigSource extends FlagSource {
 
   /**
    * A unique identifier for this source, used in provenance tracking.
@@ -30,13 +30,13 @@ trait ConfigSource {
    * Look up a single key and return its value with provenance, or None if
    * absent.
    */
-  def get(key: String): Option[ConfigValue[String]]
+  def get(key: String): Option[SourceValue[String]]
 
   /**
    * Return all key-value pairs whose keys start with the given prefix (using
    * dot-separated paths).
    */
-  def getAll(prefix: String): Map[String, ConfigValue[String]]
+  def getAll(prefix: String): Map[String, SourceValue[String]]
 
   /**
    * Compose this source with a fallback. Keys are looked up in this source
@@ -46,11 +46,17 @@ trait ConfigSource {
   final def orElse(fallback: ConfigSource): ConfigSource = new ConfigSource {
     val sourceId: String = s"${ConfigSource.this.sourceId}|${fallback.sourceId}"
 
-    def get(key: String): Option[ConfigValue[String]] =
+    def get(key: String): Option[SourceValue[String]] =
       ConfigSource.this.get(key).orElse(fallback.get(key))
 
-    def getAll(prefix: String): Map[String, ConfigValue[String]] =
-      fallback.getAll(prefix) ++ ConfigSource.this.getAll(prefix)
+    def getAll(prefix: String): Map[String, SourceValue[String]] = {
+      val builder   = scala.collection.mutable.Map.empty[String, SourceValue[String]]
+      val primary   = ConfigSource.this.getAll(prefix)
+      val secondary = fallback.getAll(prefix)
+      secondary.foreach { case (k, v) => builder(k) = v }
+      primary.foreach { case (k, v) => builder(k) = v }
+      builder.toMap
+    }
   }
 
   /**
@@ -61,10 +67,10 @@ trait ConfigSource {
   final def withPrefix(prefix: String): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
 
-    def get(key: String): Option[ConfigValue[String]] =
+    def get(key: String): Option[SourceValue[String]] =
       ConfigSource.this.get(s"$prefix.$key")
 
-    def getAll(pfx: String): Map[String, ConfigValue[String]] =
+    def getAll(pfx: String): Map[String, SourceValue[String]] =
       ConfigSource.this.getAll(s"$prefix.$pfx")
   }
 
@@ -75,12 +81,12 @@ trait ConfigSource {
   final def withKeyMapper(mapper: KeyMapper, targetFormat: KeyFormat): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
 
-    def get(key: String): Option[ConfigValue[String]] = {
+    def get(key: String): Option[SourceValue[String]] = {
       val mappedKey = mapper.fromCanonical(mapper.toCanonical(key), targetFormat)
       ConfigSource.this.get(mappedKey)
     }
 
-    def getAll(prefix: String): Map[String, ConfigValue[String]] =
+    def getAll(prefix: String): Map[String, SourceValue[String]] =
       ConfigSource.this.getAll(prefix)
   }
 }
@@ -92,14 +98,14 @@ object ConfigSource {
    */
   final case class MapSource(map: Map[String, String], sourceId: String = "map") extends ConfigSource {
 
-    def get(key: String): Option[ConfigValue[String]] =
-      map.get(key).map(v => ConfigValue(v, Provenance.Resolved(sourceId, key, Some(v))))
+    def get(key: String): Option[SourceValue[String]] =
+      map.get(key).map(v => SourceValue(v, Provenance.Resolved(sourceId, key, Some(v))))
 
-    def getAll(prefix: String): Map[String, ConfigValue[String]] = {
+    def getAll(prefix: String): Map[String, SourceValue[String]] = {
       val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
       map.collect {
         case (k, v) if prefix.isEmpty || k == prefix || k.startsWith(dotPrefix) =>
-          k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+          k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
       }
     }
   }

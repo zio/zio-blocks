@@ -27,18 +27,18 @@ import scala.scalajs.js
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
 
-  def get(key: String): Option[ConfigValue[String]] = {
+  def get(key: String): Option[SourceValue[String]] = {
     val envKey = toEnvKey(key)
     val raw    = readEnv(envKey)
-    raw.map(v => ConfigValue(v, Provenance.Resolved(sourceId, envKey, Some(v))))
+    raw.map(v => SourceValue(v, Provenance.Resolved(sourceId, envKey, Some(v))))
   }
 
-  def getAll(prefix: String): Map[String, ConfigValue[String]] = {
+  def getAll(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
     allEnvVars().collect {
       case (k, v) if envPrefix.isEmpty || k == envPrefix || k.startsWith(dotPrefix) =>
-        k -> ConfigValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+        k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
     }
   }
 
@@ -78,7 +78,7 @@ object EnvSource extends ConfigSource {
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"
 
-  def get(key: String): Option[ConfigValue[String]] = None
+  def get(key: String): Option[SourceValue[String]] = None
 
-  def getAll(prefix: String): Map[String, ConfigValue[String]] = Map.empty
+  def getAll(prefix: String): Map[String, SourceValue[String]] = Map.empty
 }

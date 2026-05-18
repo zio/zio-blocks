@@ -156,13 +156,17 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
       }
     ),
     suite("error accumulation")(
-      test("multiple missing fields produce multiple errors") {
+      test("multiple missing fields produce Composite error") {
         val source  = ConfigSource.fromMap(Map.empty[String, String])
         val decoder = ConfigDecoder.derive[Db]
         val result  = decoder.decode(source, "")
         result match {
-          case Left(errors) => assertTrue(errors.length >= 2)
-          case Right(_)     => assertTrue(false)
+          case Left(errors) =>
+            errors.head match {
+              case c: ConfigError.Composite => assertTrue(c.errors.length >= 2)
+              case _                        => assertTrue(false)
+            }
+          case Right(_) => assertTrue(false)
         }
       },
       test("type parsing error for Int field") {
@@ -184,9 +188,14 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
         val result  = decoder.decode(source, "")
         result match {
           case Left(errors) =>
-            val hasMissing = errors.exists(_.isInstanceOf[ConfigError.MissingKey])
-            val hasInvalid = errors.exists(_.isInstanceOf[ConfigError.InvalidValue])
-            assertTrue(errors.length == 2, hasMissing, hasInvalid)
+            errors.head match {
+              case c: ConfigError.Composite =>
+                val inner      = c.errors.toList
+                val hasMissing = inner.exists(_.isInstanceOf[ConfigError.MissingKey])
+                val hasInvalid = inner.exists(_.isInstanceOf[ConfigError.InvalidValue])
+                assertTrue(inner.length == 2, hasMissing, hasInvalid)
+              case _ => assertTrue(false)
+            }
           case Right(_) => assertTrue(false)
         }
       }
