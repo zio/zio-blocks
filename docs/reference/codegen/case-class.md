@@ -78,6 +78,19 @@ val person = CaseClass(
 
 Access each component:
 
+```scala mdoc:silent:reset
+import zio.blocks.codegen.ir._
+
+val person = CaseClass(
+  name = "Person",
+  fields = List(
+    Field("id", TypeRef.Long),
+    Field("name", TypeRef.String),
+    Field("email", TypeRef.String)
+  )
+)
+```
+
 ```scala mdoc
 person.name            // "Person"
 person.fields          // List[Field]
@@ -89,7 +102,20 @@ person.isValueClass    // Boolean
 
 ### Building with Copy
 
-Modify a case class:
+Modify a case class with the copy method:
+
+```scala mdoc:silent:reset
+import zio.blocks.codegen.ir._
+
+val person = CaseClass(
+  name = "Person",
+  fields = List(
+    Field("id", TypeRef.Long),
+    Field("name", TypeRef.String),
+    Field("email", TypeRef.String)
+  )
+)
+```
 
 ```scala mdoc
 val extended = person.copy(
@@ -148,6 +174,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -179,6 +207,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -209,6 +239,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -239,6 +271,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -278,5 +312,7 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
