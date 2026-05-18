@@ -63,7 +63,7 @@ val code = ScalaEmitter.emit(file, config)
 
 Build polymorphic types with type parameters:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -100,33 +100,19 @@ val file = ScalaFile(
   packageDecl = PackageDecl("com.example.types"),
   types = List(container, result)
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Generates:
 
-```scala
-package com.example.types
-
-case class Container[T](
-  value: T,
-  metadata: Map[String, String]
-) derives Show
-
-sealed trait Result[A]
-
-object Result {
-  final case class Success[A](value: A) extends Result[A]
-  final case class Failure[A](error: String) extends Result[A]
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ## Example 3: API Request/Response Models
 
 Generate HTTP API models from scratch:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -180,7 +166,11 @@ val file = ScalaFile(
   ),
   types = List(createUserReq, user, apiError)
 )
+```
 
+Generates:
+
+```scala mdoc
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -188,7 +178,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Emit code for both Scala 3 and Scala 2:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -224,39 +214,21 @@ val scala2Code = ScalaEmitter.emit(
 
 Scala 3 output:
 
-```scala
-package com.shop.models
-
-enum OrderStatus {
-  case Pending
-  case Shipped
-  case Delivered
-  case Cancelled
-}
-derives Show
+```scala mdoc
+scala3Code
 ```
 
 Scala 2 output:
 
-```scala
-package com.shop.models
-
-sealed trait OrderStatus
-
-object OrderStatus {
-  case object Pending extends OrderStatus
-  case object Shipped extends OrderStatus
-  case object Delivered extends OrderStatus
-  case object Cancelled extends OrderStatus
-}
-derives Show
+```scala mdoc
+scala2Code
 ```
 
 ## Example 5: Object with Static Methods and Values
 
 Generate a companion object with utility methods:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -290,32 +262,19 @@ val file = ScalaFile(
   packageDecl = PackageDecl("com.example.config"),
   types = List(config)
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Generates:
 
-```scala
-package com.example.config
-
-case class AppConfig(
-  host: String,
-  port: Int,
-  timeout: Long
-) derives Show
-
-object AppConfig {
-  val Default: AppConfig = AppConfig("localhost", 8080, 30000L)
-  val Production: AppConfig = AppConfig("api.example.com", 443, 60000L)
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ## Example 6: Complex Nested Types
 
 Model deeply nested generic structures:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -350,31 +309,19 @@ val file = ScalaFile(
   ),
   types = List(page)
 )
-
-ScalaEmitter.emit(file, EmitterConfig(indentWidth = 2))
 ```
 
 Generates:
 
-```scala
-package com.example.pagination
-
-import scala.collection._
-
-case class Page[T](
-  items: List[T],
-  total: Long,
-  page: Int,
-  pageSize: Int,
-  errors: List[Map[String, String]]
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig(indentWidth = 2))
 ```
 
 ## Example 7: Building Files Incrementally
 
 Add types to a file step by step:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -398,8 +345,11 @@ val file = ScalaFile(
   imports = List(Import.WildcardImport("zio")),
   types = List(user, order, status)
 )
+```
 
-// Emit the complete file
+Generates:
+
+```scala mdoc
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -407,7 +357,7 @@ ScalaEmitter.emit(file, EmitterConfig())
 
 Generate multiple files from a single data model:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -445,10 +395,18 @@ val errorsFile = ScalaFile(
 // Emit both
 val modelsCode = ScalaEmitter.emit(modelsFile, config)
 val errorsCode = ScalaEmitter.emit(errorsFile, config)
+```
 
-// In real usage, you'd write these to separate files
-// IO.writeFile("src/main/scala/com/example/models.scala", modelsCode)
-// IO.writeFile("src/main/scala/com/example/errors.scala", errorsCode)
+Models output:
+
+```scala mdoc
+modelsCode
+```
+
+Errors output:
+
+```scala mdoc
+errorsCode
 ```
 
 ## Key Patterns
