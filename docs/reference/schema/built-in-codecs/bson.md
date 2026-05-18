@@ -18,7 +18,7 @@ BSON is the native wire format for MongoDB and appears widely across modern appl
 - Native ObjectId support with automatic detection and encoding
 - Precise error reporting with location traces showing the path to errors
 - Recursive type support with automatic cycle detection
-- Cross-platform compatibility (JVM and Scala.js)
+- JVM support (not available for Scala.js)
 
 Rather than writing custom encoders or relying on string-based configuration, you work with strongly-typed schemas that the compiler validates.
 
@@ -30,11 +30,7 @@ Add the module to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson" % "@VERSION@"
 ```
 
-For Scala.js, use `%%%` instead of `%%`:
-
-```sbt
-libraryDependencies += "dev.zio" %%% "zio-blocks-schema-bson" % "@VERSION@"
-```
+**Note:** This module is JVM-only and is not available for Scala.js.
 
 Supported Scala versions: 2.13.x and 3.x
 

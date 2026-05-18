@@ -17,7 +17,7 @@ Thrift is a compact binary serialization format that appears widely across distr
 - Recursive type support with automatic cycle detection
 - Multiple encoding paths: ByteBuffer, byte arrays, and streams
 - Multiple decoding paths: ByteBuffer, byte arrays, and streams
-- Cross-platform compatibility (JVM and Scala.js)
+- JVM support (not available for Scala.js)
 
 Rather than writing custom encoders or relying on code generation from .thrift files, you work with strongly-typed schemas that the compiler validates.
 
@@ -29,11 +29,7 @@ Add the module to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift" % "@VERSION@"
 ```
 
-For Scala.js, use `%%%` instead of `%%`:
-
-```sbt
-libraryDependencies += "dev.zio" %%% "zio-blocks-schema-thrift" % "@VERSION@"
-```
+**Note:** This module is JVM-only and is not available for Scala.js.
 
 Supported Scala versions: 2.13.x and 3.x
 
