@@ -156,7 +156,7 @@ import zio._
 case class User(
   id: Long,
   name: String,
-  email: Option[String]
+  email: Option[String],
 ) derives Schema
 ```
 

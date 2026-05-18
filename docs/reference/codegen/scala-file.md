@@ -31,8 +31,7 @@ import zio.blocks.codegen.ir._
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example"),
   imports = List(
-    Import.WildcardImport("zio"),
-    Import.SingleImport("scala.collection", "List")
+    Import.WildcardImport("zio")
   ),
   types = List(
     CaseClass(

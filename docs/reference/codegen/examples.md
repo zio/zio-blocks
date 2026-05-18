@@ -87,7 +87,7 @@ val result = SealedTrait(
     SealedTraitCase.CaseClassCase(
       CaseClass("Success", List(
         Field("value", TypeRef("A"))
-      ))
+      ), typeParams = List(TypeParam("A")))
     ),
     SealedTraitCase.CaseClassCase(
       CaseClass("Failure", List(
@@ -126,7 +126,7 @@ val createUserReq = CaseClass(
     Field("name", TypeRef.String),
     Field("password", TypeRef.String)
   ),
-  derives = List("Codec")
+  derives = List("Show")
 )
 
 // Response model
@@ -138,7 +138,7 @@ val user = CaseClass(
     Field("name", TypeRef.String),
     Field("createdAt", TypeRef.String)
   ),
-  derives = List("Codec", "Show")
+  derives = List("Show")
 )
 
 // Error responses
@@ -158,14 +158,11 @@ val apiError = SealedTrait(
     ),
     SealedTraitCase.CaseObjectCase("InternalServerError")
   ),
-  derives = List("Codec", "Show")
+  derives = List("Show")
 )
 
 val file = ScalaFile(
   packageDecl = PackageDecl("com.example.api.models"),
-  imports = List(
-    Import.SingleImport("zio.json", "JsonCodec")
-  ),
   types = List(createUserReq, user, apiError)
 )
 ```

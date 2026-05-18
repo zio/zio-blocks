@@ -195,10 +195,10 @@ val either = SealedTrait(
   typeParams = List(TypeParam("L"), TypeParam("R")),
   cases = List(
     SealedTraitCase.CaseClassCase(
-      CaseClass("Left", List(Field("value", TypeRef("L"))))
+      CaseClass("Left", List(Field("value", TypeRef("L"))), typeParams = List(TypeParam("L")))
     ),
     SealedTraitCase.CaseClassCase(
-      CaseClass("Right", List(Field("value", TypeRef("R"))))
+      CaseClass("Right", List(Field("value", TypeRef("R"))), typeParams = List(TypeParam("R")))
     )
   )
 )

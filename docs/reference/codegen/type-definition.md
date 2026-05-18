@@ -15,8 +15,6 @@ title: "TypeDefinition"
 
 `TypeDefinition` has 9 concrete implementations:
 
-**Note:** All major type variants (`CaseClass`, `SealedTrait`, `Enum`, `ObjectDef`, `Trait`, `AbstractClass`) support optional `derives` clauses for automatic typeclass derivation.
-
 | Type            | Purpose                     | Scala Feature                              |
 |-----------------|-----------------------------|--------------------------------------------|
 | `CaseClass`     | Product types with fields   | Scala 2 & 3                                |
@@ -257,9 +255,10 @@ val file = ScalaFile(
     // Sealed trait (sum type)
     SealedTrait(
       "Result",
+      typeParams = List(TypeParam("T")),
       cases = List(
         SealedTraitCase.CaseClassCase(
-          CaseClass("Success", List(Field("value", TypeRef("T"))))
+          CaseClass("Success", List(Field("value", TypeRef("T"))), typeParams = List(TypeParam("T")))
         ),
         SealedTraitCase.CaseObjectCase("Failure")
       )

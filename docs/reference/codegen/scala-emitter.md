@@ -82,7 +82,7 @@ import zio.blocks.codegen.ir._
 val deprecated = Annotation("deprecated")
 // Emits: "@deprecated"
 
-val withArg = Annotation("Deprecated", args = List("message" -> "Use newMethod instead"))
+val withArg = Annotation("Deprecated", args = List("message" -> "\"Use newMethod instead\""))
 // Emits: "@Deprecated(message = \"Use newMethod instead\")"
 ```
 
