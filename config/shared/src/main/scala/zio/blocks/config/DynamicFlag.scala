@@ -78,28 +78,21 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
    */
   def expression: String = _snapshot.expression
 
-  /**
-   * Updates the rollout expression at runtime. Uses lenient validation: parse
-   * errors are silently ignored and the expression remains unchanged.
-   */
-  def update(newExpression: String)(implicit allow: AllowUnsafe): Unit = {
+  def update(newExpression: String): Either[ConfigError, Unit] = {
     val trimmed = newExpression.trim
-    if (trimmed.isEmpty) return
+    if (trimmed.isEmpty) return Right(())
 
     Rollout.parseChoices(trimmed) match {
       case Right(choices) =>
         val oldExpr = _snapshot.expression
         _snapshot = DynamicFlag.Snapshot(trimmed, choices, default, reader)
         recordUpdate(oldExpr, trimmed)
-      case Left(_) => ()
+        Right(())
+      case Left(err) => Left(err)
     }
   }
 
-  /**
-   * Reloads the expression from FlagProvider. Returns a ReloadResult indicating
-   * what happened.
-   */
-  def reload()(implicit allow: AllowUnsafe): Flag.ReloadResult = {
+  def reload(): Flag.ReloadResult = {
     val resolved = FlagProvider.Registry.resolve(name)
     resolved match {
       case None                => Flag.ReloadResult.NoProvider

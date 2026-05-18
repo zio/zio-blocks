@@ -16,16 +16,5 @@
 
 package zio.blocks.config
 
-/**
- * Marker implicit that gates unsafe mutation operations on dynamic flags.
- * Obtain via `AllowUnsafe.instance` or `AllowUnsafe { implicit allow => ... }`.
- */
-sealed trait AllowUnsafe
+private[config] object AllowUnsafe
 
-object AllowUnsafe {
-  private val _instance: AllowUnsafe = new AllowUnsafe {}
-
-  implicit val instance: AllowUnsafe = _instance
-
-  def apply[A](f: AllowUnsafe => A): A = f(_instance)
-}

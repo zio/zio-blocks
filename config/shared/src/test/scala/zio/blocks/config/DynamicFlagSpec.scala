@@ -74,36 +74,31 @@ object DynamicFlagSpec extends ConfigBaseSpec {
       }
     ),
     suite("update")(
-      test("updates expression at runtime") {
+      test("returns Right and updates expression on valid input") {
         object UpdatableFlag extends DynamicFlag[Int](0, "10")
         assertTrue(UpdatableFlag("k") == 10)
-        AllowUnsafe { implicit allow =>
-          UpdatableFlag.update("20")
-        }
+        val result = UpdatableFlag.update("20")
+        assertTrue(result == Right(())) &&
         assertTrue(UpdatableFlag("k") == 20) &&
         assertTrue(UpdatableFlag.expression == "20")
       },
-      test("silently ignores invalid expression on update") {
+      test("returns Right and leaves expression unchanged on empty input") {
         object StableFlag extends DynamicFlag[String]("x", "hello")
-        AllowUnsafe { implicit allow =>
-          StableFlag.update("")
-        }
+        val result = StableFlag.update("")
+        assertTrue(result == Right(())) &&
         assertTrue(StableFlag("k") == "hello") &&
         assertTrue(StableFlag.expression == "hello")
       },
-      test("silently ignores unparseable rollout on update") {
+      test("returns Left on unparseable rollout expression") {
         object StableFlag2 extends DynamicFlag[String]("x", "hello")
-        AllowUnsafe { implicit allow =>
-          StableFlag2.update("@@@invalid;;;")
-        }
+        val result = StableFlag2.update("@@@invalid;;;")
+        assertTrue(result.isLeft) &&
         assertTrue(StableFlag2.expression == "hello")
       },
       test("update records history") {
         object HistFlag extends DynamicFlag[Int](0, "1")
-        AllowUnsafe { implicit allow =>
-          HistFlag.update("2")
-          HistFlag.update("3")
-        }
+        HistFlag.update("2")
+        HistFlag.update("3")
         val history = HistFlag.updateHistory
         assertTrue(history.size == 2) &&
         assertTrue(history.head.oldExpression == "2") &&
@@ -113,9 +108,7 @@ object DynamicFlagSpec extends ConfigBaseSpec {
       },
       test("history is bounded to 10 entries") {
         object BoundedHistFlag extends DynamicFlag[Int](0, "0")
-        AllowUnsafe { implicit allow =>
-          (1 to 15).foreach(i => BoundedHistFlag.update(i.toString))
-        }
+        (1 to 15).foreach(i => BoundedHistFlag.update(i.toString))
         assertTrue(BoundedHistFlag.updateHistory.size == 10)
       }
     ),
@@ -147,20 +140,16 @@ object DynamicFlagSpec extends ConfigBaseSpec {
       test("returns NoProvider when no FlagProvider registered") {
         object NoProviderFlag extends DynamicFlag[Int](0, "1")
         FlagProvider.Registry.clear()
-        AllowUnsafe { implicit allow =>
-          assertTrue(NoProviderFlag.reload() == Flag.ReloadResult.NoProvider)
-        }
+        assertTrue(NoProviderFlag.reload() == Flag.ReloadResult.NoProvider)
       },
       test("returns Unchanged when provider value matches current expression") {
         FlagProvider.Registry.clear()
         FlagProvider.Registry.register(
           FlagProvider.fromMap(Map(ReloadUnchangedFlag.name -> "1"), id = "test-reload")
         )
-        AllowUnsafe { implicit allow =>
-          val result = ReloadUnchangedFlag.reload()
-          FlagProvider.Registry.clear()
-          assertTrue(result == Flag.ReloadResult.Unchanged)
-        }
+        val result = ReloadUnchangedFlag.reload()
+        FlagProvider.Registry.clear()
+        assertTrue(result == Flag.ReloadResult.Unchanged)
       },
       test("returns Updated and changes expression when provider has new value") {
         object ReloadableFlag extends DynamicFlag[Int](0, "1")
@@ -168,12 +157,10 @@ object DynamicFlagSpec extends ConfigBaseSpec {
         FlagProvider.Registry.register(
           FlagProvider.fromMap(Map(ReloadableFlag.name -> "99"), id = "test-reload2")
         )
-        AllowUnsafe { implicit allow =>
-          val result = ReloadableFlag.reload()
-          FlagProvider.Registry.clear()
-          assertTrue(result == Flag.ReloadResult.Updated("1", "99")) &&
-          assertTrue(ReloadableFlag("k") == 99)
-        }
+        val result = ReloadableFlag.reload()
+        FlagProvider.Registry.clear()
+        assertTrue(result == Flag.ReloadResult.Updated("1", "99")) &&
+        assertTrue(ReloadableFlag("k") == 99)
       },
       test("returns Failed on invalid provider value") {
         object FailReloadFlag extends DynamicFlag[Int](0, "1")
@@ -181,11 +168,9 @@ object DynamicFlagSpec extends ConfigBaseSpec {
         FlagProvider.Registry.register(
           FlagProvider.fromMap(Map(FailReloadFlag.name -> ""), id = "test-reload3")
         )
-        AllowUnsafe { implicit allow =>
-          val result = FailReloadFlag.reload()
-          FlagProvider.Registry.clear()
-          assertTrue(result.isInstanceOf[Flag.ReloadResult.Failed])
-        }
+        val result = FailReloadFlag.reload()
+        FlagProvider.Registry.clear()
+        assertTrue(result.isInstanceOf[Flag.ReloadResult.Failed])
       }
     ) @@ TestAspect.sequential,
     suite("self-registration")(

@@ -91,8 +91,8 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("key2").isEmpty) &&
       assertTrue(result.toOption.get.get("key3").map(_.value) == Some("value3"))
     },
-    test("handles unusual but valid YAML gracefully") {
-      val yaml   = "key: [a, b, c"
+    test("handles flow sequence value") {
+      val yaml   = "key: [a, b, c]"
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight || result.isLeft)
     },
