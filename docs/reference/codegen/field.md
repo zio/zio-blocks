@@ -52,13 +52,17 @@ All `Field` instances support these operations:
 
 Extract parts of a field:
 
-```scala mdoc:silent
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 
 val field = Field("age", TypeRef.Int, defaultValue = Some("0"))
 ```
 
+View field properties:
+
 ```scala mdoc
+import zio.blocks.codegen.ir._
+
 field.name           // "age"
 field.typeRef        // TypeRef.Int
 field.defaultValue   // Some("0")
@@ -67,9 +71,19 @@ field.annotations    // List[Annotation]
 
 ### Building with Copy
 
-Modify a field:
+Modify a field using copy:
+
+```scala mdoc:silent:reset
+import zio.blocks.codegen.ir._
+
+val field = Field("age", TypeRef.Int, defaultValue = Some("0"))
+```
+
+Apply modifications:
 
 ```scala mdoc
+import zio.blocks.codegen.ir._
+
 val updated = field.copy(
   defaultValue = Some("18"),
   annotations = List(Annotation("min"))
@@ -107,6 +121,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -136,6 +152,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -167,6 +185,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -205,6 +225,8 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
 
@@ -235,5 +257,7 @@ val file = ScalaFile(
 Emits:
 
 ```scala mdoc
+import zio.blocks.codegen.emit._
+
 ScalaEmitter.emit(file, EmitterConfig())
 ```
