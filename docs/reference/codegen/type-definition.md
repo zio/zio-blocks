@@ -31,7 +31,7 @@ title: "TypeDefinition"
 
 Every `TypeDefinition` provides:
 
-```scala mdoc:compile-only
+```scala
 sealed trait TypeDefinition {
   def name: String              // The name of the type
   def annotations: List[Annotation]  // Annotations applied to it
