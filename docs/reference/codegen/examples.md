@@ -25,8 +25,7 @@ val error = SealedTrait(
         Field("message", TypeRef.String)
       ))
     )
-  ),
-  derives = List("Show")
+  )
 )
 
 // Define a user
@@ -37,8 +36,7 @@ val user = CaseClass(
     Field("email", TypeRef.String),
     Field("name", TypeRef.String),
     Field("active", TypeRef.Boolean, defaultValue = Some("true"))
-  ),
-  derives = List("Show", "Eq")
+  )
 )
 
 // Assemble into a file
@@ -125,8 +123,7 @@ val createUserReq = CaseClass(
     Field("email", TypeRef.String),
     Field("name", TypeRef.String),
     Field("password", TypeRef.String)
-  ),
-  derives = List("Show")
+  )
 )
 
 // Response model
@@ -137,8 +134,7 @@ val user = CaseClass(
     Field("email", TypeRef.String),
     Field("name", TypeRef.String),
     Field("createdAt", TypeRef.String)
-  ),
-  derives = List("Show")
+  )
 )
 
 // Error responses
@@ -157,8 +153,7 @@ val apiError = SealedTrait(
       ))
     ),
     SealedTraitCase.CaseObjectCase("InternalServerError")
-  ),
-  derives = List("Show")
+  )
 )
 
 val file = ScalaFile(
@@ -190,8 +185,7 @@ val status = Enum(
     EnumCase.SimpleCase("Shipped"),
     EnumCase.SimpleCase("Delivered"),
     EnumCase.SimpleCase("Cancelled")
-  ),
-  derives = List("Show")
+  )
 )
 
 val file = ScalaFile(

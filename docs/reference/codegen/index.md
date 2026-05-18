@@ -140,8 +140,7 @@ ScalaFile
          Field("id", TypeRef.Long),
          Field("name", TypeRef.String),
          Field("email", TypeRef("Option", List(TypeRef.String)))
-       ],
-       derives = ["Schema"]
+       ]
      )
    ]
 ```
@@ -157,7 +156,7 @@ case class User(
   id: Long,
   name: String,
   email: Option[String],
-) derives Schema
+)
 ```
 
 The architecture flows through three layers:

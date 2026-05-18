@@ -132,8 +132,7 @@ val file = ScalaFile(
       List(
         Field("status", TypeRef.Int),
         Field("data", TypeRef.optional(TypeRef.String))
-      ),
-      derives = List("Show")
+      )
     )
   )
 )
@@ -224,8 +223,7 @@ val file = ScalaFile(
         ),
         SealedTraitCase.CaseObjectCase("Unauthorized"),
         SealedTraitCase.CaseObjectCase("InternalError")
-      ),
-      derives = List("Show")
+      )
     )
   )
 )

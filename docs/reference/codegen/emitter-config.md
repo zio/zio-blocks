@@ -306,7 +306,7 @@ The `scala3Syntax` field affects code generation:
 When targeting Scala 3, the emitter uses:
 
 - **Enums**: `enum Color { case Red; case Blue }`
-- **Derives**: `derives Show, Eq`
+- **Derives (case classes only)**: `derives Show, Eq` (sealed traits and enums do not emit derives)
 - **Wildcard imports**: `import scala.collection.*`
 - **Rename imports**: `import foo.{bar as baz}`
 - **Opaque types**: `opaque type UserId = Long`

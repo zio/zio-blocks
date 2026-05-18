@@ -58,7 +58,7 @@ val option = SealedTrait(
   cases = List(
     SealedTraitCase.CaseObjectCase("None"),
     SealedTraitCase.CaseClassCase(
-      CaseClass("Some", List(Field("value", TypeRef("A"))))
+      CaseClass("Some", List(Field("value", TypeRef("A"))), typeParams = List(TypeParam("A")))
     )
   )
 )
@@ -102,8 +102,7 @@ Modify a sealed trait:
 ```scala mdoc
 import zio.blocks.codegen.emit._
 val updated = result.copy(
-  cases = result.cases :+ SealedTraitCase.CaseObjectCase("Pending"),
-  derives = List("Show")
+  cases = result.cases :+ SealedTraitCase.CaseObjectCase("Pending")
 )
 ```
 
@@ -165,8 +164,7 @@ val payment = SealedTrait(
     ),
     SealedTraitCase.CaseObjectCase("Cash"),
     SealedTraitCase.CaseObjectCase("Check")
-  ),
-  derives = List("Show")
+  )
 )
 
 val file = ScalaFile(
@@ -240,8 +238,7 @@ val appError = SealedTrait(
     ),
     SealedTraitCase.CaseObjectCase("Unauthorized"),
     SealedTraitCase.CaseObjectCase("InternalServerError")
-  ),
-  derives = List("Show")
+  )
 )
 
 val file = ScalaFile(

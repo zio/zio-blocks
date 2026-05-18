@@ -202,8 +202,7 @@ val user = CaseClass(
     Field("name", TypeRef.String),
     Field("email", TypeRef("Option", List(TypeRef.String))),
     Field("tags", TypeRef("List", List(TypeRef.String)))
-  ),
-  derives = List("Show")
+  )
 )
 
 val file = ScalaFile(
@@ -266,8 +265,7 @@ val product = CaseClass(
     Field("id", TypeRef.String),
     Field("name", TypeRef.String),
     Field("price", TypeRef("java.math.BigDecimal"))
-  ),
-  derives = List("Schema", "Codec", "Show")
+  )
 )
 
 val file = ScalaFile(
