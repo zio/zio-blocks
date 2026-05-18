@@ -76,6 +76,8 @@ val person = CaseClass(
 )
 ```
 
+Access each component:
+
 ```scala mdoc
 person.name            // "Person"
 person.fields          // List[Field]
