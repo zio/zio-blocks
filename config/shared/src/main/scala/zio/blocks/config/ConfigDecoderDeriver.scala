@@ -118,8 +118,11 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
             idx += 1
           }
           errors match {
-            case head :: tail => new Left(new ::(head, tail))
-            case Nil          => new Right(constructor.construct(regs, 0L))
+            case Nil         => new Right(constructor.construct(regs, 0L))
+            case head :: Nil => new Left(new ::(head, Nil))
+            case head :: tail =>
+              val composite = ConfigError.Composite(new ::(head, tail))
+              new Left(new ::(composite, Nil))
           }
         }
       }
@@ -168,18 +171,13 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
                     case None          =>
                       new Left(
                         new ::(
-                          ConfigError.InvalidValue(
-                            typeKey,
-                            cv.value,
-                            s"one of: ${decoderMap.keys.mkString(", ")}",
-                            source.sourceId
-                          ),
+                          ConfigError.UnknownDiscriminator(typeKey, cv.value, decoderMap.keys.toSeq.sorted),
                           Nil
                         )
                       )
                   }
                 case None =>
-                  new Left(new ::(ConfigError.MissingKey(typeKey, source.sourceId), Nil))
+                  new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, "type"), Nil))
               }
             }
           }

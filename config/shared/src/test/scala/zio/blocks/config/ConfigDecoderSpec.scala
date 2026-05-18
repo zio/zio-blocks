@@ -257,7 +257,7 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
         val decoder = ConfigDecoder.derive[Color]
         val result  = decoder.decode(source, "")
         result match {
-          case Left(errors) => assertTrue(errors.exists(_.isInstanceOf[ConfigError.InvalidValue]))
+          case Left(errors) => assertTrue(errors.exists(_.isInstanceOf[ConfigError.UnknownDiscriminator]))
           case Right(_)     => assertTrue(false)
         }
       },
@@ -266,7 +266,7 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
         val decoder = ConfigDecoder.derive[Color]
         val result  = decoder.decode(source, "")
         result match {
-          case Left(errors) => assertTrue(errors.exists(_.isInstanceOf[ConfigError.MissingKey]))
+          case Left(errors) => assertTrue(errors.exists(_.isInstanceOf[ConfigError.MissingDiscriminatorKey]))
           case Right(_)     => assertTrue(false)
         }
       }
