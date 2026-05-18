@@ -23,19 +23,21 @@ trait KeyMapper {
 
 object KeyMapper {
   val default: KeyMapper = new KeyMapper {
-    def toCanonical(key: String): String =
-      // UPPER_SNAKE_CASE -> camelCase
-      if (key.contains('_')) {
-        val parts = key.split('_').map(_.toLowerCase)
-        parts.head + parts.tail.map(p => s"${p.head.toUpper}${p.tail}").mkString
+    def toCanonical(key: String): String = {
+      val sep = if (key.indexOf('_') >= 0) '_' else if (key.indexOf('-') >= 0) '-' else '\u0000'
+      if (sep == '\u0000') return key
+      val sb           = new StringBuilder(key.length)
+      var capitalizeNext = false
+      var i             = 0
+      while (i < key.length) {
+        val c = key.charAt(i)
+        if (c == sep) capitalizeNext = true
+        else if (capitalizeNext) { sb.append(c.toUpper); capitalizeNext = false }
+        else sb.append(c.toLower)
+        i += 1
       }
-      // kebab-case -> camelCase
-      else if (key.contains('-')) {
-        val parts = key.split('-').map(_.toLowerCase)
-        parts.head + parts.tail.map(p => s"${p.head.toUpper}${p.tail}").mkString
-      }
-      // camelCase identity
-      else key
+      sb.toString
+    }
 
     def fromCanonical(key: String, target: KeyFormat): String = target match {
       case KeyFormat.CamelCase =>

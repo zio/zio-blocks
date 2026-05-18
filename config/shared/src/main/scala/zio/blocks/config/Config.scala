@@ -23,13 +23,18 @@ import zio.blocks.schema.Schema
  */
 object Config {
 
-  /**
-   * Load a value of type `A` from the given source.
-   */
   def load[A](source: ConfigSource)(implicit schema: Schema[A]): Either[::[ConfigError], A] = {
     val decoder = ConfigDecoder.derive[A]
     decoder.decode(source, "")
   }
+
+  def load[A](source: ConfigSource, deriver: ConfigDecoderDeriver)(implicit schema: Schema[A]): Either[::[ConfigError], A] = {
+    val decoder = schema.deriving(deriver).derive
+    decoder.decode(source, "")
+  }
+
+  def withKeyFormat(source: ConfigSource, format: KeyFormat): ConfigSource =
+    source.withKeyMapper(KeyMapper.default, format)
 
   /**
    * Load a value of type `A` from the given source, or throw with a formatted

@@ -16,25 +16,32 @@
 
 package zio.blocks.config.hocon
 
-import zio.blocks.config.ConfigSource
+import zio.blocks.config.{ConfigError, ConfigSource}
 
 /**
  * Create a `ConfigSource` from HOCON text using the built-in `HoconParser`.
  */
 object HoconConfigSource {
 
-  /**
-   * Parse a HOCON string into a `ConfigSource`.
-   */
-  def fromString(hocon: String): Either[HoconError, ConfigSource] =
+  def fromString(hocon: String): Either[ConfigError, ConfigSource] =
     fromStringWithId(hocon, "hocon:string")
 
-  /**
-   * Parse a HOCON string into a `ConfigSource` with a custom source identifier.
-   */
-  def fromStringWithId(hocon: String, sourceId: String): Either[HoconError, ConfigSource] =
-    HoconParser.parse(hocon).map { value =>
+  def fromStringWithId(hocon: String, sourceId: String): Either[ConfigError, ConfigSource] =
+    HoconParser.parse(hocon).left.map(toConfigError(_, sourceId)).map { value =>
       val flat = HoconValue.flatten(value)
       ConfigSource.fromMap(flat, sourceId)
     }
+
+  def fromStringWithCallback(
+    hocon: String,
+    sourceId: String,
+    includeCallback: String => Option[String]
+  ): Either[ConfigError, ConfigSource] =
+    HoconParser.parse(hocon, includeCallback).left.map(toConfigError(_, sourceId)).map { value =>
+      val flat = HoconValue.flatten(value)
+      ConfigSource.fromMap(flat, sourceId)
+    }
+
+  private def toConfigError(e: HoconError, sourceId: String): ConfigError =
+    ConfigError.ParseError("", sourceId, "valid HOCON", Some(e))
 }

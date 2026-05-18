@@ -27,9 +27,11 @@ import scala.annotation.switch
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-object ConfigDecoderDeriver extends ConfigDecoderDeriver
+object ConfigDecoderDeriver extends ConfigDecoderDeriver("type")
 
-class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
+class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Deriver[ConfigDecoder] {
+
+  def withDiscriminatorKey(key: String): ConfigDecoderDeriver = new ConfigDecoderDeriver(key)
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -163,7 +165,8 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
             private[this] val decoderMap = caseDecoders.toMap
 
             def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A] = {
-              val typeKey = if (prefix.isEmpty) "type" else s"$prefix.type"
+              val dk      = discriminatorKey
+              val typeKey = if (prefix.isEmpty) dk else s"$prefix.$dk"
               source.get(typeKey) match {
                 case Some(cv) =>
                   decoderMap.get(cv.value) match {
@@ -177,7 +180,7 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
                       )
                   }
                 case None =>
-                  new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, "type"), Nil))
+                  new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, dk), Nil))
               }
             }
           }
@@ -204,14 +207,17 @@ class ConfigDecoderDeriver extends Deriver[ConfigDecoder] {
           private[this] val elemClassTag = element.typeId.classTag.asInstanceOf[ClassTag[Elem]]
 
           def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], Col[Elem]] = {
-            var errors   = List.empty[ConfigError]
-            val builder  = constructor.newBuilder[Elem](8)(elemClassTag)
-            var idx      = 0
-            var continue = true
+            var errors    = List.empty[ConfigError]
+            val builder   = constructor.newBuilder[Elem](8)(elemClassTag)
+            val allKeys   = source.getAll(prefix)
+            var idx       = 0
+            var continue  = true
             while (continue) {
               val elemKey   = if (prefix.isEmpty) idx.toString else s"$prefix.$idx"
               val hasKey    = source.get(elemKey).isDefined
-              val hasSubKey = !source.getAll(elemKey).isEmpty
+              val hasSubKey = allKeys.keysIterator.exists { k =>
+                k == elemKey || k.startsWith(elemKey + ".")
+              }
               if (hasKey || hasSubKey) {
                 elemDecoder.decode(source, elemKey) match {
                   case Right(v)   => constructor.add(builder, v)

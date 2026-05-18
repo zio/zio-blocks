@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
-package zio.blocks
+package zio.blocks.config
 
-package object config extends SecretPackage
+trait SecretPackage extends SecretPackageBase {
+  opaque type Secret[+A] = A
+
+  protected def secretApply[A](value: A): Secret[A] = value
+
+  protected def secretUnwrap[A](secret: Secret[A]): A = secret
+}

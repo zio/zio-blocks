@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
-package zio.blocks
+package zio.blocks.config
 
-package object config extends SecretPackage
+private[config] trait Tag
+
+trait SecretPackage extends SecretPackageBase {
+  type Secret[+A] = A with Tag
+
+  protected def secretApply[A](value: A): Secret[A] = value.asInstanceOf[Secret[A]]
+
+  protected def secretUnwrap[A](secret: Secret[A]): A = secret.asInstanceOf[A]
+}

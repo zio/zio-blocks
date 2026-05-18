@@ -29,7 +29,7 @@ package zio.blocks.config
  * variable → default. Throws at class load on parse/validation failure
  * (fail-fast).
  */
-abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A]) {
+abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A], displayable: Displayable[A]) {
 
   val name: String = StaticFlag.deriveName(getClass)
 
@@ -40,6 +40,7 @@ abstract class StaticFlag[A](default: A)(implicit reader: Flag.Reader[A]) {
   val value: A               = resolved._1
   val source: Flag.Source    = resolved._2
   val provenance: Provenance = resolved._3
+  val displayValue: String    = displayable.display(value)
 
   def apply(): A = value
 

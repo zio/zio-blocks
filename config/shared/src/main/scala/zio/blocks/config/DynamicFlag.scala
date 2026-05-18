@@ -137,7 +137,11 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   private def evaluateInternal(key: String, attributes: Seq[String]): A = {
     val snap   = _snapshot
     val bucket = Rollout.bucketFor(key)
-    val path   = if (attributes.isEmpty) key else (key +: attributes).mkString("/")
+    val path = if (attributes.isEmpty) key else {
+      val sb = new StringBuilder(key)
+      attributes.foreach { a => sb.append('/'); sb.append(a) }
+      sb.toString
+    }
     Rollout.evaluateIndex(snap.choices, path, bucket) match {
       case Some(raw) =>
         snap.reader.parse(name, raw) match {

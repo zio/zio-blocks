@@ -53,8 +53,12 @@ object ConfigSpec extends ConfigBaseSpec {
         val source = ConfigSource.fromMap(Map.empty[String, String])
         val result = Config.load[Db](source)
         result match {
-          case Left(errors) => assertTrue(errors.length >= 2)
-          case Right(_)     => assertTrue(false)
+          case Left(errors) =>
+            errors.head match {
+              case c: ConfigError.Composite => assertTrue(c.errors.length >= 2)
+              case _                        => assertTrue(false)
+            }
+          case Right(_) => assertTrue(false)
         }
       }
     ),
@@ -71,7 +75,7 @@ object ConfigSpec extends ConfigBaseSpec {
           false
         } catch {
           case e: ConfigLoadException =>
-            e.errors.length >= 2 && e.report.contains("error(s)")
+            e.errors.head.isInstanceOf[ConfigError.Composite] && e.report.contains("error(s)")
         }
         assertTrue(threw)
       }

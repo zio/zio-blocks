@@ -52,15 +52,15 @@ trait Flag {
 
     val rows: List[(String, String, String, String)] = entries.map { entry =>
       val name = entry.getKey
-      val flag = entry.getValue
-      flag match {
+        val flag = entry.getValue
+        flag match {
         case sf: StaticFlag[_] =>
-          (name, sf.source.toString, sf.value.toString, sf.provenance.sourceId)
+          (name, sf.source.toString, sf.displayValue, sf.provenance.sourceId)
         case df: DynamicFlag[_] =>
           (name, "DynamicFlag", df.expression, "dynamic")
         case other =>
           (name, "Unknown", other.toString, "unknown")
-      }
+        }
     }
 
     val nameWidth  = math.max("Name".length, rows.map(_._1.length).max)
@@ -210,6 +210,14 @@ trait Flag {
       (_, raw) => Right(raw),
       "String"
     )
+
+    implicit def secretReader[A](implicit reader: Reader[A]): Reader[Secret[A]] =
+      new Reader[Secret[A]] {
+        def parse(flagName: String, raw: String): Either[ConfigError, Secret[A]] =
+          reader.parse(flagName, raw).map(Secret.apply)
+
+        def typeName: String = s"Secret[${reader.typeName}]"
+      }
 
     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =
       Reader(

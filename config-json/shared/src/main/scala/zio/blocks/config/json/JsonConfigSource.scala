@@ -41,7 +41,8 @@ object JsonConfigSource {
         val flatMap = flatten(jsonValue, "")
         Right(ConfigSource.fromMap(flatMap, sourceId))
       case Left(schemaError) =>
-        Left(ConfigError.InvalidValue("", json, "valid JSON", sourceId, Some(schemaError)))
+        val excerpt = if (json.length > 100) json.take(100) + "..." else json
+        Left(ConfigError.InvalidValue("", excerpt, "valid JSON", sourceId, Some(schemaError)))
     }
 
   /**
@@ -54,30 +55,41 @@ object JsonConfigSource {
    * @return
    *   A map of flattened key-value pairs
    */
-  private def flatten(json: Json, prefix: String): Map[String, String] =
+  private def flatten(json: Json, prefix: String): Map[String, String] = {
+    val builder = scala.collection.mutable.Map.empty[String, String]
+    flattenRec(json, prefix, builder)
+    builder.toMap
+  }
+
+  private def flattenRec(
+    json: Json,
+    prefix: String,
+    builder: scala.collection.mutable.Map[String, String]
+  ): Unit =
     json match {
       case obj: Json.Object =>
-        obj.fields.foldLeft(Map.empty[String, String]) { case (acc, (key, value)) =>
+        obj.fields.foreach { case (key, value) =>
           val newKey = if (prefix.isEmpty) key else s"$prefix.$key"
-          acc ++ flatten(value, newKey)
+          flattenRec(value, newKey, builder)
         }
 
       case arr: Json.Array =>
-        arr.elements.zipWithIndex.foldLeft(Map.empty[String, String]) { case (acc, (value, index)) =>
-          val newKey = if (prefix.isEmpty) index.toString else s"$prefix.$index"
-          acc ++ flatten(value, newKey)
+        var idx = 0
+        arr.elements.foreach { value =>
+          val newKey = if (prefix.isEmpty) idx.toString else s"$prefix.$idx"
+          flattenRec(value, newKey, builder)
+          idx += 1
         }
 
       case str: Json.String =>
-        Map(prefix -> str.value)
+        builder(prefix) = str.value
 
       case num: Json.Number =>
-        Map(prefix -> num.value.toString)
+        builder(prefix) = num.value.toString
 
       case bool: Json.Boolean =>
-        Map(prefix -> bool.value.toString)
+        builder(prefix) = bool.value.toString
 
-      case Json.Null =>
-        Map.empty
+      case Json.Null => ()
     }
 }

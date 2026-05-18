@@ -49,8 +49,14 @@ trait ConfigSource {
     def get(key: String): Option[ConfigValue[String]] =
       ConfigSource.this.get(key).orElse(fallback.get(key))
 
-    def getAll(prefix: String): Map[String, ConfigValue[String]] =
-      fallback.getAll(prefix) ++ ConfigSource.this.getAll(prefix)
+    def getAll(prefix: String): Map[String, ConfigValue[String]] = {
+      val builder = scala.collection.mutable.Map.empty[String, ConfigValue[String]]
+      val primary = ConfigSource.this.getAll(prefix)
+      val secondary = fallback.getAll(prefix)
+      secondary.foreach { case (k, v) => builder(k) = v }
+      primary.foreach { case (k, v) => builder(k) = v }
+      builder.toMap
+    }
   }
 
   /**
