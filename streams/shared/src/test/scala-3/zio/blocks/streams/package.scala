@@ -31,7 +31,8 @@ package object streams {
   def separateStringIntBooleanDouble(
     value: String | Int | Boolean | Double
   ): Either[Either[Either[String, Int], Boolean], Double] =
-    summon[Unions.Unions.WithOut[String | Int | Boolean, Double, String | Int | Boolean | Double]].separate(value) match {
+    summon[Unions.Unions.WithOut[String | Int | Boolean, Double, String | Int | Boolean | Double]]
+      .separate(value) match {
       case Left(left)  => Left(separateStringIntBoolean(left))
       case Right(last) => Right(last)
     }

@@ -62,30 +62,30 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
 
   private def tagWordCountFlag(value: Any): TaggedValue =
     value match {
-      case Word(value)                    => TaggedString(value)
-      case Count(value)                   => TaggedInt(value)
-      case Flag(value)                    => TaggedBoolean(value)
-      case Left(Left(Word(value)))        => TaggedString(value)
-      case Left(Right(Count(value)))      => TaggedInt(value)
-      case Right(Flag(value))             => TaggedBoolean(value)
+      case Word(value)               => TaggedString(value)
+      case Count(value)              => TaggedInt(value)
+      case Flag(value)               => TaggedBoolean(value)
+      case Left(Left(Word(value)))   => TaggedString(value)
+      case Left(Right(Count(value))) => TaggedInt(value)
+      case Right(Flag(value))        => TaggedBoolean(value)
     }
 
   private def tagWordCountFlagRatio(
     value: Any
   ): TaggedValue =
     value match {
-      case Word(value)                      => TaggedString(value)
-      case Count(value)                     => TaggedInt(value)
-      case Flag(value)                      => TaggedBoolean(value)
-      case Ratio(value)                     => TaggedDouble(value)
-      case Left(left)                       => tagWordCountFlag(left)
-      case Right(Ratio(value))              => TaggedDouble(value)
+      case Word(value)         => TaggedString(value)
+      case Count(value)        => TaggedInt(value)
+      case Flag(value)         => TaggedBoolean(value)
+      case Ratio(value)        => TaggedDouble(value)
+      case Left(left)          => tagWordCountFlag(left)
+      case Right(Ratio(value)) => TaggedDouble(value)
     }
 
   def spec: Spec[TestEnvironment, Any] = suite("Stream.++ / concat (shared)")(
     test("disjoint concatenation") {
       val result: Stream[Nothing, String | Int] = Stream.succeed("hello") ++ Stream.succeed(42)
-      val normalized = result.runCollect.map(_.map(separateStringInt))
+      val normalized                            = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("hello"), Right(42))))
       )
@@ -99,14 +99,14 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assert(result.runCollect)(equalTo(Right(Chunk[Animal](Dog("fido"), Cat("milo")))))
     },
     test("empty left stream") {
-      val result = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
+      val result     = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Right(42))))
       )
     },
     test("empty right stream") {
-      val result = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
+      val result     = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("hello"))))
@@ -145,7 +145,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assertTrue(true)
     },
     test("multiple elements per side") {
-      val result = Stream("a", "b") ++ Stream(1, 2)
+      val result     = Stream("a", "b") ++ Stream(1, 2)
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("a"), Left("b"), Right(1), Right(2))))
@@ -165,7 +165,9 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
     },
     test("four-stream concatenation") {
       val result: Stream[Nothing, Word | Count | Flag | Ratio] =
-        Stream.succeed(Word("hello")) ++ Stream.succeed(Count(42)) ++ Stream.succeed(Flag(true)) ++ Stream.succeed(Ratio(3.14))
+        Stream.succeed(Word("hello")) ++ Stream.succeed(Count(42)) ++ Stream.succeed(Flag(true)) ++ Stream.succeed(
+          Ratio(3.14)
+        )
 
       val tagged = result.runCollect.map(
         _.map(tagWordCountFlagRatio)
