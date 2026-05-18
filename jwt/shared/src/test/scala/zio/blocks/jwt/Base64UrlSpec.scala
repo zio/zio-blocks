@@ -16,7 +16,7 @@
 
 package zio.blocks.jwt
 
-import zio.test._
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertTrue, suite, test}
 
 object Base64UrlSpec extends ZIOSpecDefault {
 
@@ -53,28 +53,28 @@ object Base64UrlSpec extends ZIOSpecDefault {
     ),
     suite("decode")(
       test("empty string decodes to empty array") {
-        assertTrue(Base64Url.decode("") == Right(Array.emptyByteArray))
+        assertTrue(Base64Url.decode("").map(_.toSeq) == Right(Array.emptyByteArray.toSeq))
       },
       test("RFC 4648 vector: 'Zg' decodes to 'f'") {
-        assertTrue(Base64Url.decode("Zg") == Right("f".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zg").map(_.toSeq) == Right("f".getBytes("UTF-8").toSeq))
       },
       test("RFC 4648 vector: 'Zm8' decodes to 'fo'") {
-        assertTrue(Base64Url.decode("Zm8") == Right("fo".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zm8").map(_.toSeq) == Right("fo".getBytes("UTF-8").toSeq))
       },
       test("RFC 4648 vector: 'Zm9v' decodes to 'foo'") {
-        assertTrue(Base64Url.decode("Zm9v") == Right("foo".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zm9v").map(_.toSeq) == Right("foo".getBytes("UTF-8").toSeq))
       },
       test("RFC 4648 vector: 'Zm9vYg' decodes to 'foob'") {
-        assertTrue(Base64Url.decode("Zm9vYg") == Right("foob".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zm9vYg").map(_.toSeq) == Right("foob".getBytes("UTF-8").toSeq))
       },
       test("RFC 4648 vector: 'Zm9vYmE' decodes to 'fooba'") {
-        assertTrue(Base64Url.decode("Zm9vYmE") == Right("fooba".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zm9vYmE").map(_.toSeq) == Right("fooba".getBytes("UTF-8").toSeq))
       },
       test("RFC 4648 vector: 'Zm9vYmFy' decodes to 'foobar'") {
-        assertTrue(Base64Url.decode("Zm9vYmFy") == Right("foobar".getBytes("UTF-8")))
+        assertTrue(Base64Url.decode("Zm9vYmFy").map(_.toSeq) == Right("foobar".getBytes("UTF-8").toSeq))
       },
       test("URL-safe chars '-' and '_' are decoded correctly") {
-        assertTrue(Base64Url.decode("-__-") == Right(Array(0xfb.toByte, 0xff.toByte, 0xfe.toByte)))
+        assertTrue(Base64Url.decode("-__-").map(_.toSeq) == Right(Array(0xfb.toByte, 0xff.toByte, 0xfe.toByte).toSeq))
       },
       test("padding character '=' returns Left") {
         assertTrue(Base64Url.decode("YQ==").isLeft)
@@ -101,31 +101,31 @@ object Base64UrlSpec extends ZIOSpecDefault {
     suite("round-trip")(
       test("encode then decode returns original bytes for 1-byte input") {
         val bytes = Array(0x42.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original bytes for 2-byte input") {
         val bytes = Array(0x01.toByte, 0x02.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original bytes for 3-byte input") {
         val bytes = Array(0x01.toByte, 0x02.toByte, 0x03.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original bytes for 4-byte input") {
         val bytes = Array(0xDE.toByte, 0xAD.toByte, 0xBE.toByte, 0xEF.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original for all-zero bytes") {
         val bytes = Array.fill(9)(0x00.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original for all-ones bytes") {
         val bytes = Array.fill(7)(0xff.toByte)
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original for UTF-8 text") {
         val bytes = "Hello, World!".getBytes("UTF-8")
-        assertTrue(Base64Url.decode(Base64Url.encode(bytes)) == Right(bytes))
+        assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       }
     )
   )
