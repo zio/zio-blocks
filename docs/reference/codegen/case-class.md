@@ -124,7 +124,7 @@ Here are concrete examples demonstrating typical `CaseClass` usage patterns:
 
 A basic case class with primitive fields:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
 import zio.blocks.codegen.emit._
 
@@ -141,28 +141,21 @@ val file = ScalaFile(
   packageDecl = PackageDecl("com.shop"),
   types = List(order)
 )
-
-ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 Emits:
 
-```scala
-package com.shop
-
-case class Order(
-  id: Long,
-  total: BigDecimal,
-  status: String
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 2: Nested Types
 
 A case class with optional and collection fields:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val user = CaseClass(
   name = "User",
@@ -174,25 +167,26 @@ val user = CaseClass(
   ),
   derives = List("Show")
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(user)
+)
 ```
 
 Emits:
 
-```scala
-case class User(
-  id: Long,
-  name: String,
-  email: Option[String],
-  tags: List[String]
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 3: Generic Case Class
 
 A polymorphic case class with type parameters:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val page = CaseClass(
   name = "Page",
@@ -203,24 +197,26 @@ val page = CaseClass(
   ),
   typeParams = List(TypeParam("T"))
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(page)
+)
 ```
 
 Emits:
 
-```scala
-case class Page[T](
-  items: List[T],
-  total: Long,
-  pageSize: Int
-)
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 4: Case Class with Derives
 
 Automatic typeclass derivation:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val product = CaseClass(
   name = "Product",
@@ -231,24 +227,26 @@ val product = CaseClass(
   ),
   derives = List("Schema", "Codec", "Show")
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(product)
+)
 ```
 
 Emits:
 
-```scala
-case class Product(
-  id: String,
-  name: String,
-  price: java.math.BigDecimal
-) derives Schema, Codec, Show
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
 
 ### Example 5: Case Class with Companion
 
 A case class with factory methods in the companion:
 
-```scala mdoc:compile-only
+```scala mdoc:silent:reset
 import zio.blocks.codegen.ir._
+import zio.blocks.codegen.emit._
 
 val config = CaseClass(
   name = "AppConfig",
@@ -268,17 +266,15 @@ val config = CaseClass(
     )
   )
 )
+
+val file = ScalaFile(
+  packageDecl = PackageDecl("com.example"),
+  types = List(config)
+)
 ```
 
 Emits:
 
-```scala mdoc:compile-only
-case class AppConfig(
-  host: String,
-  port: Int
-)
-
-object AppConfig {
-  val Default: AppConfig = AppConfig("localhost", 8080)
-}
+```scala mdoc
+ScalaEmitter.emit(file, EmitterConfig())
 ```
