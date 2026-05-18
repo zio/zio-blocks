@@ -49,6 +49,8 @@ sealed trait NameMapper extends (String => String)
  *     function to the input string.
  */
 object NameMapper {
+  private[this] val validStrategies = "identity, snake_case, camelCase, kebab-case, PascalCase"
+
   private[this] def enforceCamelOrPascalCase(s: String, toPascal: Boolean): String =
     if (s.indexOf('_') == -1 && s.indexOf('-') == -1) {
       if (s.isEmpty) s
@@ -187,5 +189,27 @@ object NameMapper {
    */
   case object Identity extends NameMapper {
     override def apply(memberName: String): String = memberName
+  }
+
+  /**
+   * Parses a built-in naming strategy string into a [[NameMapper]].
+   *
+   * Accepted values are `identity`, `snake_case`, `camelCase`, `kebab-case`,
+   * and `PascalCase`.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if the provided strategy name does not match one of the supported
+   *   built-in strategies.
+   */
+  def fromString(s: String): NameMapper = s match {
+    case "identity"   => Identity
+    case "snake_case" => SnakeCase
+    case "camelCase"  => CamelCase
+    case "kebab-case" => KebabCase
+    case "PascalCase" => PascalCase
+    case other        =>
+      throw new IllegalArgumentException(
+        s"Unknown naming strategy '$other'. Expected one of: $validStrategies"
+      )
   }
 }

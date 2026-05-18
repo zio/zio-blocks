@@ -99,7 +99,7 @@ addCommandAlias(
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
-    "openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
@@ -108,7 +108,7 @@ lazy val testJVMScala3Command =
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; endpointJS/test; htmlJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
@@ -129,7 +129,7 @@ lazy val testJS2Scala3Command =
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
-    "openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
@@ -138,7 +138,7 @@ lazy val docJVMScala3Command =
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc"
 
 lazy val docJSScala2Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
@@ -229,6 +229,7 @@ lazy val root = project
     `http-model-examples`,
     endpoint.jvm,
     endpoint.js,
+    `endpoint-examples`,
     markdown.jvm,
     markdown.js,
     html.jvm,
@@ -237,6 +238,7 @@ lazy val root = project
     datastar.js,
     htmx.jvm,
     htmx.js,
+    `zio-blocks-htmx-examples`,
     zioGolemModel.jvm,
     zioGolemModel.js,
     zioGolemCoreJS,
@@ -402,7 +404,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
   )
 
 lazy val `scope-examples` = project
-  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3)))
+  .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(scope.jvm)
   .settings(
     publish / skip             := true,
@@ -631,6 +633,17 @@ lazy val `http-model-examples` = project
   )
   .dependsOn(`http-model`.jvm)
 
+lazy val `zio-blocks-htmx-examples` = project
+  .in(file("zio-blocks-htmx-examples"))
+  .settings(stdSettings("zio-blocks-htmx-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .dependsOn(htmx.jvm, html.jvm)
+
 lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-endpoint"))
@@ -650,22 +663,19 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0,
-    // Endpoint contains Scala 3-only endpoint DSL and macro code.
-    // Under 2.13 CI runs, skip compilation entirely.
-    Compile / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Compile / sources).value
-      }
-    },
-    Test / sources := {
-      CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) => Nil
-        case _            => (Test / sources).value
-      }
-    }
+    coverageMinimumBranchTotal := 0
   )
+
+lazy val `endpoint-examples` = project
+  .in(file("endpoint-examples"))
+  .settings(stdSettings("zio-blocks-endpoint-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+  .dependsOn(endpoint.jvm)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -731,7 +741,7 @@ lazy val `schema-thrift` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.thrift"  % "libthrift"              % "0.22.0",
+      "org.apache.thrift"  % "libthrift"              % "0.23.0",
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
       "dev.zio"           %% "zio-test"               % "2.1.26" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.26" % Test
@@ -970,7 +980,7 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.8.1",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.11",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.12",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.9.2",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
@@ -1196,7 +1206,7 @@ lazy val zioGolemBuildCodegen = project
     organization   := "dev.zio",
     scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.16.1",
+      "org.scalameta" %% "scalameta" % "4.17.0",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
@@ -1384,6 +1394,7 @@ lazy val docs = project
     `http-model`.jvm,
     `http-model-schema`.jvm,
     openapi.jvm,
+    codegen,
     html.jvm,
     datastar.jvm,
     smithy,

@@ -1413,6 +1413,28 @@ object DynamicSchema extends TypeIdSchemas {
     def docToDV(doc: Doc): DynamicValue = Schema.schemaDoc.toDynamicValue(doc)
 
     def modifierToDV(m: Modifier.Reflect): DynamicValue = m match {
+      case d: Modifier.discriminator =>
+        new DynamicValue.Variant(
+          "discriminator",
+          new DynamicValue.Record(
+            Chunk.single("name" -> new DynamicValue.Primitive(new PrimitiveValue.String(d.name)))
+          )
+        )
+      case _: Modifier.noExtraFields => new DynamicValue.Variant("noExtraFields", emptyDynamicRecord)
+      case n: Modifier.fieldNaming   =>
+        new DynamicValue.Variant(
+          "fieldNaming",
+          new DynamicValue.Record(
+            Chunk.single("strategy" -> new DynamicValue.Primitive(new PrimitiveValue.String(n.strategy)))
+          )
+        )
+      case n: Modifier.caseNaming =>
+        new DynamicValue.Variant(
+          "caseNaming",
+          new DynamicValue.Record(
+            Chunk.single("strategy" -> new DynamicValue.Primitive(new PrimitiveValue.String(n.strategy)))
+          )
+        )
       case c: Modifier.config =>
         new DynamicValue.Variant(
           "config",
@@ -1508,8 +1530,9 @@ object DynamicSchema extends TypeIdSchemas {
         "value"     -> reflectToDynamicValue(term.value),
         "doc"       -> docToDV(term.doc),
         "modifiers" -> new DynamicValue.Sequence(Chunk.from(term.modifiers).map {
-          case _: Modifier.transient => new DynamicValue.Variant("transient", emptyDynamicRecord)
-          case r: Modifier.rename    =>
+          case _: Modifier.transient       => new DynamicValue.Variant("transient", emptyDynamicRecord)
+          case _: Modifier.encodeTransient => new DynamicValue.Variant("encodeTransient", emptyDynamicRecord)
+          case r: Modifier.rename          =>
             new DynamicValue.Variant(
               "rename",
               new DynamicValue.Record(
@@ -1640,6 +1663,19 @@ object DynamicSchema extends TypeIdSchemas {
     def dvToModifiers(dv: DynamicValue): Seq[Modifier.Reflect] = dv match {
       case DynamicValue.Sequence(elems) =>
         elems.flatMap {
+          case DynamicValue.Variant("discriminator", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.discriminator(s)
+            }
+          case DynamicValue.Variant("noExtraFields", _)                         => new Some(Modifier.noExtraFields())
+          case DynamicValue.Variant("fieldNaming", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "strategy").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.fieldNaming(s)
+            }
+          case DynamicValue.Variant("caseNaming", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "strategy").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.caseNaming(s)
+            }
           case DynamicValue.Variant("config", DynamicValue.Record(fields)) =>
             for {
               key   <- getFieldValue(fields, "key").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
@@ -1656,6 +1692,7 @@ object DynamicSchema extends TypeIdSchemas {
       case DynamicValue.Sequence(elems) =>
         elems.flatMap {
           case DynamicValue.Variant("transient", _)                        => new Some(Modifier.transient())
+          case DynamicValue.Variant("encodeTransient", _)                  => new Some(Modifier.encodeTransient())
           case DynamicValue.Variant("rename", DynamicValue.Record(fields)) =>
             getFieldValue(fields, "name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
               new Modifier.rename(s)

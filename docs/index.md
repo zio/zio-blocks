@@ -21,6 +21,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
 | **Scope** | Compile-time safe resource management and DI | ✅ Available |
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
+| **Codegen** | Generic Scala code generation IR and emitter | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
@@ -637,11 +638,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Combinators](./reference/combinators.md) - Compile-time composition and decomposition of values (Tuples, Eithers, Unions)
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
+- [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
 - [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](./reference/ringbuffer.mdx) - High-performance bounded ring buffers
+- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
 - [Stream](./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results

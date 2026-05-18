@@ -130,26 +130,81 @@ const sidebars = {
          "reference/media-type",
          {
            type: "category",
-           label: "HTTP Model",
-           link: { type: "doc", id: "reference/http-model/index" },
+           label: "Code Generation",
+           link: { type: "doc", id: "reference/codegen/index" },
            items: [
-             "reference/http-model/model",
-             "reference/http-model/schema",
+             "reference/codegen/scala-file",
+             "reference/codegen/type-definition",
+             "reference/codegen/case-class",
+             "reference/codegen/sealed-trait",
+             "reference/codegen/field",
+             "reference/codegen/type-ref",
+             "reference/codegen/scala-emitter",
+             "reference/codegen/emitter-config",
+             "reference/codegen/examples",
            ]
          },
-         "reference/endpoint",
-         "reference/chunk",
-         "reference/maybe",
-         "reference/ringbuffer",
-         "reference/html",
-         "reference/smithy",
-         "reference/datastar",
-         "reference/htmx",
-         {
-           type: "category",
-           label: "Streams",
-           link: { type: "doc", id: "reference/streams/index" },
-           items: [
+          {
+            type: "category",
+            label: "ZIO Blocks HTTP Model",
+            link: { type: "doc", id: "reference/http-model/index" },
+            items: [
+              "reference/http-model/model",
+              "reference/http-model/schema",
+            ]
+          },
+          {
+            type: "category",
+            label: "ZIO Blocks Endpoint",
+            link: { type: "doc", id: "reference/endpoint/index" },
+            items: [
+              "reference/endpoint/endpoint",
+              "reference/endpoint/http-codec",
+              "reference/endpoint/route-pattern",
+              "reference/endpoint/path-codec",
+              "reference/endpoint/segment-codec",
+              "reference/endpoint/auth-type",
+              "reference/endpoint/route-tree",
+            ]
+          },
+          "reference/chunk",
+          "reference/maybe",
+          "path-interpolator",
+          {
+            type: "category",
+            label: "RingBuffer",
+            link: { type: "doc", id: "reference/ringbuffer/index" },
+            items: [
+              "reference/ringbuffer/spsc",
+              "reference/ringbuffer/spmc",
+              "reference/ringbuffer/mpsc",
+              "reference/ringbuffer/mpmc",
+              "reference/ringbuffer/advanced",
+            ]
+          },
+          "reference/html",
+          "reference/smithy",
+          "reference/datastar",
+          {
+            type: "category",
+            label: "HTMX",
+            link: { type: "doc", id: "reference/htmx/index" },
+            items: [
+              "reference/htmx/hx-swap",
+              "reference/htmx/hx-trigger",
+              "reference/htmx/hx-target",
+              "reference/htmx/hx-params",
+              "reference/htmx/hx-url-update",
+              "reference/htmx/hx-encoding",
+              "reference/htmx/hx-sync",
+              "reference/htmx/attribute-values",
+            ]
+          },
+          {
+            type: "category",
+            label: "ZIO Blocks Streams",
+            link: { type: "doc", id: "reference/streams/index" },
+            items: [
              "reference/streams/stream",
              "reference/streams/pipeline",
              "reference/streams/sink",

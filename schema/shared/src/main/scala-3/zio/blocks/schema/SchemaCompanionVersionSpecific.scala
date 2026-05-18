@@ -50,36 +50,37 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
   import zio.blocks.schema.SchemaCompanionVersionSpecificImpl.fullTermNameOrdering
 
-  private val intTpe                = defn.IntClass.typeRef
-  private val floatTpe              = defn.FloatClass.typeRef
-  private val longTpe               = defn.LongClass.typeRef
-  private val doubleTpe             = defn.DoubleClass.typeRef
-  private val booleanTpe            = defn.BooleanClass.typeRef
-  private val byteTpe               = defn.ByteClass.typeRef
-  private val charTpe               = defn.CharClass.typeRef
-  private val shortTpe              = defn.ShortClass.typeRef
-  private val unitTpe               = defn.UnitClass.typeRef
-  private val anyRefTpe             = defn.AnyRefClass.typeRef
-  private val anyTpe                = defn.AnyClass.typeRef
-  private val stringTpe             = defn.StringClass.typeRef
-  private val schemaTpe             = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
-  private val tupleTpe              = Symbol.requiredClass("scala.Tuple").typeRef
-  private val arrayClass            = defn.ArrayClass
-  private val arrayOfAnyTpe         = arrayClass.typeRef.appliedTo(anyTpe)
-  private val newArray              = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor)
-  private val newArrayOfAny         = newArray.appliedToType(anyTpe)
-  private val wildcard              = TypeBounds(defn.NothingClass.typeRef, anyTpe)
-  private val arrayOfWildcardTpe    = arrayClass.typeRef.appliedTo(wildcard)
-  private val iterableOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterable").typeRef.appliedTo(wildcard)
-  private val iteratorOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
-  private val modifierReflectTpe    = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
-  private val modifierTermTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
-  private val modifierTransientTpe  = Symbol.requiredClass("zio.blocks.schema.Modifier.transient").typeRef
-  private val iArrayOfAnyRefTpe     = TypeRepr.of[IArray[AnyRef]]
-  private val fromIArrayMethod      = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
-  private val asInstanceOfMethod    = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
-  private val productElementMethod  = tupleTpe.typeSymbol.methodMember("productElement").head
-  private lazy val toTupleMethod    = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+  private val intTpe                     = defn.IntClass.typeRef
+  private val floatTpe                   = defn.FloatClass.typeRef
+  private val longTpe                    = defn.LongClass.typeRef
+  private val doubleTpe                  = defn.DoubleClass.typeRef
+  private val booleanTpe                 = defn.BooleanClass.typeRef
+  private val byteTpe                    = defn.ByteClass.typeRef
+  private val charTpe                    = defn.CharClass.typeRef
+  private val shortTpe                   = defn.ShortClass.typeRef
+  private val unitTpe                    = defn.UnitClass.typeRef
+  private val anyRefTpe                  = defn.AnyRefClass.typeRef
+  private val anyTpe                     = defn.AnyClass.typeRef
+  private val stringTpe                  = defn.StringClass.typeRef
+  private val schemaTpe                  = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
+  private val tupleTpe                   = Symbol.requiredClass("scala.Tuple").typeRef
+  private val arrayClass                 = defn.ArrayClass
+  private val arrayOfAnyTpe              = arrayClass.typeRef.appliedTo(anyTpe)
+  private val newArray                   = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor)
+  private val newArrayOfAny              = newArray.appliedToType(anyTpe)
+  private val wildcard                   = TypeBounds(defn.NothingClass.typeRef, anyTpe)
+  private val arrayOfWildcardTpe         = arrayClass.typeRef.appliedTo(wildcard)
+  private val iterableOfWildcardTpe      = Symbol.requiredClass("scala.collection.Iterable").typeRef.appliedTo(wildcard)
+  private val iteratorOfWildcardTpe      = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
+  private val modifierReflectTpe         = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
+  private val modifierTermTpe            = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
+  private val modifierTransientTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.transient").typeRef
+  private val modifierEncodeTransientTpe = Symbol.requiredClass("zio.blocks.schema.Modifier.encodeTransient").typeRef
+  private val iArrayOfAnyRefTpe          = TypeRepr.of[IArray[AnyRef]]
+  private val fromIArrayMethod           = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
+  private val asInstanceOfMethod         = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
+  private val productElementMethod       = tupleTpe.typeSymbol.methodMember("productElement").head
+  private lazy val toTupleMethod         = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
@@ -520,8 +521,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                 }
             })
           } else {
-            if (modifiers.exists(_.tpe <:< modifierTransientTpe) && !isOption(fTpe) && !isCollection(fTpe)) {
-              fail(s"Missing default value for transient field '$name' in '${tpe.show}'")
+            if (
+              modifiers.exists(m => m.tpe <:< modifierTransientTpe || m.tpe <:< modifierEncodeTransientTpe) &&
+              !isOption(fTpe) &&
+              !isCollection(fTpe)
+            ) {
+              fail(s"Missing default value for transient or encodeTransient field '$name' in '${tpe.show}'")
             }
             None
           }
