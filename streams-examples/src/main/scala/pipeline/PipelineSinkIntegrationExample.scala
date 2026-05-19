@@ -17,7 +17,7 @@
 package pipeline
 
 import zio.blocks.streams.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object PipelineSinkIntegrationExample extends App {
   println("=== Pipeline ↔ Sink Integration ===\n")

@@ -17,7 +17,7 @@
 package as
 
 import zio.blocks.schema.As
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates bidirectional schema migration using As.derived.
 // Unlike Into, As supports rollback: data can round-trip V1 → V2 → V1

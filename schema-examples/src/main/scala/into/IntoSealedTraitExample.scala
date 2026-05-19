@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.Into
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates migrating a sealed trait (coproduct) across versions.
 // Cases are matched by name; field types are coerced automatically.

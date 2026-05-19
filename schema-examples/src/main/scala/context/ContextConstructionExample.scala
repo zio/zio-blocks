@@ -17,7 +17,7 @@
 package context
 
 import zio.blocks.context._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Context.empty creates an empty, type-safe dependency container.
 // Use Context.apply(...) to construct contexts with 1–10 values.

@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.Into
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Numeric widening is always lossless — these always return Right.
 object IntoWideningExample extends App {
