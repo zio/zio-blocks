@@ -514,7 +514,7 @@ There is **no runtime parsing**, **no reflection**, and **no performance penalty
 
 ### Accessing Nested Fields
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 case class Address(street: String, city: String, zipCode: String)
@@ -522,10 +522,7 @@ case class Person(name: String, age: Int, address: Address)
 
 // Access nested street field
 val streetPath = p".address.street"
-
-// Use with DynamicValue
-val person = DynamicValue.fromPerson(...)
-val street = person.get(streetPath)
+// Equivalent to: Field("address") → Field("street")
 ```
 
 ### Working with Collections
@@ -690,34 +687,32 @@ val emailPath = basePath(p"[*].email")
 
 ### Working with DynamicValue
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
-val data: DynamicValue = ...
+// Define paths for navigation
+val emailPath = p".users[0].email"
+val agePath = p".users[0].age"
 
-// Navigate and extract
-val value = data.get(p".users[0].email")
-
-// Update at path
-val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
+// These paths can be used with DynamicValue operations:
+// val value = data.get(emailPath)
+// val updated = data.set(agePath, newAgeValue)
 ```
 
 ### Integration with Schema Optics
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 case class User(name: String, email: String)
 object User {
-  implicit val schema: Schema[User] = Schema.derived
-  
-  // Use path interpolator to define optics at runtime
+  // Use path interpolator to define optics
   val emailPath = p".email"
+  val namePath = p".name"
 }
 
-// Optics can be composed and used for updates
-val user = User("Alice", "alice@example.com")
-val updated = user.set(p".email", "alice.new@example.com")
+// The paths can be used as DynamicOptic instances
+val paths = Vector(User.emailPath, User.namePath)
 ```
 
 ## Tips and Best Practices
