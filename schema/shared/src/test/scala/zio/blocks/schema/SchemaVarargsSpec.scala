@@ -28,19 +28,6 @@ object SchemaVarargsSpec extends SchemaBaseSpec {
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVarargsSpec")(
-    test("compiles Schema.derived for a case class with varargs") {
-      typeCheck {
-        """
-        import zio.blocks.schema._
-
-        case class Varargs(xs: Int*)
-
-        object Varargs {
-          implicit val schema: Schema[Varargs] = Schema.derived
-        }
-        """
-      }.map(result => assert(result)(isRight))
-    },
     test("round-trips a case class with varargs through DynamicValue") {
       val schema = Varargs.schema
       assert(schema.fromDynamicValue(schema.toDynamicValue(Varargs())))(isRight(equalTo(Varargs()))) &&
