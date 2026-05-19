@@ -368,9 +368,9 @@ private object SchemaCompanionVersionSpecific {
         (
           primaryConstructor(tpe).paramLists.map(_.map { param =>
             idx += 1
-            val symbol = param.asTerm
-            val name   = NameTransformer.decode(symbol.name.toString)
-            var fTpe   = symbol.typeSignature.dealias
+            val symbol   = param.asTerm
+            val name     = NameTransformer.decode(symbol.name.toString)
+            var fTpe     = symbol.typeSignature.dealias
             val repeated = fTpe.typeSymbol == definitions.RepeatedParamClass
             if (repeated) fTpe = appliedType(typeOf[Seq[Any]].typeConstructor, fTpe.typeArgs)
             if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
@@ -438,7 +438,7 @@ private object SchemaCompanionVersionSpecific {
         val argss = fieldInfos.map(_.map { fieldInfo =>
           val fTpe          = fieldInfo.tpe
           val usedRegisters = fieldInfo.usedRegisters
-          val arg =
+          val arg           =
             if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
             else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
             else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
