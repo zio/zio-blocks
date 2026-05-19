@@ -3,6 +3,9 @@ id: stream
 title: "Stream"
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 `Stream[+E, +A]` is a **lazy, pull-based, typed-error stream** of elements that may fail with an error of type `E`. Nothing executes until a terminal operation is called. When you run a stream synchronously, you get `Either[E, Z]` — typed errors surface as `Left(e)`, and untyped defects propagate as exceptions:
 
 ```scala
@@ -861,7 +864,7 @@ Streams can be sequentially concatenated, zipped together, or merged:
 
 ### Sequential Concatenation
 
-`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream.:
+`++[E2, A2]` or `concat[E2, A2]` — Emits all elements of the first stream, then all elements of the second stream:
 
 ```scala
 trait Stream[+E, +A] {
@@ -869,7 +872,15 @@ trait Stream[+E, +A] {
 }
 ```
 
-The error type is the union of both streams' error types. Evaluation is sequential: the second stream only starts when the first completes:
+The result type follows the same widening rules as Scala 3 unions:
+
+- identical types stay unchanged (`A ++ A => A`)
+- subtypes widen to the supertype (`Dog ++ Animal => Animal`)
+- unrelated types remain disjoint (`String ++ Int => String | Int`)
+
+On Scala 3, disjoint concat results are native unions. On Scala 2, the same disjoint concat results are represented as `Either`, while same/subtype cases still collapse to the wider existing type.
+
+Evaluation is sequential: the second stream only starts when the first completes:
 
 ```scala mdoc:reset
 import zio.blocks.streams.*
@@ -879,6 +890,56 @@ val second = Stream(3, 4)
 val combined = first ++ second
 val result = combined.runCollect
 ```
+
+For unrelated element types, Scala 3 produces a direct union while Scala 2 produces `Either`:
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+  <TabItem value="scala2" label="Scala 2.13">
+
+```scala
+val combined: Stream[Nothing, Either[String, Int]] =
+  Stream.succeed("left") ++ Stream.succeed(1)
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3.x">
+
+```scala
+val combined: Stream[Nothing, String | Int] =
+  Stream.succeed("left") ++ Stream.succeed(1)
+```
+
+  </TabItem>
+</Tabs>
+
+```scala mdoc
+import zio.blocks.streams.*
+import zio.blocks.chunk.Chunk
+
+val concatResult = (Stream.succeed("left") ++ Stream.succeed(1)).runCollect
+
+assert(concatResult == Right(Chunk[String | Int]("left", 1)))
+```
+
+The error channel follows the same rules. Same/subtype errors collapse; unrelated errors remain disjoint:
+
+```scala mdoc
+import zio.blocks.streams.*
+
+sealed trait LeftError
+case class Boom(msg: String) extends LeftError
+case class Missing(code: Int)
+
+val left: Stream[LeftError, String] = Stream.fail(Boom("boom"))
+val right = Stream.succeed(true)
+
+left.runCollect
+
+val failed = left ++ (Stream.fail(Missing(404)): Stream[Missing, Boolean])
+failed.runCollect
+```
+
+There is no separate `choice` operator anymore. Use `++` / `concat` for all sequential combination; the result type already reflects the Scala 3-style union semantics.
 
 ### Zipping
 
