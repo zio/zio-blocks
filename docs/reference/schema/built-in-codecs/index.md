@@ -14,7 +14,7 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Each codec pro
 |---------------------|-----------------------|-----------------------|---------------------------------|---------------------------------|
 | `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             | [JSON](./json/index.md)         |
 | `AvroFormat`        | `AvroCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        | [Avro](./avro.md)               |
-| `BsonFormat`        | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        | [BSON](./bson.md)               |
+| `BsonSchemaCodec`   | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        | [BSON](./bson.md)               |
 | `CsvFormat`         | `CsvCodec[A]`         | `text/csv`            | `zio-blocks-schema-csv`         | [CSV](./csv.md)                 |
 | `MessagePackFormat` | `MessagePackCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` | [MessagePack](./messagepack.md) |
 | `ThriftFormat`      | `ThriftCodec[A]`      | `application/thrift`  | `zio-blocks-schema-thrift`      | [Thrift](./thrift.md)           |
@@ -24,7 +24,7 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Each codec pro
 
 ## Supported Types
 
-All formats support the full set of ZIO Blocks Schema primitive types:
+Most formats support the full set of ZIO Blocks Schema primitive types. CSV is the primary exception, supporting only flat records and primitive types. For format-specific limitations, see the dedicated codec documentation.
 
 **Numeric Types**:
 - `Boolean`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Char`

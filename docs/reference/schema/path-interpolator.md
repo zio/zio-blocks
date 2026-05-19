@@ -10,6 +10,9 @@ The path interpolator `p"..."` is a compile-time string interpolator for constru
 Instead of manually constructing optics like this:
 
 ```scala mdoc:compile-only
+import zio.blocks.schema._
+import zio.blocks.schema.optics._
+
 DynamicOptic(Vector(
   DynamicOptic.Node.Field("users"),
   DynamicOptic.Node.Elements,
@@ -20,6 +23,8 @@ DynamicOptic(Vector(
 You can write:
 
 ```scala mdoc:compile-only
+import zio.blocks.schema._
+
 p".users[*].email"
 ```
 
@@ -387,7 +392,8 @@ The path interpolator **rejects runtime interpolation** to prevent unsafe dynami
 
 Runtime interpolation will fail to compile:
 
-```scala mdoc:compile-only
+```scala
+// This will not compile:
 val fieldName = "email"
 val path = p".$fieldName"
 // Error: Path interpolator does not support runtime arguments.
@@ -396,7 +402,8 @@ val path = p".$fieldName"
 
 Array indices also cannot be interpolated at runtime:
 
-```scala mdoc:compile-only
+```scala
+// This will not compile:
 val idx = 5
 val path = p"[$idx]"
 // Error: Path interpolator does not support runtime arguments.
@@ -413,17 +420,19 @@ val path = p".users[0].email"  // ✓ Works
 
 Invalid syntax is caught at compile time. Here are examples of common errors:
 
-```scala mdoc:compile-only
+```scala
+// These will not compile:
+
 // Unterminated string
-p"""{"foo"""
+// p"""{"foo"""
 // Error: Unterminated string literal starting at position 1
 
 // Invalid escape sequence
-p"""{"foo\x"}"""
+// p"""{"foo\x"}"""
 // Error: Invalid escape sequence '\x' at position 6
 
 // Unexpected character
-p".field@"
+// p".field@"
 // Error: Unexpected character '@' at position 6
 
 // Invalid identifier
