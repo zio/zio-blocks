@@ -63,6 +63,9 @@ All formats support the full set of ZIO Blocks Schema primitive types:
 | Avro        | ✓   | ✗        |
 | Thrift      | ✓   | ✗        |
 | BSON        | ✓   | ✗        |
+| CSV         | ✓   | ✗        |
+| XML         | ✓   | ✗        |
+| YAML        | ✓   | ✗        |
 
 ## Error Handling
 

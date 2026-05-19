@@ -75,9 +75,9 @@ object Message { implicit val schema: Schema[Message] = Schema.derived }
 val msg = Message("Hello 世界")
 val json = msg.toJson
 
-// Escape non-ASCII characters
+// Escape non-ASCII characters - non-ASCII become \uXXXX sequences
 val ascii = json.print(WriterConfig.withEscapeUnicode(true))
-// {"text":"Hello 世界"}
+// Output: {"text":"Hello 世界"}
 ```
 
 ## ReaderConfig

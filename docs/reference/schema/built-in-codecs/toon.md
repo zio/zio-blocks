@@ -385,7 +385,9 @@ object Settings {
 }
 
 val codec = Settings.schema.derive(ToonFormat)
-val bytes: Array[Byte] = ??? // from somewhere
+// Create bytes from a previous encoding
+val settings = Settings(debug = true, timeout = 30)
+val bytes = codec.encode(settings)
 
 val result: Either[zio.blocks.schema.SchemaError, Settings] = codec.decode(bytes)
 ```
@@ -757,23 +759,36 @@ Low-level binary parser implementing TOON format with state management and effic
 
 To parse TOON data from a byte array:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
+case class Person(name: String, age: Int)
+object Person { implicit val schema: Schema[Person] = Schema.derived }
+
 val toonBytes = "name: Alice\nage: 30".getBytes("UTF-8")
-val reader = new ToonReader()
+// Use the codec API for reading (ToonReader is an internal implementation detail)
+val codec = Person.schema.derive(ToonFormat)
+val result = codec.decode(toonBytes)
 ```
 
 ### Low-Level Parsing
 
 Direct token-by-token parsing for custom scenarios:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
-val reader = new ToonReader()
-// Reader provides methods for reading scalars, nested records, and arrays
-// Typically used internally by derived codecs, not directly by users
+// ToonReader is an internal implementation detail of the codec
+// Use the public codec API instead:
+case class Data(id: Int, name: String)
+object Data { implicit val schema: Schema[Data] = Schema.derived }
+
+val codec = Data.schema.derive(ToonFormat)
+// Codec provides token-aware parsing and composition for reading
+val toonString = "id: 1\nname: test"
+val result = codec.decode(toonString)
 ```
 
 ---

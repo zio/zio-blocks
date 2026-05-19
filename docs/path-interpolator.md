@@ -706,17 +706,19 @@ val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
+import zio.blocks.schema.optics._
 
 case class User(name: String, email: String)
-object User extends CompanionOptics[User] {
+object User {
   implicit val schema: Schema[User] = Schema.derived
   
-  // Use path interpolator for complex lenses
-  val email = $(_.email)
+  // Use path interpolator to define optics at runtime
+  val emailPath = p".email"
 }
 
-// DynamicOptic can be used for runtime path resolution
-val dynamicPath = p".email"
+// Optics can be composed and used for updates
+val user = User("Alice", "alice@example.com")
+val updated = user.set(p".email", "alice.new@example.com")
 ```
 
 ## Tips and Best Practices

@@ -399,7 +399,9 @@ object Settings {
 }
 
 val codec = Settings.schema.derive(YamlCodec)
-val bytes: Array[Byte] = ??? // from somewhere
+// Use encoded bytes from a previous encoding
+val settings = Settings(debug = true, timeout = 30)
+val bytes = codec.encodeToString(settings).getBytes("UTF-8")
 
 val result = codec.decode(bytes)
 ```
