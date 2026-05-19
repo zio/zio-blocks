@@ -23,13 +23,11 @@ Rather than writing custom encoders or relying on string-based Avro schema confi
 
 ## Installation
 
-Add the module to your `build.sbt`:
+Add the module to your `build.sbt` (JVM-only, not available for Scala.js):
 
 ```sbt
 libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "@VERSION@"
 ```
-
-**Note:** This module is JVM-only and is not available for Scala.js.
 
 Supported Scala versions: 2.13.x and 3.x
 

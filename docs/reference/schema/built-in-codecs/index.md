@@ -24,7 +24,12 @@ Here's a summary of the codecs currently supported by ZIO Blocks. Each codec pro
 
 ## Supported Types
 
-Most formats support the full set of ZIO Blocks Schema primitive types. CSV is the primary exception, supporting only flat records and primitive types. For format-specific limitations, see the dedicated codec documentation.
+Most formats support the full set of ZIO Blocks Schema primitive types. Some formats have limitations:
+- **CSV** supports only flat records and primitive types (no variants, sequences, maps, or dynamic types)
+- **XML** supports records, sequences, and variants with configurable discriminator strategies
+- Other formats support all composite types listed below
+
+For format-specific limitations, see the dedicated codec documentation.
 
 **Numeric Types**:
 - `Boolean`, `Byte`, `Short`, `Int`, `Long`, `Float`, `Double`, `Char`
@@ -60,12 +65,12 @@ Most formats support the full set of ZIO Blocks Schema primitive types. CSV is t
 | JSON        | ✓   | ✓        |
 | TOON        | ✓   | ✓        |
 | MessagePack | ✓   | ✓        |
+| CSV         | ✓   | ✓        |
+| XML         | ✓   | ✓        |
+| YAML        | ✓   | ✓        |
 | Avro        | ✓   | ✗        |
 | Thrift      | ✓   | ✗        |
 | BSON        | ✓   | ✗        |
-| CSV         | ✓   | ✗        |
-| XML         | ✓   | ✗        |
-| YAML        | ✓   | ✗        |
 
 ## Error Handling
 

@@ -242,7 +242,7 @@ Use `WriterConfig` to control XML output formatting:
 import zio.blocks.schema.xml.WriterConfig
 
 // Compact output (default)
-val compact = WriterConfig.default
+val compact = WriterConfig
 // <Person><name>Alice</name></Person>
 
 // Pretty-printed with 2-space indentation

@@ -807,10 +807,11 @@ Low-level binary encoder implementing TOON format with optimization for compact 
 
 To encode values to TOON format:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.toon._
 
-val writer = new ToonWriter()
+// ToonWriter is an internal implementation detail; use codec API instead
+// val writer = new ToonWriter()  // private constructor
 // Writer encodes values with proper indentation and delimiters
 // Typically used internally by derived codecs, not directly by users
 ```
@@ -819,10 +820,11 @@ val writer = new ToonWriter()
 
 The writer selects encoding strategies based on value type and configuration:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema.toon._
 
-val writer = new ToonWriter()
+// ToonWriter is an internal implementation detail; use codec API instead
+// val writer = new ToonWriter()  // private constructor
 // For primitives: direct scalar encoding
 // For records: indented key-value pairs
 // For arrays: one of three formats based on ArrayFormat configuration
