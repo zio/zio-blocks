@@ -99,14 +99,14 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assert(result.runCollect)(equalTo(Right(Chunk[Animal](Dog("fido"), Cat("milo")))))
     },
     test("empty left stream") {
-      val result     = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
+      val result: Stream[Nothing, String | Int] = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Right(42))))
       )
     },
     test("empty right stream") {
-      val result     = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
+      val result: Stream[Nothing, String | Int] = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("hello"))))
@@ -140,16 +140,21 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
         result.runCollect.left.map(err => err: AppError)
       assert(actual)(equalTo(Left(RightErr(404): AppError)))
     },
-    test("type ascription compiles") {
+    test("two-stream primitive union type ascription compiles") {
       val _: Stream[Nothing, String | Int] = Stream.succeed("a") ++ Stream.succeed(1)
       assertTrue(true)
     },
     test("multiple elements per side") {
-      val result     = Stream("a", "b") ++ Stream(1, 2)
+      val result: Stream[Nothing, String | Int] = Stream("a", "b") ++ Stream(1, 2)
       val normalized = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("a"), Left("b"), Right(1), Right(2))))
       )
+    },
+    test("three-stream primitive union type ascription compiles") {
+      val _: Stream[Nothing, String | Int | Boolean] =
+        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true)
+      assertTrue(true)
     },
     test("three-stream concatenation") {
       val result: Stream[Nothing, Word | Count | Flag] =
@@ -162,6 +167,11 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
       assert(tagged)(
         equalTo(Right(Chunk(TaggedString("hello"), TaggedInt(42), TaggedBoolean(true))))
       )
+    },
+    test("four-stream primitive union type ascription compiles") {
+      val _: Stream[Nothing, String | Int | Boolean | Double] =
+        Stream.succeed("hello") ++ Stream.succeed(42) ++ Stream.succeed(true) ++ Stream.succeed(3.14)
+      assertTrue(true)
     },
     test("four-stream concatenation") {
       val result: Stream[Nothing, Word | Count | Flag | Ratio] =
