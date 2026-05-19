@@ -4,13 +4,13 @@ title: "Built-in Formats and Codecs"
 sidebar_label: "Built-in Formats and Codecs"
 ---
 
-ZIO Blocks Schema provides codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for any supported format using the unified `Schema.derive(Format)` pattern. See the [Format documentation](../format.md) for details on how formats work.
+ZIO Blocks Schema provides codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for most formats using the unified `Schema.derive(Format)` pattern. BSON uses a different API: `BsonSchemaCodec.bsonCodec(schema)`. See the [Format documentation](../format.md) for details on how formats work.
 
 ## Built-in Codecs
 
-Here's a summary of the codecs currently supported by ZIO Blocks. Each codec provides a `BinaryFormat` or `TextFormat` object that can be passed to `derive`. See the dedicated codec documentation for installation, usage examples, and detailed type mappings:
+Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs provide a `BinaryFormat` or `TextFormat` object that can be passed to `derive`. BSON uses a different API (see below). See the dedicated codec documentation for installation, usage examples, and detailed type mappings:
 
-| Format Object       | Codec Type            | MIME Type             | Module                          | Documentation                   |
+| Derivation API      | Codec Type            | MIME Type             | Module                          | Documentation                   |
 |---------------------|-----------------------|-----------------------|---------------------------------|---------------------------------|
 | `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             | [JSON](./json/index.md)         |
 | `AvroFormat`        | `AvroCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        | [Avro](./avro.md)               |

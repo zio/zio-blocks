@@ -77,7 +77,7 @@ val json = msg.toJson
 
 // Escape non-ASCII characters - non-ASCII become \uXXXX sequences
 val ascii = json.print(WriterConfig.withEscapeUnicode(true))
-// Output: {"text":"Hello 世界"}
+// Output: {"text":"Hello \\u4e16\\u754c"}
 ```
 
 ## ReaderConfig

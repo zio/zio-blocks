@@ -3,7 +3,7 @@ id: bson
 title: "BSON Codec Module"
 ---
 
-`zio-schema-bson` is a **schema-driven BSON codec module** for serializing and deserializing Scala types to and from BSON (Binary JSON) format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. 
+`zio-blocks-schema-bson` is a **schema-driven BSON codec module** for serializing and deserializing Scala types to and from BSON (Binary JSON) format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. 
 
 Core types: `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `BsonSchemaCodec`.
 
@@ -11,7 +11,7 @@ The module integrates with org.bson to provide native BSON type support includin
 
 ## Motivation
 
-BSON is the native wire format for MongoDB and appears widely across modern applications. Manually writing BSON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-bson` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+BSON is the native wire format for MongoDB and appears widely across modern applications. Manually writing BSON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-bson` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full BSON type support (documents, arrays, strings, numbers, ObjectId, Decimal128, timestamps, etc.)
 - Configurable sum type handling (discriminator fields, wrapper types, or no discriminator)
 - Flexible field name mapping for compatibility with MongoDB conventions

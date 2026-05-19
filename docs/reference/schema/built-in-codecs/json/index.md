@@ -17,8 +17,8 @@ val person = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30
 // Navigate with fluent API
 val age = person.get("age")  // JsonSelection
 
-// Encode using Schema-based extension methods  
-val encoded = person.toJsonString(WriterConfig)
+// Encode to string
+val encoded = person.print(WriterConfig.default)
 
 // Compute minimal patches
 val updated = person.set(p".age", Json.Number(31))

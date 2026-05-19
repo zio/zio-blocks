@@ -10,7 +10,10 @@ A `Format` is an abstraction that bundles together everything needed to serializ
 
 The `Format` trait defines the structure for any serialization format. Each format specifies the types for decoding input, encoding output, the codec typeclass, MIME type, and the deriver used to generate codecs from schemas:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema.codec.{Codec, BinaryFormat}
+import zio.blocks.schema.derive.Deriver
+
 trait Format {
   type DecodeInput
   type EncodeOutput
@@ -45,10 +48,12 @@ val decoded: Either[SchemaError, Person] = codec.decode(bytes)
 
 Formats are categorized into `BinaryFormat` and `TextFormat`, which specify the types of input and output for encoding and decoding:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.schema.codec.{BinaryFormat, TextFormat}
+
 sealed trait Format
-abstract class BinaryFormat[...](...) extends Format { ... }
-abstract class TextFormat[...](...) extends Format { ... }
+abstract class BinaryFormat[A] extends Format { }
+abstract class TextFormat[A] extends Format { }
 ```
 
 **BinaryFormat** — Encodes and decodes data as bytes. Used for compact, efficient serialization (e.g., Avro, Thrift, MessagePack).
@@ -59,8 +64,10 @@ abstract class TextFormat[...](...) extends Format { ... }
 
 The `JsonFormat` is a `BinaryFormat` that represents JSON serialization, where both the input for decoding and output for encoding are `ByteBuffer`, the MIME type is `application/json`, and the deriver for generating codecs from schemas is `JsonCodecDeriver`:
 
-```scala
-object JsonFormat extends BinaryFormat("application/json", JsonCodecDeriver)
+```scala mdoc:compile-only
+import zio.blocks.schema.json._
+
+object JsonFormat extends zio.blocks.schema.codec.BinaryFormat("application/json", JsonCodecDeriver)
 ```
 
 ## Defining a Custom Format

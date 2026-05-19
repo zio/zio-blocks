@@ -3,13 +3,13 @@ id: thrift
 title: "Thrift Codec Module"
 ---
 
-`zio-schema-thrift` is a **schema-driven Thrift codec module** for serializing and deserializing Scala types to and from Thrift binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ThriftCodec`, `ThriftCodecDeriver`, `ThriftFormat`.
+`zio-blocks-schema-thrift` is a **schema-driven Thrift codec module** for serializing and deserializing Scala types to and from Thrift binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ThriftCodec`, `ThriftCodecDeriver`, `ThriftFormat`.
 
 The module integrates with Apache Thrift to provide native binary serialization using TBinaryProtocol with automatic schema generation and optimized performance for streaming and distributed systems.
 
 ## Motivation
 
-Thrift is a compact binary serialization format that appears widely across distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+Thrift is a compact binary serialization format that appears widely across distributed systems, microservices, and real-time messaging. Manually writing Thrift encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-thrift` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full Thrift type support (all primitives, records, unions, arrays, maps)
 - Automatic schema generation from Scala types
 - Optimized encoding with minimal overhead using TBinaryProtocol

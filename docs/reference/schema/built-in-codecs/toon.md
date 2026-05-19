@@ -3,13 +3,13 @@ id: toon
 title: "TOON Codec Module"
 ---
 
-`zio-schema-toon` is a **schema-driven TOON codec module** for serializing and deserializing Scala types to and from TOON format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ToonCodec`, `ToonCodecDeriver`, `ToonFormat`, `ToonReader`, `ToonWriter`.
+`zio-blocks-schema-toon` is a **schema-driven TOON codec module** for serializing and deserializing Scala types to and from TOON format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ToonCodec`, `ToonCodecDeriver`, `ToonFormat`, `ToonReader`, `ToonWriter`.
 
 The module integrates with a pure-Scala TOON parser and writer to provide line-oriented, indentation-based serialization that is 30-60% more compact than JSON. TOON (Token-Oriented Object Notation) appears widely across LLM prompts, configuration files, and data exchange where compactness and human readability matter equally.
 
 ## Motivation
 
-TOON is a compact, line-oriented text format that encodes the JSON data model with explicit structure and minimal quoting. It appears widely in modern LLM applications, configuration management, and streaming data scenarios where bandwidth and readability are both critical. Manually writing TOON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-toon` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+TOON is a compact, line-oriented text format that encodes the JSON data model with explicit structure and minimal quoting. It appears widely in modern LLM applications, configuration management, and streaming data scenarios where bandwidth and readability are both critical. Manually writing TOON encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-toon` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full TOON type support (records, sequences, primitives, null)
 - Three array formats: inline (`tags[3]: a,b,c`), tabular (`users[2]{id,name}:`), and list (`- item`)
 - Automatic schema generation from Scala types

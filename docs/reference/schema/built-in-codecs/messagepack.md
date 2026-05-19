@@ -3,13 +3,13 @@ id: messagepack
 title: "MessagePack Codec Module"
 ---
 
-`zio-schema-messagepack` is a **schema-driven MessagePack codec module** for serializing and deserializing Scala types to and from MessagePack binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `MessagePackCodec`, `MessagePackCodecDeriver`, `MessagePackFormat`.
+`zio-blocks-schema-messagepack` is a **schema-driven MessagePack codec module** for serializing and deserializing Scala types to and from MessagePack binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `MessagePackCodec`, `MessagePackCodecDeriver`, `MessagePackFormat`.
 
 The module integrates with MessagePack specification to provide compact binary serialization with automatic schema generation and optimized reader/writer pools for high-performance streaming.
 
 ## Motivation
 
-MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It appears widely across distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+MessagePack is a compact binary serialization format that achieves smaller payload sizes than JSON while maintaining compatibility and flexibility. It appears widely across distributed systems, real-time streaming, and space-constrained environments. Manually writing MessagePack encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-messagepack` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full MessagePack type support (all fixint, fixarray, fixmap, ext types, strings, numbers)
 - Automatic schema generation from Scala types
 - Highly optimized encoding with minimal overhead

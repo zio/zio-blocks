@@ -3,13 +3,13 @@ id: yaml
 title: "YAML Codec Module"
 ---
 
-`zio-schema-yaml` is a **schema-driven YAML codec module** for serializing and deserializing Scala types to and from YAML format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `Yaml`, `YamlCodec`, `YamlCodecDeriver`, `YamlOptions`.
+`zio-blocks-schema-yaml` is a **schema-driven YAML codec module** for serializing and deserializing Scala types to and from YAML format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `Yaml`, `YamlCodec`, `YamlCodecDeriver`, `YamlOptions`.
 
 The module integrates with a pure-Scala YAML parser and writer to provide human-readable serialization with optional JSON interoperability, configuration options for pretty-printing, and automatic schema generation.
 
 ## Motivation
 
-YAML is a human-readable data format that appears widely across configuration files, Kubernetes manifests, CI/CD pipelines, and data serialization. Manually writing YAML encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-schema-yaml` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
+YAML is a human-readable data format that appears widely across configuration files, Kubernetes manifests, CI/CD pipelines, and data serialization. Manually writing YAML encoders and decoders is error-prone and repetitive, especially for complex types with records, nested structures, and recursive definitions. `zio-blocks-schema-yaml` eliminates this friction by deriving codec instances directly from your Scala types using ZIO Schema. You describe your data shape once, and the module handles:
 - Full YAML type support (mappings, sequences, scalars, null)
 - Automatic schema generation from Scala types
 - Pretty-printed and compact formatting options
