@@ -296,12 +296,14 @@ import zio.blocks.schema._
 
 case class WrappedInt(value: Int)
 
-// Get encoder through schema derivation
-implicit val intSchema: Schema[Int] = Schema.primitive[Int]
-val codec = Schema.derived[WrappedInt].derive(BsonFormat)
-// Transforming encoders (conceptual example)
-// val intEncoder: BsonEncoder[Int] = ... // from schema
-// val wrappedEncoder: BsonEncoder[WrappedInt] = intEncoder.contramap(_.value)
+// Get codec through BsonSchemaCodec
+case class WrappedInt(value: Int)
+object WrappedInt {
+  implicit val schema: Schema[WrappedInt] = Schema.derived
+}
+
+val codec = BsonSchemaCodec.bsonCodec(WrappedInt.schema)
+// The codec provides encoder and decoder for bidirectional serialization
 ```
 
 ---

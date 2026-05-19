@@ -67,7 +67,6 @@ The MessagePack codec pipeline flows through these layers:
                  ↓
 4. MessagePackCodec provides multiple encoding paths
    - encode(value) → Array[Byte]
-   - encode(value, output: OutputStream) → Unit
    - encode(value, buffer: ByteBuffer) → Unit
                  ↓
 5. MessagePackCodec provides multiple decoding paths
@@ -464,11 +463,10 @@ object Value {
   implicit val schema: Schema[Value] = Schema.derived
 }
 val codec = Value.schema.derive(MessagePackFormat)
-val output = new ByteArrayOutputStream()
-
 val value = Value(42)
-codec.encode(value, output)
-val bytes = output.toByteArray
+
+// MessagePackCodec.encode returns Array[Byte] directly
+val bytes = codec.encode(value)
 ```
 
 ---

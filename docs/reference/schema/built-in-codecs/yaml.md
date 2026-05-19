@@ -43,7 +43,7 @@ Supported Scala versions: 2.13.x and 3.x
 The module provides a complete pipeline for YAML codec derivation and usage:
 
 1. **Define your type** — Any Scala type with a `Schema` instance
-2. **Derive a codec** — Use `Schema[A].derive(YamlCodec)` to obtain a `YamlCodec[A]`
+2. **Derive a codec** — Use `Schema[A].derive(YamlFormat)` to obtain a `YamlCodec[A]`
 3. **Encode or decode** — Call `codec.encodeToString(value)` or `codec.decode(yamlString)`
 4. **Handle errors** — Catch `SchemaError` with location traces showing where the error occurred
 5. **Configure output** — Use `YamlOptions` for pretty-printing or compact formatting
@@ -57,7 +57,7 @@ The YAML codec pipeline flows through these layers:
 ```
 1. User defines Schema[A] for their type
                  ↓
-2. Schema[A].derive(YamlCodec) creates YamlCodec[A]
+2. Schema[A].derive(YamlFormat) creates YamlCodec[A]
                  ↓
 3. YamlCodecDeriver derives Encoder and Decoder implementations
    - For primitives: type-specific YAML scalar encoders/decoders
@@ -98,7 +98,7 @@ User type (e.g., case class Config)
     ↓
 Schema.derived (automatic via macro)
     ↓
-Schema[Config].derive(YamlCodec) → YamlCodec[Config]
+Schema[Config].derive(YamlFormat) → YamlCodec[Config]
     ↓
 Use codec.encodeToString(config) to serialize → String
 Use codec.decode(yamlString) to deserialize → Either[SchemaError, Config]
@@ -132,7 +132,7 @@ object AppConfig {
   implicit val schema: Schema[AppConfig] = Schema.derived
 }
 
-val codec = AppConfig.schema.derive(YamlCodec)
+val codec = AppConfig.schema.derive(YamlFormat)
 val config = AppConfig("MyApp", 8080, true)
 val yamlString = codec.encodeToString(config)
 println(yamlString)
@@ -157,7 +157,7 @@ object DatabaseConfig {
   implicit val schema: Schema[DatabaseConfig] = Schema.derived
 }
 
-val codec = DatabaseConfig.schema.derive(YamlCodec)
+val codec = DatabaseConfig.schema.derive(YamlFormat)
 val yaml = """
 host: localhost
 port: invalid
@@ -189,7 +189,7 @@ object Server {
   implicit val schema: Schema[Server] = Schema.derived
 }
 
-val codec = Server.schema.derive(YamlCodec)
+val codec = Server.schema.derive(YamlFormat)
 val server = Server("api-server", List("GET /health", "POST /data"), 30)
 
 val prettyYaml = codec.encodeToString(server)
@@ -219,7 +219,7 @@ object TreeNode {
   implicit val schema: Schema[TreeNode] = Schema.derived
 }
 
-val codec = TreeNode.schema.derive(YamlCodec)
+val codec = TreeNode.schema.derive(YamlFormat)
 val tree: TreeNode = Branch("root", List(Leaf("a"), Branch("b", List(Leaf("c")))))
 val yaml = codec.encodeToString(tree)
 ```
@@ -337,7 +337,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val codec = Person.schema.derive(YamlCodec)
+val codec = Person.schema.derive(YamlFormat)
 val person = Person("Alice", "alice@example.com")
 val yaml = codec.encodeToString(person)
 ```
@@ -356,7 +356,7 @@ object Data {
   implicit val schema: Schema[Data] = Schema.derived
 }
 
-val codec = Data.schema.derive(YamlCodec)
+val codec = Data.schema.derive(YamlFormat)
 val data = Data(System.currentTimeMillis(), "sample")
 val bytes = codec.encode(data)
 ```
@@ -375,7 +375,7 @@ object Config {
   implicit val schema: Schema[Config] = Schema.derived
 }
 
-val codec = Config.schema.derive(YamlCodec)
+val codec = Config.schema.derive(YamlFormat)
 val yaml = """
 host: localhost
 port: 8080
@@ -398,7 +398,7 @@ object Settings {
   implicit val schema: Schema[Settings] = Schema.derived
 }
 
-val codec = Settings.schema.derive(YamlCodec)
+val codec = Settings.schema.derive(YamlFormat)
 // Use encoded bytes from a previous encoding
 val settings = Settings(debug = true, timeout = 30)
 val bytes = codec.encodeToString(settings).getBytes("UTF-8")
@@ -430,7 +430,7 @@ object User {
   implicit val schema: Schema[User] = Schema.derived
 }
 
-val codec = User.schema.derive(YamlCodec)
+val codec = User.schema.derive(YamlFormat)
 ```
 
 ### Primitive Type Support
@@ -455,7 +455,7 @@ object Address {
   implicit val schema: Schema[Address] = Schema.derived
 }
 
-val codec = Address.schema.derive(YamlCodec)
+val codec = Address.schema.derive(YamlFormat)
 ```
 
 ### Variant Type Support
@@ -474,7 +474,7 @@ object Status {
   implicit val schema: Schema[Status] = Schema.derived
 }
 
-val codec = Status.schema.derive(YamlCodec)
+val codec = Status.schema.derive(YamlFormat)
 ```
 
 ---
@@ -532,7 +532,7 @@ object Team {
   implicit val schema: Schema[Team] = Schema.derived
 }
 
-val codec = Team.schema.derive(YamlCodec)
+val codec = Team.schema.derive(YamlFormat)
 val invalidYaml = """
 name: Engineering
 members: invalid

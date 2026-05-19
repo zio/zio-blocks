@@ -15,8 +15,8 @@ Thrift is a compact binary serialization format that appears widely across distr
 - Optimized encoding with minimal overhead using TBinaryProtocol
 - Precise error reporting with location traces showing the path to errors
 - Recursive type support with automatic cycle detection
-- Multiple encoding paths: ByteBuffer, byte arrays, and streams
-- Multiple decoding paths: ByteBuffer, byte arrays, and streams
+- Multiple encoding paths: ByteBuffer and byte arrays
+- Multiple decoding paths: ByteBuffer and byte arrays
 - JVM support (not available for Scala.js)
 
 Rather than writing custom encoders or relying on code generation from .thrift files, you work with strongly-typed schemas that the compiler validates.

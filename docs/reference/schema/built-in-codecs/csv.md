@@ -10,8 +10,9 @@ import TabItem from '@theme/TabItem';
 
 The main public API is `CsvCodec[A]`, which extends `TextCodec[A]` and provides CSV-specific header support:
 
-```scala
-final case class CsvCodec[A] extends TextCodec[A] {
+```scala mdoc:compile-only
+// API signature (conceptual - simplified for clarity)
+trait CsvCodec[A] extends TextCodec[A] {
   def headerNames: IndexedSeq[String]
   def encode(value: A, output: CharBuffer): Unit
   def decode(input: CharBuffer): Either[SchemaError, A]
@@ -168,9 +169,9 @@ val result = codec.decode(CharBuffer.wrap(csvData))
 
 result match {
   case Right(employee) => println(s"Parsed: $employee")
-  case Left(error: CsvError) =>
-    println(s"CSV error at row ${error.row}, column ${error.column}: ${error.getMessage}")
-  case Left(other) => println(s"Other error: $other")
+  case Left(error) =>
+    // CsvError is wrapped in SchemaError
+    println(s"Parse error: ${error.getMessage}")
 }
 ```
 
