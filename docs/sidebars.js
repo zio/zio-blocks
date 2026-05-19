@@ -158,6 +158,7 @@ const sidebars = {
           },
           "reference/chunk",
           "reference/maybe",
+          "reference/mux",
           "path-interpolator",
           {
             type: "category",
