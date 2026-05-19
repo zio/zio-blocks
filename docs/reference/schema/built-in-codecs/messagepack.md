@@ -13,11 +13,11 @@ MessagePack is a compact binary serialization format that achieves smaller paylo
 - Full MessagePack type support (all fixint, fixarray, fixmap, ext types, strings, numbers)
 - Automatic schema generation from Scala types
 - Highly optimized encoding with minimal overhead
-- Reader/writer pool management for efficient streaming
+- Reader/writer pool management for efficient coding
 - Precise error reporting with location traces showing the path to errors
 - Recursive type support with automatic cycle detection
-- Multiple encoding paths: ByteBuffer, byte arrays, and streams
-- Multiple decoding paths: ByteBuffer, byte arrays, and streams
+- Multiple encoding paths: byte arrays and ByteBuffer
+- Multiple decoding paths: byte arrays and ByteBuffer
 - Cross-platform compatibility (JVM and Scala.js)
 
 Rather than writing custom encoders or relying on string-based schema configuration, you work with strongly-typed schemas that the compiler validates.
@@ -71,7 +71,6 @@ The MessagePack codec pipeline flows through these layers:
                  ↓
 5. MessagePackCodec provides multiple decoding paths
    - decode(bytes: Array[Byte]) → Either[SchemaError, A]
-   - decode(input: InputStream) → Either[SchemaError, A]
    - decode(buffer: ByteBuffer) → Either[SchemaError, A]
                  ↓
 6. MessagePackReader/Writer manage I/O with pooling
@@ -240,14 +239,14 @@ val product = Product("Widget", 9.99)
 val bytes = codec.encode(product)
 ```
 
-### Encoding Values to OutputStream
+### Encoding Values to ByteBuffer
 
-Write encoded values directly to an output stream:
+Write encoded values directly to a ByteBuffer:
 
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
-import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 
 case class Item(name: String, quantity: Int)
 
@@ -257,9 +256,9 @@ object Item {
 
 val codec = Item.schema.derive(MessagePackFormat)
 val item = Item("Gadget", 42)
-val output = new ByteArrayOutputStream()
-codec.encode(item, output)
-val bytes = output.toByteArray
+val buffer = ByteBuffer.allocate(256)
+codec.encode(item, buffer)
+val bytes = java.util.Arrays.copyOf(buffer.array(), buffer.position())
 ```
 
 ### Decoding Values from Byte Array
@@ -288,14 +287,14 @@ buffer.get(bytes)
 val result: Either[zio.blocks.schema.SchemaError, Record] = codec.decode(bytes)
 ```
 
-### Decoding Values from InputStream
+### Decoding Values from ByteBuffer
 
-Read and decode values from an input stream:
+Read and decode values from a ByteBuffer:
 
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
-import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 
 case class Data(timestamp: Long, payload: String)
 
@@ -304,13 +303,13 @@ object Data {
 }
 
 val codec = Data.schema.derive(MessagePackFormat)
-// In real code, use actual encoded data
+// Encode a value first
 val sampleData = Data(System.currentTimeMillis(), "example")
-val buffer = new java.nio.ByteBuffer.allocate(256)
-codec.encode(sampleData, buffer)
-buffer.flip()
-val input = new ByteArrayInputStream(buffer.array())
-val result = codec.decode(input)
+val encBuffer = ByteBuffer.allocate(256)
+codec.encode(sampleData, encBuffer)
+encBuffer.flip()
+// Then decode from the buffer
+val result = codec.decode(encBuffer)
 ```
 
 ---
