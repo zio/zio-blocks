@@ -100,14 +100,14 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
     },
     test("empty left stream") {
       val result: Stream[Nothing, String | Int] = (Stream.empty: Stream[Nothing, String]) ++ Stream.succeed(42)
-      val normalized = result.runCollect.map(_.map(separateStringInt))
+      val normalized                            = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Right(42))))
       )
     },
     test("empty right stream") {
       val result: Stream[Nothing, String | Int] = Stream.succeed("hello") ++ (Stream.empty: Stream[Nothing, Int])
-      val normalized = result.runCollect.map(_.map(separateStringInt))
+      val normalized                            = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("hello"))))
       )
@@ -146,7 +146,7 @@ object StreamConcatSharedSpec extends StreamsBaseSpec {
     },
     test("multiple elements per side") {
       val result: Stream[Nothing, String | Int] = Stream("a", "b") ++ Stream(1, 2)
-      val normalized = result.runCollect.map(_.map(separateStringInt))
+      val normalized                            = result.runCollect.map(_.map(separateStringInt))
       assert(normalized)(
         equalTo(Right(Chunk(Left("a"), Left("b"), Right(1), Right(2))))
       )
