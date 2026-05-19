@@ -392,22 +392,22 @@ The path interpolator **rejects runtime interpolation** to prevent unsafe dynami
 
 Runtime interpolation will fail to compile:
 
-```scala
-// This will not compile:
+```scala mdoc:fail
+import zio.blocks.schema._
+
 val fieldName = "email"
 val path = p".$fieldName"
 // Error: Path interpolator does not support runtime arguments.
-//        Use only literal strings like p".field[0]"
 ```
 
 Array indices also cannot be interpolated at runtime:
 
-```scala
-// This will not compile:
+```scala mdoc:fail
+import zio.blocks.schema._
+
 val idx = 5
 val path = p"[$idx]"
 // Error: Path interpolator does not support runtime arguments.
-//        Use only literal strings like p".field[0]"
 ```
 
 Instead, use only literal strings at compile time:
@@ -420,24 +420,24 @@ val path = p".users[0].email"  // ✓ Works
 
 Invalid syntax is caught at compile time. Here are examples of common errors:
 
-```scala
-// These will not compile:
+```scala mdoc:fail
+import zio.blocks.schema._
 
 // Unterminated string
-// p"""{"foo"""
-// Error: Unterminated string literal starting at position 1
+p"""{"foo"""
+// Error: Unterminated string literal
 
-// Invalid escape sequence
-// p"""{"foo\x"}"""
-// Error: Invalid escape sequence '\x' at position 6
+// Invalid escape sequence  
+p"""{"foo\x"}"""
+// Error: Invalid escape sequence
 
 // Unexpected character
-// p".field@"
-// Error: Unexpected character '@' at position 6
+p".field@"
+// Error: Unexpected character '@'
 
 // Invalid identifier
 p"."
-// Error: Invalid identifier at position 1
+// Error: Invalid identifier
 ```
 
 ## Performance
