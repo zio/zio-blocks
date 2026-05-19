@@ -295,9 +295,6 @@ import zio.blocks.schema.bson._
 import zio.blocks.schema._
 
 case class WrappedInt(value: Int)
-
-// Get codec through BsonSchemaCodec
-case class WrappedInt(value: Int)
 object WrappedInt {
   implicit val schema: Schema[WrappedInt] = Schema.derived
 }

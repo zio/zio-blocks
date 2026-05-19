@@ -704,9 +704,8 @@ val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
 
 ### Integration with Schema Optics
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
-import zio.blocks.schema.optics._
 
 case class User(name: String, email: String)
 object User {
@@ -728,18 +727,18 @@ val updated = user.set(p".email", "alice.new@example.com")
 2. **Leverage compile-time validation**: Let the compiler catch typos and syntax errors early
 
 3. **Compose paths when needed**: Break complex paths into reusable components
-   ```scala mdoc:compile-only
+   ```scala
 import zio.blocks.schema._
 
-   val userPath = p".users[0]"
-   val emailPath = userPath(p".email")
+val userPath = p".users[0]"
+val emailPath = userPath(p".email")
    ```
 
 4. **Use raw strings for map keys**: Triple-quoted strings avoid escape hell
-   ```scala mdoc:compile-only
+   ```scala
 import zio.blocks.schema._
 
-   p"""config{"api.key"}"""  // Better than p"config{\"api.key\"}"
+p"""config{"api.key"}"""  // Better than p"config{\"api.key\"}"
    ```
 
 5. **Document complex paths**: Add comments explaining what nested paths navigate

@@ -430,7 +430,8 @@ Filter selections by node type or custom predicates:
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
 
-val selection: XmlSelection = ???
+val xml = XmlReader.read("<root><item>text1</item><comment>note</comment></root>")
+val selection = xml.select.descendant("item")
 
 // Filter by type
 val elements = selection.elements
@@ -448,7 +449,8 @@ Execute a selection to extract values or convert to other formats:
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
 
-val selection: XmlSelection = ???
+val xml = XmlReader.read("<root><item>A</item><item>B</item></root>")
+val selection = xml.select.get("item")
 
 // Get single value (fails if not exactly one)
 val one: Either[SchemaError, Xml] = selection.one
@@ -474,8 +476,10 @@ Combine and transform selections using monadic operations:
 ```scala mdoc:compile-only
 import zio.blocks.schema.xml._
 
-val selection1: XmlSelection = ???
-val selection2: XmlSelection = ???
+val xml1 = XmlReader.read("<root><item>X</item></root>")
+val xml2 = XmlReader.read("<root><item>Y</item></root>")
+val selection1 = xml1.select.get("item")
+val selection2 = xml2.select.get("item")
 
 // Map over selections
 val mapped = selection1.map(xml => xml)
@@ -548,7 +552,7 @@ Apply a patch to an XML document to produce a modified result:
 import zio.blocks.schema._
 import zio.blocks.schema.xml._
 
-val xml: Xml = ???
+val xml = XmlReader.read("<person><name>Alice</name></person>")
 val patch = XmlPatch.setAttribute(p".person", "active", "true")
 
 // Apply the patch
@@ -699,8 +703,8 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// Get the underlying binary codec
-val codec: XmlCodec[Person] = Schema[Person].derive(XmlCodecDeriver)
+// Get the underlying XML codec
+val codec: XmlCodec[Person] = Schema[Person].derive(XmlFormat)
 
 // Encode to Xml directly
 val person = Person("Alice", 30)

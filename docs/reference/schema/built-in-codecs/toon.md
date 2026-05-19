@@ -431,7 +431,9 @@ object Message {
 }
 
 val codec = Message.schema.derive(ToonFormat)
-val input = new ByteArrayInputStream(??? : Array[Byte])
+val message = Message(42, "Hello TOON")
+val encoded = codec.encode(message)
+val input = new ByteArrayInputStream(encoded)
 val result = codec.decode(input)
 ```
 

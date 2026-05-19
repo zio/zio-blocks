@@ -212,7 +212,8 @@ result.isFailure   // false
 import zio.blocks.schema.json.{Json, JsonSelection}
 import zio.blocks.schema.SchemaError
 
-val selection: JsonSelection = ???
+val json = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
+val selection: JsonSelection = json.get("name")
 
 // Get single value (exactly one required)
 val oneValue: Either[SchemaError, Json] = selection.one
@@ -857,11 +858,13 @@ val result = combined(Json.parseUnsafe("""{"x": 1}"""))
 `JsonPatch` can be converted to and from `DynamicPatch` for interoperability with the typed patching system:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.JsonPatch
+import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.patch.DynamicPatch
 import zio.blocks.schema.SchemaError
 
-val jsonPatch: JsonPatch = ???
+val source = Json.parseUnsafe("""{"value": 1}""")
+val target = Json.parseUnsafe("""{"value": 2}""")
+val jsonPatch: JsonPatch = JsonPatch.diff(source, target)
 
 // Convert to DynamicPatch
 val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
@@ -904,13 +907,25 @@ val result = json.get("users")(5).get("name").as[String]
 ### Error Properties
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.SchemaError
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema._
+import zio.blocks.schema.json._
 
-val error: SchemaError = ???
+case class User(id: Int, name: String)
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
 
-error.message            // Error description
-error.errors.head.source // DynamicOptic path to error location
+val codec = User.schema.derive(JsonFormat)
+val invalidJson = """{"id": "not-a-number", "name": "Alice"}"""
+val result = codec.decode(invalidJson)
+
+// Extract error properties when decoding fails
+result match {
+  case Left(error: SchemaError) =>
+    error.message            // Error description
+    error.errors.head.source // DynamicOptic path to error location
+  case Right(_) => ()
+}
 ```
 
 ## Cross-Platform Support
