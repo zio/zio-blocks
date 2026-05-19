@@ -433,12 +433,9 @@ val company = Company(
   Address("NYC")
 )
 
-// Collect all persons
-val allPersons: Chunk[Person] = personSearch.collect(company)
-// Chunk(Person("Alice", 30), Person("Bob", 25))
-
-// Modify all persons
-val updated = personSearch.modify(company)(p => p.copy(age = p.age + 1))
+// Modify all persons (increment their age)
+val updated: Company = personSearch.modify(company)(p => p.copy(age = p.age + 1))
+// Company("Acme", List(Person("Alice", 31), Person("Bob", 26)), Address("NYC"))
 ```
 
 ### Dynamic API: Path Strings with `#` Prefix
@@ -486,12 +483,12 @@ Search optics support both **type-based** and **schema-based** patterns:
 | Pattern                        | Matches                                | Example                    |
 |--------------------------------|----------------------------------------|---------------------------|
 | `#Nominal` (type name)         | Values of that type name               | `#Person`, `#String`       |
-| `#primitive`                   | Any primitive value                    | `#int`, `#string`, `#bool` |
+| `#int`, `#string`, `#boolean`  | Specific primitive types               | `#int`, `#string`, `#boolean` |
 | `#record { ... }`              | Records with matching fields           | `#record { name: string }` |
-| `#variant`                     | Any variant/case instance              | `#variant`                 |
-| `#sequence`                    | Any sequence/list                      | `#sequence`                |
-| `#map`                         | Any map                                | `#map`                     |
-| `#optional`                    | Optional/wrapped values                | `#optional`                |
+| `#variant { ... }`             | Variant cases with matching content    | `#variant { Error: string }` |
+| `#list(...)`                   | Lists/sequences with element type     | `#list(string)`            |
+| `#map(...)`                    | Maps with key and value types          | `#map(string, int)`        |
+| `#option(...)`                 | Optional values with inner type       | `#option(int)`             |
 
 ### Traversal Order
 
