@@ -482,8 +482,8 @@ Search optics support both **type-based** and **schema-based** patterns:
 
 | Pattern                        | Matches                                | Example                    |
 |--------------------------------|----------------------------------------|---------------------------|
-| `#Nominal` (type name)         | Values of that type name               | `#Person`, `#String`       |
-| `#int`, `#string`, `#boolean`  | Specific primitive types               | `#int`, `#string`, `#boolean` |
+| `#Nominal` (type name)         | Values of that type name               | `#Person`                  |
+| `#int`, `#string`, `#boolean`  | Specific primitive types (case-insensitive) | `#int`, `#string`, `#boolean` |
 | `#record { ... }`              | Records with matching fields           | `#record { name: string }` |
 | `#variant { ... }`             | Variant cases with matching content    | `#variant { Error: string }` |
 | `#list(...)`                   | Lists/sequences with element type     | `#list(string)`            |
