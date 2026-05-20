@@ -314,7 +314,7 @@ Main codec type for encoding and decoding values to and from TOON format. Contai
 
 Use the codec to convert values to byte arrays:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 
@@ -417,12 +417,11 @@ val result = codec.decode(toon)
 
 ### Decoding Values from Stream
 
-Read and decode values from an input stream:
+Read and decode values from bytes:
 
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
-import java.io.ByteArrayInputStream
 
 case class Message(id: Long, text: String)
 
@@ -433,8 +432,7 @@ object Message {
 val codec = Message.schema.derive(ToonFormat)
 val message = Message(42, "Hello TOON")
 val encoded = codec.encode(message)
-val input = new ByteArrayInputStream(encoded)
-val result = codec.decode(input)
+val result = codec.decode(encoded)
 ```
 
 ---
@@ -761,7 +759,7 @@ Low-level binary parser implementing TOON format with state management and effic
 
 To parse TOON data from a byte array:
 
-```scala mdoc:compile-only
+```scala mdoc:reset:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 

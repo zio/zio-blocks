@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 The main public API is `CsvCodec[A]`, which extends `TextCodec[A]` and provides CSV-specific header support:
 
-```scala
+```scala mdoc:compile-only
 // API signature (conceptual - simplified for clarity)
 trait CsvCodec[A] {
   def headerNames: IndexedSeq[String]

@@ -168,7 +168,6 @@ To decode a sequence of values from a stream with pooled readers:
 ```scala
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
-import java.io.ByteArrayInputStream
 
 case class Event(id: Long, timestamp: Long, action: String)
 
@@ -177,14 +176,16 @@ object Event {
 }
 
 val codec = Event.schema.derive(MessagePackFormat)
-// In real code, use actual serialized bytes from a previous encoding
-val sampleBytes: Array[Byte] = scala.io.Source.fromFile("events.msgpack").map(_.toByte).toArray
-val inputStream = new ByteArrayInputStream(sampleBytes)
+// Encode an event to get sample bytes
+val event1 = Event(1L, System.currentTimeMillis(), "click")
+val bytes1 = codec.encode(event1)
 
-// Decode multiple events from stream
-// Reader pool automatically manages efficient instance reuse
-val event1 = codec.decode(inputStream)
-val event2 = codec.decode(inputStream)
+// Decode the bytes back to an event
+val result = codec.decode(bytes1)
+result match {
+  case Right(decoded) => println(s"Decoded: $decoded")
+  case Left(error) => println(s"Error: ${error.getMessage}")
+}
 ```
 
 ### Pattern 4: Handle Recursive Types
@@ -326,7 +327,7 @@ Configuration and derivation system for creating `MessagePackCodec[A]` instances
 
 To create a codec from a schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
 
@@ -451,7 +452,7 @@ Low-level binary encoder implementing MessagePack format with optimizations for 
 
 To write individual values to MessagePack format:
 
-```scala mdoc:compile-only
+```scala mdoc:reset:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
 import java.io.ByteArrayOutputStream

@@ -18,7 +18,7 @@ val person = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30
 val age = person.get("age")  // JsonSelection
 
 // Encode to string
-val encoded = person.print(WriterConfig.default)
+val encoded = person.print(WriterConfig)
 
 // Compute minimal patches
 val updated = person.set(p".age", Json.Number(31))
@@ -243,7 +243,7 @@ val dynamic: DynamicValue = json.toDynamicValue
 
 **With Schema system:** `Schema` enables automatic JSON encoding/decoding:
 
-```scala mdoc:compile-only
+```scala mdoc:reset:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 
