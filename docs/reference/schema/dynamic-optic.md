@@ -411,9 +411,9 @@ Search optics address scenarios where you need to:
 
 ### Typed API: `.searchFor[T]`
 
-Use the `.searchFor[T]` extension method to search for all values of type `T`:
+Use the `.searchFor[T]` extension method on a `CompanionOptics` to search for all values of type `T`:
 
-```scala mdoc:compile-only
+```scala
 import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
@@ -434,7 +434,7 @@ val company = Company(
 )
 
 // Modify all persons (increment their age)
-val updated: Company = personSearch.modify(company)(p => p.copy(age = p.age + 1))
+val updated: Company = personSearch.modify(company, p => p.copy(age = p.age + 1))
 // Company("Acme", List(Person("Alice", 31), Person("Bob", 26)), Address("NYC"))
 ```
 
