@@ -413,7 +413,7 @@ Search optics address scenarios where you need to:
 
 Use the `.searchFor[T]` extension method on a `CompanionOptics` to search for all values of type `T`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
