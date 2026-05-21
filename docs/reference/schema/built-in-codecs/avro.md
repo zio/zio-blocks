@@ -330,7 +330,7 @@ Configuration and derivation system for creating `AvroCodec[A]` instances from `
 
 To create a codec from a schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.avro._
 

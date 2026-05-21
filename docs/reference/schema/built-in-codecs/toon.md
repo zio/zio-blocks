@@ -759,7 +759,7 @@ Low-level binary parser implementing TOON format with state management and effic
 
 To parse TOON data from a byte array:
 
-```scala mdoc:reset:compile-only
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.toon._
 

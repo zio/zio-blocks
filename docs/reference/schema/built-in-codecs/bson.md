@@ -386,7 +386,7 @@ val none = BsonSchemaCodec.SumTypeHandling.NoDiscriminator
 
 To create a codec from a schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.bson._
 

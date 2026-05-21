@@ -11,6 +11,9 @@ import TabItem from '@theme/TabItem';
 The main public API is `CsvCodec[A]`, which extends `TextCodec[A]` and provides CSV-specific header support:
 
 ```scala mdoc:compile-only
+import java.nio.CharBuffer
+import zio.blocks.schema.SchemaError
+
 // API signature (conceptual - simplified for clarity)
 trait CsvCodec[A] {
   def headerNames: IndexedSeq[String]

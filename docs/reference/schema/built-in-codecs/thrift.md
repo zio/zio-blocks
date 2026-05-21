@@ -5,7 +5,7 @@ title: "Thrift Codec Module"
 
 `zio-blocks-schema-thrift` is a **schema-driven Thrift codec module** for serializing and deserializing Scala types to and from Thrift binary format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. Core types: `ThriftCodec`, `ThriftCodecDeriver`, `ThriftFormat`.
 
-The module integrates with Apache Thrift to provide native binary serialization using TBinaryProtocol with automatic schema generation and optimized performance for streaming and distributed systems.
+The module integrates with Apache Thrift to provide native binary serialization using TBinaryProtocol with automatic schema generation and optimized performance for distributed systems.
 
 ## Motivation
 
@@ -312,7 +312,7 @@ Configuration and derivation system for creating `ThriftCodec[A]` instances from
 
 To create a codec from a schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.schema._
 import zio.blocks.schema.thrift._
 

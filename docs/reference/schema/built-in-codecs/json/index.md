@@ -243,7 +243,7 @@ val dynamic: DynamicValue = json.toDynamicValue
 
 **With Schema system:** `Schema` enables automatic JSON encoding/decoding:
 
-```scala mdoc:reset:compile-only
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
 

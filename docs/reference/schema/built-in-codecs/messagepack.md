@@ -452,7 +452,7 @@ Low-level binary encoder implementing MessagePack format with optimizations for 
 
 To write individual values to MessagePack format:
 
-```scala mdoc:reset:compile-only
+```scala mdoc:compile-only
 import zio.blocks.schema._
 import zio.blocks.schema.msgpack._
 import java.io.ByteArrayOutputStream
