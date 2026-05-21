@@ -11,7 +11,6 @@ Instead of manually constructing optics like this:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.optics._
 
 DynamicOptic(Vector(
   DynamicOptic.Node.Field("users"),
