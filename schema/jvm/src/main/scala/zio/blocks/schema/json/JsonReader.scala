@@ -1539,7 +1539,11 @@ final class JsonReader private[json] (
    * @throws java.lang.IllegalStateException
    *   if no any token was parsed yet
    */
-  def isCurrentToken(t: Byte): Boolean = isCurrentToken(t, head)
+  def isCurrentToken(t: Byte): Boolean = {
+    val pos = head
+    if (pos == 0) illegalTokenOperation()
+    buf(pos - 1) == t
+  }
 
   /**
    * Checks if there are more bytes available for reading in the input.
@@ -1939,12 +1943,6 @@ final class JsonReader private[json] (
       head = pos + 1
       b == t || ((b == ' ' || b == '\n' || (b | 0x4) == '\r') && nextToken(pos + 1) == t)
     } else isNextToken(t, loadMoreOrError(pos))
-
-  @inline
-  private[this] def isCurrentToken(t: Byte, pos: Int): Boolean = {
-    if (pos == 0) illegalTokenOperation()
-    buf(pos - 1) == t
-  }
 
   @noinline
   private[this] def illegalTokenOperation(): Nothing =
