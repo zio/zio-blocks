@@ -72,6 +72,22 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             DynamicValue.Record("status" -> DynamicValue.Primitive(PrimitiveValue.Int(10)))
           )
         )
+      },
+      test("writes mandated value to a distinct target field") {
+        val input = DynamicValue.Record(
+          "maybeAge" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.MandateField(root.field("maybeAge"), dynamicLiteral(0), Some(root.field("age")))
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "maybeAge" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(42))),
+              "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+            )
+          )
+        )
       }
     ),
     suite("executeOptionalize")(
@@ -85,7 +101,29 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(
           migration(input) == Right(
             DynamicValue.Record(
-              "age" -> DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(25)))
+              "age" -> DynamicValue.Variant(
+                "Some",
+                DynamicValue.Record("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25)))
+              )
+            )
+          )
+        )
+      },
+      test("writes optionalized value to a distinct target field") {
+        val input = DynamicValue.Record(
+          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.OptionalizeField(root.field("age"), Some(root.field("maybeAge")))
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "age"      -> DynamicValue.Primitive(PrimitiveValue.Int(25)),
+              "maybeAge" -> DynamicValue.Variant(
+                "Some",
+                DynamicValue.Record("value" -> DynamicValue.Primitive(PrimitiveValue.Int(25)))
+              )
             )
           )
         )
@@ -135,6 +173,40 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(
           migration(input) == Right(
             DynamicValue.Record("score" -> DynamicValue.Primitive(PrimitiveValue.String("42")))
+          )
+        )
+      },
+      test("writes changed value to a distinct target field") {
+        val input = DynamicValue.Record(
+          "score" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.ChangeFieldType(root.field("score"), dynamicLiteral("42"), Some(root.field("scoreText")))
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "score"     -> DynamicValue.Primitive(PrimitiveValue.Int(42)),
+              "scoreText" -> DynamicValue.Primitive(PrimitiveValue.String("42"))
+            )
+          )
+        )
+      }
+    ),
+    suite("executeTransformField")(
+      test("writes transformed value to a distinct target field") {
+        val input = DynamicValue.Record(
+          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformField(root.field("name"), dynamicLiteral("ALICE"), Some(root.field("fullName")))
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "name"     -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+              "fullName" -> DynamicValue.Primitive(PrimitiveValue.String("ALICE"))
+            )
           )
         )
       }
