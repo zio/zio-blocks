@@ -336,10 +336,17 @@ class JsonCodecDeriver private[json] (
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
     if (binding.isInstanceOf[Binding[?, ?]]) {
-      val recordBinding           = binding.asInstanceOf[Binding.Record[A]]
-      val len                     = fields.length
-      val resolvedFieldNameMapper = resolveFieldNameMapper(modifiers, fieldNameMapper)
-      val resolvedRejectExtra     = resolveRejectExtraFields(modifiers, rejectExtraFields)
+      val recordBinding                       = binding.asInstanceOf[Binding.Record[A]]
+      val len                                 = fields.length
+      var resolvedFieldNameMapper: NameMapper = null
+      var resolvedRejectExtra                 = rejectExtraFields
+      modifiers.foreach {
+        case m: Modifier.fieldNaming =>
+          if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = NameMapper.fromString(m.strategy)
+        case _: Modifier.noExtraFields => resolvedRejectExtra = true
+        case _                         =>
+      }
+      if (resolvedFieldNameMapper eq null) resolvedFieldNameMapper = fieldNameMapper
       if (typeId.isTuple) Lazy {
         val fieldRegisterOffsets = new Array[RegisterOffset](len)
         val fieldTypeTags        = new Array[Int](len)
@@ -1004,10 +1011,19 @@ class JsonCodecDeriver private[json] (
           }
         }
       } else {
-        val discr                     = binding.asInstanceOf[Binding.Variant[A]].discriminator
-        val resolvedCaseNameMapper    = resolveCaseNameMapper(modifiers, caseNameMapper)
-        val resolvedDiscriminatorKind = resolveDiscriminatorKind(modifiers, discriminatorKind)
-        if (isEnumeration(cases)) Lazy {
+        val discr                                        = binding.asInstanceOf[Binding.Variant[A]].discriminator
+        var resolvedCaseNameMapper: NameMapper           = null
+        var resolvedDiscriminatorKind: DiscriminatorKind = null
+        modifiers.foreach {
+          case m: Modifier.caseNaming =>
+            if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = NameMapper.fromString(m.strategy)
+          case m: Modifier.discriminator =>
+            if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = DiscriminatorKind.Field(m.name)
+          case _ =>
+        }
+        if (resolvedCaseNameMapper eq null) resolvedCaseNameMapper = caseNameMapper
+        if (resolvedDiscriminatorKind eq null) resolvedDiscriminatorKind = discriminatorKind
+        if (enumValuesAsStrings && isEnumeration(cases)) Lazy {
           val map = new StringMap[Constructor[?]](cases.length)
 
           def getInfos(cases: IndexedSeq[Term[F, A, ?]]): Array[EnumInfo] = {
@@ -2896,52 +2912,54 @@ class JsonCodecDeriver private[json] (
           override def decodeValue(in: JsonReader): A =
             try wrap(wrappedCodec.decodeValue(in))
             catch {
-              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def encodeValue(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeValue(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => error(err.getMessage)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def decodeValue(json: Json): A =
             try wrap(wrappedCodec.decodeValue(json))
             catch {
-              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def encodeValue(x: A): Json =
             try wrappedCodec.encodeValue(unwrap(x))
             catch {
-              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def decodeKey(in: JsonReader): A =
             try wrap(wrappedCodec.decodeKey(in))
             catch {
-              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def encodeKey(x: A, out: JsonWriter): Unit =
             try wrappedCodec.encodeKey(unwrap(x), out)
             catch {
-              case err if NonFatal(err) => error(err.getMessage)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def decodeKey(s: String): A =
             try wrap(wrappedCodec.decodeKey(s))
             catch {
-              case err if NonFatal(err) => error(DynamicOptic.Node.Wrapped, err)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def encodeKey(x: A): String =
             try wrappedCodec.encodeKey(unwrap(x))
             catch {
-              case err if NonFatal(err) => error(err.getMessage)
+              case err if NonFatal(err) => wrappedError(err)
             }
 
           override def toJsonSchema: JsonSchema = wrappedCodec.toJsonSchema
+
+          private[this] def wrappedError(err: Throwable) = error(DynamicOptic.Node.Wrapped, err)
         }
       }
     } else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
@@ -2968,38 +2986,45 @@ class JsonCodecDeriver private[json] (
     override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }
 
-  private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
-    enumValuesAsStrings && cases.forall { case_ =>
-      val caseReflect = case_.value
-      caseReflect.asRecord.exists(_.fields.isEmpty) ||
-      caseReflect.isVariant && caseReflect.asVariant.map(_.cases).forall(isEnumeration)
+  private[this] def isEnumeration[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean = {
+    var idx = 0
+    val len = cases.length
+    while (idx < len) {
+      val caseReflect = cases(idx).value
+      if (
+        !(caseReflect.asRecord match {
+          case Some(r) => r.fields.isEmpty
+          case _       =>
+            caseReflect.asVariant match {
+              case Some(v) => isEnumeration(v.cases)
+              case _       => false
+            }
+        })
+      ) return false
+      idx += 1
     }
+    true
+  }
 
-  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean =
-    cases.forall { case_ =>
-      val caseReflect = case_.value
-      caseReflect.isRecord ||
-      caseReflect.isVariant && caseReflect.asVariant.map(_.cases).forall(hasOnlyRecordAndVariantCases)
+  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](cases: IndexedSeq[Term[F, A, ?]]): Boolean = {
+    var idx = 0
+    val len = cases.length
+    while (idx < len) {
+      val caseReflect = cases(idx).value
+      if (
+        !(caseReflect.isRecord || (caseReflect.asVariant match {
+          case Some(v) => hasOnlyRecordAndVariantCases(v.cases)
+          case _       => false
+        }))
+      ) return false
+      idx += 1
     }
+    true
+  }
 
   private[this] def getDefaultValue[F[_, _], A](fieldReflect: Reflect[F, A]): Option[?] =
     if (requireDefaultValueFields) None
     else fieldReflect.asInstanceOf[Reflect[Binding, A]].getDefaultValue
-
-  private[this] def resolveFieldNameMapper(modifiers: Seq[Modifier.Reflect], fallback: NameMapper): NameMapper =
-    modifiers.collectFirst { case m: Modifier.fieldNaming => NameMapper.fromString(m.strategy) }.getOrElse(fallback)
-
-  private[this] def resolveCaseNameMapper(modifiers: Seq[Modifier.Reflect], fallback: NameMapper): NameMapper =
-    modifiers.collectFirst { case m: Modifier.caseNaming => NameMapper.fromString(m.strategy) }.getOrElse(fallback)
-
-  private[this] def resolveDiscriminatorKind(
-    modifiers: Seq[Modifier.Reflect],
-    fallback: DiscriminatorKind
-  ): DiscriminatorKind =
-    modifiers.collectFirst { case m: Modifier.discriminator => DiscriminatorKind.Field(m.name) }.getOrElse(fallback)
-
-  private[this] def resolveRejectExtraFields(modifiers: Seq[Modifier.Reflect], fallback: Boolean): Boolean =
-    if (modifiers.exists(_.isInstanceOf[Modifier.noExtraFields])) true else fallback
 
   private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
     caseReflect.asVariant.get.variantBinding
@@ -3112,19 +3137,18 @@ private class FieldInfo(
     }
   }
 
-  def readValue(regs: Registers, json: Json): Unit =
-    (typeTag: @switch) match {
-      case 0 => regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(json))
-      case 1 => regs.setInt(offset, codec.asInstanceOf[JsonCodec[Int]].decodeValue(json))
-      case 2 => regs.setLong(offset, codec.asInstanceOf[JsonCodec[Long]].decodeValue(json))
-      case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonCodec[Float]].decodeValue(json))
-      case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonCodec[Double]].decodeValue(json))
-      case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(json))
-      case 6 => regs.setByte(offset, codec.asInstanceOf[JsonCodec[Byte]].decodeValue(json))
-      case 7 => regs.setChar(offset, codec.asInstanceOf[JsonCodec[Char]].decodeValue(json))
-      case 8 => regs.setShort(offset, codec.asInstanceOf[JsonCodec[Short]].decodeValue(json))
-      case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(json)
-    }
+  def readValue(regs: Registers, json: Json): Unit = (typeTag: @switch) match {
+    case 0 => regs.setObject(offset, codec.asInstanceOf[JsonCodec[AnyRef]].decodeValue(json))
+    case 1 => regs.setInt(offset, codec.asInstanceOf[JsonCodec[Int]].decodeValue(json))
+    case 2 => regs.setLong(offset, codec.asInstanceOf[JsonCodec[Long]].decodeValue(json))
+    case 3 => regs.setFloat(offset, codec.asInstanceOf[JsonCodec[Float]].decodeValue(json))
+    case 4 => regs.setDouble(offset, codec.asInstanceOf[JsonCodec[Double]].decodeValue(json))
+    case 5 => regs.setBoolean(offset, codec.asInstanceOf[JsonCodec[Boolean]].decodeValue(json))
+    case 6 => regs.setByte(offset, codec.asInstanceOf[JsonCodec[Byte]].decodeValue(json))
+    case 7 => regs.setChar(offset, codec.asInstanceOf[JsonCodec[Char]].decodeValue(json))
+    case 8 => regs.setShort(offset, codec.asInstanceOf[JsonCodec[Short]].decodeValue(json))
+    case _ => codec.asInstanceOf[JsonCodec[Unit]].decodeValue(json)
+  }
 
   def setMissingValueOrError(in: JsonReader, baseOffset: RegisterOffset): Unit = {
     val offset = this.offset + baseOffset
@@ -3143,9 +3167,13 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional)
-      regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
-    else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
+    } else if (isOptional) {
+      regs.setObject(
+        offset,
+        if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef]
+        else None
+      )
+    } else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else in.requiredFieldError(name)
   }
 
@@ -3164,9 +3192,13 @@ private class FieldInfo(
         case 8 => regs.setShort(offset, dv.asInstanceOf[Short])
         case _ =>
       }
-    } else if (isOptional)
-      regs.setObject(offset, if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef] else None)
-    else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
+    } else if (isOptional) {
+      regs.setObject(
+        offset,
+        if (usesNullSentinel) Maybe.unsafeWrap[Any](null).asInstanceOf[AnyRef]
+        else None
+      )
+    } else if (emptyCollectionConstructor ne null) regs.setObject(offset, emptyCollectionConstructor())
     else throw new JsonCodecError(Nil, s"missing required field \"$name\"")
 
   def writeDefaultValue(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
@@ -3294,7 +3326,9 @@ private class FieldInfo(
 
   def writeOptional(out: JsonWriter, baseOffset: RegisterOffset): Unit = {
     val value    = out.registers.getObject(offset + baseOffset)
-    val isAbsent = if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]]) else value eq None
+    val isAbsent =
+      if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]])
+      else value eq None
     if (!isAbsent) {
       writeKey(out)
       codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value, out)
@@ -3303,10 +3337,10 @@ private class FieldInfo(
 
   def writeOptional(regs: Registers, builder: ChunkBuilder[(String, Json)]): Unit = {
     val value    = regs.getObject(offset)
-    val isAbsent = if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]]) else value eq None
-    if (!isAbsent) {
-      builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
-    }
+    val isAbsent =
+      if (usesNullSentinel) Maybe.unsafeIsAbsent(value.asInstanceOf[Maybe[Any]])
+      else value eq None
+    if (!isAbsent) builder.addOne((name, codec.asInstanceOf[JsonCodec[AnyRef]].encodeValue(value)))
   }
 
   def writeCollection(out: JsonWriter, baseOffset: RegisterOffset): Unit =
