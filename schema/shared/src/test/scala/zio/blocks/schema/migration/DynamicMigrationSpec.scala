@@ -252,6 +252,78 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val variant = result.toOption.get.asInstanceOf[DynamicValue.Variant]
         assertTrue(result.isRight && variant.caseNameValue == "User")
       },
+      test("applies actions to matching case selector") {
+        val input = DynamicValue.Variant(
+          "User",
+          DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            root.caseOf("User"),
+            "User",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.AddField(DynamicOptic.root.field("age"), dynamicLiteral(30))
+            )
+          )
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Variant(
+              "User",
+              DynamicValue.Record(
+                "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+                "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+              )
+            )
+          )
+        )
+      },
+      test("leaves non-matching case selector unchanged") {
+        val input = DynamicValue.Variant(
+          "System",
+          DynamicValue.Record("code" -> DynamicValue.Primitive(PrimitiveValue.Int(7)))
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            root.caseOf("User"),
+            "User",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.AddField(DynamicOptic.root.field("age"), dynamicLiteral(30))
+            )
+          )
+        )
+        assertTrue(migration(input) == Right(input))
+      },
+      test("applies actions to nested matching case selector") {
+        val input = DynamicValue.Record(
+          "event" -> DynamicValue.Variant(
+            "User",
+            DynamicValue.Record("name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            root.field("event").caseOf("User"),
+            "User",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.AddField(DynamicOptic.root.field("age"), dynamicLiteral(30))
+            )
+          )
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "event" -> DynamicValue.Variant(
+                "User",
+                DynamicValue.Record(
+                  "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+                  "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30))
+                )
+              )
+            )
+          )
+        )
+      },
       test("fails on non-Variant value") {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(root, "User", zio.blocks.chunk.Chunk.empty)

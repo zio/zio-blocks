@@ -447,12 +447,12 @@ private[migration] object ActionExecutor {
     actions: Chunk[MigrationAction],
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] = {
-    val sourceCaseName = at.nodes.lastOption.collect { case zio.blocks.schema.DynamicOptic.Node.Case(name) => name }
-      .getOrElse(targetCaseName)
-    val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1).filter {
-      case _: zio.blocks.schema.DynamicOptic.Node.Case => false
-      case _                                           => true
-    })
+    val sourceCaseName =
+      at.nodes.lastOption.collect { case DynamicOptic.Node.Case(name) => name }.getOrElse(targetCaseName)
+    val parentPath = at.nodes.lastOption match {
+      case Some(_: DynamicOptic.Node.Case) => DynamicOptic(at.nodes.dropRight(1))
+      case _                               => at
+    }
 
     modifyAt(parentPath, value) {
       case DynamicValue.Variant(name, inner) if name == sourceCaseName =>

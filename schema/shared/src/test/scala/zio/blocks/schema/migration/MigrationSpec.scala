@@ -422,9 +422,12 @@ object MigrationSpec extends ZIOSpecDefault {
           )
           .build
 
-        val result = migration(UserV1("Alice"): EventV1)
-
-        assertTrue(result == Right(UserV2("Alice", 0): EventV2))
+        assertTrue(
+          migration(UserV1("Alice"): EventV1) == Right(UserV2("Alice", 0): EventV2),
+          migration(SystemV1(7): EventV1) == Right(SystemV2(7): EventV2),
+          migration.reverse(UserV2("Alice", 0): EventV2) == Right(UserV1("Alice"): EventV1),
+          migration.reverse(SystemV2(7): EventV2).isLeft
+        )
       }
     ),
 
