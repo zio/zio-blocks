@@ -9,7 +9,7 @@ The path interpolator `p"..."` is a compile-time string interpolator for constru
 
 Instead of manually constructing optics like this:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 DynamicOptic(Vector(
@@ -21,7 +21,7 @@ DynamicOptic(Vector(
 
 You can write:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p".users[*].email"
@@ -33,7 +33,7 @@ The interpolator is **type-safe**, **compile-time validated**, and **performance
 
 Import the schema package to enable the path interpolator:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // Now you can use p"..." anywhere
@@ -54,7 +54,7 @@ val path = p".users[0].name"
 
 Access fields in records using dot notation. The leading dot is optional.
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // With leading dot
@@ -72,7 +72,7 @@ p".user.address.street"
 
 **Special cases:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"._private"       // Fields starting with underscore
@@ -87,7 +87,7 @@ Access sequence elements by index, multiple indices, or ranges.
 
 **Single index:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"[0]"             // AtIndex(0)
@@ -97,7 +97,7 @@ p"[2147483647]"    // AtIndex(Int.MaxValue)
 
 **Multiple indices:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"[0,1,2]"         // AtIndices(Seq(0, 1, 2))
@@ -107,7 +107,7 @@ p"[5,2,8,1]"       // Order preserved
 
 **Ranges:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"[0:5]"           // AtIndices(Seq(0, 1, 2, 3, 4))
@@ -121,7 +121,7 @@ p"[10:5]"          // AtIndices(Seq.empty) - inverted range
 
 Select all elements in a sequence using wildcard syntax.
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"[*]"             // Elements - all elements
@@ -130,7 +130,7 @@ p"[:*]"            // Elements - alternative syntax
 
 **Chained selectors:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"[*][*]"          // Nested sequences: all elements of all elements
@@ -143,7 +143,7 @@ Access map values by key, where keys can be strings, integers, booleans, or char
 
 **String keys:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"""{"host"}"""              // AtMapKey(String("host"))
@@ -155,7 +155,7 @@ p"""{""}"""                  // Empty string key
 
 **Integer keys:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"{42}"                      // AtMapKey(Int(42))
@@ -167,7 +167,7 @@ p"{-2147483648}"             // AtMapKey(Int.MinValue)
 
 **Boolean keys:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"{true}"                    // AtMapKey(Boolean(true))
@@ -176,7 +176,7 @@ p"{false}"                   // AtMapKey(Boolean(false))
 
 **Char keys:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"{'a'}"                     // AtMapKey(Char('a'))
@@ -186,7 +186,7 @@ p"{'9'}"                     // AtMapKey(Char('9'))
 
 **Multiple keys:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"""{"foo", "bar", "baz"}""" // AtMapKeys(Seq(...))
@@ -202,7 +202,7 @@ p"""{"s", 'c', 42, true}"""  // All supported types
 
 Select all keys or all values in a map.
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"{*}"             // MapValues - all values
@@ -212,7 +212,7 @@ p"{*:}"            // MapKeys - all keys
 
 **Examples:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"{*}{*}"          // Nested maps: all values of all values
@@ -223,7 +223,7 @@ p"{*:}{*:}"        // All keys of all keys
 
 Navigate into a specific variant case using angle brackets.
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"<Left>"          // Case("Left")
@@ -234,7 +234,7 @@ p"<None>"          // Case("None")
 
 **Special cases:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"<_Empty>"        // Cases starting with underscore
@@ -244,7 +244,7 @@ p"<café>"          // Unicode case names
 
 **Chained cases:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"<A><B><C>"       // Nested variants
@@ -256,7 +256,7 @@ Search for values matching a schema pattern anywhere in a data structure using t
 
 **Nominal types:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#Person"         // Find all values of type Person
@@ -266,7 +266,7 @@ p"#Address"        // Find all values of type Address
 
 **Primitive types:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#string"         // Find all string values
@@ -277,7 +277,7 @@ p"#uuid"           // Find all UUID values
 
 **Structural records:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#record { name: string }"                // Find records with a string 'name' field
@@ -287,7 +287,7 @@ p"#record { items: list(Person) }"         // Nested schema
 
 **Structural variants:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#variant { Left: int, Right: string }"   // Find Either-like variants
@@ -295,7 +295,7 @@ p"#variant { Left: int, Right: string }"   // Find Either-like variants
 
 **Collections:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#list(string)"                           // Find lists of strings
@@ -306,7 +306,7 @@ p"#option(Person)"                         // Find optional Person values
 
 **Wildcard:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"#_"              // Find any value (matches everything)
@@ -314,7 +314,7 @@ p"#_"              // Find any value (matches everything)
 
 **Combined paths with search:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p".users#Person"               // Search for Person in users field
@@ -338,7 +338,7 @@ String and character literals support standard escape sequences:
 
 **Examples:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p"""{"foo\nbar"}"""          // String key with newline
@@ -354,7 +354,7 @@ Combine different path elements to navigate complex nested structures.
 
 ### Field → Sequence
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p".items[0]"                 // First item
@@ -365,7 +365,7 @@ p".items[0:5]"               // Items 0 through 4
 
 ### Field → Map
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p""".config{"host"}"""       // Map lookup
@@ -376,7 +376,7 @@ p".lookup{*:}"               // All map keys
 
 ### Field → Variant
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p".result<Success>"          // Variant case
@@ -385,7 +385,7 @@ p".response<Ok>"             // HTTP response variant
 
 ### Nested Structures
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // Record in sequence
@@ -407,7 +407,7 @@ p".response<Ok>.body"
 
 ### Deeply Nested Paths
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // Complex nested navigation
@@ -423,7 +423,7 @@ p""".a[0]{"k"}<V>.b[*]{*}.c{*:}"""
 
 ## Root and Empty Paths
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 p""                          // Empty path = root
@@ -459,7 +459,7 @@ val path = p"[$idx]"
 
 **✅ Use only literal strings:**
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 val path = p".users[0].email"  // ✓ Works
@@ -495,7 +495,7 @@ p"."
 
 All path parsing and validation occurs at **compile time**. The interpolator generates the exact same bytecode as manual `DynamicOptic` construction:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // These produce identical bytecode:
@@ -514,7 +514,7 @@ There is **no runtime parsing**, **no reflection**, and **no performance penalty
 
 ### Accessing Nested Fields
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Address(street: String, city: String, zipCode: String)
@@ -527,7 +527,7 @@ val streetPath = p".address.street"
 
 ### Working with Collections
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class User(id: Int, email: String, tags: Seq[String])
@@ -545,7 +545,7 @@ val specificUsersPath = p".users[0,2,5]"
 
 ### Map Lookups
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Config(
@@ -568,7 +568,7 @@ val allPortsPath = p"ports{*:}"
 
 ### Variant Case Handling
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 sealed trait Result[+A]
@@ -587,7 +587,7 @@ val errorPath = p".result<Failure>.error"
 
 ### Real-World Example: API Response
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class Metadata(tags: Seq[String], version: Int)
@@ -651,7 +651,7 @@ val path3 = DynamicOptic(Vector(
 
 ### Path Interpolator (After)
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // Simple path - clean and readable
@@ -676,7 +676,7 @@ val path3 = p"""data{"foo", "bar", 42}"""
 
 ### Building Paths Dynamically (at Compile Time)
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // You can't use runtime variables, but you can compose literal paths:
@@ -687,7 +687,7 @@ val emailPath = basePath(p"[*].email")
 
 ### Working with DynamicValue
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 // Define paths for navigation
@@ -701,7 +701,7 @@ val agePath = p".users[0].age"
 
 ### Integration with Schema Optics
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 case class User(name: String, email: String)
@@ -737,7 +737,7 @@ p"""config{"api.key"}"""  // Better than p"config{\"api.key\"}"
    ```
 
 5. **Document complex paths**: Add comments explaining what nested paths navigate
-   ```scala mdoc:compile-only
+   ```scala mdoc:silent
 import zio.blocks.schema._
 
    // Get the first tag from each user's metadata
@@ -757,7 +757,7 @@ These limitations ensure compile-time safety and zero runtime overhead.
 
 `DynamicOptic` instances have a custom `toString` that produces output matching the `p"..."` interpolator syntax. This makes debugging easier because you can copy the output directly into your code:
 
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.blocks.schema._
 
 val optic = DynamicOptic.root.field("users").elements.field("email")
