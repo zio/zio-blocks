@@ -679,7 +679,7 @@ val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
 
 To use path interpolators with schema-based optics:
 
-```scala mdoc:compile-only
+```scala mdoc:compile-only,reset
 import zio.blocks.schema._
 
 case class User(name: String, email: String)

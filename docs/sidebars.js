@@ -169,7 +169,6 @@ const sidebars = {
           },
           "reference/chunk",
           "reference/maybe",
-          "path-interpolator",
           {
             type: "category",
             label: "RingBuffer",
