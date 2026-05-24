@@ -417,9 +417,16 @@ Use the `.searchFor[T]` extension method on a `CompanionOptics` to search for al
 import zio.blocks.schema._
 
 case class Person(name: String, age: Int)
-case class Address(city: String)
-case class Company(name: String, employees: List[Person], hq: Address)
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
 
+case class Address(city: String)
+object Address {
+  implicit val schema: Schema[Address] = Schema.derived
+}
+
+case class Company(name: String, employees: List[Person], hq: Address)
 object Company extends CompanionOptics[Company] {
   implicit val schema: Schema[Company] = Schema.derived
 }
