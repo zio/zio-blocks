@@ -11,7 +11,7 @@ A `Format` is an abstraction that bundles together everything needed to serializ
 The `Format` trait defines the structure for any serialization format. Each format specifies the types for decoding input, encoding output, the codec typeclass, MIME type, and the deriver used to generate codecs from schemas:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.codec.{Codec, BinaryFormat}
+import zio.blocks.schema.codec.Codec
 import zio.blocks.schema.derive.Deriver
 
 trait Format {
@@ -48,9 +48,7 @@ val decoded: Either[SchemaError, Person] = codec.decode(bytes)
 
 Formats are categorized into `BinaryFormat` and `TextFormat`, which specify the types of input and output for encoding and decoding:
 
-```scala mdoc:compile-only
-import zio.blocks.schema.codec.{BinaryFormat, TextFormat}
-
+```scala
 sealed trait Format
 abstract class BinaryFormat[A] extends Format { }
 abstract class TextFormat[A] extends Format { }
@@ -67,7 +65,7 @@ The `JsonFormat` is a `BinaryFormat` that represents JSON serialization, where b
 ```scala mdoc:compile-only
 import zio.blocks.schema.json._
 
-object JsonFormat extends zio.blocks.schema.codec.BinaryFormat("application/json", JsonCodecDeriver)
+object MyJsonFormat extends zio.blocks.schema.codec.BinaryFormat("application/json", JsonCodecDeriver)
 ```
 
 ## Defining a Custom Format
@@ -75,8 +73,7 @@ object JsonFormat extends zio.blocks.schema.codec.BinaryFormat("application/json
 To add a new serialization format, define a `BinaryFormat` (or `TextFormat`) singleton with a custom `Deriver`:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
-import zio.blocks.schema.derive.Deriver
+import zio.blocks.schema.codec.BinaryCodec
 
 // 1. Define your codec base class
 abstract class MyCodec[A] extends BinaryCodec[A]
