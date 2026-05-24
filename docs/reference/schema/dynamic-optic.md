@@ -520,10 +520,12 @@ val allInts = nested.get(p"#int").toChunk
 
 ### Known Limitation: Nominal Matching in Untyped Contexts
 
-`Nominal` pattern matching (e.g., `#Person`) returns `false` when applied to `DynamicValue` or `Json` because these untyped structures carry no type identity. To match nominally-typed data:
+`Nominal` pattern matching (e.g., `#Person`) returns `false` when applied to `DynamicValue` or `Json` because these untyped structures carry no type identity. To match nominally-typed data, use one of these approaches:
 
 - **Use the typed API**: `optic(_.searchFor[Person])`
 - **Or use structural patterns**: `p"#record { name: string, age: int }"`
+
+Here's how the two approaches differ in practice:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
