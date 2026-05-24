@@ -452,7 +452,7 @@ val path = p".$fieldName"
 import zio.blocks.schema._
 
 val idx = 5
-val path = p"[$idx]"
+val pathWithIdx = p"[$idx]"
 // Error: Path interpolator does not support runtime arguments.
 //        Use only literal strings like p".field[0]"
 ```
@@ -462,7 +462,9 @@ val path = p"[$idx]"
 ```scala mdoc:silent
 import zio.blocks.schema._
 
-val path = p".users[0].email"  // ✓ Works
+object LiteralPathExample {
+  val path = p".users[0].email"  // ✓ Works
+}
 ```
 
 ### Parse Error Examples
@@ -530,17 +532,19 @@ val streetPath = p".address.street"
 ```scala mdoc:silent
 import zio.blocks.schema._
 
-case class User(id: Int, email: String, tags: Seq[String])
-case class Company(name: String, users: Seq[User])
+object Example1 {
+  case class User(id: Int, email: String, tags: Seq[String])
+  case class Company(name: String, users: Seq[User])
 
-// Get all user emails
-val emailsPath = p".users[*].email"
+  // Get all user emails
+  val emailsPath = p".users[*].email"
 
-// Get first user's first tag
-val firstTagPath = p".users[0].tags[0]"
+  // Get first user's first tag
+  val firstTagPath = p".users[0].tags[0]"
 
-// Get specific users by index
-val specificUsersPath = p".users[0,2,5]"
+  // Get specific users by index
+  val specificUsersPath = p".users[0,2,5]"
+}
 ```
 
 ### Map Lookups
@@ -571,18 +575,20 @@ val allPortsPath = p"ports{*:}"
 ```scala mdoc:silent
 import zio.blocks.schema._
 
-sealed trait Result[+A]
-case class Success[A](value: A) extends Result[A]
-case class Failure(error: String) extends Result[Nothing]
+object Example2 {
+  sealed trait Result[+A]
+  case class Success[A](value: A) extends Result[A]
+  case class Failure(error: String) extends Result[Nothing]
 
-case class User(name: String)
-case class Response(result: Result[User])
+  case class User(name: String)
+  case class Response(result: Result[User])
 
-// Navigate into Success case
-val successValuePath = p".result<Success>.value"
+  // Navigate into Success case
+  val successValuePath = p".result<Success>.value"
 
-// Navigate into Failure case
-val errorPath = p".result<Failure>.error"
+  // Navigate into Failure case
+  val errorPath = p".result<Failure>.error"
+}
 ```
 
 ### Real-World Example: API Response
@@ -690,13 +696,15 @@ val emailPath = basePath(p"[*].email")
 ```scala mdoc:silent
 import zio.blocks.schema._
 
-// Define paths for navigation
-val emailPath = p".users[0].email"
-val agePath = p".users[0].age"
+object Example3 {
+  // Define paths for navigation
+  val emailPath = p".users[0].email"
+  val agePath = p".users[0].age"
 
-// These paths can be used with DynamicValue operations:
-// val value = data.get(emailPath)
-// val updated = data.set(agePath, newAgeValue)
+  // These paths can be used with DynamicValue operations:
+  // val value = data.get(emailPath)
+  // val updated = data.set(agePath, newAgeValue)
+}
 ```
 
 ### Integration with Schema Optics
@@ -704,15 +712,17 @@ val agePath = p".users[0].age"
 ```scala mdoc:silent
 import zio.blocks.schema._
 
-case class User(name: String, email: String)
-object User {
-  // Use path interpolator to define optics
-  val emailPath = p".email"
-  val namePath = p".name"
-}
+object Example4 {
+  case class User(name: String, email: String)
+  object User {
+    // Use path interpolator to define optics
+    val emailPath = p".email"
+    val namePath = p".name"
+  }
 
-// The paths can be used as DynamicOptic instances
-val paths = Vector(User.emailPath, User.namePath)
+  // The paths can be used as DynamicOptic instances
+  val paths = Vector(User.emailPath, User.namePath)
+}
 ```
 
 ## Tips and Best Practices
