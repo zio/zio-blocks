@@ -9,6 +9,10 @@ The path interpolator `p"..."` is a compile-time string interpolator for constru
 
 Instead of manually constructing optics like this:
 
+```scala mdoc:invisible
+import zio.blocks.schema._
+```
+
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
@@ -671,8 +675,9 @@ val data: DynamicValue = ???
 // Navigate and extract
 val value = data.get(p".users[0].email")
 
-// Update at path
-val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
+// Update at path (using appropriate constructor)
+val ageValue: DynamicValue = ???
+val updated = data.set(p".users[0].age", ageValue)
 ```
 
 ### Integration with Schema Optics
