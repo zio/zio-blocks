@@ -682,18 +682,16 @@ To use path interpolators with schema-based optics:
 ```scala mdoc:compile-only
 import zio.blocks.schema._
 
-object UserOptics {
-  case class User(name: String, email: String)
-  object User extends CompanionOptics[User] {
-    implicit val schema: Schema[User] = Schema.derived
-    
-    // Use path interpolator for complex lenses
-    val email = $(_.email)
-  }
-
-  // DynamicOptic can be used for runtime path resolution
-  val dynamicPath = p".email"
+case class UserRecord(name: String, email: String)
+object UserRecord extends CompanionOptics[UserRecord] {
+  implicit val schema: Schema[UserRecord] = Schema.derived
+  
+  // Use path interpolator for complex lenses
+  val email = $(_.email)
 }
+
+// DynamicOptic can be used for runtime path resolution
+val dynamicPath = p".email"
 ```
 
 ## Tips and Best Practices
