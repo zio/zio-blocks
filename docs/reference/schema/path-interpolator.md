@@ -679,19 +679,21 @@ val updated = data.set(p".users[0].age", DynamicValue.fromInt(30))
 
 To use path interpolators with schema-based optics:
 
-```scala mdoc:reset,compile-only
+```scala mdoc:compile-only
 import zio.blocks.schema._
 
-case class User(name: String, email: String)
-object User extends CompanionOptics[User] {
-  implicit val schema: Schema[User] = Schema.derived
-  
-  // Use path interpolator for complex lenses
-  val email = $(_.email)
-}
+object UserOptics {
+  case class User(name: String, email: String)
+  object User extends CompanionOptics[User] {
+    implicit val schema: Schema[User] = Schema.derived
+    
+    // Use path interpolator for complex lenses
+    val email = $(_.email)
+  }
 
-// DynamicOptic can be used for runtime path resolution
-val dynamicPath = p".email"
+  // DynamicOptic can be used for runtime path resolution
+  val dynamicPath = p".email"
+}
 ```
 
 ## Tips and Best Practices
