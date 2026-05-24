@@ -18,7 +18,7 @@ package bindingresolvers
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates the schema registry pattern: schemas are persisted as DynamicSchema
 // (pure structural metadata — no Scala functions, fully serializable) and rehydrated

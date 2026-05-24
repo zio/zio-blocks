@@ -6,13 +6,15 @@ title: "Combinators"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, Either types, and union types.
+The `combinators` module provides compile-time typeclasses for composing and decomposing values in type-safe ways. Each module focuses on a specific domain: tuples, choices, concatenation widening, Either types, and union types.
 
 ## Overview
 
-The combinators module consists of three core modules:
+The combinators module consists of five core modules:
 
 - **Tuples** - Tuple composition with automatic flattening and separation
+- **Choices** - Cross-version branch construction and elimination over `|`
+- **Concat** - Scala-2-only union-aware widening for sequential composition
 - **Eithers** - Either canonicalization to left-nested form
 - **Unions** - Union type operations (Scala 3 only)
 
@@ -37,7 +39,8 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-combinators" % "@VERSION@"
 ```
 
 Supported platforms:
-- **Tuples, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
+- **Tuples, Choices, Eithers**: JVM, Scala.js (Scala 2.13 and 3.x)
+- **Concat**: Scala 2.13 only
 - **Unions**: JVM, Scala.js (Scala 3 only)
 
 ## Motivation
@@ -108,6 +111,26 @@ val userTuple: Tuple3[String, Int, String] = Tuples.combine(username, Tuples.com
 val validationError: Either[String, Either[String, Boolean]] = Right(Left("invalid email"))
 val canonical      : Either[Either[String, String], Boolean] = Eithers.combine(validationError)
 ```
+
+## Concat (Scala 2 Only)
+
+`Concat` is the Scala-2-only witness used by APIs such as `Stream.++` / `Stream.concat` to preserve Scala 3-style union behavior without introducing a separate operator.
+
+Its rules are:
+
+- same type => keep that type
+- subtype + supertype => keep the supertype
+- unrelated types => widen to `Either[L, R]` (the Scala 2 encoding of `L | R`)
+
+For example, Scala 2 infers witnesses equivalent to these shapes:
+
+```scala
+Concat.Concat.WithOut[Int, Int, Int]
+Concat.Concat.WithOut[Dog, Animal, Animal]
+Concat.Concat.WithOut[String, Int, Either[String, Int]]
+```
+
+Unlike `Choices`, `Concat` is not usually called directly at runtime. It exists mainly so shared Scala-2 APIs can infer the same public result types that Scala 3 expresses with native unions.
 
 ## Tuples
 
@@ -474,6 +497,7 @@ For Scala 2.13 codebases, use `Either` directly or `Eithers` canonicalization in
 | **Tuples.separate**            | ✅          | ✅         | Works identically on both     |
 | **Eithers.combine**            | ✅          | ✅         | No differences                |
 | **Eithers.separate**           | ✅          | ✅         | No differences                |
+| **Choices.left/right/separate**| ✅          | ✅         | Scala 2 uses `Either` alias   |
 | **Unions.combine**             | ❌          | ✅         | Requires Scala 3              |
 | **Unions.separate**            | ❌          | ✅         | Requires Scala 3              |
 | **EmptyTuple as identity**     | ❌          | ✅         | Use `Unit` in Scala 2         |
@@ -486,8 +510,9 @@ When adopting Scala 3, no changes are required for existing `Tuples` and `Either
 
 1. **Adopt `EmptyTuple` idiom**: Use `EmptyTuple` instead of `Unit` when combining with `Tuples` in Scala 3 for consistency with modern tuple syntax. Note that `Unit` remains fully supported and valid—`EmptyTuple` is a stylistic enhancement, not a replacement.
 2. **Simplify tuple builders**: Leverage recursive flattening on both sides to remove manual nesting. In Scala 3, `Tuples.combine((1, "a"), (true, 3.14))` automatically flattens to `(1, "a", true, 3.14)`.
-3. **Adopt `Unions`**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
-4. **Gradual adoption**: Use `Either` in some modules and `Unions` in others during migration. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
+3. **Adopt `Choices` in shared code**: Use `Choices.left`, `Choices.right`, and `Choices.separate` when you want a single `|`-based API shape to compile on both Scala 2 and Scala 3.
+4. **Adopt `Unions` in Scala 3-only code**: Replace `Either` with union types in new Scala 3-only code for idiomatic syntax using the `Unions` combinator.
+5. **Gradual adoption**: Use `Choices` in cross-version modules and `Unions` in Scala-3-only modules. Convert between them at module boundaries using `Unions.combine` and `Unions.separate` as needed.
 
 ## See Also
 

@@ -17,7 +17,7 @@
 package sink
 
 import zio.blocks.streams.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object SinkTransformationExample extends App {
   println("=== Sink Transformations and Composition ===\n")

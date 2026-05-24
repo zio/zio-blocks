@@ -339,7 +339,8 @@ private object SchemaCompanionVersionSpecific {
       val defaultValue: Option[Tree],
       val getter: MethodSymbol,
       val usedRegisters: RegisterOffset,
-      val modifiers: List[Tree]
+      val modifiers: List[Tree],
+      val repeated: Boolean
     )
 
     class ClassInfo(tpe: Type) {
@@ -367,9 +368,11 @@ private object SchemaCompanionVersionSpecific {
         (
           primaryConstructor(tpe).paramLists.map(_.map { param =>
             idx += 1
-            val symbol = param.asTerm
-            val name   = NameTransformer.decode(symbol.name.toString)
-            var fTpe   = symbol.typeSignature.dealias
+            val symbol   = param.asTerm
+            val name     = NameTransformer.decode(symbol.name.toString)
+            var fTpe     = symbol.typeSignature.dealias
+            val repeated = fTpe.typeSymbol == definitions.RepeatedParamClass
+            if (repeated) fTpe = appliedType(typeOf[Seq[Any]].typeConstructor, fTpe.typeArgs)
             if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
             val getter = getters.getOrElse(
               name,
@@ -401,7 +404,7 @@ private object SchemaCompanionVersionSpecific {
               else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else RegisterOffset(objects = 1)
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers, repeated)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
@@ -435,28 +438,30 @@ private object SchemaCompanionVersionSpecific {
         val argss = fieldInfos.map(_.map { fieldInfo =>
           val fTpe          = fieldInfo.tpe
           val usedRegisters = fieldInfo.usedRegisters
-          if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.CharTpe) q"in.getChar(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.UnitTpe) q"()"
-          else {
-            val sTpe = dealiasOnDemand(fTpe)
-            if (sTpe <:< definitions.IntTpe) q"in.getInt(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.LongTpe) q"in.getLong(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.CharTpe) q"in.getChar(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-            else q"in.getObject(offset + $usedRegisters).asInstanceOf[$fTpe]"
-          }
+          val arg           =
+            if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.CharTpe) q"in.getChar(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.UnitTpe) q"()"
+            else {
+              val sTpe = dealiasOnDemand(fTpe)
+              if (sTpe <:< definitions.IntTpe) q"in.getInt(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.LongTpe) q"in.getLong(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ByteTpe) q"in.getByte(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.CharTpe) q"in.getChar(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ShortTpe) q"in.getShort(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+              else q"in.getObject(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            }
+          if (fieldInfo.repeated) q"$arg : _*" else arg
         })
         q"new $tpe(...$argss)"
       }

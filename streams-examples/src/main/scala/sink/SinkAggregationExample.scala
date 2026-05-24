@@ -17,7 +17,7 @@
 package sink
 
 import zio.blocks.streams.*
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 object SinkAggregationExample extends App {
   println("=== Sink Aggregation and Search ===\n")

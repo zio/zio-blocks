@@ -17,7 +17,7 @@
 package as
 
 import zio.blocks.schema.{As, Into, SchemaError}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // As.apply(intoAB, intoBA) builds a bidirectional As from two custom Into instances.
 // Use this when macro derivation is not possible or the conversion logic is custom.

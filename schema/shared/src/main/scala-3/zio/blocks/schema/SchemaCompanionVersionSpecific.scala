@@ -468,15 +468,16 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     private val tpeClassSymbol     = tpe.classSymbol.get
     private val primaryConstructor = tpeClassSymbol.primaryConstructor
     // caching of expensive calls of field and method member gathering
-    private var fieldMembers: List[Symbol]                                       = null
-    private var methodMembers: List[Symbol]                                      = null
-    private var companionRefAndClass: (Ref, Symbol)                              = null
-    val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
-    val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
-      val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+    private var fieldMembers: List[Symbol]                                   = null
+    private var methodMembers: List[Symbol]                                  = null
+    private var companionRefAndClass: (Ref, Symbol)                          = null
+    val tpeTypeArgs: List[TypeRepr]                                          = typeArgs(tpe)
+    private val (tpeTypeParams: List[Symbol], tpeParams: List[List[Symbol]]) =
+      primaryConstructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
         case ps                                     => (Nil, ps)
       }
+    val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
       val caseFields    = tpeClassSymbol.caseFields
       var usedRegisters = RegisterOffset.Zero
       var idx           = 0
@@ -580,8 +581,18 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
 
     def constructor(in: Expr[Registers], offset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
-      val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
-      val argss       = fieldInfos.map(_.map(fieldConstructor(in, offset, _)))
+      val constructor    = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
+      val constructorTpe = tpe.memberType(primaryConstructor).widen
+      val argss          = fieldInfos.zip(tpeParams).map { case (fis, params) =>
+        fis.zip(params).map { case (fi, paramSym) =>
+          val arg = fieldConstructor(in, offset, fi)
+          constructorTpe.memberType(paramSym) match {
+            case AnnotatedType(_, annot) if annot.tpe.typeSymbol == defn.RepeatedAnnot =>
+              Typed(arg, Inferred(defn.RepeatedParamClass.typeRef.appliedTo(fi.tpe.typeArgs.head)))
+            case _ => arg
+          }
+        }
+      }
       argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExpr.asInstanceOf[Expr[T]]
     }
 

@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.Into
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates automatic collection reshaping.
 // Into composes through List, Vector, Set, Map, and Option,

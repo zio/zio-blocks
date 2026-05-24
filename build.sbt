@@ -98,21 +98,21 @@ addCommandAlias(
 )
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; endpointJS/test; htmlJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; endpointJS/test; htmlJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
 
 lazy val testJS1Scala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
@@ -128,17 +128,17 @@ lazy val testJS2Scala3Command =
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
-    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; " +
+    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; " +
     "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
-    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
+    "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
     "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc"
 
 lazy val docJSScala2Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
@@ -148,7 +148,7 @@ lazy val docJSScala2Batch2Command =
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
 
 lazy val docJSScala3Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
@@ -425,6 +425,24 @@ lazy val `scope-benchmarks` = project
     coverageMinimumBranchTotal := 0
   )
 
+lazy val mux = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .jvmConfigure(_.dependsOn(ringbuffer.jvm % "compile->compile;test->test"))
+  .settings(stdSettings("zio-blocks-mux"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.mux"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
@@ -460,7 +478,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
         )
     })
   )
@@ -481,7 +499,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
         )
     })
   )
@@ -714,7 +732,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
         )
     }),
     coverageMinimumStmtTotal   := 96,
@@ -765,7 +783,7 @@ lazy val `schema-bson` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
         )
     }),
     coverageMinimumStmtTotal   := 66,
@@ -844,7 +862,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
         )
     })
   )
@@ -857,7 +875,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.4.10" % Test
+          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
         )
     })
   )
@@ -1297,16 +1315,6 @@ lazy val `streams-benchmark` = project
     coverageMinimumBranchTotal := 0
   )
 
-lazy val `schema-examples-macros` = project
-  .in(file("schema-examples-macros"))
-  .settings(stdSettings("zio-blocks-schema-examples-macros", Seq(BuildHelper.Scala3)))
-  .settings(
-    publish / skip             := true,
-    mimaPreviousArtifacts      := Set(),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
-  )
-
 lazy val `schema-examples` = project
   .in(file("schema-examples"))
   .settings(stdSettings("zio-blocks-schema-examples", Seq(BuildHelper.Scala3)))
@@ -1315,11 +1323,13 @@ lazy val `schema-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "sourcecode"     % "0.4.4",
+      "dev.zio"     %% "zio-sbt-source" % "0.5.2"
+    ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
-  .dependsOn(`schema-examples-macros`)
   .dependsOn(
     schema.jvm,
     markdown.jvm,
@@ -1341,14 +1351,16 @@ lazy val `streams-examples` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0,
-    libraryDependencies ++= Seq("com.lihaoyi" %% "sourcecode" % "0.4.4"),
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" %% "sourcecode"     % "0.4.4",
+      "dev.zio"     %% "zio-sbt-source" % "0.5.2"
+    ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
   .dependsOn(
     streams.jvm,
-    chunk.jvm,
-    `schema-examples-macros`
+    chunk.jvm
   )
 
 lazy val docs = project
