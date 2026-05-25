@@ -467,6 +467,6 @@ catalog.foreach { p =>
 - **[Optics Reference](../reference/schema/optics.md)** -- Full API coverage of Lens, Prism, Optional, and Traversal
 - **[DynamicOptic Reference](../reference/schema/dynamic-optic.md)** -- Runtime optic paths for programmatic query construction
 - **[Schema Reference](../reference/schema/schema.md)** -- Schema derivation and type-level metadata
-- **[Path Interpolator](../path-interpolator.md)** -- String-based path construction with `p"..."` syntax
+- **[Path Interpolator](../reference/schema/path-interpolator.md)** -- String-based path construction with `p"..."` syntax
 
 The `SchemaExpr` expression tree is a sealed trait, making it straightforward to write interpreters that translate queries to SQL, MongoDB filters, Elasticsearch queries, or any other target language. Because each optic carries its `DynamicOptic` path (via `toDynamic`), you can extract field names and paths programmatically for these translations.
