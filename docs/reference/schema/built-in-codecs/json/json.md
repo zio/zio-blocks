@@ -3,7 +3,7 @@ id: json
 title: "Json"
 ---
 
-`Json` is an algebraic data type (ADT) for representing JSON values in ZIO Blocks. It provides a type-safe, schema-free way to work with JSON data, enabling navigation, transformation, merging, and querying without losing fidelity.
+`Json` is a type-safe, schema-free representation of JSON values that enables navigation, transformation, merging, and querying without losing fidelity.
 
 ## Overview
 
@@ -212,7 +212,8 @@ result.isFailure   // false
 import zio.blocks.schema.json.{Json, JsonSelection}
 import zio.blocks.schema.SchemaError
 
-val selection: JsonSelection = ???
+val json = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
+val selection: JsonSelection = json.get("name")
 
 // Get single value (exactly one required)
 val oneValue: Either[SchemaError, Json] = selection.one
@@ -557,41 +558,9 @@ Schema[java.time.ZonedDateTime].jsonCodec
 Schema[java.util.UUID].jsonCodec
 ```
 
-### Encoding/Decoding of Primitives
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-// Encode Scala values to Json
-val intJson = 42.toJson  // Json.Number(42)
-val strJson = "hello".toJson  // Json.String("hello")
-
-// Decode Json to Scala values
-val intResult = intJson.as[Int]  // Right(42)
-val strResult = strJson.as[String]  // Right("hello")
-```
-
-### Encoding/Decoding of Case Classes
-
-For complex types, use Schema-based derivation:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-
-case class Person(name: String, age: Int)
-
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-}
-
-val person = Person("Alice", 30)
-val json = person.toJson
-val decoded = json.as[Person]
-```
-
 ### Extension Syntax
 
-When a `Schema` is in scope, you can use convenient extension methods directly on values:
+When a `Schema` is in scope, you can use convenient extension methods on any Scala value to encode and decode JSON. These work on primitives, case classes, and all other types:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -617,29 +586,14 @@ val parsed = """{"name":"Bob","age":25}""".fromJson[Person]  // Right(Person("Bo
 
 // Parse from bytes
 val fromBytes = jsonBytes.fromJson[Person]  // Right(Person("Alice", 30))
+
+// Works on primitives too
+val intJson = 42.toJson  // Json.Number(42)
+val strJson = "hello".toJson  // Json.String("hello")
+val intResult = intJson.as[Int]  // Right(42)
 ```
 
-These extension methods provide a more ergonomic API compared to explicitly creating encoders/decoders.
-
-### Using the `as` Method
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json._
-
-case class Person(name: String, age: Int)
-object Person {
-  implicit val schema: Schema[Person] = Schema.derived
-}
-
-val json = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
-
-// Decode to a specific type
-val person: Either[SchemaError, Person] = json.as[Person]
-
-// Unsafe version (throws on error)
-val personUnsafe: Person = json.asUnsafe[Person]
-```
+These extension methods provide a more ergonomic API compared to explicitly creating encoders/decoders, and work consistently across all types.
 
 ## Printing JSON
 
@@ -827,7 +781,7 @@ import zio.blocks.schema.json.{Json, JsonPatch}
 val source = Json.parseUnsafe("""{"name": "Alice", "age": 30}""")
 val target = Json.parseUnsafe("""{"name": "Alice", "age": 31, "active": true}""")
 
-// Compute the diff
+// Create a patch describing the differences
 val patch: JsonPatch = JsonPatch.diff(source, target)
 
 // The patch describes the minimal changes:
@@ -904,11 +858,13 @@ val result = combined(Json.parseUnsafe("""{"x": 1}"""))
 `JsonPatch` can be converted to and from `DynamicPatch` for interoperability with the typed patching system:
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.JsonPatch
+import zio.blocks.schema.json.{Json, JsonPatch}
 import zio.blocks.schema.patch.DynamicPatch
 import zio.blocks.schema.SchemaError
 
-val jsonPatch: JsonPatch = ???
+val source = Json.parseUnsafe("""{"value": 1}""")
+val target = Json.parseUnsafe("""{"value": 2}""")
+val jsonPatch: JsonPatch = JsonPatch.diff(source, target)
 
 // Convert to DynamicPatch
 val dynamicPatch: DynamicPatch = jsonPatch.toDynamicPatch
@@ -951,13 +907,25 @@ val result = json.get("users")(5).get("name").as[String]
 ### Error Properties
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.SchemaError
-import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema._
+import zio.blocks.schema.json._
 
-val error: SchemaError = ???
+case class User(id: Int, name: String)
+object User {
+  implicit val schema: Schema[User] = Schema.derived
+}
 
-error.message            // Error description
-error.errors.head.source // DynamicOptic path to error location
+val codec = User.schema.derive(JsonFormat)
+val invalidJson = """{"id": "not-a-number", "name": "Alice"}"""
+val result = codec.decode(invalidJson)
+
+// Extract error properties when decoding fails
+result match {
+  case Left(error: SchemaError) =>
+    error.message            // Error description
+    error.errors.head.source // DynamicOptic path to error location
+  case Right(_) => ()
+}
 ```
 
 ## Cross-Platform Support

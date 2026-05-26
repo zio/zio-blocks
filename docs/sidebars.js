@@ -8,7 +8,7 @@ const sidebars = {
       items: [
          {
            type: "category",
-           label: "ZIO Blocks Schema",
+           label: "Schema",
            link: { type: "doc", id: "reference/schema/index" },
            items: [
              {
@@ -41,6 +41,7 @@ const sidebars = {
                items: [
                  "reference/schema/optics",
                  "reference/schema/dynamic-optic",
+                 "reference/schema/path-interpolator",
                  "reference/schema/schema-expr",
                  "reference/schema/patch",
                ]
@@ -52,28 +53,38 @@ const sidebars = {
                items: [
                  "reference/schema/type-class-derivation",
                  "reference/schema/codec",
+                 "reference/schema/format",
+                 "reference/schema/lazy",
+               ]
+             },
+             {
+               type: "category",
+               label: "Built-in Formats and Codecs",
+               link: { type: "doc", id: "reference/schema/built-in-codecs/index" },
+               collapsed: false,
+               items: [
                  {
                    type: "category",
-                   label: "Formats",
-                   link: { type: "doc", id: "reference/schema/formats" },
+                   label: "JSON Codec",
+                   link: { type: "doc", id: "reference/schema/built-in-codecs/json/index" },
                    collapsed: false,
                    items: [
-                     {
-                       type: "category",
-                       label: "Json Format",
-                       link: { type: "doc", id: "reference/schema/formats" },
-                       collapsed: false,
-                       items: [
-                         "reference/schema/json",
-                         "reference/schema/json-patch",
-                         "reference/schema/json-differ",
-                         "reference/schema/json-schema",
-                       ]
-                     },
-                     "reference/schema/xml",
+                     "reference/schema/built-in-codecs/json/json",
+                     "reference/schema/built-in-codecs/json/json-config",
+                     "reference/schema/built-in-codecs/json/json-patch",
+                     "reference/schema/built-in-codecs/json/json-differ",
+                     "reference/schema/built-in-codecs/json/json-selection",
+                     "reference/schema/built-in-codecs/json/json-schema",
                    ]
                  },
-                 "reference/schema/lazy",
+                 "reference/schema/built-in-codecs/avro",
+                 "reference/schema/built-in-codecs/bson",
+                 "reference/schema/built-in-codecs/csv",
+                 "reference/schema/built-in-codecs/messagepack",
+                 "reference/schema/built-in-codecs/thrift",
+                 "reference/schema/built-in-codecs/toon",
+                 "reference/schema/built-in-codecs/xml",
+                 "reference/schema/built-in-codecs/yaml",
                ]
              },
              {
@@ -159,7 +170,6 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "reference/mux",
-          "path-interpolator",
           {
             type: "category",
             label: "RingBuffer",

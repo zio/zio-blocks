@@ -1401,6 +1401,8 @@ lazy val docs = project
     `schema-thrift`,
     `schema-bson`,
     `schema-xml`.jvm,
+    `schema-csv`.jvm,
+    `schema-yaml`.jvm,
     mediatype.jvm,
     endpoint.jvm,
     `http-model`.jvm,

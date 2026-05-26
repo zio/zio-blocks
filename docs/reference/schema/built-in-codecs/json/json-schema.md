@@ -27,9 +27,7 @@ Key features:
 
 ## Deriving JSON Schema from Schema
 
-The most common use case is deriving a JSON Schema from an existing `Schema[A]`.
-
-### Basic Derivation
+The most common use case is deriving a JSON Schema from an existing `Schema[A]`. You can derive directly from the schema or through a `JsonCodec` for more control.
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -40,8 +38,12 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// Get JSON Schema directly from Schema
+// Direct derivation
 val jsonSchema: JsonSchema = Schema[Person].toJsonSchema
+
+// Or derive through JsonCodec for more control
+val codec = Schema[Person].derive(JsonFormat)
+val jsonSchema2 = codec.toJsonSchema
 
 // The derived schema validates JSON values
 val valid = Json.Object("name" -> Json.String("Alice"), "age" -> Json.Number(30))
@@ -49,24 +51,6 @@ val invalid = Json.Object("name" -> Json.Number(123))
 
 jsonSchema.conforms(valid)   // true
 jsonSchema.conforms(invalid) // false
-```
-
-### Through JsonCodec
-
-For more control, derive through `JsonCodec`:
-
-```scala mdoc:compile-only
-import zio.blocks.schema._
-import zio.blocks.schema.json._
-
-case class User(email: String, active: Boolean)
-object User {
-  implicit val schema: Schema[User] = Schema.derived
-}
-
-// Derive codec first, then get JSON Schema
-val codec = Schema[User].derive(JsonFormat)
-val jsonSchema = codec.toJsonSchema
 ```
 
 ## Creating Schemas
@@ -197,22 +181,14 @@ Create schemas for object validation:
 import zio.blocks.schema.json.{JsonSchema, JsonSchemaType}
 import zio.blocks.chunk.ChunkMap
 
-// Object with properties
+// Object with properties and constraints
 val person = JsonSchema.obj(
   properties = Some(ChunkMap(
     "name" -> JsonSchema.ofType(JsonSchemaType.String),
     "age" -> JsonSchema.ofType(JsonSchemaType.Integer)
   )),
-  required = Some(Set("name"))
-)
-
-// Object with no additional properties
-val strictPerson = JsonSchema.obj(
-  properties = Some(ChunkMap(
-    "name" -> JsonSchema.ofType(JsonSchemaType.String),
-    "age" -> JsonSchema.ofType(JsonSchemaType.Integer)
-  )),
   required = Some(Set("name")),
+  // Reject properties not defined above
   additionalProperties = Some(JsonSchema.False)
 )
 ```
@@ -320,7 +296,7 @@ val paymentSchema = JsonSchema.Object(
 ### Basic Validation
 
 ```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType}
+import zio.blocks.schema.json.{JsonSchema, Json, JsonSchemaType, ValidationOptions}
 import zio.blocks.chunk.ChunkMap
 
 val schema = JsonSchema.obj(
@@ -347,25 +323,16 @@ schema.check(invalidJson) // Some(SchemaError(...))
 // Using conforms() - returns Boolean
 schema.conforms(validJson)   // true
 schema.conforms(invalidJson) // false
-```
 
-### Validation Options
-
-Control validation behavior:
-
-```scala mdoc:compile-only
-import zio.blocks.schema.json.{JsonSchema, Json, ValidationOptions}
-
-val schema = JsonSchema.string(format = Some("email"))
-val value = Json.String("not-an-email")
+// Control validation behavior with ValidationOptions
+val emailSchema = JsonSchema.string(format = Some("email"))
+val invalidEmail = Json.String("not-an-email")
 
 // With format validation (default)
-val strictOptions = ValidationOptions.formatAssertion
-schema.check(value, strictOptions) // Some(error)
+emailSchema.check(invalidEmail, ValidationOptions.formatAssertion) // Some(error)
 
 // Without format validation (format as annotation only)
-val lenientOptions = ValidationOptions.annotationOnly
-schema.check(value, lenientOptions) // None
+emailSchema.check(invalidEmail, ValidationOptions.annotationOnly)  // None
 ```
 
 ### Error Messages
