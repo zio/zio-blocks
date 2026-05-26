@@ -35,6 +35,8 @@ jobs:
           check-latest: true
       - name: Setup SBT
         uses: sbt/setup-sbt@v1
+        env:
+          JDK_JAVA_OPTIONS: ''
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
       - name: Setup Node.js
@@ -249,6 +251,8 @@ jobs:
           check-latest: true
       - name: Setup SBT
         uses: sbt/setup-sbt@v1
+        env:
+          JDK_JAVA_OPTIONS: ''
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
       - name: Setup NodeJs
