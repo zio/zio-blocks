@@ -209,6 +209,46 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("reads nested map key paths when writing to a distinct target field") {
+        val keyA  = DynamicValue.Record("code" -> DynamicValue.Primitive(PrimitiveValue.String("a")))
+        val keyB  = DynamicValue.Record("code" -> DynamicValue.Primitive(PrimitiveValue.String("b")))
+        val input = DynamicValue.Record(
+          "byCode" -> DynamicValue.Map(
+            zio.blocks.chunk.Chunk(
+              keyA -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              keyB -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+            )
+          )
+        )
+        val sourcePath = DynamicOptic(
+          IndexedSeq(
+            DynamicOptic.Node.Field("byCode"),
+            DynamicOptic.Node.MapKeys,
+            DynamicOptic.Node.Field("code")
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformField(sourcePath, DynamicSchemaExpr.Select(root), Some(root.field("codes")))
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "byCode" -> DynamicValue.Map(
+                zio.blocks.chunk.Chunk(
+                  keyA -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                  keyB -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+                )
+              ),
+              "codes" -> DynamicValue.Sequence(
+                zio.blocks.chunk.Chunk(
+                  DynamicValue.Primitive(PrimitiveValue.String("a")),
+                  DynamicValue.Primitive(PrimitiveValue.String("b"))
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("executeRenameCase")(

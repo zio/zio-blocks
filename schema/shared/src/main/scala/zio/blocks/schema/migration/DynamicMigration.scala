@@ -560,8 +560,12 @@ private[migration] object ActionExecutor {
         case Node.MapKeys =>
           value match {
             case DynamicValue.Map(entries) =>
-              val keys = entries.map(_._1)
-              Right(DynamicValue.Sequence(keys))
+              val results = entries.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+                case (Right(acc), (k, _)) =>
+                  getAtPath(nodes, idx + 1, k, fullPath).map(acc :+ _)
+                case (left, _) => left
+              }
+              results.map(DynamicValue.Sequence(_))
             case other =>
               Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
           }
