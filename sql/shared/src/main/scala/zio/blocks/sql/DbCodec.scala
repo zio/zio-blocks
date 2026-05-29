@@ -194,4 +194,5 @@ trait DbParamWriter {
   def setDuration(index: Int, value: java.time.Duration): Unit
   def setUUID(index: Int, value: java.util.UUID): Unit
   def setNull(index: Int, sqlType: Int): Unit
+  def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit
 }

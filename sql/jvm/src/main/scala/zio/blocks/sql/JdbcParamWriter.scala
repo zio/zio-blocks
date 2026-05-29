@@ -54,4 +54,10 @@ private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends Db
   def setUUID(index: Int, value: java.util.UUID): Unit = underlying.setObject(index, value)
 
   def setNull(index: Int, sqlType: Int): Unit = underlying.setNull(index, sqlType)
+
+  def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit = {
+    val conn     = underlying.getConnection
+    val sqlArray = conn.createArrayOf(elementType, elements.toArray)
+    underlying.setArray(index, sqlArray)
+  }
 }
