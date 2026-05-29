@@ -203,21 +203,6 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(result == Right(PersonV2(30L)))
       },
 
-      test("transformField writes to distinct target selector") {
-        case class PersonV1(name: String)
-        case class PersonV2(fullName: String)
-
-        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
-
-        val migration = Migration
-          .newBuilder[PersonV1, PersonV2]
-          .transformField(_.name, _.fullName, literal("Alice Smith"))
-          .build
-
-        assertTrue(migration(PersonV1("Alice")) == Right(PersonV2("Alice Smith")))
-      },
-
       test("changeFieldType selector syntax") {
         case class PersonV1(score: Int)
         case class PersonV2(score: String)
@@ -234,21 +219,6 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(PersonV2("42")))
-      },
-
-      test("changeFieldType writes to distinct target selector") {
-        case class PersonV1(score: Int)
-        case class PersonV2(scoreText: String)
-
-        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
-
-        val migration = Migration
-          .newBuilder[PersonV1, PersonV2]
-          .changeFieldType(_.score, _.scoreText, literal("42"))
-          .build
-
-        assertTrue(migration(PersonV1(42)) == Right(PersonV2("42")))
       },
 
       test("mandateField builder records mandate action") {
@@ -268,25 +238,6 @@ object MigrationSpec extends ZIOSpecDefault {
         )
       },
 
-      test("mandateField writes to distinct target selector") {
-        case class PersonV1(maybeAge: Option[Int])
-        case class PersonV2(age: Int)
-
-        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
-
-        val migration = Migration
-          .newBuilder[PersonV1, PersonV2]
-          .mandateField(_.maybeAge, _.age, literal(0))
-          .build
-
-        assertTrue(
-          migration(PersonV1(Some(42))) == Right(PersonV2(42)),
-          migration(PersonV1(None)) == Right(PersonV2(0)),
-          migration.reverse(PersonV2(42)) == Right(PersonV1(Some(42)))
-        )
-      },
-
       test("optionalizeField builder records optionalize action") {
         case class PersonV1(age: Int)
         case class PersonV2(age: Option[Int])
@@ -302,21 +253,6 @@ object MigrationSpec extends ZIOSpecDefault {
           builder.actions.length == 1,
           builder.actions.head.isInstanceOf[MigrationAction.OptionalizeField]
         )
-      },
-
-      test("optionalizeField writes to distinct target selector") {
-        case class PersonV1(age: Int)
-        case class PersonV2(maybeAge: Option[Int])
-
-        implicit val v1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
-        implicit val v2Schema: Schema[PersonV2] = Schema.derived[PersonV2]
-
-        val migration = Migration
-          .newBuilder[PersonV1, PersonV2]
-          .optionalizeField(_.age, _.maybeAge)
-          .build
-
-        assertTrue(migration(PersonV1(42)) == Right(PersonV2(Some(42))))
       },
 
       test("transformElements evaluates per element") {

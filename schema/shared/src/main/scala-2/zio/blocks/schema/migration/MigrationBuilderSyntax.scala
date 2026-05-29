@@ -346,8 +346,7 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.ChangeFieldType(
           sourcePath,
-          $converter.toDynamic,
-          _root_.scala.Some(targetPath)
+          $converter.toDynamic
         )
       )
     }"""

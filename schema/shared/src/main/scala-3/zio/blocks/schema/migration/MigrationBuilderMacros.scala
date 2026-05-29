@@ -246,11 +246,10 @@ object MigrationBuilderMacros {
       case '[newCs] =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Any]($source)
-          val targetPath = SelectorMacros.toPath[B, Any]($target)
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.ChangeFieldType(sourcePath, $converter.toDynamic, Some(targetPath))
+            $builder.actions :+ MigrationAction.ChangeFieldType(sourcePath, $converter.toDynamic)
           )
         }
     }
