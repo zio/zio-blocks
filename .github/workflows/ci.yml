@@ -1,8 +1,10 @@
 name: CI
 
 env:
-  JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
-  JVM_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE # for Java 8 only (sadly, it is not modern enough for JDK_JAVA_OPTIONS)
+  # Do NOT use JDK_JAVA_OPTIONS here — it causes `java -version` to print a NOTE containing commas,
+  # which breaks cache key validation in setup-sbt, coursier/cache-action, and similar actions.
+  # Instead, pass JVM flags through SBT_OPTS (read by sbt, invisible to `java -version`).
+  SBT_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE
 
 on:
   pull_request:
@@ -37,9 +39,6 @@ jobs:
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -96,9 +95,6 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Lint code
         run: sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"
 
@@ -128,9 +124,6 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
@@ -169,9 +162,6 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Run Scala JS tests
         run: sbt ++${{ matrix.scala }} testJS docJS
 
@@ -196,9 +186,6 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Run Golem tests (Scala 3.8)
         run: sbt "++3.8.2; zioGolemModelJVM/test; zioGolemModelJS/test; zioGolemCoreJS/test; zioGolemMacros/test; zioGolemTestAgents/fastLinkJS"
       - name: Run Golem tests (Scala 2.13)
@@ -266,9 +253,6 @@ jobs:
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
-        env: # Unset to prevent "NOTE: Picked up JDK_JAVA_OPTIONS" from leaking into the cache key (commas break it)
-          JDK_JAVA_OPTIONS: ''
-          JVM_OPTS: ''
       - name: Setup NodeJs
         uses: actions/setup-node@v6.4.0
         with:
