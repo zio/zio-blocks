@@ -20,7 +20,7 @@ import scala.quoted._
 
 private[sql] object SqlMacros {
 
-  def sqlImpl(sc: Expr[StringContext], args: Expr[Seq[DbValue]])(using Quotes): Expr[Frag] = {
+  def sqlImpl(sc: Expr[StringContext], args: Expr[Seq[Any]])(using Quotes): Expr[Frag] = {
     import quotes.reflect._
 
     val parts: Option[Seq[String]] = sc match {
@@ -33,6 +33,36 @@ private[sql] object SqlMacros {
       SqlValidator.validate(ps).foreach(report.errorAndAbort(_))
     }
 
-    '{ Frag($sc.parts.toIndexedSeq, $args.toIndexedSeq) }
+    val convertedArgs: Expr[IndexedSeq[DbValue]] = args match {
+      case Varargs(argExprs) =>
+        val converted: Seq[Expr[DbValue]] = argExprs.map { arg =>
+          arg match {
+            case '{ $a: DbValue } => a
+            case '{ $a: t }       =>
+              val widened = TypeRepr.of[t].widen.asType
+              widened match {
+                case '[w] =>
+                  Expr.summon[DbParam[w]] match {
+                    case Some(param) => '{ $param.toDbValue(${ a.asExprOf[w] }) }
+                    case None        =>
+                      report.errorAndAbort(
+                        s"No DbParam instance found for type ${Type.show[w]}. " +
+                          "Only types with a DbParam[T] instance can be interpolated into sql\"...\".",
+                        arg.asTerm.pos
+                      )
+                  }
+              }
+          }
+        }
+        '{ IndexedSeq(${ Varargs(converted) }: _*) }
+      case _ =>
+        '{
+          $args.map {
+            case v: DbValue => v; case other => throw new IllegalArgumentException(s"Unexpected value: $other")
+          }.toIndexedSeq
+        }
+    }
+
+    '{ Frag($sc.parts.toIndexedSeq, $convertedArgs) }
   }
 }
