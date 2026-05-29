@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package zio.blocks.schema.json
+package zio.blocks.schema
 
-import java.lang.Character._
 import java.lang
+import java.lang.Character._
 
 /**
  * A sealed trait that represents a generic contract for mapping string input to
@@ -51,19 +51,34 @@ sealed trait NameMapper extends (String => String)
 object NameMapper {
   private[this] val validStrategies = "identity, snake_case, camelCase, kebab-case, PascalCase"
 
-  private[this] def enforceCamelOrPascalCase(s: String, toPascal: Boolean): String =
-    if (s.indexOf('_') == -1 && s.indexOf('-') == -1) {
-      if (s.isEmpty) s
-      else {
-        val ch      = s.charAt(0)
-        val fixedCh =
-          if (toPascal) toUpperCase(ch)
-          else toLowerCase(ch)
-        s"$fixedCh${s.substring(1)}"
+  private[this] def enforceCamelOrPascalCase(s: String, toPascal: Boolean): String = {
+    val len = s.length
+    val sb  = new lang.StringBuilder(len)
+    if (s.indexOf('_') < 0 && s.indexOf('-') < 0) {
+      if (len > 0) {
+        val firstChar = s.charAt(0)
+        sb.append(
+          if (toPascal) toUpperCase(firstChar)
+          else toLowerCase(firstChar)
+        )
+        var idx = 1
+        if (!toPascal) {
+          idx = 0
+          while (idx < len && isUpperCase(s.charAt(idx))) idx += 1
+          if (idx > 1 && idx < len && isLowerCase(s.charAt(idx))) idx -= 1
+          val limit = Math.max(idx, 1)
+          idx = 1
+          while (idx < limit) {
+            sb.append(toLowerCase(s.charAt(idx)))
+            idx += 1
+          }
+        }
+        while (idx < len) {
+          sb.append(s.charAt(idx))
+          idx += 1
+        }
       }
     } else {
-      val len             = s.length
-      val sb              = new lang.StringBuilder(len)
       var idx             = 0
       var isPrecedingDash = toPascal
       while (idx < len) isPrecedingDash = {
@@ -77,8 +92,9 @@ object NameMapper {
           false
         }
       }
-      sb.toString
     }
+    sb.toString
+  }
 
   private[this] def enforceSnakeOrKebabCase(s: String, separator: Char): String = {
     val len                      = s.length
@@ -89,13 +105,16 @@ object NameMapper {
       val ch = s.charAt(idx)
       idx += 1
       if (ch == '_' || ch == '-') {
-        sb.append(separator)
-        false
+        if (idx > 1 && idx < len && !isAlphabetic(s.charAt(idx))) isPrecedingNotUpperCased
+        else {
+          sb.append(separator)
+          false
+        }
       } else if (!isUpperCase(ch)) {
         sb.append(ch)
         true
       } else {
-        if (isPrecedingNotUpperCased || idx > 1 && idx < len && !isUpperCase(s.charAt(idx))) sb.append(separator)
+        if (isPrecedingNotUpperCased || idx > 1 && idx < len && isLowerCase(s.charAt(idx))) sb.append(separator)
         sb.append(toLowerCase(ch))
         false
       }
