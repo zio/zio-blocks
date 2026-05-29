@@ -134,8 +134,14 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] = {
     import q.reflect.*
 
-    val fromFieldPath      = extractFieldPathFromTerm(from.asTerm)
-    val toFieldPath        = extractFieldPathFromTerm(to.asTerm)
+    val fromFieldPath = extractFieldPathFromTerm(from.asTerm)
+    val toFieldPath   = extractFieldPathFromTerm(to.asTerm)
+    if (fromFieldPath != toFieldPath)
+      report.errorAndAbort(
+        s"transformField requires the same field name in source and target, " +
+          s"got '$fromFieldPath' and '$toFieldPath'. " +
+          s"Use renameField followed by transformField for rename-and-transform."
+      )
     val fromFieldType      = ConstantType(StringConstant(fromFieldPath))
     val toFieldType        = ConstantType(StringConstant(toFieldPath))
     val transformedWrapped = TypeRepr.of[Changeset.TransformField].appliedTo(List(fromFieldType, toFieldType))
@@ -164,6 +170,12 @@ object MigrationBuilderMacros {
 
     val sourceFieldPath = extractFieldPathFromTerm(source.asTerm)
     val targetFieldPath = extractFieldPathFromTerm(target.asTerm)
+    if (sourceFieldPath != targetFieldPath)
+      report.errorAndAbort(
+        s"mandateField requires the same field name in source and target, " +
+          s"got '$sourceFieldPath' and '$targetFieldPath'. " +
+          s"Use renameField followed by mandateField for rename-and-mandate."
+      )
     val sourceFieldType = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldType = ConstantType(StringConstant(targetFieldPath))
     val mandatedWrapped = TypeRepr.of[Changeset.MandateField].appliedTo(List(sourceFieldType, targetFieldType))
@@ -189,8 +201,14 @@ object MigrationBuilderMacros {
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] = {
     import q.reflect.*
 
-    val sourceFieldPath     = extractFieldPathFromTerm(source.asTerm)
-    val targetFieldPath     = extractFieldPathFromTerm(target.asTerm)
+    val sourceFieldPath = extractFieldPathFromTerm(source.asTerm)
+    val targetFieldPath = extractFieldPathFromTerm(target.asTerm)
+    if (sourceFieldPath != targetFieldPath)
+      report.errorAndAbort(
+        s"optionalizeField requires the same field name in source and target, " +
+          s"got '$sourceFieldPath' and '$targetFieldPath'. " +
+          s"Use renameField followed by optionalizeField for rename-and-optionalize."
+      )
     val sourceFieldType     = ConstantType(StringConstant(sourceFieldPath))
     val targetFieldType     = ConstantType(StringConstant(targetFieldPath))
     val optionalizedWrapped = TypeRepr.of[Changeset.OptionalizeField].appliedTo(List(sourceFieldType, targetFieldType))
@@ -301,20 +319,7 @@ object MigrationBuilderMacros {
   private def extractFieldPathFromTerm(term: Any)(using q: Quotes): String = {
     import q.reflect.*
 
-    def structuralFieldAccess(t: Term): Option[(Term, String)] = t match {
-      case TypeApply(
-            Select(
-              Apply(
-                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
-                List(Literal(StringConstant(fieldName)))
-              ),
-              "$asInstanceOf$"
-            ),
-            _
-          ) =>
-        Some((parent, fieldName))
-      case _ => None
-    }
+    def structuralFieldAccess(t: Term): Option[(Term, String)] = SelectorMacros.extractSelectDynamic(t)
 
     @tailrec
     def toPathBody(t: Term): Term = t match {
@@ -343,20 +348,7 @@ object MigrationBuilderMacros {
   private def extractLeafFieldName(term: Any)(using q: Quotes): String = {
     import q.reflect.*
 
-    def structuralFieldAccess(t: Term): Option[(Term, String)] = t match {
-      case TypeApply(
-            Select(
-              Apply(
-                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
-                List(Literal(StringConstant(fieldName)))
-              ),
-              "$asInstanceOf$"
-            ),
-            _
-          ) =>
-        Some((parent, fieldName))
-      case _ => None
-    }
+    def structuralFieldAccess(t: Term): Option[(Term, String)] = SelectorMacros.extractSelectDynamic(t)
 
     @tailrec
     def toPathBody(t: Term): Term = t match {

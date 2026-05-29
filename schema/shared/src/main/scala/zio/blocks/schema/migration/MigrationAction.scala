@@ -104,7 +104,7 @@ object MigrationAction {
       val parentPath = DynamicOptic(at.nodes.dropRight(1))
       from match {
         case Some(oldName) => RenameField(parentPath.field(to), oldName)
-        case None          => Irreversible(at, "RenameField")
+        case None          => Irreversible(parentPath, "RenameField")
       }
     }
 
@@ -202,10 +202,18 @@ object MigrationAction {
    */
   final case class TransformCase(
     at: DynamicOptic,
+    targetCaseName: String,
     actions: Chunk[MigrationAction]
   ) extends MigrationAction {
-    override def reverse: MigrationAction =
-      TransformCase(at, actions.reverse.map(_.reverse))
+    override def reverse: MigrationAction = {
+      val sourceCaseName =
+        at.nodes.lastOption.collect { case DynamicOptic.Node.Case(name) => name }.getOrElse(targetCaseName)
+      TransformCase(
+        DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Case(targetCaseName)),
+        sourceCaseName,
+        actions.reverse.map(_.reverse)
+      )
+    }
   }
 
   /**
@@ -281,7 +289,7 @@ object MigrationAction {
    * Sentinel action representing a non-invertible operation. Executing this
    * action always fails with a descriptive error. This is returned by
    * `.reverse` on actions that cannot be structurally reversed (e.g.,
-   * `TransformValue`, `ChangeType`).
+   * `TransformField`, `ChangeFieldType`, `OptionalizeField`).
    *
    * @param at
    *   The path where the original action operated
@@ -292,6 +300,11 @@ object MigrationAction {
     at: DynamicOptic,
     originalAction: String
   ) extends MigrationAction {
+
+    /**
+     * Reversing an irreversible action returns itself — it always fails at
+     * runtime.
+     */
     override def reverse: MigrationAction = this
   }
 }

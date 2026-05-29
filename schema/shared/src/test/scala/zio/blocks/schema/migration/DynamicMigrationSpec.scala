@@ -170,6 +170,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val migration = DynamicMigration.single(
           MigrationAction.TransformCase(
             root,
+            "User",
             zio.blocks.chunk.Chunk(
               MigrationAction.AddField(DynamicOptic.root.field("age"), dynamicLiteral(0))
             )
@@ -181,7 +182,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       },
       test("fails on non-Variant value") {
         val migration = DynamicMigration.single(
-          MigrationAction.TransformCase(root, zio.blocks.chunk.Chunk.empty)
+          MigrationAction.TransformCase(root, "User", zio.blocks.chunk.Chunk.empty)
         )
         assertTrue(migration(DynamicValue.Primitive(PrimitiveValue.Int(1))).isLeft)
       }
@@ -622,6 +623,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("TransformCase reverse reverses inner actions") {
         val action = MigrationAction.TransformCase(
           root,
+          "TestCase",
           zio.blocks.chunk.Chunk(
             MigrationAction.AddField(root.field("a"), dynamicLiteral(1)),
             MigrationAction.RenameField(root.field("b"), "c")

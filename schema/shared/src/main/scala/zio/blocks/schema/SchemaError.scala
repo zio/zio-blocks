@@ -200,23 +200,23 @@ object SchemaError {
   case class MigrationError(source: DynamicOptic, kind: MigrationErrorKind) extends Single {
     override def message: String = kind match {
       case MigrationErrorKind.PathNotFound =>
-        s"Path not found: $source"
+        s"Path not found: ${source.toScalaString}"
       case MigrationErrorKind.TypeMismatch(expected, actual) =>
-        s"Type mismatch at $source: expected $expected, got $actual"
+        s"Type mismatch at ${source.toScalaString}: expected $expected, got $actual"
       case MigrationErrorKind.MissingDefault(fieldName) =>
-        s"Missing default value for field '$fieldName' at $source"
+        s"Missing default value for field '$fieldName' at ${source.toScalaString}"
       case MigrationErrorKind.TransformFailed(reason) =>
-        s"Transform failed at $source: $reason"
+        s"Transform failed at ${source.toScalaString}: $reason"
       case MigrationErrorKind.FieldNotFound(fieldName) =>
-        s"Field '$fieldName' not found at $source"
+        s"Field '$fieldName' not found at ${source.toScalaString}"
       case MigrationErrorKind.FieldAlreadyExists(fieldName) =>
-        s"Field '$fieldName' already exists at $source"
+        s"Field '$fieldName' already exists at ${source.toScalaString}"
       case MigrationErrorKind.CaseNotFound(caseName) =>
-        s"Case '$caseName' not found at $source"
+        s"Case '$caseName' not found at ${source.toScalaString}"
       case MigrationErrorKind.InvalidValue(reason) =>
-        s"Invalid value at $source: $reason"
+        s"Invalid value at ${source.toScalaString}: $reason"
       case MigrationErrorKind.MandateFailed(reason) =>
-        s"Mandate failed at $source: $reason"
+        s"Mandate failed at ${source.toScalaString}: $reason"
     }
   }
 

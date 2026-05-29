@@ -37,23 +37,53 @@ object SelectorMacros {
   inline def extractFieldName[S, A](inline selector: S => A): String =
     ${ extractFieldNameImpl[S, A]('selector) }
 
-  def extractFieldNameImpl[S: Type, A: Type](selector: Expr[S => A])(using q: Quotes): Expr[String] = {
+  private[migration] def isReflectiveSelectable(name: String): Boolean =
+    name == "reflectiveSelectable" || name == "reflectiveSelectableFromLangReflectiveCalls"
+
+  private[migration] def extractSelectDynamic(using
+    q: Quotes
+  )(term: q.reflect.Term): Option[(q.reflect.Term, String)] = {
     import q.reflect.*
 
-    def structuralFieldAccess(term: Term): Option[(Term, String)] = term match {
+    def extractSelectableParent(t: Term): Option[Term] = t match {
+      case Apply(selectableRef, List(parent)) if isSelectableRef(selectableRef) =>
+        Some(parent)
+      case Apply(Apply(selectableRef, List(parent)), _) if isSelectableRef(selectableRef) =>
+        Some(parent)
+      case Apply(inner, _) =>
+        extractSelectableParent(inner)
+      case _ => None
+    }
+
+    term match {
       case TypeApply(
             Select(
               Apply(
-                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
+                Select(selectableApp, "selectDynamic"),
                 List(Literal(StringConstant(fieldName)))
               ),
               "$asInstanceOf$"
             ),
             _
           ) =>
-        Some((parent, fieldName))
+        extractSelectableParent(selectableApp).map(parent => (parent, fieldName))
       case _ => None
     }
+  }
+
+  private def isSelectableRef(using q: Quotes)(term: q.reflect.Term): Boolean = {
+    import q.reflect.*
+    term match {
+      case Ident(name)     => isReflectiveSelectable(name)
+      case Select(_, name) => isReflectiveSelectable(name)
+      case _               => false
+    }
+  }
+
+  def extractFieldNameImpl[S: Type, A: Type](selector: Expr[S => A])(using q: Quotes): Expr[String] = {
+    import q.reflect.*
+
+    def structuralFieldAccess(term: Term): Option[(Term, String)] = extractSelectDynamic(term)
 
     @scala.annotation.tailrec
     def toPathBody(term: Term): Term = term match {
@@ -99,20 +129,7 @@ object SelectorMacros {
         case other       => other.show
       }
 
-    def structuralFieldAccess(term: Term): Option[(Term, String)] = term match {
-      case TypeApply(
-            Select(
-              Apply(
-                Select(Apply(Ident("reflectiveSelectable"), List(parent)), "selectDynamic"),
-                List(Literal(StringConstant(fieldName)))
-              ),
-              "$asInstanceOf$"
-            ),
-            _
-          ) =>
-        Some((parent, fieldName))
-      case _ => None
-    }
+    def structuralFieldAccess(term: Term): Option[(Term, String)] = extractSelectDynamic(term)
 
     def toDynamicOptic(term: Term): Expr[DynamicOptic] = term match {
       // Identity - just the parameter reference

@@ -197,9 +197,10 @@ final class MigrationBuilder[A, B, Changeset](
     caseSourceSchema: Schema[CaseA],
     caseTargetSchema: Schema[CaseB]
   ): MigrationBuilder[A, B, Changeset] = {
-    val innerBuilder = new MigrationBuilder[CaseA, CaseB, Any](caseSourceSchema, caseTargetSchema, Chunk.empty)
-    val builtInner   = caseMigration(innerBuilder)
-    appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions))
+    val innerBuilder   = new MigrationBuilder[CaseA, CaseB, Any](caseSourceSchema, caseTargetSchema, Chunk.empty)
+    val builtInner     = caseMigration(innerBuilder)
+    val targetCaseName = caseTargetSchema.reflect.typeId.name
+    appendAction(MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), targetCaseName, builtInner.actions))
   }
 
   // ----- Collections -----
@@ -255,7 +256,9 @@ final class MigrationBuilder[A, B, Changeset](
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
   /**
-   * Build migration without full validation.
+   * Builds a [[Migration]] without changeset completeness validation. Intended
+   * for internal testing and partial migration construction. Prefer [[build]]
+   * for all production migrations.
    */
   private[migration] def buildPartial: Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))

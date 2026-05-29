@@ -18,6 +18,7 @@ package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError}
+import scala.util.control.NonFatal
 
 /**
  * A pure, serializable migration that operates on `DynamicValue`. This is the
@@ -75,7 +76,7 @@ final case class DynamicMigration(actions: Chunk[MigrationAction]) {
    * field without capturing its value).
    */
   def reverse: DynamicMigration =
-    new DynamicMigration(Chunk.fromIterable(actions.reverseIterator.map(_.reverse).toSeq))
+    new DynamicMigration(Chunk.fromIterator(actions.reverseIterator.map(_.reverse)))
 
   /**
    * Returns true if this migration has no actions (identity migration).
@@ -120,7 +121,18 @@ object DynamicMigration {
     val len                   = actions.length
 
     while (idx < len) {
-      ActionExecutor.execute(actions(idx), current) match {
+      val result =
+        try ActionExecutor.execute(actions(idx), current)
+        catch {
+          case NonFatal(ex) =>
+            Left(
+              SchemaError.transformFailed(
+                actions(idx).at,
+                s"Unexpected error during migration: ${ex.getClass.getSimpleName}: ${ex.getMessage}"
+              )
+            )
+        }
+      result match {
         case Right(newValue) =>
           current = newValue
           idx += 1
@@ -178,8 +190,8 @@ private[migration] object ActionExecutor {
       case RenameCase(at, from, to) =>
         executeRenameCase(at, from, to, value)
 
-      case TransformCase(at, actions) =>
-        executeTransformCase(at, actions, value)
+      case TransformCase(at, targetCaseName, actions) =>
+        executeTransformCase(at, targetCaseName, actions, value)
 
       case MigrateField(at, migration) =>
         executeApplyMigration(at, migration, value)
@@ -324,9 +336,10 @@ private[migration] object ActionExecutor {
   ): Either[SchemaError, DynamicValue] =
     modifyAt(at, value) {
       case DynamicValue.Sequence(elements) =>
-        val transformed = elements.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
-          case (Right(acc), element) =>
-            evalExpr(transform, element, at).map(acc :+ _)
+        val transformed = elements.zipWithIndex.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+          case (Right(acc), (element, idx)) =>
+            val elemPath = zio.blocks.schema.DynamicOptic(at.nodes :+ zio.blocks.schema.DynamicOptic.Node.AtIndex(idx))
+            evalExpr(transform, element, elemPath).map(acc :+ _)
           case (left, _) =>
             left
         }
@@ -345,7 +358,9 @@ private[migration] object ActionExecutor {
         val transformed =
           entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
             case (Right(acc), (key, currentValue)) =>
-              evalExpr(transform, key, at).map(newKey => acc :+ (newKey -> currentValue))
+              val keyPath =
+                zio.blocks.schema.DynamicOptic(at.nodes :+ zio.blocks.schema.DynamicOptic.Node.AtMapKey(key))
+              evalExpr(transform, key, keyPath).map(newKey => acc :+ (newKey -> currentValue))
             case (left, _) =>
               left
           }
@@ -364,7 +379,9 @@ private[migration] object ActionExecutor {
         val transformed =
           entries.foldLeft[Either[SchemaError, Chunk[(DynamicValue, DynamicValue)]]](Right(Chunk.empty)) {
             case (Right(acc), (key, currentValue)) =>
-              evalExpr(transform, currentValue, at).map(newValue => acc :+ (key -> newValue))
+              val valuePath =
+                zio.blocks.schema.DynamicOptic(at.nodes :+ zio.blocks.schema.DynamicOptic.Node.AtMapKey(key))
+              evalExpr(transform, currentValue, valuePath).map(newValue => acc :+ (key -> newValue))
             case (left, _) =>
               left
           }
@@ -405,7 +422,11 @@ private[migration] object ActionExecutor {
     from: String,
     to: String,
     value: DynamicValue
-  ): Either[SchemaError, DynamicValue] =
+  ): Either[SchemaError, DynamicValue] = {
+    if (from.isEmpty || to.isEmpty)
+      return Left(
+        SchemaError.transformFailed(at, s"renameCase requires non-empty case names, got from='$from', to='$to'")
+      )
     modifyAt(at, value) {
       case DynamicValue.Variant(caseName, inner) if caseName == from =>
         Right(DynamicValue.Variant(to, inner))
@@ -415,18 +436,30 @@ private[migration] object ActionExecutor {
       case other =>
         Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
     }
+  }
 
   private def executeTransformCase(
     at: zio.blocks.schema.DynamicOptic,
+    targetCaseName: String,
     actions: Chunk[MigrationAction],
     value: DynamicValue
-  ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) {
-      case DynamicValue.Variant(name, inner) =>
-        DynamicMigration.execute(actions, inner).map(DynamicValue.Variant(name, _))
+  ): Either[SchemaError, DynamicValue] = {
+    val sourceCaseName = at.nodes.lastOption.collect { case zio.blocks.schema.DynamicOptic.Node.Case(name) => name }
+      .getOrElse(targetCaseName)
+    val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1).filter {
+      case _: zio.blocks.schema.DynamicOptic.Node.Case => false
+      case _                                           => true
+    })
+
+    modifyAt(parentPath, value) {
+      case DynamicValue.Variant(name, inner) if name == sourceCaseName =>
+        DynamicMigration.execute(actions, inner).map(DynamicValue.Variant(targetCaseName, _))
+      case v: DynamicValue.Variant =>
+        Right(v) // non-matching case, pass through unchanged
       case other =>
         Left(SchemaError.typeMismatch(at, "Variant", other.getClass.getSimpleName))
     }
+  }
 
   private def executeApplyMigration(
     at: zio.blocks.schema.DynamicOptic,
@@ -585,8 +618,15 @@ private[migration] object ActionExecutor {
           // For wrapper types, just continue to the inner value
           modifyAtPath(nodes, idx + 1, value, fullPath)(f)
 
-        case _ =>
-          Left(SchemaError.transformFailed(fullPath, s"Unsupported path node: ${nodes(idx)}"))
+        case Node.AtIndices(_) | Node.AtMapKeys(_) =>
+          Left(
+            SchemaError.transformFailed(
+              fullPath,
+              s"Batch path nodes (AtIndices/AtMapKeys) are not supported in migration paths"
+            )
+          )
+        case Node.TypeSearch(_) | Node.SchemaSearch(_) =>
+          Left(SchemaError.transformFailed(fullPath, s"Type/Schema search nodes are not supported in migration paths"))
       }
     }
   }
