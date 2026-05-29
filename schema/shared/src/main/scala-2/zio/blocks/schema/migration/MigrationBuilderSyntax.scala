@@ -206,8 +206,15 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val fromFieldName      = extractFieldPathFromSelector(c)(from.tree)
-    val toFieldName        = extractFieldPathFromSelector(c)(to.tree)
+    val fromFieldName = extractFieldPathFromSelector(c)(from.tree)
+    val toFieldName   = extractFieldPathFromSelector(c)(to.tree)
+    if (fromFieldName != toFieldName)
+      c.abort(
+        c.enclosingPosition,
+        s"transformField requires the same field name in source and target, " +
+          s"got '$fromFieldName' and '$toFieldName'. " +
+          s"Use renameField followed by transformField for rename-and-transform."
+      )
     val transformFieldType = createTransformFieldType(c)(fromFieldName, toFieldName)
     val newCSType          = addToChangeset(c)(csType, transformFieldType)
 
@@ -240,8 +247,15 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName  = extractFieldPathFromSelector(c)(source.tree)
-    val targetFieldName  = extractFieldPathFromSelector(c)(target.tree)
+    val sourceFieldName = extractFieldPathFromSelector(c)(source.tree)
+    val targetFieldName = extractFieldPathFromSelector(c)(target.tree)
+    if (sourceFieldName != targetFieldName)
+      c.abort(
+        c.enclosingPosition,
+        s"mandateField requires the same field name in source and target, " +
+          s"got '$sourceFieldName' and '$targetFieldName'. " +
+          s"Use renameField followed by mandateField for rename-and-mandate."
+      )
     val mandateFieldType = createMandateFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType        = addToChangeset(c)(csType, mandateFieldType)
 
@@ -275,8 +289,15 @@ object MigrationBuilderMacros {
     val bType  = weakTypeOf[B]
     val csType = weakTypeOf[CS]
 
-    val sourceFieldName      = extractFieldPathFromSelector(c)(source.tree)
-    val targetFieldName      = extractFieldPathFromSelector(c)(target.tree)
+    val sourceFieldName = extractFieldPathFromSelector(c)(source.tree)
+    val targetFieldName = extractFieldPathFromSelector(c)(target.tree)
+    if (sourceFieldName != targetFieldName)
+      c.abort(
+        c.enclosingPosition,
+        s"optionalizeField requires the same field name in source and target, " +
+          s"got '$sourceFieldName' and '$targetFieldName'. " +
+          s"Use renameField followed by optionalizeField for rename-and-optionalize."
+      )
     val optionalizeFieldType = createOptionalizeFieldType(c)(sourceFieldName, targetFieldName)
     val newCSType            = addToChangeset(c)(csType, optionalizeFieldType)
 

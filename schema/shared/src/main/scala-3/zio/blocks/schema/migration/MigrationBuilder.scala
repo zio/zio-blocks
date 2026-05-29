@@ -112,11 +112,12 @@ final class MigrationBuilder[A, B, Changeset](
       caseTargetSchema,
       Chunk.empty
     )
-    val builtInner = caseMigration(innerBuilder)
+    val builtInner     = caseMigration(innerBuilder)
+    val targetCaseName = caseTargetSchema.reflect.typeId.name
     new MigrationBuilder(
       sourceSchema,
       targetSchema,
-      actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), builtInner.actions)
+      actions :+ MigrationAction.TransformCase(DynamicOptic.root.caseOf(caseName), targetCaseName, builtInner.actions)
     )
   }
 
@@ -183,8 +184,6 @@ final class MigrationBuilder[A, B, Changeset](
   ): Migration[A, B] =
     new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 
-  private[migration] def buildPartial: Migration[A, B] =
-    new Migration(sourceSchema, targetSchema, new DynamicMigration(actions))
 }
 
 object MigrationBuilder {

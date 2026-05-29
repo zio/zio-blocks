@@ -43,10 +43,12 @@ object MigrationSpec extends ZIOSpecDefault {
     final case class UserV2(fullName: String, age: Int) extends EventV2
     final case class SystemV2(code: Int)                extends EventV2
 
-    implicit val userV1Schema: Schema[UserV1]   = Schema.derived[UserV1]
-    implicit val userV2Schema: Schema[UserV2]   = Schema.derived[UserV2]
-    implicit val eventV1Schema: Schema[EventV1] = Schema.derived[EventV1]
-    implicit val eventV2Schema: Schema[EventV2] = Schema.derived[EventV2]
+    implicit val userV1Schema: Schema[UserV1]     = Schema.derived[UserV1]
+    implicit val userV2Schema: Schema[UserV2]     = Schema.derived[UserV2]
+    implicit val systemV1Schema: Schema[SystemV1] = Schema.derived[SystemV1]
+    implicit val systemV2Schema: Schema[SystemV2] = Schema.derived[SystemV2]
+    implicit val eventV1Schema: Schema[EventV1]   = Schema.derived[EventV1]
+    implicit val eventV2Schema: Schema[EventV2]   = Schema.derived[EventV2]
   }
 
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
@@ -324,12 +326,11 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[StatusV1, StatusV2]
           .renameCase("Pending", "Enabled")
-          .buildPartial
+          .build
 
-        val input  = statusV1Schema.toDynamicValue(Pending: StatusV1)
-        val result = migration.dynamicMigration(input)
+        val result = migration(Pending: StatusV1)
 
-        assertTrue(result == Right(statusV2Schema.toDynamicValue(Enabled: StatusV2)))
+        assertTrue(result == Right(Enabled: StatusV2))
       },
       test("renameCase does not affect other cases") {
         import RenameCaseFixtures._
@@ -337,27 +338,29 @@ object MigrationSpec extends ZIOSpecDefault {
         val migration = Migration
           .newBuilder[StatusV1, StatusV2]
           .renameCase("Pending", "Enabled")
-          .buildPartial
+          .renameCase("Active", "ActiveV2")
+          .build
 
-        val input  = statusV1Schema.toDynamicValue(Active: StatusV1)
-        val result = migration.dynamicMigration(input)
+        val result = migration(Active: StatusV1)
 
-        assertTrue(result.isRight)
+        assertTrue(result == Right(ActiveV2: StatusV2))
       },
-      test("transformCase inner migration has correct actions") {
+      test("transformCase executes nested migration on matching case") {
         import TransformCaseFixtures._
 
-        val builder = Migration
+        val migration = Migration
           .newBuilder[EventV1, EventV2]
           .transformCase[UserV1, UserV2]("UserV1")(
             _.renameField(_.name, _.fullName).addField(_.age, literal(0))
           )
+          .transformCase[SystemV1, SystemV2]("SystemV1")(
+            _.transformField(_.code, _.code, identityExpr[Int])
+          )
+          .build
 
-        val action = builder.actions.head.asInstanceOf[MigrationAction.TransformCase]
-        assertTrue(
-          builder.actions.length == 1,
-          action.actions.length == 2
-        )
+        val result = migration(UserV1("Alice"): EventV1)
+
+        assertTrue(result == Right(UserV2("Alice", 0): EventV2))
       }
     ),
 
