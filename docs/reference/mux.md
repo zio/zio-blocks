@@ -117,17 +117,17 @@ This design mirrors **HTTP/2 stream lifecycle**: each stream is independent, sup
         │   MuxStream (Stream 1)     │
         │ ┌─────────────────────────┐│
         │ │ Outbound Queue          ││
-        │ │ (messages to peer)       ││
+        │ │ (messages to peer)      ││
         │ └─────────────┬───────────┘│
         │               │            │
         │ ┌─────────────┴───────────┐│
         │ │ Inbound Queue           ││
-        │ │ (messages from peer)     ││
+        │ │ (messages from peer)    ││
         │ └─────────────┬───────────┘│
-        └────────────────┼────────────┘
-                         │
-         takeOutbound()  │      offerInbound()
-              ────────┬──┴──────────
+        └───────────────┼────────────┘
+                        │
+         takeOutbound() │      offerInbound()
+              ────────┬─┴──────────
                       │
 ┌─────────────────────▼──────────────────────────────────┐
 │ Protocol Layer (HTTP/2 framing, etc.)                  │
@@ -398,15 +398,15 @@ Attempting to send on a HALF_CLOSED_LOCAL or CLOSED stream returns `StreamClosed
             │                                         │
             │ halfClose()                 signalRemoteClose()
             │                                         │
-      ┌─────┴──────────────────┐        ┌────────────┴──────────┐
-      │ HALF_CLOSED_LOCAL      │        │ HALF_CLOSED_REMOTE    │
-      │ (local: done sending)  │        │ (remote: done sending)│
-      │ (remote: can still rx) │        │ (local: can still tx) │
-      └─┬──────────────────────┘        └──────────┬────────────┘
-        │                                          │
-        │ signalRemoteClose()         halfClose()  │
-        │                                          │
-        └──────────────┬───────────────────────────┘
+      ┌─────┴──────────────────┐         ┌────────────┴──────────┐
+      │ HALF_CLOSED_LOCAL      │         │ HALF_CLOSED_REMOTE    │
+      │ (local: done sending)  │         │ (remote: done sending)│
+      │ (remote: can still rx) │         │ (local: can still tx) │
+      └─┬──────────────────────┘         └──────────┬────────────┘
+        │                                           │
+        │ signalRemoteClose()          halfClose()  │
+        │                                           │
+        └──────────────┬────────────────────────────┘
                        │
                    ┌───┴────┐
                    │ CLOSED │
