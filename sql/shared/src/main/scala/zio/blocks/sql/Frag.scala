@@ -29,7 +29,7 @@ package zio.blocks.sql
  * string with `sql`. Use the extension methods on [[Frag]] (e.g. `query`,
  * `queryOne`, `update`) to execute them against a live [[DbCon]].
  *
- * The `sql"..."` string interpolator in [[SqlInterpolator]] is the primary way
+ * The `sql"..."` string interpolator is the primary way
  * to construct fragments; use [[Frag.literal]] for parameter-free SQL.
  */
 final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
