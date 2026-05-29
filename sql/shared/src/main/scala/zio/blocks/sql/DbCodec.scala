@@ -36,6 +36,21 @@ trait DbCodec[A] {
   def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit
   def toDbValues(value: A): IndexedSeq[DbValue]
   def columnCount: Int = columns.size
+
+  final def biMap[B](from: A => B, to: B => A): DbCodec[B] = {
+    val self = this
+    new DbCodec[B] {
+      val columns: IndexedSeq[String]                                            = self.columns
+      def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): B =
+        from(self.readValue(reader, columnLabels))
+      override def readValue(reader: DbResultReader, startIndex: Int): B =
+        from(self.readValue(reader, startIndex))
+      def writeValue(writer: DbParamWriter, startIndex: Int, value: B): Unit =
+        self.writeValue(writer, startIndex, to(value))
+      def toDbValues(value: B): IndexedSeq[DbValue] =
+        self.toDbValues(to(value))
+    }
+  }
 }
 
 object DbCodec {
@@ -53,6 +68,9 @@ object DbCodec {
    */
   inline given derived[A](using schema: Schema[A]): DbCodec[A] =
     schema.deriving(DbCodecDeriver).derive
+
+  inline given tupleCodec[T <: Tuple]: DbCodec[T] =
+    ${ DbCodecTupleMacro.tupleCodecImpl[T] }
 
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
     val columns: IndexedSeq[String]                                              = IndexedSeq("value")
