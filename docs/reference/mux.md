@@ -10,6 +10,8 @@ import TabItem from '@theme/TabItem';
 
 Core types: `Mux`, `MuxStream`, `MuxError`.
 
+Create a mux and exchange messages:
+
 ```scala
 import zio.blocks.mux._
 
@@ -39,6 +41,8 @@ Without multiplexing, protocols must open a new connection per concurrent operat
 - **Thread-safe per-stream operations** — `send` and `offerInbound` are multi-thread safe; `receive` and `takeOutbound` follow single-consumer contract
 
 ## Installation
+
+Add the dependency to your build:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-mux" % "@VERSION@"
@@ -104,6 +108,8 @@ val stream = streamOrError match {
    - Call `mux.closeAll(reason)` to atomically close all active streams and reject new opens.
 
 This design mirrors **HTTP/2 stream lifecycle**: each stream is independent, supports half-closed states for proper shutdown, and the mux enforces capacity limits and graceful shutdown semantics.
+
+The architecture shows how application code, mux streams, and protocol layers interact:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -235,7 +241,7 @@ val newOpen = mux.open(11)
 - **Transport protocols**: HTTP/2, QUIC, multiplexed WebSockets — any ID-based multiplexed protocol
 - **Message types**: Generic over message types (`In`, `Out`) — use your protocol's frame/message types
 - **Stream IDs**: Generic over ID type — use the protocol's stream ID type (Int for HTTP/2, Long for QUIC, etc.)
-- **Error handling**: Terminal errors from protocol errors or local cancellation are enqueued and returned to user code via `receive()` and `takeOutbound()`
+- **Error handling**: Terminal errors from protocol errors or local cancellation become available to user code via `receive()` and `takeOutbound()`
 
 The mux does not depend on external modules except `zio-blocks-ringbuffer` for its lock-free ring buffer queues. It is pure and zero-dependency beyond that.
 
@@ -247,6 +253,8 @@ The mux does not depend on external modules except `zio-blocks-ringbuffer` for i
 
 <Tabs groupId="scala-version" defaultValue="scala2">
   <TabItem value="scala2" label="Scala 2">
+
+Here are the error type definitions for both Scala versions:
 
 ```scala
 sealed trait MuxError
@@ -263,6 +271,8 @@ object MuxError {
 
   </TabItem>
   <TabItem value="scala3" label="Scala 3">
+
+Scala 3 uses the same structure with union return types in method signatures:
 
 ```scala
 sealed trait MuxError
@@ -288,7 +298,7 @@ object MuxError {
 
 **`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (typically 256). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
 
-**`Cancelled(id: Any, reason: String)`** — Set when a stream is cancelled via `mux.cancel(id, reason)` or when `closeAll` is called. The `reason` field explains why the stream was cancelled. Pending `receive()` calls return this error.
+**`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)` or when `closeAll` executes. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
 
 **`MuxClosed`** — Set when the mux itself is closed via `closeAll`. After this, `open` returns this error and all active streams transition to CLOSED.
 
@@ -319,6 +329,8 @@ The capacity must be positive; zero or negative capacity throws `IllegalArgument
 - Stream ID already exists (returns `ProtocolError`)
 - Capacity exceeded (returns `CapacityExceeded`)
 
+Opening a stream with error handling:
+
 ```scala
 import zio.blocks.mux._
 
@@ -332,6 +344,8 @@ mux.open(1) match {
 
 **`def get(id: Id): Option[MuxStream[Id, In, Out]]`** — Retrieve an existing stream by ID. Returns `Some(stream)` if the stream is open, `None` otherwise. This is a non-blocking lookup and does not modify any state.
 
+Looking up a stream:
+
 ```scala
 import zio.blocks.mux._
 
@@ -341,6 +355,8 @@ val retrieved = mux.get(1)
 ```
 
 **`def cancel(id: Id, reason: MuxError): Unit`** — Cancel a stream by ID, removing it from the mux and setting a terminal error. The stream transitions to CLOSED and any pending `receive()` calls on that stream return the terminal error. Cancelling a non-existent stream is a no-op.
+
+Cancelling a stream:
 
 ```scala
 import zio.blocks.mux._
@@ -353,6 +369,8 @@ val retrieved = mux.get(1)
 
 **`def closeAll(reason: MuxError): Unit`** — Close all active streams atomically with a terminal error. Transitions all streams to CLOSED, clears the stream registry, and sets the mux to a closed state. After `closeAll`, `open` returns `MuxClosed`.
 
+Closing all streams:
+
 ```scala
 import zio.blocks.mux._
 
@@ -363,6 +381,8 @@ val count = mux.activeCount
 ```
 
 **`def activeCount: Int`** — Return the current number of active (open) streams. This is a point-in-time snapshot; the count may change immediately after if other threads open or close streams.
+
+Checking the number of active streams:
 
 ```scala
 import zio.blocks.mux._
@@ -384,11 +404,13 @@ val count = mux.activeCount
 A stream progresses through four states:
 
 - **OPEN** — Initial state after `open`. Both sides can send and receive.
-- **HALF_CLOSED_LOCAL** — Local side called `halfClose()`. Local side cannot send; remote side can still send (which transitions to CLOSED via `signalRemoteClose()`).
-- **HALF_CLOSED_REMOTE** — Remote side called `signalRemoteClose()`. Remote side cannot send; local side can still send (which transitions to CLOSED via `halfClose()`).
+- **HALF_CLOSED_LOCAL** — Local side calls `halfClose()`. Local side cannot send; remote side can still send (which transitions to CLOSED via `signalRemoteClose()`).
+- **HALF_CLOSED_REMOTE** — Remote side calls `signalRemoteClose()`. Remote side cannot send; local side can still send (which transitions to CLOSED via `halfClose()`).
 - **CLOSED** — Both sides closed or stream was forcibly closed. No operations allowed except state queries.
 
 Attempting to send on a HALF_CLOSED_LOCAL or CLOSED stream returns `StreamClosed`. Attempting to offer inbound on a HALF_CLOSED_REMOTE or CLOSED stream returns `StreamClosed`. Attempting to receive on a fully CLOSED stream returns the terminal error after the queue drains.
+
+The state transitions form a finite state machine:
 
 ```
           ┌─────────────────────────────────────────────┐
@@ -431,6 +453,8 @@ Returns `Unit` on success, or an error if:
 - Message is null (returns `ProtocolError`)
 - Outbound queue is full (returns `QueueFull`)
 
+Sending a message on a stream:
+
 ```scala
 import zio.blocks.mux._
 
@@ -471,6 +495,8 @@ Returns:
 - `None` if the queue is empty (no outbound message yet, but stream is still open)
 - A `MuxError` if the stream is closed
 
+Draining messages from the outbound queue:
+
 ```scala
 import zio.blocks.mux._
 
@@ -491,6 +517,8 @@ Returns `Unit` on success, or an error if:
 - Stream is in HALF_CLOSED_REMOTE state (returns `StreamClosed`)
 - Message is null (returns `ProtocolError`)
 - Inbound queue is full (returns `QueueFull`)
+
+Delivering a message to the inbound queue:
 
 ```scala
 import zio.blocks.mux._
@@ -513,6 +541,8 @@ val received = stream.receive()
 
 After `halfClose()`, `send()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages.
 
+Signalling local half-close:
+
 ```scala
 import zio.blocks.mux._
 
@@ -534,6 +564,8 @@ val recAfter = stream.receive()
 
 After `signalRemoteClose()`, `offerInbound()` returns `StreamClosed`. You can still call `receive()` to drain any buffered inbound messages.
 
+Signalling remote half-close:
+
 ```scala
 import zio.blocks.mux._
 
@@ -549,6 +581,8 @@ val offerAfter = stream.offerInbound("fail")
 ```
 
 **`def close(): Unit`** — Forcibly close this stream immediately, transitioning it to CLOSED state and removing it from the mux. Any pending `receive()` calls on this stream will return the terminal error after the queue drains.
+
+Forcibly closing a stream:
 
 ```scala
 import zio.blocks.mux._
@@ -567,7 +601,7 @@ val inMux = mux.get(1)
 **Thread Safety**
 
 - `send()` and `offerInbound()` are **multi-thread safe**: multiple threads can safely call these concurrently on the same stream.
-- `receive()` and `takeOutbound()` must each be called from a **single consumer thread**. The underlying ring buffer enforces a single-consumer contract; violating this results in data races.
+- Call `receive()` and `takeOutbound()` from the same thread only. Concurrent calls to the same ring buffer produce data races.
 - State queries (`id`, `isClosed`, `isHalfClosed`) are always safe to call from any thread.
 
 ## Performance
