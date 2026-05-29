@@ -208,7 +208,14 @@ object BuildHelper {
             "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
             "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
             "-Werror"
-          ) ++ (if (minor >= 5) Seq("-experimental") else Seq.empty)
+          ) ++ {
+            if (minor >= 8) {
+              Seq(
+                "-experimental",
+                "-opt"
+              )
+            } else Seq.empty
+          }
         case _ =>
           Seq(
             "-release",

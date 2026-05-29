@@ -129,7 +129,6 @@ Use identity mapping to keep field names unchanged:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.NameMapper
 
 case class User(firstName: String, lastName: String)
 object User { 
@@ -147,7 +146,6 @@ Convert camelCase to snake_case:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.NameMapper
 
 case class User(firstName: String, lastName: String)
 object User { 
@@ -165,7 +163,6 @@ Convert camelCase to kebab-case:
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
-import zio.blocks.schema.json.NameMapper
 
 case class User(firstName: String, lastName: String)
 object User { 

@@ -21,7 +21,7 @@ import zio.blocks.maybe.Maybe
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
-import zio.blocks.schema.json.NameMapper._
+import NameMapper._
 import zio.blocks.typeid.TypeId
 import zio.test._
 import zio.test.Assertion._
@@ -1550,12 +1550,12 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
         ) &&
         roundTrip(
           CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
-          """{"camel_case":1,"pascal_case":2,"snake_case":3,"kebab_case":4,"camel1":5,"pascal1":6,"snake_1":7,"kebab_1":8}""",
+          """{"camel_case":1,"pascal_case":2,"snake_case":3,"kebab_case":4,"camel1":5,"pascal1":6,"snake1":7,"kebab1":8}""",
           Schema[CamelPascalSnakeKebabCases].derive(JsonCodecDeriver.withFieldNameMapper(SnakeCase))
         ) &&
         roundTrip(
           CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
-          """{"camel-case":1,"pascal-case":2,"snake-case":3,"kebab-case":4,"camel1":5,"pascal1":6,"snake-1":7,"kebab-1":8}""",
+          """{"camel-case":1,"pascal-case":2,"snake-case":3,"kebab-case":4,"camel1":5,"pascal1":6,"snake1":7,"kebab1":8}""",
           Schema[CamelPascalSnakeKebabCases].derive(JsonCodecDeriver.withFieldNameMapper(KebabCase))
         ) &&
         roundTrip(
