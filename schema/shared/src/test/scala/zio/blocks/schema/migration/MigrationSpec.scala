@@ -210,7 +210,7 @@ object MigrationSpec extends ZIOSpecDefault {
 
         val migration = Migration
           .newBuilder[PersonV1, PersonV2]
-          .changeFieldType(_.score, _.score, literal("42"))
+          .changeFieldType(_.score, literal("42"))
           .build
 
         val input  = PersonV1(42)
@@ -316,6 +316,47 @@ object MigrationSpec extends ZIOSpecDefault {
         assertTrue(
           builder.actions.length == 1,
           builder.actions.head.isInstanceOf[MigrationAction.TransformCase]
+        )
+      },
+      test("renameCase executes enum rename on DynamicValue") {
+        import RenameCaseFixtures._
+
+        val migration = Migration
+          .newBuilder[StatusV1, StatusV2]
+          .renameCase("Pending", "Enabled")
+          .buildPartial
+
+        val input  = statusV1Schema.toDynamicValue(Pending: StatusV1)
+        val result = migration.dynamicMigration(input)
+
+        assertTrue(result == Right(statusV2Schema.toDynamicValue(Enabled: StatusV2)))
+      },
+      test("renameCase does not affect other cases") {
+        import RenameCaseFixtures._
+
+        val migration = Migration
+          .newBuilder[StatusV1, StatusV2]
+          .renameCase("Pending", "Enabled")
+          .buildPartial
+
+        val input  = statusV1Schema.toDynamicValue(Active: StatusV1)
+        val result = migration.dynamicMigration(input)
+
+        assertTrue(result.isRight)
+      },
+      test("transformCase inner migration has correct actions") {
+        import TransformCaseFixtures._
+
+        val builder = Migration
+          .newBuilder[EventV1, EventV2]
+          .transformCase[UserV1, UserV2]("UserV1")(
+            _.renameField(_.name, _.fullName).addField(_.age, literal(0))
+          )
+
+        val action = builder.actions.head.asInstanceOf[MigrationAction.TransformCase]
+        assertTrue(
+          builder.actions.length == 1,
+          action.actions.length == 2
         )
       }
     ),

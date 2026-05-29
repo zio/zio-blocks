@@ -143,7 +143,7 @@ val combined: Migration[PersonV1, PersonV3] = migration ++ addCity
 - `transformField(_.from, _.to, expr)`
 - `mandateField(_.optionalSource, _.target, default)`
 - `optionalizeField(_.source, _.optionalTarget)`
-- `changeFieldType(_.source, _.target, expr)`
+- `changeFieldType(_.source, expr)`
 
 ```scala mdoc:compile-only
 import zio.blocks.schema._
@@ -164,7 +164,7 @@ val userMigration = Migration
   .newBuilder[UserV1, UserV2]
   .renameField(_.firstName, _.fullName)
   .mandateField(_.nickname, _.nickname, SchemaExpr.literal("anonymous"))
-  .changeFieldType(_.age, _.age, SchemaExpr.literal("30"))
+  .changeFieldType(_.age, SchemaExpr.literal("30"))
   .build
 ```
 

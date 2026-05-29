@@ -33,7 +33,7 @@ object Changeset {
   sealed trait TransformField[From <: String & Singleton, To <: String & Singleton]
   sealed trait MandateField[Source <: String & Singleton, Target <: String & Singleton]
   sealed trait OptionalizeField[Source <: String & Singleton, Target <: String & Singleton]
-  sealed trait ChangeFieldType[Source <: String & Singleton, Target <: String & Singleton]
+  sealed trait ChangeFieldType[Name <: String & Singleton]
   sealed trait MigrateField[Name <: String & Singleton]
 
   // Case operations (tracked but not field-validated)
@@ -88,10 +88,9 @@ final class MigrationBuilder[A, B, Changeset](
 
   transparent inline def changeFieldType(
     inline source: A => Any,
-    inline target: B => Any,
     converter: SchemaExpr[_, _]
   ) = ${
-    MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]('this, 'source, 'target, 'converter)
+    MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]('this, 'source, 'converter)
   }
 
   def renameCase(

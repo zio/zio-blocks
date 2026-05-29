@@ -120,8 +120,10 @@ object MigrationValidationMacros {
               extractStringFromType(args.head).foreach(n => handled += n)
               extractStringFromType(args(1)).foreach(n => provided += n)
             case "ChangeFieldType" =>
-              extractStringFromType(args.head).foreach(n => handled += n)
-              extractStringFromType(args(1)).foreach(n => provided += n)
+              extractStringFromType(args.head).foreach { n =>
+                handled += n
+                provided += n
+              }
             case "MigrateField" =>
               extractStringFromType(args.head).foreach { n =>
                 handled += n

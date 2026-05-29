@@ -75,6 +75,34 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
           .build
 
         assertTrue(migration(makePersonV0(30)) == Right(PersonV2(30L)))
+      },
+      test("dropField works with structural source selectors") {
+        type PersonV1 = { def name: String; def age: Int }
+        case class PersonV2(name: String)
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .dropField(_.age, literal(0))
+          .buildPartial
+
+        assertTrue(migration.size == 1)
+      },
+      test("changeFieldType works with structural source selectors") {
+        type PersonV1 = { def score: Int }
+        case class PersonV2(score: String)
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .changeFieldType(_.score, literal("0"))
+          .build
+
+        assertTrue(migration.size == 1)
       }
     ),
     suite("Case Class → Structural")(
@@ -106,6 +134,34 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
           .build
 
         assertTrue(migration(PersonV1("Grace")).isRight)
+      },
+      test("dropField works with structural target selectors") {
+        case class PersonV1(name: String, age: Int)
+        type PersonV2 = { def name: String }
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .dropField(_.age, literal(0))
+          .buildPartial
+
+        assertTrue(migration.size == 1)
+      },
+      test("changeFieldType works with structural target selectors") {
+        case class PersonV1(score: Int)
+        type PersonV2 = { def score: String }
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .changeFieldType(_.score, literal("0"))
+          .build
+
+        assertTrue(migration.size == 1)
       }
     ),
     suite("Structural → Structural")(
@@ -136,6 +192,34 @@ object StructuralMigrationSpec extends ZIOSpecDefault {
         val migration = Migration.newBuilder[PersonV0, PersonV0].build
 
         assertTrue(migration(makePersonV0("Mia", 32)).isRight && migration.isEmpty)
+      },
+      test("dropField works with structural selectors on both sides") {
+        type PersonV1 = { def name: String; def age: Int }
+        type PersonV2 = { def name: String }
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .dropField(_.age, literal(0))
+          .buildPartial
+
+        assertTrue(migration.size == 1)
+      },
+      test("changeFieldType works with structural selectors on both sides") {
+        type PersonV1 = { def score: Int }
+        type PersonV2 = { def score: String }
+
+        given Schema[PersonV1] = Schema.derived[PersonV1]
+        given Schema[PersonV2] = Schema.derived[PersonV2]
+
+        val migration = Migration
+          .newBuilder[PersonV1, PersonV2]
+          .changeFieldType(_.score, literal("0"))
+          .build
+
+        assertTrue(migration.size == 1)
       }
     ),
     suite("Structural selector validation")(

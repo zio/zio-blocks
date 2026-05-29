@@ -92,11 +92,10 @@ object MigrationBuilderMacros {
     appliedType(typeOf[Changeset.OptionalizeField[_, _]].typeConstructor, sourceLiteral, targetLiteral)
   }
 
-  private def createChangeFieldTypeType(c: whitebox.Context)(source: String, target: String): c.Type = {
+  private def createChangeFieldTypeType(c: whitebox.Context)(name: String): c.Type = {
     import c.universe._
-    val sourceLiteral = c.internal.constantType(Constant(source))
-    val targetLiteral = c.internal.constantType(Constant(target))
-    appliedType(typeOf[Changeset.ChangeFieldType[_, _]].typeConstructor, sourceLiteral, targetLiteral)
+    val nameLiteral = c.internal.constantType(Constant(name))
+    appliedType(typeOf[Changeset.ChangeFieldType[_]].typeConstructor, nameLiteral)
   }
 
   private def createMigrateFieldType(c: whitebox.Context)(name: String): c.Type = {
@@ -300,7 +299,6 @@ object MigrationBuilderMacros {
     c: whitebox.Context
   )(
     source: c.Expr[A => Any],
-    target: c.Expr[B => Any],
     converter: c.Expr[SchemaExpr[_, _]]
   ): c.Tree = {
     import c.universe._
@@ -310,17 +308,13 @@ object MigrationBuilderMacros {
     val csType = weakTypeOf[CS]
 
     val sourceFieldName     = extractFieldPathFromSelector(c)(source.tree)
-    val targetFieldName     = extractFieldPathFromSelector(c)(target.tree)
-    val changeFieldTypeType = createChangeFieldTypeType(c)(sourceFieldName, targetFieldName)
+    val changeFieldTypeType = createChangeFieldTypeType(c)(sourceFieldName)
     val newCSType           = addToChangeset(c)(csType, changeFieldTypeType)
 
     val sourcePath = SelectorMacros.toPathImpl[A, Any](c)(source.asInstanceOf[c.Expr[A => Any]])
-    val targetPath = SelectorMacros.toPathImpl[B, Any](c)(target.asInstanceOf[c.Expr[B => Any]])
 
     q"""{
       val sourcePath = $sourcePath
-      val targetPath = $targetPath
-      locally(targetPath)
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
@@ -571,8 +565,10 @@ object MigrationValidationMacros {
             args.headOption.flatMap(extractString).foreach(n => handled += n)
             args.lift(1).flatMap(extractString).foreach(n => provided += n)
           case "ChangeFieldType" =>
-            args.headOption.flatMap(extractString).foreach(n => handled += n)
-            args.lift(1).flatMap(extractString).foreach(n => provided += n)
+            args.headOption.flatMap(extractString).foreach { n =>
+              handled += n
+              provided += n
+            }
           case "MigrateField" =>
             args.headOption.flatMap(extractString).foreach { n =>
               handled += n

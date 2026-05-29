@@ -37,7 +37,7 @@ object Changeset {
   sealed trait TransformField[From, To]
   sealed trait MandateField[Source, Target]
   sealed trait OptionalizeField[Source, Target]
-  sealed trait ChangeFieldType[Source, Target]
+  sealed trait ChangeFieldType[Name]
   sealed trait MigrateField[Name]
 
   // Case operations (tracked but not field-validated)
@@ -156,13 +156,11 @@ final class MigrationBuilder[A, B, Changeset](
    *
    * @param source
    *   Selector for the source field
-   * @param target
-   *   Selector for the target field (used for validation)
    * @param converter
    *   Expression that converts between types
    */
   // format: off
-  def changeFieldType(source: A => Any, target: B => Any, converter: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
+  def changeFieldType(source: A => Any, converter: SchemaExpr[_, _]): MigrationBuilder[A, B, _] =
     macro MigrationBuilderMacros.changeFieldTypeImpl[A, B, Changeset]
   // format: on
 

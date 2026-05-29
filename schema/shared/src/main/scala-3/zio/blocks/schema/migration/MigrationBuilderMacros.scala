@@ -212,16 +212,13 @@ object MigrationBuilderMacros {
   def changeFieldTypeImpl[A: Type, B: Type, CS: Type](
     builder: Expr[MigrationBuilder[A, B, CS]],
     source: Expr[A => Any],
-    target: Expr[B => Any],
     converter: Expr[SchemaExpr[_, _]]
   )(using q: Quotes): Expr[MigrationBuilder[A, B, ?]] = {
     import q.reflect.*
 
     val sourceFieldPath    = extractFieldPathFromTerm(source.asTerm)
-    val targetFieldPath    = extractFieldPathFromTerm(target.asTerm)
     val sourceFieldType    = ConstantType(StringConstant(sourceFieldPath))
-    val targetFieldType    = ConstantType(StringConstant(targetFieldPath))
-    val typeChangedWrapped = TypeRepr.of[Changeset.ChangeFieldType].appliedTo(List(sourceFieldType, targetFieldType))
+    val typeChangedWrapped = TypeRepr.of[Changeset.ChangeFieldType].appliedTo(List(sourceFieldType))
     val newCSType          = AndType(TypeRepr.of[CS], typeChangedWrapped)
 
     newCSType.asType match {
