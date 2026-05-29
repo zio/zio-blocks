@@ -214,6 +214,7 @@ const sidebars = {
             ]
           },
           "reference/sql",
+          "reference/sql-zio",
         ]
       },
     {

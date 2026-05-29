@@ -24,9 +24,9 @@ Key design goals:
 ├─────────────────────────────────────────────────────────┤
 │          DbCodec[A]  ·  DbResultReader  ·  DbParamWriter│
 ├─────────────────────────────────────────────────────────┤
-│           Transactor  (sync)  |  TransactorZIO (ZIO)    │
+│                  Transactor  (sync)                     │
 └─────────────────────────────────────────────────────────┘
-                         JDBC / DataSource
+                          JDBC / DataSource
 ```
 
 ## Installation
@@ -35,7 +35,7 @@ Key design goals:
 // Core module (Scala 3, JVM + Scala.js)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// ZIO integration (Scala 3, JVM only)
+// Optional ZIO integration (Scala 3, JVM only)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 ```
 
@@ -44,28 +44,26 @@ libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 ```scala
 import zio.blocks.schema._
 import zio.blocks.sql._
-import zio.blocks.sql.zio._
 
-// 1. Define your data type with a Schema
-case class User(id: Long, name: String, email: String)
-object User:
-  given Schema[User] = Schema.derived
-  given DbCodec[User] = summon[Schema[User]].deriving(DbCodecDeriver).derive
+// 1. Define your data type — derives both Schema and DbCodec
+case class User(id: Long, name: String, email: String) derives Schema, DbCodec
 
 // 2. Create a Repo (auto-derives table name "user", id column "id")
 val userRepo: Repo[User, Long] = Repo.derived[User, Long]
 
 // 3. Create a transactor
-val transactor = TransactorZIO.fromUrl(
+val transactor = JdbcTransactor.fromUrl(
   "jdbc:postgresql://localhost/mydb",
-  "user", "password",
   SqlDialect.PostgreSQL
 )
 
-// 4. Execute operations inside a transaction
-val program: Task[List[User]] = transactor.transact:
+// 4. Execute operations
+val users: List[User] = transactor.connect:
+  userRepo.findAll
+
+val saved: User = transactor.transact:
   userRepo.insert(User(0L, "Alice", "alice@example.com"))
-  userRepo.findAll()
+  userRepo.findById(1L).get
 ```
 
 ## Core Concepts
@@ -101,13 +99,15 @@ Built-in instances are provided for all JDBC-compatible primitive types:
 | `java.time.Instant`    | TIMESTAMP     |
 | `java.util.UUID`       | UUID / TEXT   |
 
-For case classes, derive a codec automatically from the schema:
+For case classes, derive a codec automatically using the `derives` clause:
 
 ```scala
-case class Address(street: String, city: String, zip: String)
-object Address:
-  given Schema[Address] = Schema.derived
+case class Address(street: String, city: String, zip: String) derives Schema, DbCodec
+```
 
+Or derive explicitly when you need more control (e.g. a custom column name mapper):
+
+```scala
 val addressCodec: DbCodec[Address] = summon[Schema[Address]].deriving(DbCodecDeriver).derive
 ```
 
@@ -332,50 +332,8 @@ val result: User = transactor.transact:
   userRepo.findById(newUser.id).get
 ```
 
-### TransactorZIO (ZIO Integration)
-
-`TransactorZIO` wraps the synchronous `Transactor` to lift operations into the
-ZIO effect system.
-
-```scala
-val transactor = TransactorZIO.fromUrl(
-  "jdbc:postgresql://localhost/mydb",
-  "alice", "secret",
-  SqlDialect.PostgreSQL
-)
-
-For production use, prefer `TransactorZIO.fromDataSource(...)` (or
-`JdbcTransactor` backed by a pooled `DataSource`) so connection pooling is
-handled outside the library.
-```
-
-**Blocking wrappers** — run a synchronous body on ZIO's blocking thread pool:
-
-```scala
-val users: Task[List[User]] = transactor.connect:
-  userRepo.findAll
-
-val result: Task[User] = transactor.transact:
-  userRepo.insertReturning(newUser)
-```
-
-**Effect-aware methods** — the body itself returns a `ZIO`:
-
-```scala
-val program: ZIO[Any, Throwable, User] =
-  transactor.transactZIO:
-    for
-      _    <- ZIO.attemptBlocking(userRepo.insert(newUser))
-      user <- ZIO.attemptBlocking(userRepo.findById(newUser.id))
-    yield user.get
-```
-
-**ZLayer for dependency injection**:
-
-```scala
-val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
-  TransactorZIO.layer("jdbc:postgresql://localhost/mydb", SqlDialect.PostgreSQL)
-```
+For production use, prefer `JdbcTransactor.fromDataSource(...)` with a pooled
+`DataSource` so connection pooling is handled outside the library.
 
 ### DDL Generation
 
@@ -470,10 +428,7 @@ transactor.connect:
     ORDER BY o.total DESC
     LIMIT ${10}
   """
-  case class OrderSummary(id: Long, name: String, total: BigDecimal)
-  object OrderSummary:
-    given Schema[OrderSummary] = Schema.derived
-    given DbCodec[OrderSummary] = summon[Schema[OrderSummary]].deriving(DbCodecDeriver).derive
+  case class OrderSummary(id: Long, name: String, total: BigDecimal) derives Schema, DbCodec
 
   frag.query[OrderSummary]
 
@@ -486,15 +441,12 @@ For custom result shapes, define a small record and derive a codec from its
 schema:
 
 ```scala
-case class ProductAverage(value: Double)
-object ProductAverage:
-  given Schema[ProductAverage] = Schema.derived
-  given DbCodec[ProductAverage] = summon[Schema[ProductAverage]].deriving(DbCodecDeriver).derive
+case class ProductAverage(value: Double) derives Schema, DbCodec
 ```
 
 ## Error Handling
 
-All SQL errors surface as `java.sql.SQLException` (or a subclass) wrapped in whatever the calling effect system provides (`scala.util.Try`, `Task`, etc.). SQL execution paths do not swallow exceptions — they log via `SqlLogger.onError` and re-throw.
+All SQL errors surface as `java.sql.SQLException` (or a subclass) wrapped in whatever the calling effect system provides. SQL execution paths do not swallow exceptions — they log via `SqlLogger.onError` and re-throw.
 
 `Transactor.transact` guarantees rollback on any `Throwable`.
 
@@ -502,4 +454,8 @@ All SQL errors surface as `java.sql.SQLException` (or a subclass) wrapped in wha
 
 - `Repo`, `Table`, `DbCodec`, and `Frag` instances are **immutable** and safe to share across threads.
 - `DbCon` / `DbTx` context values wrap a single JDBC `Connection` and must **not** be used concurrently. Each call to `connect` / `transact` creates a fresh context.
-- `TransactorZIO` is safe to share; it creates a new connection per `connect` / `transact` invocation.
+- `Transactor` and `JdbcTransactor` are safe to share; they create a new connection per `connect` / `transact` invocation.
+
+## ZIO Integration
+
+ZIO users should continue with [SQL — ZIO Integration](./sql-zio.md).

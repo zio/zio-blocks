@@ -16,6 +16,8 @@
 
 package zio.blocks.sql
 
+import zio.blocks.schema.Schema
+
 /**
  * Bidirectional codec between a Scala value `A` and one or more database
  * columns.
@@ -43,6 +45,14 @@ object DbCodec {
     )
 
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
+
+  /**
+   * Derives a `DbCodec[A]` from an existing `Schema[A]` using the default
+   * column name mapper. Enables the Scala 3 `derives` clause:
+   * `case class User(...) derives Schema, DbCodec`
+   */
+  inline given derived[A](using schema: Schema[A]): DbCodec[A] =
+    schema.deriving(DbCodecDeriver).derive
 
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
     val columns: IndexedSeq[String]                                              = IndexedSeq("value")
