@@ -21,10 +21,11 @@ import zio.test._
 object DbCodecOpaqueSpec extends ZIOSpecDefault {
 
   object Types {
-    opaque type ProductId = String
+    opaque type ProductId <: String = String
     object ProductId {
-      def apply(s: String): ProductId   = s
-      def unwrap(id: ProductId): String = id
+      def apply(s: String): ProductId =
+        if (s.nonEmpty) s
+        else throw new IllegalArgumentException("ProductId must be non-empty")
     }
 
     opaque type Count = Int
@@ -109,6 +110,11 @@ object DbCodecOpaqueSpec extends ZIOSpecDefault {
         decoded == ProductId("round-trip-test"),
         encoded == IndexedSeq(DbValue.DbString("round-trip-test"))
       )
+    },
+    test("opaque apply validation runs during decode") {
+      val codec  = summon[DbCodec[ProductId]]
+      val result = scala.util.Try(codec.readValue(new StringReader(""), 1))
+      assertTrue(result.failed.toOption.exists(_.isInstanceOf[IllegalArgumentException]))
     }
   )
 }

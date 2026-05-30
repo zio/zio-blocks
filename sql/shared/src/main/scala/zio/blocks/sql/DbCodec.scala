@@ -66,13 +66,26 @@ private[sql] trait DbCodecOpaquePriority {
 
   /**
    * Auto-derives a [[DbCodec]][A] for Scala 3 opaque types by reusing the codec
-   * of the underlying type. Requires no [[Schema]], [[As]], or explicit
-   * `transform` — only the opaque type definition and a `DbCodec` for the
-   * underlying type:
+   * of the underlying type. The opaque type companion must expose a public
+   * `apply` method from the underlying type to the opaque type, so decode uses
+   * the same validation/wrapping path as user code.
+   *
+   * For encoding, either define the opaque type as a subtype of the underlying
+   * type:
+   *
+   * {{{
+   * opaque type ProductId <: String = String
+   * object ProductId { def apply(value: String): ProductId = value }
+   * }}}
+   *
+   * or provide a public `unwrap` method:
    *
    * {{{
    * opaque type ProductId = String
-   * // DbCodec[ProductId] resolves automatically — zero boilerplate
+   * object ProductId {
+   *   def apply(value: String): ProductId = value
+   *   def unwrap(value: ProductId): String = value
+   * }
    * }}}
    *
    * This given lives in a super-trait so it has lower priority than `derived`
