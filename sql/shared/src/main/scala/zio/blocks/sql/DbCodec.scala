@@ -16,6 +16,7 @@
 
 package zio.blocks.sql
 
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema}
 
 /**
@@ -97,10 +98,18 @@ private[sql] trait DbCodecOpaquePriority {
 }
 
 object DbCodec extends DbCodecOpaquePriority {
+  private val SqlNullType = java.sql.Types.NULL
+
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
       s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
     )
+
+  private def requireSingleColumnNullable[A](wrapperType: String, inner: DbCodec[A]): Unit =
+    if (inner.columnCount != 1)
+      throw new UnsupportedOperationException(
+        s"DbCodec[$wrapperType] only supports single-column inner codecs (got ${inner.columnCount} columns)."
+      )
 
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
 
@@ -114,6 +123,58 @@ object DbCodec extends DbCodecOpaquePriority {
 
   inline given tupleCodec[T <: Tuple]: DbCodec[T] =
     ${ DbCodecTupleMacro.tupleCodecImpl[T] }
+
+  given optionCodec[A](using inner: DbCodec[A]): DbCodec[Option[A]] = new DbCodec[Option[A]] {
+    requireSingleColumnNullable("Option[A]", inner)
+
+    val columns: IndexedSeq[String] = inner.columns
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
+      val value = inner.readValue(reader, columnLabels)
+      if (reader.wasNull) None else Some(value)
+    }
+
+    override def readValue(reader: DbResultReader, startIndex: Int): Option[A] = {
+      val value = inner.readValue(reader, startIndex)
+      if (reader.wasNull) None else Some(value)
+    }
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
+      value match {
+        case Some(v) => inner.writeValue(writer, startIndex, v)
+        case None    => writer.setNull(startIndex, SqlNullType)
+      }
+
+    def toDbValues(value: Option[A]): IndexedSeq[DbValue] =
+      value match {
+        case Some(v) => inner.toDbValues(v)
+        case None    => IndexedSeq(DbValue.DbNull)
+      }
+  }
+
+  given maybeCodec[A](using inner: DbCodec[A]): DbCodec[Maybe[A]] = new DbCodec[Maybe[A]] {
+    requireSingleColumnNullable("Maybe[A]", inner)
+
+    val columns: IndexedSeq[String] = inner.columns
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Maybe[A] = {
+      val value = inner.readValue(reader, columnLabels)
+      if (reader.wasNull) Maybe.absent else Maybe.present(value)
+    }
+
+    override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] = {
+      val value = inner.readValue(reader, startIndex)
+      if (reader.wasNull) Maybe.absent else Maybe.present(value)
+    }
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit =
+      if (value.isAbsent) writer.setNull(startIndex, SqlNullType)
+      else inner.writeValue(writer, startIndex, value.asInstanceOf[A])
+
+    def toDbValues(value: Maybe[A]): IndexedSeq[DbValue] =
+      if (value.isAbsent) IndexedSeq(DbValue.DbNull)
+      else inner.toDbValues(value.asInstanceOf[A])
+  }
 
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
     val columns: IndexedSeq[String]                                              = IndexedSeq("value")
