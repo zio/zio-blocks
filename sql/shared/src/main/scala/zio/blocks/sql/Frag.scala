@@ -29,8 +29,8 @@ package zio.blocks.sql
  * string with `sql`. Use the extension methods on [[Frag]] (e.g. `query`,
  * `queryOne`, `update`) to execute them against a live [[DbCon]].
  *
- * The `sql"..."` string interpolator is the primary way
- * to construct fragments; use [[Frag.literal]] for parameter-free SQL.
+ * The `sql"..."` string interpolator is the primary way to construct fragments;
+ * use [[Frag.literal]] for parameter-free SQL.
  */
 final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 
@@ -77,6 +77,30 @@ object Frag {
 
   /** Wraps a parameter-free SQL string as a fragment. */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
+
+  /**
+   * Concatenates multiple fragments with no separator between them. Returns
+   * [[Frag.empty]] when called with no arguments.
+   */
+  def sequence(frags: Frag*): Frag = frags.foldLeft(Frag.empty)(_ ++ _)
+
+  /**
+   * Builds a VALUES clause for a multi-row INSERT. Renders as:
+   * `(?, ?), (?, ?), ...` — one tuple per row, columns within each tuple
+   * separated by `, `.
+   *
+   * @throws IllegalArgumentException
+   *   if `rows` is empty (empty VALUES is invalid SQL)
+   */
+  def values[A](rows: Seq[A])(using codec: DbCodec[A]): Frag = {
+    require(rows.nonEmpty, "Frag.values: rows must be non-empty")
+    val rowFrags = rows.map { row =>
+      val params = codec.toDbValues(row)
+      val parts  = IndexedSeq("(") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
+      Frag(parts, params)
+    }
+    rowFrags.reduceLeft((a, b) => a ++ Frag.literal(", ") ++ b)
+  }
 
   extension (frag: Frag) {
 
