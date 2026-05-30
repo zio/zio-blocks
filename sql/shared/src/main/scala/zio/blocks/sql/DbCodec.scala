@@ -16,7 +16,7 @@
 
 package zio.blocks.sql
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{As, Schema}
 
 /**
  * Bidirectional codec between a Scala value `A` and one or more database
@@ -37,20 +37,29 @@ trait DbCodec[A] {
   def toDbValues(value: A): IndexedSeq[DbValue]
   def columnCount: Int = columns.size
 
-  final def biMap[B](from: A => B, to: B => A): DbCodec[B] = {
+  /**
+   * Returns a new `DbCodec[B]` by mapping read values with `read` and write
+   * values with `write`. Both functions are total; exceptions propagate as-is.
+   * Use this to create codecs for opaque types and value wrappers without
+   * defining a full `Schema`.
+   */
+  final def transform[B](read: A => B, write: B => A): DbCodec[B] = {
     val self = this
     new DbCodec[B] {
       val columns: IndexedSeq[String]                                            = self.columns
       def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): B =
-        from(self.readValue(reader, columnLabels))
+        read(self.readValue(reader, columnLabels))
       override def readValue(reader: DbResultReader, startIndex: Int): B =
-        from(self.readValue(reader, startIndex))
+        read(self.readValue(reader, startIndex))
       def writeValue(writer: DbParamWriter, startIndex: Int, value: B): Unit =
-        self.writeValue(writer, startIndex, to(value))
+        self.writeValue(writer, startIndex, write(value))
       def toDbValues(value: B): IndexedSeq[DbValue] =
-        self.toDbValues(to(value))
+        self.toDbValues(write(value))
     }
   }
+
+  @deprecated("Use transform instead", "0.0.41")
+  final def biMap[B](from: A => B, to: B => A): DbCodec[B] = transform(from, to)
 }
 
 object DbCodec {
@@ -141,6 +150,39 @@ object DbCodec {
       writer.setBigDecimal(startIndex, value.bigDecimal)
     def toDbValues(value: BigDecimal): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbBigDecimal(value))
   }
+
+  /**
+   * Auto-derives a [[DbCodec]][B] from [[DbCodec]][A] and [[As]][A, B].
+   *
+   * This enables Scala 3 opaque types and ZIO Prelude Newtype/Subtype values to
+   * receive a `DbCodec` for free when their underlying type already has one:
+   *
+   * {{{
+   * opaque type ProductId = String
+   * // provide As[String, ProductId] in the ProductId companion object
+   * // DbCodec[ProductId] is then resolved automatically — no explicit given needed
+   * }}}
+   *
+   * This given is lower priority than any explicit `given DbCodec[B]` or
+   * `derived` because it lives in the companion object at the same level as
+   * primitive codecs but is polymorphic (two type parameters), making it less
+   * specific than any monomorphic given for a concrete type `B`.
+   *
+   * Use `DbCodec[A].transform` for types that do not have an `As` instance.
+   */
+  given dbCodecFromAs[A, B](using conv: As[A, B], base: DbCodec[A]): DbCodec[B] =
+    base.transform(
+      decoded =>
+        conv.into(decoded) match {
+          case Right(b) => b
+          case Left(e)  => throw new IllegalStateException(s"DbCodec decode via As failed: $e")
+        },
+      value =>
+        conv.from(value) match {
+          case Right(a) => a
+          case Left(e)  => throw new IllegalStateException(s"DbCodec encode via As failed: $e")
+        }
+    )
 }
 
 /**
