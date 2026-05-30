@@ -62,7 +62,28 @@ trait DbCodec[A] {
   final def biMap[B](from: A => B, to: B => A): DbCodec[B] = transform(from, to)
 }
 
-object DbCodec {
+private[sql] trait DbCodecOpaquePriority {
+
+  /**
+   * Auto-derives a [[DbCodec]][A] for Scala 3 opaque types by reusing the codec
+   * of the underlying type. Requires no [[Schema]], [[As]], or explicit
+   * `transform` — only the opaque type definition and a `DbCodec` for the
+   * underlying type:
+   *
+   * {{{
+   * opaque type ProductId = String
+   * // DbCodec[ProductId] resolves automatically — zero boilerplate
+   * }}}
+   *
+   * This given lives in a super-trait so it has lower priority than `derived`
+   * (requires `Schema`) and `dbCodecFromAs` (requires `As`), both of which are
+   * defined in `object DbCodec` itself.
+   */
+  inline given derivedOpaque[A]: DbCodec[A] =
+    ${ DbCodecOpaqueMacro.derivedOpaqueImpl[A] }
+}
+
+object DbCodec extends DbCodecOpaquePriority {
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
       s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
