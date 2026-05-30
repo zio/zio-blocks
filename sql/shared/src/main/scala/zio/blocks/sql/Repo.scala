@@ -153,6 +153,27 @@ class Repo[E, ID](
   }
 
   /**
+   * Inserts multiple entities using a single multi-row INSERT and returns the
+   * primary keys of the inserted entities in input order.
+   *
+   * Distinct from [[insertAll]] which uses a JDBC batch and returns row counts.
+   * `insertMany` uses a single `VALUES (?, ?), (?, ?)` statement for
+   * efficiency, then returns the IDs extracted from the entities via `getId`.
+   * This is suitable when the caller supplies the primary keys explicitly (as
+   * opposed to relying on database auto-generation).
+   *
+   * @throws IllegalArgumentException
+   *   if `rows` is empty
+   */
+  def insertMany(rows: Seq[E])(using con: DbCon): Seq[ID] = {
+    require(rows.nonEmpty, "Repo.insertMany: rows must be non-empty")
+    val valuesFrag = Frag.values(rows)(using codec)
+    val frag       = Frag.literal(s"INSERT INTO $tbl ($allCols) VALUES ") ++ valuesFrag
+    SqlOps.update(frag)(using con)
+    rows.map(getId)
+  }
+
+  /**
    * Updates all non-ID columns for the row identified by `entity`'s primary
    * key. Returns the affected row count (0 if no row with that ID exists, 0 if
    * the entity has only an ID column).
