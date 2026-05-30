@@ -123,6 +123,8 @@ case class User(
 )
 ```
 
+> **Tip:** A `DbCodec[A]` is all you need — it automatically works for both query decoding and SQL interpolation. No separate `DbParam[A]` required.
+
 ### Frag — SQL Fragments
 
 `Frag` is the primitive for composable SQL. It interleaves literal SQL
