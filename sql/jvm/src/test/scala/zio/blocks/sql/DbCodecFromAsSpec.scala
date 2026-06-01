@@ -103,11 +103,8 @@ object DbCodecFromAsSpec extends ZIOSpecDefault {
         def into(s: String): Either[SchemaError, SpecialId]  = Right(s.asInstanceOf[SpecialId])
         def from(id: SpecialId): Either[SchemaError, String] = Right(id.asInstanceOf[String])
       }
-      given DbCodec[SpecialId] = DbCodec[String].transform(
-        s => SpecialId(s.toUpperCase)
-      )(
-        id => SpecialId.unwrap(id).toLowerCase
-      )
+      given DbCodec[SpecialId] =
+        DbCodec[String].transform(s => SpecialId(s.toUpperCase))(id => SpecialId.unwrap(id).toLowerCase)
       val codec   = summon[DbCodec[SpecialId]]
       val encoded = codec.toDbValues(SpecialId("HELLO"))
       assertTrue(encoded == IndexedSeq(DbValue.DbString("hello")))

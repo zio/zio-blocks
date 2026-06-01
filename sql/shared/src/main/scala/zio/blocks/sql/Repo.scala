@@ -59,6 +59,11 @@ class Repo[E, ID](
 
   private val validatedIdColumn = SqlIdentifier.validate("column", idColumn)
 
+  require(
+    table.columns.contains(validatedIdColumn),
+    s"idColumn '$idColumn' (validated as '$validatedIdColumn') not found in table '${table.name}' columns: ${table.columns.mkString(", ")}"
+  )
+
   private val allCols: String   = table.columns.mkString(", ")
   private val tbl: String       = table.name
   private val codec: DbCodec[E] = table.codec
@@ -138,8 +143,12 @@ class Repo[E, ID](
           SqlOps.writeParams(ps.paramWriter, vals)
           ps.addBatch()
         }
-        val counts   = ps.executeBatch()
-        val total    = counts.map(count => if (count == java.sql.Statement.SUCCESS_NO_INFO) 0 else count).sum
+        val counts = ps.executeBatch()
+        val total  = counts.map { count =>
+          if (count >= 0) count
+          else if (count == java.sql.Statement.SUCCESS_NO_INFO) 1
+          else 0
+        }.sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
         con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, IndexedSeq.empty, duration, total))
         total

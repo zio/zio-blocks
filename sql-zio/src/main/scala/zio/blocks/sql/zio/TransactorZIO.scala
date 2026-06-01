@@ -39,7 +39,7 @@ import java.sql.Connection
  * ==Construction==
  * Use the factory methods in the companion object:
  * {{{
- *   val tx = TransactorZIO.fromUrl("jdbc:postgresql://localhost/mydb", SqlDialect.Postgres)
+ *   val tx = TransactorZIO.fromUrl("jdbc:postgresql://localhost/mydb", SqlDialect.PostgreSQL)
  *   val layer: ZLayer[Any, Nothing, TransactorZIO] = TransactorZIO.layer(url, dialect)
  * }}}
  *
@@ -91,10 +91,7 @@ class TransactorZIO(
           val dbConn = new JdbcConnection(conn)
           (conn, dbConn)
         }) { case (_, dbConn) =>
-          ZIO.succeed {
-            try dbConn.close()
-            catch { case _: Throwable => () }
-          }
+          ZIO.attemptBlocking(dbConn.close()).ignore
         }
         .flatMap { case (_, dbConn) =>
           val con = new DbCon {
@@ -122,12 +119,10 @@ class TransactorZIO(
           conn.setAutoCommit(false)
           (conn, dbConn, prevAutoCommit)
         }) { case (conn, dbConn, prevAutoCommit) =>
-          ZIO.succeed {
-            try conn.setAutoCommit(prevAutoCommit)
-            catch { case _: Throwable => () }
-            try dbConn.close()
-            catch { case _: Throwable => () }
-          }
+          ZIO.attemptBlocking {
+            conn.setAutoCommit(prevAutoCommit)
+            dbConn.close()
+          }.ignore
         }
         .flatMap { case (conn, dbConn, _) =>
           val tx = new DbTx {

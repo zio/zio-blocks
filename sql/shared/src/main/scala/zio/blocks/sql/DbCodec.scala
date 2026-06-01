@@ -245,7 +245,7 @@ object DbCodec extends DbCodecOpaquePriority {
   }
 
   given instantCodec: DbCodec[java.time.Instant] = new DbCodec[java.time.Instant] {
-    val columns: IndexedSeq[String] = IndexedSeq("value")
+    val columns: IndexedSeq[String]                                                            = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.Instant =
       reader.getInstant(columnLabels.head)
     override def readValue(reader: DbResultReader, startIndex: Int): java.time.Instant =
@@ -276,18 +276,16 @@ object DbCodec extends DbCodecOpaquePriority {
    * Use `DbCodec[A].transform` for types that do not have an `As` instance.
    */
   given dbCodecFromAs[A, B](using conv: As[A, B], base: DbCodec[A]): DbCodec[B] =
-    base.transform(
-      decoded =>
-        conv.into(decoded) match {
-          case Right(b) => b
-          case Left(e)  => throw new IllegalStateException(s"DbCodec decode via As failed: $e")
-        }
-    )(
-      value =>
-        conv.from(value) match {
-          case Right(a) => a
-          case Left(e)  => throw new IllegalStateException(s"DbCodec encode via As failed: $e")
-        }
+    base.transform(decoded =>
+      conv.into(decoded) match {
+        case Right(b) => b
+        case Left(e)  => throw new IllegalStateException(s"DbCodec decode via As failed: $e")
+      }
+    )(value =>
+      conv.from(value) match {
+        case Right(a) => a
+        case Left(e)  => throw new IllegalStateException(s"DbCodec encode via As failed: $e")
+      }
     )
 }
 

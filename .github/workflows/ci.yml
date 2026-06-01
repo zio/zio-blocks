@@ -126,7 +126,7 @@ jobs:
         uses: coursier/cache-action@v8
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} testJVM docJVM
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala 3 tests and docs (JDK 17)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 17 }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
@@ -162,11 +162,7 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala JS tests
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt ++${{ matrix.scala }} testJS docJS
-      - name: Run Scala 3 JS tests
-        if: ${{ startsWith(matrix.scala, '3.') }}
+      - name: Run Scala JS tests and compile docs
         run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:
