@@ -230,7 +230,8 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.TransformField(
           fromPath,
-          $transform.toDynamic
+          $transform.toDynamic,
+          _root_.scala.Some(toPath)
         )
       )
     }"""
@@ -271,7 +272,8 @@ object MigrationBuilderMacros {
         ${c.prefix}.targetSchema,
         ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.MandateField(
           sourcePath,
-          $default.toDynamic
+          $default.toDynamic,
+          _root_.scala.Some(targetPath)
         )
       )
     }"""
@@ -311,7 +313,10 @@ object MigrationBuilderMacros {
       new _root_.zio.blocks.schema.migration.MigrationBuilder[$aType, $bType, $newCSType](
         ${c.prefix}.sourceSchema,
         ${c.prefix}.targetSchema,
-        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.OptionalizeField(sourcePath)
+        ${c.prefix}.actions :+ _root_.zio.blocks.schema.migration.MigrationAction.OptionalizeField(
+          sourcePath,
+          _root_.scala.Some(targetPath)
+        )
       )
     }"""
   }

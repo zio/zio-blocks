@@ -168,7 +168,9 @@ val userMigration = Migration
   .build
 ```
 
-`transformField` and `changeFieldType` evaluate their `SchemaExpr` against the currently focused field value, not the entire root record. In practice, that means the expression should be written in terms of the value being replaced.
+`transformField`, `mandateField`, `optionalizeField`, and `changeFieldType` write the computed value to the target selector. When the source and target selectors differ, the original source field remains available as migration input while the target field is added or replaced in the dynamic record.
+
+`transformField` and `changeFieldType` evaluate their `SchemaExpr` against the currently focused source field value, not the entire root record. In practice, that means the expression should be written in terms of the value being transformed.
 
 ### Nested migration with `migrateField`
 

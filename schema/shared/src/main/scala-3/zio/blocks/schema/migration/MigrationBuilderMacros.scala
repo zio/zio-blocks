@@ -151,10 +151,11 @@ object MigrationBuilderMacros {
       case '[newCs] =>
         '{
           val fromPath = SelectorMacros.toPath[A, Any]($from)
+          val toPath   = SelectorMacros.toPath[B, Any]($to)
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.TransformField(fromPath, $transform.toDynamic)
+            $builder.actions :+ MigrationAction.TransformField(fromPath, $transform.toDynamic, Some(toPath))
           )
         }
     }
@@ -185,10 +186,11 @@ object MigrationBuilderMacros {
       case '[newCs] =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Option[?]]($source)
+          val targetPath = SelectorMacros.toPath[B, Any]($target)
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.MandateField(sourcePath, $default.toDynamic)
+            $builder.actions :+ MigrationAction.MandateField(sourcePath, $default.toDynamic, Some(targetPath))
           )
         }
     }
@@ -218,10 +220,11 @@ object MigrationBuilderMacros {
       case '[newCs] =>
         '{
           val sourcePath = SelectorMacros.toPath[A, Any]($source)
+          val targetPath = SelectorMacros.toPath[B, Option[?]]($target)
           new MigrationBuilder[A, B, newCs](
             $builder.sourceSchema,
             $builder.targetSchema,
-            $builder.actions :+ MigrationAction.OptionalizeField(sourcePath)
+            $builder.actions :+ MigrationAction.OptionalizeField(sourcePath, Some(targetPath))
           )
         }
     }

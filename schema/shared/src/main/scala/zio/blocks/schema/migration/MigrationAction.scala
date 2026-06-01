@@ -125,9 +125,10 @@ object MigrationAction {
    */
   final case class TransformField(
     at: DynamicOptic,
-    transform: DynamicSchemaExpr
+    transform: DynamicSchemaExpr,
+    to: Option[DynamicOptic] = None
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "TransformField")
+    override def reverse: MigrationAction = Irreversible(to.getOrElse(at), "TransformField")
   }
 
   /**
@@ -140,9 +141,10 @@ object MigrationAction {
    */
   final case class MandateField(
     at: DynamicOptic,
-    default: DynamicSchemaExpr
+    default: DynamicSchemaExpr,
+    to: Option[DynamicOptic] = None
   ) extends MigrationAction {
-    override def reverse: MigrationAction = OptionalizeField(at)
+    override def reverse: MigrationAction = OptionalizeField(to.getOrElse(at), Some(at))
   }
 
   /**
@@ -152,9 +154,10 @@ object MigrationAction {
    *   The path to the required value
    */
   final case class OptionalizeField(
-    at: DynamicOptic
+    at: DynamicOptic,
+    to: Option[DynamicOptic] = None
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "OptionalizeField")
+    override def reverse: MigrationAction = Irreversible(to.getOrElse(at), "OptionalizeField")
   }
 
   /**
@@ -167,9 +170,10 @@ object MigrationAction {
    */
   final case class ChangeFieldType(
     at: DynamicOptic,
-    converter: DynamicSchemaExpr
+    converter: DynamicSchemaExpr,
+    to: Option[DynamicOptic] = None
   ) extends MigrationAction {
-    override def reverse: MigrationAction = Irreversible(at, "ChangeFieldType")
+    override def reverse: MigrationAction = Irreversible(to.getOrElse(at), "ChangeFieldType")
   }
 
   // ==================== Enum Actions ====================

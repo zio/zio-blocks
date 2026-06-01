@@ -17,7 +17,7 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicValue, DynamicSchemaExpr, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, SchemaError}
 import scala.util.control.NonFatal
 
 /**
@@ -173,19 +173,19 @@ private[migration] object ActionExecutor {
       case RenameField(at, to) =>
         executeRename(at, to, value)
 
-      case TransformField(at, transform) =>
-        executeTransformField(at, transform, value)
+      case TransformField(at, transform, to) =>
+        executeTransformField(at, to.getOrElse(at), transform, value)
 
-      case MandateField(at, default) =>
+      case MandateField(at, default, to) =>
         evalExpr(default, value, at).flatMap { defaultValue =>
-          executeMandate(at, defaultValue, value)
+          executeMandate(at, to.getOrElse(at), defaultValue, value)
         }
 
-      case OptionalizeField(at) =>
-        executeOptionalize(at, value)
+      case OptionalizeField(at, to) =>
+        executeOptionalize(at, to.getOrElse(at), value)
 
-      case ChangeFieldType(at, converter) =>
-        executeChangeFieldType(at, converter, value)
+      case ChangeFieldType(at, converter, to) =>
+        executeChangeFieldType(at, to.getOrElse(at), converter, value)
 
       case RenameCase(at, from, to) =>
         executeRenameCase(at, from, to, value)
@@ -217,7 +217,7 @@ private[migration] object ActionExecutor {
   private def evalExpr(
     expr: DynamicSchemaExpr,
     input: DynamicValue,
-    at: zio.blocks.schema.DynamicOptic
+    at: DynamicOptic
   ): Either[SchemaError, DynamicValue] =
     expr.eval(input).flatMap { results =>
       results match {
@@ -310,27 +310,25 @@ private[migration] object ActionExecutor {
   }
 
   private def executeTransformField(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
+    to: DynamicOptic,
     transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) { currentValue =>
-      evalExpr(transform, currentValue, at)
-    }
+    transformInto(at, to, value)(evalExpr(transform, _, at))
 
   private def executeChangeFieldType(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
+    to: DynamicOptic,
     converter: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) { currentValue =>
-      evalExpr(converter, currentValue, at)
-    }
+    transformInto(at, to, value)(evalExpr(converter, _, at))
 
   // ==================== Collection/Map Action Execution ====================
 
   private def executeTransformElements(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
     transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
@@ -349,7 +347,7 @@ private[migration] object ActionExecutor {
     }
 
   private def executeTransformKeys(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
     transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
@@ -370,7 +368,7 @@ private[migration] object ActionExecutor {
     }
 
   private def executeTransformValues(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
     transform: DynamicSchemaExpr,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
@@ -391,14 +389,18 @@ private[migration] object ActionExecutor {
     }
 
   private def executeMandate(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
+    to: DynamicOptic,
     default: DynamicValue,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) {
+    transformInto(at, to, value) {
       // Option is represented as a Variant with cases "None" and "Some"
       case DynamicValue.Variant("None", _) =>
         Right(default)
+      case DynamicValue.Variant("Some", DynamicValue.Record(fields))
+          if fields.length == 1 && fields.head._1 == "value" =>
+        Right(fields.head._2)
       case DynamicValue.Variant("Some", inner) =>
         Right(inner)
       case other =>
@@ -407,12 +409,13 @@ private[migration] object ActionExecutor {
     }
 
   private def executeOptionalize(
-    at: zio.blocks.schema.DynamicOptic,
+    at: DynamicOptic,
+    to: DynamicOptic,
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] =
-    modifyAt(at, value) { v =>
+    transformInto(at, to, value) { v =>
       // Wrap the value in Some
-      Right(DynamicValue.Variant("Some", v))
+      Right(DynamicValue.Variant("Some", DynamicValue.Record("value" -> v)))
     }
 
   // ==================== Enum Action Execution ====================
@@ -444,12 +447,12 @@ private[migration] object ActionExecutor {
     actions: Chunk[MigrationAction],
     value: DynamicValue
   ): Either[SchemaError, DynamicValue] = {
-    val sourceCaseName = at.nodes.lastOption.collect { case zio.blocks.schema.DynamicOptic.Node.Case(name) => name }
-      .getOrElse(targetCaseName)
-    val parentPath = zio.blocks.schema.DynamicOptic(at.nodes.dropRight(1).filter {
-      case _: zio.blocks.schema.DynamicOptic.Node.Case => false
-      case _                                           => true
-    })
+    val sourceCaseName =
+      at.nodes.lastOption.collect { case DynamicOptic.Node.Case(name) => name }.getOrElse(targetCaseName)
+    val parentPath = at.nodes.lastOption match {
+      case Some(_: DynamicOptic.Node.Case) => DynamicOptic(at.nodes.dropRight(1))
+      case _                               => at
+    }
 
     modifyAt(parentPath, value) {
       case DynamicValue.Variant(name, inner) if name == sourceCaseName =>
@@ -477,7 +480,7 @@ private[migration] object ActionExecutor {
    * (root), apply directly to the value.
    */
   private def modifyAt(
-    path: zio.blocks.schema.DynamicOptic,
+    path: DynamicOptic,
     value: DynamicValue
   )(f: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] = {
     val nodes = path.nodes
@@ -488,13 +491,225 @@ private[migration] object ActionExecutor {
     }
   }
 
-  private def modifyAtPath(
-    nodes: IndexedSeq[zio.blocks.schema.DynamicOptic.Node],
+  private def transformInto(
+    sourcePath: DynamicOptic,
+    targetPath: DynamicOptic,
+    value: DynamicValue
+  )(f: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] =
+    if (sourcePath == targetPath) {
+      modifyAt(sourcePath, value)(f)
+    } else {
+      for {
+        sourceValue <- getAt(sourcePath, value)
+        targetValue <- f(sourceValue)
+        migrated    <- setAt(targetPath, targetValue, value)
+      } yield migrated
+    }
+
+  private def getAt(path: DynamicOptic, value: DynamicValue): Either[SchemaError, DynamicValue] =
+    getAtPath(path.nodes, 0, value, path)
+
+  private def getAtPath(
+    nodes: IndexedSeq[DynamicOptic.Node],
     idx: Int,
     value: DynamicValue,
-    fullPath: zio.blocks.schema.DynamicOptic
+    fullPath: DynamicOptic
+  ): Either[SchemaError, DynamicValue] = {
+    import DynamicOptic.Node
+
+    if (idx >= nodes.length) {
+      Right(value)
+    } else if (idx >= MaxPathDepth) {
+      Left(SchemaError.transformFailed(fullPath, s"Maximum path depth ($MaxPathDepth) exceeded"))
+    } else {
+      nodes(idx) match {
+        case Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              fields.find(_._1 == name) match {
+                case Some((_, fieldValue)) => getAtPath(nodes, idx + 1, fieldValue, fullPath)
+                case None                  => Left(SchemaError.fieldNotFound(fullPath, name))
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Record", other.getClass.getSimpleName))
+          }
+
+        case Node.Case(caseName) =>
+          value match {
+            case DynamicValue.Variant(name, inner) if name == caseName =>
+              getAtPath(nodes, idx + 1, inner, fullPath)
+            case DynamicValue.Variant(_, _) =>
+              Left(SchemaError.caseNotFound(fullPath, caseName))
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Variant", other.getClass.getSimpleName))
+          }
+
+        case Node.Elements =>
+          value match {
+            case DynamicValue.Sequence(elements) =>
+              val results = elements.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+                case (Right(acc), elem) =>
+                  getAtPath(nodes, idx + 1, elem, fullPath).map(acc :+ _)
+                case (left, _) => left
+              }
+              results.map(DynamicValue.Sequence(_))
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
+          }
+
+        case Node.MapKeys =>
+          value match {
+            case DynamicValue.Map(entries) =>
+              val results = entries.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+                case (Right(acc), (k, _)) =>
+                  getAtPath(nodes, idx + 1, k, fullPath).map(acc :+ _)
+                case (left, _) => left
+              }
+              results.map(DynamicValue.Sequence(_))
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+          }
+
+        case Node.MapValues =>
+          value match {
+            case DynamicValue.Map(entries) =>
+              val results = entries.foldLeft[Either[SchemaError, Chunk[DynamicValue]]](Right(Chunk.empty)) {
+                case (Right(acc), (_, v)) =>
+                  getAtPath(nodes, idx + 1, v, fullPath).map(acc :+ _)
+                case (left, _) => left
+              }
+              results.map(DynamicValue.Sequence(_))
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+          }
+
+        case Node.AtIndex(index) =>
+          value match {
+            case DynamicValue.Sequence(elements) =>
+              if (index < 0 || index >= elements.length) Left(SchemaError.pathNotFound(fullPath))
+              else getAtPath(nodes, idx + 1, elements(index), fullPath)
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
+          }
+
+        case Node.AtMapKey(key) =>
+          value match {
+            case DynamicValue.Map(entries) =>
+              entries.find(_._1 == key) match {
+                case Some((_, mapValue)) => getAtPath(nodes, idx + 1, mapValue, fullPath)
+                case None                => Left(SchemaError.pathNotFound(fullPath))
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+          }
+
+        case Node.Wrapped =>
+          getAtPath(nodes, idx + 1, value, fullPath)
+
+        case _ =>
+          Left(SchemaError.transformFailed(fullPath, s"Unsupported path node: ${nodes(idx)}"))
+      }
+    }
+  }
+
+  private def setAt(
+    path: DynamicOptic,
+    newValue: DynamicValue,
+    value: DynamicValue
+  ): Either[SchemaError, DynamicValue] =
+    if (path.nodes.isEmpty) Right(newValue)
+    else setAtPath(path.nodes, 0, value, path, newValue)
+
+  private def setAtPath(
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int,
+    value: DynamicValue,
+    fullPath: DynamicOptic,
+    newValue: DynamicValue
+  ): Either[SchemaError, DynamicValue] = {
+    import DynamicOptic.Node
+
+    if (idx >= nodes.length) {
+      Right(newValue)
+    } else if (idx >= MaxPathDepth) {
+      Left(SchemaError.transformFailed(fullPath, s"Maximum path depth ($MaxPathDepth) exceeded"))
+    } else {
+      nodes(idx) match {
+        case Node.Field(name) =>
+          value match {
+            case DynamicValue.Record(fields) =>
+              val fieldIdx = fields.indexWhere(_._1 == name)
+              if (idx == nodes.length - 1) {
+                if (fieldIdx < 0) Right(DynamicValue.Record(fields :+ (name -> newValue)))
+                else Right(DynamicValue.Record(fields.updated(fieldIdx, (name, newValue))))
+              } else if (fieldIdx < 0) {
+                Left(SchemaError.fieldNotFound(fullPath, name))
+              } else {
+                val (fieldName, fieldValue) = fields(fieldIdx)
+                setAtPath(nodes, idx + 1, fieldValue, fullPath, newValue).map { updated =>
+                  DynamicValue.Record(fields.updated(fieldIdx, (fieldName, updated)))
+                }
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Record", other.getClass.getSimpleName))
+          }
+
+        case Node.Case(caseName) =>
+          value match {
+            case DynamicValue.Variant(name, inner) if name == caseName =>
+              setAtPath(nodes, idx + 1, inner, fullPath, newValue).map(DynamicValue.Variant(name, _))
+            case DynamicValue.Variant(_, _) =>
+              Left(SchemaError.caseNotFound(fullPath, caseName))
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Variant", other.getClass.getSimpleName))
+          }
+
+        case Node.AtIndex(index) =>
+          value match {
+            case DynamicValue.Sequence(elements) =>
+              if (index < 0 || index >= elements.length) {
+                Left(SchemaError.pathNotFound(fullPath))
+              } else {
+                setAtPath(nodes, idx + 1, elements(index), fullPath, newValue).map { updated =>
+                  DynamicValue.Sequence(elements.updated(index, updated))
+                }
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Sequence", other.getClass.getSimpleName))
+          }
+
+        case Node.AtMapKey(key) =>
+          value match {
+            case DynamicValue.Map(entries) =>
+              val entryIdx = entries.indexWhere(_._1 == key)
+              if (entryIdx < 0) {
+                Left(SchemaError.pathNotFound(fullPath))
+              } else {
+                val (k, v) = entries(entryIdx)
+                setAtPath(nodes, idx + 1, v, fullPath, newValue).map { updated =>
+                  DynamicValue.Map(entries.updated(entryIdx, (k, updated)))
+                }
+              }
+            case other =>
+              Left(SchemaError.typeMismatch(fullPath, "Map", other.getClass.getSimpleName))
+          }
+
+        case Node.Wrapped =>
+          setAtPath(nodes, idx + 1, value, fullPath, newValue)
+
+        case _ =>
+          Left(SchemaError.transformFailed(fullPath, s"Unsupported target path node: ${nodes(idx)}"))
+      }
+    }
+  }
+
+  private def modifyAtPath(
+    nodes: IndexedSeq[DynamicOptic.Node],
+    idx: Int,
+    value: DynamicValue,
+    fullPath: DynamicOptic
   )(f: DynamicValue => Either[SchemaError, DynamicValue]): Either[SchemaError, DynamicValue] = {
-    import zio.blocks.schema.DynamicOptic.Node
+    import DynamicOptic.Node
 
     if (idx >= nodes.length) {
       f(value)
