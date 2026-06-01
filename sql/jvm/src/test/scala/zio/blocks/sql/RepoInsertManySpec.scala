@@ -35,7 +35,7 @@ object RepoInsertManySpec extends ZIOSpecDefault {
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-    val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
       override def connect[B](f: DbCon ?=> B): B = {
         val dbConn       = new JdbcConnection(conn)
         given con: DbCon = new DbCon {
@@ -58,11 +58,13 @@ object RepoInsertManySpec extends ZIOSpecDefault {
     test("insertMany returns Seq of length 3") {
       withFreshDb { tx =>
         tx.connect {
-          val ids = itemRepo.insertMany(Seq(
-            Item(1L, "Alpha"),
-            Item(2L, "Beta"),
-            Item(3L, "Gamma")
-          ))
+          val ids = itemRepo.insertMany(
+            Seq(
+              Item(1L, "Alpha"),
+              Item(2L, "Beta"),
+              Item(3L, "Gamma")
+            )
+          )
           assertTrue(ids.length == 3)
         }
       }
@@ -70,11 +72,13 @@ object RepoInsertManySpec extends ZIOSpecDefault {
     test("IDs are in ascending order") {
       withFreshDb { tx =>
         tx.connect {
-          val ids = itemRepo.insertMany(Seq(
-            Item(1L, "Alpha"),
-            Item(2L, "Beta"),
-            Item(3L, "Gamma")
-          ))
+          val ids = itemRepo.insertMany(
+            Seq(
+              Item(1L, "Alpha"),
+              Item(2L, "Beta"),
+              Item(3L, "Gamma")
+            )
+          )
           assertTrue(ids(0) < ids(1), ids(1) < ids(2))
         }
       }
@@ -82,11 +86,13 @@ object RepoInsertManySpec extends ZIOSpecDefault {
     test("findAll returns all 3 entities after insertMany") {
       withFreshDb { tx =>
         tx.connect {
-          itemRepo.insertMany(Seq(
-            Item(1L, "Alpha"),
-            Item(2L, "Beta"),
-            Item(3L, "Gamma")
-          ))
+          itemRepo.insertMany(
+            Seq(
+              Item(1L, "Alpha"),
+              Item(2L, "Beta"),
+              Item(3L, "Gamma")
+            )
+          )
           val all = itemRepo.findAll
           assertTrue(
             all.size == 3,

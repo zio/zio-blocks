@@ -30,9 +30,9 @@ package zio.blocks.sql
  * val frag = sql"SELECT * FROM products WHERE id = ANY(\$ids)"
  * }}}
  *
- * These instances produce `DbValue.DbArray` values that bind as JDBC arrays
- * via `Connection.createArrayOf`. The SQL element type is inferred from the
- * Scala element type.
+ * These instances produce `DbValue.DbArray` values that bind as JDBC arrays via
+ * `Connection.createArrayOf`. The SQL element type is inferred from the Scala
+ * element type.
  */
 object PgCodec {
 

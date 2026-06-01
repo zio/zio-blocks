@@ -125,10 +125,10 @@ private[sql] object DbCodecTupleMacro {
     }
 
   private val emptyTupleCodec: DbCodec[EmptyTuple] = new DbCodec[EmptyTuple] {
-    val columns: IndexedSeq[String]                                                        = IndexedSeq.empty
-    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): EmptyTuple    = EmptyTuple
-    override def readValue(reader: DbResultReader, startIndex: Int): EmptyTuple            = EmptyTuple
-    def writeValue(writer: DbParamWriter, startIndex: Int, value: EmptyTuple): Unit        = ()
-    def toDbValues(value: EmptyTuple): IndexedSeq[DbValue]                                 = IndexedSeq.empty
+    val columns: IndexedSeq[String]                                                     = IndexedSeq.empty
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): EmptyTuple = EmptyTuple
+    override def readValue(reader: DbResultReader, startIndex: Int): EmptyTuple         = EmptyTuple
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: EmptyTuple): Unit     = ()
+    def toDbValues(value: EmptyTuple): IndexedSeq[DbValue]                              = IndexedSeq.empty
   }
 }

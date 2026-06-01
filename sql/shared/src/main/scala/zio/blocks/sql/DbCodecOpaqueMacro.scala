@@ -28,7 +28,8 @@ private[sql] object DbCodecOpaqueMacro {
       val direct  = typeSym.companionModule
       if (direct != Symbol.noSymbol) direct
       else {
-        val byOwner = typeSym.owner.declarations.find(symbol => symbol.name == typeSym.name && symbol.flags.is(Flags.Module))
+        val byOwner =
+          typeSym.owner.declarations.find(symbol => symbol.name == typeSym.name && symbol.flags.is(Flags.Module))
 
         val byFullName =
           try Some(Symbol.requiredModule(typeSym.fullName))
@@ -55,7 +56,7 @@ private[sql] object DbCodecOpaqueMacro {
         companion.moduleClass.typeRef.memberType(methodSymbol) match {
           case MethodType(_, paramTypes, returnType) if paramTypes.size == 1 =>
             sameType(paramTypes.head, parameterType) &&
-              (sameType(returnType, resultType) || alternativeResultType.exists(sameType(returnType, _)))
+            (sameType(returnType, resultType) || alternativeResultType.exists(sameType(returnType, _)))
           case _ => false
         }
       } match {
@@ -72,7 +73,9 @@ private[sql] object DbCodecOpaqueMacro {
             }
             .mkString("; ")
           val allNames = companion.moduleClass.methodMembers.map(_.name).take(30).mkString(", ")
-          report.errorAndAbort(s"$error. Companion=${companion.fullName}; Found ${if methods.isEmpty then s"no candidates; method names: $allNames" else methods}")
+          report.errorAndAbort(s"$error. Companion=${companion.fullName}; Found ${
+              if methods.isEmpty then s"no candidates; method names: $allNames" else methods
+            }")
       }
 
     val tpe = TypeRepr.of[A]
@@ -84,7 +87,7 @@ private[sql] object DbCodecOpaqueMacro {
 
     val underlying = tpe match {
       case tr: TypeRef if tr.isOpaqueAlias => tr.translucentSuperType.dealias
-      case _ =>
+      case _                               =>
         report.errorAndAbort(
           s"Cannot determine underlying type of opaque type ${Type.show[A]}"
         )
@@ -96,7 +99,7 @@ private[sql] object DbCodecOpaqueMacro {
           case Some(baseCodec) =>
             val companion = companionModule(tpe)
             val moduleRef = Ref(companion)
-            val apply    = singleArgumentMethod(
+            val apply     = singleArgumentMethod(
               companion,
               "apply",
               underlying,
@@ -108,8 +111,7 @@ private[sql] object DbCodecOpaqueMacro {
             val read = Lambda(
               Symbol.spliceOwner,
               MethodType(List("value"))(_ => List(underlying), _ => tpe),
-              (_, params) =>
-              Apply(Select(moduleRef, apply), params.map(_.asInstanceOf[Term]))
+              (_, params) => Apply(Select(moduleRef, apply), params.map(_.asInstanceOf[Term]))
             ).asExprOf[u => A]
 
             val write =
@@ -132,8 +134,7 @@ private[sql] object DbCodecOpaqueMacro {
                 Lambda(
                   Symbol.spliceOwner,
                   MethodType(List("value"))(_ => List(tpe), _ => underlying),
-                  (_, params) =>
-                  Apply(Select(moduleRef, unwrap), params.map(_.asInstanceOf[Term]))
+                  (_, params) => Apply(Select(moduleRef, unwrap), params.map(_.asInstanceOf[Term]))
                 ).asExprOf[A => u]
               }
 

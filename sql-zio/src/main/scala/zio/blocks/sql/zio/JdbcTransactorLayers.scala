@@ -24,9 +24,13 @@ import zio.blocks.sql.*
 extension (companion: JdbcTransactor.type) {
 
   def postgresLayer: ZLayer[DataSource, Nothing, Transactor] =
-    ZLayer.fromFunction((dataSource: DataSource) => JdbcTransactor.fromDataSource(dataSource, SqlDialect.PostgreSQL): Transactor)
+    ZLayer.fromFunction((dataSource: DataSource) =>
+      JdbcTransactor.fromDataSource(dataSource, SqlDialect.PostgreSQL): Transactor
+    )
 
   def sqliteLayer: ZLayer[DataSource, Nothing, Transactor] =
-    ZLayer.fromFunction((dataSource: DataSource) => JdbcTransactor.fromDataSource(dataSource, SqlDialect.SQLite): Transactor)
+    ZLayer.fromFunction((dataSource: DataSource) =>
+      JdbcTransactor.fromDataSource(dataSource, SqlDialect.SQLite): Transactor
+    )
 
 }

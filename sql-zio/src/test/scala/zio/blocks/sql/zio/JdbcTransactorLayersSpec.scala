@@ -34,15 +34,15 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         Array(classOf[DataSource]),
         new InvocationHandler {
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
-            case "getConnection"  => connection()
-            case "getLogWriter"   => null
-            case "setLogWriter"   => null
+            case "getConnection"   => connection()
+            case "getLogWriter"    => null
+            case "setLogWriter"    => null
             case "setLoginTimeout" => null
             case "getLoginTimeout" => Integer.valueOf(0)
             case "getParentLogger" => java.util.logging.Logger.getGlobal
-            case "unwrap"         => null
+            case "unwrap"          => null
             case "isWrapperFor"    => java.lang.Boolean.FALSE
-            case "toString"       => "TestDataSource"
+            case "toString"        => "TestDataSource"
             case _                 => null
           }
         }
@@ -55,8 +55,8 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         getClass.getClassLoader,
         Array(classOf[Connection]),
         new InvocationHandler {
-          private var closed      = false
-          private var autoCommit  = true
+          private var closed     = false
+          private var autoCommit = true
 
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
             case "prepareStatement" => preparedStatement()
@@ -69,7 +69,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
             case "unwrap"           => null
             case "isWrapperFor"     => java.lang.Boolean.FALSE
             case "toString"         => "TestConnection"
-            case _                   => defaultValue(method.getReturnType)
+            case _                  => defaultValue(method.getReturnType)
           }
         }
       )
@@ -87,7 +87,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
             case "unwrap"       => null
             case "isWrapperFor" => java.lang.Boolean.FALSE
             case "toString"     => "TestPreparedStatement"
-            case _               => defaultValue(method.getReturnType)
+            case _              => defaultValue(method.getReturnType)
           }
         }
       )
@@ -102,14 +102,14 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
           private val firstRow = new AtomicBoolean(true)
 
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
-            case "next"        => java.lang.Boolean.valueOf(firstRow.getAndSet(false))
-            case "getInt"      => Integer.valueOf(1)
-            case "getMetaData" => metaData()
-            case "close"       => null
-            case "wasNull"     => java.lang.Boolean.FALSE
-            case "unwrap"      => null
+            case "next"         => java.lang.Boolean.valueOf(firstRow.getAndSet(false))
+            case "getInt"       => Integer.valueOf(1)
+            case "getMetaData"  => metaData()
+            case "close"        => null
+            case "wasNull"      => java.lang.Boolean.FALSE
+            case "unwrap"       => null
             case "isWrapperFor" => java.lang.Boolean.FALSE
-            case "toString"    => "TestResultSet"
+            case "toString"     => "TestResultSet"
             case _              => defaultValue(method.getReturnType)
           }
         }
@@ -130,7 +130,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
             case "unwrap"         => null
             case "isWrapperFor"   => java.lang.Boolean.FALSE
             case "toString"       => "TestResultSetMetaData"
-            case _                 => defaultValue(method.getReturnType)
+            case _                => defaultValue(method.getReturnType)
           }
         }
       )
@@ -144,7 +144,9 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         }
       }
 
-      program.provideLayer(ZLayer.succeed(h2DataSource) >>> JdbcTransactor.sqliteLayer).map(result => assertTrue(result == Some(1)))
+      program
+        .provideLayer(ZLayer.succeed(h2DataSource) >>> JdbcTransactor.sqliteLayer)
+        .map(result => assertTrue(result == Some(1)))
     }
   )
 

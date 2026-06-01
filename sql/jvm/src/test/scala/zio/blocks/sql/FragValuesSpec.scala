@@ -51,7 +51,7 @@ object FragValuesSpec extends ZIOSpecDefault {
     },
     test("integration: insert 3 rows into SQLite and verify count") {
       val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-      val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+      val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
         override def connect[B](f: DbCon ?=> B): B = {
           val dbConn       = new JdbcConnection(conn)
           given con: DbCon = new DbCon {

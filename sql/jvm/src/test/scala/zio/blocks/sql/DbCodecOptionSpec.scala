@@ -44,23 +44,23 @@ object DbCodecOptionSpec extends ZIOSpecDefault {
   private final class RecordingWriter extends DbParamWriter {
     var nullCalls: Vector[(Int, Int)] = Vector.empty
 
-    def setInt(index: Int, value: Int): Unit                                     = ()
-    def setLong(index: Int, value: Long): Unit                                   = ()
-    def setDouble(index: Int, value: Double): Unit                               = ()
-    def setFloat(index: Int, value: Float): Unit                                 = ()
-    def setBoolean(index: Int, value: Boolean): Unit                             = ()
-    def setString(index: Int, value: String): Unit                               = ()
-    def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit             = ()
-    def setBytes(index: Int, value: Array[Byte]): Unit                           = ()
-    def setShort(index: Int, value: Short): Unit                                 = ()
-    def setByte(index: Int, value: Byte): Unit                                   = ()
-    def setLocalDate(index: Int, value: java.time.LocalDate): Unit               = ()
-    def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit       = ()
-    def setLocalTime(index: Int, value: java.time.LocalTime): Unit               = ()
-    def setInstant(index: Int, value: java.time.Instant): Unit                   = ()
-    def setDuration(index: Int, value: java.time.Duration): Unit                 = ()
-    def setUUID(index: Int, value: java.util.UUID): Unit                         = ()
-    def setNull(index: Int, sqlType: Int): Unit                                  = nullCalls = nullCalls :+ (index -> sqlType)
+    def setInt(index: Int, value: Int): Unit                                       = ()
+    def setLong(index: Int, value: Long): Unit                                     = ()
+    def setDouble(index: Int, value: Double): Unit                                 = ()
+    def setFloat(index: Int, value: Float): Unit                                   = ()
+    def setBoolean(index: Int, value: Boolean): Unit                               = ()
+    def setString(index: Int, value: String): Unit                                 = ()
+    def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit               = ()
+    def setBytes(index: Int, value: Array[Byte]): Unit                             = ()
+    def setShort(index: Int, value: Short): Unit                                   = ()
+    def setByte(index: Int, value: Byte): Unit                                     = ()
+    def setLocalDate(index: Int, value: java.time.LocalDate): Unit                 = ()
+    def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit         = ()
+    def setLocalTime(index: Int, value: java.time.LocalTime): Unit                 = ()
+    def setInstant(index: Int, value: java.time.Instant): Unit                     = ()
+    def setDuration(index: Int, value: java.time.Duration): Unit                   = ()
+    def setUUID(index: Int, value: java.util.UUID): Unit                           = ()
+    def setNull(index: Int, sqlType: Int): Unit                                    = nullCalls = nullCalls :+ (index -> sqlType)
     def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit = ()
   }
 
@@ -116,7 +116,8 @@ object DbCodecOptionSpec extends ZIOSpecDefault {
           sql"INSERT INTO tuple_option_rt (name, age, nickname) VALUES (${DbValue.DbString("Alice")}, ${DbValue.DbInt(30)}, ${DbValue.DbString("ally")})".update
           sql"INSERT INTO tuple_option_rt (name, age, nickname) VALUES (${DbValue.DbString("Bob")}, ${DbValue.DbNull}, ${DbValue.DbNull})".update
 
-          val results = sql"SELECT name, age, nickname FROM tuple_option_rt ORDER BY rowid".query[(String, Option[Int], Option[String])]
+          val results = sql"SELECT name, age, nickname FROM tuple_option_rt ORDER BY rowid"
+            .query[(String, Option[Int], Option[String])]
 
           assertTrue(
             codec.columnCount == 3,
