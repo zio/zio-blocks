@@ -35,19 +35,20 @@ sealed trait PrimitiveType[A] {
 }
 
 /**
- * Sub-trait of PrimitiveType for numeric types that support arithmetic
- * operations. Provides access to the Scala Numeric type class for the
- * underlying type.
+ * Sub-trait of `PrimitiveType` for numeric primitive types that support
+ * arithmetic operations. All implementations are the numeric members of the
+ * `PrimitiveType` hierarchy (`Byte`, `Short`, `Int`, `Long`, `Float`, `Double`,
+ * `BigInt`, and `BigDecimal`).
  *
- * This trait is sealed within the PrimitiveType hierarchy - all implementations
- * are the numeric case classes (Byte, Short, Int, Long, Float, Double, BigInt,
- * BigDecimal).
+ * @tparam A
+ *   The Scala value type represented by this primitive type.
  */
 sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
   def numeric: Numeric[A]
 
   /**
-   * Returns a Schema for this numeric primitive type.
+   * Returns a schema backed by this numeric primitive type. A new lightweight
+   * `Schema` wrapper is allocated for each call.
    */
   def schema: Schema[A] = new Schema(
     new Reflect.Primitive(
@@ -58,7 +59,8 @@ sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
   )
 
   /**
-   * Convert to NumericTypeTag for DynamicSchemaExpr.
+   * Converts this primitive type to the numeric tag used by dynamic schema
+   * expressions to evaluate arithmetic without retaining Scala type evidence.
    */
   def toTag: DynamicSchemaExpr.NumericTypeTag
 }
