@@ -21,7 +21,7 @@ import zio.test.*
 object DbParamFromCodecSpec extends ZIOSpecDefault {
   case class ProductId(value: String)
 
-  given DbCodec[ProductId] = DbCodec[String].transform(ProductId(_), _.value)
+  given DbCodec[ProductId] = DbCodec[String].transform(ProductId(_))(_.value)
 
   def spec: Spec[TestEnvironment, Any] = suite("DbParamFromCodecSpec")(
     test("sql interpolation accepts a DbCodec-only opaque type") {

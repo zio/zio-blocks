@@ -104,7 +104,8 @@ object DbCodecFromAsSpec extends ZIOSpecDefault {
         def from(id: SpecialId): Either[SchemaError, String] = Right(id.asInstanceOf[String])
       }
       given DbCodec[SpecialId] = DbCodec[String].transform(
-        s => SpecialId(s.toUpperCase),
+        s => SpecialId(s.toUpperCase)
+      )(
         id => SpecialId.unwrap(id).toLowerCase
       )
       val codec   = summon[DbCodec[SpecialId]]

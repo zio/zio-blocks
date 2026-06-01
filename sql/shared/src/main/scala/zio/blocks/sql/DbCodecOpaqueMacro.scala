@@ -138,7 +138,7 @@ private[sql] object DbCodecOpaqueMacro {
                 ).asExprOf[A => u]
               }
 
-            '{ $baseCodec.transform($read, $write) }
+            '{ $baseCodec.transform($read)($write) }
           case None =>
             report.errorAndAbort(
               s"No DbCodec found for underlying type ${Type.show[u]} of opaque type ${Type.show[A]}"

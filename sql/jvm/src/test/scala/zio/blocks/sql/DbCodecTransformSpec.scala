@@ -21,7 +21,7 @@ import zio.test.*
 object DbCodecTransformSpec extends ZIOSpecDefault {
   case class ProductId(value: String)
 
-  given DbCodec[ProductId] = DbCodec[String].transform(ProductId(_), _.value)
+  given DbCodec[ProductId] = DbCodec[String].transform(ProductId(_))(_.value)
 
   private final class StringReader(value: String) extends DbResultReader {
     private def unsupported(name: String) = throw new UnsupportedOperationException(name)

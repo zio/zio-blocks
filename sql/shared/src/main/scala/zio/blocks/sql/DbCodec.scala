@@ -44,7 +44,7 @@ trait DbCodec[A] {
    * Use this to create codecs for opaque types and value wrappers without
    * defining a full `Schema`.
    */
-  final def transform[B](read: A => B, write: B => A): DbCodec[B] = {
+  final def transform[B](read: A => B)(write: B => A): DbCodec[B] = {
     val self = this
     new DbCodec[B] {
       val columns: IndexedSeq[String]                                            = self.columns
@@ -59,8 +59,6 @@ trait DbCodec[A] {
     }
   }
 
-  @deprecated("Use transform instead", "0.0.41")
-  final def biMap[B](from: A => B, to: B => A): DbCodec[B] = transform(from, to)
 }
 
 private[sql] trait DbCodecOpaquePriority {
@@ -283,7 +281,8 @@ object DbCodec extends DbCodecOpaquePriority {
         conv.into(decoded) match {
           case Right(b) => b
           case Left(e)  => throw new IllegalStateException(s"DbCodec decode via As failed: $e")
-        },
+        }
+    )(
       value =>
         conv.from(value) match {
           case Right(a) => a
