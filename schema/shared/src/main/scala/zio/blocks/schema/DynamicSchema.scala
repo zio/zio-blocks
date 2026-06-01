@@ -177,12 +177,12 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   /** Returns a copy of this schema with the specified default value. */
   def defaultValue(value: DynamicValue): DynamicSchema = {
     val updatedReflect = reflect match {
-      case r: Reflect.Record[NoBinding, _]                 => r.copy(storedDefaultValue = Some(value))
-      case v: Reflect.Variant[NoBinding, _]                => v.copy(storedDefaultValue = Some(value))
-      case s: Reflect.Sequence[NoBinding, _, _] @unchecked => s.copy(storedDefaultValue = Some(value))
-      case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedDefaultValue = Some(value))
-      case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedDefaultValue = Some(value))
-      case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedDefaultValue = Some(value))
+      case r: Reflect.Record[NoBinding, _]                 => r.copy(storedDefaultValue = new Some(value))
+      case v: Reflect.Variant[NoBinding, _]                => v.copy(storedDefaultValue = new Some(value))
+      case s: Reflect.Sequence[NoBinding, _, _] @unchecked => s.copy(storedDefaultValue = new Some(value))
+      case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedDefaultValue = new Some(value))
+      case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedDefaultValue = new Some(value))
+      case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedDefaultValue = new Some(value))
       case d: Reflect.Deferred[NoBinding, _]               =>
         val inner = DynamicSchema(d.value).defaultValue(value).reflect
         d.copy(
@@ -196,7 +196,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
   /** Returns a copy of this schema with the specified example values. */
   def examples(value: DynamicValue, values: DynamicValue*): DynamicSchema = {
-    val allExamples    = value +: values
+    val allExamples    = values.prepended(value)
     val updatedReflect = reflect match {
       case r: Reflect.Record[NoBinding, _]                 => r.copy(storedExamples = allExamples)
       case v: Reflect.Variant[NoBinding, _]                => v.copy(storedExamples = allExamples)

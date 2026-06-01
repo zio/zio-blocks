@@ -47,7 +47,7 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
    * Prepends a map key access to the path of all errors in this SchemaError.
    */
   def atKey(key: DynamicValue): SchemaError =
-    mapSource(path => new DynamicOptic(DynamicOptic.Node.AtMapKey(key) +: path.nodes))
+    mapSource(path => new DynamicOptic(path.nodes.prepended(new DynamicOptic.Node.AtMapKey(key))))
 
   private[this] def mapSource(f: DynamicOptic => DynamicOptic): SchemaError =
     new SchemaError(new ::(SchemaError.remapSource(errors.head, f), errors.tail.map(SchemaError.remapSource(_, f))))

@@ -526,7 +526,7 @@ object JsonPatch {
       if (existingIdx >= 0) {
         if (mode eq PatchMode.Clobber) new Right(fields.updated(existingIdx, (key, value)))
         else new Left(SchemaError.expectationMismatch(trace, s"Key '$key' already exists in object"))
-      } else new Right(fields :+ (key, value))
+      } else new Right(fields.appended((key, value)))
     case r: ObjectOp.Remove =>
       val key         = r.key
       val existingIdx = fields.indexWhere(_._1 == key)

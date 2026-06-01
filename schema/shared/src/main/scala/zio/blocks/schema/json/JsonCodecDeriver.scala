@@ -860,11 +860,11 @@ class JsonCodecDeriver private[json] (
                       case m: Modifier.alias =>
                         val alias = m.name
                         properties.add(alias, schema)
-                        nameWithAliases = nameWithAliases :+ alias
+                        nameWithAliases = nameWithAliases.appended(alias)
                       case _ =>
                     }
                     if (nameWithAliases.nonEmpty) {
-                      nameWithAliases = name +: nameWithAliases
+                      nameWithAliases = nameWithAliases.prepended(name)
                       if (isRequired) {
                         allOf.addOne(
                           new JsonSchema.Object(
@@ -2442,7 +2442,7 @@ class JsonCodecDeriver private[json] (
                   val elems = new Array[Json](len)
                   var idx   = 0
                   while (idx < len) {
-                    elems(idx) = new Json.String(deconstructor.charAt(x, idx).toString)
+                    elems(idx) = new Json.String(String.valueOf(deconstructor.charAt(x, idx)))
                     idx += 1
                   }
                   new Json.Array(Chunk.fromArray(elems))

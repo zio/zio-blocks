@@ -2562,7 +2562,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         val maxByteIndex = maxBitIndex >> bitsLog2
         val maxByte      = bytes(maxByteIndex)
         val maxByteValue = (maxByte & 0xff) >> bits - (maxBitIndex & bits - 1)
-        bytes.slice(minByteIndex, maxByteIndex) :+ maxByteValue.toByte
+        bytes.slice(minByteIndex, maxByteIndex).appended(maxByteValue.toByte)
       } else bytes
 
     private def nthByte(n: Int): Byte = {
@@ -2711,8 +2711,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         val maxInt      = elementAt(maxIntIndex)
         val maxIntValue = maxInt >>> bits - (maxBitIndex & bits - 1)
         val fullInts    = ints.slice(minIntIndex, maxIntIndex)
-        if (self.endianness == endianness) fullInts :+ respectEndian(endianness, maxIntValue)
-        else fullInts.map(Integer.reverse) :+ respectEndian(endianness, maxIntValue)
+        (if (self.endianness == endianness) fullInts
+         else fullInts.map(Integer.reverse)).appended(respectEndian(endianness, maxIntValue))
       } else if (self.endianness == endianness) ints
       else ints.map(Integer.reverse)
 
@@ -2819,8 +2819,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         val maxLong      = elementAt(maxLongIndex)
         val maxLongValue = maxLong >>> bits - (maxBitIndex & bits - 1)
         val fullLongs    = longs.slice(minLongIndex, maxLongIndex)
-        if (self.endianness == endianness) fullLongs :+ respectEndian(endianness, maxLongValue)
-        else fullLongs.map(java.lang.Long.reverse) :+ respectEndian(endianness, maxLongValue)
+        (if (self.endianness == endianness) fullLongs
+         else fullLongs.map(java.lang.Long.reverse)).appended(respectEndian(endianness, maxLongValue))
       } else if (self.endianness == endianness) longs
       else longs.map(java.lang.Long.reverse)
 
@@ -3822,7 +3822,7 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   /**
    * Appends a single element to the end of this `NonEmptyChunk`.
    */
-  def appended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(chunk :+ a)
+  def appended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(chunk.appended(a))
 
   /**
    * Converts this `NonEmptyChunk` of ints to a `NonEmptyChunk` of bits.
@@ -3988,7 +3988,7 @@ final class NonEmptyChunk[+A] private[chunk] (chunk: Chunk[A]) extends Serializa
   /**
    * Prepends a single element to the beginning of this `NonEmptyChunk`.
    */
-  def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(a +: chunk)
+  def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] = new NonEmptyChunk(chunk.prepended(a))
 
   /**
    * Reduces the elements of this collection using the specified binary

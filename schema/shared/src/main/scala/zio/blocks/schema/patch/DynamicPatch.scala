@@ -765,7 +765,7 @@ object DynamicPatch {
       if (existingIdx >= 0) {
         if (mode eq PatchMode.Clobber) new Right(entries.updated(existingIdx, (key, value)))
         else new Left(SchemaError.expectationMismatch(trace, s"Key already exists in map"))
-      } else new Right(entries :+ (key, value))
+      } else new Right(entries.appended((key, value)))
     case r: MapOp.Remove =>
       val key         = r.key
       val existingIdx = entries.indexWhere(_._1 == key)

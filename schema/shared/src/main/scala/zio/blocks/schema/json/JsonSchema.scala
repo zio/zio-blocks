@@ -558,10 +558,11 @@ sealed trait JsonSchema extends Product with Serializable {
     case s: JsonSchema.Object =>
       s.copy(
         properties = new Some({
+          val v = JsonSchema.constOf(new Json.String(value))
           s.properties match {
             case Some(m: ChunkMap[String @unchecked, JsonSchema @unchecked]) =>
-              ChunkMap.fromChunks(name +: m.keysChunk, JsonSchema.constOf(new Json.String(value)) +: m.valuesChunk)
-            case _ => ChunkMap.fromChunks(Chunk.single(name), Chunk.single(JsonSchema.constOf(new Json.String(value))))
+              ChunkMap.fromChunks(m.keysChunk.prepended(name), m.valuesChunk.prepended(v))
+            case _ => ChunkMap.fromChunks(Chunk.single(name), Chunk.single(v))
           }
         }),
         required = new Some({
@@ -781,8 +782,9 @@ object JsonSchema {
         case _       =>
       }
       $vocabulary match {
-        case Some(v) => fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply)))
-        case _       =>
+        case Some(v) =>
+          fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, x => String.valueOf(x), Json.Boolean.apply)))
+        case _ =>
       }
       $defs match {
         case Some(d) => fields.addOne(("$defs", toJsonObject[String, JsonSchema](d, identity, _.toJson)))

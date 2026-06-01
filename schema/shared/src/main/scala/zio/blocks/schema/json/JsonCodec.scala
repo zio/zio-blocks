@@ -1553,9 +1553,9 @@ object JsonCodec {
           } else new PrimitiveValue.BigDecimal(bd)
         })
       case a: Json.Array =>
-        new DynamicValue.Sequence(a.elements.map(decodeValue))
+        new DynamicValue.Sequence(a.value.map(decodeValue))
       case o: Json.Object =>
-        new DynamicValue.Record(o.fields.map(kv => (kv._1, decodeValue(kv._2))))
+        new DynamicValue.Record(o.value.map(kv => (kv._1, decodeValue(kv._2))))
       case _ => DynamicValue.Null
     }
 
@@ -1570,7 +1570,7 @@ object JsonCodec {
           case v: PrimitiveValue.Long           => Json.Number(v.value)
           case v: PrimitiveValue.Float          => Json.Number(v.value)
           case v: PrimitiveValue.Double         => Json.Number(v.value)
-          case v: PrimitiveValue.Char           => new Json.String(v.value.toString)
+          case v: PrimitiveValue.Char           => new Json.String(String.valueOf(v.value))
           case v: PrimitiveValue.String         => new Json.String(v.value)
           case v: PrimitiveValue.BigInt         => Json.Number(v.value)
           case v: PrimitiveValue.BigDecimal     => new Json.Number(v.value)
