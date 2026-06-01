@@ -246,6 +246,18 @@ object DbCodec extends DbCodecOpaquePriority {
     def toDbValues(value: BigDecimal): IndexedSeq[DbValue] = IndexedSeq(DbValue.DbBigDecimal(value))
   }
 
+  given instantCodec: DbCodec[java.time.Instant] = new DbCodec[java.time.Instant] {
+    val columns: IndexedSeq[String] = IndexedSeq("value")
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): java.time.Instant =
+      reader.getInstant(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): java.time.Instant =
+      reader.getInstant(startIndex)
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: java.time.Instant): Unit =
+      writer.setInstant(startIndex, value)
+    def toDbValues(value: java.time.Instant): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.DbInstant(value))
+  }
+
   /**
    * Auto-derives a [[DbCodec]][B] from [[DbCodec]][A] and [[As]][A, B].
    *
