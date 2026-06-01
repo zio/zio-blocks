@@ -154,7 +154,7 @@ private[schema] object JsonInterpolatorRuntime {
    */
   private[this] def writeInString(out: ByteArrayOutputStream, value: Any): Unit = value match {
     case s: String             => writeRawString(out, s)
-    case c: Char               => writeRawString(out, c.toString)
+    case c: Char               => writeRawString(out, String.valueOf(c))
     case bl: Boolean           => JsonCodec.booleanCodec.encode(bl, out)
     case b: Byte               => JsonCodec.byteCodec.encode(b, out)
     case sh: Short             => JsonCodec.shortCodec.encode(sh, out)

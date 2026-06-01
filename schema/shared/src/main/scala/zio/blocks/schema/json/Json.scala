@@ -43,7 +43,7 @@ import scala.util.hashing.MurmurHash3
 sealed trait Json {
 
   /** Pretty print Json value to string. */
-  override def toString: String = print(WriterConfig.withIndentionStep2)
+  override def toString: String = Json.jsonCodec.encodeToString(this, WriterConfig.withIndentionStep2)
 
   // ─────────────────────────────────────────────────────────────────────────
   // Type Information
@@ -999,7 +999,7 @@ object Json {
     case v: PrimitiveValue.Boolean        => Boolean(v.value)
     case v: PrimitiveValue.Byte           => Number(v.value)
     case v: PrimitiveValue.Short          => Number(v.value)
-    case v: PrimitiveValue.Char           => new String(v.value.toString)
+    case v: PrimitiveValue.Char           => new String(java.lang.String.valueOf(v.value))
     case v: PrimitiveValue.BigInt         => Number(v.value)
     case v: PrimitiveValue.BigDecimal     => Number(v.value)
     case v: PrimitiveValue.DayOfWeek      => new String(v.value.toString)
@@ -1465,9 +1465,9 @@ object Json {
    */
   def fromKVUnsafe(kvs: Seq[(DynamicOptic, Json)]): Json = {
     val len = kvs.length
-    if (len == 0) return Null
-    if (len == 1 && kvs.head._1.nodes.isEmpty) return kvs.head._2 // Simple case: single root value
-    kvs.foldLeft[Json](Null)((acc, pv) => setOrCreatePath(acc, pv._1, pv._2))
+    if (len == 0) Null
+    else if (len == 1 && kvs.head._1.nodes.isEmpty) kvs.head._2 // Simple case: single root value
+    else kvs.foldLeft[Json](Null)((acc, pv) => setOrCreatePath(acc, pv._1, pv._2))
   }
 
   private[this] def setOrCreatePath(json: Json, path: DynamicOptic, value: Json): Json = {
@@ -1895,7 +1895,15 @@ object Json {
           }
         case _ =>
           // For other node types, delegate to a non-failing version and wrap the result
-          modifyAtPathRecursive(json, nodes.drop(nodeIdx), 0, pf.lift.andThen(_.getOrElse(json))) match {
+          modifyAtPathRecursive(
+            json,
+            nodes.drop(nodeIdx),
+            0,
+            x => {
+              if (pf.isDefinedAt(x)) pf.apply(x)
+              else json
+            }
+          ) match {
             case some: Some[_] => new Right(some.value)
             case _             => new Left(SchemaError(s"Path not found: ${new DynamicOptic(nodes)}"))
           }
