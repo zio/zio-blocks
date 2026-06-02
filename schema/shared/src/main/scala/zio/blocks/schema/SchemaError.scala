@@ -16,7 +16,7 @@
 
 package zio.blocks.schema
 
-import zio.blocks.chunk.Chunk
+import scala.collection.immutable.ArraySeq
 import scala.util.control.NoStackTrace
 
 final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception with NoStackTrace {
@@ -108,12 +108,13 @@ object SchemaError {
     case e: ExpectationMismatch => e.copy(source = f(e.source))
     case e: UnknownCase         => e.copy(source = f(e.source))
     case e: Message             => e.copy(source = f(e.source))
+    case e: MigrationError      => e.copy(source = f(e.source))
   }
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
     reverse(nodes)
-    new DynamicOptic(Chunk.fromArray(nodes))
+    new DynamicOptic(ArraySeq.unsafeWrapArray(nodes))
   }
 
   private[this] def reverse(nodes: Array[DynamicOptic.Node]): Unit =
@@ -192,4 +193,78 @@ object SchemaError {
       if (source.nodes.isEmpty) details
       else s"$details at: ${source.toString}"
   }
+
+  /**
+   * Migration-specific errors. These occur during schema migration operations.
+   */
+  case class MigrationError(source: DynamicOptic, kind: MigrationErrorKind) extends Single {
+    override def message: String = kind match {
+      case MigrationErrorKind.PathNotFound =>
+        s"Path not found: ${source.toScalaString}"
+      case MigrationErrorKind.TypeMismatch(expected, actual) =>
+        s"Type mismatch at ${source.toScalaString}: expected $expected, got $actual"
+      case MigrationErrorKind.MissingDefault(fieldName) =>
+        s"Missing default value for field '$fieldName' at ${source.toScalaString}"
+      case MigrationErrorKind.TransformFailed(reason) =>
+        s"Transform failed at ${source.toScalaString}: $reason"
+      case MigrationErrorKind.FieldNotFound(fieldName) =>
+        s"Field '$fieldName' not found at ${source.toScalaString}"
+      case MigrationErrorKind.FieldAlreadyExists(fieldName) =>
+        s"Field '$fieldName' already exists at ${source.toScalaString}"
+      case MigrationErrorKind.CaseNotFound(caseName) =>
+        s"Case '$caseName' not found at ${source.toScalaString}"
+      case MigrationErrorKind.InvalidValue(reason) =>
+        s"Invalid value at ${source.toScalaString}: $reason"
+      case MigrationErrorKind.MandateFailed(reason) =>
+        s"Mandate failed at ${source.toScalaString}: $reason"
+    }
+  }
+
+  /**
+   * Sum type for different kinds of migration errors.
+   */
+  sealed trait MigrationErrorKind
+
+  object MigrationErrorKind {
+    case object PathNotFound                                  extends MigrationErrorKind
+    case class TypeMismatch(expected: String, actual: String) extends MigrationErrorKind
+    case class MissingDefault(fieldName: String)              extends MigrationErrorKind
+    case class TransformFailed(reason: String)                extends MigrationErrorKind
+    case class FieldNotFound(fieldName: String)               extends MigrationErrorKind
+    case class FieldAlreadyExists(fieldName: String)          extends MigrationErrorKind
+    case class CaseNotFound(caseName: String)                 extends MigrationErrorKind
+    case class InvalidValue(reason: String)                   extends MigrationErrorKind
+    case class MandateFailed(reason: String)                  extends MigrationErrorKind
+  }
+
+  // Helper methods for creating migration errors
+  def migrationError(path: DynamicOptic, kind: MigrationErrorKind): SchemaError =
+    new SchemaError(new ::(MigrationError(path, kind), Nil))
+
+  def pathNotFound(path: DynamicOptic): SchemaError =
+    migrationError(path, MigrationErrorKind.PathNotFound)
+
+  def typeMismatch(path: DynamicOptic, expected: String, actual: String): SchemaError =
+    migrationError(path, MigrationErrorKind.TypeMismatch(expected, actual))
+
+  def missingDefault(path: DynamicOptic, fieldName: String): SchemaError =
+    migrationError(path, MigrationErrorKind.MissingDefault(fieldName))
+
+  def transformFailed(path: DynamicOptic, reason: String): SchemaError =
+    migrationError(path, MigrationErrorKind.TransformFailed(reason))
+
+  def fieldNotFound(path: DynamicOptic, fieldName: String): SchemaError =
+    migrationError(path, MigrationErrorKind.FieldNotFound(fieldName))
+
+  def fieldAlreadyExists(path: DynamicOptic, fieldName: String): SchemaError =
+    migrationError(path, MigrationErrorKind.FieldAlreadyExists(fieldName))
+
+  def caseNotFound(path: DynamicOptic, caseName: String): SchemaError =
+    migrationError(path, MigrationErrorKind.CaseNotFound(caseName))
+
+  def invalidValue(path: DynamicOptic, reason: String): SchemaError =
+    migrationError(path, MigrationErrorKind.InvalidValue(reason))
+
+  def mandateFailed(path: DynamicOptic, reason: String): SchemaError =
+    migrationError(path, MigrationErrorKind.MandateFailed(reason))
 }

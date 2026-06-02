@@ -97,15 +97,16 @@ const sidebars = {
                  "reference/schema/allows",
                ]
              },
-             {
-               type: "category",
-               label: "Schema Evolution",
-               link: { type: "doc", id: "reference/schema/schema-evolution/index" },
-               items: [
-                 "reference/schema/schema-evolution/into",
-                 "reference/schema/schema-evolution/as",
-               ]
-             },
+              {
+                type: "category",
+                label: "Schema Evolution",
+                link: { type: "doc", id: "reference/schema/schema-evolution/index" },
+                items: [
+                  "reference/schema/schema-evolution/into",
+                  "reference/schema/schema-evolution/as",
+                  "reference/schema/migration",
+                ]
+              },
              "reference/schema/syntax",
            ]
          },
