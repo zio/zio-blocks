@@ -25,7 +25,9 @@ package zio.blocks.combinators
  *   - same type: keep that type;
  *   - subtype + supertype: keep the supertype;
  *   - siblings sharing a unique meaningful common supertype (e.g. `Dog` and
- *     `Cat` extending sealed `Animal`): keep that supertype;
+ *     `Cat` extending sealed `Animal`): keep that supertype (a supertype is
+ *     ''meaningful'' when it is not a noise type such as `Any`, `AnyRef`,
+ *     `AnyVal`, `Object`, `Product`, or `Serializable`);
  *   - otherwise: widen disjoint values into `Either[L, R]` on Scala 2 (or
  *     produce the native union `L | R` on Scala 3).
  *
