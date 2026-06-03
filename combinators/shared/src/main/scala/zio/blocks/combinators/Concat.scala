@@ -20,8 +20,15 @@ package zio.blocks.combinators
  * Typeclass describing the element type produced by sequential concatenation of
  * values of type `L` and `R`.
  *
- * Same-type and subtype relationships collapse to the wider existing type,
- * while disjoint concatenation is provided by platform-specific derivation.
+ * The derivation rules — implemented per platform — are:
+ *
+ *   - same type: keep that type;
+ *   - subtype + supertype: keep the supertype;
+ *   - siblings sharing a unique meaningful common supertype (e.g. `Dog` and
+ *     `Cat` extending sealed `Animal`): keep that supertype;
+ *   - otherwise: widen disjoint values into `Either[L, R]` on Scala 2 (or
+ *     produce the native union `L | R` on Scala 3).
+ *
  * `Stream.concat` uses [[isIdentityLike]] to decide whether it can reuse
  * elements as-is or must wrap/project them through [[left]] and [[right]].
  *
