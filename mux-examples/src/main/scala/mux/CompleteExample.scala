@@ -37,15 +37,20 @@ import zio.blocks.mux._
   println("Protocol initialized with capacity for 4 concurrent streams\n")
 
   // Open 4 requests (some will be for different routes)
-  val requests = (1 to 4).map { streamId =>
+  val requests = (1 to 4).flatMap { streamId =>
     val route = streamId match {
       case 1 => "GET /api/users"
       case 2 => "GET /api/posts"
       case 3 => "POST /api/users"
       case 4 => "GET /api/comments"
     }
-    val stream = mux.open(streamId).asInstanceOf[MuxStream[Int, String, String]]
-    (streamId, route, stream)
+    mux.open(streamId) match {
+      case s: MuxStream[Int, String, String] =>
+        Some((streamId, route, s))
+      case error: MuxError =>
+        println(s"✗ Failed to open stream $streamId: $error")
+        None
+    }
   }
 
   println("Opened 4 streams for concurrent requests:")
@@ -77,6 +82,8 @@ import zio.blocks.mux._
         println(f"  Stream $id: response delivered")
       case None =>
         println(f"  Stream $id: no message in queue")
+      case error: MuxError =>
+        println(f"  Stream $id: error taking outbound: $error")
     }
   }
 
@@ -88,6 +95,8 @@ import zio.blocks.mux._
         println(f"  Stream $id: received: $response")
       case None =>
         println(f"  Stream $id: no response yet")
+      case error: MuxError =>
+        println(f"  Stream $id: error receiving: $error")
     }
   }
 
@@ -100,13 +109,21 @@ import zio.blocks.mux._
 
   // Now we can open new requests (because we freed capacity)
   println("Capacity freed - opening new streams:")
-  val stream5 = mux.open(5).asInstanceOf[MuxStream[Int, String, String]]
-  stream5.send("PATCH /api/users/3")
-  println(f"  Opened stream 5: PATCH /api/users/3")
+  mux.open(5) match {
+    case stream5: MuxStream[Int, String, String] =>
+      stream5.send("PATCH /api/users/3")
+      println(f"  Opened stream 5: PATCH /api/users/3")
+    case error: MuxError =>
+      println(f"  Failed to open stream 5: $error")
+  }
 
-  val stream6 = mux.open(6).asInstanceOf[MuxStream[Int, String, String]]
-  stream6.send("DELETE /api/posts/2")
-  println(f"  Opened stream 6: DELETE /api/posts/2")
+  mux.open(6) match {
+    case stream6: MuxStream[Int, String, String] =>
+      stream6.send("DELETE /api/posts/2")
+      println(f"  Opened stream 6: DELETE /api/posts/2")
+    case error: MuxError =>
+      println(f"  Failed to open stream 6: $error")
+  }
 
   println(f"Active streams: ${mux.activeCount}\n")
 
@@ -132,7 +149,7 @@ import zio.blocks.mux._
         sendCount += 1
       case _: MuxError =>
         backpressured = true
-        println(f"  Backpressure: queue full after {sendCount} messages\n")
+        println(f"  Backpressure: queue full after $sendCount messages\n")
     }
   }
 

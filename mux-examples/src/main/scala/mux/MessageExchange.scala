@@ -33,8 +33,23 @@ import zio.blocks.mux._
   val mux = Mux[Int, String, String](100)
 
   // Open two streams: one for request, one for response
-  val requestStream  = mux.open(1).asInstanceOf[MuxStream[Int, String, String]]
-  val responseStream = mux.open(2).asInstanceOf[MuxStream[Int, String, String]]
+  val requestStream = mux.open(1) match {
+    case s: MuxStream[Int, String, String] =>
+      println("✓ Request stream opened")
+      s
+    case error: MuxError =>
+      println(s"✗ Failed to open request stream: $error")
+      sys.exit(1)
+  }
+
+  val responseStream = mux.open(2) match {
+    case s: MuxStream[Int, String, String] =>
+      println("✓ Response stream opened")
+      s
+    case error: MuxError =>
+      println(s"✗ Failed to open response stream: $error")
+      sys.exit(1)
+  }
 
   println("Opened two streams for bidirectional communication\n")
 
@@ -77,6 +92,9 @@ import zio.blocks.mux._
       case None =>
         println("   (no more messages)")
         count = 3
+      case error: MuxError =>
+        println(s"   Error draining: $error")
+        count = 3
     }
   }
 
@@ -91,7 +109,7 @@ import zio.blocks.mux._
       case () =>
         sendCount += 1
       case error: MuxError =>
-        println(s"   After {sendCount} sends: $error")
+        println(s"   After $sendCount sends: $error")
         done = true
     }
   }

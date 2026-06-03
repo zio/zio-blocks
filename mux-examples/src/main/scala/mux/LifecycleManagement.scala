@@ -31,7 +31,14 @@ import zio.blocks.mux._
   println("=== Mux Stream Lifecycle ===\n")
 
   val mux    = Mux[Int, String, String](100)
-  val stream = mux.open(1).asInstanceOf[MuxStream[Int, String, String]]
+  val stream = mux.open(1) match {
+    case s: MuxStream[Int, String, String] =>
+      println("✓ Stream 1 opened")
+      s
+    case error: MuxError =>
+      println(s"✗ Failed to open stream: $error")
+      sys.exit(1)
+  }
 
   // --- Initial state: OPEN ---
   println("Initial state: OPEN")
@@ -85,8 +92,14 @@ import zio.blocks.mux._
 
   // --- Explicit close example ---
   println("Example 2: Forcibly closing a stream")
-  val stream2 = mux.open(2).asInstanceOf[MuxStream[Int, String, String]]
-  println(f"  Stream 2 created: isClosed: ${stream2.isClosed}")
+  val stream2 = mux.open(2) match {
+    case s: MuxStream[Int, String, String] =>
+      println(f"  Stream 2 created: isClosed: ${s.isClosed}")
+      s
+    case error: MuxError =>
+      println(s"  Failed to open stream 2: $error")
+      sys.exit(1)
+  }
 
   stream2.close()
   println(f"  Stream 2 closed: isClosed: ${stream2.isClosed}")

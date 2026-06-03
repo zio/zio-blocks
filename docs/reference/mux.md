@@ -33,7 +33,8 @@ Multiplexing allows a single transport connection (TCP, QUIC, WebSocket) to carr
 Without multiplexing, protocols must open a new connection per concurrent operation (HTTP/1.1 with keep-alive), which is expensive and scales poorly. With multiplexing (HTTP/2, QUIC), one connection carries many streams, reducing connection overhead and latency while maintaining logical independence.
 
 `Mux` provides:
-- **Lock-free stream access** — concurrent `open`, `get`, `cancel` operations without contention
+- **Thread-safe stream registry** — concurrent `open`, `get`, `cancel` operations on the registry (lock-based on JVM, lock-free on JS)
+- **Lock-free per-stream queues** — `send()` and `offerInbound()` use lock-free ring buffers on JVM for high-throughput messaging
 - **Separate inbound/outbound queues** — independent message directions, two-way communication
 - **Automatic state machine** — stream lifecycle (OPEN → HALF_CLOSED_LOCAL/REMOTE → CLOSED) with proper half-close semantics
 - **Backpressure** — per-stream and mux-level capacity limits to prevent unbounded buffering
@@ -298,7 +299,7 @@ object MuxError {
 
 **`QueueFull(queueCapacity: Int)`** — Returned by `send` (outbound queue full) or `offerInbound` (inbound queue full) when the per-stream message queue has exhausted its capacity (typically 256). Drain the queue (by calling `takeOutbound()` or `receive()`) to resume sending/receiving.
 
-**`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)` or when `closeAll` executes. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
+**`Cancelled(id: Any, reason: String)`** — Returned when a stream gets cancelled via `mux.cancel(id, reason)`. The `reason` field explains why the stream gets cancelled. Pending `receive()` calls return this error.
 
 **`MuxClosed`** — Set when the mux itself is closed via `closeAll`. After this, `open` returns this error and all active streams transition to CLOSED.
 
