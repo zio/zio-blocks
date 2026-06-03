@@ -120,15 +120,19 @@ Its rules are:
 
 - same type => keep that type
 - subtype + supertype => keep the supertype
-- unrelated types => widen to `Either[L, R]` (the Scala 2 encoding of `L | R`)
+- siblings with a unique meaningful common supertype => keep that supertype (e.g. `Dog` and `Cat` under sealed `Animal` collapse to `Animal`)
+- otherwise (no shared meaningful supertype) => widen to `Either[L, R]` (the Scala 2 encoding of `L | R`)
 
 For example, Scala 2 infers witnesses equivalent to these shapes:
 
 ```scala
 Concat.Concat.WithOut[Int, Int, Int]
 Concat.Concat.WithOut[Dog, Animal, Animal]
+Concat.Concat.WithOut[Dog, Cat, Animal]
 Concat.Concat.WithOut[String, Int, Either[String, Int]]
 ```
+
+A common supertype is "meaningful" when it is something other than the noise types Scala 2's LUB inference produces by default (`Any`, `AnyRef`, `AnyVal`, `Object`, `Product`, `Serializable`, `java.io.Serializable`, `Comparable`). If filtering those parents leaves exactly one candidate, it becomes the result type — and the witness is identity-like, so callers such as `Stream.concat` reuse values bare without wrapping. Zero or multiple meaningful parents fall through to `Either`.
 
 Unlike `Choices`, `Concat` is not usually called directly at runtime. It exists mainly so shared Scala-2 APIs can infer the same public result types that Scala 3 expresses with native unions.
 

@@ -876,9 +876,10 @@ The result type follows the same widening rules as Scala 3 unions:
 
 - identical types stay unchanged (`A ++ A => A`)
 - subtypes widen to the supertype (`Dog ++ Animal => Animal`)
-- unrelated types remain disjoint (`String ++ Int => String | Int`)
+- siblings with a common meaningful supertype widen to that supertype (`Dog ++ Cat => Animal`, when both extend a sealed `Animal`)
+- otherwise the result is a disjoint union (`String ++ Int => String | Int`)
 
-On Scala 3, disjoint concat results are native unions. On Scala 2, the same disjoint concat results are represented as `Either`, while same/subtype cases still collapse to the wider existing type.
+On Scala 3, disjoint concat results are native unions. On Scala 2, the same/subtype and sibling cases collapse to the wider existing type (zero-cost, values are reused as-is); only types without a shared meaningful supertype fall back to `Either[L, R]`.
 
 Evaluation is sequential: the second stream only starts when the first completes:
 

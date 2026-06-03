@@ -68,15 +68,53 @@ object ConcatSpec extends ZIOSpecDefault {
         assertTrue(left == "hello")
       }
     ),
+    suite("meaningful common supertype (siblings)")(
+      test("Concat[Dog, Cat] resolves Out = Animal (shared sealed parent) and is identity-like") {
+        def leftValue[O](d: Dog)(implicit c: Concat.WithOut[Dog, Cat, O]): O   = c.left(d)
+        def rightValue[O](k: Cat)(implicit c: Concat.WithOut[Dog, Cat, O]): O  = c.right(k)
+        def isIdentityFor[O](implicit c: Concat.WithOut[Dog, Cat, O]): Boolean = c.isIdentityLike
+
+        val d             = Dog("Rex")
+        val k             = Cat("Misty")
+        val left: Animal  = leftValue(d)
+        val right: Animal = rightValue(k)
+
+        // Identity-like means concat reuses values bare (no Either wrapping).
+        assertTrue(
+          isIdentityFor,
+          left.asInstanceOf[AnyRef] eq d,
+          right.asInstanceOf[AnyRef] eq k
+        )
+      },
+      test("Concat[Cat, Dog] resolves Out = Animal symmetrically") {
+        def leftValue[O](k: Cat)(implicit c: Concat.WithOut[Cat, Dog, O]): O   = c.left(k)
+        def rightValue[O](d: Dog)(implicit c: Concat.WithOut[Cat, Dog, O]): O  = c.right(d)
+        def isIdentityFor[O](implicit c: Concat.WithOut[Cat, Dog, O]): Boolean = c.isIdentityLike
+
+        val k             = Cat("Misty")
+        val d             = Dog("Rex")
+        val left: Animal  = leftValue(k)
+        val right: Animal = rightValue(d)
+
+        // Reference equality (eq) proves no wrapping/copy occurred.
+        assertTrue(
+          isIdentityFor,
+          left.asInstanceOf[AnyRef] eq k,
+          right.asInstanceOf[AnyRef] eq d
+        )
+      }
+    ),
     suite("unrelated types")(
-      test("Concat[String, Int] resolves Out = Either[String, Int]") {
-        def leftValue[O](implicit c: Concat.WithOut[String, Int, O]): O  = c.left("hello")
-        def rightValue[O](implicit c: Concat.WithOut[String, Int, O]): O = c.right(42)
+      test("Concat[String, Int] resolves Out = Either[String, Int] and wraps values") {
+        def leftValue[O](implicit c: Concat.WithOut[String, Int, O]): O           = c.left("hello")
+        def rightValue[O](implicit c: Concat.WithOut[String, Int, O]): O          = c.right(42)
+        def isIdentityFor[O](implicit c: Concat.WithOut[String, Int, O]): Boolean = c.isIdentityLike
 
         val left: Either[String, Int]  = leftValue
         val right: Either[String, Int] = rightValue
 
-        assertTrue(left == Left("hello"), right == Right(42))
+        // Genuinely disjoint types must wrap via Either; identityLike is false.
+        assertTrue(!isIdentityFor, left == Left("hello"), right == Right(42))
       }
     ),
     suite("two-implicit feasibility gate")(

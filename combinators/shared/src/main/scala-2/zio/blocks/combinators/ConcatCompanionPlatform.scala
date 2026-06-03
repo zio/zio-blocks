@@ -29,6 +29,23 @@ private[combinators] trait ConcatCompanionPlatform extends LowerPriorityConcat {
 
 private[combinators] object ConcatMacros {
 
+  /**
+   * Symbols that, when they appear as the (only) parent of a LUB, do not carry
+   * user-meaningful information. When the meaningful-LUB heuristic filters
+   * parents of a `RefinedType` LUB, parents whose symbol matches any of these
+   * are dropped.
+   */
+  private val NoiseSymbolFullNames: Set[String] = Set(
+    "scala.Any",
+    "scala.AnyRef",
+    "scala.AnyVal",
+    "java.lang.Object",
+    "scala.Product",
+    "scala.Serializable",
+    "java.io.Serializable",
+    "java.lang.Comparable"
+  )
+
   def disjointImpl[L: c.WeakTypeTag, R: c.WeakTypeTag](c: whitebox.Context): c.Tree = {
     import c.universe._
 
@@ -37,6 +54,16 @@ private[combinators] object ConcatMacros {
 
     if (lType =:= rType || lType <:< rType || rType <:< lType)
       c.abort(c.enclosingPosition, s"Concat.disjoint requires disjoint types but $lType and $rType are related")
+
+    // Also reject whenever the higher-priority `derive` can produce an
+    // identity-like Concat via a meaningful common supertype (e.g. Dog & Cat
+    // sharing sealed Animal). Otherwise both implicits would type-check and
+    // implicit search would report an ambiguity instead of preferring derive.
+    if (meaningfulLub(c)(lType, rType).isDefined)
+      c.abort(
+        c.enclosingPosition,
+        s"Concat.disjoint requires disjoint types but $lType and $rType share a meaningful common supertype"
+      )
 
     val outType = appliedType(typeOf[Either[_, _]].typeConstructor, List(lType, rType))
 
@@ -56,35 +83,87 @@ private[combinators] object ConcatMacros {
     val lType = weakTypeOf[L].dealias
     val rType = weakTypeOf[R].dealias
 
-    if (lType =:= rType) {
+    def identityInstance(outType: Type): Tree =
       q"""
         new _root_.zio.blocks.combinators.Concat[$lType, $rType] {
-          type Out = $lType
+          type Out = $outType
           def isIdentityLike: _root_.scala.Boolean = true
-          def left(l: $lType): $lType = l
-          def right(r: $rType): $lType = r
+          def left(l: $lType): $outType  = l: $outType
+          def right(r: $rType): $outType = r: $outType
         }
       """
-    } else if (lType <:< rType) {
-      q"""
-        new _root_.zio.blocks.combinators.Concat[$lType, $rType] {
-          type Out = $rType
-          def isIdentityLike: _root_.scala.Boolean = true
-          def left(l: $lType): $rType = l: $rType
-          def right(r: $rType): $rType = r
-        }
-      """
-    } else if (rType <:< lType) {
-      q"""
-        new _root_.zio.blocks.combinators.Concat[$lType, $rType] {
-          type Out = $lType
-          def isIdentityLike: _root_.scala.Boolean = true
-          def left(l: $lType): $lType = l
-          def right(r: $rType): $lType = r: $lType
-        }
-      """
-    } else {
-      c.abort(c.enclosingPosition, s"Cannot derive Concat for disjoint types $lType and $rType; use Concat.disjoint")
+
+    if (lType =:= rType) identityInstance(lType)
+    else if (lType <:< rType) identityInstance(rType)
+    else if (rType <:< lType) identityInstance(lType)
+    else
+      meaningfulLub(c)(lType, rType) match {
+        case Some(outType) => identityInstance(outType)
+        case None          =>
+          // Aborting rejects this candidate during implicit search so the
+          // lower-priority `disjoint` implicit can be considered. Whether
+          // search ultimately succeeds depends on the caller's expected type.
+          c.abort(
+            c.enclosingPosition,
+            s"No unique meaningful common supertype for $lType and $rType; cannot derive identity-like Concat"
+          )
+      }
+  }
+
+  /**
+   * Returns the meaningful common supertype of `lType` and `rType`, if any.
+   *
+   * Scala 2's `lub` often returns refinements such as `Animal with Product with
+   * Serializable` for two case classes sharing a sealed parent. This helper
+   * strips out "noise" parents (see [[NoiseSymbolFullNames]]) and:
+   *
+   *   - returns `Some(t)` when exactly one meaningful parent remains;
+   *   - returns `None` when zero or multiple meaningful parents remain, leaving
+   *     the disambiguation to the caller (which falls back to `Either[L, R]`
+   *     via the lower-priority `disjoint` implicit).
+   *
+   * Returning `None` for the multiple-parent case is intentional: emitting an
+   * intersection type like `Animal with Mammal` would not satisfy an explicit
+   * request such as `Concat.WithOut[Dog, Cat, Animal]` anyway, so falling
+   * through to `Either` keeps the behavior predictable.
+   */
+  private def meaningfulLub(c: whitebox.Context)(lType: c.Type, rType: c.Type): Option[c.Type] = {
+    import c.universe._
+
+    def normalize(t: Type): Type = t.dealias.widen
+
+    def flattenRefinement(t: Type): List[Type] = normalize(t) match {
+      case RefinedType(parents, _)      => parents.flatMap(flattenRefinement)
+      case AnnotatedType(_, underlying) => flattenRefinement(underlying)
+      case other                        => List(other)
+    }
+
+    def isNoise(t: Type): Boolean = {
+      val sym = normalize(t).typeSymbol
+      sym != NoSymbol && NoiseSymbolFullNames.contains(sym.fullName)
+    }
+
+    def distinctTypes(types: List[Type]): List[Type] =
+      types.foldLeft(List.empty[Type]) { (acc, t) =>
+        if (acc.exists(_ =:= t)) acc else acc :+ t
+      }
+
+    val rawLub = normalize(lub(List(lType, rType)))
+
+    val candidates = distinctTypes(
+      flattenRefinement(rawLub)
+        .map(normalize)
+        .filterNot(isNoise)
+        .filter(t => lType <:< t && rType <:< t)
+    )
+
+    val mostSpecific = candidates.filterNot { t =>
+      candidates.exists(u => !(u =:= t) && u <:< t)
+    }
+
+    mostSpecific match {
+      case one :: Nil => Some(one)
+      case _          => None
     }
   }
 
