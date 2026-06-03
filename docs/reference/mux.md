@@ -6,7 +6,7 @@ title: "Mux"
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`zio-blocks-mux` is a **lock-free multiplexer for ID-multiplexed protocols** (HTTP/2, QUIC, WebSockets with multiplexing, and other stream-based transports). It manages multiple concurrent independent streams over a shared transport, each identified by a unique ID, with separate inbound/outbound message queues and automatic state machine lifecycle management.
+`zio-blocks-mux` is a **high-performance multiplexer for ID-multiplexed protocols** (HTTP/2, QUIC, WebSockets with multiplexing, and other stream-based transports). It manages multiple concurrent independent streams over a shared transport, each identified by a unique ID, with separate inbound/outbound message queues and automatic state machine lifecycle management.
 
 Core types: `Mux`, `MuxStream`, `MuxError`.
 
