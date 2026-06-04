@@ -77,6 +77,17 @@ private[async] object AsyncMacros {
       case other                                                                   => other
     }
 
+    // In the *typed* tree a legitimate `.await` is always the `AsyncOps`
+    // implicit-class method, i.e. `AsyncOps(fa).await`. A `.await` that is NOT
+    // `AsyncOps`-wrapped is some other user method named `await`; the untyped
+    // transform cannot tell them apart (untypecheck strips the wrapper), so we
+    // detect and reject those against the typed tree (see `awaitElemTypes`).
+    def isAsyncOpsWrap(qual: Tree): Boolean = qual match {
+      case Apply(fun, List(_)) if fun.toString.endsWith("AsyncOps")               => true
+      case Apply(TypeApply(fun, _), List(_)) if fun.toString.endsWith("AsyncOps") => true
+      case _                                                                      => false
+    }
+
     object AwaitCall {
       def unapply(t: Tree): Option[Tree] = t match {
         case Select(qual, n) if isAwaitName(n)             => Some(unwrap(qual))
@@ -105,25 +116,54 @@ private[async] object AsyncMacros {
     // (its signature is `def await: A`). We record them in the SAME order the
     // CPS transform consumes them — inner awaits before the enclosing await
     // (because `transform(fa)` runs before the outer `asyncBind`) — and the
-    // transform dequeues one per real `.await`. This lets us ascribe each
-    // generated `flatMap` lambda parameter, which is mandatory for awaited
-    // `Async[Nothing]` (see `asyncBindT`).
+    // transform dequeues one per real `.await`.
+    //
+    // This traversal is also where we reject a non-Async `.await` (a user method
+    // named `await` that is not the `AsyncOps` extension): such a call is not
+    // distinguishable from a real await once the tree is untypechecked.
     val awaitElemTypes: scala.collection.mutable.Queue[Type] = {
-      val q = scala.collection.mutable.Queue.empty[Type]
-      new Traverser {
+      val q                                  = scala.collection.mutable.Queue.empty[Type]
+      def record(tt: Tree, qual: Tree): Unit = {
+        if (!isAsyncOpsWrap(qual))
+          c.abort(
+            tt.pos,
+            "`Async.async` reserves `.await` for `zio.blocks.async.Async`; a different method named `await` is " +
+              "not supported inside the block. Rename it, or move the call outside `Async.async`."
+          )
+        traverse(qual) // inner awaits first (matches transform order)
+        q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
+      }
+      lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
-          case AwaitCall(inner) =>
-            traverse(inner) // inner awaits first (matches transform order)
-            q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
-          case _ => super.traverse(tt)
+          case Select(qual, n) if isAwaitName(n)             => record(tt, qual)
+          case Apply(Select(qual, n), Nil) if isAwaitName(n) => record(tt, qual)
+          case _                                             => super.traverse(tt)
         }
-      }.traverse(body.tree)
+      }
+      def traverse(t: Tree): Unit = traverser.traverse(t)
+      traverse(body.tree)
       q
     }
 
+    /**
+     * The explicit element type for the next real `.await`'s generated
+     * `flatMap` lambda parameter. We only ascribe `Nothing` (e.g.
+     * `Async.fail(_).await`), which Scala 2 refuses to infer ("missing
+     * parameter type"); every other element type infers correctly, and
+     * ascribing a path-dependent / block-local type here would risk leaking
+     * stale typed symbols across the macro's untypecheck/retypecheck boundary.
+     * Underflow means the transform rewrote more `.await`s than were typed — an
+     * internal invariant violation.
+     */
     def nextAwaitTpt(): Tree = {
-      val tpe = if (awaitElemTypes.nonEmpty) awaitElemTypes.dequeue() else NoType
-      if (tpe == null || tpe == NoType || tpe =:= definitions.AnyTpe) TypeTree() else TypeTree(tpe)
+      if (awaitElemTypes.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more `.await`s than were typed; please report this."
+        )
+      val tpe = awaitElemTypes.dequeue()
+      if (tpe != null && tpe != NoType && tpe =:= definitions.NothingTpe) TypeTree(definitions.NothingTpe)
+      else TypeTree()
     }
 
     // ---- pre-flight: reject positions we do not (yet) rewrite ---------------
@@ -224,9 +264,12 @@ private[async] object AsyncMacros {
     def transformBlock(stmts: List[Tree], expr: Tree)(k: Tree => Tree): Tree =
       stmts match {
         case Nil => transform(expr)(k)
-        // A throwaway `val _ = rhs` (`_` is renamed to a synthetic `x$N`):
-        // evaluate `rhs` for its effect / await and discard the value.
-        case (vd: ValDef) :: rest if vd.name == termNames.WILDCARD || vd.name.decodedName.toString.startsWith("x$") =>
+        // A true throwaway `val _ = rhs`: evaluate `rhs` for its effect / await
+        // and discard the value. NOTE: only the genuine wildcard is dropped.
+        // Compiler-synthesized `x$N` vals (e.g. the carrier of a `val (a, b) =`
+        // pattern destructuring) must be BOUND, not dropped — dropping them
+        // breaks subsequent accessors.
+        case (vd: ValDef) :: rest if vd.name == termNames.WILDCARD =>
           transform(vd.rhs)(_ => transformBlock(rest, expr)(k))
         case (vd: ValDef) :: rest =>
           transform(vd.rhs)(v => safe(q"""{ val ${vd.name} = $v; ${transformBlock(rest, expr)(k)} }"""))
@@ -241,9 +284,13 @@ private[async] object AsyncMacros {
       }
       val (head, argLists) = flatten(tree)
       val recvOpt          = head match {
-        case Select(r, _)               => Some(r)
-        case TypeApply(Select(r, _), _) => Some(r)
-        case _                          => None
+        // `new T` is not an ANF-bindable value: a `Select(New(T), <init>)` head
+        // must be kept verbatim and only the constructor arguments transformed.
+        case Select(New(_), _)               => None
+        case TypeApply(Select(New(_), _), _) => None
+        case Select(r, _)                    => Some(r)
+        case TypeApply(Select(r, _), _)      => Some(r)
+        case _                               => None
       }
       val parts = recvOpt.toList ++ argLists.flatten
       transformParts(parts) { vals =>
@@ -392,9 +439,28 @@ private[async] object AsyncMacros {
           case Throw(ex) =>
             transform(ex)(v => q"$AsyncObj.fail($v)")
 
+          // Short-circuiting `&&` / `||` must NOT eagerly evaluate the
+          // right-hand side. An ANF application spine would; rewrite them to
+          // `if` so the RHS (which may await and/or have side effects) runs only
+          // when the left operand demands it.
+          case Apply(Select(lhs, n), List(rhs)) if n.decodedName.toString == "&&" =>
+            transform(lhs)(l => asyncBind(q"if ($l) ${transform(rhs)(pureReturn)} else $AsyncObj.succeed(false)")(k))
+
+          case Apply(Select(lhs, n), List(rhs)) if n.decodedName.toString == "||" =>
+            transform(lhs)(l => asyncBind(q"if ($l) $AsyncObj.succeed(true) else ${transform(rhs)(pureReturn)}")(k))
+
+          case Typed(expr, tpt) if !tpt.isEmpty && !containsAwait(tpt) =>
+            // Preserve a genuine ascription: it can drive overload resolution /
+            // widening. Skip ascriptions whose tree carries an await (e.g. the
+            // `: @unchecked` wrapper the typer synthesizes for `val _ = e`),
+            // which would otherwise replant the await in type position.
+            transform(expr)(v => bind(q"($v: $tpt)")(k))
+
           case Typed(expr, _) =>
-            // Drop the ascription (the inner expression is re-typechecked).
             transform(expr)(k)
+
+          case Assign(lhs, _) if containsAwait(lhs) =>
+            c.abort(lhs.pos, "`.await` in the left-hand side of an assignment is not supported by `Async.async`.")
 
           case Assign(lhs, rhs) =>
             transform(rhs)(v => bind(q"$lhs = $v")(k))
@@ -468,12 +534,23 @@ private[async] object AsyncMacros {
 
     // ---- entry --------------------------------------------------------------
 
-    val prepared = c.untypecheck(boxVars(body.tree).duplicate)
-    val result   =
-      if (!containsAwait(prepared)) q"$AsyncObj.attempt($prepared)"
+    // `awaitElemTypes` is built (and non-Async `.await`s rejected) above, from
+    // the typed body. A body with no `.await` is the zero-suspension fast path:
+    // it never needs var-boxing and collapses to `Async.attempt`.
+    val result =
+      if (awaitElemTypes.isEmpty)
+        q"$AsyncObj.attempt(${c.untypecheck(body.tree.duplicate)})"
       else {
+        val prepared = c.untypecheck(boxVars(body.tree).duplicate)
         precheck(prepared)
-        transform(prepared)(pureReturn)
+        val out = transform(prepared)(pureReturn)
+        if (awaitElemTypes.nonEmpty)
+          c.abort(
+            body.tree.pos,
+            "internal `Async.async` macro error: not all `.await`s were rewritten (unsupported await position); " +
+              "please report this."
+          )
+        out
       }
     // Ascribe the encoded result type (as the Scala 3 backend also does) so any
     // intermediate `Try`-erased value type does not leak into the public type.

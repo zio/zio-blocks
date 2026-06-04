@@ -207,6 +207,37 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }.block
         assertTrue(r == "two")
       }
+    ),
+    // Semantics that a naive ANF transform would silently break (oracle review).
+    suite("short-circuit and binding semantics")(
+      test("`&&` does not evaluate its right operand when the awaited left is false") {
+        var rhsRan = false
+        val r      = Async.async {
+          Async.succeed(false).await && { rhsRan = true; true }
+        }.block
+        assertTrue(!r, !rhsRan)
+      },
+      test("`||` does not evaluate its right operand when the awaited left is true") {
+        var rhsRan = false
+        val r      = Async.async {
+          Async.succeed(true).await || { rhsRan = true; false }
+        }.block
+        assertTrue(r, !rhsRan)
+      },
+      test("`&&` with an awaited right operand short-circuits without awaiting it") {
+        var rhsRan = false
+        val r      = Async.async {
+          Async.succeed(false).await && Async.succeed { rhsRan = true; true }.await
+        }.block
+        assertTrue(!r, !rhsRan)
+      },
+      test("tuple destructuring of an awaited value binds both components") {
+        val r = Async.async {
+          val (a, b) = Async.succeed((3, 4)).await
+          a + b
+        }.block
+        assertTrue(r == 7)
+      }
     )
   )
 }
