@@ -108,3 +108,60 @@ AsyncHybridBench.kyo_hybrid             10  thrpt    5    11832718.364 ±    252
 AsyncHybridBench.kyo_hybrid            100  thrpt    5     1211508.931 ±      94336.192  ops/s
 AsyncHybridBench.zb_hybrid              10  thrpt    5   345482316.810 ±   23779142.762  ops/s
 AsyncHybridBench.zb_hybrid             100  thrpt    5     5615803.646 ±    1638188.894  ops/s
+
+# ── Direct-style `Async.async { ... .await ... }` benchmarks (PLAN §8) ────────
+# Measured separately at `Jmh/run -wi 5 -i 5 -f 1 -t 1 zio.blocks.async.bench.AsyncBlock.*`
+# on the same JDK 21 / JMH 1.37 host. Finding: the DCA direct-style rewrite is
+# zero-allocation and JIT-elidable for straight-line code (single/sequential
+# `val` awaits run at ~1.8-2.2e9 ops/s, matching or beating the hand-written
+# flatMap control). The only allocating shape is a `var` mutated *across* a
+# `.await` inside a `while` loop (zb_asyncAwaitN / *Hybrid): DCA lifts the vars
+# into heap ref-cells + a recursive-flatMap continuation — a fixed ~128 B/op,
+# constant in n (not per-link). The hand-written `*Control` rows avoid this only
+# by building an eagerly-foldable lazy chain of ready values (a different shape).
+AsyncBlockBench.ce_flatMapN                       1  thrpt    5      106110.706 ±     22112.189  ops/s
+AsyncBlockBench.ce_flatMapN                      10  thrpt    5       97853.922 ±     24156.028  ops/s
+AsyncBlockBench.ce_flatMapN                     100  thrpt    5       94646.934 ±     26765.001  ops/s
+AsyncBlockBench.ce_flatMapN                    1000  thrpt    5       39406.036 ±      1537.157  ops/s
+AsyncBlockBench.kyo_flatMapN                      1  thrpt    5   123695323.136 ±   2806226.341  ops/s
+AsyncBlockBench.kyo_flatMapN                     10  thrpt    5    25234752.123 ±    590094.694  ops/s
+AsyncBlockBench.kyo_flatMapN                    100  thrpt    5     2792203.905 ±     28300.172  ops/s
+AsyncBlockBench.kyo_flatMapN                   1000  thrpt    5      240502.895 ±      3161.665  ops/s
+AsyncBlockBench.zb_asyncAwait1                    1  thrpt    5  2195966107.662 ±  21301114.153  ops/s
+AsyncBlockBench.zb_asyncAwait1                   10  thrpt    5  2138935007.114 ± 288704121.001  ops/s
+AsyncBlockBench.zb_asyncAwait1                  100  thrpt    5  2174284727.077 ±  65361156.683  ops/s
+AsyncBlockBench.zb_asyncAwait1                 1000  thrpt    5  2133915243.905 ± 271099926.913  ops/s
+AsyncBlockBench.zb_asyncAwaitN                    1  thrpt    5    91436154.807 ±   3466539.877  ops/s
+AsyncBlockBench.zb_asyncAwaitN                   10  thrpt    5    24557147.919 ±    362452.234  ops/s
+AsyncBlockBench.zb_asyncAwaitN                  100  thrpt    5     1836399.136 ±    136849.541  ops/s
+AsyncBlockBench.zb_asyncAwaitN                 1000  thrpt    5      203029.211 ±      2648.569  ops/s
+AsyncBlockBench.zb_asyncAwaitSeqVals              1  thrpt    5  1800979424.374 ± 186573198.463  ops/s
+AsyncBlockBench.zb_asyncAwaitSeqVals             10  thrpt    5  1819632159.931 ±  39061787.516  ops/s
+AsyncBlockBench.zb_asyncAwaitSeqVals            100  thrpt    5  1842422574.191 ±  17857030.568  ops/s
+AsyncBlockBench.zb_asyncAwaitSeqVals           1000  thrpt    5  1234199930.273 ±  26483283.660  ops/s
+AsyncBlockBench.zb_flatMapControlN                1  thrpt    5  1480390817.022 ±  29177529.001  ops/s
+AsyncBlockBench.zb_flatMapControlN               10  thrpt    5  1489112491.477 ±  11820823.569  ops/s
+AsyncBlockBench.zb_flatMapControlN              100  thrpt    5  1496077505.834 ±  15053902.369  ops/s
+AsyncBlockBench.zb_flatMapControlN             1000  thrpt    5     1668971.551 ±     56873.610  ops/s
+AsyncBlockClosureBench.zb_asyncAwaitInMap         1  thrpt    5   103658507.846 ±   3724124.756  ops/s
+AsyncBlockClosureBench.zb_asyncAwaitInMap        10  thrpt    5    22036220.394 ±    345957.751  ops/s
+AsyncBlockClosureBench.zb_asyncAwaitInMap       100  thrpt    5     1146211.019 ±     10594.025  ops/s
+AsyncBlockClosureBench.zb_flatMapFoldControl      1  thrpt    5   866601177.967 ±  12885593.807  ops/s
+AsyncBlockClosureBench.zb_flatMapFoldControl     10  thrpt    5    93429020.153 ±   2266538.116  ops/s
+AsyncBlockClosureBench.zb_flatMapFoldControl    100  thrpt    5     5510130.182 ±    202370.332  ops/s
+AsyncBlockHybridBench.ce_hybrid                   1  thrpt    5      109030.843 ±      1813.518  ops/s
+AsyncBlockHybridBench.ce_hybrid                  10  thrpt    5      100267.142 ±      2973.935  ops/s
+AsyncBlockHybridBench.ce_hybrid                 100  thrpt    5       70244.930 ±      4863.086  ops/s
+AsyncBlockHybridBench.ce_hybrid                1000  thrpt    5       15537.130 ±       835.548  ops/s
+AsyncBlockHybridBench.kyo_hybrid                  1  thrpt    5    67943831.685 ±   1923720.254  ops/s
+AsyncBlockHybridBench.kyo_hybrid                 10  thrpt    5    13199305.159 ±    327036.379  ops/s
+AsyncBlockHybridBench.kyo_hybrid                100  thrpt    5     1291824.210 ±     36253.604  ops/s
+AsyncBlockHybridBench.kyo_hybrid               1000  thrpt    5      117438.574 ±      2440.233  ops/s
+AsyncBlockHybridBench.zb_asyncAwaitHybrid         1  thrpt    5    35982939.217 ±    249410.229  ops/s
+AsyncBlockHybridBench.zb_asyncAwaitHybrid        10  thrpt    5     8757789.465 ±    162513.996  ops/s
+AsyncBlockHybridBench.zb_asyncAwaitHybrid       100  thrpt    5      873772.082 ±      9895.214  ops/s
+AsyncBlockHybridBench.zb_asyncAwaitHybrid      1000  thrpt    5       96296.181 ±      2900.893  ops/s
+AsyncBlockHybridBench.zb_flatMapHybridControl     1  thrpt    5   369755162.435 ±   5549751.897  ops/s
+AsyncBlockHybridBench.zb_flatMapHybridControl    10  thrpt    5   370457714.494 ±   9660402.348  ops/s
+AsyncBlockHybridBench.zb_flatMapHybridControl   100  thrpt    5     6576657.402 ±    258735.525  ops/s
+AsyncBlockHybridBench.zb_flatMapHybridControl  1000  thrpt    5      576905.422 ±     21294.027  ops/s
