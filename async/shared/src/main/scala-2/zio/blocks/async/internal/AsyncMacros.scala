@@ -96,6 +96,54 @@ private[async] object AsyncMacros {
       }
     }
 
+    // ---- higher-order-function (HOF) closure awaits (Phase 5c) ---------------
+    //
+    // `recv.map(x => ... .await ...)` is rewritten with EAGER semantics: strict
+    // `List.map` applies the CPS-transformed closure to every element first
+    // (building a `List[Async[B]]`), and the awaits are then sequenced
+    // left-to-right via `Async.collectAll` (fail-fast). This matches the Scala 3
+    // cells exactly — DCA's eager `ListAsyncShift` (JVM / older JS) and the
+    // native `js.await` backend (JS 3.8+), where `Array.map(async ...)` likewise
+    // invokes every callback before any await resolves. See `emitHofMap`.
+    //
+    // Supported HOFs are whitelisted by method name here AND validated by
+    // receiver type in `hofElemTypes` (typed pass). Initially: `List.map`.
+    val supportedHofMethods: Set[String] = Set("map")
+
+    /**
+     * Single-argument function literal, unwrapping a `Block(Nil, Function)` that
+     * `untypecheck` occasionally introduces.
+     */
+    object SingleArgFunction {
+      def unapply(t: Tree): Option[(ValDef, Tree)] = t match {
+        case Function(List(p), fbody)            => Some((p, fbody))
+        case Block(Nil, Function(List(p), fbody)) => Some((p, fbody))
+        case _                                   => None
+      }
+    }
+
+    /**
+     * A whitelisted HOF call whose single-argument closure body contains a
+     * `.await`. Matches both the untyped `Apply(Select(recv, m), fn)` shape and
+     * the typed `Apply(TypeApply(Select(recv, m), _), fn)` shape.
+     */
+    object HofAwaitCall {
+      def unapply(t: Tree): Option[(Tree, String, ValDef, Tree)] = t match {
+        case Apply(Select(recv, m), List(fn))                => check(recv, m, fn)
+        case Apply(TypeApply(Select(recv, m), _), List(fn))  => check(recv, m, fn)
+        case _                                               => None
+      }
+      private def check(recv: Tree, m: Name, fn: Tree): Option[(Tree, String, ValDef, Tree)] = {
+        val ms = m.decodedName.toString
+        if (!supportedHofMethods(ms)) None
+        else
+          fn match {
+            case SingleArgFunction(p, fbody) if containsAwait(fbody) => Some((recv, ms, p, fbody))
+            case _                                                   => None
+          }
+      }
+    }
+
     def containsAwait(t: Tree): Boolean = {
       var found = false
       new Traverser {
@@ -145,6 +193,64 @@ private[async] object AsyncMacros {
       q
     }
 
+    // ---- HOF result element types (from the TYPED body, in transform order) --
+    //
+    // For each whitelisted HOF-closure await (e.g. `List[T].map(x => ...await)`)
+    // we record the RESULT element type `B` (so `recv.map(...)` has result
+    // `List[B]`), recovered from the typed call node's `tpe` (`List[B]`). This
+    // is the only rep-aware type the untyped HOF rewrite needs; the closure
+    // parameter type is recovered by binding it to `iterator.next()`.
+    //
+    // This is also where the RECEIVER type is validated: the untyped rewrite is
+    // `List`-specific, so a whitelisted method on a non-`List` receiver is
+    // rejected here (with good positions) rather than producing an opaque
+    // retypecheck error from the emitted `List`-shaped code.
+    val ListAnyTpe: Type = typeOf[List[Any]]
+
+    val hofElemTypes: scala.collection.mutable.Queue[Type] = {
+      val q = scala.collection.mutable.Queue.empty[Type]
+      object TypedHofMap {
+        def unapply(tt: Tree): Option[(Tree, Tree)] = tt match {
+          case Apply(Select(recv, m), List(fn)) if isHof(m, fn)               => Some((recv, fn))
+          case Apply(TypeApply(Select(recv, m), _), List(fn)) if isHof(m, fn) => Some((recv, fn))
+          case _                                                              => None
+        }
+        private def isHof(m: Name, fn: Tree): Boolean =
+          supportedHofMethods(m.decodedName.toString) && (fn match {
+            case SingleArgFunction(_, fbody) => containsAwait(fbody)
+            case _                           => false
+          })
+      }
+      lazy val traverser: Traverser = new Traverser {
+        override def traverse(tt: Tree): Unit = tt match {
+          case TypedHofMap(recv, fn) =>
+            if (recv.tpe == null || !(recv.tpe.dealias.widen <:< ListAnyTpe))
+              c.abort(
+                tt.pos,
+                "`.await` inside a higher-order-function closure is currently supported only for `List` in the " +
+                  "Scala 2 `Async.async` macro (other collections coming); convert the receiver to a `List` first, " +
+                  "or bind the awaited values before the lambda."
+              )
+            val b = if (tt.tpe != null) tt.tpe.dealias.widen.typeArgs.headOption.getOrElse(NoType) else NoType
+            q.enqueue(b)
+            traverse(recv) // nested HOFs in the receiver, in transform order
+            traverse(fn)   // then nested HOFs / awaits in the closure body
+          case _ => super.traverse(tt)
+        }
+      }
+      traverser.traverse(body.tree)
+      q
+    }
+
+    /** The recorded result element type `B` for the next HOF rewrite. */
+    def dequeueHofElem(): Type =
+      if (hofElemTypes.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more HOF closures than were typed; please report this."
+        )
+      else hofElemTypes.dequeue()
+
     /**
      * The explicit element type for the next real `.await`'s generated
      * `flatMap` lambda parameter. We only ascribe `Nothing` (e.g.
@@ -172,6 +278,14 @@ private[async] object AsyncMacros {
       new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
           case AwaitCall(inner)                           => traverse(inner)
+          // A supported HOF closure (`recv.map(x => ...await)`) is rewritten, not
+          // rejected. Recurse into the receiver and the closure BODY so any
+          // nested unsupported position (a further plain lambda, a local def,
+          // etc.) is still caught — but do not descend into the `Function` node
+          // itself, which would trip the generic function-literal rejection.
+          case HofAwaitCall(recv, _, _, fbody)            =>
+            traverse(recv)
+            traverse(fbody)
           case Function(_, fbody) if containsAwait(fbody) =>
             c.abort(
               tt.pos,
@@ -250,6 +364,34 @@ private[async] object AsyncMacros {
 
     /** Terminal continuation: lift a pure value into a ready `Async`. */
     val pureReturn: Tree => Tree = v => q"$AsyncObj.succeed($v)"
+
+    /**
+     * Rewrite `recvVal.map(pname => fbody-with-await)` (receiver already a bound
+     * `List` value) with EAGER semantics producing `Async[List[B]]`, then
+     * continue with `k`.
+     *
+     * Strict `List.map` applies the closure to EVERY element first — running all
+     * construction-time side effects and ready-await fast paths — to build a
+     * `List[Async[B]]`; the resulting `Async` values are then sequenced
+     * left-to-right by [[zio.blocks.async.Async.collectAll]], which is fail-fast
+     * (the first failure short-circuits the rest). This matches the Scala 3
+     * cells exactly: dotty-cps-async's eager `ListAsyncShift` and the JS-native
+     * `js.await` backend, where `Array.map(async ...)` likewise invokes every
+     * callback before any await resolves.
+     */
+    def emitHofMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type)(k: Tree => Tree): Tree = {
+      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      // The closure body is CPS-transformed to an `Async[B]`; strict `List.map`
+      // applies it to every element, yielding `List[Async[B]]`, which
+      // `Async.collectAll` then sequences (fail-fast).
+      val bodyA = transform(fbody)(pureReturn)
+      val effects =
+        q"""$recvVal.map(${lamT(pname, TypeTree(), q"$bodyA.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]]")})"""
+      val collected =
+        if (bTpe != null && bTpe != NoType) q"$AsyncObj.collectAll[$bTpt]($effects)"
+        else q"$AsyncObj.collectAll($effects)"
+      asyncBind(safe(collected))(k)
+    }
 
     // ---- the transform ------------------------------------------------------
 
@@ -444,6 +586,14 @@ private[async] object AsyncMacros {
 
           case Throw(ex) =>
             transform(ex)(v => q"$AsyncObj.fail($v)")
+
+          // HOF-closure await (Phase 5c): `recv.map(x => ...await)`. Dequeue the
+          // result element type `B` (recorded from the typed tree, in this same
+          // order), transform the receiver, then emit the eager strict-map +
+          // `collectAll` rewrite. Must precede the generic application-spine case.
+          case HofAwaitCall(recv, _, param, fbody) =>
+            val bTpe = dequeueHofElem()
+            transform(recv)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
 
           // Short-circuiting `&&` / `||` must NOT eagerly evaluate the
           // right-hand side. An ANF application spine would; rewrite them to

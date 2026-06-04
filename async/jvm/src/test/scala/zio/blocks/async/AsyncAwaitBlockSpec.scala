@@ -18,6 +18,8 @@ package zio.blocks.async
 
 import zio.test._
 
+import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
+
 /**
  * JVM, cross-version semantics for the direct-style [[Async.async]] block.
  * Every `.await` inside the block is rewritten into a non-blocking
@@ -36,6 +38,15 @@ import zio.test._
 object AsyncAwaitBlockSpec extends ZIOSpecDefault {
 
   private val Boom: Throwable = new RuntimeException("boom")
+
+  private val scheduler = Executors.newSingleThreadScheduledExecutor()
+
+  /** A genuinely-pending [[Async]] that completes with `x` ~5ms later. */
+  private def pending(x: Int): Async[Int] = {
+    val cf = new CompletableFuture[Int]()
+    scheduler.schedule(new Runnable { def run(): Unit = { cf.complete(x); () } }, 5, TimeUnit.MILLISECONDS)
+    AsyncInterop.fromCompletionStage(cf)
+  }
 
   def spec = suite("AsyncAwaitBlockSpec")(
     suite("plain .await positions")(
@@ -237,6 +248,43 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
           a + b
         }.block
         assertTrue(r == 7)
+      }
+    ),
+    // `.await` inside a `List.map` closure has EAGER semantics on every backend
+    // (dotty-cps-async + native `js.await` on Scala 3, `internal.AsyncMacros` on
+    // Scala 2): strict `List.map` applies the closure to every element first,
+    // producing `List[Async[B]]`, and the awaits are then sequenced
+    // left-to-right via `Async.collectAll` (fail-fast on the first failure).
+    // This matches how `Array.map(async ...)` composes in real JavaScript.
+    suite("List.map with .await in the closure")(
+      test("maps over ready awaits") {
+        val r = Async.async {
+          List(1, 2, 3).map(i => Async.succeed(i + 1).await).sum
+        }.block
+        assertTrue(r == 9)
+      },
+      test("maps over genuinely-pending awaits") {
+        val r = Async.async {
+          List(10, 20, 30).map(i => pending(i).await).sum
+        }.block
+        assertTrue(r == 60)
+      },
+      test("preserves element order and result type") {
+        val r = Async.async {
+          List(1, 2, 3).map(i => Async.succeed(i * 10).await)
+        }.block
+        assertTrue(r == List(10, 20, 30))
+      },
+      test("the closure applies eagerly to all elements, then awaits sequence fail-fast") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).map { i =>
+            seen = i :: seen
+            if (i == 2) Async.fail(Boom).await else Async.succeed(i).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(3, 2, 1))
       }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific

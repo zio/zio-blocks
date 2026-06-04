@@ -145,6 +145,29 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 15))
       }
+    ),
+    // EAGER `List.map` semantics: the closure applies to every element first
+    // (building `List[Async[B]]`), then the awaits sequence left-to-right via
+    // `Async.collectAll` (fail-fast). Identical to the Scala 3 JS cells.
+    suite("List.map with .await in the closure")(
+      test("maps over ready awaits") {
+        val prog = Async.async(List(1, 2, 3).map(i => Async.succeed(i * 10).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(10, 20, 30)))
+      },
+      test("maps over genuinely-pending awaits, in order") {
+        val prog = Async.async(List(1, 2, 3).map(i => pending(i * 10).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(10, 20, 30)))
+      },
+      test("the closure applies eagerly to all elements, then awaits sequence fail-fast") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3).map { i =>
+            seen = i :: seen
+            if (i == 2) pendingFail[Int](Boom).await else pending(i).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2, 1)))
+      }
     )
   )
 }

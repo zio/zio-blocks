@@ -84,6 +84,23 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("a body that throws propagates the throwable") {
       val prog = Async.async[Int]((throw Boom): Int)
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
+    },
+    test("List.map with ready awaits in the closure") {
+      val prog = Async.async(List(1, 2, 3).map(i => Async.succeed(i * 10).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(10, 20, 30)))
+    },
+    test("List.map closure applies eagerly, then awaits sequence fail-fast") {
+      // Strict `List.map` applies the closure to every element (so `seen`
+      // observes 1,2,3), producing `List[Async[B]]`; the awaits are then
+      // sequenced left-to-right and the i==2 failure short-circuits the result.
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3).map { i =>
+          seen = i :: seen
+          if (i == 2) Async.fail(Boom).await else Async.succeed(i).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2, 1)))
     }
   )
 }

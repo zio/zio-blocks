@@ -160,12 +160,20 @@ A failure encountered by `.await` short-circuits the block and surfaces as a
 failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
 is equivalent to `Async.fail(t)`.
 
+`.await` is also supported inside a `List.map` closure (e.g.
+`xs.map(x => f(x).await)`) on every backend. The semantics are **eager**: strict
+`List.map` applies the closure to every element first — running all
+construction-time side effects — producing a `List[Async[B]]`, and the awaits are
+then sequenced left-to-right via `Async.collectAll` (fail-fast on the first
+failure). This is identical across Scala 2/3 and JVM/JS, and mirrors how
+`Array.map(async ...)` composes in JavaScript.
+
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
-> `throw`, and assignments, but **rejects** `.await` inside a function literal /
-> higher-order-function argument (e.g. `xs.map(x => f(x).await)`) and inside
+> `throw`, assignments, and `List.map` closures, but **rejects** `.await` inside
+> other function literals / higher-order-function arguments and inside
 > for-comprehensions, with an actionable compile error. These positions are
-> supported on Scala 3. Support for them on Scala 2 is in progress.
+> supported on Scala 3. Support for more of them on Scala 2 is in progress.
 
 ## The callback bridge: `Async.promise`
 
@@ -246,7 +254,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); Scala 2 macro does not yet support `.await` in HOF closures / for-comprehensions |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List.map` closures is supported everywhere (eager); other HOF closures / for-comprehensions are Scala 3 only for now |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
