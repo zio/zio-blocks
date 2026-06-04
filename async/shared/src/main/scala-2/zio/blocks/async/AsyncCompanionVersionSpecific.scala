@@ -16,6 +16,8 @@
 
 package zio.blocks.async
 
+import scala.language.experimental.macros
+
 /**
  * Scala 2 sliver of the [[Async]] companion: [[promise]] takes a
  * `Completer[A] => Unit` body, so callers write
@@ -41,18 +43,20 @@ private[async] trait AsyncCompanionVersionSpecific {
     Async.promiseInternal(body)
 
   /**
-   * Eagerly evaluate `body`, capturing a thrown [[Throwable]] as
+   * Direct-style await block. Inside `body`, callers may write `.await` on any
+   * `Async[X]` to extract its value; the body returns the final `A`, which
+   * becomes the resulting `Async[A]`. Exceptions thrown by the body — including
+   * the rethrow from a `.await` of a failed `Async` — surface as
    * [[Async.fail]].
    *
-   * On Scala 2 there is no direct-style `.block` operator yet (the
-   * Scala 2 macro arrives in a later phase), so this block currently behaves
-   * like [[Async.attempt]]: it runs straight-line, synchronous code and lifts
-   * the result (or a thrown exception) into `Async`. The Scala 3 sibling
-   * rewrites `.block` calls inside the block into a non-blocking
-   * `flatMap` chain via dotty-cps-async; the Scala 2 macro will reach the same
-   * semantics.
+   * The block is rewritten at compile time by
+   * [[zio.blocks.async.internal.AsyncMacros.asyncImpl]]: every `.await` becomes
+   * a non-blocking `flatMap`/`map` chain over our single `Async` monad (a
+   * single-monad CPS/ANF transform, in the scala-async / monadless tradition).
+   * Awaits run in strict source order; a body with no `.await` collapses to
+   * [[Async.attempt]] (the zero-suspension fast path). `.await` is lexically
+   * restricted to this block — using it anywhere else is a compile error (see
+   * `AsyncSyntaxVersionSpecific.await`).
    */
-  def async[A](body: => A): Async[A] =
-    try Async.succeed(body)
-    catch { case t: Throwable => Async.fail(t) }
+  def async[A](body: A): Async[A] = macro internal.AsyncMacros.asyncImpl[A]
 }

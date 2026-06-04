@@ -17,6 +17,7 @@
 package zio.blocks.async
 
 import zio.blocks.combinators.Tuples.Tuples
+import scala.annotation.compileTimeOnly
 
 /**
  * Scala 2 surface for [[Async]]: an `implicit class` of ops on `Async[A]` and
@@ -75,6 +76,21 @@ private[async] trait AsyncSyntaxVersionSpecific {
         AsyncSlowPath.awaitSuspended[A](r.asInstanceOf[Pollable[A]])
       else r.asInstanceOf[A]
     }
+
+    /**
+     * Direct-style await: extract the value of `fa` within an enclosing
+     * `Async.async { ... }` block. This is a marker — the `Async.async` macro
+     * ([[zio.blocks.async.internal.AsyncMacros]]) rewrites every `.await` into
+     * a non-blocking `flatMap`/`map` chain, so a legal `.await` never survives
+     * to code generation. Used anywhere else, the `@compileTimeOnly` annotation
+     * turns the surviving call into a compile error.
+     *
+     * Scala 2 expands macros bottom-up, so `.await` cannot itself be a macro
+     * (it would abort before the enclosing `async` macro could rewrite it);
+     * `@compileTimeOnly` on a plain method gives the same lexical guarantee.
+     */
+    @compileTimeOnly("`.await` may only be used directly inside an `Async.async { ... }` block.")
+    def await: A = throw new IllegalStateException("`.await` was not rewritten by `Async.async`.")
 
     def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C] = {
       val ra: Any = fa

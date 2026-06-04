@@ -53,9 +53,9 @@ import kyo.{Async => _, *}
  *     runtime). Uses the `inline` extension methods exposed via
  *     `import zio.blocks.async.*`.
  *   - '''kyo''' — Kyo (`A < S` pending-type carrier).
- *   - '''ce''' — Cats Effect IO (boxed effect tree + `block`).
+ *   - '''ce''' — Cats Effect IO (boxed effect tree + `unsafeRunSync()`).
  *
- * The `ce_*` numbers include the fixed cost of `block()` per op;
+ * The `ce_*` numbers include the fixed cost of `unsafeRunSync()` per op;
  * [[AsyncChainBench]] amortizes that cost over many ops.
  *
  * ==Optimization history (zb)==
@@ -105,7 +105,7 @@ class AsyncBench {
   }
 
   @Benchmark def ce_succeed(): Int =
-    IO.pure(x).block()
+    IO.pure(x).unsafeRunSync()
 
   // ---- map1: lift + 1 map + run --------------------------------------------
 
@@ -118,7 +118,7 @@ class AsyncBench {
   }
 
   @Benchmark def ce_map1(): Int =
-    IO.pure(x).map(_ + 1).block()
+    IO.pure(x).map(_ + 1).unsafeRunSync()
 
   // ---- flatMap1: lift + 1 flatMap + run ------------------------------------
 
@@ -131,7 +131,7 @@ class AsyncBench {
   }
 
   @Benchmark def ce_flatMap1(): Int =
-    IO.pure(x).flatMap(v => IO.pure(v + 1)).block()
+    IO.pure(x).flatMap(v => IO.pure(v + 1)).unsafeRunSync()
 }
 
 /**
@@ -189,7 +189,7 @@ class AsyncChainBench {
       io = io.map(_ + 1)
       i += 1
     }
-    io.block()
+    io.unsafeRunSync()
   }
 
   // ---- flatMapN ------------------------------------------------------------
@@ -221,7 +221,7 @@ class AsyncChainBench {
       io = io.flatMap(v => IO.pure(v + 1))
       i += 1
     }
-    io.block()
+    io.unsafeRunSync()
   }
 }
 
@@ -271,7 +271,7 @@ class AsyncErrorBench {
   }
 
   @Benchmark def ce_fail(): Either[Throwable, Int] =
-    IO.raiseError[Int](boom).attempt.block()
+    IO.raiseError[Int](boom).attempt.unsafeRunSync()
 
   // ---- catchAll on failure: fail-then-recover ------------------------------
 
@@ -290,7 +290,7 @@ class AsyncErrorBench {
   }
 
   @Benchmark def ce_catchAllOnFail(): Int =
-    IO.raiseError[Int](boom).handleError(_ => x).block()
+    IO.raiseError[Int](boom).handleError(_ => x).unsafeRunSync()
 
   // ---- catchAll on success: succeed (no recovery) --------------------------
 
@@ -298,7 +298,7 @@ class AsyncErrorBench {
     Async.succeed(x).catchAll(_ => Async.succeed(0)).block
 
   @Benchmark def ce_catchAllOnSuccess(): Int =
-    IO.pure(x).handleError(_ => 0).block()
+    IO.pure(x).handleError(_ => 0).unsafeRunSync()
 
   // ---- attempt: wrap a possibly-throwing block -----------------------------
 
@@ -306,7 +306,7 @@ class AsyncErrorBench {
     Async.attempt(x + 1).block
 
   @Benchmark def ce_attemptSuccess(): Int =
-    IO.delay(x + 1).block()
+    IO.delay(x + 1).unsafeRunSync()
 
   // ---- mapError: transform the cause ---------------------------------------
 
@@ -319,7 +319,7 @@ class AsyncErrorBench {
       .asInstanceOf[Either[Throwable, Int]]
 
   @Benchmark def ce_mapError(): Either[Throwable, Int] =
-    IO.raiseError[Int](boom).adaptError(t => new RuntimeException("wrapped", t)).attempt.block()
+    IO.raiseError[Int](boom).adaptError(t => new RuntimeException("wrapped", t)).attempt.unsafeRunSync()
 
   // ---- orElse: fallback on failure -----------------------------------------
 
@@ -327,7 +327,7 @@ class AsyncErrorBench {
     Async.fail(boom).orElse(Async.succeed(x)).block
 
   @Benchmark def ce_orElseRecovers(): Int =
-    IO.raiseError[Int](boom).orElse(IO.pure(x)).block()
+    IO.raiseError[Int](boom).orElse(IO.pure(x)).unsafeRunSync()
 
   // ---- foldCause: cover both branches in one pass --------------------------
 
@@ -385,7 +385,7 @@ class AsyncCombinatorBench {
     Async.succeed(x).zipWith(Async.succeed(x + 1))(_ + _).block
 
   @Benchmark def ce_zipWith(): Int =
-    IO.pure(x).flatMap(a => IO.pure(x + 1).map(b => a + b)).block()
+    IO.pure(x).flatMap(a => IO.pure(x + 1).map(b => a + b)).unsafeRunSync()
 
   @Benchmark def kyo_zipWith(): Int = {
     val fa: Int < Any = x
@@ -415,7 +415,7 @@ class AsyncCombinatorBench {
       acc = acc.flatMap(t => h.map(_ :: t))
       rem = rem.tail
     }
-    acc.block().size
+    acc.unsafeRunSync().size
   }
 
   @Benchmark def kyo_collectAll(): Int = {
@@ -442,7 +442,7 @@ class AsyncCombinatorBench {
 
   @Benchmark def ce_tap(): Int = {
     var sink = 0
-    IO.pure(x).flatTap(v => IO.delay { sink = v }).block() + sink
+    IO.pure(x).flatTap(v => IO.delay { sink = v }).unsafeRunSync() + sink
   }
 
   @Benchmark def zb_ensuring(): Int = {
@@ -452,7 +452,7 @@ class AsyncCombinatorBench {
 
   @Benchmark def ce_ensuring(): Int = {
     var sink = 0
-    IO.pure(x).guarantee(IO.delay { sink = 1 }).block() + sink
+    IO.pure(x).guarantee(IO.delay { sink = 1 }).unsafeRunSync() + sink
   }
 
   // ---- as, unit, *>, <* ----------------------------------------------------
@@ -461,25 +461,25 @@ class AsyncCombinatorBench {
     Async.succeed(x).as("k").block
 
   @Benchmark def ce_as(): String =
-    IO.pure(x).as("k").block()
+    IO.pure(x).as("k").unsafeRunSync()
 
   @Benchmark def zb_unit(): Unit =
     Async.succeed(x).unit.block
 
   @Benchmark def ce_unit(): Unit =
-    IO.pure(x).void.block()
+    IO.pure(x).void.unsafeRunSync()
 
   @Benchmark def zb_zipRight(): Int =
     (Async.succeed(x) *> Async.succeed(x + 1)).block
 
   @Benchmark def ce_zipRight(): Int =
-    (IO.pure(x) *> IO.pure(x + 1)).block()
+    (IO.pure(x) *> IO.pure(x + 1)).unsafeRunSync()
 
   @Benchmark def zb_zipLeft(): Int =
     (Async.succeed(x) <* Async.succeed(x + 1)).block
 
   @Benchmark def ce_zipLeft(): Int =
-    (IO.pure(x) <* IO.pure(x + 1)).block()
+    (IO.pure(x) <* IO.pure(x + 1)).unsafeRunSync()
 }
 
 /**
@@ -521,7 +521,7 @@ class AsyncAsyncOpBench {
     Async.promiseInternal[Int](c => c.succeed(x)).block
 
   @Benchmark def ce_asyncSync(): Int =
-    IO.async_[Int](cb => cb(Right(x))).block()
+    IO.async_[Int](cb => cb(Right(x))).unsafeRunSync()
 
   // Kyo counterpart intentionally omitted: Kyo's `<` carrier does not
   // distinguish a "completes synchronously inside a callback" path from a
@@ -590,7 +590,7 @@ class AsyncHybridBench {
     io = io.flatMap(v => IO.async_[Int](cb => cb(Right(v + 1))))
     i = 0
     while (i < n) { io = io.flatMap(v => IO.pure(v + 1)); i += 1 }
-    io.block()
+    io.unsafeRunSync()
   }
 
   @Benchmark def kyo_hybrid(): Int = {

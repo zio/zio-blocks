@@ -1521,14 +1521,15 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     ),
     // dotty-cps-async powers the direct-style `Async.async { ... .await ... }`
     // rewrite on every Scala 3 cell except JS 3.8+ (which uses native
-    // `js.async`/`js.await`). Scala 2 uses a hand-written macro (a later phase)
-    // and must not pull DCA onto its classpath. The `_3` artifact (built against
-    // 3.3.7) is consumed on 3.8.x via LTS forward compatibility.
+    // `js.async`/`js.await`). Scala 2 uses a hand-written `scala-reflect` macro
+    // (`internal.AsyncMacros`) and must not pull DCA onto its classpath. The
+    // `_3` artifact (built against 3.3.7) is consumed on 3.8.x via LTS forward
+    // compatibility.
     libraryDependencies ++= {
-      if (scalaBinaryVersion.value == "3")
-        Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.3")
-      else
-        Seq.empty
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.3")
+        case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      }
     },
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0

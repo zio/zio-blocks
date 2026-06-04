@@ -19,18 +19,19 @@ package zio.blocks.async
 import zio.test._
 
 /**
- * JVM Scala 3 semantics for the direct-style [[Async.async]] block. Every
- * `.await` inside the block is rewritten by dotty-cps-async into a non-blocking
- * `flatMap`/`map` chain; the resulting `Async` is driven with [[Async.block]]
- * (the escape hatch) at the test boundary.
+ * JVM, cross-version semantics for the direct-style [[Async.async]] block.
+ * Every `.await` inside the block is rewritten into a non-blocking
+ * `flatMap`/`map` chain — by dotty-cps-async on Scala 3, by
+ * `internal.AsyncMacros` on Scala 2 — and the resulting `Async` is driven with
+ * [[Async.block]] (the escape hatch) at the test boundary.
+ *
+ * This single spec compiling and passing identically on both Scala 2.13 and
+ * Scala 3 JVM is what keeps the direct-style API honest across versions.
  *
  * JVM-only because it uses `.block` to extract results synchronously. The JS
  * direct-style path (DCA on Scala 3.3.7, native `js.async`/`js.await` on Scala
  * 3.8+) cannot block, so it is covered by the Future-based `AsyncJsAwaitSpec`.
  * The truly-pending / non-blocking-rewrite proof lives in `AsyncRewriteSpec`.
- *
- * Scala 3 only: the Scala 2 macro arrives in a later phase, so the shared
- * cross-version specs (`AsyncSpec`, `AsyncErrorSpec`, …) never use `.await`.
  */
 object AsyncAwaitBlockSpec extends ZIOSpecDefault {
 

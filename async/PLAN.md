@@ -333,7 +333,25 @@ phase across the cells supported by that phase.
   Caveat recorded in `build.sbt`: a direct `Async[Unit].await` expanding to
   `js.await(Promise[Unit])` can fail to compile on 3.8.3; revisit when 3.8.4 is
   stable.
-- **Phase 5 (Scala 2 direct-style macro):** Not started.
+- **Phase 5 (Scala 2 direct-style macro):** ✅ Complete (initial coverage).
+  `Async.async { ... }` is a `scala-reflect` def-macro (`internal.AsyncMacros`)
+  performing a single-monad CPS/ANF rewrite of `.await` into non-blocking
+  `flatMap`/`map`/`catchAll` chains over our one `Async` monad. `.await` is a
+  `@compileTimeOnly` marker that the macro consumes; using it outside an
+  `Async.async` block is a compile error. Supported positions: sequential
+  `val`/statements, `if`/`else`, `match`, `while`, `try`/`catch`/`finally`,
+  `throw`, assignment, and arbitrary application spines; awaits inside function
+  literals, local defs/classes, `lazy val`, `synchronized`, and pattern/catch
+  guards are explicitly rejected with actionable messages. Mutable block-local
+  `var`s crossing an await are boxed into `scala.runtime.*Ref` cells (pre-pass)
+  so generated closures only capture immutable vals. Await element types are
+  recovered from the typed `body.tree` and used to ascribe each generated
+  `flatMap` lambda parameter — mandatory for awaited `Async[Nothing]` (e.g.
+  `Async.fail(_).await`), which Scala 2 otherwise refuses to infer ("missing
+  parameter type"). Validated green across all six cells (JVM/JS × 2.13.18 /
+  3.3.7 / 3.8.3); `AsyncAwaitBlockSpec` is the cross-version JVM direct-style
+  suite. Remaining: broaden coverage (nested data-flow, comprehensions) and
+  the JS Scala 2 direct-style path.
 
 ### Phase 0 — Foundation rename (1–2 weeks)
 

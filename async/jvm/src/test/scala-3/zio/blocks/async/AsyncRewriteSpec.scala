@@ -23,8 +23,11 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * Proves the Scala 3 `Async.async { ... .await ... }` rewrite is real — i.e.
  * dotty-cps-async turns `.await` into a non-blocking `flatMap`/`map` chain
- * rather than the blocking [[Async.block]] escape hatch — and that `.await` is
- * lexically restricted to the block.
+ * rather than the blocking [[Async.block]] escape hatch.
+ *
+ * The lexical restriction (`.await` outside `Async.async` is a compile error)
+ * is checked separately in `AsyncAwaitCompileErrorSpec` (under `scala-3.4+`,
+ * because `scala.compiletime.testing.typeChecks` is unavailable on 3.3.x).
  *
  * JVM-only because the "pending await did not block construction" assertion
  * needs threads. (On JS the rewrite is identical, but it cannot be probed this
@@ -33,14 +36,6 @@ import java.util.concurrent.atomic.AtomicReference
 object AsyncRewriteSpec extends ZIOSpecDefault {
 
   def spec = suite("AsyncRewriteSpec")(
-    test("`.await` outside `Async.async` is a compile error") {
-      assertTrue(
-        !typeChecks("""
-          import zio.blocks.async.*
-          val n = Async.succeed(1).await
-        """)
-      )
-    },
     test("a pending `.await` is rewritten to a non-blocking chain (construction does not block)") {
       val cRef        = new AtomicReference[Completer[Int]]()
       val pending     = Async.promiseInternal[Int](c => cRef.set(c))
