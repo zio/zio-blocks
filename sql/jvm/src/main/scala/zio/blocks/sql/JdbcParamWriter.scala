@@ -46,10 +46,8 @@ private[sql] class JdbcParamWriter(val underlying: PreparedStatement) extends Db
 
   def setLocalTime(index: Int, value: java.time.LocalTime): Unit = underlying.setObject(index, value)
 
-  def setInstant(index: Int, value: java.time.Instant): Unit = {
-    val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
-    underlying.setTimestamp(index, java.sql.Timestamp.from(value), cal)
-  }
+  def setInstant(index: Int, value: java.time.Instant): Unit =
+    underlying.setObject(index, java.time.LocalDateTime.ofInstant(value, java.time.ZoneOffset.UTC))
 
   def setDuration(index: Int, value: java.time.Duration): Unit = underlying.setString(index, value.toString)
 
