@@ -319,6 +319,25 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(2, 1))
       }
+    ),
+    // Single-generator for-comprehensions over a `List` desugar to `.map` (with
+    // `yield`) or `.foreach` (without) before any backend sees them, so they
+    // inherit the same await semantics for free on every cell.
+    suite("for-comprehension over a List with .await")(
+      test("`for ... yield` desugars to eager List.map") {
+        val r = Async.async {
+          (for (i <- List(1, 2, 3)) yield Async.succeed(i * 10).await).sum
+        }.block
+        assertTrue(r == 60)
+      },
+      test("`for { ... }` (no yield) desugars to lazy List.foreach") {
+        var acc = 0
+        val r   = Async.async {
+          for (i <- List(1, 2, 3)) acc += Async.succeed(i).await
+          acc
+        }.block
+        assertTrue(r == 6, acc == 6)
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
