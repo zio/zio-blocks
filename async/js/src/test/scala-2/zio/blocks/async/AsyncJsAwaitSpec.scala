@@ -208,6 +208,15 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
           } yield pending(i + j).await
         }
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(11, 21, 12, 22)))
+      },
+      test("for-comprehension guard (withFilter) is honored before the await") {
+        val prog = Async.async {
+          for {
+            i <- List(1, 2, 3, 4)
+            if i % 2 == 0
+          } yield pending(i * 10).await
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(20, 40)))
       }
     )
   )

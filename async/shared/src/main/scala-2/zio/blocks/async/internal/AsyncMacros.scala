@@ -135,6 +135,52 @@ private[async] object AsyncMacros {
       }
     }
 
+    /** The erased `List[Any]` type, used to validate HOF receivers. */
+    val ListAnyTpe: Type = typeOf[List[Any]]
+
+    /**
+     * A (possibly nested) `recv.withFilter(g)` chain — the desugaring of
+     * for-comprehension guards (`for { x <- xs if g(x) } ...` becomes
+     * `xs.withFilter(x => g(x)).map/flatMap/foreach(...)`). Unwraps to the
+     * underlying receiver and the guards in source order (outermost last), so
+     * `xs.withFilter(a).withFilter(b)` yields `(xs, List(a, b))`.
+     */
+    object WithFilterChain {
+      def unapply(t: Tree): Option[(Tree, List[Tree])] = t match {
+        case Apply(Select(inner, n), List(g)) if n.decodedName.toString == "withFilter" =>
+          inner match {
+            case WithFilterChain(base, gs) => Some((base, gs :+ g))
+            case _                         => Some((inner, List(g)))
+          }
+        case _ => None
+      }
+    }
+
+    /**
+     * Is `recv` a `List` (the only collection the HOF rewrite supports) or a
+     * `withFilter` chain over a `List`? For-comprehension guards desugar to the
+     * latter; we materialize them to a strict `filter` before the HOF rewrite.
+     */
+    def isListLikeReceiver(recv: Tree): Boolean = {
+      val underlying = recv match {
+        case WithFilterChain(base, _) => base
+        case _                        => recv
+      }
+      underlying.tpe != null && underlying.tpe.dealias.widen <:< ListAnyTpe
+    }
+
+    /**
+     * Replace `recv.withFilter(g)` chains with strict `recv.filter(g)` so the
+     * emitted HOF rewrite can iterate the (now eager `List`) receiver. The guard
+     * is pure (awaits in a guard are rejected by `precheck`), so `withFilter` and
+     * `filter` agree on the result; we only lose `withFilter`'s laziness, which
+     * is unobservable here because we consume the whole collection anyway.
+     */
+    def defilterReceiver(recv: Tree): Tree = recv match {
+      case WithFilterChain(base, guards) => guards.foldLeft(base)((acc, g) => q"$acc.filter($g)")
+      case _                             => recv
+    }
+
     /**
      * A whitelisted HOF call whose single-argument closure body contains a
      * `.await`. Matches both the untyped `Apply(Select(recv, m), fn)` shape and
@@ -214,12 +260,10 @@ private[async] object AsyncMacros {
     // is the only rep-aware type the untyped HOF rewrite needs; the closure
     // parameter type is recovered by binding it to `iterator.next()`.
     //
-    // This is also where the RECEIVER type is validated: the untyped rewrite is
-    // `List`-specific, so a whitelisted method on a non-`List` receiver is
-    // rejected here (with good positions) rather than producing an opaque
-    // retypecheck error from the emitted `List`-shaped code.
-    val ListAnyTpe: Type = typeOf[List[Any]]
-
+    // This is also where the RECEIVER type is validated (via `isListLikeReceiver`):
+    // the untyped rewrite is `List`-specific, so a whitelisted method on a
+    // non-`List` receiver is rejected here (with good positions) rather than
+    // producing an opaque retypecheck error from the emitted `List`-shaped code.
     val hofElemTypes: scala.collection.mutable.Queue[Type] = {
       val q = scala.collection.mutable.Queue.empty[Type]
       object TypedHofMap {
@@ -237,12 +281,12 @@ private[async] object AsyncMacros {
       lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
           case TypedHofMap(recv, fn) =>
-            if (recv.tpe == null || !(recv.tpe.dealias.widen <:< ListAnyTpe))
+            if (!isListLikeReceiver(recv))
               c.abort(
                 tt.pos,
-                "`.await` inside a higher-order-function closure is currently supported only for `List` in the " +
-                  "Scala 2 `Async.async` macro (other collections coming); convert the receiver to a `List` first, " +
-                  "or bind the awaited values before the lambda."
+                "`.await` inside a higher-order-function closure is currently supported only for `List` (and " +
+                  "for-comprehension guards over a `List`) in the Scala 2 `Async.async` macro (other collections " +
+                  "coming); convert the receiver to a `List` first, or bind the awaited values before the lambda."
               )
             val b = if (tt.tpe != null) tt.tpe.dealias.widen.typeArgs.headOption.getOrElse(NoType) else NoType
             q.enqueue(b)
@@ -696,11 +740,14 @@ private[async] object AsyncMacros {
           // `collectAll`) or lazy sequential `foreach`. Must precede the generic
           // application-spine case.
           case HofAwaitCall(recv, m, param, fbody) =>
-            val bTpe = dequeueHofElem()
+            val bTpe  = dequeueHofElem()
+            // Materialize any for-comprehension guard (`xs.withFilter(g)`) into a
+            // strict `xs.filter(g)` so the emitted rewrite can iterate a `List`.
+            val recv0 = defilterReceiver(recv)
             m match {
-              case "foreach" => transform(recv)(recvVal => emitHofForeach(recvVal, param.name, fbody)(k))
-              case "flatMap" => transform(recv)(recvVal => emitHofFlatMap(recvVal, param.name, fbody, bTpe)(k))
-              case _         => transform(recv)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
+              case "foreach" => transform(recv0)(recvVal => emitHofForeach(recvVal, param.name, fbody)(k))
+              case "flatMap" => transform(recv0)(recvVal => emitHofFlatMap(recvVal, param.name, fbody, bTpe)(k))
+              case _         => transform(recv0)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
             }
 
           // Short-circuiting `&&` / `||` must NOT eagerly evaluate the

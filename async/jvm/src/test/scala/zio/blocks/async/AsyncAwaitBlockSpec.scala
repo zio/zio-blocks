@@ -380,7 +380,30 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
           } yield Async.succeed(i + j).await
         }.block
         assertTrue(r == List(11, 21, 12, 22))
+      },
+      test("guard (`if`) desugars to withFilter and is honored before the await") {
+        val r = Async.async {
+          for {
+            i <- List(1, 2, 3, 4)
+            if i % 2 == 0
+          } yield Async.succeed(i * 10).await
+        }.block
+        assertTrue(r == List(20, 40))
+      },
+      test("guard plus multi-generator") {
+        val r = Async.async {
+          for {
+            i <- List(1, 2, 3)
+            if i != 2
+            j <- List(10, 20)
+          } yield Async.succeed(i + j).await
+        }.block
+        assertTrue(r == List(11, 21, 13, 23))
       }
+      // NOTE: *multiple* guards (`if ... if ...`, i.e. chained `withFilter`) are
+      // supported by the Scala 2 macro but NOT by dotty-cps-async on Scala 3
+      // (it has no `AsyncShift[WithFilter]` for a nested `withFilter`), so that
+      // case is a Scala-2-only superset covered in `AsyncAwaitValAscriptionSpec`.
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

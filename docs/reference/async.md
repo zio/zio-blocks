@@ -178,7 +178,8 @@ backends exactly):
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` into these methods, single- and multi-generator
 `for` comprehensions with `.await` work too (`for ... yield` → `map`; nested
-generators → `flatMap`/`map`; `for { ... }` without `yield` → `foreach`):
+generators → `flatMap`/`map`; `for { ... }` without `yield` → `foreach`; a guard
+`if` → `withFilter`):
 
 ```scala
 val pairs: Async[List[Int]] = Async.async {
@@ -192,11 +193,16 @@ val pairs: Async[List[Int]] = Async.async {
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
 > `throw`, assignments, `List.map` / `List.foreach` / `List.flatMap` closures, and
-> the for-comprehensions that desugar to them, but **rejects** `.await` inside
-> other function literals / higher-order-function arguments (and HOFs over
-> collections other than `List`), with an actionable compile error. Those
-> positions are supported on Scala 3. Support for more of them on Scala 2 is in
-> progress.
+> the for-comprehensions that desugar to them (including single and multiple
+> guards), but **rejects** `.await` inside other function literals /
+> higher-order-function arguments (and HOFs over collections other than `List`),
+> with an actionable compile error. Those positions are supported on Scala 3.
+> Support for more of them on Scala 2 is in progress.
+>
+> Conversely, the Scala 2 macro handles *multiple* for-comprehension guards
+> (chained `withFilter`), which dotty-cps-async on Scala 3 currently rejects — a
+> rare case where Scala 2 is a strict superset. Single guards behave identically
+> on every cell.
 
 ## The callback bridge: `Async.promise`
 
