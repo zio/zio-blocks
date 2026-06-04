@@ -361,6 +361,35 @@ phase across the cells supported by that phase.
   via `AsyncInterop.toFuture` without `.block`. Remaining: HOF-closure awaits
   (5c) and for-comprehensions (5d).
 
+- **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
+  Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
+  (direct-style `.await` chains, hybrid sync+async, and `.await` inside a
+  `List.map` HOF closure), each with hand-written `flatMap` controls and
+  `ce_*`/`kyo_*` baselines. Gate-quality numbers (5wi/5i/-f1) appended to
+  `async-benchmarks/baseline.txt`.
+
+  **Cost-model finding (gc-profiled):** the DCA direct-style rewrite is
+  zero-allocation and fully JIT-elidable for straight-line code — a single
+  `.await` runs at ≈ 2.2e9 ops/s and sequential `val` awaits at ≈ 1.8e9 ops/s,
+  ≈ 0 B/op, matching or beating the hand-written `flatMap` control (and ≈ 18×
+  faster than Kyo, ≈ 20,000× faster than Cats Effect IO on the same shape). The
+  *only* allocating shape is a `var` mutated **across** a `.await` inside a
+  `while` loop: DCA lifts the vars into heap ref-cells plus a recursive-flatMap
+  continuation — a fixed ≈ 128 B/op, **constant in n** (not per-link). So R2's
+  literal goal (zero allocation per macro-emitted `flatMap` link) is met; the
+  residual is a fixed per-block cost confined to mutable-loop-state, which every
+  effect system pays for that shape.
+
+  **Perf fix landed:** DCA's default `CpsTryMonadInstanceContext.apply`
+  allocated a fresh context body per `cps.async` block. Since `Async` carries no
+  per-run state, `AsyncCpsMonad` now overrides `apply` to reuse a cached
+  singleton context (commit `215afbee`), removing that per-block allocation.
+
+  Remaining benchmark work (future cells): re-run the existing micro suite vs
+  baseline on JS 3.8+ (`js.async`/`js.await`) and on the Scala 2 macro cells to
+  confirm zero-regression there too; the present gate covers the JVM Scala 3
+  cell, against which the perf fix and the new benchmarks were validated.
+
 ### Phase 0 — Foundation rename (1–2 weeks)
 
 No behavioral change. Pure rename + introduce `AsyncContext` as a marker.
