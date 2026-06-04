@@ -518,7 +518,7 @@ assertion declares its expected outcome **per cell**:
 | `match` scrutinee or arm with `.await` | Behavior. All 6 cells. |
 | `throw` inside async block | Behavior: propagates as failure. All 6 cells. |
 | `.await` of a `Failure` | Behavior: throws underlying cause at the `.await` point. All 6 cells. |
-| `.await` inside `xs.map(_)`  closure | JVM: blocks (fallback); JS 3.8.4+: compile error; JS 3.3.7: compile error or runtime throw depending on DCA position; Scala 2 (after macro): same as Scala 3 per platform. |
+| `.await` inside `xs.map(_)`  closure | **CORRECTED (empirically verified, 2026-06):** JVM Scala 3 (DCA): non-blocking shifted `AsyncShift` traversal (NOT blocking); JS 3.8+: **works** non-blocking — `js.await` suspends on the *dynamic extent* of the enclosing `js.async`, so a `js.await` inside a synchronously-invoked `List.map` closure compiles, links, and runs (verified on 3.8.3 with both ready and genuinely-pending values; the original "compile error" prediction was false); JS 3.3.7 (DCA): DCA shift, same as JVM. Therefore the **Phase 5c parity target is non-blocking HOF-closure await on all cells**, and the Scala 2 macro must rewrite `recv.hof(closure-with-await)` into a non-blocking sequential `flatMap` traversal (per-collection), NOT a blocking fallback. |
 | `for (x <- xs) yield x.await` | Same as HOF closure but for-comprehension shape. |
 | `.await` outside `Async.async` block | All 6 cells: **compile error** ("no implicit AsyncContext"). |
 | `.await` inside a nested local def | DCA: requires the compiler plugin (we don't enable it) → compile error or surprising behavior; document. |
