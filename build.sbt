@@ -1494,7 +1494,10 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // Direct-style implementation selection on JS:
     //   - Scala 3.8+ → native `js.async`/`js.await` (faster than DCA on JS).
     //   - Scala 3.x < 3.8 → DCA (older Scala 3 lacks `js.async`/`js.await`).
-    //   - Scala 2 → none yet (the Scala 2 macro is a later phase).
+    //   - Scala 2 → the shared `scala-2` def-macro (`internal.AsyncMacros`)
+    //     emits a platform-neutral flatMap chain, so no JS-specific source dir
+    //     is needed; JS behavior is covered by
+    //     `js/src/test/scala-2/.../AsyncJsAwaitSpec`.
     //
     // Intentionally validated on the repo default Scala 3.8.3 rather than
     // bumping BuildHelper.Scala3 to 3.8.4-RC1. 3.8.4 fixes the narrow

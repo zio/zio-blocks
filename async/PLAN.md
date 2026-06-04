@@ -354,8 +354,12 @@ phase across the cells supported by that phase.
   intAsync.await`) — a Scala-2-specific behavior covered by the scala-2-only
   `AsyncAwaitValAscriptionSpec`, because dotty-cps-async instead pushes the
   val's expected type into `.await` (`await[Long](intAsync)`, which does not
-  compile), so the two backends diverge here by design. Remaining: HOF-closure
-  awaits (5c), for-comprehensions (5d), and the JS Scala 2 direct-style path.
+  compile), so the two backends diverge here by design. The JS Scala 2
+  direct-style path is covered by `js/src/test/scala-2/.../AsyncJsAwaitSpec`,
+  which proves a genuinely pending await (a `Completer` fired from a queued
+  microtask) suspends and resumes through the macro-generated `flatMap` chain
+  via `AsyncInterop.toFuture` without `.block`. Remaining: HOF-closure awaits
+  (5c) and for-comprehensions (5d).
 
 ### Phase 0 — Foundation rename (1–2 weeks)
 
