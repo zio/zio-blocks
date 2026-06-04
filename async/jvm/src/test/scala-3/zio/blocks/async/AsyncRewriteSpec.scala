@@ -79,6 +79,34 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
         catch { case _: RuntimeException => 42 }
       }
       assertTrue(fa.block == 42)
+    },
+    test("try/catch over a pending await drives CpsTryMonad's suspended success path") {
+      // A genuinely-pending await inside try/catch routes through
+      // AsyncCpsMonad.flatMapTry's Pollable branch (map/catchAll reification),
+      // not the ready-Failure fast path the previous test exercises.
+      val cRef    = new AtomicReference[Completer[Int]]()
+      val pending = Async.promiseInternal[Int](c => cRef.set(c))
+      val fa      = Async.async {
+        try pending.await + 1
+        catch { case _: RuntimeException => -1 }
+      }
+      val worker = new Thread(() => { Thread.sleep(25); cRef.get().succeed(41) })
+      worker.setDaemon(true)
+      worker.start()
+      assertTrue(fa.block == 42)
+    },
+    test("try/catch over a pending await that fails recovers via the handler") {
+      val boom    = new RuntimeException("late")
+      val cRef    = new AtomicReference[Completer[Int]]()
+      val pending = Async.promiseInternal[Int](c => cRef.set(c))
+      val fa      = Async.async {
+        try pending.await
+        catch { case _: RuntimeException => 7 }
+      }
+      val worker = new Thread(() => { Thread.sleep(25); cRef.get().fail(boom) })
+      worker.setDaemon(true)
+      worker.start()
+      assertTrue(fa.block == 7)
     }
   )
 }

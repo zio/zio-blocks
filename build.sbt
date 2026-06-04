@@ -1534,8 +1534,17 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
         case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       }
     },
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // JVM scoverage floor (JS coverage is disabled repo-wide in jsSettings).
+    // Measured JVM coverage: Scala 3.8.3 = 93.35% stmt / 91.61% branch,
+    // Scala 2.13.18 = 95.84% / 93.55%. The Scala 3 cell is the floor because it
+    // additionally compiles the dotty-cps-async bridge (`internal/AsyncDirect`,
+    // `AsyncCpsMonad`, `AsyncRuntimeAwait`), whose macro markers / error
+    // messages run at compile time (not runtime-instrumentable) and whose HOF
+    // blocking fallback only fires when DCA has no AsyncShift. The remaining
+    // residual is dead-via-guard defensive branches and Completer CAS-retry
+    // races — see async/COVERAGE_DOCS_AUDIT.md for the per-line classification.
+    coverageMinimumStmtTotal   := 92,
+    coverageMinimumBranchTotal := 89
   )
 
 lazy val `async-benchmarks` = project
