@@ -190,6 +190,25 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
       }
+    ),
+    // LAZY accumulating `List.flatMap`, and multi-generator for-comprehensions
+    // (nested flatMap/map), with genuinely-pending awaits.
+    suite("List.flatMap with .await in the closure")(
+      test("accumulates genuinely-pending awaits in order") {
+        val prog = Async.async {
+          List(1, 2, 3).flatMap(i => List(pending(i * 10).await))
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(10, 20, 30)))
+      },
+      test("multi-generator for-comprehension desugars to nested flatMap/map") {
+        val prog = Async.async {
+          for {
+            i <- List(1, 2)
+            j <- List(10, 20)
+          } yield pending(i + j).await
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(11, 21, 12, 22)))
+      }
     )
   )
 }

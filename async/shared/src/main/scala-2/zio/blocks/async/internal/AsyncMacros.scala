@@ -113,10 +113,15 @@ private[async] object AsyncMacros {
     //     short-circuits the rest. Matches DCA's sequential
     //     `IterableAsyncShift.foreach` and the JS-native loop suspension. See
     //     `emitHofForeach`.
+    //   - `List.flatMap`: LAZY / sequential (like `foreach`) but accumulating —
+    //     each element's closure yields an `IterableOnce[B]` that is concatenated
+    //     into the result `List[B]`. The closure for element `n+1` runs only
+    //     after element `n`'s await completes; a failed await short-circuits the
+    //     rest. Enables multi-generator for-comprehensions. See `emitHofFlatMap`.
     //
     // Supported HOFs are whitelisted by method name here AND validated by
     // receiver type in `hofElemTypes` (typed pass).
-    val supportedHofMethods: Set[String] = Set("map", "foreach")
+    val supportedHofMethods: Set[String] = Set("map", "foreach", "flatMap")
 
     /**
      * Single-argument function literal, unwrapping a `Block(Nil, Function)` that
@@ -441,6 +446,55 @@ private[async] object AsyncMacros {
       asyncBind(loop)(k)
     }
 
+    /**
+     * Rewrite `recvVal.flatMap(pname => fbody-with-await)` (receiver already a
+     * bound `List` value) with LAZY / sequential semantics producing
+     * `Async[List[B]]`, then continue with `k`.
+     *
+     * Like `foreach`, the closure for element `n+1` runs only after element `n`'s
+     * await completes successfully (so effects and awaits are strictly
+     * left-to-right and a failure short-circuits the rest), but each closure
+     * yields an `IterableOnce[B]` that is concatenated into the result. A tight
+     * `while` accumulates ready elements; the first suspended element switches to
+     * a `flatMap` continuation.
+     */
+    def emitHofFlatMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type)(k: Tree => Tree): Tree = {
+      val drain      = fresh("drainFlatMap$")
+      val it         = fresh("it$")
+      val buf        = fresh("buf$")
+      val r0         = fresh("r$")
+      val x0         = fresh("x$")
+      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val bodyA      = transform(fbody)(pureReturn)
+      val whileBody  = q"""
+        {
+          while ($it.hasNext) {
+            val $pname   = $it.next()
+            val $r0: Any = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.collection.IterableOnce[$bTpt]]])
+                .flatMap { ($x0: _root_.scala.collection.IterableOnce[$bTpt]) =>
+                  $buf ++= $x0
+                  $drain()
+                }
+            }
+            $buf ++= $r0.asInstanceOf[_root_.scala.collection.IterableOnce[$bTpt]]
+          }
+          $AsyncObj.succeed($buf.toList)
+        }
+      """
+      val loop       = q"""
+        {
+          val $it  = $recvVal.iterator
+          val $buf = _root_.scala.collection.mutable.ListBuffer.empty[$bTpt]
+          def $drain(): _root_.zio.blocks.async.Async[_root_.scala.collection.immutable.List[$bTpt]] =
+            ${safe(whileBody)}
+          $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -645,6 +699,7 @@ private[async] object AsyncMacros {
             val bTpe = dequeueHofElem()
             m match {
               case "foreach" => transform(recv)(recvVal => emitHofForeach(recvVal, param.name, fbody)(k))
+              case "flatMap" => transform(recv)(recvVal => emitHofFlatMap(recvVal, param.name, fbody, bTpe)(k))
               case _         => transform(recv)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
             }
 

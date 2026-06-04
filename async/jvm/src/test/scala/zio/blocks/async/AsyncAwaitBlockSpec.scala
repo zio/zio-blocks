@@ -320,9 +320,43 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         assertTrue(thrown.contains(Boom), seen == List(2, 1))
       }
     ),
+    // `.await` inside a `List.flatMap` closure has LAZY/sequential semantics (the
+    // closure for element n+1 runs only after element n's await completes, with
+    // fail-fast short-circuiting), but accumulates each closure's `IterableOnce`
+    // into the result `List`. Matches every Scala 3 backend.
+    suite("List.flatMap with .await in the closure")(
+      test("accumulates ready awaits in order") {
+        val r = Async.async {
+          List(1, 2, 3).flatMap { i =>
+            val x = Async.succeed(i).await
+            List(x, x * 10)
+          }
+        }.block
+        assertTrue(r == List(1, 10, 2, 20, 3, 30))
+      },
+      test("accumulates genuinely-pending awaits in order") {
+        val r = Async.async {
+          List(1, 2, 3).flatMap(i => List(pending(i * 10).await))
+        }.block
+        assertTrue(r == List(10, 20, 30))
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).flatMap { i =>
+            seen = i :: seen
+            if (i == 2) { Async.fail(Boom).await; List(i) }
+            else List(Async.succeed(i).await)
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      }
+    ),
     // Single-generator for-comprehensions over a `List` desugar to `.map` (with
-    // `yield`) or `.foreach` (without) before any backend sees them, so they
-    // inherit the same await semantics for free on every cell.
+    // `yield`) or `.foreach` (without), and multi-generator ones to nested
+    // `.flatMap`/`.map`, before any backend sees them — so they inherit the same
+    // await semantics for free on every cell.
     suite("for-comprehension over a List with .await")(
       test("`for ... yield` desugars to eager List.map") {
         val r = Async.async {
@@ -337,6 +371,15 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
           acc
         }.block
         assertTrue(r == 6, acc == 6)
+      },
+      test("multi-generator `for ... yield` desugars to nested flatMap/map") {
+        val r = Async.async {
+          for {
+            i <- List(1, 2)
+            j <- List(10, 20)
+          } yield Async.succeed(i + j).await
+        }.block
+        assertTrue(r == List(11, 21, 12, 22))
       }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
