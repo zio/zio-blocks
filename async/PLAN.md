@@ -382,16 +382,24 @@ phase across the cells supported by that phase.
       closure's `IterableOnce` into the result `List`. Scala 2 emits
       `emitHofFlatMap`. This enables multi-generator for-comprehensions.
   The HOF transform dispatches per method name; receiver type is validated as
-  `List` in the typed pass. **For-comprehensions over `List` (Phase 5d) work for
-  free** because Scala desugars them into these methods before any backend sees
-  them (`for…yield` → `map`; nested generators → `flatMap`/`map`; `for{…}` w/o
-  yield → `foreach`); covered by cross-version + cross-platform tests.
+  `List` (or a `withFilter` chain over a `List`) in the typed pass.
+  **For-comprehensions over `List` (Phase 5d) work for free** because Scala
+  desugars them into these methods before any backend sees them (`for…yield` →
+  `map`; nested generators → `flatMap`/`map`; `for{…}` w/o yield → `foreach`;
+  guard `if` → `withFilter`); covered by cross-version + cross-platform tests.
+  **Guards (commit `275af367`):** the Scala 2 macro recognizes `withFilter` chains
+  and materializes them to a strict `filter` before the HOF rewrite
+  (`WithFilterChain` / `defilterReceiver`). Single guards behave identically on
+  all six cells (DCA via `WithFilterSubstAsyncShift`; js-native via desugaring).
+  *Multiple* chained guards are a **Scala-2-only superset** — DCA lacks
+  `AsyncShift[WithFilter]` for a nested `withFilter` and compile-errors — covered
+  by the Scala-2-only `AsyncAwaitScala2HofSpec`, divergence documented.
   A hidden custom DCA `AsyncShift` to *override* a backend's chosen semantics was
   investigated and rejected: DCA does not pick up a lexically-imported shift given
   (resolves shifts via its own macro-internal mechanism), and overriding would
   also fight the JS-native platform — so the contract is "match what the backends
-  already do, per HOF." Remaining 5c: more HOFs (`filter`/`withFilter` for
-  guards, `collect`, etc.) and other collections (`Vector`, `Option`, `Map`, …).
+  already do, per HOF." Remaining 5c: other collections (`Vector`, `Option`,
+  `Map`, …) and more HOFs (`collect`, etc.).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
