@@ -358,8 +358,28 @@ phase across the cells supported by that phase.
   direct-style path is covered by `js/src/test/scala-2/.../AsyncJsAwaitSpec`,
   which proves a genuinely pending await (a `Completer` fired from a queued
   microtask) suspends and resumes through the macro-generated `flatMap` chain
-  via `AsyncInterop.toFuture` without `.block`. Remaining: HOF-closure awaits
-  (5c) and for-comprehensions (5d).
+  via `AsyncInterop.toFuture` without `.block`.
+
+- **Phase 5c (HOF-closure awaits):** 🚧 In progress — `List.map` landed (commit
+  `cca71275`). `.await` inside a `List.map` closure is now supported on **all
+  six cells** with **EAGER** semantics, unified across backends. Empirically
+  (2026-06) BOTH Scala 3 backends already produce eager semantics — DCA's
+  built-in `ListAsyncShift` applies the closure to every element first (building
+  `List[Async[B]]`) and then sequences, and the native `js.await` backend does
+  the same because strict `List.map` invokes every callback synchronously (just
+  like `Array.map(async ...)` in JavaScript, which yields an array of promises).
+  The earlier plan target of a "non-blocking *sequential* flatMap traversal" was
+  therefore the denotational **outlier** (it would skip later closures after an
+  early failure); the Scala 2 macro was changed to conform to eager via
+  `recv.map(closure).collectAll` (`AsyncMacros.emitHofMap`). Oracle-confirmed
+  that eager is the more compositional reading of strict `map`
+  (`xs.map(x => f(x).await) == Async.collectAll(xs.map(x => f(x)))`). A hidden
+  custom DCA `AsyncShift` to force *lazy* semantics was investigated and
+  rejected: DCA does not pick up a lexically-imported shift given (resolves
+  shifts via its own macro-internal mechanism), and forcing lazy would also
+  require fighting the JS-native platform. Remaining 5c: more HOFs (`foreach`,
+  `flatMap`, `filter`, other collections) per per-collection whitelist.
+  Remaining: for-comprehensions (5d).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
@@ -518,7 +538,7 @@ assertion declares its expected outcome **per cell**:
 | `match` scrutinee or arm with `.await` | Behavior. All 6 cells. |
 | `throw` inside async block | Behavior: propagates as failure. All 6 cells. |
 | `.await` of a `Failure` | Behavior: throws underlying cause at the `.await` point. All 6 cells. |
-| `.await` inside `xs.map(_)`  closure | **CORRECTED (empirically verified, 2026-06):** JVM Scala 3 (DCA): non-blocking shifted `AsyncShift` traversal (NOT blocking); JS 3.8+: **works** non-blocking — `js.await` suspends on the *dynamic extent* of the enclosing `js.async`, so a `js.await` inside a synchronously-invoked `List.map` closure compiles, links, and runs (verified on 3.8.3 with both ready and genuinely-pending values; the original "compile error" prediction was false); JS 3.3.7 (DCA): DCA shift, same as JVM. Therefore the **Phase 5c parity target is non-blocking HOF-closure await on all cells**, and the Scala 2 macro must rewrite `recv.hof(closure-with-await)` into a non-blocking sequential `flatMap` traversal (per-collection), NOT a blocking fallback. |
+| `.await` inside `xs.map(_)`  closure | **DONE for `List.map` (commit `cca71275`); semantics CORRECTED to EAGER (empirically verified, 2026-06):** all six cells produce identical eager semantics. JVM/old-JS Scala 3 (DCA): built-in `ListAsyncShift` applies the closure to every element first (building `List[Async[B]]`), then sequences. JS 3.8+ (native `js.await`): same, because strict `List.map` invokes every callback synchronously (`Array.map(async ...)` yields an array of promises). The Scala 2 macro (`AsyncMacros.emitHofMap`) was changed to conform: `recv.map(closure).collectAll` — strict eager map + fail-fast `Async.collectAll`. The earlier "non-blocking *sequential* flatMap traversal" target was the denotational outlier (lazy) and was abandoned. A hidden custom DCA shift to force lazy was rejected (DCA ignores lexically-imported shift givens; lazy would also fight the JS-native platform). Remaining: more HOFs (`foreach`/`flatMap`/`filter`, other collections). |
 | `for (x <- xs) yield x.await` | Same as HOF closure but for-comprehension shape. |
 | `.await` outside `Async.async` block | All 6 cells: **compile error** ("no implicit AsyncContext"). |
 | `.await` inside a nested local def | DCA: requires the compiler plugin (we don't enable it) → compile error or surprising behavior; document. |
