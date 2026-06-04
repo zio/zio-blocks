@@ -33,9 +33,9 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  *     to a raw value or an [[Async.fail]] when possible; otherwise they
  *     construct a [[Completer]]-backed [[Async]] whose waker is fired by the
  *     future's callback.
- *   - Conversions TO a future use the [[Async]] surface — `.block` on a
- *     worker thread (Scala `Future`) or a chained completion (CompletionStage
- *     via `.flatMap`) — and propagate the eventual outcome.
+ *   - Conversions TO a future use the [[Async]] surface — `.block` on a worker
+ *     thread (Scala `Future`) or a chained completion (CompletionStage via
+ *     `.flatMap`) — and propagate the eventual outcome.
  *
  * Scala.js has analogous wrappers in its own `AsyncInterop`.
  */

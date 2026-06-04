@@ -19,13 +19,12 @@ package zio.blocks.async
 import zio.test._
 
 import java.util.concurrent.atomic.AtomicReference
-import scala.compiletime.testing.typeChecks
 
 /**
  * Proves the Scala 3 `Async.async { ... .await ... }` rewrite is real — i.e.
  * dotty-cps-async turns `.await` into a non-blocking `flatMap`/`map` chain
- * rather than the blocking [[Async.block]] escape hatch — and that
- * `.await` is lexically restricted to the block.
+ * rather than the blocking [[Async.block]] escape hatch — and that `.await` is
+ * lexically restricted to the block.
  *
  * JVM-only because the "pending await did not block construction" assertion
  * needs threads. (On JS the rewrite is identical, but it cannot be probed this

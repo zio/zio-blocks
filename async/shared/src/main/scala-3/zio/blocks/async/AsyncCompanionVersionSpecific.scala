@@ -53,8 +53,8 @@ private[async] trait AsyncCompanionVersionSpecific {
    * [[Async.fail]].
    *
    * The block is rewritten at compile time by
-   * [[zio.blocks.async.internal.AsyncDirectMacros.asyncImpl]]: each `.await`
-   * becomes a dotty-cps-async `cps.await`, and the whole body is wrapped in a
+   * [[zio.blocks.async.internal.AsyncDirect.asyncImpl]]: each `.await` becomes
+   * a dotty-cps-async `cps.await`, and the whole body is wrapped in a
    * `cps.async[Async]`, producing a non-blocking `flatMap`/`map` chain. Where a
    * `.await` sits in a position DCA cannot rewrite (e.g. an unshifted
    * higher-order lambda), the JVM falls back to blocking; on JS it is a compile
@@ -64,5 +64,5 @@ private[async] trait AsyncCompanionVersionSpecific {
    * a compile error.
    */
   transparent inline def async[A](inline body: A): Async[A] =
-    ${ zio.blocks.async.internal.AsyncDirectMacros.asyncImpl[A]('body) }
+    ${ zio.blocks.async.internal.AsyncDirect.asyncImpl[A]('body) }
 }

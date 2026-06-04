@@ -22,8 +22,8 @@ import zio.test._
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * JVM-only behavior: `.block` parks the calling thread on the
- * `ReentrantLock` parker until another thread completes the value.
+ * JVM-only behavior: `.block` parks the calling thread on the `ReentrantLock`
+ * parker until another thread completes the value.
  *
  * Scala.js has no thread to park, so these scenarios deliberately throw
  * `IllegalStateException` there and are excluded from the shared suite.

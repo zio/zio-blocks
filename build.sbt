@@ -1475,19 +1475,47 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.async"))
   .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // DCA direct-style implementation: every Scala 3.x JVM build uses it.
+    Compile / unmanagedSourceDirectories ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) =>
+          Seq(baseDirectory.value.getParentFile / "shared" / "src" / "main" / "scala-3-dca")
+        case _ => Seq.empty
+      }
+    }
+  )
+  .jsSettings(
+    jsSettings,
+    // Target ES2017 so Scala.js can emit native async/await (`js.async`/
+    // `js.await`), used by the Scala 3.8+ direct-style implementation.
+    scalaJSLinkerConfig ~= { _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017)) },
+    // Direct-style implementation selection on JS:
+    //   - Scala 3.8+ → native `js.async`/`js.await` (faster than DCA on JS).
+    //   - Scala 3.x < 3.8 → DCA (older Scala 3 lacks `js.async`/`js.await`).
+    //   - Scala 2 → none yet (the Scala 2 macro is a later phase).
+    Compile / unmanagedSourceDirectories ++= {
+      val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
+      val jsMain     = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 8 => Seq(jsMain / "scala-3.8")
+        case Some((3, _))           => Seq(sharedMain / "scala-3-dca")
+        case _                      => Seq.empty
+      }
+    }
+  )
   .dependsOn(combinators)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    // dotty-cps-async powers the Scala 3 `Async.async { ... .await ... }`
-    // direct-style rewrite. Scala 3 only — the Scala 2 cell uses a hand-written
-    // macro (a later phase) and must not pull DCA onto its classpath. The `_3`
-    // artifact (built against 3.3.7) is consumed on 3.8.3 via LTS forward
-    // compatibility.
+    // dotty-cps-async powers the direct-style `Async.async { ... .await ... }`
+    // rewrite on every Scala 3 cell except JS 3.8+ (which uses native
+    // `js.async`/`js.await`). Scala 2 uses a hand-written macro (a later phase)
+    // and must not pull DCA onto its classpath. The `_3` artifact (built against
+    // 3.3.7) is consumed on 3.8.x via LTS forward compatibility.
     libraryDependencies ++= {
       if (scalaBinaryVersion.value == "3")
         Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.3")

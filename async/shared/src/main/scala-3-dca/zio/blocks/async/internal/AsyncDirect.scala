@@ -29,7 +29,7 @@ import scala.quoted.*
  * keep full control of the user-facing spelling by:
  *
  *   1. exposing our own `.await` operator that, on its own, is a marker macro
- *      ([[awaitErrorImpl]]) which fails to compile — it is only legal once the
+ *      ([[awaitImpl]]) which fails to compile — it is only legal once the
  *      enclosing `Async.async` macro has rewritten it away;
  *   2. having [[asyncImpl]] walk the block body, replace every `qual.await`
  *      with a real `cps.await[Async, T, Async](qual)`, then splice the
@@ -39,14 +39,14 @@ import scala.quoted.*
  * public API surface stays exactly `Async.async` + `.await`; users never touch
  * `cps.*`.
  */
-private[async] object AsyncDirectMacros {
+private[async] object AsyncDirect {
 
   /**
    * Expansion of a bare `.await` that survived to code generation — i.e. one
    * used outside any `Async.async { ... }` block. Always a compile error. This
    * is what gives `.await` its lexical restriction.
    */
-  def awaitErrorImpl[A: Type](self: Expr[Async[A]])(using Quotes): Expr[A] = {
+  def awaitImpl[A: Type](self: Expr[Async[A]])(using Quotes): Expr[A] = {
     import quotes.reflect.*
     report.errorAndAbort(
       "`.await` may only be used directly inside an `Async.async { ... }` block.",

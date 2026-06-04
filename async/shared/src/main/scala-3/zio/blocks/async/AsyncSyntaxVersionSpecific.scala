@@ -103,14 +103,13 @@ private[async] trait AsyncSyntaxVersionSpecific {
     /**
      * Direct-style await: extract the value of `fa` within an enclosing
      * `Async.async { ... }` block. This is a marker — on its own it fails to
-     * compile (see
-     * [[zio.blocks.async.internal.AsyncDirectMacros.awaitErrorImpl]]); the
+     * compile (see [[zio.blocks.async.internal.AsyncDirect.awaitImpl]]); the
      * `Async.async` macro rewrites every `.await` into a dotty-cps-async
      * `cps.await`, producing a non-blocking `flatMap`/`map` chain. Using
      * `.await` outside an `Async.async` block is therefore a compile error.
      */
     inline def await: A =
-      ${ zio.blocks.async.internal.AsyncDirectMacros.awaitErrorImpl[A]('fa) }
+      ${ zio.blocks.async.internal.AsyncDirect.awaitImpl[A]('fa) }
 
     /**
      * Sequentially combine `fa` with `that` using `f`. Fast path (both ready

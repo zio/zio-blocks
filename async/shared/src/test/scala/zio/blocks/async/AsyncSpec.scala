@@ -26,10 +26,9 @@ import zio.test._
  * pollable, or completer that fires inside `poll`). Truly asynchronous,
  * thread-parking behavior is tested in the JVM-only `AsyncBlockingSpec`.
  *
- * Calls use the surface sugar (`.map` / `.flatMap` / `.block`)
- * directly. Because `Async[+A]` exposes no `>: A` bound, Scala 2 infers
- * `A := A` from the receiver without widening, so no explicit type arguments
- * are needed.
+ * Calls use the surface sugar (`.map` / `.flatMap` / `.block`) directly.
+ * Because `Async[+A]` exposes no `>: A` bound, Scala 2 infers `A := A` from the
+ * receiver without widening, so no explicit type arguments are needed.
  */
 object AsyncSpec extends ZIOSpecDefault {
 

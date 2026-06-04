@@ -23,16 +23,16 @@ import zio.blocks.async.*
 /**
  * JVM-only runtime-await fallback for DCA.
  *
- * The DCA macro rewrites `.block` into `flatMap`/`map` chains for all
- * positions it understands (sequential, `if`, `while`, `try`/`catch`, `match`,
- * and higher-order calls that have an `AsyncShift`). For the residual cases it
- * cannot rewrite — e.g. an `.block` inside a plain user lambda with no
- * shift — it falls back to this instance, which drives the `Async` to its value
- * by blocking the calling thread (Loom-friendly, via the same parker as
+ * The DCA macro rewrites `.block` into `flatMap`/`map` chains for all positions
+ * it understands (sequential, `if`, `while`, `try`/`catch`, `match`, and
+ * higher-order calls that have an `AsyncShift`). For the residual cases it
+ * cannot rewrite — e.g. an `.block` inside a plain user lambda with no shift —
+ * it falls back to this instance, which drives the `Async` to its value by
+ * blocking the calling thread (Loom-friendly, via the same parker as
  * [[Async.block]]).
  *
- * There is deliberately no equivalent on JS: a non-rewritable `.block`
- * there is a compile error, since JavaScript cannot block.
+ * There is deliberately no equivalent on JS: a non-rewritable `.block` there is
+ * a compile error, since JavaScript cannot block.
  *
  * This is **not** a [[cps.CpsRuntimeAsyncAwait]] — providing only the plain
  * `CpsRuntimeAwait` keeps the macro rewrite as the primary path and uses

@@ -28,8 +28,8 @@ import zio.test._
  * `js.Promise`. The JVM has a separate suite (`AsyncInteropSpec`) for the same
  * operations against `Future` / `CompletionStage`.
  *
- * No `.block` here — JavaScript can't block. All assertions go through
- * a `ZIO.fromFuture` that completes when the underlying microtask resolves.
+ * No `.block` here — JavaScript can't block. All assertions go through a
+ * `ZIO.fromFuture` that completes when the underlying microtask resolves.
  */
 object AsyncJsInteropSpec extends ZIOSpecDefault {
 
