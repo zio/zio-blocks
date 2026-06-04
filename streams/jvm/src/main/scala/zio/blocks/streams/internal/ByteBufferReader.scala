@@ -18,6 +18,7 @@ package zio.blocks.streams.internal
 
 import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 import java.nio.ByteBuffer
 
@@ -47,6 +48,25 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
     if (b >= 0) Byte.box(b.toByte).asInstanceOf[A1] else sentinel
   }
 
+  override def readN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining())
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Byte](count)
+    buffer.get(arr, 0, count)
+    if (buffer.remaining() == 0) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val arr  = new Array[Byte](n)
+    val read = readBytes(arr, 0, n)(unsafeEvidence)
+    if (read <= 0) Chunk.empty
+    else if (read == n) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+    else Chunk.fromArray(java.util.Arrays.copyOf(arr, read)).asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.hasRemaining
 
   override def readByte(): Int =
@@ -54,7 +74,7 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
     else if (buffer.hasRemaining) (buffer.get() & 0xff)
     else { done = true; -1 }
 
-  override def readBytes(buf: Array[Byte], offset: Int, len: Int): Int =
+  override def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int =
     if (len == 0) 0
     else if (done) -1
     else {
@@ -121,6 +141,34 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
     if (done) sentinel
     else if (buffer.remaining() >= 4) Int.box(buffer.getInt()).asInstanceOf[A1]
     else { done = true; sentinel }
+
+  override def readN[A1 >: Int](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 4)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Int](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getInt()
+      i += 1
+    }
+    if (buffer.remaining() < 4) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Int](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+    val s = Long.MinValue
+    var v = readInt(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v.toInt); i += 1
+      if (i < n) v = readInt(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
 
   override def readable(): Boolean = !done && buffer.remaining() >= 4
 
@@ -192,6 +240,34 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
     else if (buffer.remaining() >= 8) Long.box(buffer.getLong()).asInstanceOf[A1]
     else { done = true; sentinel }
 
+  override def readN[A1 >: Long](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 8)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Long](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getLong()
+      i += 1
+    }
+    if (buffer.remaining() < 8) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Long](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+    val s = Long.MaxValue
+    var v = readLong(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v); i += 1
+      if (i < n) v = readLong(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.remaining() >= 8
 
   override def readByte(): Int =
@@ -262,6 +338,34 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
     else if (buffer.remaining() >= 8) Double.box(buffer.getDouble()).asInstanceOf[A1]
     else { done = true; sentinel }
 
+  override def readN[A1 >: Double](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 8)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Double](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getDouble()
+      i += 1
+    }
+    if (buffer.remaining() < 8) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Double](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+    val s = Double.MaxValue
+    var v = readDouble(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v); i += 1
+      if (i < n) v = readDouble(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.remaining() >= 8
 
   override def readByte(): Int =
@@ -331,6 +435,34 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
     if (done) sentinel
     else if (buffer.remaining() >= 4) Float.box(buffer.getFloat()).asInstanceOf[A1]
     else { done = true; sentinel }
+
+  override def readN[A1 >: Float](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 4)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Float](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getFloat()
+      i += 1
+    }
+    if (buffer.remaining() < 4) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Float](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+    val s = Double.MaxValue
+    var v = readFloat(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v.toFloat); i += 1
+      if (i < n) v = readFloat(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
 
   override def readable(): Boolean = !done && buffer.remaining() >= 4
 

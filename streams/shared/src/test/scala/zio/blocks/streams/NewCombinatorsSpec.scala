@@ -75,12 +75,12 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       }
     ),
 
-    // ---- grouped ------------------------------------------------------------
+    // ---- chunked ------------------------------------------------------------
 
-    suite("grouped")(
+    suite("chunked")(
       test("exact multiple") {
         val s      = Stream.fromIterable(List(1, 2, 3, 4, 5, 6))
-        val result = collect(s.grouped(3))
+        val result = collect(s.chunked(3))
         assert(result)(
           equalTo(
             Chunk.fromIterable(
@@ -94,7 +94,7 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       },
       test("partial last group") {
         val s      = Stream.fromIterable(List(1, 2, 3, 4, 5))
-        val result = collect(s.grouped(3))
+        val result = collect(s.chunked(3))
         assert(result)(
           equalTo(
             Chunk.fromIterable(
@@ -108,11 +108,11 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       },
       test("empty stream") {
         val s: Stream[Nothing, Int] = Stream.empty
-        assert(collect(s.grouped(3)))(equalTo(Chunk.empty))
+        assert(collect(s.chunked(3)))(equalTo(Chunk.empty))
       },
       test("n = 1") {
         val s      = Stream.fromIterable(List(1, 2, 3))
-        val result = collect(s.grouped(1))
+        val result = collect(s.chunked(1))
         assert(result)(
           equalTo(
             Chunk.fromIterable(
@@ -127,7 +127,7 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       },
       test("single element") {
         val s      = Stream.fromIterable(List(42))
-        val result = collect(s.grouped(5))
+        val result = collect(s.chunked(5))
         assert(result)(
           equalTo(
             Chunk.fromIterable(
@@ -140,7 +140,7 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       },
       test("group size larger than stream") {
         val s      = Stream.fromIterable(List(1, 2))
-        val result = collect(s.grouped(10))
+        val result = collect(s.chunked(10))
         assert(result)(
           equalTo(
             Chunk.fromIterable(
@@ -240,7 +240,7 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
           )
         )
       },
-      test("step = n (same as grouped)") {
+      test("step = n (same as chunked)") {
         val s      = Stream.fromIterable(List(1, 2, 3, 4, 5, 6))
         val result = collect(s.sliding(3, 3))
         assert(result)(
@@ -324,9 +324,9 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
     // ---- validation ---------------------------------------------------------
 
     suite("validation")(
-      test("grouped(0) throws") {
+      test("chunked(0) throws") {
         assert(try {
-          Stream.fromIterable(List(1)).grouped(0); "ok"
+          Stream.fromIterable(List(1)).chunked(0); "ok"
         } catch { case _: IllegalArgumentException => "threw" })(equalTo("threw"))
       },
       test("sliding(0, 1) throws") {
@@ -344,9 +344,9 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
     // ---- render labels ------------------------------------------------------
 
     suite("render labels")(
-      test("grouped render includes combinator name") {
-        val s = Stream.range(0, 10).grouped(3)
-        assert(s.render.contains("grouped"))(isTrue)
+      test("chunked render includes combinator name") {
+        val s = Stream.range(0, 10).chunked(3)
+        assert(s.render.contains("chunked"))(isTrue)
       },
       test("sliding render includes combinator name") {
         val s = Stream.range(0, 10).sliding(3)
@@ -390,11 +390,11 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
       }
     ),
 
-    // ---- specialization tests for grouped/sliding on primitive streams ------
+    // ---- specialization tests for chunked/sliding on primitive streams ------
 
-    suite("grouped specialization")(
-      test("grouped specialization with Int stream") {
-        val s      = Stream.range(0, 6).grouped(3)
+    suite("chunked specialization")(
+      test("chunked specialization with Int stream") {
+        val s      = Stream.range(0, 6).chunked(3)
         val result = s.runCollect
         assert(result)(
           isRight(
@@ -444,9 +444,9 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
         val s = Stream.fromIterable(List(1, 2))
         assert(collect(s.take(100)))(equalTo(Chunk.fromIterable(List(1, 2))))
       },
-      test("grouped(1) wraps each element like List.grouped(1)") {
+      test("chunked(1) wraps each element like List.grouped(1)") {
         val s = Stream.fromIterable(List(1, 2, 3))
-        assert(collect(s.grouped(1)))(
+        assert(collect(s.chunked(1)))(
           equalTo(
             Chunk.fromIterable(
               List(
@@ -488,7 +488,8 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
           override def read(): Int   = -1
           override def close(): Unit = closed = true
         }
-        Stream.fromInputStream(is).runDrain
+        val stream: Stream[java.io.IOException, Byte] = Stream.fromInputStream(is)
+        stream.runDrain
         assert(closed)(isTrue)
       },
       test("fromInputStreamUnmanaged does not close the stream") {
@@ -497,7 +498,8 @@ object NewCombinatorsSpec extends StreamsBaseSpec {
           override def read(): Int   = -1
           override def close(): Unit = closed = true
         }
-        Stream.fromInputStreamUnmanaged(is).runDrain
+        val stream: Stream[java.io.IOException, Byte] = Stream.fromInputStreamUnmanaged(is)
+        stream.runDrain
         assert(closed)(isFalse)
       }
     ),

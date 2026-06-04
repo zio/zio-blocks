@@ -506,7 +506,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .dependsOn(scope, chunk, combinators)
+  .dependsOn(scope, chunk, combinators, ringbuffer)
   .settings(stdSettings("zio-blocks-streams", Seq(Scala3, Scala33, Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.streams"))
@@ -516,6 +516,10 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     mimaSettings(failOnProblem = false),
+    // Stream tests create concurrent producer threads; run specs sequentially
+    // to avoid CPU starvation across specs (parallelExecution := true is the
+    // default from stdSettings).
+    Test / parallelExecution := false,
     // Streams requires JDK 21+ (Project Loom virtual threads).
     // Override the default -release flag so Thread.ofVirtual() is available.
     // Only set -release 21 when running on JDK 21+; on JDK 17 CI, skip
@@ -1296,8 +1300,8 @@ lazy val `streams-benchmark` = project
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.5.0",
       // Kyo — algebraic effect streams (Scala 3 only)
-      "io.getkyo" %% "kyo-prelude" % "0.19.0",
-      "io.getkyo" %% "kyo-core"    % "0.19.0",
+      "io.getkyo" %% "kyo-prelude" % "1.0-RC1",
+      "io.getkyo" %% "kyo-core"    % "1.0-RC1",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
       "com.softwaremill.ox" %% "core" % "1.0.4"
     ),

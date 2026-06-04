@@ -34,7 +34,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration as ScalaDuration
 
 // ---- Kyo ----
-import kyo.{Stream => KyoStream, *}
+import kyo.{Scope as _, Stream => KyoStream, *}
 
 /**
  * Benchmark: Stream pipeline construction cost — no evaluation.

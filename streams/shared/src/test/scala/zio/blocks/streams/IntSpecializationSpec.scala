@@ -428,8 +428,8 @@ object IntSpecializationSpec extends StreamsBaseSpec {
       { dq.reset(); assertTrue(dq.read[Any](null) == Int.box(42)) }
     },
     test("InputStreamReader reset throws") {
-      val is = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
-      val dq = Reader.fromInputStream(is)
+      val is               = new java.io.ByteArrayInputStream(Array[Byte](1, 2, 3))
+      val dq: Reader[Byte] = Reader.fromInputStream(is)
       assertTrue(
         try { dq.reset(); false }
         catch { case _: UnsupportedOperationException => true }

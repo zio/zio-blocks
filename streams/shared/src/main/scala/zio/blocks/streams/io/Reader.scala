@@ -146,12 +146,99 @@ abstract class Reader[+Elem] {
       var v = readInt(s)(unsafeEvidence);
       while (v != s) { b.addOne(v.toByte); v = readInt(s)(unsafeEvidence) }
       b.result().asInstanceOf[Chunk[A]]
+    } else if (et eq JvmType.Byte) {
+      val b = new ChunkBuilder.Byte()
+      var v = readByte()
+      while (v >= 0) { b.addOne(v.toByte); v = readByte() }
+      b.result().asInstanceOf[Chunk[A]]
     } else {
       val b = ChunkBuilder.make[A](16)
       var v = read[Any](EndOfStream);
       while (v.asInstanceOf[AnyRef] ne EndOfStream) { b += v.asInstanceOf[A]; v = read[Any](EndOfStream) }
       b.result()
     }
+  }
+
+  /**
+   * Reads at most `n` elements into a [[Chunk]], returning early if the reader
+   * is exhausted. Returns [[Chunk.empty]] when `n <= 0` or the reader is
+   * already closed. Dispatches on [[jvmType]] for zero-boxing on primitive
+   * streams.
+   */
+  def readN[A >: Elem](n: Int): Chunk[A] = {
+    if (n <= 0) return Chunk.empty
+    val et = jvmType
+    if (et eq JvmType.Int) {
+      val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 4096))
+      val s = Long.MinValue; var i = 0
+      var v = readInt(s)(unsafeEvidence)
+      while (v != s && i < n) { b.addOne(v.toInt); i += 1; if (i < n) v = readInt(s)(unsafeEvidence) }
+      b.result().asInstanceOf[Chunk[A]]
+    } else if (et eq JvmType.Long) {
+      val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 4096))
+      val s = Long.MaxValue; var i = 0
+      var v = readLong(s)(unsafeEvidence)
+      while (v != s && i < n) { b.addOne(v); i += 1; if (i < n) v = readLong(s)(unsafeEvidence) }
+      b.result().asInstanceOf[Chunk[A]]
+    } else if (et eq JvmType.Float) {
+      val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 4096))
+      val s = Double.MaxValue; var i = 0
+      var v = readFloat(s)(unsafeEvidence)
+      while (v != s && i < n) { b.addOne(v.toFloat); i += 1; if (i < n) v = readFloat(s)(unsafeEvidence) }
+      b.result().asInstanceOf[Chunk[A]]
+    } else if (et eq JvmType.Double) {
+      val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 4096))
+      val s = Double.MaxValue; var i = 0
+      var v = readDouble(s)(unsafeEvidence)
+      while (v != s && i < n) { b.addOne(v); i += 1; if (i < n) v = readDouble(s)(unsafeEvidence) }
+      b.result().asInstanceOf[Chunk[A]]
+    } else if (et eq JvmType.Byte) {
+      val b = new ChunkBuilder.Byte(); b.sizeHint(math.min(n, 4096)); var i = 0
+      var v = readByte()
+      while (v >= 0 && i < n) { b.addOne(v.toByte); i += 1; if (i < n) v = readByte() }
+      b.result().asInstanceOf[Chunk[A]]
+    } else {
+      val b = ChunkBuilder.make[A](math.min(n, 16)); var i = 0
+      var v = read[Any](EndOfStream)
+      while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+        b += v.asInstanceOf[A]; i += 1; if (i < n) v = read[Any](EndOfStream)
+      }
+      b.result()
+    }
+  }
+
+  /**
+   * Reads up to `n` elements that are currently available. Blocks for at least
+   * 1 element if none are ready yet. Returns fewer than `n` if fewer are
+   * available without additional blocking. Returns [[Chunk.empty]] if `n <= 0`
+   * or if the reader is closed and empty.
+   *
+   * Differs from [[readN]] in that [[readN]] blocks until exactly `n` elements
+   * have been read. [[readUpToN]] returns as soon as at least one element is
+   * read, without waiting for further elements.
+   *
+   * @param n
+   *   maximum number of elements to read
+   * @return
+   *   a [[Chunk]] with between 1 and `n` elements, or empty on EOS
+   */
+  def readUpToN[A >: Elem](n: Int): Chunk[A] = {
+    if (n <= 0) return Chunk.empty
+    val first = read[Any](EndOfStream)
+    if (first.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+    if (n == 1) return Chunk.single(first.asInstanceOf[A])
+    val b = ChunkBuilder.make[A](math.min(n, 64))
+    b += first.asInstanceOf[A]
+    var i = 1
+    while (i < n && readable()) {
+      val v = read[Any](EndOfStream)
+      if (v.asInstanceOf[AnyRef] eq EndOfStream) {
+        return b.result()
+      }
+      b += v.asInstanceOf[A]
+      i += 1
+    }
+    b.result()
   }
 
   /**
@@ -205,15 +292,36 @@ abstract class Reader[+Elem] {
   }
 
   /**
-   * Box-free bulk byte pull into a caller-supplied buffer.
+   * Box-free bulk byte pull into a caller-supplied buffer. Requires
+   * compile-time evidence that this reader's element type is `Byte`.
    *
    * Contract mirrors `java.io.InputStream.read(byte[], int, int)`:
    *   - Blocks until at least 1 byte is available.
    *   - Returns the number of bytes read (`1 <= r <= len`).
    *   - Returns `-1` when closed and empty.
    *   - Returns `0` immediately when `len == 0`.
+   *
+   * @param buf
+   *   the destination byte array
+   * @param offset
+   *   the start position in `buf` to write into
+   * @param len
+   *   the maximum number of bytes to read
+   * @param ev
+   *   compile-time evidence that `Elem` is a subtype of `Byte`; this method is
+   *   only available on `Reader[Byte]` instances
+   * @return
+   *   the number of bytes read, or `-1` on end-of-stream
+   *
+   * @example
+   *   {{{
+   * val reader: Reader[Byte] = Reader.fromInputStream(inputStream)
+   * val buf = new Array[Byte](1024)
+   * val n = reader.readBytes(buf, 0, buf.length)
+   * if (n > 0) process(buf, 0, n)
+   *   }}}
    */
-  def readBytes(buf: Array[Byte], offset: Int, len: Int): Int = {
+  def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Elem <:< Byte): Int = {
     if (len == 0) return 0
     var i = 0
     while (i < len) {
@@ -221,6 +329,134 @@ abstract class Reader[+Elem] {
       if (b < 0) return if (i > 0) i else -1
       buf(offset + i) = b.toByte
       i += 1
+    }
+    i
+  }
+
+  /**
+   * Box-free bulk Int pull into a caller-supplied buffer.
+   *
+   * Contract mirrors [[readBytes]]:
+   *   - Blocks until at least 1 element is available.
+   *   - Returns the number of elements read (`1 <= r <= maxLen`).
+   *   - Returns `-1` when closed and empty.
+   *   - Returns `0` immediately when `maxLen == 0`.
+   *
+   * @param buf
+   *   destination array
+   * @param offset
+   *   starting position in `buf`
+   * @param maxLen
+   *   maximum number of elements to read
+   * @return
+   *   number of elements read, `-1` on end-of-stream, or `0` when `maxLen == 0`
+   */
+  def readInts(buf: Array[Int], offset: Int, maxLen: Int)(implicit ev: Elem <:< Int): Int = {
+    if (maxLen == 0) return 0
+    val sentinel = Long.MinValue
+    var i        = 0
+    while (i < maxLen) {
+      val v = readInt(sentinel)(unsafeEvidence)
+      if (v == sentinel) return if (i > 0) i else -1
+      buf(offset + i) = v.toInt
+      i += 1
+      if (i < maxLen && !readable()) return i
+    }
+    i
+  }
+
+  /**
+   * Box-free bulk Long pull into a caller-supplied buffer.
+   *
+   * Contract mirrors [[readBytes]]:
+   *   - Blocks until at least 1 element is available.
+   *   - Returns the number of elements read (`1 <= r <= maxLen`).
+   *   - Returns `-1` when closed and empty.
+   *   - Returns `0` immediately when `maxLen == 0`.
+   *
+   * @param buf
+   *   destination array
+   * @param offset
+   *   starting position in `buf`
+   * @param maxLen
+   *   maximum number of elements to read
+   * @return
+   *   number of elements read, `-1` on end-of-stream, or `0` when `maxLen == 0`
+   */
+  def readLongs(buf: Array[Long], offset: Int, maxLen: Int)(implicit ev: Elem <:< Long): Int = {
+    if (maxLen == 0) return 0
+    val sentinel = Long.MaxValue
+    var i        = 0
+    while (i < maxLen) {
+      val v = readLong(sentinel)(unsafeEvidence)
+      if (v == sentinel) return if (i > 0) i else -1
+      buf(offset + i) = v
+      i += 1
+      if (i < maxLen && !readable()) return i
+    }
+    i
+  }
+
+  /**
+   * Box-free bulk Double pull into a caller-supplied buffer.
+   *
+   * Contract mirrors [[readBytes]]:
+   *   - Blocks until at least 1 element is available.
+   *   - Returns the number of elements read (`1 <= r <= maxLen`).
+   *   - Returns `-1` when closed and empty.
+   *   - Returns `0` immediately when `maxLen == 0`.
+   *
+   * @param buf
+   *   destination array
+   * @param offset
+   *   starting position in `buf`
+   * @param maxLen
+   *   maximum number of elements to read
+   * @return
+   *   number of elements read, `-1` on end-of-stream, or `0` when `maxLen == 0`
+   */
+  def readDoubles(buf: Array[Double], offset: Int, maxLen: Int)(implicit ev: Elem <:< Double): Int = {
+    if (maxLen == 0) return 0
+    val sentinel = Double.MaxValue
+    var i        = 0
+    while (i < maxLen) {
+      val v = readDouble(sentinel)(unsafeEvidence)
+      if (v == sentinel) return if (i > 0) i else -1
+      buf(offset + i) = v
+      i += 1
+      if (i < maxLen && !readable()) return i
+    }
+    i
+  }
+
+  /**
+   * Box-free bulk Float pull into a caller-supplied buffer.
+   *
+   * Contract mirrors [[readBytes]]:
+   *   - Blocks until at least 1 element is available.
+   *   - Returns the number of elements read (`1 <= r <= maxLen`).
+   *   - Returns `-1` when closed and empty.
+   *   - Returns `0` immediately when `maxLen == 0`.
+   *
+   * @param buf
+   *   destination array
+   * @param offset
+   *   starting position in `buf`
+   * @param maxLen
+   *   maximum number of elements to read
+   * @return
+   *   number of elements read, `-1` on end-of-stream, or `0` when `maxLen == 0`
+   */
+  def readFloats(buf: Array[Float], offset: Int, maxLen: Int)(implicit ev: Elem <:< Float): Int = {
+    if (maxLen == 0) return 0
+    val sentinel = Double.MaxValue
+    var i        = 0
+    while (i < maxLen) {
+      val v = readFloat(sentinel)(unsafeEvidence)
+      if (v == sentinel) return if (i > 0) i else -1
+      buf(offset + i) = v.toFloat
+      i += 1
+      if (i < maxLen && !readable()) return i
     }
     i
   }
@@ -403,12 +639,8 @@ object Reader {
       case _              => new FromChunk(chunk)
     }
 
-  /**
-   * Wraps a [[java.io.InputStream]] as a `Reader[Int]` where each element is a
-   * byte widened to Int (0–255). This avoids boxing on `.map`/`.filter` since
-   * `Function1` is specialized for `Int` but not `Byte`.
-   */
-  def fromInputStream(is: InputStream): Reader[Int] =
+  /** Wraps a [[java.io.InputStream]] as a `Reader[Byte]`. */
+  def fromInputStream(is: InputStream): Reader[Byte] =
     new InputStreamReader(is)
 
   /**
@@ -768,6 +1000,46 @@ object Reader {
       -1 // unreachable
     }
 
+    override def readInts(buf: Array[Int], offset: Int, maxLen: Int)(implicit ev: Elem <:< Int): Int = {
+      if (maxLen == 0) return 0
+      val n = current.readInts(buf, offset, maxLen)(unsafeEvidence)
+      if (n > 0) n
+      else if (advance()) current.readInts(buf, offset, maxLen)(unsafeEvidence)
+      else -1
+    }
+
+    override def readLongs(buf: Array[Long], offset: Int, maxLen: Int)(implicit ev: Elem <:< Long): Int = {
+      if (maxLen == 0) return 0
+      val n = current.readLongs(buf, offset, maxLen)(unsafeEvidence)
+      if (n > 0) n
+      else if (advance()) current.readLongs(buf, offset, maxLen)(unsafeEvidence)
+      else -1
+    }
+
+    override def readFloats(buf: Array[Float], offset: Int, maxLen: Int)(implicit ev: Elem <:< Float): Int = {
+      if (maxLen == 0) return 0
+      val n = current.readFloats(buf, offset, maxLen)(unsafeEvidence)
+      if (n > 0) n
+      else if (advance()) current.readFloats(buf, offset, maxLen)(unsafeEvidence)
+      else -1
+    }
+
+    override def readDoubles(buf: Array[Double], offset: Int, maxLen: Int)(implicit ev: Elem <:< Double): Int = {
+      if (maxLen == 0) return 0
+      val n = current.readDoubles(buf, offset, maxLen)(unsafeEvidence)
+      if (n > 0) n
+      else if (advance()) current.readDoubles(buf, offset, maxLen)(unsafeEvidence)
+      else -1
+    }
+
+    override def readUpToN[A1 >: Elem](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val chunk = current.readUpToN[A1](n)
+      if (chunk.nonEmpty) chunk
+      else if (advance()) current.readUpToN[A1](n)
+      else Chunk.empty
+    }
+
     override def skip(n: Long): Unit = Reader.skipViaSentinel(this, n)
 
     def close(): Unit =
@@ -804,11 +1076,20 @@ object Reader {
       inner.readFloat(sentinel)(unsafeEvidence)
     override def readDouble(sentinel: Double)(implicit ev: Elem <:< Double): Double =
       inner.readDouble(sentinel)(unsafeEvidence)
-    override def readByte(): Int     = inner.readByte()
-    override def skip(n: Long): Unit = inner.skip(n)
-    def close(): Unit                = inner.close()
-    override def reset(): Unit       = inner.reset()
-    override def readable(): Boolean = inner.readable()
+    override def readInts(buf: Array[Int], offset: Int, maxLen: Int)(implicit ev: Elem <:< Int): Int =
+      inner.readInts(buf, offset, maxLen)(unsafeEvidence)
+    override def readLongs(buf: Array[Long], offset: Int, maxLen: Int)(implicit ev: Elem <:< Long): Int =
+      inner.readLongs(buf, offset, maxLen)(unsafeEvidence)
+    override def readFloats(buf: Array[Float], offset: Int, maxLen: Int)(implicit ev: Elem <:< Float): Int =
+      inner.readFloats(buf, offset, maxLen)(unsafeEvidence)
+    override def readDoubles(buf: Array[Double], offset: Int, maxLen: Int)(implicit ev: Elem <:< Double): Int =
+      inner.readDoubles(buf, offset, maxLen)(unsafeEvidence)
+    override def readByte(): Int                          = inner.readByte()
+    override def readUpToN[A1 >: Elem](n: Int): Chunk[A1] = inner.readUpToN(n)
+    override def skip(n: Long): Unit                      = inner.skip(n)
+    def close(): Unit                                     = inner.close()
+    override def reset(): Unit                            = inner.reset()
+    override def readable(): Boolean                      = inner.readable()
   }
 
   /**
@@ -830,6 +1111,19 @@ object Reader {
     def read[A1 >: Any](sentinel: A1): A1 = {
       val v = readDouble(Double.MaxValue)(unsafeEvidence);
       if (v == Double.MaxValue) sentinel else Double.box(v).asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+      val s = Double.MaxValue
+      var v = readDouble(s)(unsafeEvidence)
+      if (v == s) return Chunk.empty
+      var i = 0
+      while (v != s && i < n) {
+        b.addOne(v); i += 1
+        if (i < n) v = readDouble(s)(unsafeEvidence)
+      }
+      b.result().asInstanceOf[Chunk[A1]]
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -861,6 +1155,19 @@ object Reader {
     def read[A1 >: Any](sentinel: A1): A1 = {
       val v = readFloat(Double.MaxValue)(unsafeEvidence);
       if (v == Double.MaxValue) sentinel else Float.box(v.toFloat).asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+      val s = Double.MaxValue
+      var v = readFloat(s)(unsafeEvidence)
+      if (v == s) return Chunk.empty
+      var i = 0
+      while (v != s && i < n) {
+        b.addOne(v.toFloat); i += 1
+        if (i < n) v = readFloat(s)(unsafeEvidence)
+      }
+      b.result().asInstanceOf[Chunk[A1]]
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -897,6 +1204,19 @@ object Reader {
       val v = readInt(Long.MinValue)(unsafeEvidence);
       if (v == Long.MinValue) sentinel else Int.box(v.toInt).asInstanceOf[A1]
     }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+      val s = Long.MinValue
+      var v = readInt(s)(unsafeEvidence)
+      if (v == s) return Chunk.empty
+      var i = 0
+      while (v != s && i < n) {
+        b.addOne(v.toInt); i += 1
+        if (i < n) v = readInt(s)(unsafeEvidence)
+      }
+      b.result().asInstanceOf[Chunk[A1]]
+    }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
     override def skip(n: Long): Unit = {
@@ -928,6 +1248,19 @@ object Reader {
       val v = readLong(Long.MaxValue)(unsafeEvidence);
       if (v == Long.MaxValue) sentinel else Long.box(v).asInstanceOf[A1]
     }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+      val s = Long.MaxValue
+      var v = readLong(s)(unsafeEvidence)
+      if (v == s) return Chunk.empty
+      var i = 0
+      while (v != s && i < n) {
+        b.addOne(v); i += 1
+        if (i < n) v = readLong(s)(unsafeEvidence)
+      }
+      b.result().asInstanceOf[Chunk[A1]]
+    }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
     override def skip(n: Long): Unit = {
@@ -957,6 +1290,18 @@ object Reader {
       while ((v.asInstanceOf[AnyRef] ne EndOfStream) && !pred.asInstanceOf[AnyRef => Boolean](v.asInstanceOf[AnyRef]))
         v = source.read[Any](EndOfStream)
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel else v.asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = ChunkBuilder.make[A1](math.min(n, 64))
+      var v = read[Any](EndOfStream)
+      if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+      var i = 0
+      while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+        b += v.asInstanceOf[A1]; i += 1
+        if (i < n) v = read[Any](EndOfStream)
+      }
+      b.result()
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -997,6 +1342,18 @@ object Reader {
         }
       }
       sentinel // unreachable, but needed for the compiler
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = ChunkBuilder.make[A1](math.min(n, 64))
+      var v = read[Any](EndOfStream)
+      if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+      var i = 0
+      while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+        b += v.asInstanceOf[A1]; i += 1
+        if (i < n) v = read[Any](EndOfStream)
+      }
+      b.result()
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -1078,6 +1435,65 @@ object Reader {
         if (!advance()) return sentinel
       }
       sentinel
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var v = readInt(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var v = readLong(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readFloat(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readDouble(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 64))
+        var v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+        var i = 0
+        while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+          b += v.asInstanceOf[A1]; i += 1
+          if (i < n) v = read[Any](EndOfStream)
+        }
+        b.result()
+      }
     }
     def close(): Unit = {
       _closed = true
@@ -1193,6 +1609,20 @@ object Reader {
     def read[A1 >: A](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; chunk(i).asInstanceOf[A1] }
       else sentinel
+    override def readN[A1 >: A](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
     override def readByte(): Int =
       if (idx < effectiveLen) { val i = idx; idx += 1; (chunk(i).asInstanceOf[java.lang.Number].intValue() & 0xff) }
       else -1
@@ -1233,6 +1663,20 @@ object Reader {
     def read[A1 >: Double](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Double.box(chunk.double(i)).asInstanceOf[A1] }
       else sentinel
+    override def readN[A1 >: Double](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
+    override def readUpToN[A1 >: Double](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
     override def readDouble(sentinel: Double)(implicit ev: Double <:< Double): Double =
       if (idx < effectiveLen) { val v = chunk.double(idx); idx += 1; v }
       else sentinel
@@ -1277,6 +1721,20 @@ object Reader {
     def read[A1 >: Float](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Float.box(chunk.float(i)).asInstanceOf[A1] }
       else sentinel
+    override def readN[A1 >: Float](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
+    override def readUpToN[A1 >: Float](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
     override def readFloat(sentinel: Double)(implicit ev: Float <:< Float): Double =
       if (idx < effectiveLen) { val v = chunk.float(idx); idx += 1; v.toDouble }
       else sentinel
@@ -1327,7 +1785,7 @@ object Reader {
     override def readByte(): Int =
       if (idx < effectiveLen) { val v = chunk.byte(idx); idx += 1; v.toInt & 0xff }
       else -1
-    override def readBytes(buf: Array[Byte], offset: Int, len: Int): Int = {
+    override def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
       if (len == 0) return 0
       val avail = effectiveLen - idx
       if (avail <= 0) return -1
@@ -1373,6 +1831,20 @@ object Reader {
     def read[A1 >: Int](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Int.box(chunk.int(i)).asInstanceOf[A1] }
       else sentinel
+    override def readN[A1 >: Int](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
+    override def readUpToN[A1 >: Int](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
     override def readInt(sentinel: Long)(implicit ev: Int <:< Int): Long =
       if (idx < effectiveLen) { val v = chunk.int(idx); idx += 1; v.toLong }
       else sentinel
@@ -1417,6 +1889,20 @@ object Reader {
     def read[A1 >: Long](sentinel: A1): A1 =
       if (idx < effectiveLen) { val i = idx; idx += 1; Long.box(chunk.long(i)).asInstanceOf[A1] }
       else sentinel
+    override def readN[A1 >: Long](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
+    override def readUpToN[A1 >: Long](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val from  = idx
+      val until = math.min(idx + n, effectiveLen)
+      idx = until
+      chunk.slice(from, until).asInstanceOf[Chunk[A1]]
+    }
     override def readLong(sentinel: Long)(implicit ev: Long <:< Long): Long =
       if (idx < effectiveLen) { val v = chunk.long(idx); idx += 1; v }
       else sentinel
@@ -1487,6 +1973,15 @@ object Reader {
     override def readByte(): Int =
       if (idx < effectiveLen) { val v = current; idx += 1; current += rangeStep; (v & 0xff) }
       else -1
+    override def readN[A1 >: Int](n: Int): Chunk[A1] = {
+      if (n <= 0 || idx >= effectiveLen) return Chunk.empty
+      val count = math.min(n, effectiveLen - idx)
+      val arr   = new Array[Int](count)
+      var i     = 0
+      while (i < count) { arr(i) = current; current += rangeStep; i += 1 }
+      idx += count
+      Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+    }
     def close(): Unit          = idx = effectiveLen
     override def reset(): Unit = {
       val s = math.max(0L, math.min(skipN, originalLen.toLong)).toInt
@@ -1497,12 +1992,8 @@ object Reader {
     }
   }
 
-  /**
-   * Reader adapter that reads bytes from a `java.io.InputStream`, widened to
-   * `Int` (0–255) so that downstream `.map`/`.filter` use Int-specialized
-   * `Function1` and avoid boxing.
-   */
-  private[streams] final class InputStreamReader(is: InputStream) extends Reader[Int] {
+  /** Reader adapter for `java.io.InputStream`. Emits elements as `Byte`. */
+  private[streams] final class InputStreamReader(is: InputStream) extends Reader[Byte] {
 
     private var closed               = false
     private var errored: IOException = null
@@ -1517,31 +2008,26 @@ object Reader {
       var r = n; while (r > 0) { val b = readByte(); if (b < 0) r = 0 else r -= 1 }
     }
 
-    override def jvmType: JvmType = JvmType.Int
+    override def jvmType: JvmType = JvmType.Byte
 
-    override def readInt(sentinel: Long)(implicit ev: Int <:< Int): Long = {
-      if (closed) return sentinel
+    override def readByte(): Int = {
+      if (closed) return -1
       if (errored ne null) throw new StreamError(errored)
       try {
         val b = is.read()
-        if (b < 0) { closed = true; sentinel }
-        else b.toLong
+        if (b < 0) { closed = true; -1 }
+        else b
       } catch {
         case e: IOException => closed = true; errored = e; throw new StreamError(e)
       }
     }
 
-    override def readByte(): Int = {
-      val v = readInt(-1L)(unsafeEvidence)
-      if (v >= 0) v.toInt else -1
+    def read[A1 >: Byte](sentinel: A1): A1 = {
+      val b = readByte()
+      if (b >= 0) Byte.box(b.toByte).asInstanceOf[A1] else sentinel
     }
 
-    def read[A1 >: Int](sentinel: A1): A1 = {
-      val b = readInt(-1L)(unsafeEvidence)
-      if (b >= 0) Int.box(b.toInt).asInstanceOf[A1] else sentinel
-    }
-
-    override def readBytes(buf: Array[Byte], offset: Int, len: Int): Int =
+    override def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int =
       if (len == 0) 0
       else if (closed) -1
       else if (errored ne null) throw new StreamError(errored)
@@ -1553,6 +2039,37 @@ object Reader {
         } catch {
           case e: IOException => closed = true; errored = e; throw new StreamError(e)
         }
+
+    override def readN[A1 >: Byte](n: Int): Chunk[A1] = {
+      if (n <= 0 || closed) return Chunk.empty
+      if (errored ne null) throw new StreamError(errored)
+      if (n <= 8192) {
+        val arr   = new Array[Byte](n)
+        var total = 0
+        while (total < n && !closed) {
+          val read = readBytes(arr, total, n - total)(unsafeEvidence)
+          if (read < 0) ()
+          else total += read
+        }
+        if (total == 0) Chunk.empty
+        else if (total == n) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+        else Chunk.fromArray(java.util.Arrays.copyOf(arr, total)).asInstanceOf[Chunk[A1]]
+      } else {
+        val b   = new ChunkBuilder.Byte()
+        val buf = new Array[Byte](8192)
+        var rem = n
+        while (rem > 0 && !closed) {
+          val toRead = math.min(rem, 8192)
+          val read   = readBytes(buf, 0, toRead)
+          if (read > 0) {
+            var k = 0
+            while (k < read) { b.addOne(buf(k)); k += 1 }
+            rem -= read
+          }
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      }
+    }
 
     def close(): Unit = closed = true
   }
@@ -1596,6 +2113,65 @@ object Reader {
       else if (outType eq JvmType.Boolean) {
         Boolean.box(f.asInstanceOf[Double => Boolean](v)).asInstanceOf[A1]
       } else f.asInstanceOf[Double => AnyRef](v).asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var v = readInt(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var v = readLong(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readFloat(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readDouble(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 64))
+        var v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+        var i = 0
+        while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+          b += v.asInstanceOf[A1]; i += 1
+          if (i < n) v = read[Any](EndOfStream)
+        }
+        b.result()
+      }
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -1653,6 +2229,65 @@ object Reader {
       else if (outType eq JvmType.Boolean) {
         Boolean.box(f.asInstanceOf[Float => Boolean](v.toFloat)).asInstanceOf[A1]
       } else f.asInstanceOf[Float => AnyRef](v.toFloat).asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var v = readInt(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var v = readLong(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readFloat(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readDouble(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 64))
+        var v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+        var i = 0
+        while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+          b += v.asInstanceOf[A1]; i += 1
+          if (i < n) v = read[Any](EndOfStream)
+        }
+        b.result()
+      }
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -1712,6 +2347,65 @@ object Reader {
         Boolean.box(f.asInstanceOf[Int => Boolean](v.toInt)).asInstanceOf[A1]
       } else f.asInstanceOf[Int => AnyRef](v.toInt).asInstanceOf[A1]
     }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var v = readInt(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var v = readLong(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readFloat(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readDouble(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 64))
+        var v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+        var i = 0
+        while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+          b += v.asInstanceOf[A1]; i += 1
+          if (i < n) v = read[Any](EndOfStream)
+        }
+        b.result()
+      }
+    }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
     override def skip(n: Long): Unit = {
@@ -1769,6 +2463,65 @@ object Reader {
         Boolean.box(f.asInstanceOf[Long => Boolean](v)).asInstanceOf[A1]
       } else f.asInstanceOf[Long => AnyRef](v).asInstanceOf[A1]
     }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var v = readInt(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var v = readLong(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readFloat(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var v = readDouble(s)(unsafeEvidence)
+        if (v == s) return Chunk.empty
+        var i = 0
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 64))
+        var v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+        var i = 0
+        while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+          b += v.asInstanceOf[A1]; i += 1
+          if (i < n) v = read[Any](EndOfStream)
+        }
+        b.result()
+      }
+    }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
     override def skip(n: Long): Unit = {
@@ -1802,22 +2555,35 @@ object Reader {
     override def readInt(sentinel: Long)(implicit ev: Any <:< Int): Long = {
       val v = source.read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-      else f.asInstanceOf[AnyRef => Int](v.asInstanceOf[AnyRef]).toLong
+      else if (outType eq JvmType.Int)
+        f.asInstanceOf[AnyRef => Int](v.asInstanceOf[AnyRef]).toLong
+      else
+        // Byte / Short / Char / other numeric outputs: extract via Number.
+        f.asInstanceOf[AnyRef => AnyRef](v.asInstanceOf[AnyRef]).asInstanceOf[java.lang.Number].longValue()
     }
     override def readLong(sentinel: Long)(implicit ev: Any <:< Long): Long = {
       val v = source.read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-      else f.asInstanceOf[AnyRef => Long](v.asInstanceOf[AnyRef])
+      else if (outType eq JvmType.Long)
+        f.asInstanceOf[AnyRef => Long](v.asInstanceOf[AnyRef])
+      else
+        f.asInstanceOf[AnyRef => AnyRef](v.asInstanceOf[AnyRef]).asInstanceOf[java.lang.Number].longValue()
     }
     override def readFloat(sentinel: Double)(implicit ev: Any <:< Float): Double = {
       val v = source.read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-      else f.asInstanceOf[AnyRef => Float](v.asInstanceOf[AnyRef]).toDouble
+      else if (outType eq JvmType.Float)
+        f.asInstanceOf[AnyRef => Float](v.asInstanceOf[AnyRef]).toDouble
+      else
+        f.asInstanceOf[AnyRef => AnyRef](v.asInstanceOf[AnyRef]).asInstanceOf[java.lang.Number].doubleValue()
     }
     override def readDouble(sentinel: Double)(implicit ev: Any <:< Double): Double = {
       val v = source.read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-      else f.asInstanceOf[AnyRef => Double](v.asInstanceOf[AnyRef])
+      else if (outType eq JvmType.Double)
+        f.asInstanceOf[AnyRef => Double](v.asInstanceOf[AnyRef])
+      else
+        f.asInstanceOf[AnyRef => AnyRef](v.asInstanceOf[AnyRef]).asInstanceOf[java.lang.Number].doubleValue()
     }
     def read[A1 >: Any](sentinel: A1): A1 = {
       val v = source.read[Any](EndOfStream);
@@ -1825,6 +2591,18 @@ object Reader {
       else if (outType eq JvmType.Boolean) {
         Boolean.box(f.asInstanceOf[AnyRef => Boolean](v.asInstanceOf[AnyRef])).asInstanceOf[A1]
       } else f.asInstanceOf[AnyRef => AnyRef](v.asInstanceOf[AnyRef]).asInstanceOf[A1]
+    }
+    override def readUpToN[A1 >: Any](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = ChunkBuilder.make[A1](math.min(n, 64))
+      var v = read[Any](EndOfStream)
+      if (v.asInstanceOf[AnyRef] eq EndOfStream) return Chunk.empty
+      var i = 0
+      while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
+        b += v.asInstanceOf[A1]; i += 1
+        if (i < n) v = read[Any](EndOfStream)
+      }
+      b.result()
     }
     def close(): Unit                = source.close()
     override def reset(): Unit       = source.reset()
@@ -1900,6 +2678,15 @@ object Reader {
         else { done = true; return sentinel }
       }
       sentinel // unreachable
+    }
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val chunk = inner.readUpToN[A1](n)
+      if (chunk.nonEmpty) chunk
+      else if (inner.isClosed) {
+        inner.reset()
+        inner.readUpToN[A1](n)
+      } else Chunk.empty
     }
     override def skip(n: Long): Unit = Reader.skipViaSentinel(this, n)
     override def readByte(): Int     = {
@@ -2073,6 +2860,14 @@ object Reader {
       v
     }
 
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] = {
+      if (remaining <= 0 || n <= 0) return Chunk.empty
+      val toRead = math.min(n.toLong, remaining).toInt
+      val chunk  = inner.readUpToN[A1](toRead)
+      remaining -= chunk.length
+      chunk
+    }
+
     override def skip(n: Long): Unit = inner.skip(n)
     override def readByte(): Int     = {
       val v = read[Any](EndOfStream);
@@ -2138,6 +2933,15 @@ object Reader {
         if (v != sentinel) { remaining -= 1; v }
         else { doneSent = true; sentinel }
       }
+    override def readUpToN[A1 >: Elem](n: Int): Chunk[A1] = {
+      if (doneSent || n <= 0 || remaining <= 0) return Chunk.empty
+      val toRead = math.min(n.toLong, remaining).toInt
+      val chunk  = self.readUpToN[A1](toRead)
+      if (chunk.isEmpty) doneSent = true
+      remaining -= chunk.length
+      if (remaining <= 0) doneSent = true
+      chunk
+    }
     override def skip(n: Long): Unit = {
       val toSkip = math.min(n, remaining); self.skip(toSkip); remaining -= toSkip
     }
@@ -2193,6 +2997,61 @@ object Reader {
         if (v != sentinel) { if (pred.asInstanceOf[Double => Boolean](v)) v else { doneSent = true; sentinel } }
         else { doneSent = true; sentinel }
       }
+    override def readUpToN[A1 >: Elem](n: Int): Chunk[A1] = {
+      if (n <= 0 || doneSent) return Chunk.empty
+      val et = jvmType
+      if (et eq JvmType.Int) {
+        val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+        val s = Long.MinValue
+        var i = 0
+        var v = readInt(s)(unsafeEvidence)
+        while (v != s && i < n) {
+          b.addOne(v.toInt); i += 1
+          if (i < n) v = readInt(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Long) {
+        val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+        val s = Long.MaxValue
+        var i = 0
+        var v = readLong(s)(unsafeEvidence)
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readLong(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Float) {
+        val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var i = 0
+        var v = readFloat(s)(unsafeEvidence)
+        while (v != s && i < n) {
+          b.addOne(v.toFloat); i += 1
+          if (i < n) v = readFloat(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else if (et eq JvmType.Double) {
+        val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+        val s = Double.MaxValue
+        var i = 0
+        var v = readDouble(s)(unsafeEvidence)
+        while (v != s && i < n) {
+          b.addOne(v); i += 1
+          if (i < n) v = readDouble(s)(unsafeEvidence)
+        }
+        b.result().asInstanceOf[Chunk[A1]]
+      } else {
+        val b = ChunkBuilder.make[A1](math.min(n, 16))
+        var i = 0
+        while (i < n && !doneSent) {
+          val v = read[Any](EndOfStream)
+          if (v.asInstanceOf[AnyRef] eq EndOfStream) return b.result()
+          b += v.asInstanceOf[A1]
+          i += 1
+        }
+        b.result()
+      }
+    }
     override def skip(n: Long): Unit = Reader.skipViaSentinel(this, n)
     override def readByte(): Int     = {
       val v = read[Any](EndOfStream);
@@ -2218,6 +3077,18 @@ object Reader {
           case Some((a, next)) => state = next; a.asInstanceOf[A1]
           case None            => finished = true; sentinel
         }
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] = {
+      if (n <= 0) return Chunk.empty
+      val b = ChunkBuilder.make[A1](math.min(n, 16))
+      var i = 0
+      while (i < n && !isClosed) {
+        val v = read[Any](EndOfStream)
+        if (v.asInstanceOf[AnyRef] eq EndOfStream) return b.result()
+        b += v.asInstanceOf[A1]
+        i += 1
+      }
+      b.result()
+    }
     override def readByte(): Int = {
       val v = read[Any](EndOfStream);
       if (v.asInstanceOf[AnyRef] eq EndOfStream) -1 else (v.asInstanceOf[java.lang.Number].intValue() & 0xff)

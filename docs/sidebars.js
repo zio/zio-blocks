@@ -211,6 +211,7 @@ const sidebars = {
              "reference/streams/sink",
              "reference/streams/reader",
              "reference/streams/writer",
+             "reference/streams/concurrent-operators",
              "reference/streams/zero-boxing",
            ]
          },

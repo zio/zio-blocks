@@ -69,11 +69,11 @@ object ReaderFromJavaSpec extends StreamsBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("Reader.fromInputStream / fromReader")(
     suite("fromInputStream")(
-      test("read() returns widened Int (0-255) then null on EOF") {
+      test("read() returns each Byte (signed) then null on EOF") {
         val dq = Reader.fromInputStream(streamOf(1, 2, 3))
-        assertTrue(dq.read[Any](null) == Int.box(1)) &&
-        assertTrue(dq.read[Any](null) == Int.box(2)) &&
-        assertTrue(dq.read[Any](null) == Int.box(3)) &&
+        assertTrue(dq.read[Any](null) == Byte.box(1.toByte)) &&
+        assertTrue(dq.read[Any](null) == Byte.box(2.toByte)) &&
+        assertTrue(dq.read[Any](null) == Byte.box(3.toByte)) &&
         assertTrue(dq.read[Any](null) == null)
       },
       test("read() returns null on empty stream") {
@@ -83,7 +83,7 @@ object ReaderFromJavaSpec extends StreamsBaseSpec {
       test("IOException during read throws StreamError and marks reader as closed") {
         val is = new FailableInputStream(Array[Byte](1))
         val dq = Reader.fromInputStream(is)
-        assertTrue(dq.read[Any](null) == Int.box(1))
+        assertTrue(dq.read[Any](null) == Byte.box(1.toByte))
         is.boom = true
         val result = scala.util.Try(dq.read[Any](null))
         assertTrue(result.isFailure) &&
@@ -127,10 +127,10 @@ object ReaderFromJavaSpec extends StreamsBaseSpec {
       },
       test("drains bytes in order via read()") {
         val dq = Reader.fromInputStream(streamOf(5, 6, 7))
-        val b  = Chunk.newBuilder[Int]
+        val b  = Chunk.newBuilder[Byte]
         var v  = dq.read[Any](null)
-        while (v != null) { b += v.asInstanceOf[Int]; v = dq.read[Any](null) }
-        assert(b.result())(equalTo(Chunk(5, 6, 7)))
+        while (v != null) { b += v.asInstanceOf[Byte]; v = dq.read[Any](null) }
+        assert(b.result())(equalTo(Chunk(5.toByte, 6.toByte, 7.toByte)))
       },
       test("close is idempotent") {
         val dq = Reader.fromInputStream(streamOf(1, 2))
@@ -153,6 +153,29 @@ object ReaderFromJavaSpec extends StreamsBaseSpec {
         val dq = Reader.fromInputStream(streamOf(10))
         dq.close()
         assert(dq.readByte())(equalTo(-1))
+      },
+      test("readBytes partial fill: stream has 2 bytes, request 5 returns 2") {
+        val dq  = Reader.fromInputStream(streamOf(42, 99))
+        val buf = new Array[Byte](5)
+        val n   = dq.readBytes(buf, 0, 5)
+        assertTrue(n == 2) && assert(buf.take(n).toList)(equalTo(List[Byte](42, 99)))
+      },
+      test("readBytes with offset: writes to correct position in buffer") {
+        val dq  = Reader.fromInputStream(streamOf(10, 20))
+        val buf = new Array[Byte](4)
+        val n   = dq.readBytes(buf, 2, 2)
+        assertTrue(n == 2) &&
+        assertTrue(buf(0) == 0) &&
+        assertTrue(buf(1) == 0) &&
+        assertTrue(buf(2) == 10) &&
+        assertTrue(buf(3) == 20)
+      },
+      test("readBytes invalid bounds: offset + len > buf.length throws IndexOutOfBoundsException") {
+        val dq     = Reader.fromInputStream(streamOf(1, 2, 3, 4, 5))
+        val buf    = new Array[Byte](4)
+        val result = scala.util.Try(dq.readBytes(buf, 0, 10))
+        assertTrue(result.isFailure) &&
+        assertTrue(result.failed.get.isInstanceOf[IndexOutOfBoundsException])
       }
     ),
 
