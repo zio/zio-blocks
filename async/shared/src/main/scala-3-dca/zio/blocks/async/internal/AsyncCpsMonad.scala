@@ -16,7 +16,7 @@
 
 package zio.blocks.async.internal
 
-import cps.CpsTryMonadInstanceContext
+import cps.{CpsTryMonadInstanceContext, CpsTryMonadInstanceContextBody}
 
 import zio.blocks.async.*
 
@@ -39,6 +39,21 @@ import scala.util.{Failure as TryFailure, Success as TrySuccess, Try}
  * `map`, `flatMap`, `error`, and `flatMapTry`.
  */
 object AsyncCpsMonad extends CpsTryMonadInstanceContext[Async] {
+
+  /**
+   * DCA's default `apply` allocates a fresh `CpsTryMonadInstanceContextBody`
+   * for every `cps.async { ... }` block (see `CpsTryMonadInstanceContext`). The
+   * body is a read-only witness whose only field is a back-pointer to this
+   * singleton monad; our [[Async]] carries no per-run state (no cancellation
+   * token, no environment), so a single shared context is valid for every
+   * invocation. Caching it removes a fixed ~144 B/op heap allocation per
+   * `Async.async` block — the difference between the DCA path being elidable by
+   * escape analysis and not. The CPS-transformed body only ever reads
+   * `ctx.monad`; it never mutates, stores, or identity-compares the context.
+   */
+  private val sharedContext: Context = new CpsTryMonadInstanceContextBody[Async](this)
+
+  override def apply[T](op: Context => Async[T]): Async[T] = op(sharedContext)
 
   def pure[A](a: A): Async[A] = Async.succeed(a)
 
