@@ -309,7 +309,31 @@ phase across the cells supported by that phase.
       `jvm/.../AsyncRewriteSpec.scala` (non-blocking + gating proof).
       `AsyncContext.scala` was deleted (the marker is unnecessary with the macro
       approach).
-- **Phases 4–5:** Not started.
+- **Phase 4 (native `js.async`/`js.await` on JS Scala 3.8+):** ✅ Complete.
+  The Scala 3 direct-style backend is split behind a swappable `AsyncDirect`:
+    - JVM (all 3.x) + JS (< 3.8): dotty-cps-async (`shared/.../scala-3-dca`).
+    - JS 3.8+: native `js.async`/`js.await` (`js/.../scala-3.8`), ES2017 linker
+      target. `qual.await` → `js.await(toJsPromise(qual))` (ready value
+      short-circuits, no Promise alloc); `Async.async { body }` →
+      `fromJsPromise(js.async { body })`, or `Async.attempt(body)` when the body
+      has no `.await` (preserves the zero-suspension fast path). Scala.js enforces
+      the lexical `.await` restriction natively.
+  Public API unchanged (`Async.async` / `.await` / `.block`). JS direct-style
+  block assertions moved to JVM (`AsyncAwaitBlockSpec`); `AsyncJsAwaitSpec`
+  (Future-driven) covers both JS Scala 3 cells (DCA 3.3.7 + native 3.8+).
+  Validated green on the repo default Scala 3.8.3 (full matrix: 3.8.3 JVM 118 /
+  JS 100, 3.3.7 JVM 118 / JS 100, 2.13.18 JVM 101 / JS 93).
+
+  **Version decision:** kept on the repo default Scala 3.8.3 rather than bumping
+  `BuildHelper.Scala3` to 3.8.4-RC1. `js.async`/`js.await` already work on 3.8.3;
+  the only thing 3.8.4 adds is the `js.await(js.Promise[Unit])` fix
+  (scala3#25342), which was explicitly declared ignorable. A repo-wide RC bump
+  would force ~40 unrelated subprojects onto an RC compiler (unvalidatable while
+  unattended), violating the zero-regression / finished-solution constraints.
+  Caveat recorded in `build.sbt`: a direct `Async[Unit].await` expanding to
+  `js.await(Promise[Unit])` can fail to compile on 3.8.3; revisit when 3.8.4 is
+  stable.
+- **Phase 5 (Scala 2 direct-style macro):** Not started.
 
 ### Phase 0 — Foundation rename (1–2 weeks)
 

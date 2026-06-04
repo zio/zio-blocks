@@ -1495,6 +1495,14 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     //   - Scala 3.8+ → native `js.async`/`js.await` (faster than DCA on JS).
     //   - Scala 3.x < 3.8 → DCA (older Scala 3 lacks `js.async`/`js.await`).
     //   - Scala 2 → none yet (the Scala 2 macro is a later phase).
+    //
+    // Intentionally validated on the repo default Scala 3.8.3 rather than
+    // bumping BuildHelper.Scala3 to 3.8.4-RC1. 3.8.4 fixes the narrow
+    // `js.await(js.Promise[Unit])` compile bug, but that single case is
+    // explicitly accepted/deferred; a repo-wide RC bump would force ~40
+    // unrelated subprojects onto an RC compiler with much larger blast radius.
+    // Caveat: a direct `Async[Unit].await` expanding to `js.await(Promise[Unit])`
+    // can fail to compile on 3.8.3; revisit when 3.8.4 is stable.
     Compile / unmanagedSourceDirectories ++= {
       val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
       val jsMain     = baseDirectory.value / "src" / "main"
