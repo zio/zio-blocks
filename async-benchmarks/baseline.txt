@@ -1,0 +1,110 @@
+# JMH baseline for the `async` and `async-benchmarks` projects.
+#
+# Setup:
+#   - Each `@Benchmark` reads its inputs from a `@State` field so the JIT cannot
+#     constant-fold the operation into a literal. JMH already guards the
+#     return value against DCE; the `@State` discipline guards the body too.
+#   - Each comparison includes ZB Async ("zb_*"), Cats Effect IO ("ce_*"),
+#     and Kyo ("kyo_*") wherever the operation has a direct Kyo analog.
+#     Kyo omissions are justified inline (see AsyncAsyncOpBench / AsyncCombinatorBench).
+#
+# Optimization history for the zb numbers:
+#   - The inline-fold refactor collapsed the fast path of every shared op to
+#     a single `isInstanceOf[Pollable[?]]` check + direct call.
+#   - Completer was re-encoded to a single `AnyRef` slot
+#     (null / WaitingMarker / value), removing the per-completion ADT wrapper
+#     allocation. Allocation profiling confirms hybrid stays at 16 B/op
+#     (just the Completer) regardless of n.
+#   - `zip` uses the `Tuples.Tuples` typeclass from the `combinators` module,
+#     giving flat n-tuples (`a zip b zip c => Async[(A, B, C)]`) and Unit
+#     erasure on either side.
+#
+# Last measured: zio-blocks/async on Apple M-series JDK 21, JMH 1.37,
+# `Jmh/run -wi 5 -i 5 -f 1 zio.blocks.async.bench`.
+
+Benchmark                              (n)   Mode  Cnt           Score            Error  Units
+AsyncAsyncOpBench.ce_asyncSync         N/A  thrpt    5       76785.482 ±      80286.554  ops/s
+AsyncAsyncOpBench.zb_asyncSync         N/A  thrpt    5   498336695.238 ±    4396584.958  ops/s
+AsyncBench.ce_flatMap1                 N/A  thrpt    5       89557.878 ±       3344.889  ops/s
+AsyncBench.ce_map1                     N/A  thrpt    5       89670.093 ±       4122.626  ops/s
+AsyncBench.ce_succeed                  N/A  thrpt    5       88588.726 ±      11854.731  ops/s
+AsyncBench.kyo_flatMap1                N/A  thrpt    5   140682684.732 ±    2436529.466  ops/s
+AsyncBench.kyo_map1                    N/A  thrpt    5   140966882.115 ±    1354180.850  ops/s
+AsyncBench.kyo_succeed                 N/A  thrpt    5   209555058.405 ±    1575908.488  ops/s
+AsyncBench.zb_flatMap1                 N/A  thrpt    5  2505042310.113 ±  549356178.475  ops/s
+AsyncBench.zb_map1                     N/A  thrpt    5  2486522541.164 ±  476991231.803  ops/s
+AsyncBench.zb_succeed                  N/A  thrpt    5  2563177781.429 ±   37186542.408  ops/s
+AsyncChainBench.ce_flatMapN            100  thrpt    5       63666.077 ±      60980.125  ops/s
+AsyncChainBench.ce_flatMapN           1000  thrpt    5       26450.640 ±      39423.615  ops/s
+AsyncChainBench.ce_mapN                100  thrpt    5       76718.137 ±       2582.939  ops/s
+AsyncChainBench.ce_mapN               1000  thrpt    5       41252.699 ±       2505.710  ops/s
+AsyncChainBench.kyo_flatMapN           100  thrpt    5     2618055.511 ±      33512.600  ops/s
+AsyncChainBench.kyo_flatMapN          1000  thrpt    5      228052.319 ±       3693.289  ops/s
+AsyncChainBench.kyo_mapN               100  thrpt    5     2548981.064 ±     582166.210  ops/s
+AsyncChainBench.kyo_mapN              1000  thrpt    5      226521.719 ±       3020.697  ops/s
+AsyncChainBench.zb_flatMapN            100  thrpt    5  1413760232.336 ±    6134049.210  ops/s
+AsyncChainBench.zb_flatMapN           1000  thrpt    5     1574151.122 ±      39799.217  ops/s
+AsyncChainBench.zb_mapN                100  thrpt    5  1412077163.712 ±   11727656.797  ops/s
+AsyncChainBench.zb_mapN               1000  thrpt    5     1553767.007 ±     121997.304  ops/s
+AsyncCombinatorBench.ce_as             100  thrpt    5       89722.170 ±       8698.693  ops/s
+AsyncCombinatorBench.ce_as            1000  thrpt    5       89509.507 ±       3022.518  ops/s
+AsyncCombinatorBench.ce_ensuring       100  thrpt    5       87121.936 ±       4123.467  ops/s
+AsyncCombinatorBench.ce_ensuring      1000  thrpt    5       59855.363 ±      96405.043  ops/s
+AsyncCombinatorBench.ce_sequence       100  thrpt    5       56331.898 ±      65562.312  ops/s
+AsyncCombinatorBench.ce_sequence      1000  thrpt    5       22433.250 ±       7031.413  ops/s
+AsyncCombinatorBench.ce_tap            100  thrpt    5       76199.994 ±      34115.919  ops/s
+AsyncCombinatorBench.ce_tap           1000  thrpt    5       73560.195 ±      30408.189  ops/s
+AsyncCombinatorBench.ce_unit           100  thrpt    5       83113.200 ±       7530.747  ops/s
+AsyncCombinatorBench.ce_unit          1000  thrpt    5       83584.555 ±      16826.680  ops/s
+AsyncCombinatorBench.ce_zipLeft        100  thrpt    5       88337.540 ±       3776.160  ops/s
+AsyncCombinatorBench.ce_zipLeft       1000  thrpt    5       78545.737 ±      36475.918  ops/s
+AsyncCombinatorBench.ce_zipRight       100  thrpt    5       78068.466 ±      59521.344  ops/s
+AsyncCombinatorBench.ce_zipRight      1000  thrpt    5       84242.684 ±      18555.034  ops/s
+AsyncCombinatorBench.ce_zipWith        100  thrpt    5       84832.830 ±       9560.363  ops/s
+AsyncCombinatorBench.ce_zipWith       1000  thrpt    5       69936.121 ±      76181.748  ops/s
+AsyncCombinatorBench.kyo_collectAll    100  thrpt    5     1168197.328 ±     289515.263  ops/s
+AsyncCombinatorBench.kyo_collectAll   1000  thrpt    5      124031.303 ±       1171.387  ops/s
+AsyncCombinatorBench.kyo_zipWith       100  thrpt    5   107126736.319 ±   19179367.839  ops/s
+AsyncCombinatorBench.kyo_zipWith      1000  thrpt    5   110037364.481 ±    7557873.658  ops/s
+AsyncCombinatorBench.zb_as             100  thrpt    5  3176971390.116 ± 1702183417.205  ops/s
+AsyncCombinatorBench.zb_as            1000  thrpt    5  3396165452.942 ±  106176942.378  ops/s
+AsyncCombinatorBench.zb_collectAll     100  thrpt    5     1593675.634 ±     109839.647  ops/s
+AsyncCombinatorBench.zb_collectAll    1000  thrpt    5      228163.109 ±       7230.743  ops/s
+AsyncCombinatorBench.zb_ensuring       100  thrpt    5  2471140812.508 ±  337216350.291  ops/s
+AsyncCombinatorBench.zb_ensuring      1000  thrpt    5  2455453713.993 ±  543168500.383  ops/s
+AsyncCombinatorBench.zb_tap            100  thrpt    5  2428507162.083 ±  647136121.187  ops/s
+AsyncCombinatorBench.zb_tap           1000  thrpt    5  2422365320.186 ±  423310529.461  ops/s
+AsyncCombinatorBench.zb_unit           100  thrpt    5  1765358610.963 ±   98367941.785  ops/s
+AsyncCombinatorBench.zb_unit          1000  thrpt    5  3223750718.779 ± 1715826349.697  ops/s
+AsyncCombinatorBench.zb_zip3           100  thrpt    5   238108728.378 ±    7546749.333  ops/s
+AsyncCombinatorBench.zb_zip3          1000  thrpt    5   215525019.442 ±   19043594.329  ops/s
+AsyncCombinatorBench.zb_zipLeft        100  thrpt    5  2563321349.934 ±   21682445.404  ops/s
+AsyncCombinatorBench.zb_zipLeft       1000  thrpt    5  2455461678.053 ±  605567230.788  ops/s
+AsyncCombinatorBench.zb_zipRight       100  thrpt    5  2566961704.428 ±   15746002.978  ops/s
+AsyncCombinatorBench.zb_zipRight      1000  thrpt    5  2565336056.986 ±   16420274.497  ops/s
+AsyncCombinatorBench.zb_zipWith        100  thrpt    5  2560476647.017 ±   64040428.126  ops/s
+AsyncCombinatorBench.zb_zipWith       1000  thrpt    5  2512741816.988 ±  402187725.421  ops/s
+AsyncErrorBench.ce_attemptSuccess      N/A  thrpt    5       78864.676 ±      29192.142  ops/s
+AsyncErrorBench.ce_catchAllOnFail      N/A  thrpt    5       72232.284 ±      79113.685  ops/s
+AsyncErrorBench.ce_catchAllOnSuccess   N/A  thrpt    5       45359.166 ±      49616.029  ops/s
+AsyncErrorBench.ce_fail                N/A  thrpt    5       45760.082 ±      85901.910  ops/s
+AsyncErrorBench.ce_mapError            N/A  thrpt    5       51189.087 ±      31112.601  ops/s
+AsyncErrorBench.ce_orElseRecovers      N/A  thrpt    5       85953.893 ±      21288.552  ops/s
+AsyncErrorBench.kyo_catchAllOnFail     N/A  thrpt    5    55581321.488 ±    5211687.211  ops/s
+AsyncErrorBench.kyo_fail               N/A  thrpt    5    62185771.497 ±   12267449.683  ops/s
+AsyncErrorBench.zb_attemptSuccess      N/A  thrpt    5  2042854568.299 ±   37490851.732  ops/s
+AsyncErrorBench.zb_catchAllOnFail      N/A  thrpt    5  2445238169.997 ±  352144372.311  ops/s
+AsyncErrorBench.zb_catchAllOnSuccess   N/A  thrpt    5  2565665994.340 ±   12658137.739  ops/s
+AsyncErrorBench.zb_eitherFailure       N/A  thrpt    5   284820894.687 ±   10864947.864  ops/s
+AsyncErrorBench.zb_eitherSuccess       N/A  thrpt    5   291299141.648 ±    5607866.874  ops/s
+AsyncErrorBench.zb_fail                N/A  thrpt    5   285032310.829 ±    3688828.401  ops/s
+AsyncErrorBench.zb_foldCauseFailure    N/A  thrpt    5  2451499708.406 ±  534709384.171  ops/s
+AsyncErrorBench.zb_foldCauseSuccess    N/A  thrpt    5  2502478123.672 ±  415665545.024  ops/s
+AsyncErrorBench.zb_mapError            N/A  thrpt    5     1700917.141 ±      12182.337  ops/s
+AsyncErrorBench.zb_orElseRecovers      N/A  thrpt    5  2559894475.518 ±   57262451.817  ops/s
+AsyncHybridBench.ce_hybrid              10  thrpt    5       77237.441 ±       6883.922  ops/s
+AsyncHybridBench.ce_hybrid             100  thrpt    5       46788.130 ±      10022.452  ops/s
+AsyncHybridBench.kyo_hybrid             10  thrpt    5    11832718.364 ±    2525783.892  ops/s
+AsyncHybridBench.kyo_hybrid            100  thrpt    5     1211508.931 ±      94336.192  ops/s
+AsyncHybridBench.zb_hybrid              10  thrpt    5   345482316.810 ±   23779142.762  ops/s
+AsyncHybridBench.zb_hybrid             100  thrpt    5     5615803.646 ±    1638188.894  ops/s
