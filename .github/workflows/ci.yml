@@ -162,7 +162,7 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala JS tests
+      - name: Run Scala JS tests and compile docs
         run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:

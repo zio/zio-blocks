@@ -203,19 +203,21 @@ const sidebars = {
           },
           {
             type: "category",
-            label: "ZIO Blocks Streams",
+            label: "Streams",
             link: { type: "doc", id: "reference/streams/index" },
             items: [
-             "reference/streams/stream",
-             "reference/streams/pipeline",
-             "reference/streams/sink",
-             "reference/streams/reader",
-             "reference/streams/writer",
-             "reference/streams/zero-boxing",
-           ]
-         },
-      ]
-    },
+              "reference/streams/stream",
+              "reference/streams/pipeline",
+              "reference/streams/sink",
+              "reference/streams/reader",
+              "reference/streams/writer",
+              "reference/streams/zero-boxing",
+            ]
+          },
+          "reference/sql",
+          "reference/sql-zio",
+        ]
+      },
     {
       type: "category",
       label: "Guides",
