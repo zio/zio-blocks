@@ -350,8 +350,12 @@ phase across the cells supported by that phase.
   `Async.fail(_).await`), which Scala 2 otherwise refuses to infer ("missing
   parameter type"). Validated green across all six cells (JVM/JS × 2.13.18 /
   3.3.7 / 3.8.3); `AsyncAwaitBlockSpec` is the cross-version JVM direct-style
-  suite. Remaining: broaden coverage (nested data-flow, comprehensions) and
-  the JS Scala 2 direct-style path.
+  suite. The macro also preserves `val` type ascriptions (`val n: Long =
+  intAsync.await`) — a Scala-2-specific behavior covered by the scala-2-only
+  `AsyncAwaitValAscriptionSpec`, because dotty-cps-async instead pushes the
+  val's expected type into `.await` (`await[Long](intAsync)`, which does not
+  compile), so the two backends diverge here by design. Remaining: HOF-closure
+  awaits (5c), for-comprehensions (5d), and the JS Scala 2 direct-style path.
 
 ### Phase 0 — Foundation rename (1–2 weeks)
 

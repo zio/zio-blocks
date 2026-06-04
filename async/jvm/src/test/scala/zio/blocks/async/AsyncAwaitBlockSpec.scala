@@ -239,5 +239,10 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         assertTrue(r == 7)
       }
     )
+    // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
+    // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
+    // Scala 3, dotty-cps-async pushes the val's expected type INTO `.await`
+    // (`val n: Long = intAsync.await` elaborates as `await[Long](intAsync)` and
+    // does NOT compile), so the cases cannot be asserted identically here.
   )
 }

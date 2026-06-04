@@ -272,7 +272,13 @@ private[async] object AsyncMacros {
         case (vd: ValDef) :: rest if vd.name == termNames.WILDCARD =>
           transform(vd.rhs)(_ => transformBlock(rest, expr)(k))
         case (vd: ValDef) :: rest =>
-          transform(vd.rhs)(v => safe(q"""{ val ${vd.name} = $v; ${transformBlock(rest, expr)(k)} }"""))
+          // Preserve the val's declared type tree. A source `val n: Long =
+          // int.await` must keep `n` typed as `Long` after the CPS rewrite, or
+          // overload resolution / widening could diverge from Scala 3 / DCA.
+          transform(vd.rhs) { v =>
+            val rebound = ValDef(Modifiers(), vd.name, vd.tpt.duplicate, v)
+            safe(q"""{ $rebound; ${transformBlock(rest, expr)(k)} }""")
+          }
         case stmt :: rest =>
           transform(stmt)(_ => transformBlock(rest, expr)(k))
       }
