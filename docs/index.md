@@ -28,6 +28,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
+| **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
 
 ## Core Principles
 
@@ -557,6 +558,42 @@ import zio.blocks.streams._
 
 ---
 
+## Async
+
+A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
+an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
+the happy path while still suspending on genuinely asynchronous work.
+
+```scala mdoc
+import zio.blocks.async._
+
+// Constructors collapse to bare values; transformers inline with no allocation
+val computed: Int =
+  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
+```
+
+Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
+at compile time into a non-blocking `flatMap` chain:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
+
+val program: Async[Int] =
+  Async.async {
+    val a = fetch(1).await
+    val b = fetch(2).await
+    (a + b).length
+  }
+```
+
+See the [Async reference](./reference/async.md) for the full API, including
+`zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
+`Future` / `CompletionStage` interop.
+
+---
+
 ## Compatibility
 
 ZIO Blocks works with any Scala stack:
@@ -576,10 +613,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | Async |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
 
 ## Documentation
 
@@ -650,6 +687,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
+- [Async](./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 

@@ -171,6 +171,7 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "reference/mux",
+          "reference/async",
           {
             type: "category",
             label: "RingBuffer",

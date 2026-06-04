@@ -22,11 +22,14 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Chunk** | High-performance immutable indexed sequences | ✅ Available |
 | **Scope** | Compile-time safe resource management and DI | ✅ Available |
 | **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
+| **Codegen** | Generic Scala code generation IR and emitter | ✅ Available |
 | **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
 | **Context** | Type-indexed heterogeneous collections | ✅ Available |
 | **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
+| **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | 🚧 In Development |
+| **Streams** | Pull-based streaming primitives | ✅ Available |
+| **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
 
 ## Core Principles
 
@@ -83,14 +86,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.41"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "0.0.35"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "0.0.35"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.35"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "0.0.35"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "0.0.41"
 ```
 
 ### Example: Optics
@@ -145,7 +148,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.41"
 ```
 
 ### Example
@@ -234,7 +237,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.41"
 ```
 
 ### Example: Basic Resource Management
@@ -343,7 +346,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.41"
 ```
 
 ### Example
@@ -427,7 +430,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.41"
 ```
 
 ### Example
@@ -470,7 +473,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.41"
 ```
 
 ### Example
@@ -522,7 +525,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.35"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.41"
 ```
 
 ### Example
@@ -556,6 +559,43 @@ import zio.blocks.streams._
 
 ---
 
+## Async
+
+A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
+an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
+the happy path while still suspending on genuinely asynchronous work.
+
+```scala
+import zio.blocks.async._
+
+// Constructors collapse to bare values; transformers inline with no allocation
+val computed: Int =
+  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
+// computed: Int = 42
+```
+
+Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
+at compile time into a non-blocking `flatMap` chain:
+
+```scala
+import zio.blocks.async._
+
+def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
+
+val program: Async[Int] =
+  Async.async {
+    val a = fetch(1).await
+    val b = fetch(2).await
+    (a + b).length
+  }
+```
+
+See the [Async reference](docs/./reference/async.md) for the full API, including
+`zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
+`Future` / `CompletionStage` interop.
+
+---
+
 ## Compatibility
 
 ZIO Blocks works with any Scala stack:
@@ -575,10 +615,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | Async |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
 
 ## Documentation
 
@@ -595,18 +635,26 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Optics](docs/./reference/schema/optics.md) - Lenses, prisms, and traversals
 - [SchemaExpr](docs/./reference/schema/schema-expr.md) - Schema-aware expressions for queries and validation
-- [Path Interpolator](docs/./path-interpolator.md) - Type-safe path construction
+- [Path Interpolator](docs/./reference/schema/path-interpolator.md) - Type-safe path construction
 - [DynamicValue](docs/./reference/schema/dynamic-value.md) - Schema-less dynamic values
 - [DynamicSchema](docs/./reference/schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
 
 ### Serialization
 
 - [Codec & Format](docs/./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](docs/./reference/schema/json.md) - JSON codec and parsing
-- [JsonPatch](docs/./reference/schema/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](docs/./reference/schema/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](docs/./reference/schema/json-schema.md) - JSON Schema generation and validation
-- [Formats](docs/./reference/schema/formats.md) - Avro, TOON, MessagePack, BSON, Thrift
+- [JSON](docs/./reference/schema/built-in-codecs/json/index.md) - JSON codec and parsing
+- [JsonPatch](docs/./reference/schema/built-in-codecs/json/json-patch.md) - Diff and patch JSON values
+- [JsonDiffer](docs/./reference/schema/built-in-codecs/json/json-differ.md) - Compute minimal diffs between JSON values
+- [JSON Schema](docs/./reference/schema/built-in-codecs/json/json-schema.md) - JSON Schema generation and validation
+- [XML Codec](docs/./reference/schema/built-in-codecs/xml.md) - Zero-dependency XML serialization with fluent navigation and patching
+- [CSV Codec](docs/./reference/schema/built-in-codecs/csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
+- [BSON Codec](docs/./reference/schema/built-in-codecs/bson.md) - MongoDB-compatible BSON serialization with native type support
+- [Avro Codec](docs/./reference/schema/built-in-codecs/avro.md) - Apache Avro binary serialization with automatic schema generation
+- [MessagePack Codec](docs/./reference/schema/built-in-codecs/messagepack.md) - Compact binary serialization with optimized streaming
+- [Thrift Codec](docs/./reference/schema/built-in-codecs/thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
+- [YAML Codec](docs/./reference/schema/built-in-codecs/yaml.md) - Human-readable YAML serialization with JSON interop
+- [TOON Codec](docs/./reference/schema/built-in-codecs/toon.md) - Compact token-oriented notation 30-60% smaller than JSON, optimized for LLM prompts
+- [Built-in Codecs](docs/./reference/schema/built-in-codecs/index.md) - Overview of all supported serialization formats
 - [Extension Syntax](docs/./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
 
 ### Data Operations
@@ -621,19 +669,27 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 ### Other Blocks
 
 - [Chunk](docs/./reference/chunk.md) - High-performance immutable sequences
+- [Maybe](docs/./reference/maybe.md) - Low-allocation optional values using null
 - [Scope](docs/./reference/resource-management/scope.md) - Compile-time safe resource management and DI
 - [Wire](docs/./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
 - [Context](docs/./reference/context.md) - Type-indexed heterogeneous collections
+- [Combinators](docs/./reference/combinators.md) - Compile-time composition and decomposition of values (Tuples, Eithers, Unions)
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
+- [HTML](docs/./reference/html.md) - Type-safe HTML templating with XSS protection
+- [HTMX](docs/./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
+- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [Endpoint](docs/./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
-- [HTTP Model](docs/reference/http-model/) - Pure HTTP data model with URL parsing, headers, cookies, and forms
-- [Ring Buffer](docs/reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
+- [Smithy](docs/./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
+- [OpenAPI](docs/./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
+- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
 - [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](docs/./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](docs/./reference/streams/writer.md) - Low-level push-based sinks for streaming
+- [Async](docs/./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 
