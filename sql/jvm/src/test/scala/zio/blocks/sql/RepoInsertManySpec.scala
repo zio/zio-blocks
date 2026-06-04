@@ -55,10 +55,10 @@ object RepoInsertManySpec extends ZIOSpecDefault {
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("RepoInsertManySpec")(
-    test("insertMany returns Seq of length 3") {
+    test("insertAll returns Seq of length 3") {
       withFreshDb { tx =>
         tx.connect {
-          val ids = itemRepo.insertMany(
+          val ids = itemRepo.insertAll(
             Seq(
               Item(1L, "Alpha"),
               Item(2L, "Beta"),
@@ -72,7 +72,7 @@ object RepoInsertManySpec extends ZIOSpecDefault {
     test("IDs are in ascending order") {
       withFreshDb { tx =>
         tx.connect {
-          val ids = itemRepo.insertMany(
+          val ids = itemRepo.insertAll(
             Seq(
               Item(1L, "Alpha"),
               Item(2L, "Beta"),
@@ -83,10 +83,10 @@ object RepoInsertManySpec extends ZIOSpecDefault {
         }
       }
     },
-    test("findAll returns all 3 entities after insertMany") {
+    test("findAll returns all 3 entities after insertAll") {
       withFreshDb { tx =>
         tx.connect {
-          itemRepo.insertMany(
+          itemRepo.insertAll(
             Seq(
               Item(1L, "Alpha"),
               Item(2L, "Beta"),
@@ -101,10 +101,10 @@ object RepoInsertManySpec extends ZIOSpecDefault {
         }
       }
     },
-    test("insertMany with empty Seq throws IllegalArgumentException") {
+    test("insertAll with empty Seq throws IllegalArgumentException") {
       withFreshDb { tx =>
         tx.connect {
-          val result = scala.util.Try(itemRepo.insertMany(Seq.empty))
+          val result = scala.util.Try(itemRepo.insertAll(Seq.empty))
           assertTrue(result.failed.toOption.exists(_.isInstanceOf[IllegalArgumentException]))
         }
       }

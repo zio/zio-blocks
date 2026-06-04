@@ -129,7 +129,7 @@ class Repo[E, ID](
    * count. Individual parameter lists are omitted because a batch may contain a
    * large number of rows.
    */
-  def insertAll(entities: Iterable[E])(using con: DbCon): Int = {
+  def insertBatch(entities: Iterable[E])(using con: DbCon): Int = {
     if (entities.isEmpty) return 0
     val first  = entities.head
     val values = codec.toDbValues(first)
@@ -165,8 +165,8 @@ class Repo[E, ID](
    * Inserts multiple entities using a single multi-row INSERT and returns the
    * primary keys of the inserted entities in input order.
    *
-   * Distinct from [[insertAll]] which uses a JDBC batch and returns row counts.
-   * `insertMany` uses a single `VALUES (?, ?), (?, ?)` statement for
+   * Distinct from [[insertBatch]] which uses a JDBC batch and returns row
+   * counts. `insertAll` uses a single `VALUES (?, ?), (?, ?)` statement for
    * efficiency, then returns the IDs extracted from the entities via `getId`.
    * This is suitable when the caller supplies the primary keys explicitly (as
    * opposed to relying on database auto-generation).
@@ -174,8 +174,8 @@ class Repo[E, ID](
    * @throws IllegalArgumentException
    *   if `rows` is empty
    */
-  def insertMany(rows: Seq[E])(using con: DbCon): Seq[ID] = {
-    require(rows.nonEmpty, "Repo.insertMany: rows must be non-empty")
+  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = {
+    require(rows.nonEmpty, "Repo.insertAll: rows must be non-empty")
     val valuesFrag = Frag.values(rows)(using codec)
     val frag       = Frag.literal(s"INSERT INTO $tbl ($allCols) VALUES ") ++ valuesFrag
     SqlOps.update(frag)(using con)

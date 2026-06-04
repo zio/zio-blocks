@@ -78,4 +78,10 @@ object JdbcTransactor {
 
   def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): JdbcTransactor =
     new JdbcTransactor(() => dataSource.getConnection, dialect)
+
+  def postgres(dataSource: javax.sql.DataSource): JdbcTransactor =
+    fromDataSource(dataSource, SqlDialect.PostgreSQL)
+
+  def sqlite(dataSource: javax.sql.DataSource): JdbcTransactor =
+    fromDataSource(dataSource, SqlDialect.SQLite)
 }

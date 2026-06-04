@@ -432,11 +432,11 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     ),
-    suite("insertAll")(
+    suite("insertBatch")(
       test("inserts multiple entities in batch") {
         withFreshDb { tx =>
           tx.connect {
-            val count = userRepo.insertAll(
+            val count = userRepo.insertBatch(
               List(
                 User(1, "Alice", "a@test.com"),
                 User(2, "Bob", "b@test.com"),
@@ -447,10 +447,10 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           }
         }
       },
-      test("all entities are queryable after insertAll") {
+      test("all entities are queryable after insertBatch") {
         withFreshDb { tx =>
           tx.connect {
-            userRepo.insertAll(
+            userRepo.insertBatch(
               List(
                 User(1, "Alice", "a@test.com"),
                 User(2, "Bob", "b@test.com"),
@@ -465,18 +465,18 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           }
         }
       },
-      test("insertAll with empty iterable returns 0") {
+      test("insertBatch with empty iterable returns 0") {
         withFreshDb { tx =>
           tx.connect {
-            val count = userRepo.insertAll(List.empty[User])
+            val count = userRepo.insertBatch(List.empty[User])
             assertTrue(count == 0, userRepo.count == 0L)
           }
         }
       },
-      test("insertAll with single entity") {
+      test("insertBatch with single entity") {
         withFreshDb { tx =>
           tx.connect {
-            val count = userRepo.insertAll(List(User(1, "Solo", "solo@test.com")))
+            val count = userRepo.insertBatch(List(User(1, "Solo", "solo@test.com")))
             assertTrue(count == 1, userRepo.count == 1L)
           }
         }
@@ -569,10 +569,10 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           }
         }
       },
-      test("insertAll logs success") {
+      test("insertBatch logs success") {
         withFreshDbAndLogger { (tx, logger) =>
           tx.connect {
-            userRepo.insertAll(
+            userRepo.insertBatch(
               List(
                 User(1, "Alice", "a@test.com"),
                 User(2, "Bob", "b@test.com")
