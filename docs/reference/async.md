@@ -16,20 +16,27 @@ work.
 `Async[A]` is an opaque type whose ready representation is the value itself and
 whose pending representation is a `Pollable[A]`. You never construct it
 directly; you enter the type through constructors and transform it through
-inline extension methods:
+extension methods:
 
 - **Constructors** — `Async.succeed`, `Async.fail`, `Async.attempt`,
   `Async.never`, `Async.collectAll`, and the callback bridge `Async.promise`.
 - **Transformers** — `map`, `flatMap`, `zip`, `zipWith`, `catchAll`,
   `mapError`, `orElse`, `foldCause`, `either`, `tap`, `ensuring`, `as`, `unit`,
-  `*>`, `<*`, `flatten`.
+  `*>`, `<*`, `flatten`, and the conditional helpers `when` / `unless`.
 - **Direct style** — `Async.async { ... .await ... }` lets you write
   straight-line code with `.await`, rewritten at compile time into a
   non-blocking `flatMap` chain.
 - **Running** — `.block` drives an `Async` to its value (blocking on the JVM,
   throwing on a genuinely pending value on JS).
-- **Interop** — conversions to and from `scala.concurrent.Future` and Java's
-  `CompletionStage` / `CompletableFuture` (JVM only).
+- **Interop** — conversions to and from `scala.concurrent.Future` on every
+  platform, Java's `CompletionStage` / `CompletableFuture` on the JVM, and
+  `js.Promise` on Scala.js.
+
+On Scala 3 the transformers are zero-cost `inline` extension methods (the ready
+path applies your function directly to the underlying value with no `Function1`
+allocation). On Scala 2 they are methods on an implicit `AsyncOps` class. The
+raw-value representation — a ready `Async[A]` *is* an `A` — holds identically on
+both.
 
 ## Installation
 
@@ -75,9 +82,9 @@ val all: Async[List[Int]] =
 
 ## Transforming values
 
-The transformer methods are `inline` extension methods. On the ready path they
-apply your function directly to the underlying value with **no `Function1`
-allocation**; only a genuinely pending `Async` takes the suspended slow path.
+On the ready path the transformers apply your function directly to the
+underlying value; only a genuinely pending `Async` takes the suspended slow
+path.
 
 ```scala mdoc
 val mapped: Async[Int] = Async.succeed(20).map(_ + 1)
@@ -116,6 +123,19 @@ val fallback: Async[Int] =
   Async.fail(new RuntimeException("x")).orElse(Async.succeed(0))
 ```
 
+### Conditional effects
+
+`when` / `unless` run an `Async` only when a condition holds, discarding its
+value. `Async.never` is an `Async` that never completes — useful as a sentinel:
+
+```scala mdoc
+val maybe: Async[Unit] = when(1 < 2)(Async.succeed(()))
+
+val skipped: Async[Unit] = unless(1 < 2)(Async.succeed(()))
+
+val forever: Async[Nothing] = Async.never
+```
+
 ## Direct style: `Async.async` and `.await`
 
 Inside an `Async.async { ... }` block you can write straight-line code and use
@@ -140,14 +160,23 @@ A failure encountered by `.await` short-circuits the block and surfaces as a
 failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
 is equivalent to `Async.fail(t)`.
 
+> **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
+> sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
+> `throw`, and assignments, but **rejects** `.await` inside a function literal /
+> higher-order-function argument (e.g. `xs.map(x => f(x).await)`) and inside
+> for-comprehensions, with an actionable compile error. These positions are
+> supported on Scala 3. Support for them on Scala 2 is in progress.
+
 ## The callback bridge: `Async.promise`
 
 `Async.promise` builds an `Async` from a callback-style API. You receive a
-`Completer` and call `succeed` / `fail` when the result arrives. If the body
-completes the completer synchronously, the result collapses to a bare value
-with no `Pollable` allocation. On Scala 3 the completer is supplied via a
-context function, so you can call the top-level `succeed` / `fail` helpers
-directly:
+`Completer` and call `succeed` / `fail` when the result arrives. Completion is
+one-shot — the first `succeed` or `fail` wins; later calls are silent no-ops. If
+the body completes the completer synchronously, the result collapses to a bare
+value with no `Pollable` allocation.
+
+On Scala 3 the completer is supplied via a context function, so you can call the
+top-level `succeed` / `fail` helpers directly:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -157,6 +186,15 @@ val fromCallback: Async[Int] =
     // register a callback with some external system, then:
     succeed(42)
   }
+```
+
+On Scala 2 the body receives the `Completer` explicitly; mark it `implicit` to
+use the same top-level `succeed` / `fail` helpers, or call its methods directly:
+
+```scala
+// Scala 2
+Async.promise[Int] { implicit c => succeed(42) }
+Async.promise[Int] { c => c.succeed(42) }
 ```
 
 ## Running an `Async`
@@ -170,11 +208,14 @@ program, never on a scheduler/reactor thread.
 val result: Int = Async.succeed(20).map(_ + 1).block
 ```
 
-## Interop (JVM)
+## Interop
 
-On the JVM, `AsyncInterop` converts to and from `scala.concurrent.Future` and
-Java's `CompletionStage` / `CompletableFuture`, preserving both success and
-failure:
+`AsyncInterop` converts between `Async` and the platform's standard async types,
+preserving both success and failure. `scala.concurrent.Future` conversion is
+available on both platforms; the JVM additionally offers Java
+`CompletionStage` / `CompletableFuture`, and Scala.js offers `js.Promise`.
+
+On the JVM:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -189,14 +230,27 @@ val fromStage: Async[Int]        = AsyncInterop.fromCompletionStage(CompletableF
 val toStage: CompletableFuture[Int] = AsyncInterop.toCompletableFuture(Async.succeed(1))
 ```
 
+On Scala.js, `AsyncInterop` provides `fromFuture` / `toFuture` plus
+`fromJsPromise` / `toJsPromise` for native `scala.scalajs.js.Promise` interop.
+
+## Low-level building blocks: `Pollable` and `Waker`
+
+Most code should use the constructors and `Async.promise`. For custom
+asynchronous leaves you can implement a `Pollable[A]` directly. `poll(waker)`
+returns the ready value (or a `Failure`) when available, or a `Pollable`
+(commonly `this`) when still pending; a pending pollable must arrange to call
+`waker.wake()` once progress can be made, prompting the scheduler to re-poll.
+
 ## Cross-platform and cross-version notes
 
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2) |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); Scala 2 macro does not yet support `.await` in HOF closures / for-comprehensions |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
-| `Future` / `CompletionStage` interop | ✅ | ❌ | ✅      | ✅        | `AsyncInterop` is JVM-only                              |
+| `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
+| `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
+| `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
 
 The public API is identical across all platforms and Scala versions by design;
 the cross-platform test suite fails if any user-visible behavior diverges.
