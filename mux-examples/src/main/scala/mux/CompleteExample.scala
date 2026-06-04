@@ -45,8 +45,8 @@ import zio.blocks.mux._
       case 4 => "GET /api/comments"
     }
     mux.open(streamId) match {
-      case s: MuxStream[Int, String, String] =>
-        Some((streamId, route, s))
+      case s: MuxStream[?, ?, ?] =>
+        Some((streamId, route, s.asInstanceOf[MuxStream[Int, String, String]]))
       case error: MuxError =>
         println(s"✗ Failed to open stream $streamId: $error")
         None
@@ -110,16 +110,18 @@ import zio.blocks.mux._
   // Now we can open new requests (because we freed capacity)
   println("Capacity freed - opening new streams:")
   mux.open(5) match {
-    case stream5: MuxStream[Int, String, String] =>
-      stream5.send("PATCH /api/users/3")
+    case stream5: MuxStream[?, ?, ?] =>
+      val s = stream5.asInstanceOf[MuxStream[Int, String, String]]
+      s.send("PATCH /api/users/3")
       println(f"  Opened stream 5: PATCH /api/users/3")
     case error: MuxError =>
       println(f"  Failed to open stream 5: $error")
   }
 
   mux.open(6) match {
-    case stream6: MuxStream[Int, String, String] =>
-      stream6.send("DELETE /api/posts/2")
+    case stream6: MuxStream[?, ?, ?] =>
+      val s = stream6.asInstanceOf[MuxStream[Int, String, String]]
+      s.send("DELETE /api/posts/2")
       println(f"  Opened stream 6: DELETE /api/posts/2")
     case error: MuxError =>
       println(f"  Failed to open stream 6: $error")

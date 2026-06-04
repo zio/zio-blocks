@@ -34,18 +34,18 @@ import zio.blocks.mux._
 
   // Open two streams: one for request, one for response
   val requestStream = mux.open(1) match {
-    case s: MuxStream[Int, String, String] =>
+    case s: MuxStream[?, ?, ?] =>
       println("✓ Request stream opened")
-      s
+      s.asInstanceOf[MuxStream[Int, String, String]]
     case error: MuxError =>
       println(s"✗ Failed to open request stream: $error")
       sys.exit(1)
   }
 
   val responseStream = mux.open(2) match {
-    case s: MuxStream[Int, String, String] =>
+    case s: MuxStream[?, ?, ?] =>
       println("✓ Response stream opened")
-      s
+      s.asInstanceOf[MuxStream[Int, String, String]]
     case error: MuxError =>
       println(s"✗ Failed to open response stream: $error")
       sys.exit(1)

@@ -37,9 +37,9 @@ import zio.blocks.mux._
   // Open first stream with ID 1
   val stream1Result = mux.open(1)
   val stream1       = stream1Result match {
-    case s: MuxStream[Int, String, String] =>
+    case s: MuxStream[?, ?, ?] =>
       println(s"✓ Stream 1 opened successfully")
-      s
+      s.asInstanceOf[MuxStream[Int, String, String]]
     case error: MuxError =>
       println(s"✗ Failed to open stream 1: $error")
       sys.exit(1)
@@ -48,9 +48,9 @@ import zio.blocks.mux._
   // Open second stream with ID 2
   val stream2Result = mux.open(2)
   val stream2       = stream2Result match {
-    case s: MuxStream[Int, String, String] =>
+    case s: MuxStream[?, ?, ?] =>
       println(s"✓ Stream 2 opened successfully")
-      s
+      s.asInstanceOf[MuxStream[Int, String, String]]
     case error: MuxError =>
       println(s"✗ Failed to open stream 2: $error")
       sys.exit(1)

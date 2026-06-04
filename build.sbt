@@ -1424,7 +1424,8 @@ lazy val docs = project
     html.jvm,
     datastar.jvm,
     smithy,
-    htmx.jvm
+    htmx.jvm,
+    mux.jvm
   )
   .enablePlugins(WebsitePlugin)
 
