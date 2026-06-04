@@ -94,7 +94,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
 
     val offset = (pIdx & m).toInt
     ARRAY_HANDLE.setRelease(buf, offset, a.asInstanceOf[AnyRef])
-    PRODUCER_INDEX.setRelease(this, pIdx + 1L)
+    PRODUCER_INDEX.setOpaque(this, pIdx + 1L)
     true
   }
 
@@ -117,7 +117,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
     if (e eq null) return null.asInstanceOf[A]
 
     ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
-    CONSUMER_INDEX.setRelease(this, cIdx + 1L)
+    CONSUMER_INDEX.setOpaque(this, cIdx + 1L)
     e
   }
 
@@ -181,7 +181,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
       if (e eq null) return count
       ARRAY_HANDLE.setRelease(buf, offset, null.asInstanceOf[AnyRef])
       cIdx += 1L
-      CONSUMER_INDEX.setRelease(this, cIdx)
+      CONSUMER_INDEX.setOpaque(this, cIdx)
       count += 1
       consumer(e)
     }
@@ -236,7 +236,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
       val offset = (pIdx & m).toInt
       ARRAY_HANDLE.setRelease(buf, offset, a.asInstanceOf[AnyRef])
       pIdx += 1L
-      PRODUCER_INDEX.setRelease(this, pIdx)
+      PRODUCER_INDEX.setOpaque(this, pIdx)
       count += 1
     }
     producerLimit = pLim
@@ -253,6 +253,7 @@ final class SpscRingBuffer[A <: AnyRef](val capacity: Int) extends SpscPad2 {
       if ((ARRAY_HANDLE.getAcquire(buf, currentOffset): AnyRef) ne null) {
         false
       } else {
+        producerLimit = pIdx + 1
         true
       }
     }

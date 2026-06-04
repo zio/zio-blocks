@@ -17,7 +17,7 @@
 package zio.blocks.streams
 
 import scala.annotation.unchecked.uncheckedVariance
-import zio.blocks.chunk.{Chunk, ChunkBuilder}
+import zio.blocks.chunk.Chunk
 import zio.blocks.combinators.{Concat, Tuples}
 import zio.blocks.scope.{Resource, Scope}
 import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, pullDouble, pullFloat, pullInt, pullLong}
@@ -194,6 +194,21 @@ abstract class Stream[+E, +A] {
   )(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Stream[E1, B] =
     new Stream.FlatMapped[E, E1, A, B](this, f, jtA, jtB)
 
+  /**
+   * Applies `f` to each element to produce an inner stream, then merges up to
+   * `n` inner streams concurrently. Output is unordered (arrival order, not
+   * input order). On JVM, each inner stream runs on a virtual thread. On JS,
+   * degrades to sequential flatMap.
+   */
+  def flatMapPar[E1 >: E, B](n: Int)(f: A => Stream[E1, B])(implicit
+    jtA: JvmType.Infer[A],
+    jtB: JvmType.Infer[B]
+  ): Stream[E1, B] = {
+    require(n >= 1, s"flatMapPar requires n >= 1, got $n")
+    jtB.jvmType
+    Stream.mergeAll[E1, B](n)(this.asInstanceOf[Stream[E1, A]].map(f))
+  }
+
   /** Returns `true` if all elements satisfy `pred`, short-circuiting. */
   def forall(pred: A => Boolean): Either[E, Boolean] = run(Sink.forall(pred))
 
@@ -205,113 +220,26 @@ abstract class Stream[+E, +A] {
   /**
    * Groups elements into `Chunk`s of size `n`. The last group may be smaller.
    */
-  def grouped(n: Int): Stream[E, Chunk[A]] = {
-    require(n >= 1, s"grouped requires n >= 1, got n=$n")
+  def chunked(n: Int): Stream[E, Chunk[A]] = {
+    require(n >= 1, s"chunked requires n >= 1, got n=$n")
     new Stream.FromReader[E, Chunk[A]](
       () => {
         val source = Stream.compileToReader(this)
-        val et     = source.jvmType
-        if (et eq JvmType.Byte) {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = new ChunkBuilder.Byte()
-              var i       = 0
-              var v       = pullInt(source, Long.MinValue)
-              while (v != Long.MinValue && i < n) {
-                builder.addOne(v.toByte)
-                i += 1
-                if (i < n) v = pullInt(source, Long.MinValue)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
+        new Reader[Chunk[A]] {
+          def isClosed                               = source.isClosed
+          def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
+            val c = source.readN[A](n)
+            if (c.isEmpty) sentinel else c.asInstanceOf[A1]
           }
-        } else if (et eq JvmType.Int) {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = new ChunkBuilder.Int()
-              var i       = 0
-              var v       = pullInt(source, Long.MinValue)
-              while (v != Long.MinValue && i < n) {
-                builder.addOne(v.toInt)
-                i += 1
-                if (i < n) v = pullInt(source, Long.MinValue)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
-          }
-        } else if (et eq JvmType.Long) {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = new ChunkBuilder.Long()
-              var i       = 0
-              var v       = pullLong(source, Long.MaxValue)
-              while (v != Long.MaxValue && i < n) {
-                builder.addOne(v)
-                i += 1
-                if (i < n) v = pullLong(source, Long.MaxValue)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
-          }
-        } else if (et eq JvmType.Float) {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = new ChunkBuilder.Float()
-              var i       = 0
-              var v       = pullFloat(source, Double.MaxValue)
-              while (v != Double.MaxValue && i < n) {
-                builder.addOne(v.toFloat)
-                i += 1
-                if (i < n) v = pullFloat(source, Double.MaxValue)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
-          }
-        } else if (et eq JvmType.Double) {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = new ChunkBuilder.Double()
-              var i       = 0
-              var v       = pullDouble(source, Double.MaxValue)
-              while (v != Double.MaxValue && i < n) {
-                builder.addOne(v)
-                i += 1
-                if (i < n) v = pullDouble(source, Double.MaxValue)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
-          }
-        } else {
-          new Reader[Chunk[A]] {
-            def isClosed                               = source.isClosed
-            def read[A1 >: Chunk[A]](sentinel: A1): A1 = {
-              val builder = ChunkBuilder.make[A](n)
-              var i       = 0
-              var v       = source.read[Any](EndOfStream)
-              while ((v.asInstanceOf[AnyRef] ne EndOfStream) && i < n) {
-                builder += v.asInstanceOf[A]
-                i += 1
-                if (i < n) v = source.read[Any](EndOfStream)
-              }
-              if (i == 0) sentinel else builder.result().asInstanceOf[A1]
-            }
-            def close() = source.close()
-          }
+          def close() = source.close()
         }
       },
-      s"${this.render}.grouped($n)"
+      s"${this.render}.chunked($n)"
     )
   }
+
+  /** Alias for [[chunked]]. Matches upstream naming. */
+  def grouped(n: Int): Stream[E, Chunk[A]] = chunked(n)
 
   /** Returns the first element, or `None` if empty. */
   def head: Either[E, Option[A]] = run(Sink.head)
@@ -346,6 +274,26 @@ abstract class Stream[+E, +A] {
   /** Lazily transforms each element with `f`. */
   def map[B](f: A => B)(implicit jtA: JvmType.Infer[A], jtB: JvmType.Infer[B]): Stream[E, B] =
     new Stream.Mapped(this, f, jtA, jtB)
+
+  /**
+   * Applies `f` to each element using `n` concurrent workers. Output is
+   * UNORDERED (arrival order, not input order). On JVM, workers run on virtual
+   * threads. On JS, degrades to sequential map.
+   *
+   * @param n
+   *   number of concurrent workers
+   * @param f
+   *   transformation to apply to each element
+   */
+  def mapPar[B](n: Int)(f: A => B)(implicit
+    jtA: JvmType.Infer[A],
+    jtB: JvmType.Infer[B]
+  ): Stream[E, B] = {
+    require(n >= 1, s"mapPar requires n >= 1, got $n")
+    jtA.jvmType
+    jtB.jvmType
+    new Stream.MapPar[E, A, B](this, n, f, jtA.jvmType, jtB.jvmType)
+  }
 
   /**
    * Transforms elements with a stateful function `f`, threading state `S`
@@ -419,7 +367,7 @@ abstract class Stream[+E, +A] {
     run(new Sink.FoldLeftLong(z, f))
 
   /** Runs the stream, folding elements with `f` starting from `z`. */
-  def runFold[Z](z: Z)(f: (Z, A) => Z): Either[E, Z] = run(Sink.foldLeft(z)(f))
+  def runFold[Z](z: Z)(f: (Z, A) => Z)(implicit jtZ: JvmType.Infer[Z]): Either[E, Z] = run(Sink.foldLeft(z)(f))
 
   /** Runs the stream, applying `f` to each element for its side-effects. */
   def runForeach(f: A => Unit): Either[E, Unit] = run(Sink.foreach(f))
@@ -807,10 +755,19 @@ abstract class Stream[+E, +A] {
    * closed automatically when the scope closes.
    */
   def start(implicit scope: Scope): scope.$[Reader[A]] =
-    scope.allocate(Resource.acquireRelease(compile(0))(_.close()))
+    scope.allocate(Resource.acquireRelease(compile(0, Stream.DefaultBufferSize))(_.close()))
 
   /** Emits at most the first `n` elements, then closes. */
   def take(n: Long): Stream[E, A] = new Stream.Taken(this, n)
+
+  /**
+   * Decouples upstream production from downstream consumption with a bounded
+   * buffer of `n` elements.
+   */
+  def buffer(n: Int): Stream[E, A] = {
+    require(n >= 1, s"buffer requires n >= 1, got n=$n")
+    new Stream.Buffered(this, n)
+  }
 
   /**
    * Emits elements while `pred` holds, then closes on the first element where
@@ -830,7 +787,9 @@ abstract class Stream[+E, +A] {
     pipe.applyToStream(this)
 
   /** Compiles this stream into a [[Reader]] for pull-based evaluation. */
-  private[streams] def compile(depth: Int): Reader[A]
+  private[streams] def compile(depth: Int, bufferSize: Int): Reader[A]
+
+  private[streams] def compile(depth: Int): Reader[A] = compile(depth, Stream.DefaultBufferSize)
 
   /** Compiles this stream description into the given [[Interpreter]]. */
   private[streams] def compileInterpreter(pipeline: Interpreter): Unit
@@ -915,6 +874,29 @@ object Stream {
   def flattenAll[E, A](streams: Stream[E, Stream[E, A]]): Stream[E, A] =
     streams.flatMap(identity)
 
+  /**
+   * Merges up to `maxOpen` inner streams concurrently into a single output
+   * stream. Elements arrive in completion order (unordered with respect to
+   * input position). On JVM, each inner stream runs on a virtual thread. On JS,
+   * degrades to sequential flatMap.
+   *
+   * @param maxOpen
+   *   maximum number of concurrently active inner streams
+   * @param streams
+   *   a stream of inner streams to merge
+   */
+  def mergeAll[E, A](maxOpen: Int)(streams: Stream[E, Stream[E, A]])(implicit
+    jtA: JvmType.Infer[A]
+  ): Stream[E, A] = {
+    require(maxOpen >= 1, s"mergeAll requires maxOpen >= 1, got $maxOpen")
+    new Stream.MergedAll[E, A](streams, maxOpen, jtA.jvmType)
+  }
+
+  def bufferSize[E, A](n: Int)(body: => Stream[E, A]): Stream[E, A] = {
+    require(n >= 1 && (n & (n - 1)) == 0, s"bufferSize must be a positive power of 2, got $n")
+    new Stream.WithBufferSize(body, n)
+  }
+
   /** Creates a resource-safe stream: acquires `R`, uses it, then releases. */
   def fromAcquireRelease[R, E, A](
     acquire: => R,
@@ -934,10 +916,10 @@ object Stream {
     new FromChunkStream(chunk, jt)
 
   /**
-   * Wraps a [[java.io.InputStream]] as a stream of bytes widened to Int
-   * (0–255). Closes the stream when done.
+   * Wraps a [[java.io.InputStream]] as a stream of bytes. Closes the stream
+   * when done.
    */
-  def fromInputStream(is: java.io.InputStream): Stream[java.io.IOException, Int] =
+  def fromInputStream(is: java.io.InputStream): Stream[java.io.IOException, Byte] =
     fromAcquireRelease(
       is,
       (s: java.io.InputStream) =>
@@ -946,11 +928,10 @@ object Stream {
     )(s => fromInputStreamUnmanaged(s))
 
   /**
-   * Wraps a [[java.io.InputStream]] as a stream of bytes widened to Int (0–255)
-   * without managing its lifecycle. The caller is responsible for closing the
-   * stream.
+   * Wraps a [[java.io.InputStream]] as a stream of bytes without managing its
+   * lifecycle. The caller is responsible for closing the stream.
    */
-  def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Int] =
+  def fromInputStreamUnmanaged(is: java.io.InputStream): Stream[java.io.IOException, Byte] =
     new FromReader(() => Reader.fromInputStream(is), "Stream.fromInputStreamUnmanaged(...)")
 
   /**
@@ -1103,14 +1084,15 @@ object Stream {
 
   /** Compiles a stream for pull-based evaluation. */
   private[streams] def compileToReader[E, A](stream: Stream[E, A]): Reader[A] =
-    stream.compile(0)
+    stream.compile(0, Stream.DefaultBufferSize)
 
   /**
    * Depth threshold; beyond this, compilation falls back to the flat-array
    * [[Interpreter]] to prevent stack overflow during recursive stream
    * compilation.
    */
-  private[streams] val DepthCutoff = 100
+  private[streams] val DepthCutoff       = 100
+  private[streams] val DefaultBufferSize = 64
 
   /** Recovers from all errors by switching to the stream returned by `f`. */
   private[streams] final class CatchAll[E, E2, A](
@@ -1122,8 +1104,8 @@ object Stream {
       val innerReader = compileToReader(self)
       pipeline.appendRead(new CatchAllReader[E, A](innerReader.asInstanceOf[Reader[A]], f))
     }
-    override private[streams] def compile(depth: Int): Reader[A] =
-      new CatchAllReader[E, A](self.compile(depth), f)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      new CatchAllReader[E, A](self.compile(depth, bufferSize), f)
   }
 
   /** Catches StreamErrors and switches to a recovery stream. */
@@ -1174,6 +1156,12 @@ object Stream {
         catch { case e: StreamError => doSwitch(e); pullDouble(current, sentinel) }
       } else pullDouble(current, sentinel)
 
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] =
+      if (!switched) {
+        try cur.readUpToN(n)
+        catch { case e: StreamError => doSwitch(e); cur.readUpToN(n) }
+      } else cur.readUpToN(n)
+
     override def skip(n: Long): Unit = current.skip(n)
     def close(): Unit                = try current.close()
     catch { case _: Throwable => () }
@@ -1189,8 +1177,8 @@ object Stream {
       val innerReader = compileToReader(self)
       pipeline.appendRead(new CatchDefectReader[E, A](innerReader.asInstanceOf[Reader[A]], f))
     }
-    override private[streams] def compile(depth: Int): Reader[A] =
-      new CatchDefectReader[E, A](self.compile(depth), f)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      new CatchDefectReader[E, A](self.compile(depth, bufferSize), f)
   }
 
   /** Catches non-fatal defects and switches to a recovery stream. */
@@ -1246,6 +1234,12 @@ object Stream {
         catch { case t: Throwable => if (trySwitch(t)) pullDouble(current, sentinel) else throw t }
       } else pullDouble(current, sentinel)
 
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] =
+      if (!switched) {
+        try cur.readUpToN(n)
+        catch { case t: Throwable => if (trySwitch(t)) cur.readUpToN(n) else throw t }
+      } else cur.readUpToN(n)
+
     override def skip(n: Long): Unit = current.skip(n)
     def close(): Unit                = try current.close()
     catch { case _: Throwable => () }
@@ -1262,17 +1256,21 @@ object Stream {
         src.asInstanceOf[Reader[A]].concat(() => compileToReader(that))
       }
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
-      val r1 = self.compile(depth)
-      r1.concat(() => compileToReader(that))
-    }
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      if (depth >= Stream.DepthCutoff) {
+        Interpreter.fromStream(this).asInstanceOf[Reader[A]]
+      } else {
+        val r1 = self.compile(depth + 1, bufferSize)
+        r1.concat(() => that.compile(depth + 1, bufferSize))
+      }
   }
 
   /** Defers stream construction until run-time. */
   private[streams] final class Deferred[E, A](mkStream: () => Stream[E, A]) extends Stream[E, A] {
-    def render: String                                                   = "Stream.suspend(...)"
-    private[streams] def compileInterpreter(pipeline: Interpreter): Unit = mkStream().compileInterpreter(pipeline)
-    override private[streams] def compile(depth: Int): Reader[A]         = mkStream().compile(depth)
+    def render: String                                                            = "Stream.suspend(...)"
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit          = mkStream().compileInterpreter(pipeline)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      mkStream().compile(depth, bufferSize)
   }
 
   /** Skips the first `n` elements. */
@@ -1283,10 +1281,72 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead { r => if (!r.setSkip(n)) r.skip(n); r }
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
-      val r = self.compile(depth)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
+      val r = self.compile(depth, bufferSize)
       if (!r.setSkip(n)) r.skip(n)
       r
+    }
+  }
+
+  /** Buffers up to `n` elements between upstream and downstream. */
+  private[streams] final class Buffered[E, A](self: Stream[E, A], n: Int) extends Stream[E, A] {
+    def render: String = s"${self.render}.buffer($n)"
+
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
+      val upstreamReader = compileToReader(self)
+      val bufferedReader = Platform.createBufferedReader(upstreamReader, n)
+      pipeline.appendRead(bufferedReader)
+    }
+
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      Platform.createBufferedReader(self.compile(depth, bufferSize), n)
+  }
+
+  private[streams] final class WithBufferSize[E, A](inner: Stream[E, A], n: Int) extends Stream[E, A] {
+    def render: String                                                            = s"Stream.bufferSize($n)(...)"
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit          = inner.compileInterpreter(pipeline)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = inner.compile(depth, n)
+  }
+
+  private[streams] final class MapPar[E, A, B](
+    self: Stream[E, A],
+    n: Int,
+    f: A => B,
+    inType: JvmType,
+    outType: JvmType
+  ) extends Stream[E, B] {
+
+    def render: String = s"${self.render}.mapPar($n)(...)"
+
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
+      val upstream = compileToReader(self)
+      val par      = Platform.createMapParReader[A, B](upstream, n, f, Stream.DefaultBufferSize, inType, outType)
+      pipeline.appendRead(par)
+    }
+
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[B] = {
+      val upstream = self.compile(depth, bufferSize)
+      Platform.createMapParReader[A, B](upstream, n, f, bufferSize, inType, outType)
+    }
+  }
+
+  private[streams] final class MergedAll[E, A](
+    outerStream: Stream[E, Stream[E, A]],
+    maxOpen: Int,
+    elemType: JvmType
+  ) extends Stream[E, A] {
+
+    def render: String = s"Stream.mergeAll($maxOpen)(...)"
+
+    private[streams] def compileInterpreter(pipeline: Interpreter): Unit = {
+      val outerReader = compileToReader(outerStream)
+      val merged      = Platform.createMergeReader[A](outerReader, maxOpen, Stream.DefaultBufferSize, elemType)
+      pipeline.appendRead(merged)
+    }
+
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
+      val outerReader = outerStream.compile(depth, bufferSize)
+      Platform.createMergeReader[A](outerReader, maxOpen, bufferSize, elemType)
     }
   }
 
@@ -1312,8 +1372,8 @@ object Stream {
         }
       )
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
-      val src = self.compile(depth)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
+      val src = self.compile(depth, bufferSize)
       new Reader.DelegatingReader[A](src) {
         override def close(): Unit = try src.close()
         finally finalizer
@@ -1329,8 +1389,8 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => new ErrorMappedReader[E, A](r.asInstanceOf[Reader[A]], f))
     }
-    override private[streams] def compile(depth: Int): Reader[A] =
-      new ErrorMappedReader[E, A](self.compile(depth), f)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      new ErrorMappedReader[E, A](self.compile(depth, bufferSize), f)
   }
 
   /** Transforms StreamError values with `f` during pull-based evaluation. */
@@ -1354,6 +1414,9 @@ object Stream {
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def readByte(): Int =
       try upstream.readByte()
+      catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
+    override def readUpToN[A1 >: A](n: Int): Chunk[A1] =
+      try upstream.readUpToN[A1](n)
       catch { case e: StreamError => throw new StreamError(f(e.value.asInstanceOf[E])) }
     override def skip(n: Long): Unit = upstream.skip(n)
     def close(): Unit                = upstream.close()
@@ -1380,10 +1443,10 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.addFilter(Interpreter.laneOf(jtA.jvmType))(pred)
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
       if (depth >= Stream.DepthCutoff)
         return Interpreter.fromStream(this).asInstanceOf[Reader[A]]
-      val sourceReader = self.compile(depth + 1)
+      val sourceReader = self.compile(depth + 1, bufferSize)
       val inLane       = Interpreter.laneOf(jtA.jvmType)
       sourceReader match {
         case p: Interpreter =>
@@ -1428,10 +1491,10 @@ object Stream {
         pipeline.addMap(Interpreter.OUT_R, Interpreter.outLaneOf(jtB.jvmType))((b: Any) => b)
       }
     }
-    override private[streams] def compile(depth: Int): Reader[B] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[B] = {
       if (depth >= Stream.DepthCutoff)
         return Interpreter.fromStream(this).asInstanceOf[Reader[B]]
-      val sourceReader = self.compile(depth + 1)
+      val sourceReader = self.compile(depth + 1, bufferSize)
       sourceReader match {
         case p: Interpreter =>
           val inLane    = Interpreter.laneOf(jtA.jvmType)
@@ -1465,10 +1528,10 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.addPush(Interpreter.laneOf(jtA.jvmType))(f)
     }
-    override private[streams] def compile(depth: Int): Reader[B] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[B] = {
       if (depth >= Stream.DepthCutoff)
         return Interpreter.fromStream(this).asInstanceOf[Reader[B]]
-      val sourceReader = self.compile(depth + 1)
+      val sourceReader = self.compile(depth + 1, bufferSize)
       val inLane       = Interpreter.laneOf(jtA.jvmType)
       sourceReader match {
         case p: Interpreter =>
@@ -1477,7 +1540,7 @@ object Stream {
           p.asInstanceOf[Reader[B]]
         case r =>
           val compileInner: AnyRef => Reader[Any] = (stream: AnyRef) =>
-            stream.asInstanceOf[Stream[Any, Any]].compile(0).asInstanceOf[Reader[Any]]
+            stream.asInstanceOf[Stream[Any, Any]].compile(0, Stream.DefaultBufferSize).asInstanceOf[Reader[Any]]
           val outType = jtB.jvmType
           val reader  = (inLane: @scala.annotation.switch) match {
             case 0 => new Reader.FlatMappedInt(r, f, compileInner, outType)
@@ -1515,10 +1578,10 @@ object Stream {
           throw t
       }
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
       val r = acquire
       try {
-        val src = use(r).compile(depth)
+        val src = use(r).compile(depth, bufferSize)
         new Reader.DelegatingReader[A](src) {
           override def close(): Unit = try src.close()
           finally release(r)
@@ -1542,7 +1605,7 @@ object Stream {
     override def knownLength: Option[Long]                               = Some(chunk.length.toLong)
     private[streams] def compileInterpreter(pipeline: Interpreter): Unit =
       pipeline.appendRead(Reader.fromChunk(chunk)(jt))
-    override private[streams] def compile(depth: Int): Reader[A] =
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
       Reader.fromChunk(chunk)(jt)
   }
 
@@ -1556,7 +1619,7 @@ object Stream {
       val reader = mkReader()
       pipeline.appendRead(reader)
     }
-    override private[streams] def compile(depth: Int): Reader[A] = mkReader()
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = mkReader()
   }
 
   /** Resource-safe stream backed by a Resource managed in a Scope. */
@@ -1584,12 +1647,12 @@ object Stream {
           throw t
       }
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
       val os    = Scope.global.open()
       val scope = os.scope
       val r     = scope.leak(scope.allocate(resource))
       try {
-        val src = use(r).compile(depth)
+        val src = use(r).compile(depth, bufferSize)
         new Reader.DelegatingReader[A](src) {
           override def close(): Unit = try src.close()
           finally os.close()
@@ -1616,10 +1679,10 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.addMap(Interpreter.laneOf(jtA.jvmType), Interpreter.outLaneOf(jtB.jvmType))(f)
     }
-    override private[streams] def compile(depth: Int): Reader[B] = {
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[B] = {
       if (depth >= Stream.DepthCutoff)
         return Interpreter.fromStream(this).asInstanceOf[Reader[B]]
-      val sourceReader = self.compile(depth + 1)
+      val sourceReader = self.compile(depth + 1, bufferSize)
       val inLane       = Interpreter.laneOf(jtA.jvmType)
       val outLane      = Interpreter.outLaneOf(jtB.jvmType)
       sourceReader match {
@@ -1648,8 +1711,8 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => Reader.repeated[A](r.asInstanceOf[Reader[A]]))
     }
-    override private[streams] def compile(depth: Int): Reader[A] =
-      Reader.repeated[A](self.compile(depth))
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      Reader.repeated[A](self.compile(depth, bufferSize))
   }
 
   /** Emits at most the first `n` elements. */
@@ -1660,8 +1723,8 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => if (!r.setLimit(n)) Reader.withSkipLimit(r, 0, n) else r)
     }
-    override private[streams] def compile(depth: Int): Reader[A] = {
-      val r = self.compile(depth)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] = {
+      val r = self.compile(depth, bufferSize)
       (if (!r.setLimit(n)) Reader.withSkipLimit(r, 0, n) else r).asInstanceOf[Reader[A]]
     }
   }
@@ -1673,8 +1736,8 @@ object Stream {
       self.compileInterpreter(pipeline)
       pipeline.wrapLastRead(r => new Reader.TakenWhile[A](r.asInstanceOf[Reader[A]], pred))
     }
-    override private[streams] def compile(depth: Int): Reader[A] =
-      new Reader.TakenWhile[A](self.compile(depth), pred)
+    override private[streams] def compile(depth: Int, bufferSize: Int): Reader[A] =
+      new Reader.TakenWhile[A](self.compile(depth, bufferSize), pred)
   }
 
 }
