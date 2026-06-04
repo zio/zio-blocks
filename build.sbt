@@ -1553,7 +1553,14 @@ lazy val `async-benchmarks` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    // The `Async.async { ... }` direct-style benchmarks expand (via
+    // dotty-cps-async) into a `cps.async[Async] { ctx ?=> ... }` whose context
+    // parameter DCA leaves unused once every `.await` is rewritten to a flatMap
+    // chain. That unused-parameter warning is DCA-generated code we don't
+    // control; the repo only auto-suppresses unused warnings under `/test/`
+    // paths, so silence it narrowly for the affected benchmark sources here.
+    scalacOptions += "-Wconf:id=E198&src=.*AsyncBlock.*:s"
   )
 
 lazy val htmx = crossProject(JSPlatform, JVMPlatform)
