@@ -229,3 +229,48 @@ class AsyncBlockHybridBench {
     fa.eval
   }
 }
+
+/**
+ * `.await` inside a higher-order-function closure. On JVM Scala 3 this exercises
+ * dotty-cps-async's collection `AsyncShift` (`List.map` is shifted into a
+ * sequenced traversal) — the rewrite path for awaits that escape straight-line
+ * position. Validates that the HOF-closure shape compiles and runs (PLAN §8
+ * `AsyncBlockClosureBench`), and measures its overhead vs a hand-written
+ * `collectAll`-style fold.
+ */
+@State(Scope.Benchmark)
+@BenchmarkMode(Array(Mode.Throughput))
+@OutputTimeUnit(TimeUnit.SECONDS)
+@Warmup(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
+@Fork(1)
+class AsyncBlockClosureBench {
+
+  @Param(Array("1", "10", "100"))
+  var n: Int = uninitialized
+
+  var xs: List[Int] = uninitialized
+
+  @Setup
+  def setup(): Unit = xs = List.tabulate(n)(identity)
+
+  // ---- direct-style: .await inside a List.map closure ----------------------
+
+  @Benchmark def zb_asyncAwaitInMap(): Int =
+    Async.async {
+      xs.map(i => Async.succeed(i + 1).await).sum
+    }.block
+
+  // ---- hand-written control: flatMap fold over the list --------------------
+
+  @Benchmark def zb_flatMapFoldControl(): Int = {
+    var fa: Async[Int] = Async.succeed(0)
+    var rem            = xs
+    while (rem.nonEmpty) {
+      val h = rem.head
+      fa = fa.flatMap(acc => Async.succeed(h + 1).map(v => acc + v))
+      rem = rem.tail
+    }
+    fa.block
+  }
+}
