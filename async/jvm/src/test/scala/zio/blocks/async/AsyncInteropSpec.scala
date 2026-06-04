@@ -96,6 +96,23 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           t.start()
         }
         ZIO.fromFuture(_ => AsyncInterop.toFuture(a)).map(v => assertTrue(v == 99))
+      },
+      test("toFuture: suspended pollable that fails surfaces the cause via the EC") {
+        val boom = new RuntimeException("late-future-fail")
+        val a    = Async.promiseInternal[Int] { c =>
+          val t = new Thread(new Runnable {
+            def run(): Unit = { Thread.sleep(30); c.fail(boom) }
+          })
+          t.setDaemon(true)
+          t.start()
+        }
+        ZIO
+          .fromFuture(_ => AsyncInterop.toFuture(a))
+          .either
+          .map {
+            case Left(t)  => assertTrue(t eq boom)
+            case Right(_) => assertTrue(false)
+          }
       }
     ),
     suite("CompletionStage ↔ Async")(
@@ -172,6 +189,25 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           }
           val cf = AsyncInterop.toCompletableFuture(a)
           assertTrue(cf.get(2, TimeUnit.SECONDS) == 77)
+        }
+      },
+      test("toCompletableFuture: suspended pollable that fails completes exceptionally via the EC") {
+        ZIO.attemptBlocking {
+          val boom = new RuntimeException("late-cf-fail")
+          val a    = Async.promiseInternal[Int] { c =>
+            val t = new Thread(new Runnable {
+              def run(): Unit = { Thread.sleep(30); c.fail(boom) }
+            })
+            t.setDaemon(true)
+            t.start()
+          }
+          val cf     = AsyncInterop.toCompletableFuture(a)
+          val thrown = scala.util.Try(cf.get(2, TimeUnit.SECONDS)).failed.toOption
+          assertTrue(thrown.exists {
+            case ce: CompletionException => ce.getCause eq boom
+            case ee: ExecutionException  => ee.getCause eq boom
+            case other                   => other eq boom
+          })
         }
       }
     )
