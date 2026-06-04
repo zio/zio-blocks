@@ -101,6 +101,24 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
       }
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2, 1)))
+    },
+    test("List.foreach runs ready awaits in order") {
+      var acc  = 0
+      val prog = Async.async {
+        List(1, 2, 3).foreach(i => acc += Async.succeed(i).await)
+        acc
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+    },
+    test("List.foreach is lazy: a failing await short-circuits the remaining elements") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3).foreach { i =>
+          seen = i :: seen
+          if (i == 2) Async.fail(Boom).await else { val _ = Async.succeed(i).await; () }
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
     }
   )
 }

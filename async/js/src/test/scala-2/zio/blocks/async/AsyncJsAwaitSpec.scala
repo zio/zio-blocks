@@ -168,6 +168,28 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2, 1)))
       }
+    ),
+    // LAZY/sequential `List.foreach` semantics: the closure for element n+1 runs
+    // only after element n's await completes; a failure short-circuits the rest.
+    suite("List.foreach with .await in the closure")(
+      test("runs over genuinely-pending awaits in order") {
+        var acc  = 0
+        val prog = Async.async {
+          List(1, 2, 3).foreach(i => acc += pending(i).await)
+          acc
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3).foreach { i =>
+            seen = i :: seen
+            if (i == 2) pendingFail[Int](Boom).await else { val _ = pending(i).await; () }
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+      }
     )
   )
 }

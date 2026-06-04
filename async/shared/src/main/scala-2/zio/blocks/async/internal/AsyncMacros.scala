@@ -98,17 +98,25 @@ private[async] object AsyncMacros {
 
     // ---- higher-order-function (HOF) closure awaits (Phase 5c) ---------------
     //
-    // `recv.map(x => ... .await ...)` is rewritten with EAGER semantics: strict
-    // `List.map` applies the CPS-transformed closure to every element first
-    // (building a `List[Async[B]]`), and the awaits are then sequenced
-    // left-to-right via `Async.collectAll` (fail-fast). This matches the Scala 3
-    // cells exactly — DCA's eager `ListAsyncShift` (JVM / older JS) and the
-    // native `js.await` backend (JS 3.8+), where `Array.map(async ...)` likewise
-    // invokes every callback before any await resolves. See `emitHofMap`.
+    // `.await` inside a `List` HOF closure is rewritten to match the Scala 3
+    // cells (DCA on JVM / older JS, native `js.await` on JS 3.8+) EXACTLY. The
+    // per-HOF semantics differ — and were each verified empirically against all
+    // three Scala 3 backends — so each HOF has its own emit strategy:
+    //
+    //   - `List.map`: EAGER. Strict `map` applies the CPS-transformed closure to
+    //     every element first (building `List[Async[B]]`), then sequences the
+    //     awaits left-to-right via `Async.collectAll` (fail-fast). Matches DCA's
+    //     eager `ListAsyncShift.map` and `Array.map(async ...)` in JS. See
+    //     `emitHofMap`.
+    //   - `List.foreach`: LAZY / sequential. The closure for element `n+1` runs
+    //     only after element `n`'s await completes successfully; a failed await
+    //     short-circuits the rest. Matches DCA's sequential
+    //     `IterableAsyncShift.foreach` and the JS-native loop suspension. See
+    //     `emitHofForeach`.
     //
     // Supported HOFs are whitelisted by method name here AND validated by
-    // receiver type in `hofElemTypes` (typed pass). Initially: `List.map`.
-    val supportedHofMethods: Set[String] = Set("map")
+    // receiver type in `hofElemTypes` (typed pass).
+    val supportedHofMethods: Set[String] = Set("map", "foreach")
 
     /**
      * Single-argument function literal, unwrapping a `Block(Nil, Function)` that
@@ -393,6 +401,46 @@ private[async] object AsyncMacros {
       asyncBind(safe(collected))(k)
     }
 
+    /**
+     * Rewrite `recvVal.foreach(pname => fbody-with-await)` (receiver already a
+     * bound `List` value) with LAZY / sequential semantics producing
+     * `Async[Unit]`, then continue with `k`.
+     *
+     * Unlike `map`, `foreach` discards the closure results, and every Scala 3
+     * backend evaluates it strictly left-to-right and lazily: the closure for
+     * element `n+1` is NOT invoked until element `n`'s `Async` has completed
+     * successfully. We mirror that with a tight `while` over the iterator while
+     * results are ready (no `flatMap` allocation), switching to a `flatMap`
+     * continuation on the first suspended (or failed) element — a failure
+     * short-circuits the remaining elements via `flatMap`'s `Failure` path.
+     */
+    def emitHofForeach(recvVal: Tree, pname: TermName, fbody: Tree)(k: Tree => Tree): Tree = {
+      val drain     = fresh("drainForeach$")
+      val it        = fresh("it$")
+      val r0        = fresh("r$")
+      val bodyA     = transform(fbody)(pureReturn)
+      val whileBody = q"""
+        {
+          while ($it.hasNext) {
+            val $pname   = $it.next()
+            val $r0: Any = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[Any]]).flatMap { (_: Any) => $drain() }
+            }
+          }
+          $AsyncObj.succeed(())
+        }
+      """
+      val loop      = q"""
+        {
+          val $it = $recvVal.iterator
+          def $drain(): _root_.zio.blocks.async.Async[_root_.scala.Unit] = ${safe(whileBody)}
+          $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -587,13 +635,18 @@ private[async] object AsyncMacros {
           case Throw(ex) =>
             transform(ex)(v => q"$AsyncObj.fail($v)")
 
-          // HOF-closure await (Phase 5c): `recv.map(x => ...await)`. Dequeue the
-          // result element type `B` (recorded from the typed tree, in this same
-          // order), transform the receiver, then emit the eager strict-map +
-          // `collectAll` rewrite. Must precede the generic application-spine case.
-          case HofAwaitCall(recv, _, param, fbody) =>
+          // HOF-closure await (Phase 5c): `recv.map(...)` / `recv.foreach(...)`.
+          // Dequeue the recorded result element type (kept in sync with the typed
+          // traversal order; `Unit`/`NoType` for `foreach`), transform the
+          // receiver, then emit the per-HOF rewrite — eager `map` (strict-map +
+          // `collectAll`) or lazy sequential `foreach`. Must precede the generic
+          // application-spine case.
+          case HofAwaitCall(recv, m, param, fbody) =>
             val bTpe = dequeueHofElem()
-            transform(recv)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
+            m match {
+              case "foreach" => transform(recv)(recvVal => emitHofForeach(recvVal, param.name, fbody)(k))
+              case _         => transform(recv)(recvVal => emitHofMap(recvVal, param.name, fbody, bTpe)(k))
+            }
 
           // Short-circuiting `&&` / `||` must NOT eagerly evaluate the
           // right-hand side. An ANF application spine would; rewrite them to

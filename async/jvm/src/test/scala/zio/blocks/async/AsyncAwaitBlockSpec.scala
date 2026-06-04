@@ -286,6 +286,39 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(3, 2, 1))
       }
+    ),
+    // `.await` inside a `List.foreach` closure has LAZY/sequential semantics on
+    // every backend (DCA's `IterableAsyncShift.foreach` + native `js.await` loop
+    // suspension): the closure for element n+1 runs only after element n's await
+    // completes, and a failed await short-circuits the rest. Result is `Unit`.
+    suite("List.foreach with .await in the closure")(
+      test("runs the closure for every ready element in order") {
+        var acc = 0
+        val r   = Async.async {
+          List(1, 2, 3).foreach(i => acc += Async.succeed(i).await)
+          acc
+        }.block
+        assertTrue(r == 6, acc == 6)
+      },
+      test("runs over genuinely-pending awaits in order") {
+        var acc = 0
+        val r   = Async.async {
+          List(10, 20, 30).foreach(i => acc += pending(i).await)
+          acc
+        }.block
+        assertTrue(r == 60, acc == 60)
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).foreach { i =>
+            seen = i :: seen
+            if (i == 2) Async.fail(Boom).await else { val _ = Async.succeed(i).await; () }
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
