@@ -160,6 +160,53 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom))
       }
+    ),
+    // These stress the element-type tracking that ascribes each generated
+    // `flatMap` lambda parameter (Scala 2) — interleaving DISTINCT element
+    // types so any mis-ordering would surface as a `ClassCastException` or a
+    // compile error rather than a silently-correct result.
+    suite("interleaved distinct-typed awaits")(
+      test("nested await (inner before outer) with distinct types") {
+        val r = Async.async {
+          val len: Int = Async.succeed(Async.succeed("hello").await.length).await
+          len * 2
+        }.block
+        assertTrue(r == 10)
+      },
+      test("awaits as function arguments evaluate left-to-right with distinct types") {
+        def combine(s: String, n: Int): String = s * n
+        val r                                  = Async.async {
+          combine(Async.succeed("ab").await, Async.succeed(3).await)
+        }.block
+        assertTrue(r == "ababab")
+      },
+      test("await in if-condition and both branches, distinct branch types collapse") {
+        val r = Async.async {
+          val flag: Boolean = Async.succeed(true).await
+          if (flag) Async.succeed("yes").await
+          else Async.succeed(0).await.toString
+        }.block
+        assertTrue(r == "yes")
+      },
+      test("sequential awaits of different types feeding a later expression") {
+        val r = Async.async {
+          val s: String = Async.succeed("xyz").await
+          val n: Int    = Async.succeed(s.length).await
+          val d: Double = Async.succeed(n.toDouble + 0.5).await
+          s"$s/$n/$d"
+        }.block
+        assertTrue(r == "xyz/3/3.5")
+      },
+      test("await inside a match scrutinee and arm with distinct types") {
+        val r = Async.async {
+          Async.succeed(2).await match {
+            case 1 => Async.succeed("one").await
+            case 2 => Async.succeed("two").await
+            case _ => Async.succeed("many").await
+          }
+        }.block
+        assertTrue(r == "two")
+      }
     )
   )
 }
