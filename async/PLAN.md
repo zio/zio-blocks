@@ -676,9 +676,12 @@ phase across the cells supported by that phase.
       list/vector/map/collect 184–312 B/op), with no per-element continuation
       garbage for ready awaits. The newest `Array` emitters behave as designed
       (`filter` 136, `flatMap` 224 incl. `ArraySeq.unsafeWrapArray` normalization,
-      `map` 360 — the eager `collectAll`→`toArray` path materializes an
-      intermediate `List`; a future optimization could build straight into an
-      `Array` builder). The acceptance criterion was allocation-focused, NOT a
+      `map` ✅ **optimized**: the eager `collectAll`→`toArray` path (which
+      materialized two intermediate `List`s and read a non-deterministic
+      ≈1826 B/op steady-state under escape-analysis fork variance) was replaced by
+      an eager scratch `Array[Any]` drained fail-fast into `Array.newBuilder[B]` —
+      now **864.005 ± 0.001 B/op (fork-deterministic), +2.22× throughput**; see
+      `async-benchmarks-scala2/baseline.txt` note 6). The acceptance criterion was allocation-focused, NOT a
       cross-Scala throughput comparison (Scala 2 macro vs Scala 3 DCA numbers are
       not directly comparable — different CPS backends).
     - *JS-native cell:* needs an entirely new JS microbenchmark harness; deferred
