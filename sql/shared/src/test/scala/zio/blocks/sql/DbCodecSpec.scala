@@ -19,6 +19,8 @@ package zio.blocks.sql
 import zio.test._
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
+import zio.blocks.schema.json.JsonCodec
+import zio.blocks.schema.json.JsonCodecDeriver
 
 object DbCodecSpec extends ZIOSpecDefault {
 
@@ -94,6 +96,31 @@ object DbCodecSpec extends ZIOSpecDefault {
   case class WithOptionalEnum(id: Int, status: Option[Status])
   object WithOptionalEnum {
     implicit val schema: Schema[WithOptionalEnum] = Schema.derived
+  }
+
+  case class JsonPayload(message: String, count: Int)
+  object JsonPayload {
+    implicit val schema: Schema[JsonPayload]       = Schema.derived
+    implicit val jsonCodec: JsonCodec[JsonPayload] =
+      schema.deriving(JsonCodecDeriver).derive
+  }
+
+  case class WithListField(id: Int, tags: List[String])
+  object WithListField {
+    implicit val schema: Schema[WithListField] = Schema.derived
+  }
+
+  case class WithNestedList(name: String, items: List[JsonPayload])
+  object WithNestedList {
+    implicit val schema: Schema[WithNestedList] = Schema.derived
+  }
+
+  sealed trait Shape
+  object Shape {
+    case class Circle(radius: Double)     extends Shape
+    case class Rect(w: Double, h: Double) extends Shape
+
+    implicit val schema: Schema[Shape] = Schema.derived
   }
 
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
@@ -388,16 +415,148 @@ object DbCodecSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("unsupported types")(
-      test("List throws UnsupportedOperationException") {
-        val result =
-          try {
-            deriveCodec[List[Int]]
-            false
-          } catch {
-            case _: UnsupportedOperationException => true
-          }
-        assertTrue(result)
+    suite("JSONB fallback for non-primitive types")(
+      test("List[Int] produces single JSONB column") {
+        val codec = deriveCodec[List[Int]]
+        assertTrue(
+          codec.columns == IndexedSeq("value"),
+          codec.columnCount == 1
+        )
+      },
+      test("List[Int] serializes as JSON string") {
+        val codec  = deriveCodec[List[Int]]
+        val values = codec.toDbValues(List(1, 2, 3))
+        assertTrue(values == IndexedSeq(DbValue.DbString("[1,2,3]")))
+      },
+      test("record with List field derives successfully") {
+        val codec = deriveCodec[WithListField]
+        assertTrue(
+          codec.columns == IndexedSeq("id", "tags"),
+          codec.columnCount == 2
+        )
+      },
+      test("record with List field serializes list as JSONB") {
+        val codec  = deriveCodec[WithListField]
+        val values = codec.toDbValues(WithListField(1, List("a", "b")))
+        assertTrue(
+          values == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("[\"a\",\"b\"]"))
+        )
+      },
+      test("record with nested List[Record] serializes as JSONB") {
+        val codec  = deriveCodec[WithNestedList]
+        val values = codec.toDbValues(WithNestedList("test", List(JsonPayload("hi", 1))))
+        assertTrue(
+          values(0) == DbValue.DbString("test"),
+          values(1).isInstanceOf[DbValue.DbString]
+        )
+      },
+      test("Map[String,Int] produces single JSONB column") {
+        val codec = deriveCodec[scala.collection.immutable.Map[String, Int]]
+        assertTrue(
+          codec.columns == IndexedSeq("value"),
+          codec.columnCount == 1
+        )
+      },
+      test("complex sealed trait serializes as JSONB") {
+        val codec = deriveCodec[Shape]
+        assertTrue(
+          codec.columns == IndexedSeq("value"),
+          codec.columnCount == 1
+        )
+      },
+      test("complex sealed trait toDbValues produces JSON") {
+        val codec  = deriveCodec[Shape]
+        val values = codec.toDbValues(Shape.Circle(5.0))
+        assertTrue(values.size == 1, values(0).isInstanceOf[DbValue.DbString])
+      }
+    ),
+    suite("jsonb helpers")(
+      test("jsonb writes JSON strings via DbString") {
+        val codec = DbCodec.jsonb[JsonPayload]
+        assertTrue(
+          codec.columns == IndexedSeq("value"),
+          codec.toDbValues(JsonPayload("hello", 2)) == IndexedSeq(
+            DbValue.DbString("{\"message\":\"hello\",\"count\":2}")
+          )
+        )
+      },
+      test("jsonb overload writes and reads via provided functions") {
+        val codec = DbCodec.jsonb[JsonPayload](
+          value => s"${value.message}:${value.count}",
+          input =>
+            input.split(":", 2).toList match {
+              case message :: count :: Nil => JsonPayload(message, count.toInt)
+              case _                       => throw new RuntimeException(s"bad test payload: $input")
+            }
+        )
+        assertTrue(
+          codec.toDbValues(JsonPayload("hello", 2)) == IndexedSeq(DbValue.DbString("hello:2"))
+        )
+      },
+      test("jsonbOption encodes Some and None") {
+        val codec = DbCodec.jsonbOption[JsonPayload]
+        assertTrue(
+          codec.toDbValues(Some(JsonPayload("hello", 2))) == IndexedSeq(
+            DbValue.DbString("{\"message\":\"hello\",\"count\":2}")
+          ),
+          codec.toDbValues(None) == IndexedSeq(DbValue.DbNull)
+        )
+      },
+      test("jsonbOption overload encodes Some and None via provided functions") {
+        val codec = DbCodec.jsonbOption[JsonPayload](
+          value => s"${value.message}:${value.count}",
+          input =>
+            input.split(":", 2).toList match {
+              case message :: count :: Nil => JsonPayload(message, count.toInt)
+              case _                       => throw new RuntimeException(s"bad test payload: $input")
+            }
+        )
+        assertTrue(
+          codec.toDbValues(Some(JsonPayload("hello", 2))) == IndexedSeq(DbValue.DbString("hello:2")),
+          codec.toDbValues(None) == IndexedSeq(DbValue.DbNull)
+        )
+      },
+      test("jsonb decodes JSON strings from reader") {
+        val codec  = DbCodec.jsonb[JsonPayload]
+        val reader = new DbResultReader {
+          def getInt(index: Int): Int                                  = 0
+          def getInt(label: String): Int                               = 0
+          def getLong(index: Int): Long                                = 0L
+          def getLong(label: String): Long                             = 0L
+          def getDouble(index: Int): Double                            = 0d
+          def getDouble(label: String): Double                         = 0d
+          def getFloat(index: Int): Float                              = 0f
+          def getFloat(label: String): Float                           = 0f
+          def getBoolean(index: Int): Boolean                          = false
+          def getBoolean(label: String): Boolean                       = false
+          def getString(index: Int): String                            = "{\"message\":\"hello\",\"count\":2}"
+          def getString(label: String): String                         = "{\"message\":\"hello\",\"count\":2}"
+          def getBigDecimal(index: Int): java.math.BigDecimal          = null
+          def getBigDecimal(label: String): java.math.BigDecimal       = null
+          def getBytes(index: Int): Array[Byte]                        = null
+          def getBytes(label: String): Array[Byte]                     = null
+          def getShort(index: Int): Short                              = 0
+          def getShort(label: String): Short                           = 0
+          def getByte(index: Int): Byte                                = 0
+          def getByte(label: String): Byte                             = 0
+          def getLocalDate(index: Int): java.time.LocalDate            = null
+          def getLocalDate(label: String): java.time.LocalDate         = null
+          def getLocalDateTime(index: Int): java.time.LocalDateTime    = null
+          def getLocalDateTime(label: String): java.time.LocalDateTime = null
+          def getLocalTime(index: Int): java.time.LocalTime            = null
+          def getLocalTime(label: String): java.time.LocalTime         = null
+          def getInstant(index: Int): java.time.Instant                = null
+          def getInstant(label: String): java.time.Instant             = null
+          def getDuration(index: Int): java.time.Duration              = null
+          def getDuration(label: String): java.time.Duration           = null
+          def getUUID(index: Int): java.util.UUID                      = null
+          def getUUID(label: String): java.util.UUID                   = null
+          def columnLabel(index: Int): String                          = "value"
+          def hasColumn(label: String): Boolean                        = label == "value"
+          def wasNull: Boolean                                         = false
+        }
+
+        assertTrue(codec.readValue(reader, IndexedSeq("value")) == JsonPayload("hello", 2))
       }
     )
   )

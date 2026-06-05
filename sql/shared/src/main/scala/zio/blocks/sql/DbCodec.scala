@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema}
+import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
 /**
  * Bidirectional codec between a Scala value `A` and one or more database
@@ -98,6 +99,12 @@ private[sql] trait DbCodecOpaquePriority {
 object DbCodec extends DbCodecOpaquePriority {
   private val SqlNullType = java.sql.Types.NULL
 
+  private def decodeJsonb[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): A =
+    jsonCodec.decode(input) match {
+      case Right(value) => value
+      case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
+    }
+
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
       s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
@@ -110,6 +117,26 @@ object DbCodec extends DbCodecOpaquePriority {
       )
 
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
+
+  def jsonb[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[A] =
+    DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))
+
+  def jsonb[A](encode: A => String, decode: String => A): DbCodec[A] =
+    DbCodec[String].transform[A](decode)(encode)
+
+  def jsonbOption[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[Option[A]] =
+    DbCodec[Option[String]].transform[Option[A]](
+      _.map(str => decodeJsonb[A](str))
+    )(
+      _.map(value => jsonCodec.encodeToString(value))
+    )
+
+  def jsonbOption[A](encode: A => String, decode: String => A): DbCodec[Option[A]] =
+    DbCodec[Option[String]].transform[Option[A]](
+      _.map(str => decode(str))
+    )(
+      _.map(value => encode(value))
+    )
 
   /**
    * Derives a `DbCodec[A]` from an existing `Schema[A]` using the default

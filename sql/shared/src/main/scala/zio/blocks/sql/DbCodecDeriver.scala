@@ -32,6 +32,18 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
     )
 
+  private def toBoundReflect[F0[_, _], A0](
+    reflect: Reflect[F0, A0]
+  )(implicit hasBinding: HasBinding[F0]): Reflect.Bound[A0] = {
+    val transformer = new ReflectTransformer.OnlyMetadata[F0, Binding] {
+      def transformMetadata[K, B](f: F0[K, B]): Lazy[Binding[K, B]] = Lazy(hasBinding.binding(f))
+    }
+    reflect.transform[Binding](DynamicOptic.root, transformer).force
+  }
+
+  private def jsonbCodec[A0](schema: Schema[A0]): DbCodec[A0] =
+    DbCodec.jsonb[A0](using schema.jsonCodec)
+
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
@@ -348,9 +360,11 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
           IndexedSeq(DbValue.DbString(enumName(discr, cases, value)))
       }
     } else {
-      throw new UnsupportedOperationException(
-        "DbCodec does not support sum types (sealed trait/enum) with data fields as SQL columns"
-      )
+      val boundCases = cases.map { term =>
+        Term(term.name, toBoundReflect(term.value), term.doc, term.modifiers)
+      }.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]]
+      val boundReflect = Reflect.Variant[Binding, A](boundCases, typeId, binding, doc, modifiers)
+      jsonbCodec(new Schema[A](boundReflect))
     }
   }
 
@@ -364,9 +378,9 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     examples: Seq[C[A]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[C[A]]] =
     Lazy {
-      throw new UnsupportedOperationException(
-        "DbCodec does not support collection types (Seq, List, etc.) as SQL columns"
-      )
+      val boundElement = toBoundReflect(element)
+      val boundReflect = Reflect.Sequence[Binding, A, C](boundElement, typeId, binding, doc, modifiers)
+      jsonbCodec(new Schema[C[A]](boundReflect))
     }
 
   override def deriveMap[F[_, _], M[_, _], K, V](
@@ -380,9 +394,10 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     examples: Seq[M[K, V]]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[M[K, V]]] =
     Lazy {
-      throw new UnsupportedOperationException(
-        "DbCodec does not support Map types as SQL columns"
-      )
+      val boundKey     = toBoundReflect(key)
+      val boundValue   = toBoundReflect(value)
+      val boundReflect = Reflect.Map[Binding, K, V, M](boundKey, boundValue, typeId, binding, doc, modifiers)
+      jsonbCodec(new Schema[M[K, V]](boundReflect))
     }
 
   override def deriveDynamic[F[_, _]](
@@ -393,9 +408,8 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     examples: Seq[DynamicValue]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[DbCodec[DynamicValue]] =
     Lazy {
-      throw new UnsupportedOperationException(
-        "DbCodec does not support DynamicValue as SQL columns"
-      )
+      val boundReflect = Reflect.Dynamic[Binding](binding, doc = doc, modifiers = modifiers)
+      jsonbCodec(new Schema[DynamicValue](boundReflect))
     }
 
   private def isOptionalType[F[_, _], A](
