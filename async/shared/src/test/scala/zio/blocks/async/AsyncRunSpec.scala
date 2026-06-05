@@ -28,8 +28,8 @@ import zio.test._
  * inputs are completed from a forked fiber (a real thread on the JVM, a
  * microtask on JS), exercising the no-lost-wakeup resume path on both.
  *
- * Cancellation-suppression assertions wait on the '''live''' clock (real time on
- * both platforms) so a worker/microtask that erroneously delivered would be
+ * Cancellation-suppression assertions wait on the '''live''' clock (real time
+ * on both platforms) so a worker/microtask that erroneously delivered would be
  * observed before the assertion.
  */
 object AsyncRunSpec extends ZIOSpecDefault {
@@ -102,6 +102,16 @@ object AsyncRunSpec extends ZIOSpecDefault {
         val cancelable = Async.unsafeRunAsync(c.peek)(_ => fired.set(true))
         cancelable.cancel()
         c.succeed(1)
+        Live.live(ZIO.sleep(100.millis)).as(assertTrue(!fired.get()))
+      },
+      test("cancel is idempotent on a genuinely suspended run") {
+        // `Async.never` always takes the suspended `Run` path on both platforms,
+        // so the second `cancel()` exercises the already-terminated no-op branch
+        // (not the synchronous `Cancelable.noop` path).
+        val fired      = new AtomicBoolean(false)
+        val cancelable = Async.unsafeRunAsync[Nothing](Async.never)(_ => fired.set(true))
+        cancelable.cancel()
+        cancelable.cancel()
         Live.live(ZIO.sleep(100.millis)).as(assertTrue(!fired.get()))
       }
     )
