@@ -242,6 +242,7 @@ lazy val root = project
     async.js,
     `async-benchmarks`,
     `async-benchmarks-scala2`,
+    `async-benchmarks-js`,
     `zio-blocks-htmx-examples`,
     zioGolemModel.jvm,
     zioGolemModel.js,
@@ -1590,6 +1591,48 @@ lazy val `async-benchmarks-scala2` = project
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
+  )
+
+// JS-native benchmark gate. JMH is JVM-only, so this is a Scala.js main that
+// runs hand-rolled throughput + Node heap-delta allocation measurements (see
+// `AsyncJsBench`). It depends on `async.js`, so selecting the Scala version
+// chooses the cell under test: `++3.8.3; async-benchmarks-js/run` exercises the
+// native `js.async`/`js.await` backend; `++3.3.7; async-benchmarks-js/run`
+// exercises the dotty-cps-async backend. The `jsEnv` passes Node `--expose-gc`
+// so the harness can force a GC between heap reads. No Kyo / Cats Effect deps:
+// JMH-grade cross-runtime throughput comparison is JVM-only (see
+// `async-benchmarks`); this gate is about the JS hot-path allocation profile.
+lazy val `async-benchmarks-js` = project
+  .in(file("async-benchmarks-js"))
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
+  .settings(stdSettings("zio-blocks-async-benchmarks-js", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(jsSettings)
+  .dependsOn(async.js)
+  .settings(
+    publish / skip                  := true,
+    mimaPreviousArtifacts           := Set(),
+    coverageMinimumStmtTotal        := 0,
+    coverageMinimumBranchTotal      := 0,
+    scalaJSUseMainModuleInitializer := true,
+    // Benchmark in production mode (Closure full optimization) so the measured
+    // allocation/throughput reflects what ships, not the dev `fastLinkJS` output.
+    scalaJSStage := FullOptStage,
+    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.8.x cell too.
+    scalaVersion       := (ThisBuild / scalaVersion).value,
+    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala33),
+    // ES2017 so the native `js.async`/`js.await` in `async.js` (Scala 3.8+) links.
+    scalaJSLinkerConfig ~= {
+      _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017))
+    },
+    // Force a full GC between heap reads in the allocation measurement.
+    jsEnv := new org.scalajs.jsenv.nodejs.NodeJSEnv(
+      org.scalajs.jsenv.nodejs.NodeJSEnv.Config().withArgs(List("--expose-gc"))
+    ),
+    // DCA expands `Async.async { ... }` into a `cps.async[Async] { ctx ?=> ... }`
+    // whose context parameter goes unused once every `.await` is rewritten; that
+    // E198 warning is DCA-generated code we don't control (same as in
+    // `async-benchmarks`).
+    scalacOptions += "-Wconf:id=E198&src=.*AsyncJsBench.*:s"
   )
 
 lazy val htmx = crossProject(JSPlatform, JVMPlatform)

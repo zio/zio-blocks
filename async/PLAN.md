@@ -684,8 +684,18 @@ phase across the cells supported by that phase.
       `async-benchmarks-scala2/baseline.txt` note 6). The acceptance criterion was allocation-focused, NOT a
       cross-Scala throughput comparison (Scala 2 macro vs Scala 3 DCA numbers are
       not directly comparable — different CPS backends).
-    - *JS-native cell:* needs an entirely new JS microbenchmark harness; deferred
-      until there is a concrete JS perf concern (lower-stakes, less comparable).
+    - *JS-native cell:* ✅ **LANDED.** A Scala.js benchmark module
+      `async-benchmarks-js` (`ScalaJSPlugin`, `FullOptStage`, ES2017, `jsEnv`
+      with Node `--expose-gc`) runs a hand-rolled Node harness
+      (`AsyncJsBench` — JMH is JVM-only) measuring throughput + heap-delta
+      allocation. It `dependsOn(async.js)`, so the Scala version selects the
+      cell: `++3.8.3` = native `js.async`/`js.await`, `++3.3.7` = DCA. **Gate
+      verdict: PASS** (`async-benchmarks-js/baseline.txt`): ready-value hot
+      paths (`succeed`/`map1`/`flatMap1`) and scalar direct-style `.await`
+      (`asyncAwait1`/`asyncAwaitSeq3`) are **0 B/op on both cells**; native
+      `js.await` is ~1.6× the DCA throughput on scalar awaits (validating
+      Phase 4's bet); the only allocating shape is a loop `var` crossing
+      `.await` (per-link, mirroring the JVM finding).
   This sub-phase is triggered by any change to the `Async`/`Pollable`/`Completer`
   runtime encoding, a change in the macro's scalar ready-path code shape, or
   completion of the collection-HOF long tail — none of which the recent Scala-2-
