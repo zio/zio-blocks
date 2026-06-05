@@ -27,13 +27,14 @@ import scala.scalajs.js
  * Scala 2 / Scala.js direct-style `Async.async { ... .await ... }` semantics.
  *
  * The Scala 2 `internal.AsyncMacros` rewrite is platform-neutral (it emits a
- * `flatMap`/`map`/`catchAll` chain over the shared `Async` monad), so it runs on
- * JS unchanged. JavaScript cannot block, so — unlike the JVM `AsyncAwaitBlockSpec`
- * (which drives results with `.block`) — these assertions drive the resulting
- * `Async` through a `Future` and run as effectful ZIO tests.
+ * `flatMap`/`map`/`catchAll` chain over the shared `Async` monad), so it runs
+ * on JS unchanged. JavaScript cannot block, so — unlike the JVM
+ * `AsyncAwaitBlockSpec` (which drives results with `.block`) — these assertions
+ * drive the resulting `Async` through a `Future` and run as effectful ZIO
+ * tests.
  *
- * Crucially this includes GENUINELY PENDING awaits (a `Completer` completed from
- * a queued microtask, never inline): they prove the macro-generated chain
+ * Crucially this includes GENUINELY PENDING awaits (a `Completer` completed
+ * from a queued microtask, never inline): they prove the macro-generated chain
  * suspends and resumes via `AsyncInterop.toFuture`'s microtask polling loop
  * without ever blocking.
  *
@@ -47,7 +48,9 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
   private def run[A](fa: Async[A]): Future[A] =
     AsyncInterop.toFuture(fa)(JSExecutionContext.queue)
 
-  /** An `Async[A]` that is genuinely pending: completed from a queued microtask. */
+  /**
+   * An `Async[A]` that is genuinely pending: completed from a queued microtask.
+   */
   private def pending[A](value: A): Async[A] =
     Async.promiseInternal[A] { c =>
       js.timers.setTimeout(0.0)(c.succeed(value))
@@ -263,6 +266,46 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
           } yield pending(i + j).await
         }
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+      }
+    ),
+    // `Vector`/`Set` HOFs: LAZY/sequential map/flatMap, result collection type
+    // preserved (Set deduplicates the awaited values). Driven through pending
+    // awaits.
+    suite("Vector / Set HOFs with .await in the closure")(
+      test("Vector.map preserves order, pending awaits") {
+        val prog = Async.async(Vector(1, 2, 3).map(i => pending(i * 10).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(10, 20, 30)))
+      },
+      test("Vector.map is lazy: a failing await short-circuits the rest") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          Vector(1, 2, 3).map { i =>
+            seen = i :: seen
+            if (i == 2) pendingFail[Int](Boom).await else pending(i).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+      },
+      test("Vector.flatMap accumulates, preserving Vector") {
+        val prog = Async.async(Vector(1, 2, 3).flatMap(i => Vector(pending(i).await, i * 10)))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(1, 10, 2, 20, 3, 30)))
+      },
+      test("for-comprehension over Vectors") {
+        val prog = Async.async {
+          for {
+            i <- Vector(1, 2)
+            j <- Vector(10, 20)
+          } yield pending(i + j).await
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(11, 21, 12, 22)))
+      },
+      test("Set.map deduplicates awaited results") {
+        val prog = Async.async(Set(1, 2, 3, 4).map(i => pending(i % 2).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(0, 1)))
+      },
+      test("Set.flatMap accumulates into a Set") {
+        val prog = Async.async(Set(1, 2).flatMap(i => Set(pending(i).await, i + 10)))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(1, 11, 2, 12)))
       }
     )
   )

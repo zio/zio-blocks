@@ -417,8 +417,33 @@ phase across the cells supported by that phase.
   `AsyncShift[Option#WithFilter]` and compile-errors (unlike `List`, where a
   single guard works) — covered by the Scala-2-only `AsyncAwaitScala2HofSpec`.
 
-  Remaining 5c: other collections (`Vector`, `Map`, `Set`, …) and more HOFs
-  (`collect`, etc.).
+  **`Vector` / immutable `Set` HOFs landed.** `.await` inside `Vector` and `Set`
+  `map` / `flatMap` / `foreach` closures is supported on **all six cells**. Key
+  empirical finding (probed on all three Scala 3 backends before conforming the
+  Scala 2 macro): unlike `List.map` (EAGER, via DCA's special `ListAsyncShift`),
+  `Vector.map` / `Set.map` are **LAZY / sequential** on every backend (the closure
+  for element `n+1` runs only after element `n`'s await completes; fail-fast) —
+  AND, crucially, they are lazy *consistently* across DCA-JVM, DCA-JS, and
+  js-native (js-native does NOT eagerly apply `Vector.map` the way it does
+  `List.map`). So there is no cross-backend divergence; the Scala 2 macro conforms
+  with one generic lazy emit. The macro classifies these as `receiverKind ==
+  "iterable"` (whitelisted: `Vector`, immutable `Set` — NOT a catch-all
+  `Iterable`, to exclude lazy/one-shot collections), and emits a builder-drain
+  (`emitCollMap` / `emitCollFlatMap`) that **preserves the result collection
+  type** via the receiver's own `iterableFactory.newBuilder` (`result()` yields
+  `Vector[B]`/`Set[B]`; `Set` dedups the *awaited* values, never an intermediate
+  `Set[Async[B]]`). `foreach` reuses the already-collection-agnostic
+  `emitHofForeach`. The full result type is recorded in `hofResultTypes` (parallel
+  to `hofElemTypes`/`hofRecvKinds`) for the recursive drain `def`'s return type.
+  `Set` is matched via base-type symbol (it is INVARIANT, so `Set[Int] <:<
+  Set[Any]` is false). For-comprehensions over `Vector`/`Set` work for free
+  (guards over them, like `Option`, are likely a Scala-2-only superset — not yet
+  added as tests).
+
+  Remaining 5c: more collections (`Map` — needs `BuildFrom` over tuples; `Array` —
+  needs `ClassTag`; `Queue`, `ArraySeq`, …) and more HOFs (`collect`, etc.). Per
+  oracle review, `Map`/`Array` are a distinct later pass (different builder/result
+  shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
@@ -444,10 +469,27 @@ phase across the cells supported by that phase.
   per-run state, `AsyncCpsMonad` now overrides `apply` to reuse a cached
   singleton context (commit `215afbee`), removing that per-block allocation.
 
-  Remaining benchmark work (future cells): re-run the existing micro suite vs
-  baseline on JS 3.8+ (`js.async`/`js.await`) and on the Scala 2 macro cells to
-  confirm zero-regression there too; the present gate covers the JVM Scala 3
-  cell, against which the perf fix and the new benchmarks were validated.
+  Remaining benchmark work (DEDICATED LATER SUB-PHASE, not a blocker — scope
+  corrected 2026-06 after infra investigation + oracle review): the present gate
+  covers the JVM Scala 3 (DCA) cell only. Extending it to the JS-native and
+  Scala-2-macro cells is **new-infrastructure work, not a re-run**, because
+  `async-benchmarks` is Scala-3.8.3-only and depends on **Kyo (Scala-3-only)**,
+  and **JMH is JVM-only** (no JS harness exists):
+    - *Scala-2 macro cell:* needs a separate JVM-only `async-benchmarks-scala2`
+      module (2.13, JmhPlugin, dependsOn `async.jvm`, NO Kyo), benchmarking the
+      macro-expansion hot paths with `-prof gc`. The acceptance criterion is
+      allocation-focused (ready scalar awaits allocate no Pollable/continuation;
+      HOF paths allocate only expected collection/builder/closure artifacts;
+      pending paths allocate the designed continuation), NOT a cross-Scala JMH
+      throughput comparison (the Scala 2 macro vs Scala 3 DCA numbers are not
+      directly comparable — different CPS backends).
+    - *JS-native cell:* needs an entirely new JS microbenchmark harness; deferred
+      until there is a concrete JS perf concern (lower-stakes, less comparable).
+  This sub-phase is triggered by any change to the `Async`/`Pollable`/`Completer`
+  runtime encoding, a change in the macro's scalar ready-path code shape, or
+  completion of the collection-HOF long tail — none of which the recent Scala-2-
+  only HOF additions (Option/Vector/Set) constitute (they touch no Scala 3 code
+  and no runtime, so the existing JVM-Scala-3 gate is definitionally unaffected).
 
 ### Phase 0 — Foundation rename (1–2 weeks)
 

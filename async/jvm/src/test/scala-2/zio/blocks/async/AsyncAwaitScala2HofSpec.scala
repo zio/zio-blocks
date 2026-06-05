@@ -24,12 +24,13 @@ import zio.test._
  * `AsyncAwaitBlockSpec`.
  *
  * Specifically, the Scala 2 macro materializes for-comprehension guards
- * (`xs.withFilter(g)`) into a strict `xs.filter(g)` before the HOF rewrite, which
- * means *multiple* chained guards (`if ... if ...`, i.e. `withFilter(a).withFilter(b)`)
- * just work. dotty-cps-async has no `AsyncShift[WithFilter]` for a nested
- * `withFilter`, so the same source is a compile error on Scala 3. The two
- * backends therefore diverge here by design (Scala 2 is a strict superset);
- * single guards remain identical across both and are covered cross-version.
+ * (`xs.withFilter(g)`) into a strict `xs.filter(g)` before the HOF rewrite,
+ * which means *multiple* chained guards (`if ... if ...`, i.e.
+ * `withFilter(a).withFilter(b)`) just work. dotty-cps-async has no
+ * `AsyncShift[WithFilter]` for a nested `withFilter`, so the same source is a
+ * compile error on Scala 3. The two backends therefore diverge here by design
+ * (Scala 2 is a strict superset); single guards remain identical across both
+ * and are covered cross-version.
  *
  * `Option` for-comprehension guards are an additional Scala-2-only superset:
  * dotty-cps-async has no `AsyncShift[Option#WithFilter]` at all (so even a

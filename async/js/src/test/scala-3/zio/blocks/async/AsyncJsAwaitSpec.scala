@@ -188,6 +188,41 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         } yield Async.succeed(i + j).await
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+    },
+    test("Vector.map preserves order and result type") {
+      val prog = Async.async(Vector(1, 2, 3).map(i => Async.succeed(i * 10).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(10, 20, 30)))
+    },
+    test("Vector.map is lazy: a failing await short-circuits the rest") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        Vector(1, 2, 3).map { i =>
+          seen = i :: seen
+          if (i == 2) Async.fail(Boom).await else Async.succeed(i).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+    },
+    test("Vector.flatMap accumulates, preserving Vector") {
+      val prog = Async.async(Vector(1, 2, 3).flatMap(i => Vector(Async.succeed(i).await, i * 10)))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(1, 10, 2, 20, 3, 30)))
+    },
+    test("for-comprehension over Vectors") {
+      val prog = Async.async {
+        for {
+          i <- Vector(1, 2)
+          j <- Vector(10, 20)
+        } yield Async.succeed(i + j).await
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(11, 21, 12, 22)))
+    },
+    test("Set.map deduplicates awaited results") {
+      val prog = Async.async(Set(1, 2, 3, 4).map(i => Async.succeed(i % 2).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(0, 1)))
+    },
+    test("Set.flatMap accumulates into a Set") {
+      val prog = Async.async(Set(1, 2).flatMap(i => Set(Async.succeed(i).await, i + 10)))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(1, 11, 2, 12)))
     }
   )
 }

@@ -476,6 +476,82 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
       // NOT by dotty-cps-async on Scala 3 (it has no `AsyncShift[Option#WithFilter]`
       // — unlike `List`, for which a single guard works). It is therefore a
       // Scala-2-only superset, covered in `AsyncAwaitScala2HofSpec`.
+    ),
+    // `.await` inside `Vector` HOF closures. Unlike `List.map` (eager via DCA's
+    // special `ListAsyncShift`), `Vector.map`/`foreach`/`flatMap` are all
+    // LAZY / sequential on every backend (verified empirically): the closure for
+    // element n+1 runs only after element n's await completes; a failure
+    // short-circuits the rest. The result collection type is preserved (Vector).
+    suite("Vector HOFs with .await in the closure")(
+      test("Vector.map preserves order and result type") {
+        val r = Async.async(Vector(1, 2, 3).map(i => Async.succeed(i * 10).await)).block
+        assertTrue(r == Vector(10, 20, 30), r.isInstanceOf[Vector[_]])
+      },
+      test("Vector.map over genuinely-pending awaits") {
+        val r = Async.async(Vector(1, 2, 3).map(i => pending(i * 10).await)).block
+        assertTrue(r == Vector(10, 20, 30))
+      },
+      test("Vector.map is lazy: a failing await short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          Vector(1, 2, 3).map { i =>
+            seen = i :: seen
+            if (i == 2) Async.fail(Boom).await else Async.succeed(i).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("Vector.foreach runs ready awaits in order") {
+        var acc = 0
+        val r   = Async.async {
+          Vector(1, 2, 3).foreach(i => acc += Async.succeed(i).await)
+          acc
+        }.block
+        assertTrue(r == 6, acc == 6)
+      },
+      test("Vector.flatMap accumulates ready awaits, preserving Vector") {
+        val r = Async.async {
+          Vector(1, 2, 3).flatMap(i => Vector(Async.succeed(i).await, i * 10))
+        }.block
+        assertTrue(r == Vector(1, 10, 2, 20, 3, 30), r.isInstanceOf[Vector[_]])
+      },
+      test("for-comprehension over Vectors desugars to flatMap/map") {
+        val r = Async.async {
+          for {
+            i <- Vector(1, 2)
+            j <- Vector(10, 20)
+          } yield Async.succeed(i + j).await
+        }.block
+        assertTrue(r == Vector(11, 21, 12, 22))
+      }
+    ),
+    // `.await` inside immutable `Set` HOF closures. Result is a `Set` (the
+    // awaited values are deduplicated — never an intermediate `Set[Async[B]]`).
+    // Set iteration order is unspecified, so assertions compare as sets / sums.
+    suite("Set HOFs with .await in the closure")(
+      test("Set.map deduplicates awaited results, preserving Set") {
+        val r = Async.async(Set(1, 2, 3, 4).map(i => Async.succeed(i % 2).await)).block
+        assertTrue(r == Set(0, 1), r.isInstanceOf[Set[_]])
+      },
+      test("Set.map over genuinely-pending awaits") {
+        val r = Async.async(Set(1, 2, 3).map(i => pending(i * 10).await)).block
+        assertTrue(r == Set(10, 20, 30))
+      },
+      test("Set.foreach runs the await for every element") {
+        var sum = 0
+        val r   = Async.async {
+          Set(1, 2, 3).foreach(i => sum += Async.succeed(i).await)
+          sum
+        }.block
+        assertTrue(r == 6, sum == 6)
+      },
+      test("Set.flatMap accumulates into a Set") {
+        val r = Async.async {
+          Set(1, 2).flatMap(i => Set(Async.succeed(i).await, i + 10))
+        }.block
+        assertTrue(r == Set(1, 11, 2, 12), r.isInstanceOf[Set[_]])
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
