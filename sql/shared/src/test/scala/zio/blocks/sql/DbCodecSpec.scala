@@ -123,6 +123,56 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Shape] = Schema.derived
   }
 
+  case class InlineAddress(street: String, city: String)
+  object InlineAddress {
+    implicit val schema: Schema[InlineAddress] = Schema.derived
+  }
+
+  case class PersonWithInline(
+    @Modifier.config("sql.inline", "true") address: InlineAddress,
+    name: String
+  )
+  object PersonWithInline {
+    implicit val schema: Schema[PersonWithInline] = Schema.derived
+  }
+
+  case class PersonWithoutInline(
+    address: InlineAddress,
+    name: String
+  )
+  object PersonWithoutInline {
+    implicit val schema: Schema[PersonWithoutInline] = Schema.derived
+  }
+
+  case class MixedInline(
+    @Modifier.config("sql.inline", "true") address: InlineAddress,
+    tags: List[String],
+    name: String
+  )
+  object MixedInline {
+    implicit val schema: Schema[MixedInline] = Schema.derived
+  }
+
+  case class NestedInner(x: Int, y: Int)
+  object NestedInner {
+    implicit val schema: Schema[NestedInner] = Schema.derived
+  }
+
+  case class NestedOuter(
+    @Modifier.config("sql.inline", "true") position: NestedInner,
+    @Modifier.config("sql.inline", "true") size: NestedInner,
+    label: String
+  )
+  object NestedOuter {
+    implicit val schema: Schema[NestedOuter] = Schema.derived
+  }
+
+  @Modifier.config("sql.inline_fields", "true")
+  case class AutoInlineOrder(id: Long, shipping: InlineAddress, billing: InlineAddress)
+  object AutoInlineOrder {
+    implicit val schema: Schema[AutoInlineOrder] = Schema.derived
+  }
+
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
     s.deriving(DbCodecDeriver).derive
 
@@ -557,6 +607,106 @@ object DbCodecSpec extends ZIOSpecDefault {
         }
 
         assertTrue(codec.readValue(reader, IndexedSeq("value")) == JsonPayload("hello", 2))
+      }
+    ),
+    suite("inline field flattening")(
+      test("inline record field expands to prefixed columns") {
+        val codec = deriveCodec[PersonWithInline]
+        assertTrue(
+          codec.columns == IndexedSeq("address_street", "address_city", "name"),
+          codec.columnCount == 3
+        )
+      },
+      test("inline record field toDbValues produces flat values") {
+        val codec  = deriveCodec[PersonWithInline]
+        val values = codec.toDbValues(PersonWithInline(InlineAddress("Main St", "NYC"), "Alice"))
+        assertTrue(
+          values == IndexedSeq(
+            DbValue.DbString("Main St"),
+            DbValue.DbString("NYC"),
+            DbValue.DbString("Alice")
+          )
+        )
+      },
+      test("non-inline record field produces single JSONB column") {
+        val codec = deriveCodec[PersonWithoutInline]
+        assertTrue(
+          codec.columns == IndexedSeq("address", "name"),
+          codec.columnCount == 2
+        )
+      },
+      test("non-inline record field toDbValues produces JSON string") {
+        val codec  = deriveCodec[PersonWithoutInline]
+        val values = codec.toDbValues(PersonWithoutInline(InlineAddress("Main St", "NYC"), "Alice"))
+        assertTrue(
+          values.size == 2,
+          values(0).isInstanceOf[DbValue.DbString],
+          values(1) == DbValue.DbString("Alice")
+        )
+      },
+      test("mixed inline record + non-record fields") {
+        val codec = deriveCodec[MixedInline]
+        assertTrue(
+          codec.columns == IndexedSeq("address_street", "address_city", "tags", "name"),
+          codec.columnCount == 4
+        )
+      },
+      test("mixed inline toDbValues") {
+        val codec  = deriveCodec[MixedInline]
+        val values = codec.toDbValues(MixedInline(InlineAddress("Elm St", "LA"), List("a", "b"), "Bob"))
+        assertTrue(
+          values(0) == DbValue.DbString("Elm St"),
+          values(1) == DbValue.DbString("LA"),
+          values(2).isInstanceOf[DbValue.DbString],
+          values(3) == DbValue.DbString("Bob")
+        )
+      },
+      test("multiple inline fields with same nested type") {
+        val codec = deriveCodec[NestedOuter]
+        assertTrue(
+          codec.columns == IndexedSeq("position_x", "position_y", "size_x", "size_y", "label"),
+          codec.columnCount == 5
+        )
+      },
+      test("multiple inline fields toDbValues") {
+        val codec  = deriveCodec[NestedOuter]
+        val values = codec.toDbValues(NestedOuter(NestedInner(1, 2), NestedInner(10, 20), "rect"))
+        assertTrue(
+          values == IndexedSeq(
+            DbValue.DbInt(1),
+            DbValue.DbInt(2),
+            DbValue.DbInt(10),
+            DbValue.DbInt(20),
+            DbValue.DbString("rect")
+          )
+        )
+      },
+      test("type-level inline_fields inlines all record fields") {
+        val codec = deriveCodec[AutoInlineOrder]
+        assertTrue(
+          codec.columns == IndexedSeq(
+            "id",
+            "shipping_street",
+            "shipping_city",
+            "billing_street",
+            "billing_city"
+          ),
+          codec.columnCount == 5
+        )
+      },
+      test("type-level inline_fields toDbValues") {
+        val codec  = deriveCodec[AutoInlineOrder]
+        val values =
+          codec.toDbValues(AutoInlineOrder(42L, InlineAddress("Ship St", "NYC"), InlineAddress("Bill St", "LA")))
+        assertTrue(
+          values == IndexedSeq(
+            DbValue.DbLong(42L),
+            DbValue.DbString("Ship St"),
+            DbValue.DbString("NYC"),
+            DbValue.DbString("Bill St"),
+            DbValue.DbString("LA")
+          )
+        )
       }
     )
   )

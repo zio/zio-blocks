@@ -108,6 +108,11 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         Reflect.Record.registers(reflects.asInstanceOf[Array[Reflect[F, ?]]])
       )
 
+    val inlineAllRecordFields = modifiers.exists {
+      case m: Modifier.config => m.key == "sql.inline_fields" && m.value == "true"
+      case _                  => false
+    }
+
     idx = 0
     while (idx < len) {
       val field       = fields(idx)
@@ -118,7 +123,19 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         val renamed = field.modifiers.collectFirst { case m: Modifier.rename => m.name }
         fieldNames(idx) = renamed.getOrElse(columnNameMapper(field.name))
 
-        fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
+        val isFieldInline = field.modifiers.exists {
+          case m: Modifier.config => m.key == "sql.inline" && m.value == "true"
+          case _                  => false
+        }
+        val isRecordField = field.value.isRecord
+        val shouldInline  = isRecordField && (isFieldInline || inlineAllRecordFields)
+
+        if (isRecordField && !shouldInline) {
+          val boundReflect = toBoundReflect(field.value)
+          fieldCodecs(idx) = jsonbCodec(new Schema(boundReflect)).asInstanceOf[DbCodec[Any]]
+        } else {
+          fieldCodecs(idx) = D.instance(field.value.metadata).force.asInstanceOf[DbCodec[Any]]
+        }
       }
       idx += 1
     }
