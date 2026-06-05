@@ -1265,28 +1265,86 @@ private[async] object AsyncMacros {
      *
      * `Array.map` is EAGER on every Scala 3 backend (DCA's eager array shift and
      * the JS-native `Array.map(async ...)`), exactly like `List.map` — verified
-     * empirically (a failing await still runs every preceding closure). So this
-     * mirrors [[emitHofMap]]: apply the closure to every element first
-     * (`List[Async[B]]`), `Async.collectAll` sequences fail-fast, and the
-     * resulting `List[B]` is rebuilt as an `Array[B]` via `toArray`, which
-     * resolves the same `ClassTag[B]` the user's original `map` required.
+     * empirically (a failing await still runs every preceding closure).
+     *
+     * Strategy (allocation-lean): run the closure for EVERY element first into a
+     * single scratch `Array[Any]` of `Async[B]` results (this preserves the
+     * eager observation above), then drain those results sequentially and
+     * fail-fast straight into an `Array.newBuilder[B]` (which resolves the same
+     * `ClassTag[B]` the user's original `map` required, preserving a primitive
+     * element type). This avoids the two intermediate `List`s that an earlier
+     * `collectAll(...).toArray` formulation materialized — see
+     * `async-benchmarks-scala2/baseline.txt` note 6 (≈2.2× throughput, ≈53%
+     * fewer bytes/op, and now fork-deterministic). The defensive `bTpe`-unknown
+     * branch (effectively unreachable for `Array.map`) keeps the old
+     * `collectAll` + `toArray` path, which needs no static `B` for its builder.
      */
     def emitArrayMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type)(k: Tree => Tree): Tree = {
-      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
-      val xs         = fresh("xs$")
-      val bodyA      = transform(fbody)(pureReturn)
-      val effects    =
-        q"""$recvVal.iterator.map(${lamT(
-            pname,
-            TypeTree(),
-            q"$bodyA.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]]"
-          )}).toList"""
-      val collected =
-        if (bTpe != null && bTpe != NoType) q"$AsyncObj.collectAll[$bTpt]($effects)"
-        else q"$AsyncObj.collectAll($effects)"
-      val toArr =
-        q"""$OpsObj($collected).map { ($xs: _root_.scala.collection.immutable.List[$bTpt]) => $xs.toArray }"""
-      asyncBind(safe(toArr))(k)
+      val bodyA = transform(fbody)(pureReturn)
+      if (bTpe == null || bTpe == NoType) {
+        // Defensive fallback (the result element type is always known for an
+        // `Array.map`, so this is effectively unreachable): route through
+        // `collectAll` + `toArray`, which needs no static `B` for the builder.
+        val xs      = fresh("xs$")
+        val effects =
+          q"""$recvVal.iterator.map(${lamT(pname, TypeTree(), q"$bodyA.asInstanceOf[_root_.zio.blocks.async.Async[_]]")}).toList"""
+        val toArr =
+          q"""$OpsObj($AsyncObj.collectAll($effects)).map { ($xs: _root_.scala.collection.immutable.List[_]) => $xs.toArray }"""
+        asyncBind(safe(toArr))(k)
+      } else {
+        // Allocation-lean eager `Array.map`: run the closure for EVERY element
+        // first (eager, matching `List.map` / DCA — a failing await still runs
+        // every preceding closure), storing the resulting `Async`s in a single
+        // `Array[Any]`, then drain them sequentially (fail-fast) straight into an
+        // `Array.newBuilder[B]`. This avoids the two intermediate `List`s that a
+        // `collectAll(...).toArray` would materialize.
+        val bTpt    = TypeTree(bTpe)
+        val drain   = fresh("drainArrMap$")
+        val effects = fresh("effects$")
+        val bld     = fresh("bld$")
+        val it      = fresh("it$")
+        val i0      = fresh("i$")
+        val start   = fresh("start$")
+        val j0      = fresh("j$")
+        val r0      = fresh("r$")
+        val b0      = fresh("b$")
+        val cur     = fresh("cur$")
+        val whileBody = q"""
+          {
+            var $j0 = $start
+            while ($j0 < $effects.length) {
+              val $r0: Any = $effects($j0)
+              if ($r0.isInstanceOf[$Pollable]) {
+                val $cur = $j0
+                return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]]).flatMap { ($b0: $bTpt) =>
+                  $bld += $b0
+                  $drain($cur + 1)
+                }
+              }
+              $bld += $r0.asInstanceOf[$bTpt]
+              $j0 += 1
+            }
+            $AsyncObj.succeed($bld.result())
+          }
+        """
+        val loop = q"""
+          {
+            val $effects = new _root_.scala.Array[_root_.scala.Any]($recvVal.size)
+            val $it      = $recvVal.iterator
+            var $i0      = 0
+            while ($it.hasNext) {
+              val $pname = $it.next()
+              $effects($i0) = $bodyA
+              $i0 += 1
+            }
+            val $bld = _root_.scala.Array.newBuilder[$bTpt]
+            def $drain($start: _root_.scala.Int): _root_.zio.blocks.async.Async[_root_.scala.Array[$bTpt]] =
+              ${safe(whileBody)}
+            $drain(0)
+          }
+        """
+        asyncBind(loop)(k)
+      }
     }
 
     /**

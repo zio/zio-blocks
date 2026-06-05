@@ -44,7 +44,7 @@ RESULTS (n=10)
   zb_foldLeft                     7.6e7            104
   zb_collect                      3.3e7            208
   -- Array emitters (newest / highest-risk) --
-  zb_arrayMapPrimitive            3.4e7            360
+  zb_arrayMapPrimitive            1.5e6            864     (*see note 6)
   zb_arrayFlatMap                 1.5e7            224
   zb_arrayFilter                  8.7e7            136
 
@@ -71,12 +71,26 @@ INTERPRETATION
      - Array.filter: 136 B/op (`Array.newBuilder` + result array).
      - Array.flatMap: 224 B/op (builder drain + `ArraySeq.unsafeWrapArray`
        normalization of the raw-array closure result).
-     - Array.map: 360 B/op — the EAGER strategy materializes an intermediate
-       `List[Async[B]]` and a `List[B]` (via `collectAll`) before `toArray`. This
-       is the highest HOF row; it is correct and bounded, and is a candidate for
-       a future allocation optimization (build straight into an `Array` builder
-       instead of routing through `collectAll`'s `List`). Tracked as a possible
-       follow-up; not a correctness or per-link-cost issue.
+     - Array.map: 864 B/op — see note 6.
+
+6. Array.map allocation optimization (emitArrayMap). The original eager strategy
+   routed through `collectAll`, materializing an intermediate `List[Async[B]]`
+   AND a `List[B]` before `toArray`. Worse, at `-f 1` its allocation was NOT
+   deterministic: across forks escape analysis sometimes elided the `List`
+   spine (a lucky low fork read ~360 B/op) and sometimes did not, so the true
+   steady-state average measured at `-f 4 -wi 5 -i 5` was ~1826 B/op (range
+   1712-1864 across forks) at ~664k ops/s.
+   The emitter now runs every closure eagerly into a single `Array[Any]` of
+   results (preserving eager semantics: a failing await still runs all prior
+   closures) and then drains them fail-fast straight into an `Array.newBuilder[B]`
+   (preserving the primitive element ClassTag). This removes both intermediate
+   `List`s. Re-measured at `-f 4 -wi 5 -i 5`:
+       throughput  664k -> 1475k ops/s  (+2.22x)
+       alloc       1826 -> 864.005 +/- 0.001 B/op  (-53%, now FULLY deterministic)
+   The 864 B/op is the eager-array floor here: the scratch `Array[Any]` + the
+   result `Array[Long]` + builder + the per-link `flatMap` continuations for the
+   3 awaited elements. It is bounded and per-block, not per-link, and the run is
+   now reproducible (no EA-luck variance).
 
 GATE VERDICT: PASS. The primary criterion — scalar `.await` collapses to the
 hand-written `flatMap` control with zero per-link allocation — is met decisively.
