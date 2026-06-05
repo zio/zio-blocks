@@ -760,11 +760,28 @@ private[async] object AsyncMacros {
     // element type `B` (its `typeArgs.head`) for the receiver's builder. Recorded
     // in transform order and validated here: `collect` with `.await` is
     // supported (Scala 2) for `List` / `Vector` / `Array` / immutable `Set` (the
-    // builder-backed iterable receivers) and `Option` (single-element `Some`/
-    // `None`). A `Map` receiver is rejected (it is DCA-only on Scala 3). The
+    // builder-backed iterable receivers), `Option` (single-element `Some`/
+    // `None`), and immutable `Map` — but ONLY a non-pair `Map.collect` (result
+    // `Iterable[B]`). A pair-yielding `Map.collect` (result `Map[K2, V2]`) is
+    // rejected to stay strictly at parity with Scala 3: dotty-cps-async has only
+    // an `IterableOpsAsyncShift.collect[F, B]` shift (no Map-specific one), so
+    // the `Map[K2, V2]` overload is a compile error on every DCA cell. The
     // recovered kind is recorded in `collectRecvKinds` (parallel to
     // `collectResultTypes`) so the untyped dispatch picks the right emitter
-    // (`emitOptionCollect` vs the builder-drain `emitCollect`).
+    // (`emitOptionCollect` for `Option` vs the builder-drain `emitCollect`).
+    /**
+     * The two type args of a `Map[K2, V2]`-typed result, looking through any
+     * concrete `Map` subtype via `baseType(MapSym)`. Used to detect a
+     * pair-yielding `Map.collect` (whose result is a `Map`), which is rejected to
+     * stay at parity with Scala 3 (DCA has no Map-specific `collect` shift).
+     */
+    def mapResultArgs(t: Type): Option[List[Type]] =
+      if (t == null || t == NoType) None
+      else {
+        val mt = t.dealias.widen.baseType(MapSym)
+        if (mt != NoType && mt.typeArgs.lengthCompare(2) == 0) Some(mt.typeArgs) else None
+      }
+
     val collectRecvKinds: scala.collection.mutable.Queue[String] = scala.collection.mutable.Queue.empty[String]
     val collectResultTypes: scala.collection.mutable.Queue[Type] = {
       val q                         = scala.collection.mutable.Queue.empty[Type]
@@ -775,17 +792,21 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, " +
-                  "immutable `Set`, and `Option` receivers in the Scala 2 `Async.async` macro; convert the receiver " +
-                  "to one of those first, or bind the awaited values before the partial function."
+                  "immutable `Set`, `Option`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
+                  "convert the receiver to one of those first, or bind the awaited values before the partial function."
               )
             )
-            if (kind == "map")
+            // A pair-yielding `Map.collect` (typed `Map[K2, V2]`) is unsupported
+            // on Scala 3 (DCA has no Map-specific collect shift), so reject it
+            // here too; a non-pair `Map.collect` (typed `Iterable[B]`) is fine.
+            if (kind == "map" && mapResultArgs(if (tt.tpe != null) tt.tpe else NoType).isDefined)
               c.abort(
                 tt.pos,
-                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, " +
-                  "immutable `Set`, and `Option` receivers in the Scala 2 `Async.async` macro (a `Map` receiver is " +
-                  "not yet supported here, though it is on Scala 3); convert the receiver to a `List` / `Vector` / " +
-                  "`Array` / `Set` first, or bind the awaited values before the partial function."
+                "`.await` inside a pair-yielding `Map.collect` (one whose result is a `Map[K2, V2]`) is not " +
+                  "supported, to stay at parity with Scala 3 (dotty-cps-async has no Map-specific `collect` shift, " +
+                  "so it is a compile error there); rewrite it as " +
+                  "`m.toVector.collect { case ... => k -> v.await }.toMap`, or bind the awaited values before the " +
+                  "partial function."
               )
             collectRecvKinds.enqueue(kind)
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
@@ -2029,7 +2050,11 @@ private[async] object AsyncMacros {
       """
       // `Array.collect` rebuilds via `Array.newBuilder` (needs a `ClassTag[B]`,
       // resolved at retypecheck exactly as the user's original `collect` did);
-      // every other builder-backed receiver uses its own `iterableFactory`.
+      // every other builder-backed receiver uses its own `iterableFactory`. A
+      // non-pair `Map.collect` (result `Iterable[B]`) uses the `Map`'s
+      // `iterableFactory` too; a pair-yielding `Map.collect` (result `Map[K2,
+      // V2]`) is rejected in the typed pass (DCA has no Map-specific collect
+      // shift, so it is unsupported on Scala 3 — kept strictly at parity).
       val builder: Tree =
         if (isArrayResult(resultTpe)) q"_root_.scala.Array.newBuilder[$bTpt]"
         else q"$recvVal.iterableFactory.newBuilder[$bTpt]"
@@ -2268,10 +2293,12 @@ private[async] object AsyncMacros {
           // `collect(pf)` whose partial function has an awaiting case body. The
           // PF literal is an anonymous-class `Apply`, so it must precede
           // `HofAwaitCall` and the generic application-spine case. Restricted to
-          // builder-backed receivers (`List` / `Vector` / `Array` / `Set`) and
-          // `Option` in the typed pass; the element type `B` is the result
-          // collection's `typeArgs.head` (`Option[B]` for an `Option` receiver,
-          // dispatched to the single-element `emitOptionCollect`).
+          // builder-backed receivers (`List` / `Vector` / `Array` / `Set` /
+          // non-pair `Map` → `Iterable[B]`) and `Option` in the typed pass; the
+          // element type `B` is the result collection's `typeArgs.head`. An
+          // `Option` receiver dispatches to the single-element
+          // `emitOptionCollect`; everything else to the builder-drain
+          // `emitCollect`.
           case CollectAwaitCall(recv, cases) =>
             val resultTpe = dequeueCollectResult()
             val kind      = dequeueCollectKind()

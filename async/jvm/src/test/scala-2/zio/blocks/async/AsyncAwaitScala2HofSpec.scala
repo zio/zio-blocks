@@ -177,15 +177,30 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
       assertTrue(r == List(2, 4), guardRuns == 4)
     },
     // `collect` with `.await` is matched syntactically, validated in the typed
-    // pass, and restricted to builder-backed receivers (`List` / `Vector` /
-    // `Array` / `Set`) and `Option`. A `Map` receiver (DCA-supported on Scala 3)
-    // is still rejected here.
-    test("collect over a Map receiver is rejected — Scala 2 only") {
+    // pass, and restricted to the whitelisted receivers (`List` / `Vector` /
+    // `Array` / `Set` / `Option` / immutable `Map`). A non-whitelisted receiver
+    // (e.g. a lazy `LazyList`) is rejected with an actionable compile error.
+    test("collect over a non-whitelisted receiver is rejected — Scala 2 only") {
       typeCheck {
         """
         import zio.blocks.async._
         Async.async {
-          Map(1 -> 2).collect { case (k, v) if k > 0 => Async.succeed(v).await }
+          LazyList(1, 2, 3).collect { case i if i % 2 == 0 => Async.succeed(i).await }
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
+    },
+    // A non-pair `Map.collect` (result `Iterable[B]`) is supported on every cell
+    // (see `AsyncAwaitBlockSpec`), but a pair-yielding one (result `Map[K2, V2]`)
+    // is rejected to stay at parity with Scala 3 — dotty-cps-async has only an
+    // `IterableOpsAsyncShift.collect[F, B]` shift, so the `Map[K2, V2]` overload
+    // is a compile error there.
+    test("a pair-yielding Map.collect is rejected — Scala 2 (parity with DCA)") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Map(1 -> 2).collect { case (k, v) if k > 0 => k -> Async.succeed(v + 1).await }
         }
         """
       }.map(r => assertTrue(r.isLeft))

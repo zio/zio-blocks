@@ -589,14 +589,20 @@ phase across the cells supported by that phase.
   dropping the synthetic `defaultCase$` fallthrough), then `emitCollect` emits a
   builder-drain that, per element, runs a SINGLE match (user cases + a trailing
   `case _ => skip` sentinel, omitted when the PF is total) — so the guard runs
-  exactly once — appending the (possibly awaited) body. Restricted to
-  builder-backed receivers (`List` / `Vector` / `Array` / `Set`) and `Option`
-  (single-element `Some`/`None` via `emitOptionCollect`); `.await` in a case
-  GUARD is rejected. DCA-confirmed identical RESULTS on Scala 3 JVM + JS and
-  native `js.await` on 3.8+ JS (the guard-eval COUNT differs — DCA may evaluate
-  it more than once — so the once-per-element guarantee and the `Map`-receiver
-  and awaiting-guard rejections are asserted Scala-2-only in
-  `AsyncAwaitScala2HofSpec`). `Map.collect` remains Scala-3-only.
+  exactly once — appending the (possibly awaited) body. Supported on
+  builder-backed receivers (`List` / `Vector` / `Array` / `Set`), `Option`
+  (single-element `Some`/`None` via `emitOptionCollect`), and a **non-pair
+  `Map.collect`** (result `Iterable[B]`, built via the `Map`'s `iterableFactory`);
+  `.await` in a case GUARD is rejected. DCA-confirmed identical RESULTS on Scala
+  3 JVM + JS and native `js.await` on 3.8+ JS (the guard-eval COUNT differs —
+  DCA may evaluate it more than once — so the once-per-element guarantee and the
+  awaiting-guard / pair-yielding-`Map` rejections are asserted Scala-2-only in
+  `AsyncAwaitScala2HofSpec`). A **pair-yielding `Map.collect`** (result
+  `Map[K2, V2]`) is **unsupported on every cell**: DCA has only an
+  `IterableOpsAsyncShift.collect[F, B]` shift (empirically a compile error for
+  the `Map[K2, V2]` overload — `Too many type arguments`), so the Scala 2 macro
+  rejects it too (detecting a `Map`-typed result via `mapResultArgs`) to stay at
+  strict parity; the workaround is `m.toVector.collect { ... }.toMap`.
 
   **`Queue` / `ArraySeq` receiver families landed.** The strict immutable `Seq`
   families `scala.collection.immutable.Queue` and

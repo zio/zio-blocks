@@ -1051,6 +1051,35 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom))
+      },
+      // Only the NON-pair `Map.collect` (result `Iterable[B]`) is cross-version:
+      // dotty-cps-async has no Map-specific collect shift, so a pair-yielding
+      // `Map.collect` (result `Map[K2, V2]`) is a compile error on Scala 3 and is
+      // rejected on Scala 2 too (covered in `AsyncAwaitScala2HofSpec`).
+      test("Map.collect with a non-pair body widens to an Iterable") {
+        val r = Async.async {
+          Map(1 -> 10, 2 -> 20).collect { case (k, v) => Async.succeed(k + v).await }
+        }.block
+        assertTrue(r.toSet == Set(11, 22))
+      },
+      test("Map.collect over a genuinely-pending non-pair await") {
+        val r = Async.async {
+          Map(1 -> 10, 2 -> 20).collect { case (k, v) => pending(k + v).await }
+        }.block
+        assertTrue(r.toSet == Set(11, 22))
+      },
+      test("Map.collect that matches nothing yields an empty result") {
+        val r = Async.async {
+          Map(1 -> 10, 2 -> 20).collect { case (k, v) if k > 100 => Async.succeed(k + v).await }
+        }.block
+        assertTrue(r.isEmpty)
+      },
+      test("Map.collect propagates a failing await in a matched body") {
+        val a = Async.async {
+          Map(1 -> 10).collect { case (k, v) => (Async.fail(Boom).await: Int) }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
       }
     ),
     // Additional strict immutable `Seq` receivers (`Queue` / `ArraySeq`) reuse

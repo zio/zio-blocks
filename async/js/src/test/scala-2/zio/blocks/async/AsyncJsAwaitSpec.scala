@@ -571,6 +571,10 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       test("Option.collect returns None when the Some does not match") {
         val prog = Async.async(Option(3).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await })
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+      },
+      test("Map.collect with a non-pair body widens to an Iterable") {
+        val prog = Async.async(Map(1 -> 10, 2 -> 20).collect { case (k, v) => Async.succeed(k + v).await })
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toSet == Set(11, 22)))
       }
     ),
     // Strict immutable `Seq` receivers (`Queue` / `ArraySeq`) reuse the generic

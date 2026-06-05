@@ -266,13 +266,20 @@ positions diverge between Scala 2 and Scala 3 — those are called out explicitl
   await short-circuits the rest. The result **collection type is preserved**. An
   `Option` receiver is supported too: `None` short-circuits without evaluating
   the partial function, `Some(a)` yields `Some(b)` if a case matches, else
-  `None`. The case guard runs exactly once per element (Scala 2). A `.await` in a
-  case GUARD is rejected. **Divergence:** a `Map` receiver is **Scala-3-only**
-  (dotty-cps-async supports it; the Scala 2 macro currently restricts `Map.collect`).
+  `None`. A **non-pair `Map.collect`** (whose case bodies yield a `B`, so the
+  result is an `Iterable[B]`) is supported on every cell. The case guard runs
+  exactly once per element (Scala 2). A `.await` in a case GUARD is rejected.
+  **Divergence:** a **pair-yielding `Map.collect`** (whose case bodies yield
+  `(K2, V2)` pairs, so the result is a `Map[K2, V2]`) is **unsupported on every
+  cell** — dotty-cps-async has only an `IterableOpsAsyncShift.collect[F, B]`
+  shift (no Map-specific one), so the `Map`-returning overload is a compile error
+  on Scala 3, and the Scala 2 macro rejects it to stay at parity. Rewrite it as
+  `m.toVector.collect { case ... => k -> v.await }.toMap`.
 
 These behave identically across Scala 2/3 and JVM/JS **except** for the handful of
 positions flagged **Divergence** above (`Map.filter` / `filterNot` is a
-Scala-2-only superset; `Map.collect` is Scala-3-only). Because Scala desugars
+Scala-2-only superset; a pair-yielding `Map.collect` is unsupported everywhere).
+Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
 methods,
 single- and multi-generator `for` comprehensions with `.await` work too
@@ -426,7 +433,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted Scala 2↔3 divergences (`Map.filter` Scala-2-only; `Map.collect` Scala-3-only) — see the HOF section above |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.unsafeRunAsync` / `Cancelable` | ✅ | ✅ | ✅        | ✅        | Non-blocking callback runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
