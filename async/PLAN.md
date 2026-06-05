@@ -498,7 +498,7 @@ phase across the cells supported by that phase.
   **Predicate-scanning HOFs landed (`find` / `exists` / `forall`).** `.await`
   inside the `A => Boolean` closure of `find`/`exists`/`forall` is supported on
   **all six cells**. Probed on all three Scala 3 backends first (alongside
-  `filter`/`collect`/`takeWhile`/`foldLeft`, which remain future increments).
+  `filter`/`collect`/`takeWhile`/`foldLeft`, which have since all landed too).
   These are **receiver-kind-agnostic**: every whitelisted receiver
   (`List`/`Option`/`Vector`/`Set`/`Map`) has `.iterator`, and the scan is
   inherently lazy/sequential short-circuit — so a single `emitPredicateScan`
