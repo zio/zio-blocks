@@ -18,11 +18,15 @@ behavior is covered behaviorally by the shared/JS specs.
 
 ## 2. Test matrix (all green, current)
 
+Refreshed after the HOF-await parity long-tail closed (`Option.find`,
+`Option.collect`, non-pair `Map.collect`; pair-yielding `Map.collect` rejected at
+parity — commits `00b75519`, `f46c44dd`, `246012db`).
+
 | Cell | Tests | Cell | Tests |
 |---|---|---|---|
-| JVM 2.13.18 | 315 | JS 2.13.18 | 235 |
-| JVM 3.3.7 | 304 | JS 3.3.7 | 228 |
-| JVM 3.8.3 | 304 | JS 3.8.3 | 228 |
+| JVM 2.13.18 | 329 | JS 2.13.18 | 240 |
+| JVM 3.3.7 | 317 | JS 3.3.7 | 233 |
+| JVM 3.8.3 | 317 | JS 3.8.3 | 233 |
 
 ## 3. Coverage (JVM scoverage, current)
 
@@ -36,6 +40,14 @@ floor because it additionally compiles the dotty-cps-async bridge. Both cells
 remain above the enforced `92/89` gate after the Queue/ArraySeq/Array HOF work
 (which is compile-time macro code on Scala 2 and DCA-driven on Scala 3, so the
 added tests exercise the unchanged runtime paths and nudged coverage upward).
+
+**Re-confirmed (authoritative batch+clean) after the HOF-await parity long-tail**
+(`Option.find`/`Option.collect`/non-pair `Map.collect`): both cells are
+**unchanged** — Scala 3.8.3 `94.36% / 92.45%`, Scala 2.13.18 `96.30% / 94.15%`.
+Expected: those commits add only Scala-2 compile-time macro code (`emitOptionCollect`,
+the `Option.find`/`collect` validation, the pair-yielding `Map.collect` rejection)
+plus tests that exercise the unchanged runtime pollables, so the runtime-statement
+denominator is unmoved.
 
 ### Work done to close gaps
 
