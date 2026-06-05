@@ -160,9 +160,9 @@ A failure encountered by `.await` short-circuits the block and surfaces as a
 failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
 is equivalent to `Async.fail(t)`.
 
-`.await` is also supported inside `List.map` and `List.foreach` closures on every
-backend, with semantics that match each method's natural meaning (and the Scala 3
-backends exactly):
+`.await` is also supported inside `List` and `Option` HOF closures (`map`,
+`foreach`, `flatMap`) on every backend, with semantics that match each method's
+natural meaning (and the Scala 3 backends exactly):
 
 - **`List.map`** is **eager**: strict `map` applies the closure to every element
   first — running all construction-time side effects — producing a
@@ -174,12 +174,17 @@ backends exactly):
   short-circuits the remaining elements. The result is `Unit`.
 - **`List.flatMap`** is **lazy / sequential** like `foreach`, but accumulates each
   closure's `IterableOnce` into the result `List`.
+- **`Option.map` / `Option.flatMap` / `Option.foreach`**: an `Option` holds at
+  most one element, so the eager/lazy distinction collapses to a single
+  `Some`/`None` branch — `None` short-circuits (the closure never runs), `Some(x)`
+  runs the closure and (for `map`/`flatMap`) rewraps the result; a failed await
+  propagates.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
-for-comprehensions over a `List` into these methods, single- and multi-generator
-`for` comprehensions with `.await` work too (`for ... yield` → `map`; nested
-generators → `flatMap`/`map`; `for { ... }` without `yield` → `foreach`; a guard
-`if` → `withFilter`):
+for-comprehensions over a `List` or `Option` into these methods, single- and
+multi-generator `for` comprehensions with `.await` work too (`for ... yield` →
+`map`; nested generators → `flatMap`/`map`; `for { ... }` without `yield` →
+`foreach`; a guard `if` → `withFilter`):
 
 ```scala
 val pairs: Async[List[Int]] = Async.async {
@@ -192,17 +197,18 @@ val pairs: Async[List[Int]] = Async.async {
 
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
-> `throw`, assignments, `List.map` / `List.foreach` / `List.flatMap` closures, and
-> the for-comprehensions that desugar to them (including single and multiple
-> guards), but **rejects** `.await` inside other function literals /
-> higher-order-function arguments (and HOFs over collections other than `List`),
-> with an actionable compile error. Those positions are supported on Scala 3.
-> Support for more of them on Scala 2 is in progress.
+> `throw`, assignments, `List` and `Option` `map` / `foreach` / `flatMap`
+> closures, and the for-comprehensions that desugar to them (including guards),
+> but **rejects** `.await` inside other function literals /
+> higher-order-function arguments (and HOFs over collections other than `List`
+> and `Option`), with an actionable compile error. Those positions are supported
+> on Scala 3. Support for more of them on Scala 2 is in progress.
 >
-> Conversely, the Scala 2 macro handles *multiple* for-comprehension guards
-> (chained `withFilter`), which dotty-cps-async on Scala 3 currently rejects — a
-> rare case where Scala 2 is a strict superset. Single guards behave identically
-> on every cell.
+> Conversely, the Scala 2 macro is a strict superset for some guard shapes that
+> dotty-cps-async on Scala 3 currently rejects: *multiple* `List`
+> for-comprehension guards (chained `withFilter`), and *any* `Option`
+> for-comprehension guard (DCA has no `AsyncShift[Option#WithFilter]`). Single
+> `List` guards behave identically on every cell.
 
 ## The callback bridge: `Async.promise`
 
@@ -283,7 +289,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List.map` closures is supported everywhere (eager); other HOF closures / for-comprehensions are Scala 3 only for now |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List` / `Option` `map`/`foreach`/`flatMap` closures and their for-comprehensions is supported everywhere; other HOF closures (and other collections) are Scala 3 only for now |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |

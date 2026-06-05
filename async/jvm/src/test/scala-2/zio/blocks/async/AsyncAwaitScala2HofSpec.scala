@@ -30,6 +30,11 @@ import zio.test._
  * `withFilter`, so the same source is a compile error on Scala 3. The two
  * backends therefore diverge here by design (Scala 2 is a strict superset);
  * single guards remain identical across both and are covered cross-version.
+ *
+ * `Option` for-comprehension guards are an additional Scala-2-only superset:
+ * dotty-cps-async has no `AsyncShift[Option#WithFilter]` at all (so even a
+ * *single* guard over an `Option` is a compile error on Scala 3), whereas the
+ * Scala 2 macro materializes it to `Option.filter` and rewrites cleanly.
  */
 object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
 
@@ -54,6 +59,24 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         } yield Async.succeed(i + j).await
       }.block
       assertTrue(r == List(12, 22))
+    },
+    test("Option for-comprehension with a single guard (kept) — Scala 2 only") {
+      val r = Async.async {
+        for {
+          i <- Option(4)
+          if i % 2 == 0
+        } yield Async.succeed(i * 10).await
+      }.block
+      assertTrue(r == Some(40))
+    },
+    test("Option for-comprehension with a guard that fails (filtered to None) — Scala 2 only") {
+      val r = Async.async {
+        for {
+          i <- Option(3)
+          if i % 2 == 0
+        } yield Async.succeed(i * 10).await
+      }.block
+      assertTrue(r == None)
     }
   )
 }

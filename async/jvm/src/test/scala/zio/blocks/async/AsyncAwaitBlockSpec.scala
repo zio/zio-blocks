@@ -404,6 +404,78 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
       // supported by the Scala 2 macro but NOT by dotty-cps-async on Scala 3
       // (it has no `AsyncShift[WithFilter]` for a nested `withFilter`), so that
       // case is a Scala-2-only superset covered in `AsyncAwaitValAscriptionSpec`.
+    ),
+    // `.await` inside `Option` HOF closures. An `Option` holds at most one
+    // element, so the eager/lazy distinction (which separates `List.map` from
+    // `List.foreach`/`flatMap`) collapses: every HOF reduces to a single
+    // `Some`/`None` branch. `None` short-circuits (the closure never runs);
+    // `Some(x)` runs the closure. Verified identical on all six cells.
+    suite("Option HOFs with .await in the closure")(
+      test("Option.map over a Some runs the closure and rewraps") {
+        val r = Async.async(Option(5).map(i => Async.succeed(i * 10).await)).block
+        assertTrue(r == Some(50))
+      },
+      test("Option.map over a None short-circuits (closure never runs)") {
+        var ran = false
+        val r   = Async.async {
+          (None: Option[Int]).map { i => ran = true; Async.succeed(i * 10).await }
+        }.block
+        assertTrue(r == None, !ran)
+      },
+      test("Option.map over a genuinely-pending await") {
+        val r = Async.async(Option(7).map(i => pending(i).await + 1)).block
+        assertTrue(r == Some(8))
+      },
+      test("Option.map propagates a failing await") {
+        val a      = Async.async(Option(5).map(_ => Async.fail(Boom).await: Int))
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
+      },
+      test("Option.flatMap over a Some accumulates the inner Option") {
+        val r = Async.async(Option(5).flatMap(i => Option(Async.succeed(i * 10).await))).block
+        assertTrue(r == Some(50))
+      },
+      test("Option.flatMap over a Some that yields None") {
+        val r = Async.async(Option(5).flatMap(i => if (Async.succeed(i).await > 0) None else Some(1))).block
+        assertTrue(r == None)
+      },
+      test("Option.foreach over a Some runs the await for its effect") {
+        var acc = 0
+        val r   = Async.async {
+          Option(5).foreach(i => acc += Async.succeed(i).await)
+        }.block
+        assertTrue(r == (()), acc == 5)
+      },
+      test("Option.foreach over a None runs nothing") {
+        var acc = 0
+        val r   = Async.async {
+          (None: Option[Int]).foreach(i => acc += Async.succeed(i).await)
+        }.block
+        assertTrue(r == (()), acc == 0)
+      },
+      test("for-comprehension over Options desugars to flatMap/map") {
+        val r = Async.async {
+          for {
+            i <- Option(2)
+            j <- Option(3)
+          } yield Async.succeed(i + j).await
+        }.block
+        assertTrue(r == Some(5))
+      },
+      test("for-comprehension over Options short-circuits on a None generator") {
+        val r = Async.async {
+          for {
+            i <- Option(2)
+            j <- (None: Option[Int])
+          } yield Async.succeed(i + j).await
+        }.block
+        assertTrue(r == None)
+      }
+      // NOTE: an Option for-comprehension *guard* (`for { i <- opt if p }`,
+      // desugaring to `opt.withFilter(p)`) is supported by the Scala 2 macro but
+      // NOT by dotty-cps-async on Scala 3 (it has no `AsyncShift[Option#WithFilter]`
+      // — unlike `List`, for which a single guard works). It is therefore a
+      // Scala-2-only superset, covered in `AsyncAwaitScala2HofSpec`.
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

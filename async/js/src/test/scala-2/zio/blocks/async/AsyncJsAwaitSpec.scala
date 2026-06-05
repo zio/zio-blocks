@@ -218,6 +218,52 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(20, 40)))
       }
+    ),
+    // `Option` HOFs: at most one element, so the eager/lazy distinction collapses
+    // to a single `Some`/`None` branch. Driven through genuinely-pending awaits.
+    suite("Option HOFs with .await in the closure")(
+      test("Option.map over a Some, pending await") {
+        val prog = Async.async(Option(5).map(i => pending(i * 10).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(50)))
+      },
+      test("Option.map over a None short-circuits") {
+        val prog = Async.async((None: Option[Int]).map(i => pending(i * 10).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+      },
+      test("Option.map propagates a failing await") {
+        val prog = Async.async(Option(5).map(_ => pendingFail[Int](Boom).await))
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
+      },
+      test("Option.flatMap over a Some, pending await") {
+        val prog = Async.async(Option(5).flatMap(i => Option(pending(i * 10).await)))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(50)))
+      },
+      test("Option.foreach over a Some, pending await") {
+        val prog = Async.async {
+          var acc = 0
+          Option(5).foreach(i => acc += pending(i).await)
+          acc
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 5))
+      },
+      test("multi-generator for-comprehension over Options") {
+        val prog = Async.async {
+          for {
+            i <- Option(2)
+            j <- Option(3)
+          } yield pending(i + j).await
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(5)))
+      },
+      test("for-comprehension over Options short-circuits on a None generator") {
+        val prog = Async.async {
+          for {
+            i <- Option(2)
+            j <- (None: Option[Int])
+          } yield pending(i + j).await
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+      }
     )
   )
 }

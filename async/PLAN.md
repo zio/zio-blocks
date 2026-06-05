@@ -398,8 +398,27 @@ phase across the cells supported by that phase.
   investigated and rejected: DCA does not pick up a lexically-imported shift given
   (resolves shifts via its own macro-internal mechanism), and overriding would
   also fight the JS-native platform — so the contract is "match what the backends
-  already do, per HOF." Remaining 5c: other collections (`Vector`, `Option`,
-  `Map`, …) and more HOFs (`collect`, etc.).
+  already do, per HOF."
+
+  **`Option` HOFs landed.** `.await` inside `Option.map` / `Option.flatMap` /
+  `Option.foreach` closures is supported on **all six cells**. Because an `Option`
+  holds at most one element, the eager/lazy distinction that separates `List.map`
+  from `List.foreach`/`flatMap` **collapses** — every HOF reduces to a single
+  `Some`/`None` branch (`None` short-circuits, the closure never running; `Some(x)`
+  runs the closure and, for `map`/`flatMap`, rewraps), with failures propagating.
+  Verified empirically on all three Scala 3 backends (throwaway probe specs)
+  before conforming the Scala 2 macro: `receiverKind` now classifies the receiver
+  as `"list"` / `"option"` (recorded in `hofRecvKinds`, parallel to
+  `hofElemTypes`), and the untyped dispatch selects `emitOptionMap` /
+  `emitOptionFlatMap` / `emitOptionForeach` (a `Some`/`None` `if`/`else` over
+  `isEmpty`/`get`). Single- and multi-generator for-comprehensions over `Option`
+  work for free. **Divergence:** an `Option` for-comprehension *guard* (even a
+  single one) is a **Scala-2-only superset** — DCA has no
+  `AsyncShift[Option#WithFilter]` and compile-errors (unlike `List`, where a
+  single guard works) — covered by the Scala-2-only `AsyncAwaitScala2HofSpec`.
+
+  Remaining 5c: other collections (`Vector`, `Map`, `Set`, …) and more HOFs
+  (`collect`, etc.).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
