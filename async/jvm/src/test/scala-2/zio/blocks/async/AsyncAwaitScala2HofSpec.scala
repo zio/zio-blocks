@@ -112,6 +112,30 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         }
         """
       }.map(r => assertTrue(r.isLeft))
+    },
+    // `takeWhile` / `dropWhile` are prefix-ordered, so the typed pass restricts
+    // them to ordered `Seq` receivers (`List` / `Vector`). An awaiting
+    // `takeWhile` over an unordered `Set` (a whitelisted receiver for other
+    // HOFs) is rejected — a leading-prefix predicate is ill-defined there.
+    test("takeWhile over an unordered Set is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Set(1, 2, 3).takeWhile(i => Async.succeed(i < 3).await)
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
+    },
+    test("dropWhile over an unordered Map is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Map(1 -> 10, 2 -> 20).dropWhile { case (_, v) => Async.succeed(v < 20).await }
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
     }
   )
 }

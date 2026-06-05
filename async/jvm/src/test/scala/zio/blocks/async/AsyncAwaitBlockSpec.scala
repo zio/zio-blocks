@@ -770,6 +770,73 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
       // NOTE: `Map.filter`/`filterNot` with `.await` is a Scala-2-only superset
       // — dotty-cps-async has no working `MapOpsAsyncShift.filter` and crashes —
       // so it is covered (Scala 2 only) in `AsyncAwaitScala2HofSpec`.
+    ),
+    // `.await` inside a `takeWhile` / `dropWhile` predicate. These are
+    // **prefix-ordered** (only meaningful on ordered `Seq` receivers — `List` /
+    // `Vector`): `takeWhile` keeps the longest leading run satisfying the
+    // predicate (the first failure stops the scan), `dropWhile` drops it (the
+    // first failure and everything after it is kept unconditionally). The
+    // collection type is preserved.
+    suite("takeWhile / dropWhile with .await in the predicate")(
+      test("List.takeWhile keeps the leading run, stopping at the first failure") {
+        val r = Async.async(List(1, 2, 3, 4, 1).takeWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r == List(1, 2))
+      },
+      test("List.takeWhile over genuinely-pending awaits") {
+        val r = Async.async(List(2, 4, 5, 6).takeWhile(i => pending(i % 2).await == 0)).block
+        assertTrue(r == List(2, 4))
+      },
+      test("List.dropWhile drops the leading run, keeping the rest unconditionally") {
+        val r = Async.async(List(1, 2, 3, 4, 1).dropWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r == List(3, 4, 1))
+      },
+      test("List.takeWhile with an always-true predicate keeps everything") {
+        val r = Async.async(List(1, 2, 3).takeWhile(i => Async.succeed(i > 0).await)).block
+        assertTrue(r == List(1, 2, 3))
+      },
+      test("List.dropWhile with an always-true predicate drops everything") {
+        val r = Async.async(List(1, 2, 3).dropWhile(i => Async.succeed(i > 0).await)).block
+        assertTrue(r == Nil)
+      },
+      test("takeWhile is lazy: it stops evaluating the predicate after the first failure") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3, 4).takeWhile { i =>
+            seen = i :: seen
+            Async.succeed(i < 3).await
+          }
+        }.block
+        assertTrue(r == List(1, 2), seen == List(3, 2, 1))
+      },
+      test("dropWhile stops evaluating the predicate after the first failure") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3, 4).dropWhile { i =>
+            seen = i :: seen
+            Async.succeed(i < 3).await
+          }
+        }.block
+        assertTrue(r == List(3, 4), seen == List(3, 2, 1))
+      },
+      test("takeWhile is lazy: a failing await short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).takeWhile { i =>
+            seen = i :: seen
+            if (i == 2) (Async.fail(Boom).await: Boolean) else Async.succeed(i < 3).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("Vector.takeWhile preserves the Vector type") {
+        val r = Async.async(Vector(1, 2, 3, 4).takeWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r == Vector(1, 2))
+      },
+      test("Vector.dropWhile preserves the Vector type") {
+        val r = Async.async(Vector(1, 2, 3, 4).dropWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r == Vector(3, 4))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

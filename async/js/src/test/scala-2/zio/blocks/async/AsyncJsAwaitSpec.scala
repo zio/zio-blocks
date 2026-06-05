@@ -421,6 +421,34 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog = Async.async(Option(3).filter(i => Async.succeed(i % 2 == 0).await))
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
       }
+    ),
+    suite("takeWhile / dropWhile with .await in the predicate")(
+      test("List.takeWhile keeps the leading run, stopping at the first failure") {
+        val prog = Async.async(List(1, 2, 3, 4, 1).takeWhile(i => pending(if (i < 3) 0 else 1).await == 0))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(1, 2)))
+      },
+      test("List.dropWhile drops the leading run, keeping the rest unconditionally") {
+        val prog = Async.async(List(1, 2, 3, 4, 1).dropWhile(i => Async.succeed(i < 3).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(3, 4, 1)))
+      },
+      test("takeWhile is lazy: a failing await short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3).takeWhile { i =>
+            seen = i :: seen
+            if (i == 2) (Async.fail(Boom).await: Boolean) else Async.succeed(i < 3).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+      },
+      test("Vector.takeWhile preserves the Vector type") {
+        val prog = Async.async(Vector(1, 2, 3, 4).takeWhile(i => Async.succeed(i < 3).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(1, 2)))
+      },
+      test("Vector.dropWhile preserves the Vector type") {
+        val prog = Async.async(Vector(1, 2, 3, 4).dropWhile(i => Async.succeed(i < 3).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(3, 4)))
+      }
     )
   )
 }

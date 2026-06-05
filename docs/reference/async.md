@@ -215,6 +215,17 @@ exactly):
   predicate is `false`). **Divergence:** `Map.filter` / `Map.filterNot` with
   `.await` is a **Scala-2-only superset** — dotty-cps-async has no working
   `MapOpsAsyncShift.filter` and rejects it on Scala 3.
+- **`takeWhile` / `dropWhile`** (predicate `A => Boolean`): **lazy / sequential**
+  over an ordered `Seq` (`List` / `Vector`) — these are **prefix-ordered**, so the
+  predicate for element `n+1` runs only after element `n`'s await completes, and
+  the FIRST element whose predicate is `false` decides the boundary (`takeWhile`
+  keeps the leading run and discards it and the rest; `dropWhile` drops the
+  leading run and keeps it and the rest **unconditionally**, never re-evaluating
+  the predicate). A failed await short-circuits the rest. The result **collection
+  type is preserved**. They are restricted to ordered receivers because a
+  leading-prefix predicate is ill-defined on an unordered `Set` / `Map` (and
+  `Option` does not provide them); the Scala 2 macro rejects those with an
+  actionable compile error.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
@@ -236,7 +247,9 @@ val pairs: Async[List[Int]] = Async.async {
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
 > `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
 > `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
-> scans `find` / `exists` / `forall` over those receivers, and the
+> scans `find` / `exists` / `forall`, `filter` / `filterNot`, and `foldLeft` over
+> those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
+> receivers (`List` / `Vector`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**
 > `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than

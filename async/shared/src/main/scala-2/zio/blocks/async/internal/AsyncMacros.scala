@@ -134,7 +134,17 @@ private[async] object AsyncMacros {
     // Supported HOFs are whitelisted by method name here AND validated by
     // receiver type in `hofElemTypes` (typed pass).
     val supportedHofMethods: Set[String] =
-      Set("map", "foreach", "flatMap", "find", "exists", "forall", "filter", "filterNot")
+      Set("map", "foreach", "flatMap", "find", "exists", "forall", "filter", "filterNot", "takeWhile", "dropWhile")
+
+    /**
+     * Whitelisted HOFs whose semantics are PREFIX-ORDERED: `takeWhile` keeps the
+     * longest leading run satisfying the predicate, `dropWhile` drops it. These
+     * are only meaningful on an ordered (`Seq`-like) receiver — on an unordered
+     * `Set` / `Map` the "prefix" is implementation-defined — so the typed pass
+     * restricts them to `Seq` receivers (`List` / `Vector`), rejecting `Set` /
+     * `Map` / `Option` with a good position.
+     */
+    val prefixOrderedHofMethods: Set[String] = Set("takeWhile", "dropWhile")
 
     /**
      * Single-argument function literal, unwrapping a `Block(Nil, Function)`
@@ -191,6 +201,12 @@ private[async] object AsyncMacros {
 
     /** The erased `Option[Any]` type, used to validate HOF receivers. */
     val OptionAnyTpe: Type = typeOf[Option[Any]]
+
+    /**
+     * The erased immutable `Seq[Any]` type, used to restrict the prefix-ordered
+     * HOFs (`takeWhile` / `dropWhile`) to ordered receivers (`List` / `Vector`).
+     */
+    val SeqAnyTpe: Type = typeOf[scala.collection.immutable.Seq[Any]]
 
     /**
      * Erased types for the additional STRICT standard collections the HOF
@@ -360,10 +376,11 @@ private[async] object AsyncMacros {
     val hofElemTypes: scala.collection.mutable.Queue[Type]   = {
       val q = scala.collection.mutable.Queue.empty[Type]
       object TypedHofMap {
-        def unapply(tt: Tree): Option[(Tree, Tree)] = tt match {
-          case Apply(Select(recv, m), List(fn)) if isHof(m, fn)               => Some((recv, fn))
-          case Apply(TypeApply(Select(recv, m), _), List(fn)) if isHof(m, fn) => Some((recv, fn))
-          case _                                                              => None
+        def unapply(tt: Tree): Option[(Tree, String, Tree)] = tt match {
+          case Apply(Select(recv, m), List(fn)) if isHof(m, fn) => Some((recv, m.decodedName.toString, fn))
+          case Apply(TypeApply(Select(recv, m), _), List(fn)) if isHof(m, fn) =>
+            Some((recv, m.decodedName.toString, fn))
+          case _ => None
         }
         private def isHof(m: Name, fn: Tree): Boolean =
           supportedHofMethods(m.decodedName.toString) && (fn match {
@@ -373,7 +390,7 @@ private[async] object AsyncMacros {
       }
       lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
-          case TypedHofMap(recv, fn) =>
+          case TypedHofMap(recv, m, fn) =>
             val kind = receiverKind(recv).getOrElse(
               c.abort(
                 tt.pos,
@@ -383,6 +400,24 @@ private[async] object AsyncMacros {
                   "first, or bind the awaited values before the lambda."
               )
             )
+            // Prefix-ordered HOFs (`takeWhile` / `dropWhile`) are only meaningful
+            // on an ordered receiver; reject unordered `Set` / `Map` / `Option`
+            // here (typed pass) so the position points at the offending call.
+            if (prefixOrderedHofMethods(m)) {
+              val underlying = recv match {
+                case WithFilterChain(base, _) => base
+                case _                        => recv
+              }
+              val t = if (underlying.tpe != null) underlying.tpe.dealias.widen else NoType
+              if (!(t <:< SeqAnyTpe))
+                c.abort(
+                  tt.pos,
+                  s"`.await` inside a `$m` closure is currently supported only for ordered `Seq` receivers " +
+                    "(`List` / `Vector`) in the Scala 2 `Async.async` macro: a leading-prefix predicate is " +
+                    "ill-defined on an unordered `Set` / `Map` (and `Option` does not provide it). Convert the " +
+                    "receiver to a `List` or `Vector` first, or bind the awaited values before the lambda."
+                )
+            }
             hofRecvKinds.enqueue(kind)
             val resultTpe = if (tt.tpe != null) tt.tpe.dealias.widen else NoType
             hofResultTypes.enqueue(resultTpe)
@@ -1141,6 +1176,108 @@ private[async] object AsyncMacros {
       }
     }
 
+    /**
+     * Rewrite `recvVal.takeWhile` / `recvVal.dropWhile` (whose predicate awaits)
+     * for an ordered `Seq` receiver (`List` / `Vector`; enforced in the typed
+     * pass), then continue with `k`.
+     *
+     * Both keep the receiver's collection family via its own builder
+     * (`iterableFactory.newBuilder[A]` — `takeWhile`/`dropWhile` do not transform
+     * elements, so the result element type equals the source element type
+     * `elemTpt`). The predicate is CPS-transformed; a predicate that awaits
+     * suspends and resumes at the next element, and a failed await
+     * short-circuits the whole rewrite (via `flatMap`'s `Failure` path).
+     *
+     *   - `takeWhile`: drain the iterator, appending each element while the
+     *     predicate holds; the FIRST element whose predicate is `false` STOPS
+     *     the scan (it and the rest are discarded).
+     *   - `dropWhile`: drain in two phases — phase one SKIPS elements while the
+     *     predicate holds; the FIRST element whose predicate is `false` (and
+     *     every element after it) is appended UNCONDITIONALLY (the predicate is
+     *     never evaluated again), so only the leading run is dropped.
+     */
+    def emitTakeWhile(
+      recvVal: Tree,
+      pname: TermName,
+      fbody: Tree,
+      drop: Boolean,
+      elemTpt: Tree,
+      resTpt: Tree,
+      builder: Tree
+    )(k: Tree => Tree): Tree = {
+      val drain = fresh("drainTakeDrop$")
+      val it    = fresh("it$")
+      val bld   = fresh("bld$")
+      val r0    = fresh("r$")
+      val bn    = fresh("b$")
+      val bodyA = transform(fbody)(pureReturn)
+      val loop  =
+        if (drop) {
+          // dropWhile: a second, predicate-free drain appends the remainder.
+          val rest     = fresh("drainRest$")
+          val restBody = q"""
+            {
+              while ($it.hasNext) $bld += $it.next()
+              $AsyncObj.succeed($bld.result())
+            }
+          """
+          val whileBody = q"""
+            {
+              while ($it.hasNext) {
+                val $pname: $elemTpt = $it.next()
+                val $r0: Any         = $bodyA
+                if ($r0.isInstanceOf[$Pollable]) {
+                  return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.Boolean]])
+                    .flatMap { ($bn: _root_.scala.Boolean) =>
+                      if ($bn) $drain()
+                      else { $bld += $pname; $rest() }
+                    }
+                }
+                if (!$r0.asInstanceOf[_root_.scala.Boolean]) { $bld += $pname; return $rest() }
+              }
+              $AsyncObj.succeed($bld.result())
+            }
+          """
+          q"""
+            {
+              val $it  = $recvVal.iterator
+              val $bld = $builder
+              def $rest(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(restBody)}
+              def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
+              $drain()
+            }
+          """
+        } else {
+          val whileBody = q"""
+            {
+              while ($it.hasNext) {
+                val $pname: $elemTpt = $it.next()
+                val $r0: Any         = $bodyA
+                if ($r0.isInstanceOf[$Pollable]) {
+                  return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.Boolean]])
+                    .flatMap { ($bn: _root_.scala.Boolean) =>
+                      if ($bn) { $bld += $pname; $drain() }
+                      else $AsyncObj.succeed($bld.result())
+                    }
+                }
+                if ($r0.asInstanceOf[_root_.scala.Boolean]) $bld += $pname
+                else return $AsyncObj.succeed($bld.result())
+              }
+              $AsyncObj.succeed($bld.result())
+            }
+          """
+          q"""
+            {
+              val $it  = $recvVal.iterator
+              val $bld = $builder
+              def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
+              $drain()
+            }
+          """
+        }
+      asyncBind(loop)(k)
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -1379,6 +1516,27 @@ private[async] object AsyncMacros {
                 transform(recv0)(rv => emitFilter(rv, kind, param.name, fbody, negate = false, bTpe, resTpe)(k))
               case (_, "filterNot") =>
                 transform(recv0)(rv => emitFilter(rv, kind, param.name, fbody, negate = true, bTpe, resTpe)(k))
+              // Prefix-ordered predicates (`takeWhile` / `dropWhile`) — restricted
+              // to ordered `Seq` receivers (`List` / `Vector`) in the typed pass,
+              // so both kinds (`"list"` / `"iterable"`) use the receiver's own
+              // `iterableFactory` builder (element type unchanged). Must precede
+              // the kind-specific catch-alls.
+              case (_, "takeWhile") =>
+                val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+                val resTpt: Tree = if (resTpe != null && resTpe != NoType) TypeTree(resTpe) else TypeTree()
+                transform(recv0) { rv =>
+                  emitTakeWhile(rv, param.name, fbody, drop = false, bTpt, resTpt, q"$rv.iterableFactory.newBuilder[$bTpt]")(
+                    k
+                  )
+                }
+              case (_, "dropWhile") =>
+                val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+                val resTpt: Tree = if (resTpe != null && resTpe != NoType) TypeTree(resTpe) else TypeTree()
+                transform(recv0) { rv =>
+                  emitTakeWhile(rv, param.name, fbody, drop = true, bTpt, resTpt, q"$rv.iterableFactory.newBuilder[$bTpt]")(
+                    k
+                  )
+                }
               case ("option", "foreach") => transform(recv0)(rv => emitOptionForeach(rv, param.name, fbody)(k))
               case ("option", "flatMap") => transform(recv0)(rv => emitOptionFlatMap(rv, param.name, fbody, bTpe)(k))
               case ("option", _)         => transform(recv0)(rv => emitOptionMap(rv, param.name, fbody, bTpe)(k))

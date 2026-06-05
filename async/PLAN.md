@@ -551,9 +551,17 @@ phase across the cells supported by that phase.
   `AsyncAwaitScala2HofSpec` (the Scala 2 macro handles it via the generic
   `mapFactory` builder path).
 
-  Remaining 5c: `takeWhile` / `dropWhile` (collection-preserving prefix
-  predicates — DCA-confirmed lazy/sequential; `dropWhile` has a two-phase
-  drop-then-keep-all shape), `collect` (PartialFunction literal — not a
+  `takeWhile` / `dropWhile` ✅ **done** (collection-preserving prefix
+  predicates over ordered `Seq` receivers — `List` / `Vector`): lazy /
+  sequential, DCA-confirmed identical on Scala 3 JVM + JS, native `js.await`
+  on 3.8+ JS, and the Scala 2 macro (`emitTakeWhile`, `drop` flag selects the
+  two-phase `dropWhile` drop-then-keep-all shape). They are restricted to
+  ordered `Seq` receivers in the typed pass (`SeqAnyTpe` guard): a leading-prefix
+  predicate is ill-defined on an unordered `Set` / `Map` (and `Option` lacks
+  them), so the Scala 2 macro rejects those with an actionable compile error
+  (covered in `AsyncAwaitScala2HofSpec`).
+
+  Remaining 5c: `collect` (PartialFunction literal — not a
   `Function1`, needs new extraction), the remaining folds (`foldRight`/`reduce`
   — two-arg closures), and more collections (`Array` — needs `ClassTag`;
   `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass
