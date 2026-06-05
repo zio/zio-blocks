@@ -306,6 +306,28 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       test("Set.flatMap accumulates into a Set") {
         val prog = Async.async(Set(1, 2).flatMap(i => Set(pending(i).await, i + 10)))
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(1, 11, 2, 12)))
+      },
+      test("Map.map over a pair-returning closure awaits values, preserving Map") {
+        val prog = Async.async {
+          Map(1 -> 1, 2 -> 2, 3 -> 3).map { case (k, v) => (k, pending(v * 10).await) }
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Map(1 -> 10, 2 -> 20, 3 -> 30)))
+      },
+      test("Map.flatMap accumulates into a Map") {
+        val prog = Async.async {
+          Map(1 -> 1, 2 -> 2).flatMap { case (k, v) => Map(k -> pending(v).await, (k + 10) -> v) }
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Map(1 -> 1, 11 -> 1, 2 -> 2, 12 -> 2)))
+      },
+      test("Map.map propagates a failing await") {
+        val prog = Async.async(Map(1 -> 1).map { case (k, v) => (k, Async.fail(Boom).await) })
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
+      },
+      test("Map.map over a non-pair closure widens to an Iterable") {
+        val prog = Async.async {
+          Map(1 -> 10, 2 -> 20, 3 -> 30).map { case (k, v) => pending(k + v).await }
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toSet == Set(11, 22, 33)))
       }
     )
   )

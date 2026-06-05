@@ -552,6 +552,48 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }.block
         assertTrue(r == Set(1, 11, 2, 12), r.isInstanceOf[Set[_]])
       }
+    ),
+    // `.await` inside immutable `Map` HOF closures. Entries are `(K, V)` tuples;
+    // a pair-returning `map`/`flatMap` rebuilds a `Map[K2, V2]`. `Map` iteration
+    // order is unspecified, so assertions compare as maps / sums, never by order.
+    suite("Map HOFs with .await in the closure")(
+      test("Map.map over a pair-returning closure awaits values, preserving Map") {
+        val r = Async.async {
+          Map(1 -> 1, 2 -> 2, 3 -> 3).map { case (k, v) => (k, Async.succeed(v * 10).await) }
+        }.block
+        assertTrue(r == Map(1 -> 10, 2 -> 20, 3 -> 30), r.isInstanceOf[Map[_, _]])
+      },
+      test("Map.map over genuinely-pending awaits") {
+        val r = Async.async {
+          Map(1 -> 1, 2 -> 2, 3 -> 3).map { case (k, v) => (k, pending(v * 10).await) }
+        }.block
+        assertTrue(r == Map(1 -> 10, 2 -> 20, 3 -> 30))
+      },
+      test("Map.map propagates a failing await") {
+        val a      = Async.async(Map(1 -> 1).map { case (k, v) => (k, Async.fail(Boom).await) })
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
+      },
+      test("Map.flatMap accumulates into a Map") {
+        val r = Async.async {
+          Map(1 -> 1, 2 -> 2).flatMap { case (k, v) => Map(k -> Async.succeed(v).await, (k + 10) -> v) }
+        }.block
+        assertTrue(r == Map(1 -> 1, 11 -> 1, 2 -> 2, 12 -> 2), r.isInstanceOf[Map[_, _]])
+      },
+      test("Map.foreach runs the await for every entry") {
+        var sum = 0
+        val r   = Async.async {
+          Map(1 -> 10, 2 -> 20, 3 -> 30).foreach { case (_, v) => sum += Async.succeed(v).await }
+          sum
+        }.block
+        assertTrue(r == 60, sum == 60)
+      },
+      test("Map.map over a non-pair closure widens to an Iterable") {
+        val r = Async.async {
+          Map(1 -> 10, 2 -> 20, 3 -> 30).map { case (k, v) => Async.succeed(k + v).await }
+        }.block
+        assertTrue(r.toSet == Set(11, 22, 33))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

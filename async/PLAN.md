@@ -440,10 +440,30 @@ phase across the cells supported by that phase.
   (guards over them, like `Option`, are likely a Scala-2-only superset — not yet
   added as tests).
 
-  Remaining 5c: more collections (`Map` — needs `BuildFrom` over tuples; `Array` —
-  needs `ClassTag`; `Queue`, `ArraySeq`, …) and more HOFs (`collect`, etc.). Per
-  oracle review, `Map`/`Array` are a distinct later pass (different builder/result
-  shape concerns).
+  **immutable `Map` HOFs landed.** `.await` inside immutable `Map`
+  `map` / `flatMap` / `foreach` closures is supported on **all six cells**. Probed
+  on all three Scala 3 backends first: `Map.map`/`flatMap`/`foreach` all support
+  `.await`, a pair-returning `map`/`flatMap` preserves the `Map[K2, V2]` result
+  shape, and a non-pair `map`/`flatMap` widens to an `Iterable` (the standard
+  library's own overload choice) — all confirmed identical on DCA-JVM, DCA-JS, and
+  js-native. Semantics are **lazy / sequential** over `(K, V)` entries, like
+  `Vector`/`Set`. The macro classifies the receiver as `receiverKind == "map"`
+  (matched via `MapSym` base-type symbol — immutable `Map` is INVARIANT in its
+  key) and emits via `emitMapMapLike`, which chooses the receiver's
+  `mapFactory.newBuilder[K2, V2]` when the result is a `Map[K2, V2]` (so the
+  closure's element type is recorded as the entry tuple `(K2, V2)`, not just `K2`)
+  and falls back to `iterableFactory.newBuilder` for non-pair results. The
+  builder-drain core was refactored into a shared `builderDrain` helper (a `flat`
+  flag selects `++=`/`IterableOnce` for `flatMap` over `+=` for `map`) now reused
+  by `emitCollMap`/`emitCollFlatMap` and the `Map` emit. `foreach` reuses the
+  generic `emitHofForeach`. For-comprehensions over a `Map` work for free.
+  Cross-version JVM (`AsyncAwaitBlockSpec`) + cross-platform JS specs cover
+  pair-returning `map`/`flatMap`/`foreach`, the non-pair `map` widening, pending
+  awaits, and failure propagation.
+
+  Remaining 5c: more collections (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`,
+  …) and more HOFs (`collect`, etc.). Per oracle review, `Array` is a distinct
+  later pass (different builder/result shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`

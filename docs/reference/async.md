@@ -160,9 +160,10 @@ A failure encountered by `.await` short-circuits the block and surfaces as a
 failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
 is equivalent to `Async.fail(t)`.
 
-`.await` is also supported inside `List`, `Option`, `Vector`, and immutable `Set`
-HOF closures (`map`, `foreach`, `flatMap`) on every backend, with semantics that
-match each method's natural meaning (and the Scala 3 backends exactly):
+`.await` is also supported inside `List`, `Option`, `Vector`, immutable `Set`, and
+immutable `Map` HOF closures (`map`, `foreach`, `flatMap`) on every backend, with
+semantics that match each method's natural meaning (and the Scala 3 backends
+exactly):
 
 - **`List.map`** is **eager**: strict `map` applies the closure to every element
   first — running all construction-time side effects — producing a
@@ -186,9 +187,15 @@ match each method's natural meaning (and the Scala 3 backends exactly):
   by dotty-cps-async's `ListAsyncShift`). The result **collection type is
   preserved** (`Vector.map` → `Vector`, `Set.map` → `Set`); for `Set`, the
   *awaited* values are deduplicated.
+- **immutable `Map`** (`map` / `flatMap` / `foreach`): **lazy / sequential** over
+  the map's `(K, V)` entries. A pair-returning `map`/`flatMap` rebuilds a
+  `Map[K2, V2]` (later entries with the same key win); a non-pair `map`/`flatMap`
+  widens the result to an `Iterable`, matching the standard library's overload
+  choice. `foreach` runs the closure for each entry, returning `Unit`.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
-for-comprehensions over a `List` / `Option` / `Vector` / `Set` into these methods,
+for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
+methods,
 single- and multi-generator `for` comprehensions with `.await` work too
 (`for ... yield` → `map`; nested generators → `flatMap`/`map`; `for { ... }`
 without `yield` → `foreach`; a guard `if` → `withFilter`):
@@ -204,11 +211,11 @@ val pairs: Async[List[Int]] = Async.async {
 
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
-> `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set`
-> `map` / `foreach` / `flatMap` closures, and the for-comprehensions that desugar
-> to them (including guards), but **rejects** `.await` inside other function
+> `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
+> `Map` `map` / `foreach` / `flatMap` closures, and the for-comprehensions that
+> desugar to them (including guards), but **rejects** `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than
-> those four), with an actionable compile error. Those positions are supported on
+> those five), with an actionable compile error. Those positions are supported on
 > Scala 3. Support for more of them on Scala 2 is in progress.
 >
 > Conversely, the Scala 2 macro is a strict superset for some guard shapes that
@@ -296,7 +303,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List` / `Option` / `Vector` / `Set` `map`/`foreach`/`flatMap` closures and their for-comprehensions is supported everywhere; other HOF closures (and other collections) are Scala 3 only for now |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List` / `Option` / `Vector` / `Set` / `Map` `map`/`foreach`/`flatMap` closures and their for-comprehensions is supported everywhere; other HOF closures (and other collections) are Scala 3 only for now |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |

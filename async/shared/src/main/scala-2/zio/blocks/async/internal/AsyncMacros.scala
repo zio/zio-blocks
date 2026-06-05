@@ -154,6 +154,10 @@ private[async] object AsyncMacros {
     // `scala.collection.immutable.Set` is INVARIANT, so `Set[Int] <:< Set[Any]`
     // is false; classify it by base-type symbol instead (variance-agnostic).
     val SetSym: Symbol = typeOf[scala.collection.immutable.Set[Any]].typeSymbol
+    // `scala.collection.immutable.Map` is INVARIANT in its key type, so
+    // `Map[Int, String] <:< Map[Any, Any]` is false; classify by base-type
+    // symbol (variance-agnostic), exactly like `Set`.
+    val MapSym: Symbol = typeOf[scala.collection.immutable.Map[Any, Any]].typeSymbol
 
     /**
      * A (possibly nested) `recv.withFilter(g)` chain — the desugaring of
@@ -184,6 +188,11 @@ private[async] object AsyncMacros {
      *   - `"iterable"` — a whitelisted strict standard collection (`Vector`,
      *     immutable `Set`): lazy / sequential `map`/`flatMap`/`foreach`, with
      *     the result collection type preserved via the receiver's own builder.
+     *   - `"map"` — an immutable `Map` (entries are `(K, V)` tuples): lazy /
+     *     sequential `map`/`flatMap`/`foreach`. `map`/`flatMap` rebuild a
+     *     `Map[K2, V2]` via the receiver's `mapFactory` when the closure yields
+     *     pairs, and fall back to the generic `iterableFactory` builder when it
+     *     yields non-pair elements (matching standard-library overload choice).
      * Returns `None` for an unsupported receiver, which the caller rejects.
      *
      * Order matters: `List` is checked before the generic `"iterable"` branch
@@ -200,6 +209,7 @@ private[async] object AsyncMacros {
       if (t == NoType) None
       else if (t <:< ListAnyTpe) Some("list")
       else if (t <:< OptionAnyTpe) Some("option")
+      else if (t.baseType(MapSym) != NoType) Some("map")
       else if (t <:< VectorAnyTpe || t.baseType(SetSym) != NoType) Some("iterable")
       else None
     }
@@ -329,15 +339,23 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a higher-order-function closure is currently supported only for `List`, " +
-                  "`Option`, `Vector`, and immutable `Set` (and for-comprehension guards over them) in the Scala 2 " +
-                  "`Async.async` macro (other collections coming); convert the receiver to one of those first, or " +
-                  "bind the awaited values before the lambda."
+                  "`Option`, `Vector`, immutable `Set`, and immutable `Map` (and for-comprehension guards over them) " +
+                  "in the Scala 2 `Async.async` macro (other collections coming); convert the receiver to one of those " +
+                  "first, or bind the awaited values before the lambda."
               )
             )
             hofRecvKinds.enqueue(kind)
             val resultTpe = if (tt.tpe != null) tt.tpe.dealias.widen else NoType
             hofResultTypes.enqueue(resultTpe)
-            val b = if (resultTpe != NoType) resultTpe.typeArgs.headOption.getOrElse(NoType) else NoType
+            // The closure result element type `B`. For a `Map` whose `map`/
+            // `flatMap` rebuilds a `Map[K2, V2]` (result has two type args), the
+            // closure yields entry tuples `(K2, V2)`, so the element type is that
+            // tuple — not `resultTpe.typeArgs.head` (which would be just `K2`).
+            val b =
+              if (kind == "map" && resultTpe != NoType && resultTpe.typeArgs.lengthCompare(2) == 0)
+                appliedType(definitions.TupleClass(2), resultTpe.typeArgs)
+              else if (resultTpe != NoType) resultTpe.typeArgs.headOption.getOrElse(NoType)
+              else NoType
             q.enqueue(b)
             traverse(recv) // nested HOFs in the receiver, in transform order
             traverse(fn)   // then nested HOFs / awaits in the closure body
@@ -675,43 +693,57 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Rewrite `recvVal.map(pname => fbody-with-await)` for a generic strict
-     * collection (`Vector`, immutable `Set`, …) with LAZY / sequential
-     * semantics, producing `Async[CC[B]]` (result collection type preserved),
-     * then continue with `k`.
+     * Shared builder-drain rewrite for a strict standard collection (`Vector`,
+     * immutable `Set`, immutable `Map`, …) with LAZY / sequential semantics,
+     * producing `Async[CC[…]]` (result collection type preserved), then
+     * continue with `k`.
      *
-     * Unlike `List.map` (the EAGER special case), `Vector`/`Set` `map` is
-     * sequential on every Scala 3 backend (verified empirically): the closure
-     * for element `n+1` runs only after element `n`'s `.await` completes
-     * successfully, and a failed await short-circuits the rest. We drain the
-     * source iterator and build the result with the receiver's OWN builder
-     * (`recvVal.iterableFactory.newBuilder[B]`), which preserves the collection
-     * family (and, for `Set`, deduplicates the *awaited* values — never an
-     * intermediate `CC[Async[B]]`). A tight `while` advances ready elements;
+     * Unlike `List.map` (the EAGER special case), these collections' `map` /
+     * `flatMap` are sequential on every Scala 3 backend (verified empirically):
+     * the closure for element `n+1` runs only after element `n`'s `.await`
+     * completes successfully, and a failed await short-circuits the rest. We
+     * drain the source iterator and accumulate into `builder` (the receiver's
+     * OWN builder, supplied by the caller — `iterableFactory.newBuilder` for
+     * `Vector`/`Set`/non-pair `Map` results, `mapFactory.newBuilder` for
+     * pair-producing `Map` results), which preserves the collection family (and
+     * deduplicates a `Set`'s, or collapses a `Map`'s, *awaited* values — never
+     * an intermediate `CC[Async[…]]`). A tight `while` advances ready elements;
      * the first suspended element switches to a `flatMap` continuation.
+     *
+     * `elemTpt` is the closure result element type `E`; when `flat` is true
+     * each element yields an `IterableOnce[E]` concatenated (`++=`) into the
+     * builder, otherwise a single `E` is appended (`+=`).
      */
-    def emitCollMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type, resultTpe: Type)(k: Tree => Tree): Tree = {
-      val drain        = fresh("drainColl$")
-      val it           = fresh("it$")
-      val bld          = fresh("bld$")
-      val r0           = fresh("r$")
-      val x0           = fresh("x$")
-      val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
-      val resTpt: Tree = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
-      val bodyA        = transform(fbody)(pureReturn)
-      val whileBody    = q"""
+    def builderDrain(
+      recvVal: Tree,
+      pname: TermName,
+      fbody: Tree,
+      elemTpt: Tree,
+      resTpt: Tree,
+      builder: Tree,
+      flat: Boolean
+    )(k: Tree => Tree): Tree = {
+      val drain                  = fresh("drainColl$")
+      val it                     = fresh("it$")
+      val bld                    = fresh("bld$")
+      val r0                     = fresh("r$")
+      val x0                     = fresh("x$")
+      val bodyA                  = transform(fbody)(pureReturn)
+      val awaitedTpt: Tree       = if (flat) tq"_root_.scala.collection.IterableOnce[$elemTpt]" else elemTpt
+      def add(value: Tree): Tree = if (flat) q"$bld ++= $value" else q"$bld += $value"
+      val whileBody              = q"""
         {
           while ($it.hasNext) {
             val $pname   = $it.next()
             val $r0: Any = $bodyA
             if ($r0.isInstanceOf[$Pollable]) {
-              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]])
-                .flatMap { ($x0: $bTpt) =>
-                  $bld += $x0
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$awaitedTpt]])
+                .flatMap { ($x0: $awaitedTpt) =>
+                  ${add(q"$x0")}
                   $drain()
                 }
             }
-            $bld += $r0.asInstanceOf[$bTpt]
+            ${add(q"$r0.asInstanceOf[$awaitedTpt]")}
           }
           $AsyncObj.succeed($bld.result())
         }
@@ -719,7 +751,7 @@ private[async] object AsyncMacros {
       val loop = q"""
         {
           val $it  = $recvVal.iterator
-          val $bld = $recvVal.iterableFactory.newBuilder[$bTpt]
+          val $bld = $builder
           def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
           $drain()
         }
@@ -728,49 +760,43 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Rewrite `recvVal.flatMap(pname => fbody-with-await)` for a generic strict
-     * collection (`Vector`, immutable `Set`, …) with LAZY / sequential
-     * semantics, producing `Async[CC[B]]`, then continue with `k`. Like
-     * [[emitCollMap]] but each element's closure yields an `IterableOnce[B]`
-     * concatenated into the receiver's own builder.
+     * `map`/`flatMap` for a generic strict collection (`Vector`, immutable
+     * `Set`), accumulating into the receiver's own `iterableFactory` builder.
      */
+    def emitCollMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type, resultTpe: Type)(k: Tree => Tree): Tree = {
+      val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val resTpt: Tree = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
+      builderDrain(recvVal, pname, fbody, bTpt, resTpt, q"$recvVal.iterableFactory.newBuilder[$bTpt]", flat = false)(k)
+    }
+
     def emitCollFlatMap(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type, resultTpe: Type)(
       k: Tree => Tree
     ): Tree = {
-      val drain        = fresh("drainColl$")
-      val it           = fresh("it$")
-      val bld          = fresh("bld$")
-      val r0           = fresh("r$")
-      val x0           = fresh("x$")
       val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
       val resTpt: Tree = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
-      val bodyA        = transform(fbody)(pureReturn)
-      val whileBody    = q"""
-        {
-          while ($it.hasNext) {
-            val $pname   = $it.next()
-            val $r0: Any = $bodyA
-            if ($r0.isInstanceOf[$Pollable]) {
-              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.collection.IterableOnce[$bTpt]]])
-                .flatMap { ($x0: _root_.scala.collection.IterableOnce[$bTpt]) =>
-                  $bld ++= $x0
-                  $drain()
-                }
-            }
-            $bld ++= $r0.asInstanceOf[_root_.scala.collection.IterableOnce[$bTpt]]
-          }
-          $AsyncObj.succeed($bld.result())
-        }
-      """
-      val loop = q"""
-        {
-          val $it  = $recvVal.iterator
-          val $bld = $recvVal.iterableFactory.newBuilder[$bTpt]
-          def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
-          $drain()
-        }
-      """
-      asyncBind(loop)(k)
+      builderDrain(recvVal, pname, fbody, bTpt, resTpt, q"$recvVal.iterableFactory.newBuilder[$bTpt]", flat = true)(k)
+    }
+
+    /**
+     * `map`/`flatMap` for an immutable `Map` receiver. The element type `bTpe`
+     * is the closure's result element: an entry tuple `(K2, V2)` when the
+     * result is a `Map[K2, V2]` (rebuilt via `mapFactory`), or a plain `B` when
+     * the closure yields non-pair elements and the standard library widens the
+     * result to an `Iterable[B]` (rebuilt via `iterableFactory`). `flat`
+     * selects `flatMap` (`++=` of `IterableOnce`) over `map` (`+=`).
+     */
+    def emitMapMapLike(recvVal: Tree, pname: TermName, fbody: Tree, bTpe: Type, resultTpe: Type, flat: Boolean)(
+      k: Tree => Tree
+    ): Tree = {
+      val bTpt: Tree    = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val resTpt: Tree  = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
+      val builder: Tree =
+        if (resultTpe != null && resultTpe.baseType(MapSym) != NoType && resultTpe.typeArgs.lengthCompare(2) == 0) {
+          val k2 = TypeTree(resultTpe.typeArgs(0))
+          val v2 = TypeTree(resultTpe.typeArgs(1))
+          q"$recvVal.mapFactory.newBuilder[$k2, $v2]"
+        } else q"$recvVal.iterableFactory.newBuilder[$bTpt]"
+      builderDrain(recvVal, pname, fbody, bTpt, resTpt, builder, flat)(k)
     }
 
     // ---- the transform ------------------------------------------------------
@@ -993,6 +1019,15 @@ private[async] object AsyncMacros {
                 transform(recv0)(rv => emitCollFlatMap(rv, param.name, fbody, bTpe, resTpe)(k))
               case ("iterable", _) =>
                 transform(recv0)(rv => emitCollMap(rv, param.name, fbody, bTpe, resTpe)(k))
+              // Immutable `Map`: entries are `(K, V)` tuples; `foreach` drains
+              // them through the generic iterator, while `map`/`flatMap` rebuild
+              // a `Map[K2, V2]` (or widen to an `Iterable` for non-pair results)
+              // via the receiver's own factory.
+              case ("map", "foreach") => transform(recv0)(rv => emitHofForeach(rv, param.name, fbody)(k))
+              case ("map", "flatMap") =>
+                transform(recv0)(rv => emitMapMapLike(rv, param.name, fbody, bTpe, resTpe, flat = true)(k))
+              case ("map", _) =>
+                transform(recv0)(rv => emitMapMapLike(rv, param.name, fbody, bTpe, resTpe, flat = false)(k))
               case (_, "foreach") => transform(recv0)(rv => emitHofForeach(rv, param.name, fbody)(k))
               case (_, "flatMap") => transform(recv0)(rv => emitHofFlatMap(rv, param.name, fbody, bTpe)(k))
               case _              => transform(recv0)(rv => emitHofMap(rv, param.name, fbody, bTpe)(k))
