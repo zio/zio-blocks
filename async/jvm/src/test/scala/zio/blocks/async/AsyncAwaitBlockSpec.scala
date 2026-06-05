@@ -837,6 +837,50 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val r = Async.async(Vector(1, 2, 3, 4).dropWhile(i => Async.succeed(i < 3).await)).block
         assertTrue(r == Vector(3, 4))
       }
+    ),
+    // `.await` inside a `reduce` / `reduceLeft` op closure. Like `foldLeft` but
+    // seeded by the first element: **lazy / sequential** left-to-right, and an
+    // EMPTY receiver fails with `UnsupportedOperationException`.
+    suite("reduce / reduceLeft with .await in the op closure")(
+      test("List.reduce folds left-to-right over ready awaits") {
+        val r = Async.async(List(1, 2, 3, 4).reduce((acc, x) => acc + Async.succeed(x).await)).block
+        assertTrue(r == 10)
+      },
+      test("List.reduce over genuinely-pending awaits") {
+        val r = Async.async(List(1, 2, 3, 4).reduce((acc, x) => acc + pending(x).await)).block
+        assertTrue(r == 10)
+      },
+      test("List.reduceLeft behaves identically to reduce") {
+        val r = Async.async(List(2, 3, 4).reduceLeft((acc, x) => acc * Async.succeed(x).await)).block
+        assertTrue(r == 24)
+      },
+      test("a single-element receiver returns that element without running the op") {
+        var ran = false
+        val r   = Async.async {
+          List(42).reduce { (acc, x) => ran = true; acc + Async.succeed(x).await }
+        }.block
+        assertTrue(r == 42, !ran)
+      },
+      test("Vector.reduce folds over a Vector receiver") {
+        val r = Async.async(Vector(1, 2, 3).reduce((acc, x) => acc + Async.succeed(x).await)).block
+        assertTrue(r == 6)
+      },
+      test("an empty receiver fails with UnsupportedOperationException") {
+        val a      = Async.async(List.empty[Int].reduce((acc, x) => acc + Async.succeed(x).await))
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.exists(_.isInstanceOf[UnsupportedOperationException]))
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3, 4).reduce { (acc, x) =>
+            seen = x :: seen
+            if (x == 3) (Async.fail(Boom).await: Int) else acc + Async.succeed(x).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(3, 2))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

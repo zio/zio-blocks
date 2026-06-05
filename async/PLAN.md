@@ -561,9 +561,19 @@ phase across the cells supported by that phase.
   them), so the Scala 2 macro rejects those with an actionable compile error
   (covered in `AsyncAwaitScala2HofSpec`).
 
+  `reduce` / `reduceLeft` ✅ **done** (`foldLeft` seeded by the first element):
+  lazy / sequential left-to-right over any whitelisted receiver via `.iterator`
+  (`emitHofReduce`, `ReduceAwaitCall`, `reduceResultTypes`), DCA-confirmed
+  identical on Scala 3 JVM + JS and native `js.await` on 3.8+ JS — including the
+  single-element no-op-run case and the EMPTY-receiver
+  `UnsupportedOperationException` (emitted as an `Async.fail` so it is catchable
+  and rethrown by `.block`). Validated the same way as `foldLeft` (receiver-kind
+  guard in the typed pass; non-whitelisted receivers rejected, covered in
+  `AsyncAwaitScala2HofSpec`).
+
   Remaining 5c: `collect` (PartialFunction literal — not a
-  `Function1`, needs new extraction), the remaining folds (`foldRight`/`reduce`
-  — two-arg closures), and more collections (`Array` — needs `ClassTag`;
+  `Function1`, needs new extraction), `foldRight` (right-associative two-arg
+  closure), and more collections (`Array` — needs `ClassTag`;
   `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass
   (different builder/result shape concerns).
 

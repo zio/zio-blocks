@@ -449,6 +449,37 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog = Async.async(Vector(1, 2, 3, 4).dropWhile(i => Async.succeed(i < 3).await))
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(3, 4)))
       }
+    ),
+    suite("reduce / reduceLeft with .await in the op closure")(
+      test("List.reduce folds left-to-right over ready awaits") {
+        val prog = Async.async(List(1, 2, 3, 4).reduce((acc, x) => acc + Async.succeed(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 10))
+      },
+      test("List.reduce over genuinely-pending awaits") {
+        val prog = Async.async(List(1, 2, 3, 4).reduce((acc, x) => acc + pending(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 10))
+      },
+      test("List.reduceLeft behaves identically to reduce") {
+        val prog = Async.async(List(2, 3, 4).reduceLeft((acc, x) => acc * Async.succeed(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 24))
+      },
+      test("reduce over an empty receiver fails with UnsupportedOperationException") {
+        val prog = Async.async(List.empty[Int].reduce((acc, x) => acc + Async.succeed(x).await))
+        ZIO
+          .fromFuture(_ => run(prog))
+          .either
+          .map(e => assertTrue(e.left.exists(_.isInstanceOf[UnsupportedOperationException])))
+      },
+      test("reduce: a failing await short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3, 4).reduce { (acc, x) =>
+            seen = x :: seen
+            if (x == 3) (Async.fail(Boom).await: Int) else acc + Async.succeed(x).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2)))
+      }
     )
   )
 }

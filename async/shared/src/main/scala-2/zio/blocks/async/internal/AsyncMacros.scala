@@ -196,6 +196,33 @@ private[async] object AsyncMacros {
           }
     }
 
+    /**
+     * A `recv.reduce(op)` / `recv.reduceLeft(op)` call whose two-argument `op`
+     * body contains a `.await`. Unlike `foldLeft`, `reduce` takes no initial
+     * value — it is seeded by the FIRST element and folds the rest left-to-right
+     * (`reduce` on an ordered/iterable collection is `reduceLeft`), and an empty
+     * receiver throws `UnsupportedOperationException`. The tree is a single
+     * `Apply` (optionally with a `TypeApply` for the `[B >: A]` widening).
+     * Matched only when the OP BODY awaits. Yields `(recv, accParam, elemParam,
+     * opBody)`.
+     */
+    object ReduceAwaitCall {
+      def unapply(t: Tree): Option[(Tree, ValDef, ValDef, Tree)] = t match {
+        case Apply(Select(recv, m), List(fn))               => check(recv, m, fn)
+        case Apply(TypeApply(Select(recv, m), _), List(fn)) => check(recv, m, fn)
+        case _                                              => None
+      }
+      private def check(recv: Tree, m: Name, fn: Tree): Option[(Tree, ValDef, ValDef, Tree)] = {
+        val ms = m.decodedName.toString
+        if (ms != "reduce" && ms != "reduceLeft") None
+        else
+          fn match {
+            case TwoArgFunction(acc, x, fbody) if containsAwait(fbody) => Some((recv, acc, x, fbody))
+            case _                                                     => None
+          }
+      }
+    }
+
     /** The erased `List[Any]` type, used to validate HOF receivers. */
     val ListAnyTpe: Type = typeOf[List[Any]]
 
@@ -486,6 +513,45 @@ private[async] object AsyncMacros {
         )
       else foldResultTypes.dequeue()
 
+    // ---- reduce result types (from the TYPED body, in transform order) ------
+    //
+    // `reduce[B >: A](op)` / `reduceLeft` returns `B` directly (the element type,
+    // possibly widened), recovered from the typed call node's own `tpe`. Like
+    // `foldLeft`, the emitted recursive drain `def` needs an explicit `Async[B]`
+    // return type. Recorded in transform order and validated the same way (the
+    // rewrite drains the receiver via `.iterator`, so the receiver must be a
+    // whitelisted standard collection).
+    val reduceResultTypes: scala.collection.mutable.Queue[Type] = {
+      val q                         = scala.collection.mutable.Queue.empty[Type]
+      lazy val traverser: Traverser = new Traverser {
+        override def traverse(tt: Tree): Unit = tt match {
+          case ReduceAwaitCall(recv, _, _, fbody) =>
+            if (receiverKind(recv).isEmpty)
+              c.abort(
+                tt.pos,
+                "`.await` inside a `reduce` / `reduceLeft` op closure is currently supported only for `List`, " +
+                  "`Option`, `Vector`, immutable `Set`, and immutable `Map` receivers in the Scala 2 `Async.async` " +
+                  "macro; convert the receiver to one of those first, or bind the awaited values before the lambda."
+              )
+            q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
+            traverse(recv)  // nested folds/HOFs in the receiver
+            traverse(fbody) // nested in the op body
+          case _ => super.traverse(tt)
+        }
+      }
+      traverser.traverse(body.tree)
+      q
+    }
+
+    /** The recorded result type `B` for the next `reduce` / `reduceLeft` rewrite. */
+    def dequeueReduceResult(): Type =
+      if (reduceResultTypes.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more `reduce`s than were typed; please report this."
+        )
+      else reduceResultTypes.dequeue()
+
     /** The recorded result element type `B` for the next HOF rewrite. */
     def dequeueHofElem(): Type =
       if (hofElemTypes.isEmpty)
@@ -561,6 +627,13 @@ private[async] object AsyncMacros {
           case FoldLeftAwaitCall(recv, z, _, _, fbody) =>
             traverse(recv)
             traverse(z)
+            traverse(fbody)
+          // A supported `reduce(op)` / `reduceLeft(op)` await is rewritten, not
+          // rejected. Recurse into the receiver and the op BODY (so nested
+          // unsupported positions are still caught) — but not the `op` Function
+          // node, which would trip the function-literal rejection.
+          case ReduceAwaitCall(recv, _, _, fbody) =>
+            traverse(recv)
             traverse(fbody)
           case Function(_, fbody) if containsAwait(fbody) =>
             c.abort(
@@ -761,6 +834,64 @@ private[async] object AsyncMacros {
           val $it = $recvVal.iterator
           def $drain($acc0: $bTpt): _root_.zio.blocks.async.Async[$bTpt] = ${safe(whileBody)}
           $drain($zVal)
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
+    /**
+     * Rewrite `recvVal.reduce((accName, xName) => fbody-with-await)` /
+     * `reduceLeft` (receiver already bound) producing `Async[B]`, then continue
+     * with `k`.
+     *
+     * `reduce` is `foldLeft` seeded by the FIRST element instead of an initial
+     * value: it folds the rest left-to-right (so it is LAZY / sequential on
+     * every backend, exactly like `foldLeft`), and an EMPTY receiver fails with
+     * `UnsupportedOperationException` (matching the standard library; surfaced
+     * as an `Async.fail` so it is catchable via `catchAll` and rethrown by
+     * `.block`). The recursive drain `def` requires the explicit `Async[B]`
+     * return type recovered into `reduceResultTypes`.
+     */
+    def emitHofReduce(
+      recvVal: Tree,
+      accName: TermName,
+      xName: TermName,
+      fbody: Tree,
+      bTpe: Type
+    )(k: Tree => Tree): Tree = {
+      val drain      = fresh("drainReduce$")
+      val it         = fresh("it$")
+      val acc0       = fresh("acc$")
+      val accVar     = fresh("accv$")
+      val r0         = fresh("r$")
+      val nv         = fresh("nv$")
+      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val bodyA      = transform(fbody)(pureReturn) // references accName and xName; yields Async[B]
+      val whileBody  = q"""
+        {
+          var $accVar: $bTpt = $acc0
+          while ($it.hasNext) {
+            val $xName   = $it.next()
+            val $accName = $accVar
+            val $r0: Any = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]])
+                .flatMap { ($nv: $bTpt) => $drain($nv) }
+            }
+            $accVar = $r0.asInstanceOf[$bTpt]
+          }
+          $AsyncObj.succeed($accVar)
+        }
+      """
+      val loop = q"""
+        {
+          val $it = $recvVal.iterator
+          if (!$it.hasNext)
+            $AsyncObj.fail(new _root_.java.lang.UnsupportedOperationException("empty.reduceLeft"))
+          else {
+            def $drain($acc0: $bTpt): _root_.zio.blocks.async.Async[$bTpt] = ${safe(whileBody)}
+            $drain($it.next().asInstanceOf[$bTpt])
+          }
         }
       """
       asyncBind(loop)(k)
@@ -1481,6 +1612,14 @@ private[async] object AsyncMacros {
           case FoldLeftAwaitCall(recv, z, acc, x, fbody) =>
             val bTpe = dequeueFoldResult()
             transform(recv)(rv => transform(z)(zv => emitHofFoldLeft(rv, zv, acc.name, x.name, fbody, bTpe)(k)))
+
+          // `reduce(op)` / `reduceLeft(op)` whose `op` body awaits — `foldLeft`
+          // seeded by the first element (an empty receiver fails with
+          // `UnsupportedOperationException`). Single `Apply` shape, so it must
+          // precede `HofAwaitCall` and the generic application-spine case.
+          case ReduceAwaitCall(recv, acc, x, fbody) =>
+            val bTpe = dequeueReduceResult()
+            transform(recv)(rv => emitHofReduce(rv, acc.name, x.name, fbody, bTpe)(k))
 
           // HOF-closure await (Phase 5c): `recv.map(...)` / `recv.foreach(...)`.
           // Dequeue the recorded result element type (kept in sync with the typed

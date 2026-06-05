@@ -136,6 +136,19 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         }
         """
       }.map(r => assertTrue(r.isLeft))
+    },
+    // `reduce` is matched syntactically by method name and validated in the
+    // typed pass (it drains via `.iterator`), so an awaiting `reduce` over a
+    // non-whitelisted receiver (here `Iterator`, one-shot) is rejected.
+    test("reduce over a non-whitelisted receiver (Iterator) is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Iterator(1, 2, 3).reduce((acc, x) => acc + Async.succeed(x).await)
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
     }
   )
 }

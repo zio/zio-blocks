@@ -207,6 +207,13 @@ exactly):
   rest. The accumulator is threaded through and `foldLeft[B]` returns `B`
   directly (it may differ from the element type), so awaits in the initial
   accumulator are sequenced before the fold.
+- **`reduce` / `reduceLeft`** (op `(B, A) => B`): **lazy / sequential** over any
+  whitelisted receiver via `.iterator` — `foldLeft` seeded by the FIRST element
+  instead of an initial value, so the op for element `n+1` runs only after
+  element `n`'s await completes and a failed await short-circuits the rest. A
+  single-element receiver returns that element without running the op; an EMPTY
+  receiver fails with `UnsupportedOperationException` (catchable via `catchAll`,
+  rethrown by `.block`).
 - **`filter` / `filterNot`** (predicate `A => Boolean`): **lazy / sequential**
   over a `List` / `Vector` / immutable `Set` / `Option` — the predicate for
   element `n+1` runs only after element `n`'s await completes, and a failed
@@ -247,7 +254,8 @@ val pairs: Async[List[Int]] = Async.async {
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
 > `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
 > `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
-> scans `find` / `exists` / `forall`, `filter` / `filterNot`, and `foldLeft` over
+> scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`, and
+> `reduce` / `reduceLeft` over
 > those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
 > receivers (`List` / `Vector`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**
