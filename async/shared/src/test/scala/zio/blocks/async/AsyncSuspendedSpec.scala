@@ -225,6 +225,20 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         val r1      = pollOnce(t)
         c.succeed(8)
         assertTrue(outcome(driveToEnd(r1)) == Left(boom))
+      },
+      test("pending input, a tap effect that is itself pending then fails propagates the failure") {
+        // Drives `RunThenValuePollable` to a *Failure* through its pending
+        // branch: a ready `Async.fail` is short-circuited by `runThenValue`
+        // before the pollable is built, so only a pending-then-failing effect
+        // reaches the pollable's failure-propagation path.
+        val (c1, fa)  = pending[Int]
+        val (c2, eff) = pending[Unit]
+        val t         = fa.tap(_ => eff)
+        val r1        = pollOnce(t) // fa pending
+        c1.succeed(8)
+        val r2 = pollOnce(r1) // fa -> 8; tap effect now pending
+        c2.fail(boom)
+        assertTrue(outcome(driveToEnd(r2)) == Left(boom))
       }
     ),
     suite("ensuring (EnsuringPollable)")(
