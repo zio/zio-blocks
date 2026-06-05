@@ -161,10 +161,10 @@ private[async] object AsyncMacros {
 
     /**
      * A `recv.foldLeft(z)(op)` call whose two-argument `op` body contains a
-     * `.await`. `foldLeft` is curried (`foldLeft[B](z: B)(op: (B, A) => B)`), so
-     * the tree is a double `Apply` (optionally with a `TypeApply` for `[B]`).
-     * Matched only when the OP BODY awaits — a `.await` solely in `z` is an
-     * ordinary application-spine await handled generically.
+     * `.await`. `foldLeft` is curried (`foldLeft[B](z: B)(op: (B, A) => B)`),
+     * so the tree is a double `Apply` (optionally with a `TypeApply` for
+     * `[B]`). Matched only when the OP BODY awaits — a `.await` solely in `z`
+     * is an ordinary application-spine await handled generically.
      *
      * `foldLeft` is receiver-agnostic: it is a strict left fold over the
      * receiver's iteration order, so any `IterableOnce` works through
@@ -413,10 +413,23 @@ private[async] object AsyncMacros {
     // nested in its receiver / initial value / op body), matching the order the
     // dispatch dequeues them. Independent of `hofElemTypes` (single-arg HOFs).
     val foldResultTypes: scala.collection.mutable.Queue[Type] = {
-      val q                            = scala.collection.mutable.Queue.empty[Type]
+      val q                         = scala.collection.mutable.Queue.empty[Type]
       lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
           case FoldLeftAwaitCall(recv, z, _, _, fbody) =>
+            // SOUNDNESS: `foldLeft` is matched syntactically by method name, so
+            // validate the receiver here (typed pass) — the rewrite drains the
+            // receiver via `.iterator`, which is only semantics-preserving for
+            // the whitelisted standard collections. A custom `foldLeft` (or one
+            // over a non-whitelisted receiver) is rejected with a good position
+            // rather than silently rewritten into an iterator drain.
+            if (receiverKind(recv).isEmpty)
+              c.abort(
+                tt.pos,
+                "`.await` inside a `foldLeft` op closure is currently supported only for `List`, `Option`, " +
+                  "`Vector`, immutable `Set`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
+                  "convert the receiver to one of those first, or bind the awaited values before the lambda."
+              )
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
             traverse(recv)  // nested folds/HOFs in the receiver
             traverse(z)     // nested in the initial accumulator
@@ -668,12 +681,12 @@ private[async] object AsyncMacros {
      * A left fold is inherently sequential — element `n+1`'s `op` needs `n`'s
      * accumulator — so this is LAZY / sequential on every backend (no
      * eager/lazy divergence to reconcile). A tight `while` threads the
-     * accumulator in a local `var` while each `op` result is ready (no `flatMap`
-     * allocation); on the first suspended (or failed) `op` it switches to a
-     * recursive `flatMap` continuation that resumes the same iterator with the
-     * new accumulator. A failed `op` short-circuits the rest via `flatMap`'s
-     * `Failure` path. The recursive drain `def` requires the explicit `Async[B]`
-     * return type recovered into `foldResultTypes`.
+     * accumulator in a local `var` while each `op` result is ready (no
+     * `flatMap` allocation); on the first suspended (or failed) `op` it
+     * switches to a recursive `flatMap` continuation that resumes the same
+     * iterator with the new accumulator. A failed `op` short-circuits the rest
+     * via `flatMap`'s `Failure` path. The recursive drain `def` requires the
+     * explicit `Async[B]` return type recovered into `foldResultTypes`.
      */
     def emitHofFoldLeft(
       recvVal: Tree,
@@ -685,8 +698,8 @@ private[async] object AsyncMacros {
     )(k: Tree => Tree): Tree = {
       val drain      = fresh("drainFold$")
       val it         = fresh("it$")
-      val acc0       = fresh("acc$")  // drain parameter: incoming accumulator
-      val accVar     = fresh("accv$") // mutable accumulator within the while
+      val acc0       = fresh("acc$")                // drain parameter: incoming accumulator
+      val accVar     = fresh("accv$")               // mutable accumulator within the while
       val r0         = fresh("r$")
       val nv         = fresh("nv$")
       val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()

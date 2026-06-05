@@ -78,6 +78,22 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         } yield Async.succeed(i * 10).await
       }.block
       assertTrue(r == None)
+    },
+    // The Scala 2 macro matches `foldLeft` syntactically by method name, so it
+    // validates the receiver kind in the typed pass and rejects an awaiting
+    // `foldLeft` over a non-whitelisted receiver (here `Iterator`, a one-shot
+    // collection) rather than silently rewriting it into an `.iterator` drain.
+    // The macro aborts during the typer (unlike the `@compileTimeOnly` `.await`
+    // marker), so `typeCheck` observes the failure.
+    test("foldLeft over a non-whitelisted receiver (Iterator) is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Iterator(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await)
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
     }
   )
 }
