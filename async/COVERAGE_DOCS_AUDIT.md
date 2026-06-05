@@ -20,9 +20,9 @@ behavior is covered behaviorally by the shared/JS specs.
 
 | Cell | Tests | Cell | Tests |
 |---|---|---|---|
-| JVM 2.13.18 | 314 | JS 2.13.18 | 234 |
-| JVM 3.3.7 | 303 | JS 3.3.7 | 227 |
-| JVM 3.8.3 | 303 | JS 3.8.3 | 227 |
+| JVM 2.13.18 | 315 | JS 2.13.18 | 235 |
+| JVM 3.3.7 | 304 | JS 3.3.7 | 228 |
+| JVM 3.8.3 | 304 | JS 3.8.3 | 228 |
 
 ## 3. Coverage (JVM scoverage, current)
 
@@ -49,6 +49,21 @@ added tests exercise the unchanged runtime paths and nudged coverage upward).
   suspended pollable that *fails* off-thread (the EC-failure catch branches).
 - `AsyncRewriteSpec` (+2 JVM Scala 3): try/catch over a *pending* await,
   driving `AsyncCpsMonad.flatMapTry`'s suspended success and failure branches.
+- `AsyncSuspendedSpec` (+1, shared): `tap` whose effect is a *pending pollable
+  that then fails* — the only path that drives `RunThenValuePollable` to a
+  `Failure` through its suspended branch (a ready `Async.fail` is short-circuited
+  by `runThenValue` before the pollable is built). Reaches the
+  failure-propagation statement (`AsyncSlowPath` `RunThenValuePollable`, `else st`)
+  on every cell.
+
+> **scoverage measurement note.** Under `sbt --client`, the async scoverage
+> instrumentation is unreliable when coverage and non-coverage compiles are
+> interleaved in one server session (observed swings: 0% / 6% / 88% / 94% on
+> identical sources). The **authoritative** measurement is a one-shot batch
+> invocation with a clean: `sbt -batch '++3.8.3; project asyncJVM; clean;
+> coverage; test; coverageReport'`, which reproducibly reports 94.36% / 92.45%.
+> Per-line `invocation-count` in a stale/contaminated session report can
+> under-report freshly-covered lines.
 
 ## 4. Residual uncovered lines — per-line classification
 
@@ -61,7 +76,7 @@ reachable production logic.
 |---|---|---|
 | `AsyncSlowPath.scala:61` | `catchAllAsync` `Failure` branch | The inline `catchAll` (`AsyncSyntaxVersionSpecific:80`) already handles a ready `Failure` and only calls `catchAllAsync` with a non-`Failure` `Pollable`. |
 | `AsyncSlowPath.scala:212,219` | `ZipWithPollable` `faSt/fbSt isInstanceOf[Failure]` | `zipWithAsync` (`:71-72`) returns early if either side is a `Failure`, and the in-poll path stores `next` only when it is not a `Failure` (`:209,216`), so the fields never hold a `Failure`. |
-| `AsyncSlowPath.scala:238,240` | `RunThenValuePollable` `suppressFailure == true` | Only `tapAsync` constructs this pollable, always with `suppressFailure = false`. `ensuring` uses `EnsuringPollable`. |
+| `AsyncSlowPath.scala` `RunThenValuePollable` `if (suppressFailure)` | `suppressFailure == true` branch | Only `tapAsync` constructs this pollable, always with `suppressFailure = false`. `ensuring` uses `EnsuringPollable`, so the `true` arm is dead. (The sibling `else st` failure-propagation arm IS reachable and is now covered — see §3 "Work done".) |
 | `AsyncInterop.scala:142` | `unwrapCompletionException` `ExecutionException` case | The CompletionStage path wraps failures in `CompletionException`; `ExecutionException` is a defensive secondary unwrap. |
 
 These are harmless invariant guards. They are retained (not removed) to preserve
