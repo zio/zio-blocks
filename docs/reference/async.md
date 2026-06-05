@@ -190,6 +190,17 @@ exactly):
   `scala.collection.immutable.Queue` and `scala.collection.immutable.ArraySeq`
   behave identically to `Vector` (lazy / sequential, family preserved), since
   they reuse the same builder-backed `iterable` rewrites.
+- **`Array`** (`map` / `flatMap` / `foreach` / `filter` / `takeWhile` /
+  `dropWhile` / `foldLeft` / `collect` / `find` / `exists` / `forall`): the
+  result is always an `Array[B]` with the **element type preserved, including
+  primitives** (e.g. `Array[Int].map(_.toLong)` → a primitive `Array[Long]`).
+  `Array.map` is **eager** like `List.map` (a failing await still runs every
+  preceding closure); `Array.flatMap` and the rest are **lazy / sequential**.
+  The result-building HOFs (`map` / `flatMap` / `filter` / `takeWhile` /
+  `collect`) rebuild via `Array.newBuilder`, which needs a `ClassTag[B]` — the
+  same one the user's own `Array` HOF already required, so it resolves for any
+  concrete element type (an abstract/path-dependent `B` without a `ClassTag` in
+  scope is not supported, exactly as the standard-library call would not be).
 - **immutable `Map`** (`map` / `flatMap` / `foreach`): **lazy / sequential** over
   the map's `(K, V)` entries. A pair-returning `map`/`flatMap` rebuilds a
   `Map[K2, V2]` (later entries with the same key win); a non-pair `map`/`flatMap`
@@ -270,18 +281,19 @@ val pairs: Async[List[Int]] = Async.async {
 
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
-> `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
+> `throw`, assignments, `List` / `Option` / `Vector` / `Array` / immutable `Set` /
+> immutable `Queue` / immutable `ArraySeq` / immutable
 > `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
 > scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`,
 > `foldRight`, and `reduce` / `reduceLeft` over
 > those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
-> receivers (`List` / `Vector`), `collect` over builder-backed receivers
-> (`List` / `Vector` / `Set`), and the
+> receivers (`List` / `Vector` / `Array`), `collect` over builder-backed receivers
+> (`List` / `Vector` / `Array` / `Set`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**
 > `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than
-> those five), with an actionable compile error. Those positions are supported on
-> Scala 3. Support for more of them on Scala 2 is in progress.
+> those whitelisted families), with an actionable compile error. Those positions
+> are supported on Scala 3. Support for more of them on Scala 2 is in progress.
 >
 > Conversely, the Scala 2 macro is a strict superset for some guard shapes that
 > dotty-cps-async on Scala 3 currently rejects: *multiple* `List`

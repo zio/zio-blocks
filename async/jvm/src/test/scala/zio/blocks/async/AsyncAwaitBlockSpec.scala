@@ -1046,6 +1046,76 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
           .block
         assertTrue(r == 6)
       }
+    ),
+    // `Array` is special: it is invariant, is not an `Iterable`, and its HOFs go
+    // through the implicit `ArrayOps` wrapper with an implicit `ClassTag[B]`.
+    // `map` is EAGER (like `List.map`), `flatMap` is lazy / sequential, and the
+    // result is always an `Array[B]` (element type preserved, incl. primitives).
+    suite("Array HOF closures with .await")(
+      test("Array.map is eager and preserves the (primitive) element type") {
+        val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed(i.toLong * 10).await)).block
+        val isLongArray = r.getClass.getComponentType == java.lang.Long.TYPE
+        assertTrue(r.toList == List(10L, 20L, 30L), isLongArray)
+      },
+      test("Array.map is eager: a failing await still runs every preceding closure") {
+        var seen   = List.empty[Int]
+        val thrown = scala.util
+          .Try(Async.async {
+            Array(1, 2, 3).map { i =>
+              seen = i :: seen
+              if (i == 2) (Async.fail(Boom).await: Int) else Async.succeed(i).await
+            }
+          }.block)
+          .failed
+          .toOption
+        assertTrue(thrown.contains(Boom), seen == List(3, 2, 1))
+      },
+      test("Array.flatMap concatenates and preserves the Array type") {
+        val r = Async.async(Array(1, 2, 3).flatMap(i => Array(Async.succeed(i).await, i * 10))).block
+        assertTrue(r.toList == List(1, 10, 2, 20, 3, 30))
+      },
+      test("Array.flatMap is lazy: a failing await short-circuits the remaining elements") {
+        var seen   = List.empty[Int]
+        val thrown = scala.util
+          .Try(Async.async {
+            Array(1, 2, 3).flatMap { i =>
+              seen = i :: seen
+              if (i == 2) Array(Async.fail(Boom).await: Int) else Array(Async.succeed(i).await)
+            }
+          }.block)
+          .failed
+          .toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("Array.foreach runs awaits in order") {
+        var acc = 0
+        Async.async(Array(1, 2, 3).foreach(i => acc += Async.succeed(i).await)).block
+        assertTrue(acc == 6)
+      },
+      test("Array.filter preserves the Array type") {
+        val r = Async.async(Array(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r.toList == List(2, 4))
+      },
+      test("Array.takeWhile preserves the Array type") {
+        val r = Async.async(Array(1, 2, 3, 1).takeWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r.toList == List(1, 2))
+      },
+      test("Array.dropWhile preserves the Array type") {
+        val r = Async.async(Array(1, 2, 3, 1).dropWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r.toList == List(3, 1))
+      },
+      test("Array.foldLeft folds over an Array receiver") {
+        val r = Async.async(Array(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await)).block
+        assertTrue(r == 6)
+      },
+      test("Array.collect preserves the Array type") {
+        val r = Async.async(Array(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await }).block
+        assertTrue(r.toList == List(1, 3))
+      },
+      test("Array.exists short-circuits at the first matching await") {
+        val r = Async.async(Array(1, 2, 3).exists(i => Async.succeed(i == 2).await)).block
+        assertTrue(r)
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

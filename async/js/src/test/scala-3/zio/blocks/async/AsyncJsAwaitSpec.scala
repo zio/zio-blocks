@@ -495,6 +495,31 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val prog =
         Async.async(scala.collection.immutable.ArraySeq(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+    },
+    // `Array`: `map` eager, `flatMap` lazy / sequential, result always `Array[B]`.
+    test("Array.map preserves the (primitive) element type") {
+      val prog = Async.async(Array(1, 2, 3).map(i => Async.succeed(i.toLong * 10).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(10L, 20L, 30L)))
+    },
+    test("Array.flatMap concatenates and preserves the Array type") {
+      val prog = Async.async(Array(1, 2, 3).flatMap(i => Array(Async.succeed(i).await, i * 10)))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(1, 10, 2, 20, 3, 30)))
+    },
+    test("Array.foldLeft folds over an Array receiver") {
+      val prog = Async.async(Array(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+    },
+    test("Array.filter preserves the Array type") {
+      val prog = Async.async(Array(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(2, 4)))
+    },
+    test("Array.takeWhile preserves the Array type") {
+      val prog = Async.async(Array(1, 2, 3, 1).takeWhile(i => Async.succeed(i < 3).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(1, 2)))
+    },
+    test("Array.collect preserves the Array type") {
+      val prog = Async.async(Array(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(1, 3)))
     }
   )
 }

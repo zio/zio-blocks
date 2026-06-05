@@ -604,9 +604,34 @@ phase across the cells supported by that phase.
   the family preserved, on all six cells (Scala 2/3 × JVM/JS). Covered in
   `AsyncAwaitBlockSpec` (JVM) and both `AsyncJsAwaitSpec` cells (JS).
 
-  Remaining 5c: more collections (`Array` — needs `ClassTag`). Per oracle
-  review, `Array` is a distinct later pass (different builder/result shape
-  concerns).
+  **`Array` receiver family landed.** `Array` is the special case the oracle
+  flagged: it is invariant, is not an `Iterable`, and its HOFs go through the
+  implicit `scala.collection.ArrayOps` wrapper carrying an implicit `ClassTag[B]`
+  in a SECOND argument list (so the typed AND untyped call nodes are curried,
+  e.g. `arrayOps.map[B](fn)(ct)`). `receiverKind` classifies `ArrayOps` /
+  `Array` as `"array"`; the `TypedHofMap` / `HofAwaitCall` / `CollectAwaitCall`
+  extractors gained an OUTER curried pattern (`Apply(Apply(TypeApply(Select(recv,
+  m), _), List(fn)), _)`, second list left open because `Array.flatMap` selects
+  the overload with TWO implicits) so the real `Array[B]` result type is
+  recovered (the inner node's type is a still-curried `MethodType`). Empirically
+  verified against all four Scala 3 cells: `Array.map`/`flatMap` are EAGER/LAZY
+  exactly like `List.map`/`flatMap`. New emitters `emitArrayMap` (eager, via
+  `collectAll(...).map(_.toArray)`) and `emitArrayFlatMap` (lazy builder-drain
+  into `Array.newBuilder`, normalizing each closure result — a raw `Array` is
+  NOT an `IterableOnce` at runtime — through `ArraySeq.unsafeWrapArray`). The
+  result-building HOFs (`filter` / `takeWhile` / `dropWhile` / `collect`) pick
+  `Array.newBuilder[B]` over `iterableFactory.newBuilder`; the iterator-only
+  HOFs (`foreach` / `foldLeft` / `foldRight` / `reduce` / `find` / `exists` /
+  `forall`) reuse the generic emitters unchanged. Element type is preserved
+  including primitives (`Array[Int].map(_.toLong)` → primitive `Array[Long]`).
+  Covered on all six cells in `AsyncAwaitBlockSpec` (JVM) and both
+  `AsyncJsAwaitSpec` cells (JS). Limitation: an abstract/path-dependent `B`
+  without a `ClassTag` in scope is unsupported (the user's own `Array` HOF would
+  not compile either).
+
+  Remaining 5c: none of the standard strict collections are left. Further
+  receivers (mutable collections, custom builder-backed types) would be
+  incremental and follow the same `receiverKind` + builder-selection pattern.
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
