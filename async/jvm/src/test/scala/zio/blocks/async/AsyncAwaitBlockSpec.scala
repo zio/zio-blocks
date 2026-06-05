@@ -1016,6 +1016,41 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("Option.collect keeps a matching Some, mapping it through an awaited body") {
+        val r = Async.async {
+          Option(2).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await }
+        }.block
+        assertTrue(r == Some(20))
+      },
+      test("Option.collect over a genuinely-pending await") {
+        val r = Async.async {
+          Option(3).collect { case i if i % 2 == 1 => pending(i * 100).await }
+        }.block
+        assertTrue(r == Some(300))
+      },
+      test("Option.collect returns None when the Some does not match") {
+        val r = Async.async {
+          Option(3).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await }
+        }.block
+        assertTrue(r == None)
+      },
+      test("Option.collect over None never evaluates the partial function") {
+        var ran = false
+        val r   = Async.async {
+          Option.empty[Int].collect { case i =>
+            ran = true
+            Async.succeed(i).await
+          }
+        }.block
+        assertTrue(r == None, !ran)
+      },
+      test("Option.collect propagates a failing await in a matched body") {
+        val a = Async.async {
+          Option(1).collect { case i => (Async.fail(Boom).await: Int) }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
       }
     ),
     // Additional strict immutable `Seq` receivers (`Queue` / `ArraySeq`) reuse

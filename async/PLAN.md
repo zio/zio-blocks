@@ -590,12 +590,13 @@ phase across the cells supported by that phase.
   builder-drain that, per element, runs a SINGLE match (user cases + a trailing
   `case _ => skip` sentinel, omitted when the PF is total) — so the guard runs
   exactly once — appending the (possibly awaited) body. Restricted to
-  builder-backed receivers (`List` / `Vector` / `Set`); `.await` in a case GUARD
-  is rejected. DCA-confirmed identical RESULTS on Scala 3 JVM + JS and native
-  `js.await` on 3.8+ JS (the guard-eval COUNT differs — DCA may evaluate it more
-  than once — so the once-per-element guarantee and the `Option`/`Map`-receiver
+  builder-backed receivers (`List` / `Vector` / `Array` / `Set`) and `Option`
+  (single-element `Some`/`None` via `emitOptionCollect`); `.await` in a case
+  GUARD is rejected. DCA-confirmed identical RESULTS on Scala 3 JVM + JS and
+  native `js.await` on 3.8+ JS (the guard-eval COUNT differs — DCA may evaluate
+  it more than once — so the once-per-element guarantee and the `Map`-receiver
   and awaiting-guard rejections are asserted Scala-2-only in
-  `AsyncAwaitScala2HofSpec`). `Option` / `Map` `collect` remain Scala-3-only.
+  `AsyncAwaitScala2HofSpec`). `Map.collect` remains Scala-3-only.
 
   **`Queue` / `ArraySeq` receiver families landed.** The strict immutable `Seq`
   families `scala.collection.immutable.Queue` and

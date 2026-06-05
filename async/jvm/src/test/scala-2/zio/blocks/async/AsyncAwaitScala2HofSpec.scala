@@ -178,13 +178,14 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
     },
     // `collect` with `.await` is matched syntactically, validated in the typed
     // pass, and restricted to builder-backed receivers (`List` / `Vector` /
-    // `Set`). An `Option` receiver (DCA-supported on Scala 3) is rejected here.
-    test("collect over an Option receiver is rejected — Scala 2 only") {
+    // `Array` / `Set`) and `Option`. A `Map` receiver (DCA-supported on Scala 3)
+    // is still rejected here.
+    test("collect over a Map receiver is rejected — Scala 2 only") {
       typeCheck {
         """
         import zio.blocks.async._
         Async.async {
-          Option(2).collect { case i if i % 2 == 0 => Async.succeed(i).await }
+          Map(1 -> 2).collect { case (k, v) if k > 0 => Async.succeed(v).await }
         }
         """
       }.map(r => assertTrue(r.isLeft))

@@ -472,6 +472,14 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
     },
+    test("Option.collect keeps a matching Some") {
+      val prog = Async.async(Option(2).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(20)))
+    },
+    test("Option.collect returns None when the Some does not match") {
+      val prog = Async.async(Option(3).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+    },
     // Strict immutable `Seq` receivers (`Queue` / `ArraySeq`) also support
     // `.await` in their HOF closures with the collection family preserved.
     test("Queue.map preserves the Queue type") {

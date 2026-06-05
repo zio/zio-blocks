@@ -759,9 +759,13 @@ private[async] object AsyncMacros {
     // emitted builder-drain `def` needs that explicit return type, and the
     // element type `B` (its `typeArgs.head`) for the receiver's builder. Recorded
     // in transform order and validated here: `collect` with `.await` is
-    // supported (Scala 2) only for `List` / `Vector` / immutable `Set` (the
-    // builder-backed iterable receivers) — `Option` and `Map` are rejected (they
-    // are DCA-only on Scala 3).
+    // supported (Scala 2) for `List` / `Vector` / `Array` / immutable `Set` (the
+    // builder-backed iterable receivers) and `Option` (single-element `Some`/
+    // `None`). A `Map` receiver is rejected (it is DCA-only on Scala 3). The
+    // recovered kind is recorded in `collectRecvKinds` (parallel to
+    // `collectResultTypes`) so the untyped dispatch picks the right emitter
+    // (`emitOptionCollect` vs the builder-drain `emitCollect`).
+    val collectRecvKinds: scala.collection.mutable.Queue[String] = scala.collection.mutable.Queue.empty[String]
     val collectResultTypes: scala.collection.mutable.Queue[Type] = {
       val q                         = scala.collection.mutable.Queue.empty[Type]
       lazy val traverser: Traverser = new Traverser {
@@ -770,19 +774,20 @@ private[async] object AsyncMacros {
             val kind = receiverKind(recv).getOrElse(
               c.abort(
                 tt.pos,
-                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, and " +
-                  "immutable `Set` receivers in the Scala 2 `Async.async` macro; convert the receiver to one of those " +
-                  "first, or bind the awaited values before the partial function."
+                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, " +
+                  "immutable `Set`, and `Option` receivers in the Scala 2 `Async.async` macro; convert the receiver " +
+                  "to one of those first, or bind the awaited values before the partial function."
               )
             )
-            if (kind == "option" || kind == "map")
+            if (kind == "map")
               c.abort(
                 tt.pos,
-                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, and " +
-                  "immutable `Set` receivers in the Scala 2 `Async.async` macro (an `Option` / `Map` receiver is not " +
-                  "yet supported here, though it is on Scala 3); convert the receiver to a `List` / `Vector` / `Array` " +
-                  "/ `Set` first, or bind the awaited values before the partial function."
+                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, " +
+                  "immutable `Set`, and `Option` receivers in the Scala 2 `Async.async` macro (a `Map` receiver is " +
+                  "not yet supported here, though it is on Scala 3); convert the receiver to a `List` / `Vector` / " +
+                  "`Array` / `Set` first, or bind the awaited values before the partial function."
               )
+            collectRecvKinds.enqueue(kind)
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
             traverse(recv)                       // nested folds/HOFs in the receiver
             cases.foreach(cd => traverse(cd.body)) // nested awaits/HOFs in the case bodies
@@ -801,6 +806,15 @@ private[async] object AsyncMacros {
           "internal `Async.async` macro error: rewrote more `collect`s than were typed; please report this."
         )
       else collectResultTypes.dequeue()
+
+    /** The recorded receiver kind for the next `collect` rewrite. */
+    def dequeueCollectKind(): String =
+      if (collectRecvKinds.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more `collect`s than were typed; please report this."
+        )
+      else collectRecvKinds.dequeue()
 
     /** The recorded result element type `B` for the next HOF rewrite. */
     def dequeueHofElem(): Type =
@@ -1918,6 +1932,56 @@ private[async] object AsyncMacros {
      * element, and a failed await short-circuits the rest. The recursive
      * builder-drain `def` needs the explicit `Async[result]` return type.
      */
+    def emitOptionCollect(
+      recvVal: Tree,
+      cases: List[CaseDef],
+      bTpe: Type,
+      resultTpe: Type
+    )(k: Tree => Tree): Tree = {
+      val el           = fresh("el$")
+      val r0           = fresh("r$")
+      val bn           = fresh("b$")
+      val skip         = fresh("skip$")
+      // `Option.collect` returns `Option[B]`; recover `B` from the recorded
+      // result type's single type arg (falls back to an inferred tree).
+      val bTpt: Tree =
+        if (bTpe != null && bTpe != NoType) TypeTree(bTpe)
+        else if (resultTpe != null && resultTpe != NoType && resultTpe.typeArgs.nonEmpty)
+          TypeTree(resultTpe.typeArgs.head)
+        else TypeTree()
+      val noneOpt = q"(_root_.scala.None: _root_.scala.Option[$bTpt])"
+      // The trailing `case _ => skip` distinguishes the partial-function
+      // fallthrough (a `Some` the user cases do not match -> `None`). It is
+      // appended only when the user cases are not already TOTAL, mirroring
+      // `emitCollect` (an unreachable `case _` is a fatal warning).
+      def irrefutable(pat: Tree): Boolean = pat match {
+        case Ident(termNames.WILDCARD) => true
+        case Bind(_, inner)            => irrefutable(inner)
+        case _                         => false
+      }
+      val isTotal     = cases.lastOption.exists(cd => cd.guard.isEmpty && irrefutable(cd.pat))
+      val newCases    = cases.map(cd => CaseDef(cd.pat, cd.guard, transform(cd.body)(pureReturn)))
+      val defaultCase = cq"_ => $skip"
+      val allCases    = if (isTotal) newCases else newCases :+ defaultCase
+      val someBranch  = q"""
+        {
+          val $skip: _root_.scala.AnyRef = new _root_.scala.AnyRef
+          val $el                        = $recvVal.get
+          val $r0: _root_.scala.Any      = $el match { case ..$allCases }
+          if ($r0.asInstanceOf[_root_.scala.AnyRef] eq $skip) $AsyncObj.succeed($noneOpt)
+          else
+            $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]]).map { ($bn: $bTpt) =>
+              (_root_.scala.Some($bn): _root_.scala.Option[$bTpt])
+            }
+        }
+      """
+      val resultAsync = q"""
+        if ($recvVal.isEmpty) $AsyncObj.succeed($noneOpt)
+        else $someBranch
+      """
+      asyncBind(safe(resultAsync))(k)
+    }
+
     def emitCollect(
       recvVal: Tree,
       cases: List[CaseDef],
@@ -2204,14 +2268,20 @@ private[async] object AsyncMacros {
           // `collect(pf)` whose partial function has an awaiting case body. The
           // PF literal is an anonymous-class `Apply`, so it must precede
           // `HofAwaitCall` and the generic application-spine case. Restricted to
-          // builder-backed receivers (`List` / `Vector` / `Set`) in the typed
-          // pass; the element type `B` is the result collection's `typeArgs.head`.
+          // builder-backed receivers (`List` / `Vector` / `Array` / `Set`) and
+          // `Option` in the typed pass; the element type `B` is the result
+          // collection's `typeArgs.head` (`Option[B]` for an `Option` receiver,
+          // dispatched to the single-element `emitOptionCollect`).
           case CollectAwaitCall(recv, cases) =>
             val resultTpe = dequeueCollectResult()
+            val kind      = dequeueCollectKind()
             val bTpe =
               if (resultTpe != null && resultTpe != NoType) resultTpe.typeArgs.headOption.getOrElse(NoType)
               else NoType
-            transform(recv)(rv => emitCollect(rv, cases, bTpe, resultTpe)(k))
+            if (kind == "option")
+              transform(recv)(rv => emitOptionCollect(rv, cases, bTpe, resultTpe)(k))
+            else
+              transform(recv)(rv => emitCollect(rv, cases, bTpe, resultTpe)(k))
 
           // HOF-closure await (Phase 5c): `recv.map(...)` / `recv.foreach(...)`.
           // Dequeue the recorded result element type (kept in sync with the typed
