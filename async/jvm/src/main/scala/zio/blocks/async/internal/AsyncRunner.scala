@@ -25,10 +25,10 @@ import zio.blocks.async.{Async, AsyncSlowPath, Cancelable, Failure, Pollable}
  *
  * A ready (or already-failed) [[Async]] is settled synchronously on the caller
  * thread. A suspended [[Async]] is driven on a daemon worker thread that parks
- * between polls (via [[AsyncSlowPath.awaitSuspended]], which uses a Loom-friendly
- * `ReentrantLock` parker). Cancellation flips a single atomic terminal flag and
- * `interrupt()`s the worker so a parked `poll` unparks; whoever flips the flag
- * first wins, giving at-most-once callback delivery.
+ * between polls (via [[AsyncSlowPath.awaitSuspended]], which uses a
+ * Loom-friendly `ReentrantLock` parker). Cancellation flips a single atomic
+ * terminal flag and `interrupt()`s the worker so a parked `poll` unparks;
+ * whoever flips the flag first wins, giving at-most-once callback delivery.
  */
 private[async] object AsyncRunner {
 
@@ -54,17 +54,20 @@ private[async] object AsyncRunner {
     // `cb` only if it wins.
     private val terminated = new AtomicBoolean(false)
 
-    @volatile private var worker: Thread = null
-
-    def start(): Unit = {
+    // Constructed eagerly (not in `start`) so the field is a non-null `val`: a
+    // `Cancelable` only escapes to a caller after `unsafeRunAsync` has returned
+    // this instance, by which point `worker` is set, so `cancel()` never needs a
+    // null guard.
+    private val worker: Thread = {
       val t = new Thread(new Runnable {
         def run(): Unit = drive()
       })
       t.setName("zio-blocks-async-runner")
       t.setDaemon(true)
-      worker = t
-      t.start()
+      t
     }
+
+    def start(): Unit = worker.start()
 
     private def drive(): Unit = {
       // `awaitSuspended` parks between polls and throws on failure (including a
@@ -77,9 +80,6 @@ private[async] object AsyncRunner {
     }
 
     def cancel(): Unit =
-      if (terminated.compareAndSet(false, true)) {
-        val t = worker
-        if (t != null) t.interrupt()
-      }
+      if (terminated.compareAndSet(false, true)) worker.interrupt()
   }
 }

@@ -55,17 +55,42 @@ object AsyncRunJvmSpec extends ZIOSpecDefault {
         assertTrue(cbThread.get() ne callerThread)
       }
     },
-    test("cancel interrupts a parked worker and suppresses the callback") {
+    test("cancel interrupts a parked worker, killing the thread and suppressing the callback") {
       ZIO.attemptBlocking {
         val fired = new AtomicBoolean(false)
         // A Completer that never completes: the worker parks indefinitely.
         val c          = new Completer[Int]
         val cancelable = Async.unsafeRunAsync(c.peek)(_ => fired.set(true))
-        // Give the worker time to reach its parked state, then cancel.
-        Thread.sleep(50)
+
+        def runnerThread(): Option[Thread] =
+          Thread.getAllStackTraces
+            .keySet()
+            .toArray
+            .collect { case t: Thread => t }
+            .find(t => t.getName == "zio-blocks-async-runner" && t.isAlive)
+
+        // Wait for the worker to start and park.
+        var waited = 0
+        while (runnerThread().isEmpty && waited < 100) { Thread.sleep(10); waited += 1 }
+        val parkedBefore = runnerThread().isDefined
+
+        // cancel() must interrupt the parked worker; its `park` throws
+        // InterruptedException, drive() unwinds, and the thread dies.
         cancelable.cancel()
-        Thread.sleep(50)
-        assertTrue(!fired.get())
+
+        var stillAlive = true
+        var checks     = 0
+        while (stillAlive && checks < 100) {
+          stillAlive = runnerThread().isDefined
+          if (stillAlive) Thread.sleep(10)
+          checks += 1
+        }
+
+        // A second cancel must be a silent no-op (CAS already lost): idempotent
+        // on a genuinely suspended Run, not just on the synchronous no-op path.
+        cancelable.cancel()
+
+        assertTrue(parkedBefore, !stillAlive, !fired.get())
       }
     }
   )
