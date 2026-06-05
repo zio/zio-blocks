@@ -51,14 +51,14 @@ object FragSpec extends ZIOSpecDefault {
         assertTrue(
           !rendered.contains("Robert"),
           !rendered.contains("DROP"),
-          rendered == "SELECT * FROM users WHERE name = $1"
+          rendered == "SELECT * FROM users WHERE name = ?"
         )
       }
     ),
     suite("Frag.sql rendering")(
-      test("PostgreSQL uses numbered placeholders") {
+      test("PostgreSQL uses ? placeholders") {
         val frag = sql"SELECT * FROM t WHERE a = ${DbValue.DbInt(1)} AND b = ${DbValue.DbString("x")}"
-        assertTrue(frag.sql(SqlDialect.PostgreSQL) == "SELECT * FROM t WHERE a = $1 AND b = $2")
+        assertTrue(frag.sql(SqlDialect.PostgreSQL) == "SELECT * FROM t WHERE a = ? AND b = ?")
       },
       test("SQLite uses ? placeholders") {
         val frag = sql"SELECT * FROM t WHERE a = ${DbValue.DbInt(1)} AND b = ${DbValue.DbString("x")}"
@@ -84,7 +84,7 @@ object FragSpec extends ZIOSpecDefault {
         val f2     = sql"b = ${DbValue.DbString("x")}"
         val merged = f1 ++ f2
         assertTrue(
-          merged.sql(SqlDialect.PostgreSQL) == "a = $1 AND b = $2",
+          merged.sql(SqlDialect.PostgreSQL) == "a = ? AND b = ?",
           merged.params == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("x"))
         )
       },

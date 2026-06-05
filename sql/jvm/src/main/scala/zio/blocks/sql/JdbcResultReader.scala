@@ -87,13 +87,13 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
   def getLocalTime(label: String): java.time.LocalTime = underlying.getObject(label, classOf[java.time.LocalTime])
 
   def getInstant(index: Int): java.time.Instant = {
-    val localDateTime = underlying.getObject(index, classOf[java.time.LocalDateTime])
-    if (localDateTime == null) null else localDateTime.toInstant(java.time.ZoneOffset.UTC)
+    val ldt = underlying.getObject(index, classOf[java.time.LocalDateTime])
+    if (ldt == null) null else ldt.toInstant(java.time.ZoneOffset.UTC)
   }
 
   def getInstant(label: String): java.time.Instant = {
-    val localDateTime = underlying.getObject(label, classOf[java.time.LocalDateTime])
-    if (localDateTime == null) null else localDateTime.toInstant(java.time.ZoneOffset.UTC)
+    val ldt = underlying.getObject(label, classOf[java.time.LocalDateTime])
+    if (ldt == null) null else ldt.toInstant(java.time.ZoneOffset.UTC)
   }
 
   def getDuration(index: Int): java.time.Duration = {

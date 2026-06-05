@@ -32,7 +32,7 @@ object RepoSpec extends ZIOSpecDefault {
         val frag = Repo.buildInsertFrag("user", "id, name, email", values)
         assertTrue(
           frag.sql(SqlDialect.SQLite) == "INSERT INTO user (id, name, email) VALUES (?, ?, ?)",
-          frag.sql(SqlDialect.PostgreSQL) == "INSERT INTO user (id, name, email) VALUES ($1, $2, $3)",
+          frag.sql(SqlDialect.PostgreSQL) == "INSERT INTO user (id, name, email) VALUES (?, ?, ?)",
           frag.queryParams == values
         )
       },
@@ -60,7 +60,7 @@ object RepoSpec extends ZIOSpecDefault {
         val frag         = Repo.buildUpdateFrag("user", columns, entityValues, "id", idValues)
         assertTrue(
           frag.sql(SqlDialect.SQLite) == "UPDATE user SET name = ?, email = ? WHERE id = ?",
-          frag.sql(SqlDialect.PostgreSQL) == "UPDATE user SET name = $1, email = $2 WHERE id = $3",
+          frag.sql(SqlDialect.PostgreSQL) == "UPDATE user SET name = ?, email = ? WHERE id = ?",
           frag.queryParams == entityValues ++ idValues
         )
       },

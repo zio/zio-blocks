@@ -47,7 +47,7 @@ object SqlDialect {
       case _: DbValue.DbUUID          => "UUID"
     }
 
-    def paramPlaceholder(index: Int): String = s"$$$index"
+    def paramPlaceholder(index: Int): String = "?"
   }
 
   case object SQLite extends SqlDialect {

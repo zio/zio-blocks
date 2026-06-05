@@ -104,14 +104,14 @@ object SqlDialectSpec extends ZIOSpecDefault {
           ) == "UUID"
         )
       },
-      test("paramPlaceholder(1) -> $1") {
-        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(1) == "$1")
+      test("paramPlaceholder(1) -> ?") {
+        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(1) == "?")
       },
-      test("paramPlaceholder(2) -> $2") {
-        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(2) == "$2")
+      test("paramPlaceholder(2) -> ?") {
+        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(2) == "?")
       },
-      test("paramPlaceholder(42) -> $42") {
-        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(42) == "$42")
+      test("paramPlaceholder(42) -> ?") {
+        assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(42) == "?")
       }
     ),
     suite("SQLite")(
