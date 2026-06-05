@@ -1,36 +1,41 @@
 # `async` coverage & documentation audit
 
-Audited at commit `bcf31104`+ (post suspended-path coverage work). JDK 21,
-JMH 1.37, scoverage via sbt. JS coverage is disabled repo-wide
-(`BuildHelper.jsSettings`), so coverage numbers are JVM scoverage; JS behavior
-is covered behaviorally by the shared/JS specs.
+Originally audited at commit `bcf31104`+ (post suspended-path coverage work).
+**Refreshed after the Phase 5c collection-HOF long tail completed** (commit
+`dec37a1b`+: Queue/ArraySeq/Array HOF `.await` support + the Scala 2 macro
+benchmark gate). JDK 26.0.1, scoverage via sbt. JS coverage is disabled
+repo-wide (`BuildHelper.jsSettings`), so coverage numbers are JVM scoverage; JS
+behavior is covered behaviorally by the shared/JS specs.
 
-## 1. Red flags found (at audit start)
+## 1. Red flags found (at audit start) — all resolved
 
 | Flag | Status |
 |---|---|
 | `async` project coverage thresholds set to `0/0` in `build.sbt` | **FIXED** — raised to `92/89` (see §4) |
-| No `docs/reference/async.md` reference page | **OPEN** — next blocking item (§5) |
-| `docs/index.md` / README do not mention `Async` | **OPEN** — next blocking item (§5) |
-| `docs` project does not depend on `async.jvm` (cannot mdoc-validate async) | **OPEN** — docs infra gap (§5) |
+| No `docs/reference/async.md` reference page | **FIXED** — page exists and is in `docs/sidebars.js` (`reference/async`) |
+| `docs/index.md` / README do not mention `Async` | **FIXED** — `docs/index.md` + regenerated `README.md` both document `Async` (table row + dedicated section) |
+| `docs` project does not depend on `async.jvm` (cannot mdoc-validate async) | **FIXED** — `docs.dependsOn(async.jvm)` (11 `scala mdoc` blocks in `docs/reference/async.md`) |
 
-## 2. Test matrix (all green)
+## 2. Test matrix (all green, current)
 
 | Cell | Tests | Cell | Tests |
 |---|---|---|---|
-| JVM 2.13.18 | 165 | JS 2.13.18 | 142 |
-| JVM 3.3.7 | 168 | JS 3.3.7 | 138 |
-| JVM 3.8.3 | 168 | JS 3.8.3 | 138 |
+| JVM 2.13.18 | 314 | JS 2.13.18 | 234 |
+| JVM 3.3.7 | 303 | JS 3.3.7 | 227 |
+| JVM 3.8.3 | 303 | JS 3.8.3 | 227 |
 
-## 3. Coverage (JVM scoverage)
+## 3. Coverage (JVM scoverage, current)
 
-| Cell | Statement | Branch | Before this work |
+| Cell | Statement | Branch | At original audit |
 |---|---|---|---|
-| Scala 3.8.3 | **93.35%** | **91.61%** | 80.56% / 71.33% |
-| Scala 2.13.18 | **95.84%** | **93.55%** | 82.57% / 75.48% |
+| Scala 3.8.3 | **94.36%** | **92.45%** | 93.35% / 91.61% |
+| Scala 2.13.18 | **96.30%** | **94.15%** | 95.84% / 93.55% |
 
 Scala 3.3.7 mirrors 3.8.3 (same `scala-3-dca` sources). The Scala 3 cell is the
-floor because it additionally compiles the dotty-cps-async bridge.
+floor because it additionally compiles the dotty-cps-async bridge. Both cells
+remain above the enforced `92/89` gate after the Queue/ArraySeq/Array HOF work
+(which is compile-time macro code on Scala 2 and DCA-driven on Scala 3, so the
+added tests exercise the unchanged runtime paths and nudged coverage upward).
 
 ### Work done to close gaps
 
@@ -90,10 +95,11 @@ test, but the specific retry statements cannot be deterministically forced.
 |---|---|
 | `AsyncInterop.scala:86` | Trailing `()` unit statement. |
 
-## 5. Documentation audit — OPEN (next blocking item)
+## 5. Documentation audit — DONE
 
-Public API requiring docs (Scaladoc present on all of these in source; the gap
-is the **user-facing reference page**, not Scaladoc):
+The user-facing reference page now exists and is wired into the site and README.
+The public API below is documented in `docs/reference/async.md` (and has Scaladoc
+on every member in source):
 
 - `Async.{succeed, fail, attempt, promise, async, never, collectAll}`
 - `Async[A]` syntax: `map, flatMap, catchAll, block, await, zip, zipWith, tap,
@@ -108,20 +114,23 @@ is the **user-facing reference page**, not Scaladoc):
   straight-line awaits are zero-allocation/JIT-elidable on JVM Scala 3; the
   mutable-loop-state caveat (fixed allocation for `var`s crossing `.await`).
 
-### Required follow-up (the documentation gate)
+### Documentation gate — completed checklist
 
-1. Create `docs/reference/async.md` (mirror the structure of e.g.
-   `docs/reference/chunk.md` / `combinators.md`).
-2. Add `Async` to `docs/index.md` and `docs/sidebars.js`.
-3. Add `async.jvm` to the `docs` project's `dependsOn` so `docs/mdoc` can
-   compile-check async examples.
-4. Verify: `docs/mdoc` and `generateReadme` exit 0; commit regenerated
-   `README.md` (never edit it directly).
+1. ✅ `docs/reference/async.md` created (mirrors `docs/reference/chunk.md` /
+   `combinators.md`), and kept current with the Phase 5c HOF coverage
+   (including the `Queue` / `ArraySeq` / `Array` receiver families).
+2. ✅ `Async` added to `docs/index.md` and `docs/sidebars.js` (`reference/async`).
+3. ✅ `async.jvm` added to the `docs` project's `dependsOn` so `docs/mdoc` can
+   compile-check the async examples (11 `scala mdoc` blocks).
+4. ✅ Regenerated `README.md` documents `Async` (table row + section + reference
+   link); it is auto-generated via `generateReadme` (never edited directly).
 
 ## 6. Verdict / gate
 
-- Coverage gate: **PASS** at `92/89` floor (now enforced; was `0/0`). Residual
-  fully classified above; no reachable production logic is untested.
-- Documentation gate: **FAIL until §5 is done.** This is the immediate next
-  blocking item, ahead of Phase 5c (HOF-closure awaits) and 5d
-  (for-comprehensions) per the oracle's sequencing.
+- Coverage gate: **PASS** at the enforced `92/89` floor — current JVM scoverage
+  is 94.36/92.45 (Scala 3.8.3) and 96.30/94.15 (Scala 2.13.18). Residual
+  uncovered lines are fully classified above; no reachable production logic is
+  untested.
+- Documentation gate: **PASS** — all §5 items are complete. The reference page
+  tracks the current Scala 2 macro HOF coverage (the collection long tail —
+  `List`/`Option`/`Vector`/`Array`/`Set`/`Queue`/`ArraySeq`/`Map` — is done).
