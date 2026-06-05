@@ -881,6 +881,60 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(3, 2))
       }
+    ),
+    // `.await` inside a `foldRight` op closure. **Right-associative**: the op
+    // runs right-to-left (`op(x1, op(x2, ..., op(xn, z)))`), so the rightmost
+    // element's await happens first; **lazy / sequential** with the accumulator
+    // threaded; an empty receiver yields the initial accumulator.
+    suite("foldRight with .await in the op closure")(
+      test("List.foldRight is right-associative over ready awaits") {
+        val r = Async.async {
+          List(1, 2, 3).foldRight("z")((x, acc) => s"($x+${Async.succeed(acc).await})")
+        }.block
+        assertTrue(r == "(1+(2+(3+z)))")
+      },
+      test("List.foldRight over genuinely-pending awaits") {
+        val r = Async.async(List(1, 2, 3).foldRight(0)((x, acc) => x + pending(acc).await)).block
+        assertTrue(r == 6)
+      },
+      test("foldRight runs the op right-to-left") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3).foldRight(0) { (x, acc) =>
+            seen = x :: seen
+            x + Async.succeed(acc).await
+          }
+        }.block
+        assertTrue(r == 6, seen == List(1, 2, 3)) // prepended right-to-left => [1,2,3]
+      },
+      test("supports a result type that differs from the element type") {
+        val r = Async.async {
+          List(1, 2, 3).foldRight(List.empty[Int])((x, acc) => Async.succeed(x).await :: acc)
+        }.block
+        assertTrue(r == List(1, 2, 3))
+      },
+      test("an empty receiver yields the initial accumulator without running the op") {
+        var ran = false
+        val r   = Async.async {
+          List.empty[Int].foldRight(99) { (x, acc) => ran = true; x + Async.succeed(acc).await }
+        }.block
+        assertTrue(r == 99, !ran)
+      },
+      test("Vector.foldRight folds over a Vector receiver") {
+        val r = Async.async(Vector(1, 2, 3).foldRight(0)((x, acc) => x + Async.succeed(acc).await)).block
+        assertTrue(r == 6)
+      },
+      test("a failing await short-circuits the remaining elements (lazy, right-to-left)") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3, 4).foldRight(0) { (x, acc) =>
+            seen = x :: seen
+            if (x == 2) (Async.fail(Boom).await: Int) else x + Async.succeed(acc).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 3, 4))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

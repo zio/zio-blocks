@@ -149,6 +149,19 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         }
         """
       }.map(r => assertTrue(r.isLeft))
+    },
+    // `foldRight` is matched syntactically by method name and validated in the
+    // typed pass (it materializes via `.toVector`), so an awaiting `foldRight`
+    // over a non-whitelisted receiver (here `Iterator`, one-shot) is rejected.
+    test("foldRight over a non-whitelisted receiver (Iterator) is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Iterator(1, 2, 3).foldRight(0)((x, acc) => x + Async.succeed(acc).await)
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
     }
   )
 }

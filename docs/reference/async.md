@@ -214,6 +214,12 @@ exactly):
   single-element receiver returns that element without running the op; an EMPTY
   receiver fails with `UnsupportedOperationException` (catchable via `catchAll`,
   rethrown by `.block`).
+- **`foldRight`** (op `(A, B) => B`): **lazy / sequential** but
+  **right-associative** — `op(x1, op(x2, ..., op(xn, z)))` — so the op for the
+  RIGHTMOST element runs first (the receiver is materialized and drained in
+  reverse to keep the await-ordering correct). An empty receiver yields the
+  initial accumulator (the op never runs); a failed await short-circuits the
+  remaining (right-to-left) elements.
 - **`filter` / `filterNot`** (predicate `A => Boolean`): **lazy / sequential**
   over a `List` / `Vector` / immutable `Set` / `Option` — the predicate for
   element `n+1` runs only after element `n`'s await completes, and a failed
@@ -254,8 +260,8 @@ val pairs: Async[List[Int]] = Async.async {
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
 > `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
 > `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
-> scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`, and
-> `reduce` / `reduceLeft` over
+> scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`,
+> `foldRight`, and `reduce` / `reduceLeft` over
 > those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
 > receivers (`List` / `Vector`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**

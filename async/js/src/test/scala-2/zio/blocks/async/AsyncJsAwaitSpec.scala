@@ -480,6 +480,44 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(3, 2)))
       }
+    ),
+    suite("foldRight with .await in the op closure")(
+      test("List.foldRight is right-associative over ready awaits") {
+        val prog = Async.async(List(1, 2, 3).foldRight("z")((x, acc) => s"($x+${Async.succeed(acc).await})"))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == "(1+(2+(3+z)))"))
+      },
+      test("List.foldRight over genuinely-pending awaits") {
+        val prog = Async.async(List(1, 2, 3).foldRight(0)((x, acc) => x + pending(acc).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+      },
+      test("foldRight runs the op right-to-left") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3).foldRight(0) { (x, acc) =>
+            seen = x :: seen
+            x + Async.succeed(acc).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6, seen == List(1, 2, 3)))
+      },
+      test("foldRight supports a result type that differs from the element type") {
+        val prog = Async.async(List(1, 2, 3).foldRight(List.empty[Int])((x, acc) => Async.succeed(x).await :: acc))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(1, 2, 3)))
+      },
+      test("Vector.foldRight folds over a Vector receiver") {
+        val prog = Async.async(Vector(1, 2, 3).foldRight(0)((x, acc) => x + Async.succeed(acc).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+      },
+      test("foldRight: a failing await short-circuits the remaining elements (right-to-left)") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3, 4).foldRight(0) { (x, acc) =>
+            seen = x :: seen
+            if (x == 2) (Async.fail(Boom).await: Int) else x + Async.succeed(acc).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 3, 4)))
+      }
     )
   )
 }

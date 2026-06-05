@@ -571,11 +571,20 @@ phase across the cells supported by that phase.
   guard in the typed pass; non-whitelisted receivers rejected, covered in
   `AsyncAwaitScala2HofSpec`).
 
+  `foldRight` ✅ **done** (right-associative two-arg closure): lazy / sequential
+  but the op runs RIGHT-to-left (`op(x1, op(x2, ..., op(xn, z)))`), empirically
+  confirmed against DCA (`seen=[3,2,1]`, result `(1+(2+(3+z)))`). The Scala 2
+  macro (`emitHofFoldRight`, `FoldRightAwaitCall`, `foldRightResultTypes`)
+  materializes the receiver via `.toVector` and drains it in reverse to match the
+  await-ordering; an empty receiver yields `z` (op never runs). DCA-confirmed
+  identical on Scala 3 JVM + JS and native `js.await` on 3.8+ JS. Validated the
+  same way as `foldLeft` (receiver-kind guard; non-whitelisted receivers
+  rejected, covered in `AsyncAwaitScala2HofSpec`).
+
   Remaining 5c: `collect` (PartialFunction literal — not a
-  `Function1`, needs new extraction), `foldRight` (right-associative two-arg
-  closure), and more collections (`Array` — needs `ClassTag`;
-  `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass
-  (different builder/result shape concerns).
+  `Function1`, needs new extraction) and more collections (`Array` — needs
+  `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct
+  later pass (different builder/result shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
