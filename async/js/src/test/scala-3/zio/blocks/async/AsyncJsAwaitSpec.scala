@@ -245,6 +245,40 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         Map(1 -> 10, 2 -> 20, 3 -> 30).map { case (k, v) => Async.succeed(k + v).await }
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toSet == Set(11, 22, 33)))
+    },
+    test("List.exists short-circuits on the first match") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3, 4).exists { i => seen = i :: seen; Async.succeed(i == 2).await }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r, seen == List(2, 1)))
+    },
+    test("List.forall short-circuits on the first false") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3, 4).forall { i => seen = i :: seen; Async.succeed(i < 3).await }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(!r, seen == List(3, 2, 1)))
+    },
+    test("List.find returns the first match") {
+      val prog = Async.async(List(1, 2, 3, 4).find(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(2)))
+    },
+    test("exists propagates a failing await") {
+      val prog = Async.async(List(1, 2, 3).exists(i => Async.fail(Boom).await))
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
+    },
+    test("Vector.exists over a generic receiver") {
+      val prog = Async.async(Vector(1, 2, 3).exists(i => Async.succeed(i == 3).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("Option.exists over a Some") {
+      val prog = Async.async(Option(4).exists(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("Map.find over entries returns the matching pair") {
+      val prog = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some((2, 20))))
     }
   )
 }

@@ -461,9 +461,29 @@ phase across the cells supported by that phase.
   pair-returning `map`/`flatMap`/`foreach`, the non-pair `map` widening, pending
   awaits, and failure propagation.
 
-  Remaining 5c: more collections (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`,
-  …) and more HOFs (`collect`, etc.). Per oracle review, `Array` is a distinct
-  later pass (different builder/result shape concerns).
+  **Predicate-scanning HOFs landed (`find` / `exists` / `forall`).** `.await`
+  inside the `A => Boolean` closure of `find`/`exists`/`forall` is supported on
+  **all six cells**. Probed on all three Scala 3 backends first (alongside
+  `filter`/`collect`/`takeWhile`/`foldLeft`, which remain future increments).
+  These are **receiver-kind-agnostic**: every whitelisted receiver
+  (`List`/`Option`/`Vector`/`Set`/`Map`) has `.iterator`, and the scan is
+  inherently lazy/sequential short-circuit — so a single `emitPredicateScan`
+  (added to `supportedHofMethods`, dispatched by method name *before* the
+  kind-specific catch-alls) drains the iterator with a tight `while`, short-circuits
+  at the first decisive element (`exists`→first `true`, `forall`→first `false`,
+  `find`→first match as `Some`/else `None`), and switches to a `flatMap`
+  continuation on the first suspended predicate. **Known Scala-2 gap:**
+  `Option.find` resolves via the `Option`→`Iterable` implicit conversion (whose
+  converted receiver is not whitelisted), so it is rejected on Scala 2 —
+  `Option.exists`/`forall` work directly, and `find` works over
+  `List`/`Vector`/`Set`/`Map`; documented in the tests and reference doc.
+
+  Remaining 5c: predicate HOFs that return the collection type
+  (`filter`/`filterNot`/`takeWhile`/`dropWhile` — need the per-kind builder),
+  `collect` (PartialFunction literal — not a `Function1`, needs new extraction),
+  folds (`foldLeft`/`foldRight`/`reduce` — two-arg closures), and more collections
+  (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle review, `Array`
+  is a distinct later pass (different builder/result shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`

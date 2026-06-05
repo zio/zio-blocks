@@ -121,7 +121,7 @@ private[async] object AsyncMacros {
     //
     // Supported HOFs are whitelisted by method name here AND validated by
     // receiver type in `hofElemTypes` (typed pass).
-    val supportedHofMethods: Set[String] = Set("map", "foreach", "flatMap")
+    val supportedHofMethods: Set[String] = Set("map", "foreach", "flatMap", "find", "exists", "forall")
 
     /**
      * Single-argument function literal, unwrapping a `Block(Nil, Function)`
@@ -799,6 +799,73 @@ private[async] object AsyncMacros {
       builderDrain(recvVal, pname, fbody, bTpt, resTpt, builder, flat)(k)
     }
 
+    /**
+     * Rewrite a short-circuiting predicate scan — `find` / `exists` / `forall`
+     * — whose `A => Boolean` closure body contains `.await`, for any
+     * whitelisted receiver (`List`, `Option`, `Vector`, `Set`, `Map` — all have
+     * `.iterator`), then continue with `k`. These are inherently **lazy /
+     * sequential** (and so identical on every backend, verified empirically):
+     * the predicate for element `n+1` runs only after element `n`'s `.await`
+     * completes, and the scan stops at the first decisive element.
+     *
+     * `mode` selects the result shape:
+     *   - `"exists"` → `Async[Boolean]`; short-circuits `true` on the first
+     *     `true`, else `false`.
+     *   - `"forall"` → `Async[Boolean]`; short-circuits `false` on the first
+     *     `false`, else `true`.
+     *   - `"find"` → `Async[Option[A]]`; short-circuits `Some(elem)` on the
+     *     first `true`, else `None`.
+     *
+     * A tight `while` advances ready elements; the first suspended predicate
+     * switches to a `flatMap` continuation. `resultTpe` is the full result type
+     * (`Boolean` or `Option[A]`), used for the recursive drain `def`'s return.
+     */
+    def emitPredicateScan(recvVal: Tree, pname: TermName, fbody: Tree, mode: String, resultTpe: Type)(
+      k: Tree => Tree
+    ): Tree = {
+      val drain                       = fresh("drainScan$")
+      val it                          = fresh("it$")
+      val r0                          = fresh("r$")
+      val bn                          = fresh("b$")
+      val resTpt: Tree                = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
+      val bodyA                       = transform(fbody)(pureReturn)
+      val (onHit, onEnd, hitWhenTrue) = mode match {
+        case "exists" => (q"$AsyncObj.succeed(true)", q"$AsyncObj.succeed(false)", true)
+        case "forall" => (q"$AsyncObj.succeed(false)", q"$AsyncObj.succeed(true)", false)
+        case _        => // "find"
+          (
+            q"$AsyncObj.succeed((_root_.scala.Some($pname): $resTpt))",
+            q"$AsyncObj.succeed((_root_.scala.None: $resTpt))",
+            true
+          )
+      }
+      def hit(b: Tree): Tree = if (hitWhenTrue) b else q"!$b"
+      val whileBody          = q"""
+        {
+          while ($it.hasNext) {
+            val $pname   = $it.next()
+            val $r0: Any = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.Boolean]])
+                .flatMap { ($bn: _root_.scala.Boolean) =>
+                  if (${hit(q"$bn")}) $onHit else $drain()
+                }
+            }
+            if (${hit(q"$r0.asInstanceOf[_root_.scala.Boolean]")}) return $onHit
+          }
+          $onEnd
+        }
+      """
+      val loop = q"""
+        {
+          val $it = $recvVal.iterator
+          def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
+          $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -1008,6 +1075,15 @@ private[async] object AsyncMacros {
             // collection (`List` / `Option` / `Vector` / `Set`).
             val recv0 = defilterReceiver(recv)
             (kind, m) match {
+              // Short-circuiting predicate scans (`find`/`exists`/`forall`) are
+              // receiver-kind-agnostic: every whitelisted receiver has `.iterator`,
+              // and the scan stops at the first decisive element. Must precede the
+              // kind-specific catch-alls (e.g. `("option", _)`).
+              case (_, "exists") =>
+                transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "exists", resTpe)(k))
+              case (_, "forall") =>
+                transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "forall", resTpe)(k))
+              case (_, "find")           => transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "find", resTpe)(k))
               case ("option", "foreach") => transform(recv0)(rv => emitOptionForeach(rv, param.name, fbody)(k))
               case ("option", "flatMap") => transform(recv0)(rv => emitOptionFlatMap(rv, param.name, fbody, bTpe)(k))
               case ("option", _)         => transform(recv0)(rv => emitOptionMap(rv, param.name, fbody, bTpe)(k))

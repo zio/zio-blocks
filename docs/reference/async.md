@@ -192,6 +192,14 @@ exactly):
   `Map[K2, V2]` (later entries with the same key win); a non-pair `map`/`flatMap`
   widens the result to an `Iterable`, matching the standard library's overload
   choice. `foreach` runs the closure for each entry, returning `Unit`.
+- **Short-circuiting predicate scans** (`find` / `exists` / `forall`, predicate
+  `A => Boolean`): **lazy / sequential** over any whitelisted receiver — the
+  predicate for element `n+1` runs only after element `n`'s await completes, and
+  the scan stops at the first decisive element (`exists` → first `true`; `forall`
+  → first `false`; `find` → first matching element as `Some`, else `None`). Note
+  that `Option.find` is *not* covered on Scala 2 (it resolves via the
+  `Option`→`Iterable` implicit conversion, whose receiver is not whitelisted);
+  use `Option.exists`/`forall`, or `find` over a `List`/`Vector`/`Set`/`Map`.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
@@ -212,8 +220,10 @@ val pairs: Async[List[Int]] = Async.async {
 > **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
 > sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
 > `throw`, assignments, `List` / `Option` / `Vector` / immutable `Set` / immutable
-> `Map` `map` / `foreach` / `flatMap` closures, and the for-comprehensions that
-> desugar to them (including guards), but **rejects** `.await` inside other function
+> `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
+> scans `find` / `exists` / `forall` over those receivers, and the
+> for-comprehensions that desugar to the former (including guards), but **rejects**
+> `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than
 > those five), with an actionable compile error. Those positions are supported on
 > Scala 3. Support for more of them on Scala 2 is in progress.

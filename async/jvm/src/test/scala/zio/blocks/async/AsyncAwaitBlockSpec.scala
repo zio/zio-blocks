@@ -594,6 +594,66 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }.block
         assertTrue(r.toSet == Set(11, 22, 33))
       }
+    ),
+    // `.await` inside short-circuiting predicate HOFs (`find`/`exists`/`forall`).
+    // These are inherently lazy / sequential on every backend: the predicate for
+    // element n+1 runs only after element n's await completes, and the scan stops
+    // at the first decisive element. They work over any whitelisted receiver.
+    suite("predicate-scanning HOFs with .await in the closure")(
+      test("List.exists short-circuits on the first match") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3, 4).exists { i => seen = i :: seen; Async.succeed(i == 2).await }
+        }.block
+        assertTrue(r, seen == List(2, 1))
+      },
+      test("List.exists over pending awaits returns false when none match") {
+        val r = Async.async(List(1, 2, 3).exists(i => pending(i).await > 5)).block
+        assertTrue(!r)
+      },
+      test("List.forall short-circuits on the first false") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3, 4).forall { i => seen = i :: seen; Async.succeed(i < 3).await }
+        }.block
+        assertTrue(!r, seen == List(3, 2, 1))
+      },
+      test("List.forall returns true when all pass (pending)") {
+        val r = Async.async(List(1, 2, 3).forall(i => pending(i).await > 0)).block
+        assertTrue(r)
+      },
+      test("List.find returns the first match, short-circuiting") {
+        var seen = List.empty[Int]
+        val r    = Async.async {
+          List(1, 2, 3, 4).find { i => seen = i :: seen; Async.succeed(i % 2 == 0).await }
+        }.block
+        assertTrue(r == Some(2), seen == List(2, 1))
+      },
+      test("List.find returns None when nothing matches (pending)") {
+        val r = Async.async(List(1, 2, 3).find(i => pending(i).await > 5)).block
+        assertTrue(r == None)
+      },
+      test("exists propagates a failing await") {
+        val a      = Async.async(List(1, 2, 3).exists(i => Async.fail(Boom).await))
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
+      },
+      test("Vector.exists over a generic receiver") {
+        val r = Async.async(Vector(1, 2, 3).exists(i => Async.succeed(i == 3).await)).block
+        assertTrue(r)
+      },
+      test("Option.exists over a Some") {
+        val r = Async.async(Option(4).exists(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r)
+      },
+      test("Map.exists over entries") {
+        val r = Async.async(Map(1 -> 10, 2 -> 20).exists { case (_, v) => Async.succeed(v == 20).await }).block
+        assertTrue(r)
+      },
+      test("Map.find over entries returns the matching pair") {
+        val r = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await }).block
+        assertTrue(r == Some((2, 20)))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On
