@@ -654,6 +654,62 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val r = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await }).block
         assertTrue(r == Some((2, 20)))
       }
+    ),
+    // `.await` inside a `foldLeft` op closure. A left fold is inherently
+    // sequential — element n+1's op needs n's accumulator — so it is
+    // lazy/sequential on every backend: element n+1's op runs only after
+    // element n's await completes, and a failing await short-circuits the rest.
+    // `foldLeft[B]` returns `B` directly (not a collection wrapper), and works
+    // over any whitelisted receiver via `.iterator`.
+    suite("foldLeft with .await in the op closure")(
+      test("threads the accumulator over ready awaits") {
+        val r = Async.async {
+          List(1, 2, 3, 4).foldLeft(0)((acc, x) => acc + Async.succeed(x).await)
+        }.block
+        assertTrue(r == 10)
+      },
+      test("threads the accumulator over genuinely-pending awaits") {
+        val r = Async.async {
+          List(10, 20, 30).foldLeft(0)((acc, x) => acc + pending(x).await)
+        }.block
+        assertTrue(r == 60)
+      },
+      test("supports a result type that differs from the element type") {
+        val r = Async.async {
+          List(1, 2, 3).foldLeft(List.empty[Int])((acc, x) => Async.succeed(x * 10).await :: acc)
+        }.block
+        assertTrue(r == List(30, 20, 10))
+      },
+      test("awaits the initial accumulator before folding") {
+        val r = Async.async {
+          List(1, 2, 3).foldLeft(Async.succeed(100).await)((acc, x) => acc + Async.succeed(x).await)
+        }.block
+        assertTrue(r == 106)
+      },
+      test("an empty receiver yields the initial accumulator without running the op") {
+        var ran = false
+        val r   = Async.async {
+          List.empty[Int].foldLeft(42) { (acc, x) => ran = true; acc + Async.succeed(x).await }
+        }.block
+        assertTrue(r == 42, !ran)
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).foldLeft(0) { (acc, x) =>
+            seen = x :: seen
+            if (x == 2) acc + (Async.fail(Boom).await: Int) else acc + Async.succeed(x).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("folds over a Vector receiver") {
+        val r = Async.async {
+          Vector(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await)
+        }.block
+        assertTrue(r == 6)
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

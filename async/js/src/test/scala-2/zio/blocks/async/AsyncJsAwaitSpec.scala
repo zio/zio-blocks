@@ -363,6 +363,34 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await })
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some((2, 20))))
       }
+    ),
+    suite("foldLeft with .await in the op closure")(
+      test("threads the accumulator over ready awaits") {
+        val prog = Async.async(List(1, 2, 3, 4).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 10))
+      },
+      test("threads the accumulator over genuinely-pending awaits") {
+        val prog = Async.async(List(10, 20, 30).foldLeft(0)((acc, x) => acc + pending(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 60))
+      },
+      test("supports a result type that differs from the element type") {
+        val prog = Async.async(List(1, 2, 3).foldLeft(List.empty[Int])((acc, x) => pending(x * 10).await :: acc))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(30, 20, 10)))
+      },
+      test("a failing await short-circuits the remaining elements (lazy)") {
+        var seen = List.empty[Int]
+        val prog = Async.async {
+          List(1, 2, 3).foldLeft(0) { (acc, x) =>
+            seen = x :: seen
+            if (x == 2) acc + (Async.fail(Boom).await: Int) else acc + Async.succeed(x).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+      },
+      test("folds over a Vector receiver") {
+        val prog = Async.async(Vector(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+      }
     )
   )
 }

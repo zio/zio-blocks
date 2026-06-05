@@ -96,6 +96,18 @@ private[async] object AsyncMacros {
       }
     }
 
+    def containsAwait(t: Tree): Boolean = {
+      var found = false
+      new Traverser {
+        override def traverse(tt: Tree): Unit =
+          if (!found) tt match {
+            case AwaitCall(_) => found = true
+            case _            => super.traverse(tt)
+          }
+      }.traverse(t)
+      found
+    }
+
     // ---- higher-order-function (HOF) closure awaits (Phase 5c) ---------------
     //
     // `.await` inside a `List` HOF closure is rewritten to match the Scala 3
@@ -133,6 +145,44 @@ private[async] object AsyncMacros {
         case Block(Nil, Function(List(p), fbody)) => Some((p, fbody))
         case _                                    => None
       }
+    }
+
+    /**
+     * Two-argument function literal (the `op: (B, A) => B` of `foldLeft`),
+     * unwrapping a `Block(Nil, Function)` that `untypecheck` may introduce.
+     */
+    object TwoArgFunction {
+      def unapply(t: Tree): Option[(ValDef, ValDef, Tree)] = t match {
+        case Function(List(p1, p2), fbody)             => Some((p1, p2, fbody))
+        case Block(Nil, Function(List(p1, p2), fbody)) => Some((p1, p2, fbody))
+        case _                                         => None
+      }
+    }
+
+    /**
+     * A `recv.foldLeft(z)(op)` call whose two-argument `op` body contains a
+     * `.await`. `foldLeft` is curried (`foldLeft[B](z: B)(op: (B, A) => B)`), so
+     * the tree is a double `Apply` (optionally with a `TypeApply` for `[B]`).
+     * Matched only when the OP BODY awaits — a `.await` solely in `z` is an
+     * ordinary application-spine await handled generically.
+     *
+     * `foldLeft` is receiver-agnostic: it is a strict left fold over the
+     * receiver's iteration order, so any `IterableOnce` works through
+     * `.iterator`. Yields `(recv, z, accParam, elemParam, opBody)`.
+     */
+    object FoldLeftAwaitCall {
+      def unapply(t: Tree): Option[(Tree, Tree, ValDef, ValDef, Tree)] = t match {
+        case Apply(Apply(Select(recv, m), List(z)), List(fn))               => check(recv, m, z, fn)
+        case Apply(Apply(TypeApply(Select(recv, m), _), List(z)), List(fn)) => check(recv, m, z, fn)
+        case _                                                              => None
+      }
+      private def check(recv: Tree, m: Name, z: Tree, fn: Tree): Option[(Tree, Tree, ValDef, ValDef, Tree)] =
+        if (m.decodedName.toString != "foldLeft") None
+        else
+          fn match {
+            case TwoArgFunction(acc, x, fbody) if containsAwait(fbody) => Some((recv, z, acc, x, fbody))
+            case _                                                     => None
+          }
     }
 
     /** The erased `List[Any]` type, used to validate HOF receivers. */
@@ -249,18 +299,6 @@ private[async] object AsyncMacros {
       }
     }
 
-    def containsAwait(t: Tree): Boolean = {
-      var found = false
-      new Traverser {
-        override def traverse(tt: Tree): Unit =
-          if (!found) tt match {
-            case AwaitCall(_) => found = true
-            case _            => super.traverse(tt)
-          }
-      }.traverse(t)
-      found
-    }
-
     // ---- await element types (from the TYPED body, in transform order) ------
     //
     // The transform runs on an `untypecheck`ed tree, so it cannot read the
@@ -366,6 +404,39 @@ private[async] object AsyncMacros {
       q
     }
 
+    // ---- foldLeft result types (from the TYPED body, in transform order) ----
+    //
+    // `foldLeft[B](z)(op)` returns `B` directly (not a collection wrapper), so
+    // its result type is the typed call node's own `tpe`. The recursive drain
+    // `def` the rewrite emits needs an explicit `Async[B]` return type, so we
+    // recover `B` here. Recorded in transform order (outer fold before the folds
+    // nested in its receiver / initial value / op body), matching the order the
+    // dispatch dequeues them. Independent of `hofElemTypes` (single-arg HOFs).
+    val foldResultTypes: scala.collection.mutable.Queue[Type] = {
+      val q                            = scala.collection.mutable.Queue.empty[Type]
+      lazy val traverser: Traverser = new Traverser {
+        override def traverse(tt: Tree): Unit = tt match {
+          case FoldLeftAwaitCall(recv, z, _, _, fbody) =>
+            q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
+            traverse(recv)  // nested folds/HOFs in the receiver
+            traverse(z)     // nested in the initial accumulator
+            traverse(fbody) // nested in the op body
+          case _ => super.traverse(tt)
+        }
+      }
+      traverser.traverse(body.tree)
+      q
+    }
+
+    /** The recorded result type `B` for the next `foldLeft` rewrite. */
+    def dequeueFoldResult(): Type =
+      if (foldResultTypes.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more `foldLeft`s than were typed; please report this."
+        )
+      else foldResultTypes.dequeue()
+
     /** The recorded result element type `B` for the next HOF rewrite. */
     def dequeueHofElem(): Type =
       if (hofElemTypes.isEmpty)
@@ -433,6 +504,14 @@ private[async] object AsyncMacros {
           // itself, which would trip the generic function-literal rejection.
           case HofAwaitCall(recv, _, _, fbody) =>
             traverse(recv)
+            traverse(fbody)
+          // A supported `foldLeft(z)(op)` await is rewritten, not rejected.
+          // Recurse into the receiver, the initial value, and the op BODY (so
+          // nested unsupported positions are still caught) — but not the `op`
+          // Function node, which would trip the function-literal rejection.
+          case FoldLeftAwaitCall(recv, z, _, _, fbody) =>
+            traverse(recv)
+            traverse(z)
             traverse(fbody)
           case Function(_, fbody) if containsAwait(fbody) =>
             c.abort(
@@ -576,6 +655,63 @@ private[async] object AsyncMacros {
           val $it = $recvVal.iterator
           def $drain(): _root_.zio.blocks.async.Async[_root_.scala.Unit] = ${safe(whileBody)}
           $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
+    /**
+     * Rewrite `recvVal.foldLeft(zVal)((accName, xName) => fbody-with-await)`
+     * (receiver and initial value already bound) producing `Async[B]`, then
+     * continue with `k`.
+     *
+     * A left fold is inherently sequential — element `n+1`'s `op` needs `n`'s
+     * accumulator — so this is LAZY / sequential on every backend (no
+     * eager/lazy divergence to reconcile). A tight `while` threads the
+     * accumulator in a local `var` while each `op` result is ready (no `flatMap`
+     * allocation); on the first suspended (or failed) `op` it switches to a
+     * recursive `flatMap` continuation that resumes the same iterator with the
+     * new accumulator. A failed `op` short-circuits the rest via `flatMap`'s
+     * `Failure` path. The recursive drain `def` requires the explicit `Async[B]`
+     * return type recovered into `foldResultTypes`.
+     */
+    def emitHofFoldLeft(
+      recvVal: Tree,
+      zVal: Tree,
+      accName: TermName,
+      xName: TermName,
+      fbody: Tree,
+      bTpe: Type
+    )(k: Tree => Tree): Tree = {
+      val drain      = fresh("drainFold$")
+      val it         = fresh("it$")
+      val acc0       = fresh("acc$")  // drain parameter: incoming accumulator
+      val accVar     = fresh("accv$") // mutable accumulator within the while
+      val r0         = fresh("r$")
+      val nv         = fresh("nv$")
+      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val bodyA      = transform(fbody)(pureReturn) // references accName and xName; yields Async[B]
+      val whileBody  = q"""
+        {
+          var $accVar: $bTpt = $acc0
+          while ($it.hasNext) {
+            val $xName   = $it.next()
+            val $accName = $accVar
+            val $r0: Any = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]])
+                .flatMap { ($nv: $bTpt) => $drain($nv) }
+            }
+            $accVar = $r0.asInstanceOf[$bTpt]
+          }
+          $AsyncObj.succeed($accVar)
+        }
+      """
+      val loop = q"""
+        {
+          val $it = $recvVal.iterator
+          def $drain($acc0: $bTpt): _root_.zio.blocks.async.Async[$bTpt] = ${safe(whileBody)}
+          $drain($zVal)
         }
       """
       asyncBind(loop)(k)
@@ -1059,6 +1195,16 @@ private[async] object AsyncMacros {
 
           case Throw(ex) =>
             transform(ex)(v => q"$AsyncObj.fail($v)")
+
+          // `foldLeft(z)(op)` whose `op` body awaits. A left fold is sequential
+          // on every backend, so emit the threaded-accumulator drain. Transform
+          // the receiver, then the initial accumulator (consuming their own
+          // awaits in queue order — recv before z before the op body, which the
+          // emit consumes), then emit. Must precede `HofAwaitCall` (whose outer
+          // shape is a single `Apply`) and the generic application-spine case.
+          case FoldLeftAwaitCall(recv, z, acc, x, fbody) =>
+            val bTpe = dequeueFoldResult()
+            transform(recv)(rv => transform(z)(zv => emitHofFoldLeft(rv, zv, acc.name, x.name, fbody, bTpe)(k)))
 
           // HOF-closure await (Phase 5c): `recv.map(...)` / `recv.foreach(...)`.
           // Dequeue the recorded result element type (kept in sync with the typed

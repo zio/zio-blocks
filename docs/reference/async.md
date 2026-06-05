@@ -200,6 +200,13 @@ exactly):
   that `Option.find` is *not* covered on Scala 2 (it resolves via the
   `Option`→`Iterable` implicit conversion, whose receiver is not whitelisted);
   use `Option.exists`/`forall`, or `find` over a `List`/`Vector`/`Set`/`Map`.
+- **`foldLeft`** (op `(B, A) => B`): **lazy / sequential** over any whitelisted
+  receiver via `.iterator` — a left fold is inherently sequential (element
+  `n+1`'s op needs `n`'s accumulator), so the op for element `n+1` runs only
+  after element `n`'s await completes, and a failed await short-circuits the
+  rest. The accumulator is threaded through and `foldLeft[B]` returns `B`
+  directly (it may differ from the element type), so awaits in the initial
+  accumulator are sequenced before the fold.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these

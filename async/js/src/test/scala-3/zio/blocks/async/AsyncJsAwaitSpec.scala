@@ -279,6 +279,28 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("Map.find over entries returns the matching pair") {
       val prog = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await })
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some((2, 20))))
+    },
+    test("foldLeft threads the accumulator over awaits") {
+      val prog = Async.async(List(1, 2, 3, 4).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 10))
+    },
+    test("foldLeft supports a result type that differs from the element type") {
+      val prog = Async.async(List(1, 2, 3).foldLeft(List.empty[Int])((acc, x) => Async.succeed(x * 10).await :: acc))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(30, 20, 10)))
+    },
+    test("foldLeft is lazy: a failing await short-circuits the remaining elements") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3).foldLeft(0) { (acc, x) =>
+          seen = x :: seen
+          if (x == 2) acc + (Async.fail(Boom).await: Int) else acc + Async.succeed(x).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+    },
+    test("foldLeft over a Vector receiver") {
+      val prog = Async.async(Vector(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
     }
   )
 }

@@ -512,12 +512,35 @@ phase across the cells supported by that phase.
   `Option.exists`/`forall` work directly, and `find` works over
   `List`/`Vector`/`Set`/`Map`; documented in the tests and reference doc.
 
+  **`foldLeft` landed.** `.await` inside the two-arg op `(B, A) => B` of
+  `foldLeft(z)(op)` is supported on **all six cells** (Scala 3 DCA-JVM /
+  DCA-JS 3.3.7 / native `js.await` JS 3.8+ all support it — compile- and
+  run-probed first; the Scala 2 macro made to conform). A left fold is
+  inherently sequential (element `n+1`'s op needs `n`'s accumulator), so it is
+  **lazy / sequential** on every backend with no eager/lazy divergence to
+  reconcile. The macro adds the curried-call extractor `FoldLeftAwaitCall`
+  (double `Apply`, optional `TypeApply` for `[B]`; matched only when the OP BODY
+  awaits — a `.await` solely in `z` stays a generic application-spine await), the
+  two-arg-lambda extractor `TwoArgFunction`, a `foldResultTypes` queue recording
+  the typed call node's own result type `B` (a fold returns `B` directly, not a
+  collection wrapper) consumed by `dequeueFoldResult`, and `emitHofFoldLeft`,
+  which threads the accumulator in a local `var` through a tight `while` while op
+  results are ready (no `flatMap` alloc) and switches to a recursive `flatMap`
+  drain that resumes the same iterator with the new accumulator on the first
+  suspended/failed op. Receiver-agnostic via `.iterator`. The dispatch consumes
+  awaits in queue order (receiver → initial accumulator `z` → op body), so awaits
+  in `z` are sequenced before the fold. Cross-version JVM (`AsyncAwaitBlockSpec`)
+  + cross-platform JS specs cover ready/pending awaits, a result type differing
+  from the element type, an awaited initial accumulator, an empty receiver, lazy
+  failure short-circuiting, and a `Vector` receiver.
+
   Remaining 5c: predicate HOFs that return the collection type
   (`filter`/`filterNot`/`takeWhile`/`dropWhile` — need the per-kind builder),
   `collect` (PartialFunction literal — not a `Function1`, needs new extraction),
-  folds (`foldLeft`/`foldRight`/`reduce` — two-arg closures), and more collections
-  (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle review, `Array`
-  is a distinct later pass (different builder/result shape concerns).
+  the remaining folds (`foldRight`/`reduce` — two-arg closures), and more
+  collections (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle
+  review, `Array` is a distinct later pass (different builder/result shape
+  concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
