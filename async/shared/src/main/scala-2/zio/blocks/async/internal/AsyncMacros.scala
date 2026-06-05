@@ -249,6 +249,64 @@ private[async] object AsyncMacros {
           }
     }
 
+    /**
+     * A partial-function literal `{ case ... }`. After `untypecheck` (and in the
+     * typed tree) a PF literal is an anonymous `AbstractPartialFunction`
+     * subclass: `Typed(Block(List(ClassDef($anonfun)), New $anonfun()), _)`,
+     * whose `applyOrElse` method holds a `Match` over the user `case`s plus one
+     * trailing SYNTHETIC fallthrough (`case defaultCase$ => default.apply(x1)`).
+     * Unwraps to the USER cases (the synthetic default dropped). Yields
+     * `List[CaseDef]`.
+     */
+    object PartialFunctionLiteral {
+      def unapply(t: Tree): Option[List[CaseDef]] = {
+        val inner = t match {
+          case Typed(e, _) => e
+          case _           => t
+        }
+        inner match {
+          case Block(stats, _) =>
+            stats.collectFirst { case cd: ClassDef => cd }.flatMap { cd =>
+              cd.impl.body.collectFirst {
+                case dd: DefDef if dd.name.decodedName.toString == "applyOrElse" => dd
+              }.flatMap { dd =>
+                dd.rhs match {
+                  case Match(_, cases) => Some(cases.filterNot(isSyntheticDefault))
+                  case _               => None
+                }
+              }
+            }
+          case _ => None
+        }
+      }
+      private def isSyntheticDefault(cd: CaseDef): Boolean = cd.pat match {
+        case Bind(n, Ident(termNames.WILDCARD)) => n.decodedName.toString.startsWith("defaultCase$")
+        case _                                  => false
+      }
+    }
+
+    /**
+     * A `recv.collect(pf)` call whose partial-function `pf` has at least one
+     * `case` BODY containing a `.await`. `collect` keeps the elements the `pf`
+     * is defined at, mapping them through it. Matched only when a case body
+     * awaits (a `.await` solely in the receiver is handled generically). Yields
+     * `(recv, userCases)`.
+     */
+    object CollectAwaitCall {
+      def unapply(t: Tree): Option[(Tree, List[CaseDef])] = t match {
+        case Apply(Select(recv, m), List(pf))               => check(recv, m, pf)
+        case Apply(TypeApply(Select(recv, m), _), List(pf)) => check(recv, m, pf)
+        case _                                              => None
+      }
+      private def check(recv: Tree, m: Name, pf: Tree): Option[(Tree, List[CaseDef])] =
+        if (m.decodedName.toString != "collect") None
+        else
+          pf match {
+            case PartialFunctionLiteral(cases) if cases.exists(cd => containsAwait(cd.body)) => Some((recv, cases))
+            case _                                                                           => None
+          }
+    }
+
     /** The erased `List[Any]` type, used to validate HOF receivers. */
     val ListAnyTpe: Type = typeOf[List[Any]]
 
@@ -618,6 +676,56 @@ private[async] object AsyncMacros {
         )
       else foldRightResultTypes.dequeue()
 
+    // ---- collect result types (from the TYPED body, in transform order) ------
+    //
+    // `collect[B, That](pf)` returns the receiver's collection family of `B`
+    // (e.g. `List[B]`), recovered from the typed call node's own `tpe`. The
+    // emitted builder-drain `def` needs that explicit return type, and the
+    // element type `B` (its `typeArgs.head`) for the receiver's builder. Recorded
+    // in transform order and validated here: `collect` with `.await` is
+    // supported (Scala 2) only for `List` / `Vector` / immutable `Set` (the
+    // builder-backed iterable receivers) — `Option` and `Map` are rejected (they
+    // are DCA-only on Scala 3).
+    val collectResultTypes: scala.collection.mutable.Queue[Type] = {
+      val q                         = scala.collection.mutable.Queue.empty[Type]
+      lazy val traverser: Traverser = new Traverser {
+        override def traverse(tt: Tree): Unit = tt match {
+          case CollectAwaitCall(recv, cases) =>
+            val kind = receiverKind(recv).getOrElse(
+              c.abort(
+                tt.pos,
+                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, and immutable " +
+                  "`Set` receivers in the Scala 2 `Async.async` macro; convert the receiver to one of those first, " +
+                  "or bind the awaited values before the partial function."
+              )
+            )
+            if (kind == "option" || kind == "map")
+              c.abort(
+                tt.pos,
+                "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, and immutable " +
+                  "`Set` receivers in the Scala 2 `Async.async` macro (an `Option` / `Map` receiver is not yet " +
+                  "supported here, though it is on Scala 3); convert the receiver to a `List` / `Vector` / `Set` " +
+                  "first, or bind the awaited values before the partial function."
+              )
+            q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
+            traverse(recv)                       // nested folds/HOFs in the receiver
+            cases.foreach(cd => traverse(cd.body)) // nested awaits/HOFs in the case bodies
+          case _ => super.traverse(tt)
+        }
+      }
+      traverser.traverse(body.tree)
+      q
+    }
+
+    /** The recorded result type for the next `collect` rewrite. */
+    def dequeueCollectResult(): Type =
+      if (collectResultTypes.isEmpty)
+        c.abort(
+          body.tree.pos,
+          "internal `Async.async` macro error: rewrote more `collect`s than were typed; please report this."
+        )
+      else collectResultTypes.dequeue()
+
     /** The recorded result element type `B` for the next HOF rewrite. */
     def dequeueHofElem(): Type =
       if (hofElemTypes.isEmpty)
@@ -708,6 +816,23 @@ private[async] object AsyncMacros {
             traverse(recv)
             traverse(z)
             traverse(fbody)
+          // A supported `collect(pf)` await is rewritten, not rejected. Recurse
+          // into the receiver and each case BODY (so nested unsupported positions
+          // are still caught) — but NOT the synthetic `$anonfun` `ClassDef`,
+          // which would trip the local-class rejection. A `.await` in a case
+          // GUARD is rejected (the guard becomes an ordinary `if` in the emitted
+          // match, which cannot host a suspension).
+          case CollectAwaitCall(recv, cases) =>
+            traverse(recv)
+            cases.foreach { cd =>
+              if (cd.guard.nonEmpty && containsAwait(cd.guard))
+                c.abort(
+                  cd.guard.pos,
+                  "`.await` in a `collect` case guard is not supported; compute the awaited value before the " +
+                    "partial function, or move it into the case body."
+                )
+              traverse(cd.body)
+            }
           case Function(_, fbody) if containsAwait(fbody) =>
             c.abort(
               tt.pos,
@@ -1548,6 +1673,79 @@ private[async] object AsyncMacros {
       asyncBind(loop)(k)
     }
 
+    /**
+     * Rewrite `recvVal.collect(pf)` (whose `pf` has at least one awaiting case
+     * body) for a builder-backed receiver (`List` / `Vector` / immutable `Set`;
+     * enforced in the typed pass) producing the receiver's collection family of
+     * `B`, then continue with `k`.
+     *
+     * `collect` keeps the elements the `pf` is defined at, mapping them through
+     * it — so each element is matched against the USER `case`s; a match appends
+     * the (possibly awaited) body to the receiver's own builder, a non-match is
+     * skipped. Membership and the mapped value are computed in a SINGLE match
+     * per element (the guard runs exactly once), distinguishing "no match" with
+     * a fresh sentinel (`skip`) appended by a trailing `case _`. The case body
+     * is CPS-transformed; an awaiting body suspends and resumes at the next
+     * element, and a failed await short-circuits the rest. The recursive
+     * builder-drain `def` needs the explicit `Async[result]` return type.
+     */
+    def emitCollect(
+      recvVal: Tree,
+      cases: List[CaseDef],
+      bTpe: Type,
+      resultTpe: Type
+    )(k: Tree => Tree): Tree = {
+      val drain        = fresh("drainCollect$")
+      val it           = fresh("it$")
+      val bld          = fresh("bld$")
+      val skip         = fresh("skip$")
+      val elem         = fresh("el$")
+      val r0           = fresh("r$")
+      val bn           = fresh("b$")
+      val bTpt: Tree   = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      val resTpt: Tree = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
+      // User cases, each body CPS-transformed; a trailing `case _ => skip` marks
+      // "not defined here" (the partial-function fallthrough). The default is
+      // appended ONLY when the user cases are not already TOTAL (an unguarded
+      // irrefutable last case) — otherwise the trailing `case _` is unreachable
+      // (a fatal warning).
+      def irrefutable(pat: Tree): Boolean = pat match {
+        case Ident(termNames.WILDCARD)  => true
+        case Bind(_, inner)             => irrefutable(inner)
+        case _                          => false
+      }
+      val isTotal     = cases.lastOption.exists(cd => cd.guard.isEmpty && irrefutable(cd.pat))
+      val newCases    = cases.map(cd => CaseDef(cd.pat, cd.guard, transform(cd.body)(pureReturn)))
+      val defaultCase = cq"_ => $skip"
+      val allCases    = if (isTotal) newCases else newCases :+ defaultCase
+      val whileBody   = q"""
+        {
+          while ($it.hasNext) {
+            val $elem        = $it.next()
+            val $r0: _root_.scala.Any = $elem match { case ..$allCases }
+            if (!($r0.asInstanceOf[_root_.scala.AnyRef] eq $skip)) {
+              if ($r0.isInstanceOf[$Pollable]) {
+                return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[$bTpt]])
+                  .flatMap { ($bn: $bTpt) => $bld += $bn; $drain() }
+              }
+              $bld += $r0.asInstanceOf[$bTpt]
+            }
+          }
+          $AsyncObj.succeed($bld.result())
+        }
+      """
+      val loop = q"""
+        {
+          val $it   = $recvVal.iterator
+          val $bld  = $recvVal.iterableFactory.newBuilder[$bTpt]
+          val $skip: _root_.scala.AnyRef = new _root_.scala.AnyRef
+          def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
+          $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -1767,6 +1965,18 @@ private[async] object AsyncMacros {
           case ReduceAwaitCall(recv, acc, x, fbody) =>
             val bTpe = dequeueReduceResult()
             transform(recv)(rv => emitHofReduce(rv, acc.name, x.name, fbody, bTpe)(k))
+
+          // `collect(pf)` whose partial function has an awaiting case body. The
+          // PF literal is an anonymous-class `Apply`, so it must precede
+          // `HofAwaitCall` and the generic application-spine case. Restricted to
+          // builder-backed receivers (`List` / `Vector` / `Set`) in the typed
+          // pass; the element type `B` is the result collection's `typeArgs.head`.
+          case CollectAwaitCall(recv, cases) =>
+            val resultTpe = dequeueCollectResult()
+            val bTpe =
+              if (resultTpe != null && resultTpe != NoType) resultTpe.typeArgs.headOption.getOrElse(NoType)
+              else NoType
+            transform(recv)(rv => emitCollect(rv, cases, bTpe, resultTpe)(k))
 
           // HOF-closure await (Phase 5c): `recv.map(...)` / `recv.foreach(...)`.
           // Dequeue the recorded result element type (kept in sync with the typed

@@ -935,6 +935,70 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(2, 3, 4))
       }
+    ),
+    // `.await` inside a `collect` case body. Keeps the elements the partial
+    // function is defined at, mapping them through the (awaiting) body; **lazy /
+    // sequential**, collection type preserved.
+    suite("collect with .await in a case body")(
+      test("List.collect keeps matching elements, mapping them through an awaited body") {
+        val r = Async.async {
+          List(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i * 10).await }
+        }.block
+        assertTrue(r == List(10, 30))
+      },
+      test("List.collect over genuinely-pending awaits") {
+        val r = Async.async {
+          List(1, 2, 3, 4).collect { case i if i % 2 == 0 => pending(i * 100).await }
+        }.block
+        assertTrue(r == List(200, 400))
+      },
+      test("multiple cases are tried in order") {
+        val r = Async.async {
+          List(1, 2, 3, 4, 5).collect {
+            case i if i % 2 == 0 => Async.succeed(s"even$i").await
+            case i if i == 5 => Async.succeed("five").await
+          }
+        }.block
+        assertTrue(r == List("even2", "even4", "five"))
+      },
+      test("a guarded single case keeps only the matching elements") {
+        // NOTE: the guard-evaluation COUNT is an implementation detail that
+        // differs across backends (the Scala 2 macro evaluates it exactly once
+        // per element; dotty-cps-async may evaluate it more than once), so only
+        // the RESULT is asserted here. The "exactly once" guarantee for the
+        // Scala 2 macro is covered in `AsyncAwaitScala2HofSpec`.
+        val r = Async.async {
+          List(1, 2, 3, 4).collect { case i if i % 2 == 0 => Async.succeed(i).await }
+        }.block
+        assertTrue(r == List(2, 4))
+      },
+      test("an empty receiver yields an empty result") {
+        val r = Async.async(List.empty[Int].collect { case i if i > 0 => Async.succeed(i).await }).block
+        assertTrue(r == Nil)
+      },
+      test("Vector.collect preserves the Vector type") {
+        val r = Async.async {
+          Vector(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await }
+        }.block
+        assertTrue(r == Vector(1, 3))
+      },
+      test("Set.collect preserves the Set type") {
+        val r = Async.async {
+          Set(1, 2, 3, 4).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await }
+        }.block
+        assertTrue(r == Set(20, 40))
+      },
+      test("a failing await in a matched body short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).collect { case i =>
+            seen = i :: seen
+            if (i == 2) (Async.fail(Boom).await: Int) else Async.succeed(i).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

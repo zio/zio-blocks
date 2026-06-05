@@ -162,6 +162,44 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
         }
         """
       }.map(r => assertTrue(r.isLeft))
+    },
+    // The Scala 2 macro evaluates a `collect` case guard EXACTLY ONCE per element
+    // (a single match computes both membership and the mapped value). This is a
+    // stronger guarantee than dotty-cps-async on Scala 3 (which may evaluate it
+    // more than once), so it is asserted Scala-2-only.
+    test("collect evaluates a case guard exactly once per element — Scala 2 only") {
+      var guardRuns = 0
+      val r         = Async.async {
+        List(1, 2, 3, 4).collect {
+          case i if { guardRuns += 1; i % 2 == 0 } => Async.succeed(i).await
+        }
+      }.block
+      assertTrue(r == List(2, 4), guardRuns == 4)
+    },
+    // `collect` with `.await` is matched syntactically, validated in the typed
+    // pass, and restricted to builder-backed receivers (`List` / `Vector` /
+    // `Set`). An `Option` receiver (DCA-supported on Scala 3) is rejected here.
+    test("collect over an Option receiver is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          Option(2).collect { case i if i % 2 == 0 => Async.succeed(i).await }
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
+    },
+    // A `.await` in a `collect` case GUARD is rejected (the guard becomes an
+    // ordinary `if` in the emitted match, which cannot host a suspension).
+    test("collect with an awaiting case guard is rejected — Scala 2 only") {
+      typeCheck {
+        """
+        import zio.blocks.async._
+        Async.async {
+          List(1, 2, 3).collect { case i if Async.succeed(i % 2 == 0).await => i }
+        }
+        """
+      }.map(r => assertTrue(r.isLeft))
     }
   )
 }

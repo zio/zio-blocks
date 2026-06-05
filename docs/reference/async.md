@@ -239,6 +239,15 @@ exactly):
   leading-prefix predicate is ill-defined on an unordered `Set` / `Map` (and
   `Option` does not provide them); the Scala 2 macro rejects those with an
   actionable compile error.
+- **`collect`** (partial function `{ case ... }`): **lazy / sequential** over a
+  `List` / `Vector` / immutable `Set` — keeps the elements the partial function
+  is defined at, mapping each through its (awaiting) case body; the case for
+  element `n+1` runs only after element `n`'s await completes, and a failed await
+  short-circuits the rest. The result **collection type is preserved**. The case
+  guard runs exactly once per element (Scala 2). A `.await` in a case GUARD is
+  rejected. **Divergence:** an `Option` / `Map` receiver is **Scala-3-only**
+  (dotty-cps-async supports it; the Scala 2 macro currently restricts `collect`
+  to the builder-backed `List` / `Vector` / `Set`).
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
@@ -263,7 +272,8 @@ val pairs: Async[List[Int]] = Async.async {
 > scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`,
 > `foldRight`, and `reduce` / `reduceLeft` over
 > those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
-> receivers (`List` / `Vector`), and the
+> receivers (`List` / `Vector`), `collect` over builder-backed receivers
+> (`List` / `Vector` / `Set`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**
 > `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than

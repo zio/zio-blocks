@@ -429,6 +429,38 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
       }
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 3, 4)))
+    },
+    test("List.collect keeps matching elements, mapping them through an awaited body") {
+      val prog = Async.async(List(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i * 10).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(10, 30)))
+    },
+    test("collect tries multiple cases in order") {
+      val prog = Async.async {
+        List(1, 2, 3, 4, 5).collect {
+          case i if i % 2 == 0 => Async.succeed(s"even$i").await
+          case i if i == 5     => Async.succeed("five").await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List("even2", "even4", "five")))
+    },
+    test("Vector.collect preserves the Vector type") {
+      val prog = Async.async(Vector(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(1, 3)))
+    },
+    test("Set.collect preserves the Set type") {
+      val prog = Async.async(Set(1, 2, 3, 4).collect { case i if i % 2 == 0 => Async.succeed(i * 10).await })
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(20, 40)))
+    },
+    test("collect: a failing await in a matched body short-circuits the rest") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3).collect {
+          case i =>
+            seen = i :: seen
+            if (i == 2) (Async.fail(Boom).await: Int) else Async.succeed(i).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
     }
   )
 }

@@ -581,10 +581,23 @@ phase across the cells supported by that phase.
   same way as `foldLeft` (receiver-kind guard; non-whitelisted receivers
   rejected, covered in `AsyncAwaitScala2HofSpec`).
 
-  Remaining 5c: `collect` (PartialFunction literal — not a
-  `Function1`, needs new extraction) and more collections (`Array` — needs
-  `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct
-  later pass (different builder/result shape concerns).
+  `collect` ✅ **done** (PartialFunction literal): the macro extracts the user
+  `case`s from the desugared `AbstractPartialFunction` `$anonfun`
+  (`PartialFunctionLiteral` / `CollectAwaitCall` unwrap `applyOrElse`'s `Match`,
+  dropping the synthetic `defaultCase$` fallthrough), then `emitCollect` emits a
+  builder-drain that, per element, runs a SINGLE match (user cases + a trailing
+  `case _ => skip` sentinel, omitted when the PF is total) — so the guard runs
+  exactly once — appending the (possibly awaited) body. Restricted to
+  builder-backed receivers (`List` / `Vector` / `Set`); `.await` in a case GUARD
+  is rejected. DCA-confirmed identical RESULTS on Scala 3 JVM + JS and native
+  `js.await` on 3.8+ JS (the guard-eval COUNT differs — DCA may evaluate it more
+  than once — so the once-per-element guarantee and the `Option`/`Map`-receiver
+  and awaiting-guard rejections are asserted Scala-2-only in
+  `AsyncAwaitScala2HofSpec`). `Option` / `Map` `collect` remain Scala-3-only.
+
+  Remaining 5c: more collections (`Array` — needs `ClassTag`; `Queue`,
+  `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass (different
+  builder/result shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`
