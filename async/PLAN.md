@@ -663,14 +663,24 @@ phase across the cells supported by that phase.
   Scala-2-macro cells is **new-infrastructure work, not a re-run**, because
   `async-benchmarks` is Scala-3.8.3-only and depends on **Kyo (Scala-3-only)**,
   and **JMH is JVM-only** (no JS harness exists):
-    - *Scala-2 macro cell:* needs a separate JVM-only `async-benchmarks-scala2`
-      module (2.13, JmhPlugin, dependsOn `async.jvm`, NO Kyo), benchmarking the
-      macro-expansion hot paths with `-prof gc`. The acceptance criterion is
-      allocation-focused (ready scalar awaits allocate no Pollable/continuation;
-      HOF paths allocate only expected collection/builder/closure artifacts;
-      pending paths allocate the designed continuation), NOT a cross-Scala JMH
-      throughput comparison (the Scala 2 macro vs Scala 3 DCA numbers are not
-      directly comparable — different CPS backends).
+    - *Scala-2 macro cell:* ✅ **LANDED.** A separate JVM-only
+      `async-benchmarks-scala2` module (2.13.18, JmhPlugin, `dependsOn(async.jvm)`,
+      NO Kyo/CE) was added with `AsyncScala2MacroBench` and committed alongside a
+      `-prof gc` baseline (`async-benchmarks-scala2/baseline.txt`). **Gate verdict:
+      PASS.** Scalar `.await` is ZERO-ALLOCATION and matches the hand-written
+      `flatMap` control (`zb_asyncAwait1` ≈1e-5 B/op ≈ `zb_flatMap1`;
+      `zb_asyncAwaitSeqVals` ≈0); a `var` across `.await` in a `while` allocates a
+      FIXED, constant-in-`n` ref-cell cost (≈1e-4 B/op), same order as the
+      hand-written control — matching the Scala 3 / DCA finding. HOF emitters
+      allocate only their result collection + builder (option 16, foldLeft 104,
+      list/vector/map/collect 184–312 B/op), with no per-element continuation
+      garbage for ready awaits. The newest `Array` emitters behave as designed
+      (`filter` 136, `flatMap` 224 incl. `ArraySeq.unsafeWrapArray` normalization,
+      `map` 360 — the eager `collectAll`→`toArray` path materializes an
+      intermediate `List`; a future optimization could build straight into an
+      `Array` builder). The acceptance criterion was allocation-focused, NOT a
+      cross-Scala throughput comparison (Scala 2 macro vs Scala 3 DCA numbers are
+      not directly comparable — different CPS backends).
     - *JS-native cell:* needs an entirely new JS microbenchmark harness; deferred
       until there is a concrete JS perf concern (lower-stakes, less comparable).
   This sub-phase is triggered by any change to the `Async`/`Pollable`/`Completer`

@@ -241,6 +241,7 @@ lazy val root = project
     async.jvm,
     async.js,
     `async-benchmarks`,
+    `async-benchmarks-scala2`,
     `zio-blocks-htmx-examples`,
     zioGolemModel.jvm,
     zioGolemModel.js,
@@ -1571,6 +1572,24 @@ lazy val `async-benchmarks` = project
     // control; the repo only auto-suppresses unused warnings under `/test/`
     // paths, so silence it narrowly for the affected benchmark sources here.
     scalacOptions += "-Wconf:id=E198&src=.*AsyncBlock.*:s"
+  )
+
+// Scala-2-only JMH benchmarks for the direct-style `Async.async { ... .await ... }`
+// macro (`internal.AsyncMacros`). Kept SEPARATE from `async-benchmarks` because
+// that module is Scala-3-only (it depends on Kyo) and because Scala 2 def-macros
+// must be exercised from a DOWNSTREAM compilation unit. The gate here is
+// allocation / generated-code shape (run with `-prof gc`), not cross-runtime
+// throughput, so it deliberately pulls no Kyo / Cats Effect comparison deps.
+lazy val `async-benchmarks-scala2` = project
+  .in(file("async-benchmarks-scala2"))
+  .settings(stdSettings("zio-blocks-async-benchmarks-scala2", Seq(BuildHelper.Scala213)))
+  .dependsOn(async.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val htmx = crossProject(JSPlatform, JVMPlatform)
