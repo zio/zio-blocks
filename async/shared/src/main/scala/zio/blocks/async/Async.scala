@@ -16,6 +16,8 @@
 
 package zio.blocks.async
 
+import zio.blocks.async.internal.AsyncRunner
+
 /**
  * Constructors for [[Async]] values.
  *
@@ -76,6 +78,35 @@ object Async extends AsyncCompanionVersionSpecific {
     body(c)
     c.peek
   }
+
+  /**
+   * Run `fa`, invoking `cb` with its terminal outcome, and return a
+   * [[Cancelable]] that can stop the run. This is the sanctioned way to drive
+   * an arbitrary [[Async]] without reaching through the hidden encoding.
+   *
+   * Semantics:
+   *
+   *   - The callback is invoked '''at most once''': exactly once if the run
+   *     reaches success or failure before [[Cancelable.cancel]] wins, and never
+   *     if cancellation linearizes first.
+   *   - Completion and cancellation race through a single atomic terminal
+   *     state, so the outcome is deterministic per run and `cancel()` is
+   *     idempotent.
+   *   - For an already-ready (or already-failed) `fa`, `cb` runs
+   *     '''synchronously on the calling thread''', before this method returns —
+   *     callers must tolerate that. For a suspended `fa`, `cb` runs on the
+   *     driver worker (JVM) or a microtask (JS).
+   *   - `cb` is never invoked while an internal driver lock is held, and never
+   *     re-entrantly from inside a `poll`.
+   *   - A [[Throwable]] escaping `poll`, an [[Async.fail]], or any [[Failure]]
+   *     reached during the run surfaces as `cb(Left(cause))`.
+   *
+   * On Scala.js a truly asynchronous run is driven by microtasks (no thread is
+   * blocked); on the JVM it is driven on a daemon worker thread that parks
+   * between polls.
+   */
+  def unsafeRunAsync[A](fa: Async[A])(cb: Either[Throwable, A] => Unit): Cancelable =
+    AsyncRunner.unsafeRunAsync(fa)(cb)
 
   /**
    * An [[Async]] that never completes. Polling it always returns itself; it

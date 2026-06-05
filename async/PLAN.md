@@ -374,6 +374,26 @@ phase across the cells supported by that phase.
   (`streams/ASYNC-MODULE-REQUIREMENTS.md`). All six cells green; Scala 3.8.3 JVM
   coverage 93.55% stmt / 91.95% branch.
 
+- **Streams requirement #1 — `unsafeRunAsync` / `Cancelable`:** ✅ Added the
+  sanctioned non-blocking runner `Async.unsafeRunAsync[A](fa)(cb): Cancelable`
+  (`streams/ASYNC-MODULE-REQUIREMENTS.md` item 1). Shared public `Cancelable`
+  trait (`Cancelable.noop` for synchronously-settled runs) plus platform-specific
+  drivers: JVM (`async/jvm/.../internal/AsyncRunner.scala`) runs a suspended
+  `Async` on a daemon worker thread via `AsyncSlowPath.awaitSuspended`, with a
+  single `AtomicBoolean` terminal latch — `cancel()` flips it and `interrupt()`s
+  the parked worker, giving at-most-once delivery; JS
+  (`async/js/.../internal/AsyncRunner.scala`) drives a microtask poll loop with a
+  `cancelled` flag checked before re-scheduling, before each poll, and before the
+  callback. A `Throwable` thrown by `poll` is caught and surfaced as
+  `cb(Left(t))` (the spec's missing try/catch). Ready/failed inputs settle
+  synchronously on the caller thread and return `Cancelable.noop`. Cross-platform
+  `AsyncRunSpec` (callback bridged through `ZIO.async` + fork) covers sync fast
+  path, suspended completion/failure via a fiber, thrown-poll, and
+  cancel-idempotency/suppression on all six cells; JVM-only `AsyncRunJvmSpec`
+  asserts off-caller-thread delivery and worker interruption. Scala 3.8.3 JVM
+  coverage 93.74% stmt / 91.30% branch. Streams requirement #2 (`raceAll` /
+  `Select`) remains deferred to the concurrency phase.
+
 - **Phase 5c (HOF-closure awaits):** 🚧 In progress — `List.map` / `List.foreach`
   / `List.flatMap` landed (commits `cca71275`, `05a1f6c6`, `6ae8b458`). `.await`
   inside these `List` HOF closures is supported on **all six cells**, with the

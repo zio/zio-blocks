@@ -275,6 +275,39 @@ program, never on a scheduler/reactor thread.
 val result: Int = Async.succeed(20).map(_ + 1).block
 ```
 
+### Cancellable, callback-based running: `Async.unsafeRunAsync`
+
+`Async.unsafeRunAsync(fa)(cb)` runs an `Async` without blocking and returns a
+`Cancelable`. It is the sanctioned, non-blocking way to drive an arbitrary
+`Async` (the encoding is otherwise sealed) and is the foundation cancellation
+and fiber-style wrappers build on.
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val cancelable: Cancelable =
+  Async.unsafeRunAsync(Async.succeed(1).map(_ + 1)) {
+    case Right(value) => println(s"done: $value")
+    case Left(cause)  => println(s"failed: $cause")
+  }
+
+cancelable.cancel() // idempotent; no-op once the run has completed
+```
+
+The callback fires **at most once**:
+
+- exactly once with `Right(value)` on success or `Left(cause)` on failure
+  (including a `Throwable` thrown by a `poll`), **iff** the run reaches a
+  terminal state before `cancel()` wins;
+- never, if `cancel()` linearizes first.
+
+For an already-ready `Async` the callback runs synchronously on the calling
+thread (before `unsafeRunAsync` returns). For a suspended `Async` it runs on a
+daemon worker thread on the JVM, or a microtask on Scala.js — never while an
+internal driver lock is held, and never re-entrantly from inside a `poll`.
+`cancel()` is driver-level only: it stops the poll loop and suppresses the
+callback, but does not abort an in-flight leaf (socket, timer, JS promise).
+
 ## Interop
 
 `AsyncInterop` converts between `Async` and the platform's standard async types,
@@ -315,6 +348,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
 | `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List` / `Option` / `Vector` / `Set` / `Map` `map`/`foreach`/`flatMap` closures and their for-comprehensions is supported everywhere; other HOF closures (and other collections) are Scala 3 only for now |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
+| `Async.unsafeRunAsync` / `Cancelable` | ✅ | ✅ | ✅        | ✅        | Non-blocking callback runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
 | `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
