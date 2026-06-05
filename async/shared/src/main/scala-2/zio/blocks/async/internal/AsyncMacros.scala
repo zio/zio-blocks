@@ -329,6 +329,10 @@ private[async] object AsyncMacros {
      * semantics.
      */
     val VectorAnyTpe: Type = typeOf[Vector[Any]]
+    // Additional strict immutable `Seq` families (covariant, so `<:<` works):
+    // ordered and builder-backed via `iterableFactory`, exactly like `Vector`.
+    val QueueAnyTpe: Type    = typeOf[scala.collection.immutable.Queue[Any]]
+    val ArraySeqAnyTpe: Type = typeOf[scala.collection.immutable.ArraySeq[Any]]
     // `scala.collection.immutable.Set` is INVARIANT, so `Set[Int] <:< Set[Any]`
     // is false; classify it by base-type symbol instead (variance-agnostic).
     val SetSym: Symbol = typeOf[scala.collection.immutable.Set[Any]].typeSymbol
@@ -388,7 +392,9 @@ private[async] object AsyncMacros {
       else if (t <:< ListAnyTpe) Some("list")
       else if (t <:< OptionAnyTpe) Some("option")
       else if (t.baseType(MapSym) != NoType) Some("map")
-      else if (t <:< VectorAnyTpe || t.baseType(SetSym) != NoType) Some("iterable")
+      else if (
+        t <:< VectorAnyTpe || t <:< QueueAnyTpe || t <:< ArraySeqAnyTpe || t.baseType(SetSym) != NoType
+      ) Some("iterable")
       else None
     }
 

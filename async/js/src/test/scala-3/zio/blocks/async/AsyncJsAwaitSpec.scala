@@ -461,6 +461,40 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
       }
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+    },
+    // Strict immutable `Seq` receivers (`Queue` / `ArraySeq`) also support
+    // `.await` in their HOF closures with the collection family preserved.
+    test("Queue.map preserves the Queue type") {
+      val prog = Async.async(scala.collection.immutable.Queue(1, 2, 3).map(i => Async.succeed(i * 10).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.Queue(10, 20, 30)))
+    },
+    test("Queue.filter preserves the Queue type") {
+      val prog = Async.async(scala.collection.immutable.Queue(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.Queue(2, 4)))
+    },
+    test("Queue.foldLeft folds over a Queue receiver") {
+      val prog = Async.async(scala.collection.immutable.Queue(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+    },
+    test("Queue.collect preserves the Queue type") {
+      val prog = Async.async {
+        scala.collection.immutable.Queue(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.Queue(1, 3)))
+    },
+    test("ArraySeq.map preserves the ArraySeq type") {
+      val prog = Async.async(scala.collection.immutable.ArraySeq(1, 2, 3).map(i => Async.succeed(i * 10).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.ArraySeq(10, 20, 30)))
+    },
+    test("ArraySeq.filter preserves the ArraySeq type") {
+      val prog =
+        Async.async(scala.collection.immutable.ArraySeq(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.ArraySeq(2, 4)))
+    },
+    test("ArraySeq.foldLeft folds over an ArraySeq receiver") {
+      val prog =
+        Async.async(scala.collection.immutable.ArraySeq(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
     }
   )
 }

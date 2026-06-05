@@ -595,9 +595,18 @@ phase across the cells supported by that phase.
   and awaiting-guard rejections are asserted Scala-2-only in
   `AsyncAwaitScala2HofSpec`). `Option` / `Map` `collect` remain Scala-3-only.
 
-  Remaining 5c: more collections (`Array` — needs `ClassTag`; `Queue`,
-  `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass (different
-  builder/result shape concerns).
+  **`Queue` / `ArraySeq` receiver families landed.** The strict immutable `Seq`
+  families `scala.collection.immutable.Queue` and
+  `scala.collection.immutable.ArraySeq` are covariant and builder-backed via
+  `iterableFactory` exactly like `Vector`, so `receiverKind` classifies them as
+  `"iterable"` (`t <:< QueueAnyTpe || t <:< ArraySeqAnyTpe`). All `iterable`
+  HOFs (`map` / `filter` / `takeWhile` / `foldLeft` / `collect` / …) work with
+  the family preserved, on all six cells (Scala 2/3 × JVM/JS). Covered in
+  `AsyncAwaitBlockSpec` (JVM) and both `AsyncJsAwaitSpec` cells (JS).
+
+  Remaining 5c: more collections (`Array` — needs `ClassTag`). Per oracle
+  review, `Array` is a distinct later pass (different builder/result shape
+  concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`

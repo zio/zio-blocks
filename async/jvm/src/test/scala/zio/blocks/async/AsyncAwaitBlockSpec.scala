@@ -999,6 +999,53 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(Boom), seen == List(2, 1))
       }
+    ),
+    // Additional strict immutable `Seq` receivers (`Queue` / `ArraySeq`) reuse
+    // the generic `iterable` HOF rewrites, so `.await` works in their closures
+    // with the collection family preserved. Representative HOFs are covered here.
+    suite("immutable Queue / ArraySeq HOF closures with .await")(
+      test("Queue.map preserves the Queue type") {
+        val r = Async.async(scala.collection.immutable.Queue(1, 2, 3).map(i => Async.succeed(i * 10).await)).block
+        assertTrue(r == scala.collection.immutable.Queue(10, 20, 30))
+      },
+      test("Queue.filter preserves the Queue type") {
+        val r =
+          Async.async(scala.collection.immutable.Queue(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == scala.collection.immutable.Queue(2, 4))
+      },
+      test("Queue.takeWhile preserves the Queue type") {
+        val r =
+          Async.async(scala.collection.immutable.Queue(1, 2, 3, 1).takeWhile(i => Async.succeed(i < 3).await)).block
+        assertTrue(r == scala.collection.immutable.Queue(1, 2))
+      },
+      test("Queue.foldLeft folds over a Queue receiver") {
+        val r =
+          Async.async(scala.collection.immutable.Queue(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await)).block
+        assertTrue(r == 6)
+      },
+      test("Queue.collect preserves the Queue type") {
+        val r = Async.async {
+          scala.collection.immutable.Queue(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await }
+        }.block
+        assertTrue(r == scala.collection.immutable.Queue(1, 3))
+      },
+      test("ArraySeq.map preserves the ArraySeq type") {
+        val r = Async.async(scala.collection.immutable.ArraySeq(1, 2, 3).map(i => Async.succeed(i * 10).await)).block
+        assertTrue(r == scala.collection.immutable.ArraySeq(10, 20, 30))
+      },
+      test("ArraySeq.filter preserves the ArraySeq type") {
+        val r =
+          Async
+            .async(scala.collection.immutable.ArraySeq(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+            .block
+        assertTrue(r == scala.collection.immutable.ArraySeq(2, 4))
+      },
+      test("ArraySeq.foldLeft folds over an ArraySeq receiver") {
+        val r = Async
+          .async(scala.collection.immutable.ArraySeq(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
+          .block
+        assertTrue(r == 6)
+      }
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

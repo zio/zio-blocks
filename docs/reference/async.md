@@ -186,7 +186,10 @@ exactly):
   `Vector.map` is lazy — only `List.map` is eager (it is the special case backed
   by dotty-cps-async's `ListAsyncShift`). The result **collection type is
   preserved** (`Vector.map` → `Vector`, `Set.map` → `Set`); for `Set`, the
-  *awaited* values are deduplicated.
+  *awaited* values are deduplicated. The other strict immutable `Seq` families
+  `scala.collection.immutable.Queue` and `scala.collection.immutable.ArraySeq`
+  behave identically to `Vector` (lazy / sequential, family preserved), since
+  they reuse the same builder-backed `iterable` rewrites.
 - **immutable `Map`** (`map` / `flatMap` / `foreach`): **lazy / sequential** over
   the map's `(K, V)` entries. A pair-returning `map`/`flatMap` rebuilds a
   `Map[K2, V2]` (later entries with the same key win); a non-pair `map`/`flatMap`
