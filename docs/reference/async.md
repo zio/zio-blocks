@@ -160,10 +160,16 @@ A failure encountered by `.await` short-circuits the block and surfaces as a
 failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
 is equivalent to `Async.fail(t)`.
 
-`.await` is also supported inside `List`, `Option`, `Vector`, immutable `Set`, and
-immutable `Map` HOF closures (`map`, `foreach`, `flatMap`) on every backend, with
-semantics that match each method's natural meaning (and the Scala 3 backends
-exactly):
+`.await` is also supported inside the higher-order-function closures of the
+standard strict collections — `List`, `Option`, `Vector`, immutable `Set`,
+immutable `Map`, `Array`, immutable `Queue`, and immutable `ArraySeq` — across a
+broad set of methods (`map` / `foreach` / `flatMap`, the predicate scans
+`find` / `exists` / `forall` / `filter` / `filterNot`, the folds
+`foldLeft` / `foldRight` / `reduce` / `reduceLeft`, the prefix scans
+`takeWhile` / `dropWhile`, and `collect`). Each is detailed below, with semantics
+that match the method's natural meaning (and the Scala 3 backends exactly). A few
+positions diverge between Scala 2 and Scala 3 — those are called out explicitly as
+**Divergence** notes:
 
 - **`List.map`** is **eager**: strict `map` applies the closure to every element
   first — running all construction-time side effects — producing a
@@ -263,7 +269,10 @@ exactly):
   (dotty-cps-async supports it; the Scala 2 macro currently restricts `collect`
   to the builder-backed `List` / `Vector` / `Set`).
 
-These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
+These behave identically across Scala 2/3 and JVM/JS **except** for the handful of
+positions flagged **Divergence** above (`Map.filter` / `filterNot` is a
+Scala-2-only superset; `Option` / `Map.collect` is Scala-3-only; `Option.find` is
+not covered on Scala 2). Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
 methods,
 single- and multi-generator `for` comprehensions with `.await` work too
@@ -293,7 +302,11 @@ val pairs: Async[List[Int]] = Async.async {
 > `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than
 > those whitelisted families), with an actionable compile error. Those positions
-> are supported on Scala 3. Support for more of them on Scala 2 is in progress.
+> are supported on Scala 3. The whitelisted set above is the **final, stable**
+> Scala 2 contract for the standard strict collections; positions outside it are
+> intentionally unsupported on Scala 2 (a custom collection, or `.await` inside an
+> arbitrary user lambda passed to a third-party HOF, cannot be rewritten without a
+> shift typeclass the Scala 2 macro deliberately does not depend on).
 >
 > Conversely, the Scala 2 macro is a strict superset for some guard shapes that
 > dotty-cps-async on Scala 3 currently rejects: *multiple* `List`
@@ -413,7 +426,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in `List` / `Option` / `Vector` / `Set` / `Map` `map`/`foreach`/`flatMap` closures and their for-comprehensions is supported everywhere; other HOF closures (and other collections) are Scala 3 only for now |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted Scala 2↔3 divergences (`Map.filter` Scala-2-only; `Option`/`Map.collect` Scala-3-only; `Option.find` not on Scala 2) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.unsafeRunAsync` / `Cancelable` | ✅ | ✅ | ✅        | ✅        | Non-blocking callback runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
