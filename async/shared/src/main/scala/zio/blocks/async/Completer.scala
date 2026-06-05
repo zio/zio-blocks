@@ -39,18 +39,27 @@ import scala.annotation.tailrec
  *   - an instance of [[Completer.WaitingMarker]] — a `poll` is parked on the
  *     wrapped `waker`. Allocated lazily on the first `poll` that arrives before
  *     `succeed`/`fail`.
+ *   - the [[Completer.NullValue]] sentinel — completed with a raw `null` value.
+ *     Needed because the `null` slot already means "empty"; handed back out as
+ *     a bare `null` (a ready value).
  *   - anything else — the completed value (boxed `A`) or a [[Failure]] for a
  *     failed completion. No wrapper allocation in the synchronous-completion
  *     hot path (the body completed the completer before `promise` peeked).
  */
 final class Completer[A] extends Pollable[A] {
-  import Completer.WaitingMarker
+  import Completer.{NullValue, WaitingMarker}
 
   // null = empty; WaitingMarker = waiting; anything else = the value (or Failure)
   private val state = new AtomicReference[AnyRef](null)
 
   /** Complete with a value. Idempotent (first call wins). */
-  def succeed(a: A): Unit = settle(a.asInstanceOf[AnyRef])
+  def succeed(a: A): Unit = {
+    val v = a.asInstanceOf[AnyRef]
+    // A raw `null` value must be stored as the `NullValue` sentinel: storing
+    // plain `null` would collide with the empty state, so `compareAndSet(null,
+    // null)` would be a silent no-op and the completer would never settle.
+    settle(if (v == null) NullValue else v)
+  }
 
   /**
    * Complete with a failure. Idempotent (first call wins). Stored as a
@@ -82,7 +91,8 @@ final class Completer[A] extends Pollable[A] {
       // Re-poll with a (possibly new) waker: replace the waiter.
       if (state.compareAndSet(s, new WaitingMarker(waker))) this
       else poll(waker)
-    } else s.asInstanceOf[Async[A]] // settled: the value (or Failure)
+    } else if (s eq NullValue) null.asInstanceOf[Async[A]] // settled with a raw null
+    else s.asInstanceOf[Async[A]]                          // settled: the value (or Failure)
   }
 
   /**
@@ -98,6 +108,7 @@ final class Completer[A] extends Pollable[A] {
   def peek: Async[A] = {
     val s = state.get
     if (s == null || s.isInstanceOf[WaitingMarker]) this
+    else if (s eq NullValue) null.asInstanceOf[Async[A]]
     else s.asInstanceOf[Async[A]]
   }
 }
@@ -110,4 +121,12 @@ private[async] object Completer {
    * arrives before completion — the sync-complete hot path never sees it.
    */
   final class WaitingMarker(val waker: Waker)
+
+  /**
+   * Sentinel stored in the state slot for a completion with a raw `null` value,
+   * distinguishing "completed with null" from the empty (`null`) state. Never
+   * escapes the completer: [[Completer.poll]] / [[Completer.peek]] hand it back
+   * out as a bare `null` (a ready value).
+   */
+  private[async] val NullValue: AnyRef = new AnyRef
 }

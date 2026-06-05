@@ -121,7 +121,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
       test("pending input that fails short-circuits f") {
         val (c, fa) = pending[Int]
         var ran     = false
-        val fm = fa.flatMap { v =>
+        val fm      = fa.flatMap { v =>
           ran = true; Async.succeed(v)
         }
         val r1 = pollOnce(fm)
@@ -148,10 +148,10 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         assertTrue(outcome(driveToEnd(r2)) == Right(7))
       },
       test("pending input that fails, handler returns another failure") {
-        val (c, fa)   = pending[Int]
-        val boom2     = new RuntimeException("boom2")
-        val ca        = fa.catchAll(_ => Async.fail(boom2))
-        val r1        = pollOnce(ca)
+        val (c, fa) = pending[Int]
+        val boom2   = new RuntimeException("boom2")
+        val ca      = fa.catchAll(_ => Async.fail(boom2))
+        val r1      = pollOnce(ca)
         c.fail(boom)
         assertTrue(outcome(driveToEnd(r1)) == Left(boom2))
       },
@@ -210,7 +210,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         assertTrue(outcome(driveToEnd(r1)) == Right(11), seen == 11)
       },
       test("pending input, tap effect itself is pending then completes") {
-        val (c1, fa) = pending[Int]
+        val (c1, fa)  = pending[Int]
         val (c2, eff) = pending[Unit]
         val t         = fa.tap(_ => eff)
         val r1        = pollOnce(t)
@@ -260,6 +260,39 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         val r1      = pollOnce(e)
         c.succeed(3)
         assertTrue(outcome(driveToEnd(r1)) == Right(3))
+      },
+      test("a null-resolved input is not re-polled while the finalizer is pending (regression)") {
+        // `EnsuringPollable.outcome` must use a `NotResolved` sentinel, not raw
+        // `null`: a `pa` that resolves to `null` would otherwise be re-read as
+        // "still pending" and re-polled on every later poll (here, fatally).
+        var paPolls           = 0
+        val pa: Async[String] = new Pollable[String] {
+          def poll(w: Waker): Async[String] = {
+            paPolls += 1
+            if (paPolls == 1) { w.wake(); this }
+            else if (paPolls == 2) null.asInstanceOf[Async[String]]
+            else Async.fail(new RuntimeException("pa re-polled after completion"))
+          }
+        }
+        val (c2, fin) = pending[Unit]
+        val e         = pa.ensuring(fin)
+        val r1        = pollOnce(e)  // pa pending
+        val r2        = pollOnce(r1) // pa -> null; finalizer now pending
+        c2.succeed(())
+        val settled = driveToEnd(r2)
+        assertTrue(outcome(settled) == Right(null), paPolls == 2)
+      }
+    ),
+    suite("Completer (null completion)")(
+      test("a completer settled with null after a poll resolves to a ready null (regression)") {
+        // `succeed(null)` settling a parked waiter must store the `NullValue`
+        // sentinel; storing raw `null` would reset the slot to empty, so the
+        // re-poll would re-register a waiter and never observe completion.
+        val (c, fa) = pending[String]
+        val r1      = pollOnce(fa) // registers a parked waiter
+        c.succeed(null)
+        val settled = driveToEnd(r1)
+        assertTrue(!isPending(settled), outcome(settled) == Right(null))
       }
     ),
     suite("derived combinators over pending inputs")(
@@ -319,7 +352,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         val outer    = inner.flatMap(v => Async.succeed(v + 1))
         var cur      = pollOnce(outer) // pending
         c1.succeed(1)
-        cur = pollOnce(cur)            // inner latches stage = c2; still pending
+        cur = pollOnce(cur) // inner latches stage = c2; still pending
         c2.succeed(10)
         assertTrue(outcome(driveToEnd(cur)) == Right(11))
       },
@@ -330,7 +363,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         val outer    = inner.flatMap(v => Async.succeed(v + 1))
         var cur      = pollOnce(outer)
         c1.fail(boom)
-        cur = pollOnce(cur)            // handler fired, stage = c2; still pending
+        cur = pollOnce(cur) // handler fired, stage = c2; still pending
         c2.succeed(10)
         assertTrue(outcome(driveToEnd(cur)) == Right(11))
       }
@@ -342,7 +375,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         val z        = fa.zipWith(fb)(_ + _)
         var cur      = pollOnce(z) // both pending
         c1.succeed(3)
-        cur = pollOnce(cur)        // fa done; fb still pending -> returns this
+        cur = pollOnce(cur) // fa done; fb still pending -> returns this
         c2.succeed(4)
         assertTrue(outcome(driveToEnd(cur)) == Right(7))
       }
@@ -371,7 +404,7 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
     ),
     suite("Completer state machine")(
       test("re-poll while waiting replaces the registered waker") {
-        val c = new Completer[Int]
+        val c              = new Completer[Int]
         val r1: Async[Int] = c.poll(noWaker) // null -> WaitingMarker
         val r2: Async[Int] = c.poll(noWaker) // WaitingMarker -> replace
         assertTrue(isPending(r1), isPending(r2)) && {

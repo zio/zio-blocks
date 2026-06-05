@@ -35,6 +35,14 @@ import zio.blocks.async.internal.PlatformAsync
 private[async] object AsyncSlowPath {
 
   /**
+   * Sentinel for [[EnsuringPollable]]'s `outcome` slot meaning "`pa` has not
+   * yet resolved". A raw `null` cannot be used: `pa` may legitimately resolve
+   * to a `null` value, which would otherwise be re-read as "still pending"
+   * forever.
+   */
+  private val NotResolved: AnyRef = new AnyRef
+
+  /**
    * Slow-path implementation of `Async#map` when the input is suspended (or
    * failed). A [[Failure]] is propagated unchanged; any other [[Pollable]] is
    * wrapped in a continuation pollable.
@@ -251,14 +259,14 @@ private[async] object AsyncSlowPath {
    */
   private final class EnsuringPollable[A](pa: Pollable[A], finalizer: Async[Any]) extends Pollable[A] {
 
-    // null while pa is still pending; otherwise holds the resolved Async[A]
-    // (which is either a raw value or a Failure).
-    private var outcome: Any = null
+    // NotResolved while pa is still pending; otherwise holds the resolved
+    // Async[A] (which is either a raw value — possibly null — or a Failure).
+    private var outcome: Any = NotResolved
     // null until we start driving the finalizer; then holds its current state.
     private var finSt: Any = null
 
     def poll(w: Waker): Async[A] = {
-      if (outcome == null) {
+      if (outcome.asInstanceOf[AnyRef] eq NotResolved) {
         val next = pa.poll(w)
         if (next.isInstanceOf[Pollable[?]] && !next.isInstanceOf[Failure])
           return this // still pending; pa re-armed waker

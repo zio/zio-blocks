@@ -117,6 +117,12 @@ object AsyncSpec extends ZIOSpecDefault {
           .block
         assertTrue(r == 1)
       },
+      test("synchronous completion with a null value resolves to null (regression: null sentinel)") {
+        // `succeed(null)` must store the `NullValue` sentinel, not a raw `null`
+        // (which collides with the empty state, so the completer never settles).
+        val r = Async.promiseInternal[String](c => c.succeed(null)).block
+        assertTrue(r == null)
+      },
       test("completion that happens during poll (waker-driven) resumes") {
         // A pollable that delays completion by a few polls, each time waking
         // synchronously. The scheduler must keep looping until done.

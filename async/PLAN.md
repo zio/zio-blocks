@@ -360,6 +360,20 @@ phase across the cells supported by that phase.
   microtask) suspends and resumes through the macro-generated `flatMap` chain
   via `AsyncInterop.toFuture` without `.block`.
 
+- **Correctness — null-completion fix:** ✅ Two slow paths overloaded `null` as
+  a "pending"/"empty" sentinel, so a value that legitimately resolved to `null`
+  misfired. Fixed with dedicated sentinels: `Completer` stores a `NullValue`
+  sentinel for `succeed(null)` (a raw `null` collided with the empty state, so
+  `compareAndSet(null, null)` was a no-op and the completer never settled), and
+  `EnsuringPollable` initializes `outcome` to a `NotResolved` sentinel (a `pa`
+  resolving to `null` was otherwise re-read as pending and re-polled forever —
+  fatal for a one-shot leaf, and it reset finalizer progress). Both handed back
+  out as a bare `null` (a ready value). Three deterministic, cross-platform
+  regression tests added (`AsyncSpec` sync path; `AsyncSuspendedSpec` parked-waiter
+  and pending-finalizer paths). Satisfies streams-module requirement #3
+  (`streams/ASYNC-MODULE-REQUIREMENTS.md`). All six cells green; Scala 3.8.3 JVM
+  coverage 93.55% stmt / 91.95% branch.
+
 - **Phase 5c (HOF-closure awaits):** 🚧 In progress — `List.map` / `List.foreach`
   / `List.flatMap` landed (commits `cca71275`, `05a1f6c6`, `6ae8b458`). `.await`
   inside these `List` HOF closures is supported on **all six cells**, with the
