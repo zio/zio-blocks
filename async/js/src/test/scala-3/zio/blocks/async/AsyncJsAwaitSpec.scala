@@ -301,6 +301,40 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("foldLeft over a Vector receiver") {
       val prog = Async.async(Vector(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+    },
+    test("List.filter keeps matching elements") {
+      val prog = Async.async(List(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(2, 4)))
+    },
+    test("List.filterNot keeps non-matching elements") {
+      val prog = Async.async(List(1, 2, 3, 4).filterNot(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(1, 3)))
+    },
+    test("filter is lazy: a failing await short-circuits the remaining elements") {
+      var seen = List.empty[Int]
+      val prog = Async.async {
+        List(1, 2, 3).filter { i =>
+          seen = i :: seen
+          if (i == 2) (Async.fail(Boom).await: Boolean) else Async.succeed(i % 2 == 1).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
+    },
+    test("Vector.filter preserves the Vector type") {
+      val prog = Async.async(Vector(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(2, 4)))
+    },
+    test("Set.filter preserves the Set type") {
+      val prog = Async.async(Set(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(2, 4)))
+    },
+    test("Option.filter over a Some that matches keeps it") {
+      val prog = Async.async(Option(4).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(4)))
+    },
+    test("Option.filter over a Some that fails the predicate yields None") {
+      val prog = Async.async(Option(3).filter(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
     }
   )
 }

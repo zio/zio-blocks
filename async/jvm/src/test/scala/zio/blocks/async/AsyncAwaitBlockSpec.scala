@@ -710,6 +710,66 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
         }.block
         assertTrue(r == 6)
       }
+    ),
+    // `.await` inside a `filter` / `filterNot` predicate. **Lazy / sequential**
+    // on every backend (the predicate for element n+1 runs only after element
+    // n's await completes; a failed await short-circuits the rest), and the
+    // result **collection type is preserved**. `filter` keeps elements whose
+    // predicate is `true`, `filterNot` those whose predicate is `false`.
+    suite("filter / filterNot with .await in the predicate")(
+      test("List.filter keeps matching elements, preserving order") {
+        val r = Async.async(List(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == List(2, 4))
+      },
+      test("List.filter over genuinely-pending awaits") {
+        val r = Async.async(List(1, 2, 3, 4).filter(i => pending(i % 2).await == 0)).block
+        assertTrue(r == List(2, 4))
+      },
+      test("List.filterNot keeps non-matching elements") {
+        val r = Async.async(List(1, 2, 3, 4).filterNot(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == List(1, 3))
+      },
+      test("filter is lazy: a failing await short-circuits the remaining elements") {
+        var seen = List.empty[Int]
+        val a    = Async.async {
+          List(1, 2, 3).filter { i =>
+            seen = i :: seen
+            if (i == 2) (Async.fail(Boom).await: Boolean) else Async.succeed(i % 2 == 1).await
+          }
+        }
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom), seen == List(2, 1))
+      },
+      test("Vector.filter preserves the Vector type") {
+        val r = Async.async(Vector(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == Vector(2, 4))
+      },
+      test("Set.filter preserves the Set type") {
+        val r = Async.async(Set(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == Set(2, 4))
+      },
+      test("Option.filter over a Some that matches keeps it") {
+        val r = Async.async(Option(4).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == Some(4))
+      },
+      test("Option.filter over a Some that fails the predicate yields None") {
+        val r = Async.async(Option(3).filter(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == None)
+      },
+      test("Option.filterNot over a Some inverts the predicate") {
+        val r = Async.async(Option(3).filterNot(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == Some(3))
+      },
+      test("Option.filter over a None short-circuits (predicate never runs)") {
+        var ran = false
+        val r   = Async.async {
+          (None: Option[Int]).filter { i => ran = true; Async.succeed(i % 2 == 0).await }
+        }.block
+        assertTrue(r == None, !ran)
+      }
+      // NOTE: `Map.filter`/`filterNot` with `.await` is a Scala-2-only superset
+      // — dotty-cps-async has no working `MapOpsAsyncShift.filter` and crashes —
+      // so it is covered (Scala 2 only) in `AsyncAwaitScala2HofSpec`.
     )
     // NOTE: `val`-type-ascription preservation is a Scala-2-macro-specific
     // behavior and lives in `AsyncAwaitValAscriptionSpec` (scala-2 only). On

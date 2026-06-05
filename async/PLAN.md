@@ -534,13 +534,30 @@ phase across the cells supported by that phase.
   from the element type, an awaited initial accumulator, an empty receiver, lazy
   failure short-circuiting, and a `Vector` receiver.
 
-  Remaining 5c: predicate HOFs that return the collection type
-  (`filter`/`filterNot`/`takeWhile`/`dropWhile` — need the per-kind builder),
-  `collect` (PartialFunction literal — not a `Function1`, needs new extraction),
-  the remaining folds (`foldRight`/`reduce` — two-arg closures), and more
-  collections (`Array` — needs `ClassTag`; `Queue`, `ArraySeq`, …). Per oracle
-  review, `Array` is a distinct later pass (different builder/result shape
-  concerns).
+  **`filter` / `filterNot` landed.** `.await` inside the `A => Boolean`
+  predicate of `filter` / `filterNot` is supported with **lazy / sequential**
+  semantics and **result-collection-type preservation** (probed on all three
+  Scala 3 backends first — List/Vector/Set/Option all lazy, failing-await
+  short-circuit, collection type preserved — then the Scala 2 macro conformed).
+  Added to `supportedHofMethods`; the macro reuses the builder-drain pattern
+  (`emitFilterLike`: drains the iterator, evaluates the awaiting predicate
+  sequentially, appends the SOURCE element — not the predicate result — into the
+  receiver's own `iterableFactory`/`mapFactory` builder) plus a single-element
+  `Some`/`None` emit for `Option` (`emitOptionFilter`), dispatched by
+  `emitFilter`. Supported on **all six cells** for `List`/`Vector`/`Set`/
+  `Option`. **Divergence:** `Map.filter`/`filterNot` is a **Scala-2-only
+  superset** — dotty-cps-async has no working `MapOpsAsyncShift.filter` (it
+  crashes the macro on Scala 3, verified), so it is covered Scala-2-only in
+  `AsyncAwaitScala2HofSpec` (the Scala 2 macro handles it via the generic
+  `mapFactory` builder path).
+
+  Remaining 5c: `takeWhile` / `dropWhile` (collection-preserving prefix
+  predicates — DCA-confirmed lazy/sequential; `dropWhile` has a two-phase
+  drop-then-keep-all shape), `collect` (PartialFunction literal — not a
+  `Function1`, needs new extraction), the remaining folds (`foldRight`/`reduce`
+  — two-arg closures), and more collections (`Array` — needs `ClassTag`;
+  `Queue`, `ArraySeq`, …). Per oracle review, `Array` is a distinct later pass
+  (different builder/result shape concerns).
 
 - **Benchmark gate (§8):** ✅ Complete for the JVM Scala 3 (DCA) cell.
   Added `AsyncBlockBench`, `AsyncBlockHybridBench`, and `AsyncBlockClosureBench`

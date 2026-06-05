@@ -79,6 +79,24 @@ object AsyncAwaitScala2HofSpec extends ZIOSpecDefault {
       }.block
       assertTrue(r == None)
     },
+    // `Map.filter` / `Map.filterNot` with `.await` in the predicate is a
+    // Scala-2-only superset: dotty-cps-async has no working
+    // `MapOpsAsyncShift.filter` and crashes the macro on Scala 3, whereas the
+    // Scala 2 macro drains the map's entries and rebuilds via `mapFactory`.
+    // (`List`/`Vector`/`Set`/`Option` `filter` work on all six cells and are
+    // covered cross-version/cross-platform.)
+    test("Map.filter over entries preserves the Map — Scala 2 only") {
+      val r = Async.async {
+        Map(1 -> 10, 2 -> 20, 3 -> 30).filter { case (_, v) => Async.succeed(v > 10).await }
+      }.block
+      assertTrue(r == Map(2 -> 20, 3 -> 30))
+    },
+    test("Map.filterNot over entries preserves the Map — Scala 2 only") {
+      val r = Async.async {
+        Map(1 -> 10, 2 -> 20, 3 -> 30).filterNot { case (_, v) => Async.succeed(v > 10).await }
+      }.block
+      assertTrue(r == Map(1 -> 10))
+    },
     // The Scala 2 macro matches `foldLeft` syntactically by method name, so it
     // validates the receiver kind in the typed pass and rejects an awaiting
     // `foldLeft` over a non-whitelisted receiver (here `Iterator`, a one-shot

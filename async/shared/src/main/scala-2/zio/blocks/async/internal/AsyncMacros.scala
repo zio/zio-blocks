@@ -133,7 +133,8 @@ private[async] object AsyncMacros {
     //
     // Supported HOFs are whitelisted by method name here AND validated by
     // receiver type in `hofElemTypes` (typed pass).
-    val supportedHofMethods: Set[String] = Set("map", "foreach", "flatMap", "find", "exists", "forall")
+    val supportedHofMethods: Set[String] =
+      Set("map", "foreach", "flatMap", "find", "exists", "forall", "filter", "filterNot")
 
     /**
      * Single-argument function literal, unwrapping a `Block(Nil, Function)`
@@ -1015,6 +1016,131 @@ private[async] object AsyncMacros {
       asyncBind(loop)(k)
     }
 
+    /**
+     * Rewrite a result-collection-preserving predicate filter — `filter` /
+     * `filterNot` — whose `A => Boolean` closure body contains `.await`, for a
+     * builder-backed receiver (`List` / `Vector` / immutable `Set` / `Map`),
+     * then continue with `k`. **Lazy / sequential** on every backend (verified
+     * empirically): the predicate for element `n+1` runs only after element
+     * `n`'s `.await` completes, and a failed await short-circuits the rest. The
+     * SOURCE element (not the predicate result) is accumulated into the
+     * receiver's own `builder` (so the collection family is preserved —
+     * `iterableFactory.newBuilder` for `List`/`Vector`/`Set`, `mapFactory` for
+     * `Map`); `negate` selects `filterNot` (keep when the predicate is
+     * `false`).
+     *
+     * `elemTpt` is the SOURCE element type (for `Map`, the entry tuple
+     * `(K, V)`) — `filter` does not transform elements, so the result element
+     * type equals the source element type; `resTpt` is the full result
+     * collection type, the recursive drain `def`'s return type.
+     */
+    def emitFilterLike(
+      recvVal: Tree,
+      pname: TermName,
+      fbody: Tree,
+      negate: Boolean,
+      elemTpt: Tree,
+      resTpt: Tree,
+      builder: Tree
+    )(k: Tree => Tree): Tree = {
+      val drain               = fresh("drainFilter$")
+      val it                  = fresh("it$")
+      val bld                 = fresh("bld$")
+      val r0                  = fresh("r$")
+      val bn                  = fresh("b$")
+      val bodyA               = transform(fbody)(pureReturn)
+      def keep(b: Tree): Tree = if (negate) q"!$b" else b
+      val whileBody           = q"""
+        {
+          while ($it.hasNext) {
+            val $pname: $elemTpt = $it.next()
+            val $r0: Any         = $bodyA
+            if ($r0.isInstanceOf[$Pollable]) {
+              return $OpsObj($r0.asInstanceOf[_root_.zio.blocks.async.Async[_root_.scala.Boolean]])
+                .flatMap { ($bn: _root_.scala.Boolean) =>
+                  if (${keep(q"$bn")}) $bld += $pname
+                  $drain()
+                }
+            }
+            if (${keep(q"$r0.asInstanceOf[_root_.scala.Boolean]")}) $bld += $pname
+          }
+          $AsyncObj.succeed($bld.result())
+        }
+      """
+      val loop = q"""
+        {
+          val $it  = $recvVal.iterator
+          val $bld = $builder
+          def $drain(): _root_.zio.blocks.async.Async[$resTpt] = ${safe(whileBody)}
+          $drain()
+        }
+      """
+      asyncBind(loop)(k)
+    }
+
+    /**
+     * Rewrite `recvVal.filter` / `recvVal.filterNot` for an `Option` receiver,
+     * producing `Async[Option[A]]`, then continue with `k`. An `Option` holds
+     * at most one element: `None` short-circuits to `Async.succeed(None)` (the
+     * predicate never runs); `Some(x)` runs the CPS-transformed predicate and
+     * keeps `Some(x)` when it matches (`negate` selects `filterNot`), else
+     * `None`. Matches all three Scala 3 backends.
+     */
+    def emitOptionFilter(recvVal: Tree, pname: TermName, fbody: Tree, negate: Boolean, elemTpt: Tree)(
+      k: Tree => Tree
+    ): Tree = {
+      val bn                  = fresh("b$")
+      val bodyA               = transform(fbody)(pureReturn)
+      def keep(b: Tree): Tree = if (negate) q"!$b" else b
+      val noneOpt             = q"(_root_.scala.None: _root_.scala.Option[$elemTpt])"
+      val someBranch          = q"""
+        { val $pname: $elemTpt = $recvVal.get
+          $OpsObj($bodyA).map { ($bn: _root_.scala.Boolean) =>
+            if (${keep(q"$bn")}) (_root_.scala.Some($pname): _root_.scala.Option[$elemTpt]) else $noneOpt
+          }
+        }
+      """
+      val resultAsync = q"""
+        if ($recvVal.isEmpty) $AsyncObj.succeed($noneOpt)
+        else $someBranch
+      """
+      asyncBind(safe(resultAsync))(k)
+    }
+
+    /**
+     * Dispatch a `filter` / `filterNot` rewrite by receiver kind: `Option` uses
+     * the single-element `Some`/`None` emit; every builder-backed receiver
+     * (`List` / `Vector` / `Set` / `Map`) uses [[emitFilterLike]] with the
+     * receiver's own factory (`mapFactory.newBuilder[K, V]` for a `Map`,
+     * `iterableFactory.newBuilder[A]` otherwise) so the collection family is
+     * preserved.
+     */
+    def emitFilter(
+      recvVal: Tree,
+      kind: String,
+      pname: TermName,
+      fbody: Tree,
+      negate: Boolean,
+      bTpe: Type,
+      resultTpe: Type
+    )(k: Tree => Tree): Tree = {
+      val bTpt: Tree = if (bTpe != null && bTpe != NoType) TypeTree(bTpe) else TypeTree()
+      if (kind == "option") emitOptionFilter(recvVal, pname, fbody, negate, bTpt)(k)
+      else {
+        val resTpt: Tree  = if (resultTpe != null && resultTpe != NoType) TypeTree(resultTpe) else TypeTree()
+        val builder: Tree =
+          if (
+            kind == "map" && resultTpe != null && resultTpe.baseType(MapSym) != NoType &&
+            resultTpe.typeArgs.lengthCompare(2) == 0
+          ) {
+            val k2 = TypeTree(resultTpe.typeArgs(0))
+            val v2 = TypeTree(resultTpe.typeArgs(1))
+            q"$recvVal.mapFactory.newBuilder[$k2, $v2]"
+          } else q"$recvVal.iterableFactory.newBuilder[$bTpt]"
+        emitFilterLike(recvVal, pname, fbody, negate, bTpt, resTpt, builder)(k)
+      }
+    }
+
     // ---- the transform ------------------------------------------------------
 
     def transformParts(parts: List[Tree])(rebuild: List[Tree] => Tree): Tree = {
@@ -1242,7 +1368,17 @@ private[async] object AsyncMacros {
                 transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "exists", resTpe)(k))
               case (_, "forall") =>
                 transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "forall", resTpe)(k))
-              case (_, "find")           => transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "find", resTpe)(k))
+              case (_, "find") => transform(recv0)(rv => emitPredicateScan(rv, param.name, fbody, "find", resTpe)(k))
+              // Result-collection-preserving predicate filters (`filter` /
+              // `filterNot`): receiver-kind-aware (Option vs builder-backed),
+              // dispatched inside `emitFilter`. Must precede the kind-specific
+              // catch-alls. The recorded element type `bTpe` is the SOURCE
+              // element type (filter does not transform), `resTpe` the result
+              // collection type.
+              case (_, "filter") =>
+                transform(recv0)(rv => emitFilter(rv, kind, param.name, fbody, negate = false, bTpe, resTpe)(k))
+              case (_, "filterNot") =>
+                transform(recv0)(rv => emitFilter(rv, kind, param.name, fbody, negate = true, bTpe, resTpe)(k))
               case ("option", "foreach") => transform(recv0)(rv => emitOptionForeach(rv, param.name, fbody)(k))
               case ("option", "flatMap") => transform(recv0)(rv => emitOptionFlatMap(rv, param.name, fbody, bTpe)(k))
               case ("option", _)         => transform(recv0)(rv => emitOptionMap(rv, param.name, fbody, bTpe)(k))

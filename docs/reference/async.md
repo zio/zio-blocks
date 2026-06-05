@@ -207,6 +207,14 @@ exactly):
   rest. The accumulator is threaded through and `foldLeft[B]` returns `B`
   directly (it may differ from the element type), so awaits in the initial
   accumulator are sequenced before the fold.
+- **`filter` / `filterNot`** (predicate `A => Boolean`): **lazy / sequential**
+  over a `List` / `Vector` / immutable `Set` / `Option` — the predicate for
+  element `n+1` runs only after element `n`'s await completes, and a failed
+  await short-circuits the rest. The result **collection type is preserved**
+  (`filter` keeps elements whose predicate is `true`, `filterNot` those whose
+  predicate is `false`). **Divergence:** `Map.filter` / `Map.filterNot` with
+  `.await` is a **Scala-2-only superset** — dotty-cps-async has no working
+  `MapOpsAsyncShift.filter` and rejects it on Scala 3.
 
 These are identical across Scala 2/3 and JVM/JS. Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these

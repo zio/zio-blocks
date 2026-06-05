@@ -391,6 +391,36 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog = Async.async(Vector(1, 2, 3).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
       }
+    ),
+    suite("filter / filterNot with .await in the predicate")(
+      test("List.filter keeps matching elements") {
+        val prog = Async.async(List(1, 2, 3, 4).filter(i => pending(i % 2).await == 0))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(2, 4)))
+      },
+      test("List.filterNot keeps non-matching elements") {
+        val prog = Async.async(List(1, 2, 3, 4).filterNot(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List(1, 3)))
+      },
+      test("Vector.filter preserves the Vector type") {
+        val prog = Async.async(Vector(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Vector(2, 4)))
+      },
+      test("Set.filter preserves the Set type") {
+        val prog = Async.async(Set(1, 2, 3, 4).filter(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Set(2, 4)))
+      },
+      test("Map.filter over entries preserves the Map") {
+        val prog = Async.async(Map(1 -> 10, 2 -> 20, 3 -> 30).filter { case (_, v) => Async.succeed(v > 10).await })
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Map(2 -> 20, 3 -> 30)))
+      },
+      test("Option.filter over a Some that matches keeps it") {
+        val prog = Async.async(Option(4).filter(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(4)))
+      },
+      test("Option.filter over a Some that fails the predicate yields None") {
+        val prog = Async.async(Option(3).filter(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+      }
     )
   )
 }
