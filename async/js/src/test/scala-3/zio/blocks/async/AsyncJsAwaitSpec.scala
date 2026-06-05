@@ -280,6 +280,14 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val prog = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await })
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some((2, 20))))
     },
+    test("Option.find returns the value when the predicate matches") {
+      val prog = Async.async(Option(4).find(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(4)))
+    },
+    test("Option.find returns None when the predicate fails") {
+      val prog = Async.async(Option(3).find(i => Async.succeed(i % 2 == 0).await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
+    },
     test("foldLeft threads the accumulator over awaits") {
       val prog = Async.async(List(1, 2, 3, 4).foldLeft(0)((acc, x) => acc + Async.succeed(x).await))
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 10))
@@ -386,7 +394,10 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     },
     test("reduce over an empty receiver fails with UnsupportedOperationException") {
       val prog = Async.async(List.empty[Int].reduce((acc, x) => acc + Async.succeed(x).await))
-      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e.left.exists(_.isInstanceOf[UnsupportedOperationException])))
+      ZIO
+        .fromFuture(_ => run(prog))
+        .either
+        .map(e => assertTrue(e.left.exists(_.isInstanceOf[UnsupportedOperationException])))
     },
     test("reduce: a failing await short-circuits the remaining elements") {
       var seen = List.empty[Int]
@@ -438,7 +449,7 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val prog = Async.async {
         List(1, 2, 3, 4, 5).collect {
           case i if i % 2 == 0 => Async.succeed(s"even$i").await
-          case i if i == 5     => Async.succeed("five").await
+          case i if i == 5 => Async.succeed("five").await
         }
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == List("even2", "even4", "five")))
@@ -454,10 +465,9 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("collect: a failing await in a matched body short-circuits the rest") {
       var seen = List.empty[Int]
       val prog = Async.async {
-        List(1, 2, 3).collect {
-          case i =>
-            seen = i :: seen
-            if (i == 2) (Async.fail(Boom).await: Int) else Async.succeed(i).await
+        List(1, 2, 3).collect { case i =>
+          seen = i :: seen
+          if (i == 2) (Async.fail(Boom).await: Int) else Async.succeed(i).await
         }
       }
       ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), seen == List(2, 1)))
@@ -473,7 +483,8 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.Queue(2, 4)))
     },
     test("Queue.foldLeft folds over a Queue receiver") {
-      val prog = Async.async(scala.collection.immutable.Queue(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
+      val prog =
+        Async.async(scala.collection.immutable.Queue(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
     },
     test("Queue.collect preserves the Queue type") {

@@ -653,6 +653,24 @@ object AsyncAwaitBlockSpec extends ZIOSpecDefault {
       test("Map.find over entries returns the matching pair") {
         val r = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await }).block
         assertTrue(r == Some((2, 20)))
+      },
+      test("Option.find returns the value when the predicate matches") {
+        val r = Async.async(Option(4).find(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == Some(4))
+      },
+      test("Option.find returns None when the predicate fails (Some)") {
+        val r = Async.async(Option(3).find(i => Async.succeed(i % 2 == 0).await)).block
+        assertTrue(r == None)
+      },
+      test("Option.find on None never runs the predicate") {
+        var ran = false
+        val r   = Async.async(Option.empty[Int].find { i => ran = true; Async.succeed(i % 2 == 0).await }).block
+        assertTrue(r == None, !ran)
+      },
+      test("Option.find propagates a failing await") {
+        val a      = Async.async(Option(1).find(_ => Async.fail(Boom).await))
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(Boom))
       }
     ),
     // `.await` inside a `foldLeft` op closure. A left fold is inherently

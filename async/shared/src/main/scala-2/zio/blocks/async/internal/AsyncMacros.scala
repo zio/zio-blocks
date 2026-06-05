@@ -415,6 +415,27 @@ private[async] object AsyncMacros {
     }
 
     /**
+     * Whether `t` is the implicit `scala.Option.option2Iterable(opt)` conversion
+     * applied to an `Option`. Scala 2's `Option` has no `find` of its own —
+     * `opt.find(p)` resolves through this conversion, so the typed receiver of
+     * the `find` call is `Iterable[A]`, which [[receiverKind]] (deliberately)
+     * does not whitelist. This recognizes JUST that conversion so `Option.find`
+     * can reach the receiver-kind-agnostic predicate-scan emitter (`.iterator`
+     * over a 0-or-1-element iterable, result `Option[A]`), matching the Scala 3
+     * DCA behavior. It is intentionally method-specific (only consulted for
+     * `find`): a broad `option2Iterable` whitelist would also admit `map` /
+     * `takeWhile` / `collect` through the conversion, whose `Iterable` result
+     * type would mismatch the `Option`-shaped rewrites.
+     */
+    def isOption2IterableApply(t: Tree): Boolean = t match {
+      case Apply(fun, List(arg)) =>
+        fun.symbol != null && fun.symbol != NoSymbol &&
+        fun.symbol.fullName == "scala.Option.option2Iterable" &&
+        arg.tpe != null && arg.tpe.dealias.widen <:< OptionAnyTpe
+      case _ => false
+    }
+
+    /**
      * Whether `t` is an `Array[_]` static type — used to pick `Array.newBuilder`
      * (which needs a `ClassTag`) over `iterableFactory.newBuilder` for the
      * result-building HOFs (`filter` / `takeWhile` / `collect`) whose recorded
@@ -547,15 +568,21 @@ private[async] object AsyncMacros {
       lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
           case TypedHofMap(recv, m, fn) =>
-            val kind = receiverKind(recv).getOrElse(
-              c.abort(
-                tt.pos,
-                "`.await` inside a higher-order-function closure is currently supported only for `List`, " +
-                  "`Option`, `Vector`, `Array`, immutable `Set`, immutable `Queue` / `ArraySeq`, and immutable `Map` " +
-                  "(and for-comprehension guards over them) in the Scala 2 `Async.async` macro (other collections " +
-                  "coming); convert the receiver to one of those first, or bind the awaited values before the lambda."
+            val kind = receiverKind(recv)
+              .orElse {
+                // `Option.find` resolves through `option2Iterable`; admit it as
+                // an `"option"` receiver (find is receiver-kind-agnostic at emit).
+                if (m == "find" && isOption2IterableApply(recv)) Some("option") else None
+              }
+              .getOrElse(
+                c.abort(
+                  tt.pos,
+                  "`.await` inside a higher-order-function closure is currently supported only for `List`, " +
+                    "`Option`, `Vector`, `Array`, immutable `Set`, immutable `Queue` / `ArraySeq`, and immutable `Map` " +
+                    "(and for-comprehension guards over them) in the Scala 2 `Async.async` macro (other collections " +
+                    "coming); convert the receiver to one of those first, or bind the awaited values before the lambda."
+                )
               )
-            )
             // Prefix-ordered HOFs (`takeWhile` / `dropWhile`) are only meaningful
             // on an ordered receiver; reject unordered `Set` / `Map` / `Option`
             // here (typed pass) so the position points at the offending call.

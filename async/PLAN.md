@@ -506,11 +506,13 @@ phase across the cells supported by that phase.
   kind-specific catch-alls) drains the iterator with a tight `while`, short-circuits
   at the first decisive element (`exists`→first `true`, `forall`→first `false`,
   `find`→first match as `Some`/else `None`), and switches to a `flatMap`
-  continuation on the first suspended predicate. **Known Scala-2 gap:**
-  `Option.find` resolves via the `Option`→`Iterable` implicit conversion (whose
-  converted receiver is not whitelisted), so it is rejected on Scala 2 —
-  `Option.exists`/`forall` work directly, and `find` works over
-  `List`/`Vector`/`Set`/`Map`; documented in the tests and reference doc.
+  continuation on the first suspended predicate. **`Option.find` parity closed
+  on Scala 2:** it resolves via the `Option`→`Iterable` implicit conversion
+  (`scala.Option.option2Iterable`, whose converted receiver is not whitelisted),
+  so the typed validation explicitly recognizes that one conversion and admits
+  `find` as an `"option"` receiver (the untyped transform already matched the
+  HOF shape and `emitPredicateScan` is receiver-kind-agnostic via `.iterator`).
+  `Option.exists`/`forall`/`find` now all work on every cell.
 
   **`foldLeft` landed.** `.await` inside the two-arg op `(B, A) => B` of
   `foldLeft(z)(op)` is supported on **all six cells** (Scala 3 DCA-JVM /

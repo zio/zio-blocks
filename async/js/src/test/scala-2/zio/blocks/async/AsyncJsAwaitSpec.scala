@@ -362,6 +362,14 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       test("Map.find over entries returns the matching pair") {
         val prog = Async.async(Map(1 -> 10, 2 -> 20).find { case (_, v) => Async.succeed(v == 20).await })
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some((2, 20))))
+      },
+      test("Option.find returns the value when the predicate matches") {
+        val prog = Async.async(Option(4).find(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Some(4)))
+      },
+      test("Option.find returns None when the predicate fails") {
+        val prog = Async.async(Option(3).find(i => Async.succeed(i % 2 == 0).await))
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == None))
       }
     ),
     suite("foldLeft with .await in the op closure")(

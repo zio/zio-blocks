@@ -216,10 +216,10 @@ positions diverge between Scala 2 and Scala 3 — those are called out explicitl
   `A => Boolean`): **lazy / sequential** over any whitelisted receiver — the
   predicate for element `n+1` runs only after element `n`'s await completes, and
   the scan stops at the first decisive element (`exists` → first `true`; `forall`
-  → first `false`; `find` → first matching element as `Some`, else `None`). Note
-  that `Option.find` is *not* covered on Scala 2 (it resolves via the
-  `Option`→`Iterable` implicit conversion, whose receiver is not whitelisted);
-  use `Option.exists`/`forall`, or `find` over a `List`/`Vector`/`Set`/`Map`.
+  → first `false`; `find` → first matching element as `Some`, else `None`).
+  `Option.find` is covered on every cell too — on Scala 2 it resolves via the
+  `Option`→`Iterable` implicit conversion, which the macro recognizes specifically
+  for `find`.
 - **`foldLeft`** (op `(B, A) => B`): **lazy / sequential** over any whitelisted
   receiver via `.iterator` — a left fold is inherently sequential (element
   `n+1`'s op needs `n`'s accumulator), so the op for element `n+1` runs only
@@ -271,8 +271,7 @@ positions diverge between Scala 2 and Scala 3 — those are called out explicitl
 
 These behave identically across Scala 2/3 and JVM/JS **except** for the handful of
 positions flagged **Divergence** above (`Map.filter` / `filterNot` is a
-Scala-2-only superset; `Option` / `Map.collect` is Scala-3-only; `Option.find` is
-not covered on Scala 2). Because Scala desugars
+Scala-2-only superset; `Option` / `Map.collect` is Scala-3-only). Because Scala desugars
 for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
 methods,
 single- and multi-generator `for` comprehensions with `.await` work too
@@ -426,7 +425,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted Scala 2↔3 divergences (`Map.filter` Scala-2-only; `Option`/`Map.collect` Scala-3-only; `Option.find` not on Scala 2) — see the HOF section above |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted Scala 2↔3 divergences (`Map.filter` Scala-2-only; `Option`/`Map.collect` Scala-3-only) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.unsafeRunAsync` / `Cancelable` | ✅ | ✅ | ✅        | ✅        | Non-blocking callback runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
