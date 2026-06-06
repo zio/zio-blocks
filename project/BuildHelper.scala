@@ -8,8 +8,8 @@ import scoverage.ScoverageKeys._
 object BuildHelper {
   val Scala213: String    = "2.13.18"
   val Scala33: String     = "3.3.7" // LTS
-  val Scala3: String      = "3.8.3"
-  val Scala3Golem: String = "3.8.3" // Golem macros use experimental APIs (Symbol.newClass etc.)
+  val Scala3: String      = "3.8.4"
+  val Scala3Golem: String = "3.8.4" // Golem macros use experimental APIs (Symbol.newClass etc.)
 
   def removeOptionWithValue(options: Seq[String], option: String): Seq[String] =
     options
