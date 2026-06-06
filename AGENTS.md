@@ -118,7 +118,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Update AGENTS.md if you find errors or gaps
 - In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
 - Document new data types in `docs/`; update existing docs when behavior changes
-- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client generateReadme` to regenerate `README.md`.
+- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client docs/generateReadme` to regenerate `README.md`. (The `generateReadme` task is provided by `WebsitePlugin` on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
 
 ### Ask First
 - Adding dependencies (even test-only)
