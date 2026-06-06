@@ -154,6 +154,14 @@ preserve the zero-cost map/flatMap.
 
 ### The 3.8.4+ JS path (no DCA)
 
+> ⚠️ **Superseded sketch.** The as-built JS 3.8+ path does **not** use a
+> Promise-union encoding (`Async[+A] >: js.Promise[A]`) or JS-specific
+> `Completer`/`AsyncSlowPath`. It keeps the **shared `Pollable` encoding** and
+> bridges to native `js.async`/`js.await` via `toJsPromise`/`fromJsPromise`
+> (`js/.../scala-3.8/internal/AsyncDirect.scala`). The zero-allocation goal is
+> still met (ready values short-circuit with no Promise alloc). See §6
+> "Execution status (live)" → Phase 4 for the authoritative description.
+
 ```scala
 // JS-specific encoding
 type Async[+A] >: A | js.Promise[A] | Failure
@@ -197,6 +205,24 @@ This is multi-year work. Scoped narrowly to *our* `Async` monad — we never
 try to be generic over `F[_]`. That collapses 80% of DCA's complexity.
 
 ## 4. File layout
+
+> ⚠️ **This is the original design sketch, not the as-built layout.** The
+> authoritative record of what was actually built is the **"Execution status
+> (live)"** section under §6 (which explicitly supersedes this sketch). Notable
+> divergences that landed instead: `AsyncContext.scala` was deleted (the macro
+> approach needs no marker type); the Scala-3 cps typeclasses live in
+> `internal/AsyncCpsMonad.scala` (not `CpsTypeclasses.scala`); the JVM
+> `CpsRuntimeAwait[Async]` lives in `jvm/.../internal/AsyncRuntimeAwait.scala`;
+> and — most importantly — the **JS 3.8+ path reuses the shared `Pollable`
+> encoding plus a native `js.async`/`js.await` bridge** (`js/.../scala-3.8/
+> internal/AsyncDirect.scala` + `toJsPromise`/`fromJsPromise` in
+> `AsyncInterop`). The Promise-backed encoding sketched below (`Async[+A] >:
+> js.Promise[A]`, a JS `AsyncEncoding.scala` / `Completer.scala` /
+> `AsyncSlowPath.scala`) was **deliberately not built**: the as-built design
+> already meets the zero-allocation-per-`.await` goal (ready values
+> short-circuit with no Promise allocation; see §6 Phase 4 status), so a
+> separate Promise-backed representation would add platform-split complexity and
+> regression risk for no measured benefit.
 
 ```
 async/

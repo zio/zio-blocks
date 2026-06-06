@@ -415,6 +415,18 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         cur = pollOnce(cur) // finalizer latched, still pending
         c2.fail(boom)
         assertTrue(outcome(driveToEnd(cur)) == Right(5))
+      },
+      test("ready value, ensuring finalizer pending then fails is suppressed") {
+        // A ready `fa` routes ensuring through `runThenValue(..., suppressFailure
+        // = true)`, building a RunThenValuePollable. When its pending finalizer
+        // later fails, the failure is suppressed and the original value yielded
+        // (exercises RunThenValuePollable's `if (suppressFailure) a` arm, which
+        // the pending-input path via EnsuringPollable never reaches).
+        val (c, fin) = pending[Unit]
+        val e        = Async.succeed(5).ensuring(fin)
+        val r1       = pollOnce(e) // finalizer pending
+        c.fail(boom)
+        assertTrue(outcome(driveToEnd(r1)) == Right(5))
       }
     ),
     suite("Completer state machine")(

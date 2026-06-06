@@ -107,6 +107,32 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       worker.setDaemon(true)
       worker.start()
       assertTrue(fa.block == 7)
+    },
+    test("a throwing catch handler over a failed await surfaces as a monadic failure") {
+      // The continuation `f` applied by AsyncCpsMonad.flatMapTry throws (the
+      // handler re-raises), so flatMapTry's `try f(ta) catch { case t =>
+      // Async.fail(t) }` converts it into an Async failure rather than letting
+      // it escape — proving the DCA try/catch rewrite treats it monadically.
+      val boom1 = new RuntimeException("boom1")
+      val boom2 = new RuntimeException("boom2")
+      val fa    = Async.async {
+        try Async.fail(boom1).await
+        catch { case _: RuntimeException => throw boom2 }
+      }
+      assertTrue(scala.util.Try(fa.block).failed.toOption.contains(boom2))
+    },
+    test("a raw exception thrown by the post-await continuation inside try is recovered by the surrounding catch") {
+      // After the await, `require` throws a raw IllegalArgumentException in the
+      // post-await continuation. DCA's try-block machinery captures it and
+      // routes it to the surrounding `catch`, which recovers with 99.
+      val fa = Async.async {
+        try {
+          val a = Async.succeed(1).await
+          require(a == 2, "nope")
+          a
+        } catch { case _: IllegalArgumentException => 99 }
+      }
+      assertTrue(fa.block == 99)
     }
   )
 }
