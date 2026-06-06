@@ -18,15 +18,12 @@ package zio.blocks.async
 
 /**
  * Failure outcome of an [[Async]]. Constructed via [[Async.fail]] (or by
- * [[Completer.fail]]); consumed via the `.catchAll` / `.attempt` extensions or
+ * [[Completer.fail]], or captured from thrown code by [[Async.attempt]]);
+ * recovered via the `.catchAll` / `.mapError` / `.orElse` extensions or
  * surfaced as a thrown [[Throwable]] by `.block`.
  *
- * `Failure` extends `Pollable[Nothing]` so it fits the existing single
- * discriminator — every [[Async]] is either a raw value or a `Pollable`. The
- * suspended-vs-failed distinction is then made by a second
- * `isInstanceOf[Failure]` check on the slow path, keeping the value fast path
- * to a single `isInstanceOf[Pollable[?]]`. `poll` returns `this` (terminal):
- * once a leaf has failed, polling can only re-observe the same failure.
+ * A failure is terminal: once an [[Async]] has failed, it stays failed with the
+ * same `cause` unless a handler such as `.catchAll` recovers it.
  *
  * NOTE: errors thrown by user code inside `.map(f)` / `.flatMap(f)` are NOT
  * captured — `Async` is eager, so a `throw` in `f` escapes through the call

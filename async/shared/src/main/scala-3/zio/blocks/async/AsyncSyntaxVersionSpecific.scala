@@ -19,34 +19,23 @@ package zio.blocks.async
 import zio.blocks.combinators.Tuples.Tuples
 
 /**
- * Scala 3 surface for [[Async]]: `inline` extension methods on `Async[A]` and a
+ * Scala 3 surface for [[Async]]: extension methods on `Async[A]` and a
  * context-function `promise`/`succeed`/`fail` builder. Mixed into the `async`
  * package object so `import zio.blocks.async.*` exposes the full DSL.
  *
- * ==Zero-cost extensions==
+ * Failure propagation: a failed `Async` short-circuits `map` / `flatMap` /
+ * `zipWith` (the function is not invoked) and is intercepted by `catchAll`.
  *
- * Each extension is `inline` and every parameter is `inline`. The method body
- * folds the encoding itself — `if (fa.isInstanceOf[Pollable[?]])` — so the fast
- * path applies `f` directly to the raw value with NO `Function1` reification.
- *
- * Failure propagation: a [[Failure]] is a `Pollable[Nothing]`, so it goes to
- * the slow branch of every extension's `isInstanceOf[Pollable[?]]` check. The
- * slow path in [[AsyncSlowPath]] then checks `isInstanceOf[Failure]` first —
- * for `map` / `flatMap` it short-circuits past `f`, for `catchAll` it invokes
- * the handler. The hot value path remains a single `isInstanceOf`.
- *
- * Note: user exceptions thrown inside `f` are NOT caught (the encoding is
- * eager). Wrap throwing work in [[Async.attempt]] to surface it as a Failure.
+ * Note: exceptions thrown by the functions passed to these operators are NOT
+ * caught — wrap throwing work in [[Async.attempt]] to surface it as a failure.
  */
 private[async] trait AsyncSyntaxVersionSpecific {
 
   extension [A](inline fa: Async[A]) {
 
     /**
-     * Sequences `fa` with `f`. Fast path (raw value): `f` is inlined; no
-     * `Function1` is allocated. Slow path ([[Pollable]] including [[Failure]]):
-     * delegated to [[AsyncSlowPath.flatMapAsync]] which propagates failures and
-     * otherwise builds a continuation pollable.
+     * Sequence `fa` with `f`: when `fa` succeeds, continue with `f` applied to
+     * its value. A failure short-circuits and is propagated unchanged.
      */
     inline def flatMap[B](inline f: A => Async[B]): Async[B] = {
       val r: Any = fa
@@ -56,9 +45,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Maps `f` over `fa`. Fast path inlines `f` and casts the result back to
-     * the abstract `Async[B]` (no-op for reference types; a box for primitives,
-     * which HotSpot eliminates).
+     * Transform the success value of `fa` with `f`. A failure short-circuits
+     * and is propagated unchanged.
      */
     inline def map[B](inline f: A => B): Async[B] = {
       val r: Any = fa
@@ -68,11 +56,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Recover from a [[Failure]] by applying `f` to its cause. Fast path when
-     * `fa` is a value: returns `fa` unchanged (no handler invocation). Fast
-     * path when `fa` is a [[Failure]]: inlines the handler against the cause
-     * with no `Function1` allocation. Suspended path delegates to
-     * [[AsyncSlowPath.catchAllAsync]].
+     * Recover from a failure by applying `f` to its cause. A successful `fa` is
+     * returned unchanged (the handler is not invoked).
      */
     inline def catchAll[A1 >: A](inline f: Throwable => Async[A1]): Async[A1] = {
       val r: Any = fa
@@ -83,15 +68,14 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Drive `fa` to its value, blocking the calling thread if necessary. Fast
-     * path is a single unbox; slow path delegates to
-     * `AsyncSlowPath.awaitSuspended` which also throws on [[Failure]].
+     * Drive `fa` to its value, blocking the calling thread until it is ready. A
+     * failure is re-thrown as its cause.
      *
-     * This is the unsafe escape hatch: ready values return immediately, pending
-     * values block the (Loom-friendly) calling thread on the JVM, and on JS a
-     * genuinely-pending value throws (JavaScript cannot block). Inside an
-     * `Async.async { ... }` block use the direct-style [[await]] instead, which
-     * the macro rewrites into a non-blocking `flatMap` chain.
+     * This is the unsafe escape hatch: ready values return immediately; a
+     * pending value blocks the (Loom-friendly) calling thread on the JVM, and
+     * on JS — which cannot block — throws. Inside an `Async.async { ... }`
+     * block use the direct-style [[await]] instead, which runs without
+     * blocking.
      */
     inline def block: A = {
       val r: Any = fa
@@ -101,19 +85,16 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Direct-style await: extract the value of `fa` within an enclosing
-     * `Async.async { ... }` block. This is a marker — on its own it fails to
-     * compile (see [[zio.blocks.async.internal.AsyncDirect.awaitImpl]]); the
-     * `Async.async` macro rewrites every `.await` into a dotty-cps-async
-     * `cps.await`, producing a non-blocking `flatMap`/`map` chain. Using
-     * `.await` outside an `Async.async` block is therefore a compile error.
+     * Direct-style await: extract the value of `fa` without blocking, usable
+     * '''only''' directly inside an `Async.async { ... }` block. Using `.await`
+     * anywhere else is a compile error.
      */
     inline def await: A =
       ${ zio.blocks.async.internal.AsyncDirect.awaitImpl[A]('fa) }
 
     /**
-     * Sequentially combine `fa` with `that` using `f`. Fast path (both ready
-     * values): `f` is inlined; no `Function2`, no `Tuple2`, no `Pollable`.
+     * Combine `fa` with `that` using `f`. The two are sequenced; a failure on
+     * either side short-circuits and is propagated.
      */
     inline def zipWith[B, C](inline that: Async[B])(inline f: (A, B) => C): Async[C] = {
       val ra: Any = fa
@@ -134,9 +115,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
       zipWith(that)((a, b) => t.combine(a, b))
 
     /**
-     * Run `f` for side effects, propagating the original value. Equivalent to
-     * `fa.flatMap(a => f(a).map(_ => a))` but expressed directly so the fast
-     * path collapses to `f(a)`'s effect then `a`.
+     * Run `f` for its effect when `fa` succeeds, then yield `fa`'s original
+     * value. A failure in `fa` (or in `f`) is propagated.
      */
     inline def tap(inline f: A => Async[Any]): Async[A] = {
       val r: Any = fa

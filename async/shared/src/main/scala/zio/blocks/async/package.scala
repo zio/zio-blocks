@@ -17,45 +17,34 @@
 package zio.blocks
 
 /**
- * ZIO Blocks Async — a value-carrying (thunk-model) async runtime.
+ * ZIO Blocks Async — a lightweight asynchronous effect type.
  *
- * `Async[+A]` is encoded via an abstract type member ([[AsyncEncoding]]) whose
- * representation is `Any`. Callers cannot observe the rep (the encoding holder
- * is ascribed to its bare type below), so `A` is NOT a subtype of `Async[A]` —
- * values must enter the encoding through [[async.Async.succeed]], a
- * [[async.Pollable]], or [[async.Async.promise]]. Suspension is a `Pollable`
- * value, never thrown.
- *
- * All operations (`map` / `flatMap` / `await` / `promise` / `succeed` / `fail`)
- * live in the version-specific syntax (`AsyncSyntaxVersionSpecific`) mixed into
- * this package object. There is no separate runtime object: the extensions fold
- * the encoding inline via `isInstanceOf[Pollable[?]]` and delegate only the
- * slow path to `async.internal.AsyncSlowPath`.
+ * An `Async[A]` is a (possibly suspended) computation that eventually yields an
+ * `A` or fails with a [[Throwable]]. Create one with [[async.Async.succeed]],
+ * [[async.Async.fail]], [[async.Async.attempt]], or [[async.Async.promise]]; a
+ * bare `A` is not itself an `Async[A]`. Transform and combine values with the
+ * extension methods (`map`, `flatMap`, `catchAll`, `await`, ...) brought into
+ * scope by importing this package.
  *
  * ==Quick start==
  * {{{
  *   import zio.blocks.async._
  *
- *   // sync completion collapses to a bare Int
+ *   // completes immediately with 42
  *   val a: Async[Int] = Async.promise[Int](c => c.succeed(42))
  *
- *   // ops + await
+ *   // ops + block for the result
  *   val n: Int = a.map(_ + 1).block
  * }}}
  */
 package object async extends AsyncSyntaxVersionSpecific {
 
-  /**
-   * The encapsulated encoding instance. Ascribed to the bare [[AsyncEncoding]]
-   * type so the `= Any` representation stays hidden — this is the Scala-2
-   * module-pattern trick, and it works identically in Scala 3.
-   */
   private[async] val encoding: AsyncEncoding = AsyncEncoding.Instance
 
   /**
-   * A possibly-suspended computation that will eventually yield an `A`.
-   * `Pollable[A] <: Async[A]` is exposed via [[AsyncEncoding]]'s lower bound,
-   * so a pollable flows into an `Async[A]` position with no cast.
+   * A possibly-suspended computation that will eventually yield an `A` (or fail
+   * with a [[Throwable]]). A [[async.Pollable]] may be used wherever an
+   * `Async[A]` is expected.
    */
   type Async[+A] = encoding.Async[A]
 }

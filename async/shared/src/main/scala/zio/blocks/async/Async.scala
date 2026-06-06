@@ -21,41 +21,32 @@ import zio.blocks.async.internal.AsyncRunner
 /**
  * Constructors for [[Async]] values.
  *
- * The type `Async[+A]` is declared in the `async` package object via the
- * [[AsyncEncoding]] holder; the underlying representation (`Any`) is hidden, so
- * callers cannot rely on `A <: Async[A]` and must enter the union through
- * either [[succeed]], [[fail]], [[attempt]], a [[Pollable]], or [[promise]].
- *
- * No `map` / `flatMap` / `await` / `catchAll` here — those live as inline
- * extension methods on `Async[A]` (see `AsyncSyntaxVersionSpecific`), which
- * fold the encoding themselves so the hot path never allocates a `Function1`
- * wrapper.
+ * An `Async[A]` is created with one of [[succeed]], [[fail]], [[attempt]], or
+ * [[promise]] (a bare `A` is not itself an `Async[A]`). The transformation and
+ * combination operators (`map`, `flatMap`, `catchAll`, `await`, ...) become
+ * available as extension methods on `Async[A]` after importing
+ * `zio.blocks.async._`.
  */
 object Async extends AsyncCompanionVersionSpecific {
 
-  /**
-   * Lift a pure value into [[Async]]. Identity at runtime — the underlying
-   * representation is `Any`, so this just casts to the abstract type. The value
-   * is boxed if `A` is a primitive (unavoidable for any generic `Object`-erased
-   * API; HotSpot eliminates the box on the hot path).
-   */
+  /** Lift an already-available value into a successful [[Async]]. */
   def succeed[A](a: A): Async[A] = a.asInstanceOf[Async[A]]
 
   /**
-   * Lift a thrown [[Throwable]] into [[Async]]. The resulting value, when
-   * mapped / flatMapped, short-circuits without invoking the continuation;
-   * `.catchAll` recovers it; `.block` throws it.
+   * Create a failed [[Async]] carrying `cause`. A failed value short-circuits
+   * `map` / `flatMap` without invoking the continuation, is recoverable with
+   * `.catchAll`, and is re-thrown by `.block`.
    */
   def fail(cause: Throwable): Async[Nothing] = new Failure(cause)
 
   /**
-   * Evaluate `body` eagerly; convert any thrown [[Throwable]] into an
-   * [[Async.fail]]. The standard way to bridge throw-based code into the
-   * encoding so that `.catchAll` can see the error.
+   * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
+   * [[Async]] (see [[fail]]). The standard way to bridge throw-based code into
+   * `Async` so that `.catchAll` can recover the error.
    *
-   * Note: non-fatal vs. fatal distinction is intentionally omitted to keep the
-   * hot path lean. Callers that need fatal-error handling should rethrow from
-   * their handler.
+   * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
+   * distinction. Callers who want fatal errors to propagate should rethrow them
+   * from their recovery handler.
    */
   def attempt[A](body: => A): Async[A] =
     try succeed(body)
@@ -81,51 +72,43 @@ object Async extends AsyncCompanionVersionSpecific {
 
   /**
    * Run `fa`, invoking `cb` with its terminal outcome, and return a
-   * [[Cancelable]] that can stop the run. This is the sanctioned way to drive
-   * an arbitrary [[Async]] without reaching through the hidden encoding.
+   * [[Cancelable]] that can stop the run. This is the supported way to drive an
+   * arbitrary [[Async]] to its result without blocking.
    *
    * Semantics:
    *
    *   - The callback is invoked '''at most once''': exactly once if the run
    *     reaches success or failure before [[Cancelable.cancel]] wins, and never
-   *     if cancellation linearizes first.
-   *   - Completion and cancellation race through a single atomic terminal
-   *     state, so the outcome is deterministic per run and `cancel()` is
-   *     idempotent.
-   *   - For an already-ready (or already-failed) `fa`, `cb` runs
+   *     if cancellation happens first.
+   *   - Completion and cancellation are linearized, so the outcome is
+   *     deterministic per run and `cancel()` is idempotent.
+   *   - For an already-completed (success or failure) `fa`, `cb` runs
    *     '''synchronously on the calling thread''', before this method returns —
-   *     callers must tolerate that. For a suspended `fa`, `cb` runs on the
-   *     driver worker (JVM) or a microtask (JS).
-   *   - `cb` is never invoked while an internal driver lock is held, and never
-   *     re-entrantly from inside a `poll`.
-   *   - A [[Throwable]] escaping `poll`, an [[Async.fail]], or any [[Failure]]
-   *     reached during the run surfaces as `cb(Left(cause))`.
+   *     callers must tolerate that. For a still-pending `fa`, `cb` is delivered
+   *     asynchronously once the value becomes available.
+   *   - `cb` is never invoked reentrantly while `fa` is being driven.
+   *   - A failure reached during the run (whether from [[Async.fail]] or a
+   *     [[Throwable]] thrown while evaluating `fa`) surfaces as
+   *     `cb(Left(cause))`.
    *
-   * On Scala.js a truly asynchronous run is driven by microtasks (no thread is
-   * blocked); on the JVM it is driven on a daemon worker thread that parks
-   * between polls.
+   * No thread is blocked: on the JVM a pending run proceeds on a background
+   * worker, and on Scala.js it proceeds without blocking the event loop.
    */
   def unsafeRunAsync[A](fa: Async[A])(cb: Either[Throwable, A] => Unit): Cancelable =
     AsyncRunner.unsafeRunAsync(fa)(cb)
 
   /**
-   * An [[Async]] that never completes. Polling it always returns itself; it
-   * never wakes a waker. Useful as a sentinel in tests and as the right-zero of
-   * `orElse`-style operations.
+   * An [[Async]] that never completes. Useful as a sentinel in tests and as the
+   * right-zero of `orElse`-style operations.
    */
   val never: Async[Nothing] = new Pollable[Nothing] {
     def poll(waker: Waker): Async[Nothing] = this
   }
 
   /**
-   * Sequentially evaluate `as` and collect their values into a [[List]] in
-   * input order. A [[Failure]] short-circuits — subsequent inputs are NOT
-   * polled and the failure is propagated.
-   *
-   * Fast path: if every input is already a raw value (no [[Pollable]]), the
-   * implementation just builds the list in a tight `while` with no `Pollable`
-   * allocation. As soon as a `Pollable` (or `Failure`) is encountered, we
-   * switch to a `flatMap`-based continuation for the rest.
+   * Sequentially run `as` and collect their values into a [[List]] in input
+   * order. A failure short-circuits — subsequent inputs are not driven and the
+   * failure is propagated.
    */
   def collectAll[A](as: Iterable[Async[A]]): Async[List[A]] =
     drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])

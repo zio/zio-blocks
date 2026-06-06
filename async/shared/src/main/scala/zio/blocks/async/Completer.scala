@@ -20,31 +20,13 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 
 /**
- * Completion capability handed to an [[Async.promise]] block. Thread-safe: a
- * small CAS state machine makes the poll/complete handoff lossless across
- * threads (`succeed`/`fail` from an I/O callback, `poll` from the scheduler).
+ * The completion capability handed to an [[Async.promise]] block: complete the
+ * resulting [[Async]] by calling [[succeed]] (with a value) or [[fail]] (with a
+ * cause), typically from an I/O callback.
  *
- * A completer IS a [[Pollable]], so it can be returned directly as the
- * `Async[A]` of a `promise { }` block via [[peek]] (without an extra wrapper).
- *
- * Completion is one-shot — the first call to `succeed` or `fail` wins, all
- * subsequent calls are silent no-ops.
- *
- * ==Encoding==
- *
- * The internal state is a single `AnyRef` slot, distinguished without any
- * per-completion wrapper allocation:
- *
- *   - `null` — empty (no completion, no poll yet).
- *   - an instance of [[Completer.WaitingMarker]] — a `poll` is parked on the
- *     wrapped `waker`. Allocated lazily on the first `poll` that arrives before
- *     `succeed`/`fail`.
- *   - the [[Completer.NullValue]] sentinel — completed with a raw `null` value.
- *     Needed because the `null` slot already means "empty"; handed back out as
- *     a bare `null` (a ready value).
- *   - anything else — the completed value (boxed `A`) or a [[Failure]] for a
- *     failed completion. No wrapper allocation in the synchronous-completion
- *     hot path (the body completed the completer before `promise` peeked).
+ * Thread-safe and '''one-shot''': the first call to `succeed` or `fail` wins;
+ * all subsequent calls are silent no-ops, regardless of which thread they come
+ * from.
  */
 final class Completer[A] extends Pollable[A] {
   import Completer.{NullValue, WaitingMarker}
@@ -52,7 +34,7 @@ final class Completer[A] extends Pollable[A] {
   // null = empty; WaitingMarker = waiting; anything else = the value (or Failure)
   private val state = new AtomicReference[AnyRef](null)
 
-  /** Complete with a value. Idempotent (first call wins). */
+  /** Complete successfully with `a`. Idempotent — the first completion wins. */
   def succeed(a: A): Unit = {
     val v = a.asInstanceOf[AnyRef]
     // A raw `null` value must be stored as the `NullValue` sentinel: storing
@@ -62,9 +44,7 @@ final class Completer[A] extends Pollable[A] {
   }
 
   /**
-   * Complete with a failure. Idempotent (first call wins). Stored as a
-   * [[Failure]] so the slow-path discriminator picks it up identically to a
-   * value produced by [[Async.fail]].
+   * Complete with the failure `cause`. Idempotent — the first completion wins.
    */
   def fail(cause: Throwable): Unit = settle(new Failure(cause))
 
@@ -96,14 +76,10 @@ final class Completer[A] extends Pollable[A] {
   }
 
   /**
-   * Pure read — does NOT register a waker. Used by [[Async.promise]] for the
-   * synchronous fast path: if the body completed the completer before
-   * returning, `peek` yields the bare value (which collapses into the
-   * `Async[A]` happy path) instead of a `Pollable`.
-   *
-   * On the empty / waiting path returns `this` (the completer itself is a
-   * `Pollable`); on the completed path the stored value is returned directly,
-   * with no wrapper unwrap.
+   * A snapshot of this completer as an [[Async]] that does '''not''' register a
+   * waker: if it has already been completed, the resulting `Async` is already
+   * completed with that value or failure; otherwise it is the still-pending
+   * computation backed by this completer.
    */
   def peek: Async[A] = {
     val s = state.get

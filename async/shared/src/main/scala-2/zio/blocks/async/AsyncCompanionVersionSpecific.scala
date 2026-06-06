@@ -27,36 +27,28 @@ import scala.language.experimental.macros
  * }}}
  *
  * with `succeed` / `fail` resolved through the explicit `implicit c` (Scala 2
- * has no context functions). Same observed behavior as the Scala 3 sibling —
- * synchronous completion collapses to a bare value, asynchronous completion
- * returns the [[Completer]] itself as the pending `Async[A]`.
+ * has no context functions). Same behavior as the Scala 3 sibling.
  */
 private[async] trait AsyncCompanionVersionSpecific {
 
   /**
-   * Run a callback-style block. If the body completes the [[Completer]] before
-   * returning, the result collapses to a bare value (no [[Pollable]]
-   * allocated); otherwise the [[Completer]] itself is returned as the pending
-   * `Async[A]` for the scheduler to drive.
+   * Create an [[Async]] completed by `body`, which is given a [[Completer]] to
+   * `succeed` or `fail`. If the body completes the completer before returning,
+   * the result is already completed; otherwise it remains pending until the
+   * completer is completed (e.g. from a callback).
    */
   def promise[A](body: Completer[A] => Unit): Async[A] =
     Async.promiseInternal(body)
 
   /**
    * Direct-style await block. Inside `body`, callers may write `.await` on any
-   * `Async[X]` to extract its value; the body returns the final `A`, which
-   * becomes the resulting `Async[A]`. Exceptions thrown by the body — including
-   * the rethrow from a `.await` of a failed `Async` — surface as
-   * [[Async.fail]].
+   * `Async[X]` to extract its value without blocking; the body returns the
+   * final `A`, which becomes the resulting `Async[A]`. Exceptions thrown by the
+   * body — including the rethrow from a `.await` of a failed `Async` — surface
+   * as [[Async.fail]]. Awaits run in source order.
    *
-   * The block is rewritten at compile time by
-   * [[zio.blocks.async.internal.AsyncMacros.asyncImpl]]: every `.await` becomes
-   * a non-blocking `flatMap`/`map` chain over our single `Async` monad (a
-   * single-monad CPS/ANF transform, in the scala-async / monadless tradition).
-   * Awaits run in strict source order; a body with no `.await` collapses to
-   * [[Async.attempt]] (the zero-suspension fast path). `.await` is lexically
-   * restricted to this block — using it anywhere else is a compile error (see
-   * `AsyncSyntaxVersionSpecific.await`).
+   * `.await` is lexically restricted to this block — using it anywhere else is
+   * a compile error.
    */
   def async[A](body: A): Async[A] = macro internal.AsyncMacros.asyncImpl[A]
 }

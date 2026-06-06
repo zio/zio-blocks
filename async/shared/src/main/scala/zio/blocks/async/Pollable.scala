@@ -17,18 +17,22 @@
 package zio.blocks.async
 
 /**
- * A suspended computation. `poll` returns the value (ready) or a [[Pollable]]
- * (still pending — it has stashed `waker` and will call `wake()` later).
+ * The implementation point for a custom suspended [[Async]] leaf (a timer, a
+ * socket read, a callback bridge, ...). A `Pollable[A]` is itself an
+ * `Async[A]`, so it can be used wherever an `Async[A]` is expected.
  *
- * Top-level (not nested under a runtime) so that the encoding's discriminator —
- * "is this `Async[A]` a value or a `Pollable[A]`?" — is a single
- * `isInstanceOf[Pollable[?]]` check both at the JVM level and statically inside
- * the inline extension methods.
- *
- * `Pollable[A] <: Async[A]` via [[AsyncEncoding]]'s `Later[+A] <: Async[A]`
- * bound, so a pollable can flow directly into an `Async[A]` position with no
- * cast at the type level (compiler erases both to `Object`).
+ * Implementors define [[poll]]: when asked for its value, a pollable either
+ * returns the completed result (a value, or a failed [[Async]]) or, if it is
+ * still pending, stashes the supplied [[Waker]] and returns a pending `Async`
+ * (typically itself). When the value later becomes available it must invoke
+ * `waker.wake()` to ask the scheduler to poll again.
  */
 abstract class Pollable[+A] {
+
+  /**
+   * Attempt to produce this computation's value. Returns the completed result
+   * if it is ready; otherwise registers `waker` (to be invoked when the value
+   * becomes available) and returns a still-pending `Async`.
+   */
   def poll(waker: Waker): Async[A]
 }

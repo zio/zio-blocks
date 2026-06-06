@@ -26,39 +26,24 @@ package zio.blocks.async
  *
  * with `succeed` / `fail` resolved through the implicit [[Completer]] supplied
  * by the context function — no explicit `c =>` binder needed.
- *
- * Marked `inline` (with an `inline` body parameter) so the call site fuses with
- * the [[Completer]] allocation. HotSpot's escape analysis can scalar- replace
- * the completer when the body completes synchronously — verified via
- * `-XX:+PrintInlining`. The implementation delegates to `Async.promiseInternal`
- * so cross-version interop code can stay on a single `=>` shape regardless of
- * Scala version.
  */
 private[async] trait AsyncCompanionVersionSpecific {
 
   /**
-   * Run a callback-style block. If the body completes the [[Completer]] before
-   * returning, the result collapses to a bare value (no [[Pollable]]
-   * allocated); otherwise the [[Completer]] itself is returned as the pending
-   * `Async[A]` for the scheduler to drive.
+   * Create an [[Async]] completed by `body`, which is given a [[Completer]] to
+   * `succeed` or `fail`. If the body completes the completer before returning,
+   * the result is already completed; otherwise it remains pending until the
+   * completer is completed (e.g. from a callback).
    */
   inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A] =
     Async.promiseInternal[A](c => body(using c))
 
   /**
    * Direct-style await block. Inside `body`, callers may write `.await` on any
-   * `Async[X]` to extract its value; the body returns the final `A`, which
-   * becomes the resulting `Async[A]`. Exceptions thrown by the body — including
-   * the rethrow from a `.await` of a failed `Async` — surface as
-   * [[Async.fail]].
-   *
-   * The block is rewritten at compile time by
-   * [[zio.blocks.async.internal.AsyncDirect.asyncImpl]]: each `.await` becomes
-   * a dotty-cps-async `cps.await`, and the whole body is wrapped in a
-   * `cps.async[Async]`, producing a non-blocking `flatMap`/`map` chain. Where a
-   * `.await` sits in a position DCA cannot rewrite (e.g. an unshifted
-   * higher-order lambda), the JVM falls back to blocking; on JS it is a compile
-   * error.
+   * `Async[X]` to extract its value without blocking; the body returns the
+   * final `A`, which becomes the resulting `Async[A]`. Exceptions thrown by the
+   * body — including the rethrow from a `.await` of a failed `Async` — surface
+   * as [[Async.fail]]. Awaits run in source order.
    *
    * `.await` is lexically restricted to this block — using it anywhere else is
    * a compile error.

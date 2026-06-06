@@ -27,28 +27,17 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  * [[scala.concurrent.Future]] and Java's [[CompletionStage]] /
  * [[CompletableFuture]].
  *
- * Both directions are lossless w.r.t. success and failure:
- *
- *   - Conversions FROM a future inspect for synchronous completion and collapse
- *     to a raw value or an [[Async.fail]] when possible; otherwise they
- *     construct a [[Completer]]-backed [[Async]] whose waker is fired by the
- *     future's callback.
- *   - Conversions TO a future use the [[Async]] surface — `.block` on a worker
- *     thread (Scala `Future`) or a chained completion (CompletionStage via
- *     `.flatMap`) — and propagate the eventual outcome.
- *
- * Scala.js has analogous wrappers in its own `AsyncInterop`.
+ * Both directions preserve success and failure: a future that succeeds becomes
+ * an [[Async]] that succeeds with the same value, and a future that fails
+ * becomes one that fails with the same error (and vice versa). Scala.js offers
+ * the analogous `Future` conversions plus `js.Promise` interop in place of
+ * `CompletionStage` / `CompletableFuture`.
  */
 object AsyncInterop {
 
   /**
-   * Construct an [[Async]] that mirrors `future`. Already-completed futures
-   * collapse to a raw value or an [[Async.fail]]; otherwise the completion is
-   * routed through a [[Completer]].
-   *
-   * No explicit `ExecutionContext` is required: the future's existing
-   * `onComplete` machinery is reused with `parasitic`-style direct execution
-   * inside the callback (we only flip CAS state and wake — no user work).
+   * Construct an [[Async]] that completes with the same value or error as
+   * `future`. No `ExecutionContext` is required.
    */
   def fromFuture[A](future: Future[A]): Async[A] = {
     val cur = future.value
@@ -66,9 +55,8 @@ object AsyncInterop {
   }
 
   /**
-   * Construct an [[Async]] that mirrors `stage`. Already-completed stages
-   * collapse to a raw value or [[Async.fail]]; otherwise the completion is
-   * routed through a [[Completer]].
+   * Construct an [[Async]] that completes with the same value or error as
+   * `stage`.
    */
   def fromCompletionStage[A](stage: CompletionStage[A]): Async[A] = {
     val cf = stage.toCompletableFuture
@@ -87,10 +75,9 @@ object AsyncInterop {
   }
 
   /**
-   * Convert `fa` into a [[scala.concurrent.Future]]. Already-resolved values
-   * and failures collapse synchronously; suspended pollables are awaited on
-   * `ec` (so this call returns immediately; the future completes when the
-   * pollable does).
+   * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
+   * same value or error. If `fa` is not yet complete, it is driven on `ec`, so
+   * this call returns immediately and the future completes when `fa` does.
    */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
@@ -107,9 +94,10 @@ object AsyncInterop {
   }
 
   /**
-   * Convert `fa` into a [[CompletableFuture]]. Mirrors [[toFuture]] but uses
-   * `CompletableFuture` machinery so consumers in Java-shaped APIs can chain
-   * without a `Future`-to-stage conversion.
+   * Convert `fa` into a [[CompletableFuture]] that completes with the same
+   * value or error, for consumers in Java-shaped APIs. Behaves like
+   * [[toFuture]]: a not-yet-complete `fa` is driven on `ec` and the returned
+   * future completes when `fa` does.
    */
   def toCompletableFuture[A](fa: Async[A])(implicit ec: ExecutionContext): CompletableFuture[A] = {
     val any = fa.asInstanceOf[Any]

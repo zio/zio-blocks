@@ -25,22 +25,16 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  * Scala.js-only interop between [[Async]] and the standard async types: Scala's
  * [[scala.concurrent.Future]] and JavaScript's [[scala.scalajs.js.Promise]].
  *
- * [[toFuture]] is non-blocking — JavaScript is single-threaded, so the
- * conversion is driven by a microtask continuation rather than a worker thread.
- * The polling loop is the same as `AsyncSlowPath.awaitSuspended` but threaded
- * through `Promise.resolve(...).then(...)` instead of a parker.
- *
- * [[fromJsPromise]] / [[toJsPromise]] route through Scala.js's
- * [[scala.scalajs.js.JSConverters]] bridge so the type juggling of the native
- * `Thenable` union types stays inside the standard library.
+ * Both directions preserve success and failure. All conversions are
+ * non-blocking, as required on JavaScript. The JVM offers the analogous
+ * `Future` conversions plus `CompletionStage` / `CompletableFuture` interop in
+ * place of `js.Promise`.
  */
 object AsyncInterop {
 
   /**
-   * Construct an [[Async]] that mirrors `future`. Already-completed futures
-   * collapse to a raw value or an [[Async.fail]]; otherwise the completion is
-   * routed through a [[Completer]] using `ExecutionContext.parasitic` so the
-   * callback fires inline on the microtask that completed the future.
+   * Construct an [[Async]] that completes with the same value or error as
+   * `future`.
    */
   def fromFuture[A](future: Future[A]): Async[A] = {
     val cur = future.value
@@ -57,15 +51,18 @@ object AsyncInterop {
       }
   }
 
-  /** Construct an [[Async]] that mirrors `promise`. */
+  /**
+   * Construct an [[Async]] that completes with the same value or error as
+   * `promise`.
+   */
   def fromJsPromise[A](promise: js.Promise[A]): Async[A] =
     fromFuture(promise.toFuture)
 
   /**
-   * Convert `fa` into a [[scala.concurrent.Future]]. Already-resolved values
-   * and failures collapse synchronously; suspended pollables are driven by a
-   * microtask polling loop because JavaScript cannot block. `ec` is the
-   * execution context used to schedule the per-poll microtask continuations.
+   * Convert `fa` into a [[scala.concurrent.Future]] that completes with the
+   * same value or error. If `fa` is not yet complete it is driven without
+   * blocking, so this call returns immediately and the future completes when
+   * `fa` does. `ec` schedules the continuations.
    */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
@@ -79,9 +76,7 @@ object AsyncInterop {
 
   /**
    * Convert `fa` into a [[scala.scalajs.js.Promise]] — the canonical JS async
-   * carrier. Routed through [[toFuture]] and Scala.js's `toJSPromise` bridge,
-   * so the JS-side `Thenable` semantics match what Scala.js produces for any
-   * other `Future[A]`.
+   * carrier — that resolves with `fa`'s value or rejects with its error.
    */
   def toJsPromise[A](fa: Async[A]): js.Promise[A] = {
     implicit val queue: ExecutionContext = scala.scalajs.concurrent.JSExecutionContext.queue
