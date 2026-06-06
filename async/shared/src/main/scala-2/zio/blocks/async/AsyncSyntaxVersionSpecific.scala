@@ -41,6 +41,12 @@ private[async] trait AsyncSyntaxVersionSpecific {
 
   implicit class AsyncOps[A](private val fa: Async[A]) {
 
+    /**
+     * Sequences `fa` with `f`. Fast path (raw value): `f` is applied directly.
+     * Slow path ([[Pollable]] including [[Failure]]): delegated to
+     * [[AsyncSlowPath.flatMapAsync]] which propagates failures and otherwise
+     * builds a continuation pollable.
+     */
     def flatMap[B](f: A => Async[B]): Async[B] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[_]])
@@ -48,6 +54,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
       else f(r.asInstanceOf[A])
     }
 
+    /**
+     * Maps `f` over `fa`. Fast path applies `f` and casts the result back to
+     * the abstract `Async[B]` (no-op for reference types; a box for primitives,
+     * which HotSpot eliminates).
+     */
     def map[B](f: A => B): Async[B] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[_]])
@@ -55,6 +66,12 @@ private[async] trait AsyncSyntaxVersionSpecific {
       else f(r.asInstanceOf[A]).asInstanceOf[Async[B]]
     }
 
+    /**
+     * Recover from a [[Failure]] by applying `f` to its cause. Fast path when
+     * `fa` is a value: returns `fa` unchanged (no handler invocation). Fast
+     * path when `fa` is a [[Failure]]: applies the handler against the cause.
+     * Suspended path delegates to [[AsyncSlowPath.catchAllAsync]].
+     */
     def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[_]])
@@ -64,11 +81,15 @@ private[async] trait AsyncSyntaxVersionSpecific {
     }
 
     /**
-     * Drive `fa` to its value, blocking the calling thread if necessary. The
-     * unsafe escape hatch: ready values return immediately, pending values
-     * block the (Loom-friendly) calling thread on the JVM, and on JS a
-     * genuinely pending value throws. The direct-style `.await` operator is
-     * Scala 3 only for now (the Scala 2 macro arrives in a later phase).
+     * Drive `fa` to its value, blocking the calling thread if necessary. Fast
+     * path is a single unbox; slow path delegates to
+     * `AsyncSlowPath.awaitSuspended` which also throws on [[Failure]].
+     *
+     * This is the unsafe escape hatch: ready values return immediately, pending
+     * values block the (Loom-friendly) calling thread on the JVM, and on JS a
+     * genuinely-pending value throws (JavaScript cannot block). Inside an
+     * `Async.async { ... }` block use the direct-style [[await]] instead, which
+     * the macro rewrites into a non-blocking `flatMap` chain.
      */
     def block: A = {
       val r: Any = fa
@@ -92,6 +113,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
     @compileTimeOnly("`.await` may only be used directly inside an `Async.async { ... }` block.")
     def await: A = throw new IllegalStateException("`.await` was not rewritten by `Async.async`.")
 
+    /**
+     * Sequentially combine `fa` with `that` using `f`. Fast path (both ready
+     * values): `f` is applied directly; no `Tuple2`, no `Pollable`.
+     */
     def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C] = {
       val ra: Any = fa
       val rb: Any = that
@@ -100,9 +125,21 @@ private[async] trait AsyncSyntaxVersionSpecific {
       else f(ra.asInstanceOf[A], rb.asInstanceOf[B]).asInstanceOf[Async[C]]
     }
 
+    /**
+     * Sequentially combine `fa` with `that`, fusing the values via the
+     * `combinators` [[Tuples]] combiner: `a zip b zip c` flattens to
+     * `Async[(A, B, C)]` rather than `Async[((A, B), C)]`. `Unit` on either
+     * side is erased by the `Tuples` instances; tuple-on-tuple inputs are
+     * heterogeneously-concatenated.
+     */
     def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out] =
       zipWith(that)((a, b) => t.combine(a, b))
 
+    /**
+     * Run `f` for side effects, propagating the original value. Equivalent to
+     * `fa.flatMap(a => f(a).map(_ => a))` but expressed directly so the fast
+     * path collapses to `f(a)`'s effect then `a`.
+     */
     def tap(f: A => Async[Any]): Async[A] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[_]])
@@ -113,6 +150,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
+    /**
+     * Run `finalizer` after `fa` completes — success, failure, or suspension —
+     * and propagate the original outcome. A failure in `finalizer` is
+     * suppressed (the original outcome wins).
+     */
     def ensuring(finalizer: Async[Any]): Async[A] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[_]])
@@ -123,15 +165,23 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
+    /** Transform the cause of any [[Failure]]; values pass through. */
     def mapError(f: Throwable => Throwable): Async[A] =
       catchAll((t: Throwable) => Async.fail(f(t)))
 
+    /** Fall back to `that` if `fa` fails. */
     def orElse[A1 >: A](that: => Async[A1]): Async[A1] =
       catchAll((_: Throwable) => that)
 
+    /**
+     * Fold a possibly-failed [[Async]] into a guaranteed-success value by
+     * handling both branches. Equivalent to
+     * `fa.map(onSuccess).catchAll(t => Async.succeed(onFailure(t)))`.
+     */
     def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B] =
       map(onSuccess).catchAll((t: Throwable) => Async.succeed(onFailure(t)))
 
+    /** Convert any [[Failure]] into a `Left`; any value into a `Right`. */
     def either: Async[Either[Throwable, A]] =
       foldCause((t: Throwable) => Left(t): Either[Throwable, A])((a: A) => Right(a): Either[Throwable, A])
 
@@ -149,6 +199,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
   }
 
   implicit class AsyncFlattenOps[A](private val ffa: Async[Async[A]]) {
+
+    /** Flatten an `Async[Async[A]]` one level. */
     def flatten: Async[A] = ffa.flatMap((fa: Async[A]) => fa)
   }
 
