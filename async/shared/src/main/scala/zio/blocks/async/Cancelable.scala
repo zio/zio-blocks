@@ -23,10 +23,10 @@ package zio.blocks.async
  * `unsafeRunAsync` from being invoked if cancellation linearizes before the run
  * reaches a terminal state, and it is a no-op once the run has completed.
  *
- * Cancellation is '''driver-level only''': it stops the poll loop and suppresses
- * the callback, but does NOT guarantee that an already-running `poll` has
- * returned, nor does it abort an in-flight leaf (socket read, timer, JS
- * promise). Aborting a leaf is the source's responsibility.
+ * Cancellation is '''driver-level only''': it stops the poll loop and
+ * suppresses the callback, but does NOT guarantee that an already-running
+ * `poll` has returned, nor does it abort an in-flight leaf (socket read, timer,
+ * JS promise). Aborting a leaf is the source's responsibility.
  */
 trait Cancelable {
 
@@ -37,12 +37,13 @@ trait Cancelable {
   def cancel(): Unit
 }
 
+/** Companion for [[Cancelable]], providing the no-op handle. */
 object Cancelable {
 
   /**
-   * A [[Cancelable]] whose [[Cancelable.cancel]] does nothing. Returned for runs
-   * that complete synchronously (an already-ready or already-failed [[Async]]),
-   * where there is no driver loop left to stop.
+   * A [[Cancelable]] whose [[Cancelable.cancel]] does nothing. Returned for
+   * runs that complete synchronously (an already-ready or already-failed
+   * [[Async]]), where there is no driver loop left to stop.
    */
   val noop: Cancelable = new Cancelable {
     def cancel(): Unit = ()
