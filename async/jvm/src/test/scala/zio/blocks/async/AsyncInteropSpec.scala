@@ -16,7 +16,14 @@
 
 package zio.blocks.async
 
-import java.util.concurrent.{CompletableFuture, CompletionException, ExecutionException, Executors, TimeUnit}
+import java.util.concurrent.{
+  CancellationException,
+  CompletableFuture,
+  CompletionException,
+  ExecutionException,
+  Executors,
+  TimeUnit
+}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
@@ -127,6 +134,15 @@ object AsyncInteropSpec extends ZIOSpecDefault {
         cf.completeExceptionally(boom)
         val thrown = scala.util.Try(AsyncInterop.fromCompletionStage(cf).block).failed.toOption
         assertTrue(thrown.contains(boom))
+      },
+      test("fromCompletionStage: cancelled stage surfaces the CancellationException") {
+        // A cancelled future is done; `get()` throws a CancellationException,
+        // which is neither a CompletionException nor an ExecutionException, so
+        // the unwrap leaves it untouched (the `other` branch).
+        val cf = new CompletableFuture[Int]()
+        cf.cancel(true)
+        val thrown = scala.util.Try(AsyncInterop.fromCompletionStage(cf).block).failed.toOption
+        assertTrue(thrown.exists(_.isInstanceOf[CancellationException]))
       },
       test("fromCompletionStage: pending stage completes asynchronously") {
         ZIO.attemptBlocking {

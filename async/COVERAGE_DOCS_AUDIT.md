@@ -24,9 +24,12 @@ parity — commits `00b75519`, `f46c44dd`, `246012db`).
 
 | Cell | Tests | Cell | Tests |
 |---|---|---|---|
-| JVM 2.13.18 | 329 | JS 2.13.18 | 240 |
-| JVM 3.3.7 | 317 | JS 3.3.7 | 233 |
-| JVM 3.8.3 | 317 | JS 3.8.3 | 233 |
+| JVM 2.13.18 | 330 | JS 2.13.18 | 240 |
+| JVM 3.3.7 | 318 | JS 3.3.7 | 233 |
+| JVM 3.8.3 | 318 | JS 3.8.3 | 233 |
+
+(JVM cells +1 vs. the prior audit: a `fromCompletionStage` cancelled-stage test
+covering the `unwrapCompletionException` `other` fallback — JVM-only interop.)
 
 ## 3. Coverage (JVM scoverage, current)
 
@@ -67,6 +70,10 @@ denominator is unmoved.
   by `runThenValue` before the pollable is built). Reaches the
   failure-propagation statement (`AsyncSlowPath` `RunThenValuePollable`, `else st`)
   on every cell.
+- `AsyncInteropSpec` (+1 JVM): `fromCompletionStage` of a *cancelled* stage —
+  `get()` throws a `CancellationException` (neither `CompletionException` nor
+  `ExecutionException`), driving `unwrapCompletionException`'s `other` fallback
+  (`AsyncInterop.scala:142`), which is now covered.
 
 > **scoverage measurement note.** Under `sbt --client`, the async scoverage
 > instrumentation is unreliable when coverage and non-coverage compiles are
@@ -82,23 +89,36 @@ denominator is unmoved.
 Every remaining uncovered line is classified. None is a missing runtime test of
 reachable production logic.
 
+Line numbers below are against the authoritative Scala 3.8.3 JVM scoverage
+report (uncovered statement lines: `AsyncInterop` none after the
+cancelled-stage test; `AsyncSlowPath [69, 220, 227, 246, 248]`; `Completer
+[75, 79, 89, 93]`; `internal/AsyncCpsMonad [76]`; `internal/AsyncDirect
+[49, 51, 52, 53, 106]`; `internal/AsyncRuntimeAwait [42]`).
+
 ### Dead-via-guard defensive branches (unreachable by construction)
 
 | File:line | Branch | Why unreachable |
 |---|---|---|
-| `AsyncSlowPath.scala:61` | `catchAllAsync` `Failure` branch | The inline `catchAll` (`AsyncSyntaxVersionSpecific:80`) already handles a ready `Failure` and only calls `catchAllAsync` with a non-`Failure` `Pollable`. |
-| `AsyncSlowPath.scala:212,219` | `ZipWithPollable` `faSt/fbSt isInstanceOf[Failure]` | `zipWithAsync` (`:71-72`) returns early if either side is a `Failure`, and the in-poll path stores `next` only when it is not a `Failure` (`:209,216`), so the fields never hold a `Failure`. |
-| `AsyncSlowPath.scala` `RunThenValuePollable` `if (suppressFailure)` | `suppressFailure == true` branch | Only `tapAsync` constructs this pollable, always with `suppressFailure = false`. `ensuring` uses `EnsuringPollable`, so the `true` arm is dead. (The sibling `else st` failure-propagation arm IS reachable and is now covered — see §3 "Work done".) |
-| `AsyncInterop.scala:142` | `unwrapCompletionException` `ExecutionException` case | The CompletionStage path wraps failures in `CompletionException`; `ExecutionException` is a defensive secondary unwrap. |
+| `AsyncSlowPath.scala:69` | `catchAllAsync` `Failure` branch | The inline `catchAll` (`AsyncSyntaxVersionSpecific:80` on Scala 3, `:78` on Scala 2) already handles a ready `Failure` and only delegates to `catchAllAsync` with a non-`Failure` `Pollable`. |
+| `AsyncSlowPath.scala:220,227` | `ZipWithPollable` `faSt/fbSt isInstanceOf[Failure]` | `zipWithAsync` (`:80-81`) returns early if either side is a `Failure`, and the in-poll path stores `next` only when it is not a `Failure` (`:217,224`), so the fields never hold a `Failure` at the top of a `poll`. |
+| `AsyncSlowPath.scala:248` | `RunThenValuePollable` `if (suppressFailure)` `true` arm | Only `tapAsync` constructs this pollable, always with `suppressFailure = false`. `ensuring` uses `EnsuringPollable`, so the `true` arm is dead. (The sibling `else st` failure-propagation arm and the re-pending `return this` arm at `:245` are both reachable and covered — see §3 "Work done".) |
+| `AsyncSlowPath.scala:246` | `RunThenValuePollable.poll` block-closing brace | scoverage attributes a synthetic statement to the `}` of the inner `if`; the logical body (`:245` `return this`) is covered. |
 
 These are harmless invariant guards. They are retained (not removed) to preserve
 defensiveness against future callers; they cost nothing at runtime.
+
+> **Now covered.** `AsyncInterop.scala`'s `unwrapCompletionException` `other`
+> fallback (formerly uncovered) is reached by the new `AsyncInteropSpec` test
+> "fromCompletionStage: cancelled stage surfaces the CancellationException": a
+> cancelled future is done and `get()` throws a `CancellationException`, which
+> is neither a `CompletionException` nor an `ExecutionException`, so the unwrap
+> takes the `other` branch.
 
 ### Concurrency-race lines (non-deterministic; not unit-coverable)
 
 | File:line | Branch |
 |---|---|
-| `Completer.scala:66,70,80,84` | `compareAndSet` retry loops — only taken when a concurrent `succeed`/`fail`/`poll` mutates the slot between `get` and CAS. |
+| `Completer.scala:75,79,89,93` | `compareAndSet` retry loops in `settle`/`poll` — only taken when a concurrent `succeed`/`fail`/`poll` mutates the slot between `get` and the CAS. |
 
 Covered behaviorally by `AsyncBlockingSpec`'s concurrent double-complete race
 test, but the specific retry statements cannot be deterministically forced.
@@ -115,12 +135,6 @@ test, but the specific retry statements cannot be deterministically forced.
 | File:line | What |
 |---|---|
 | `internal/AsyncRuntimeAwait.scala:42` | `fa.block` fallback used only when DCA cannot rewrite a `.await` (a higher-order lambda with no `AsyncShift`). All exercised HOFs in tests have shifts (e.g. `List.map`), so the fallback is not hit. |
-
-### Trivial
-
-| File:line | What |
-|---|---|
-| `AsyncInterop.scala:86` | Trailing `()` unit statement. |
 
 ## 5. Documentation audit — DONE
 

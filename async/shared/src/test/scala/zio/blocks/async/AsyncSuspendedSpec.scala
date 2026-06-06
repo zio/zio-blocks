@@ -347,10 +347,11 @@ object AsyncSuspendedSpec extends ZIOSpecDefault {
         assertTrue(outcome(driveToEnd(r1)) == Right(-7))
       }
     ),
-    suite("ready Failure routed through the slow path")(
+    suite("ready Failure handled by the inline catchAll")(
       test("catchAll on a ready Failure invokes the handler") {
-        // Async.fail is a Failure, which IS a Pollable, so .catchAll takes the
-        // slow path (catchAllAsync's Failure branch) even though it is ready.
+        // Async.fail is a Failure (a Pollable), but the inline `catchAll`
+        // intercepts a ready Failure directly and applies the handler without
+        // entering the slow-path `catchAllAsync`.
         val ca = Async.fail(boom).catchAll(_ => Async.succeed(99))
         assertTrue(outcome(driveToEnd(ca)) == Right(99))
       }
