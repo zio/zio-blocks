@@ -139,12 +139,13 @@ object DbCodec extends DbCodecOpaquePriority {
     )
 
   /**
-   * Derives a `DbCodec[A]` from an existing `Schema[A]` using the default
-   * column name mapper. Enables the Scala 3 `derives` clause:
-   * `case class User(...) derives Schema, DbCodec`
+   * Derives a `DbCodec[A]` using the default column name mapper.
+   * Self-contained: derives `Schema[A]` internally, so no `Schema` needs to
+   * be in scope. Enables the Scala 3 `derives` clause:
+   * `case class User(...) derives DbCodec`
    */
-  inline given derived[A](using schema: Schema[A]): DbCodec[A] =
-    schema.deriving(DbCodecDeriver).derive
+  inline given derived[A]: DbCodec[A] =
+    Schema.derived[A].deriving(DbCodecDeriver).derive
 
   inline given tupleCodec[T <: Tuple]: DbCodec[T] =
     ${ DbCodecTupleMacro.tupleCodecImpl[T] }
