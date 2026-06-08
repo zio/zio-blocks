@@ -117,7 +117,7 @@ object Async extends AsyncCompanionVersionSpecific {
    * order. A failure short-circuits — subsequent inputs are not driven and the
    * failure is propagated.
    */
-  def collectAll[A](as: Iterable[Async[A]]): Async[List[A]] =
+  def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]] =
     drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])
 
   /**

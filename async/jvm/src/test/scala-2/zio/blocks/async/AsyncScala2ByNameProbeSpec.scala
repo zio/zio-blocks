@@ -17,56 +17,70 @@
 package zio.blocks.async
 
 import zio.test._
+import zio.test.Assertion._
 
 /**
- * ADVERSARIAL PROBE (Category 2 — Scala 2 macro miscompiles by-name semantics).
+ * ADVERSARIAL PROBE (Category 2 — Scala 2 macro by-name semantics).
  *
  * `Async.async { ... }` is direct-style Scala: the body must evaluate exactly
  * as the equivalent straight-line code, except that `.await` suspends instead
  * of blocking. By-name evaluation is a core language contract — `Some(x)
  * .getOrElse(d)` must NOT evaluate `d` when the `Option` is a `Some`.
  *
- * The Scala 2 `AsyncMacros` ANF/CPS transform (`transformApplySpine`) hoists
- * every `.await` out of the enclosing application's argument list and evaluates
- * it eagerly BEFORE the call — even when the parameter is by-name and the call
- * would never force it. This silently miscompiles the body.
+ * The Scala 2 `AsyncMacros` ANF/CPS transform ANF-binds every argument
+ * (`val tmp = arg`) before the call, which would force a by-name argument
+ * EAGERLY — defeating its laziness and running the awaited effect
+ * unconditionally. Rather than silently miscompile, the macro now REJECTS
+ * `.await` in a by-name argument position at compile time, with a clear
+ * diagnostic, mirroring the Scala 3 (dotty-cps-async) backend which also
+ * rejects the same source (no `AsyncShift` for `Some.getOrElse`).
  *
- * Scala-2-ONLY: on Scala 3 the dotty-cps-async backend REJECTS the same source
- * at compile time (no `AsyncShift` for `Some.getOrElse`, "cannot shift ..."),
- * so this file cannot compile on Scala 3 — the divergence is itself the
- * finding: Scala 2 silently miscompiles where Scala 3 gives a compile error.
+ * Short-circuit `&&` / `||` are exempt: their by-name right operand is rewritten
+ * to an `if`, which preserves laziness, so awaiting there remains supported.
  *
- * Oracle: language by-name contract + Scala-2-vs-Scala-3 parity. Expected: the
- * by-name default is never forced (result 42 / side effect never runs). Actual:
- * the awaited default runs eagerly (failure surfaces / side effect runs).
- *
- * These tests FAIL on current code (they document the defect). A correct fix
- * (preserve by-name laziness, or reject `.await` in a by-name position with a
- * clear diagnostic as Scala 3 does) makes them pass / become a compile error.
+ * These tests assert the compile-time rejection (parity with Scala 3).
  */
 object AsyncScala2ByNameProbeSpec extends ZIOSpecDefault {
 
-  private val Boom: Throwable = new RuntimeException("boom")
-
   def spec = suite("AsyncScala2ByNameProbeSpec")(
-    test("Some.getOrElse must not evaluate the by-name default (awaited) — laziness preserved") {
-      // Straight-line Scala: Some(42).getOrElse(throw) == 42 (default never forced).
-      val a      = Async.async {
-        Some(42).getOrElse(Async.fail(Boom).await)
-      }
-      val result = scala.util.Try(a.block)
-      assertTrue(result == scala.util.Success(42))
-    },
-    test("Some.getOrElse must not run the by-name default's side effects") {
-      var ran = false
-      val a   = Async.async {
-        Some(7).getOrElse {
-          ran = true
-          Async.succeed(0).await
+    test("`.await` in a by-name argument (getOrElse default) is rejected with a clear diagnostic") {
+      typeCheck("""
+        import zio.blocks.async._
+        val a = Async.async {
+          Some(42).getOrElse(Async.fail(new RuntimeException("boom")).await)
         }
+        a
+      """).map {
+        case Left(msg) =>
+          assertTrue(msg.toLowerCase.contains("by-name"))
+        case Right(_) =>
+          assertTrue(false)
       }
-      val r = a.block
-      assertTrue(r == 7, !ran)
+    },
+    test("`.await` in a by-name block argument (getOrElse default) is rejected") {
+      typeCheck("""
+        import zio.blocks.async._
+        val a = Async.async {
+          Some(7).getOrElse {
+            Async.succeed(0).await
+          }
+        }
+        a
+      """).map {
+        case Left(msg) =>
+          assertTrue(msg.toLowerCase.contains("by-name"))
+        case Right(_) =>
+          assertTrue(false)
+      }
+    },
+    test("`.await` in the by-name right operand of && remains supported (short-circuit preserved)") {
+      typeCheck("""
+        import zio.blocks.async._
+        val a = Async.async {
+          Async.succeed(true).await && Async.succeed(false).await
+        }
+        a
+      """).map(r => assert(r)(isRight))
     }
   )
 }

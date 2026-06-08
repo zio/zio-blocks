@@ -77,18 +77,18 @@ object AsyncTypeConstraintProbeSpec extends ZIOSpecDefault {
       }.map(result => assert(result)(isRight))
     },
     // for-comprehension desugars to flatMap/map on the extension ops; should
-    // compile outside an async block.
+    // compile (and run) outside an async block. NOTE: this is a *real compiled*
+    // assertion rather than a `typeCheck` probe: the Scala 3 runtime ToolBox
+    // used by `typeCheck` reports a spurious "Cyclic reference involving method
+    // $anonfun" when re-deriving the opaque-type extension-method signatures for
+    // a desugared for-comprehension — a known ToolBox limitation, not a defect
+    // in `Async` (the same source compiles and runs correctly here).
     test("two-generator for-comprehension over Async desugars and compiles") {
-      typeCheck {
-        """
-        import zio.blocks.async._
-        val r: Async[Int] = for {
-          x <- Async.succeed(1)
-          y <- Async.succeed(2)
-        } yield x + y
-        r
-        """
-      }.map(result => assert(result)(isRight))
+      val r: Async[Int] = for {
+        x <- Async.succeed(1)
+        y <- Async.succeed(2)
+      } yield x + y
+      assertTrue(r.block == 3)
     },
     // collectAll fed by an eta-expanded polymorphic succeed.
     test("collectAll over List(...).map(Async.succeed) compiles") {

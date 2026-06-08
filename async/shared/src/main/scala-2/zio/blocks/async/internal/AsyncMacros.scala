@@ -893,6 +893,40 @@ private[async] object AsyncMacros {
 
     // ---- pre-flight: reject positions we do not (yet) rewrite ---------------
 
+    // Reject `.await` inside a by-name argument. The application-spine transform
+    // ANF-binds every argument (`val tmp = arg`), which would force a by-name
+    // argument EAGERLY — defeating its laziness and running the awaited effect
+    // unconditionally (a silent miscompile). The Scala 3 (DCA) backend rejects
+    // this too, so aborting keeps the backends at parity. `&&` / `||` are
+    // exempt: their by-name right operand is rewritten to an `if`, which
+    // preserves short-circuit laziness. Runs on the TYPED tree (by-name-ness is
+    // only knowable from the parameter symbols).
+    def checkByNameAwaits(typed: Tree): Unit =
+      new Traverser {
+        override def traverse(tt: Tree): Unit = {
+          tt match {
+            case Apply(fun, args) =>
+              val mname = if (fun.symbol != null) fun.symbol.name.decodedName.toString else ""
+              if (mname != "&&" && mname != "||" && fun.tpe != null) {
+                val params = fun.tpe.paramLists.headOption.getOrElse(Nil)
+                params.zip(args).foreach { case (p, a) =>
+                  if (
+                    p.info != null && p.info.typeSymbol == definitions.ByNameParamClass &&
+                    containsAwait(a)
+                  )
+                    c.abort(
+                      a.pos,
+                      "`.await` inside a by-name argument is not supported by the Scala 2 `Async.async` macro; " +
+                        "bind the awaited value before the call."
+                    )
+                }
+              }
+            case _ =>
+          }
+          super.traverse(tt)
+        }
+      }.traverse(typed)
+
     def precheck(t: Tree): Unit =
       new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
@@ -2098,6 +2132,16 @@ private[async] object AsyncMacros {
             val rebound = ValDef(Modifiers(), vd.name, vd.tpt.duplicate, v)
             safe(q"""{ $rebound; ${transformBlock(rest, expr)(k)} }""")
           }
+        // A local member definition (`def` / `class` / `object` / `type`) or an
+        // import is NOT an ANF-bindable value — `transform`/`bind` would emit
+        // `val tmp = <decl>`, which is a spurious type error for a `def`/`type`
+        // and a compiler-assertion crash for a `class`/`object`. Keep it
+        // verbatim in scope so later statements (including those lifted into a
+        // `flatMap` continuation) can still reference it. `precheck` has already
+        // rejected any `.await` inside such a declaration, so it is effect-free
+        // here. Mirrors what the Scala 3 backend accepts.
+        case (decl @ (_: DefDef | _: ClassDef | _: ModuleDef | _: TypeDef | _: Import)) :: rest =>
+          q"""{ $decl; ${transformBlock(rest, expr)(k)} }"""
         case stmt :: rest =>
           transform(stmt)(_ => transformBlock(rest, expr)(k))
       }
@@ -2425,6 +2469,17 @@ private[async] object AsyncMacros {
           case Assign(lhs, rhs) =>
             transform(rhs)(v => bind(q"$lhs = $v")(k))
 
+          // `do { body } while (cond)` desugars to a `LabelDef` whose body is a
+          // `Block` ending in `if (cond) <back-edge> else ()` (body-then-test),
+          // distinct from the `while` shapes below (test-then-body). It is not
+          // supported; emit a diagnostic that NAMES the construct instead of the
+          // generic catch-all.
+          case LabelDef(lname, Nil, Block(_, If(_, Apply(Ident(rn), Nil), _))) if rn == lname =>
+            c.abort(
+              tree.pos,
+              "`do { ... } while (...)` loops are not supported by the Scala 2 `Async.async` macro; rewrite as a " +
+                "`while` loop (run the body once before the loop if you need do/while semantics)."
+            )
           case LabelDef(_, _, If(cond, Block(List(loopBody), _), _)) =>
             transformWhile(cond, loopBody)(k)
           case LabelDef(_, _, Block(List(If(cond, Block(stmts, _), _)), _)) =>
@@ -2501,6 +2556,7 @@ private[async] object AsyncMacros {
       if (awaitElemTypes.isEmpty)
         q"$AsyncObj.attempt(${c.untypecheck(body.tree.duplicate)})"
       else {
+        checkByNameAwaits(body.tree)
         val prepared = c.untypecheck(boxVars(body.tree).duplicate)
         precheck(prepared)
         val out = transform(prepared)(pureReturn)
