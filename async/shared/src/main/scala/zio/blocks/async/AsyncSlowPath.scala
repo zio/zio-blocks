@@ -282,6 +282,11 @@ private[async] object AsyncSlowPath {
           if (finSt.isInstanceOf[Pollable[?]] && !finSt.isInstanceOf[Failure]) return this
         }
       }
+      // If the original outcome was itself a failure and the finalizer also
+      // failed, keep the finalizer's cause reachable as a suppressed exception
+      // on the primary rather than dropping it silently.
+      if (finSt.isInstanceOf[Failure] && outcome.isInstanceOf[Failure])
+        outcome.asInstanceOf[Failure].cause.addSuppressed(finSt.asInstanceOf[Failure].cause)
       outcome.asInstanceOf[Async[A]]
     }
   }

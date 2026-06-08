@@ -45,6 +45,10 @@ package object async extends AsyncSyntaxVersionSpecific {
    * A possibly-suspended computation that will eventually yield an `A` (or fail
    * with a [[Throwable]]). A [[async.Pollable]] may be used wherever an
    * `Async[A]` is expected.
+   *
+   * `Async` is a restricted monad: `A` must not itself be an `Async` (nor a
+   * [[async.Pollable]]). Compose effects with `flatMap` rather than nesting
+   * them as success values; `Async[Async[A]]` is unsupported.
    */
   type Async[+A] = encoding.Async[A]
 }

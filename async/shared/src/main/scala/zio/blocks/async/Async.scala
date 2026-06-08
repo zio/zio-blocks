@@ -29,7 +29,14 @@ import zio.blocks.async.internal.AsyncRunner
  */
 object Async extends AsyncCompanionVersionSpecific {
 
-  /** Lift an already-available value into a successful [[Async]]. */
+  /**
+   * Lift an already-available value into a successful [[Async]].
+   *
+   * The value must not itself be an `Async` (i.e. `Async[Async[A]]` and other
+   * nested forms are unsupported): `Async` is a restricted monad whose success
+   * values may not be effects. Sequence effects with `flatMap` instead of
+   * nesting them. (Nesting plain, non-effect values is fine.)
+   */
   def succeed[A](a: A): Async[A] = a.asInstanceOf[Async[A]]
 
   /**
