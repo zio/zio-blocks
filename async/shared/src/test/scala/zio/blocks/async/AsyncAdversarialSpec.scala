@@ -105,6 +105,43 @@ object AsyncAdversarialSpec extends ZIOSpecDefault {
         val thrown = Try(r.block).failed.toOption
         assertTrue(thrown.contains(boom), !polledAfter)
       }
+    ),
+    suite("CONVERGENCE: documented eager-evaluation gotcha")(
+      test("a throw inside map on a ready value escapes eagerly and is NOT captured") {
+        // Documented behavior: errors thrown by user code inside map/flatMap are
+        // NOT turned into a Failure on the eager fast path.
+        val boom = new RuntimeException("eager")
+        val caught =
+          try { Async.succeed(1).map[Int](_ => throw boom); Option.empty[Throwable] }
+          catch { case e: Throwable => Some(e) }
+        assertTrue(caught.contains(boom))
+      }
+    ),
+    suite("CONVERGENCE: monad / functor laws on ordinary values")(
+      test("functor identity: succeed(a).map(identity) == succeed(a)") {
+        assertTrue(Async.succeed(42).map(identity).block == 42)
+      },
+      test("functor composition: map(f).map(g) == map(g compose f)") {
+        val f = (x: Int) => x + 1
+        val g = (x: Int) => x * 3
+        assertTrue(
+          Async.succeed(5).map(f).map(g).block == Async.succeed(5).map(g compose f).block
+        )
+      },
+      test("left identity: succeed(a).flatMap(f) == f(a)") {
+        val f = (x: Int) => Async.succeed(x * 10)
+        assertTrue(Async.succeed(4).flatMap(f).block == f(4).block)
+      },
+      test("right identity: m.flatMap(succeed) == m") {
+        assertTrue(Async.succeed(7).flatMap(Async.succeed(_)).block == 7)
+      },
+      test("associativity: m.flatMap(f).flatMap(g) == m.flatMap(x => f(x).flatMap(g))") {
+        val f   = (x: Int) => Async.succeed(x + 1)
+        val g   = (x: Int) => Async.succeed(x * 2)
+        val lhs = Async.succeed(3).flatMap(f).flatMap(g).block
+        val rhs = Async.succeed(3).flatMap((x: Int) => f(x).flatMap(g)).block
+        assertTrue(lhs == rhs)
+      }
     )
   )
 }
