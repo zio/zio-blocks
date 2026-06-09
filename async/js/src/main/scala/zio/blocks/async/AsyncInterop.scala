@@ -114,7 +114,13 @@ object AsyncInterop {
       }
       def step(): Unit =
         if (!settled) {
-          val next = current.poll(waker)
+          // A throwing `poll` (on the initial or any resumption microtask) must
+          // surface as a failed `Promise`, not be thrown to the caller / orphan
+          // the future — matching the JVM driver and the JS `unsafeRunAsync`
+          // runner, both of which funnel a thrown `poll` into the failure path.
+          val next =
+            try current.poll(waker)
+            catch { case t: Throwable => settled = true; p.failure(t); return }
           val nany = next.asInstanceOf[Any]
           if (nany.isInstanceOf[Failure]) { settled = true; p.failure(nany.asInstanceOf[Failure].cause); () }
           else if (nany.isInstanceOf[Pollable[_]]) {
