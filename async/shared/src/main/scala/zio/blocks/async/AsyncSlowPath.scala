@@ -284,9 +284,15 @@ private[async] object AsyncSlowPath {
       }
       // If the original outcome was itself a failure and the finalizer also
       // failed, keep the finalizer's cause reachable as a suppressed exception
-      // on the primary rather than dropping it silently.
-      if (finSt.isInstanceOf[Failure] && outcome.isInstanceOf[Failure])
-        outcome.asInstanceOf[Failure].cause.addSuppressed(finSt.asInstanceOf[Failure].cause)
+      // on the primary rather than dropping it silently. Guard against
+      // self-suppression: when both carry the SAME throwable instance,
+      // `Throwable.addSuppressed(self)` throws `IllegalArgumentException`, which
+      // would replace the primary outcome — the primary must always win.
+      if (finSt.isInstanceOf[Failure] && outcome.isInstanceOf[Failure]) {
+        val primaryCause   = outcome.asInstanceOf[Failure].cause
+        val finalizerCause = finSt.asInstanceOf[Failure].cause
+        if (primaryCause ne finalizerCause) primaryCause.addSuppressed(finalizerCause)
+      }
       outcome.asInstanceOf[Async[A]]
     }
   }
