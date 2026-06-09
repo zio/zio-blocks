@@ -43,6 +43,28 @@ object AsyncRunSpec extends ZIOSpecDefault {
       ()
     }
 
+  /**
+   * A chain of '''distinct''' pollables: each `poll` arms the waker and returns
+   * the NEXT, brand-new pollable in the chain (never `this`), accumulating the
+   * step count, until the chain is exhausted and it yields the count as a
+   * value.
+   *
+   * A driver that resumes by re-polling the pollable it originally received
+   * would loop forever on the head and never deliver; one that advances to the
+   * pollable returned by `poll` (the JVM `awaitSuspended` semantic the JS
+   * driver is aligned to) walks the chain to completion. Driving this to
+   * `length` is therefore a falsifiable assertion of that alignment on both
+   * platforms.
+   */
+  private final class StepChain(remaining: Int, taken: Int) extends Pollable[Int] {
+    def poll(waker: Waker): Async[Int] =
+      if (remaining <= 0) Async.succeed(taken)
+      else {
+        waker.wake()
+        new StepChain(remaining - 1, taken + 1)
+      }
+  }
+
   def spec = suite("AsyncRunSpec")(
     suite("synchronous fast path")(
       test("ready value invokes cb with Right on the caller thread") {
@@ -78,6 +100,11 @@ object AsyncRunSpec extends ZIOSpecDefault {
           _     <- ZIO.succeed(c.fail(boom))
           e     <- fiber.join
         } yield assertTrue(e == Left(boom))
+      },
+      test("driver advances to the pollable returned by poll (not re-polling the original)") {
+        // Would never deliver under a re-poll-the-original driver; completes
+        // only because the runner walks the chain of distinct pollables.
+        runAsync(new StepChain(5, 0)).map(v => assertTrue(v == 5))
       }
     ),
     suite("failure surfacing")(

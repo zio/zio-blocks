@@ -35,6 +35,21 @@ object AsyncJsInteropSpec extends ZIOSpecDefault {
 
   private implicit val ec: ExecutionContext = JSExecutionContext.queue
 
+  /**
+   * A chain of distinct pollables (see `AsyncRunSpec`): each `poll` arms the
+   * waker and returns the NEXT, brand-new pollable, never `this`. `toFuture`'s
+   * microtask driver only walks the chain to completion if it advances to the
+   * pollable returned by `poll` rather than re-polling the original.
+   */
+  private final class StepChain(remaining: Int, taken: Int) extends Pollable[Int] {
+    def poll(waker: Waker): Async[Int] =
+      if (remaining <= 0) Async.succeed(taken)
+      else {
+        waker.wake()
+        new StepChain(remaining - 1, taken + 1)
+      }
+  }
+
   def spec = suite("AsyncJsInteropSpec")(
     suite("Future ↔ Async")(
       test("fromFuture: already-succeeded collapses to a value") {
@@ -68,6 +83,9 @@ object AsyncJsInteropSpec extends ZIOSpecDefault {
           ()
         }
         ZIO.fromFuture(_ => AsyncInterop.toFuture(a)).map(v => assertTrue(v == 99))
+      },
+      test("toFuture: driver advances to the pollable returned by poll (not re-polling the original)") {
+        ZIO.fromFuture(_ => AsyncInterop.toFuture(new StepChain(5, 0))).map(v => assertTrue(v == 5))
       }
     ),
     suite("js.Promise ↔ Async")(

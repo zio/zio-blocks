@@ -29,8 +29,8 @@ import zio.blocks.async.{Async, Cancelable, Failure, Pollable, Waker}
  * `AsyncInterop.drive`). The waker re-enters the loop on a
  * `Promise.resolve().then(...)` microtask. Cancellation flips a flag that is
  * checked before scheduling the next microtask, at the top of the loop, and
- * before invoking the callback; because everything runs on the single JS thread,
- * a plain flag is sufficient (no atomics).
+ * before invoking the callback; because everything runs on the single JS
+ * thread, a plain flag is sufficient (no atomics).
  */
 private[async] object AsyncRunner {
 
@@ -58,33 +58,48 @@ private[async] object AsyncRunner {
     private var terminated = false
     private var cancelled  = false
 
+    // The latest pollable to drive. `step` advances this to the pollable
+    // returned by `poll`, exactly like the JVM driver (`awaitSuspended`) loops
+    // on the *returned* pollable rather than re-polling the original. A single
+    // shared waker re-enters `step` on the next microtask, so a stale waker
+    // captured by an earlier suspension still resumes the current state.
+    private var current: Pollable[A] = null
+
+    private val waker = new Waker {
+      def wake(): Unit =
+        if (!cancelled)
+          js.Promise
+            .resolve[Unit](())
+            .toFuture
+            .onComplete(_ => if (!cancelled) step())
+    }
+
     def cancel(): Unit =
       if (!terminated) {
         terminated = true
         cancelled = true
       }
 
-    def drive(cur: Async[A]): Unit = {
+    def drive(fa: Async[A]): Unit = {
       if (cancelled) return
-      val any = cur.asInstanceOf[Any]
+      val any = fa.asInstanceOf[Any]
       if (any.isInstanceOf[Failure]) terminate(Left(any.asInstanceOf[Failure].cause))
       else if (any.isInstanceOf[Pollable[_]]) {
-        val waker = new Waker {
-          def wake(): Unit =
-            if (!cancelled)
-              js.Promise
-                .resolve[Unit](())
-                .toFuture
-                .onComplete(_ => if (!cancelled) drive(cur))
-        }
-        val next =
-          try any.asInstanceOf[Pollable[A]].poll(waker)
-          catch { case t: Throwable => terminate(Left(t)); return }
-        val nany = next.asInstanceOf[Any]
-        if (nany.isInstanceOf[Failure]) terminate(Left(nany.asInstanceOf[Failure].cause))
-        else if (nany.isInstanceOf[Pollable[_]]) () // wait for the waker to re-enter
-        else terminate(Right(nany.asInstanceOf[A]))
+        current = any.asInstanceOf[Pollable[A]]
+        step()
       } else terminate(Right(any.asInstanceOf[A]))
+    }
+
+    private def step(): Unit = {
+      if (cancelled) return
+      val next =
+        try current.poll(waker)
+        catch { case t: Throwable => terminate(Left(t)); return }
+      val nany = next.asInstanceOf[Any]
+      if (nany.isInstanceOf[Failure]) terminate(Left(nany.asInstanceOf[Failure].cause))
+      else if (nany.isInstanceOf[Pollable[_]])
+        current = nany.asInstanceOf[Pollable[A]] // advance; wait for the waker to re-enter
+      else terminate(Right(nany.asInstanceOf[A]))
     }
 
     private def terminate(result: Either[Throwable, A]): Unit =

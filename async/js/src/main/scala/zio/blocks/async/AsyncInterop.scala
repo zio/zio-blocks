@@ -92,23 +92,29 @@ object AsyncInterop {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) { p.failure(any.asInstanceOf[Failure].cause); () }
     else if (any.isInstanceOf[Pollable[_]]) {
-      val waker = new Waker {
+      // `current` holds the latest pollable; `step` advances it to the pollable
+      // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
+      // the *returned* pollable rather than re-polling the original. A single
+      // shared waker re-enters `step` on the next microtask, so a stale waker
+      // captured by an earlier suspension still resumes the current state.
+      var current: Pollable[A] = any.asInstanceOf[Pollable[A]]
+      lazy val waker: Waker    = new Waker {
         def wake(): Unit =
-          // Re-enter the loop on the next microtask; the captured `fa` will
-          // re-poll the same pollable, which (under the encoding) returns
-          // either a value, the same pollable, or a Failure.
           js.Promise
             .resolve[Unit](())
             .toFuture
-            .onComplete { _ =>
-              drive(fa, p)
-            }(ec)
+            .onComplete(_ => step())(ec)
       }
-      val next = any.asInstanceOf[Pollable[A]].poll(waker)
-      val nany = next.asInstanceOf[Any]
-      if (nany.isInstanceOf[Failure]) { p.failure(nany.asInstanceOf[Failure].cause); () }
-      else if (nany.isInstanceOf[Pollable[_]]) () // wait for waker
-      else { p.success(nany.asInstanceOf[A]); () }
+      def step(): Unit = {
+        val next = current.poll(waker)
+        val nany = next.asInstanceOf[Any]
+        if (nany.isInstanceOf[Failure]) { p.failure(nany.asInstanceOf[Failure].cause); () }
+        else if (nany.isInstanceOf[Pollable[_]]) {
+          current = nany.asInstanceOf[Pollable[A]]; ()
+        } // advance; wait for waker
+        else { p.success(nany.asInstanceOf[A]); () }
+      }
+      step()
     } else { p.success(any.asInstanceOf[A]); () }
   }
 }
