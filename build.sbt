@@ -254,6 +254,7 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    `mux-examples`,
     smithy,
     `smithy-examples`
   )
@@ -439,6 +440,17 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val `mux-examples` = project
+  .in(file("mux-examples"))
+  .settings(stdSettings("zio-blocks-mux-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(mux.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
   )
@@ -1416,7 +1428,8 @@ lazy val docs = project
     html.jvm,
     datastar.jvm,
     smithy,
-    htmx.jvm
+    htmx.jvm,
+    mux.jvm
   )
   .enablePlugins(WebsitePlugin)
 
