@@ -74,10 +74,19 @@ private[async] object AsyncSlowPath {
    * a [[Pollable]] that drives `fa` then `fb`. Failures from either side are
    * propagated. Both inputs are typed `Any` to absorb whichever encoding case
    * they happen to be (value, Pollable, or Failure).
+   *
+   * `zipWith` is strictly sequential left-to-right: `fa` is driven first and
+   * `fb`'s failure is surfaced only once `fa` has succeeded. So a right that is
+   * already a [[Failure]] short-circuits eagerly ONLY when the left is not
+   * still pending (a `Failure` is itself a `Pollable`, so
+   * `!fa.isInstanceOf[Pollable]` means `fa` is a ready value); a pending left
+   * is driven first via [[ZipWithPollable]]. This keeps the (left-failed) and
+   * (left-ready, right-failed) cases immediate while giving a pending left the
+   * same left-to-right ordering as a pending-then-failing right.
    */
   def zipWithAsync[A, B, C](fa: Any, fb: Any, f: (A, B) => C): Async[C] =
     if (fa.isInstanceOf[Failure]) fa.asInstanceOf[Async[C]]
-    else if (fb.isInstanceOf[Failure]) fb.asInstanceOf[Async[C]]
+    else if (fb.isInstanceOf[Failure] && !fa.isInstanceOf[Pollable[?]]) fb.asInstanceOf[Async[C]]
     else new ZipWithPollable[A, B, C](fa, fb, f)
 
   /** Slow-path `tap`: input is suspended (or failed). */

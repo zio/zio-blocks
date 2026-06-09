@@ -33,6 +33,18 @@ abstract class Pollable[+A] {
    * Attempt to produce this computation's value. Returns the completed result
    * if it is ready; otherwise registers `waker` (to be invoked when the value
    * becomes available) and returns a still-pending `Async`.
+   *
+   * Polling is a '''one-shot driver protocol''': a driver should keep polling
+   * only while `poll` returns a still-pending `Pollable`, and must stop as soon
+   * as it returns a terminal result — a raw value or a failed [[Async]]. The
+   * built-in drivers (`block`, `unsafeRunAsync`, and the interop runners) all
+   * follow this, so they never poll a settled computation again.
+   *
+   * Re-polling a `Pollable` after it has returned a terminal result is outside
+   * the contract and is '''not''' guaranteed to be a pure re-observation: a
+   * continuation may run again and diagnostic state may be repeated. Drive
+   * computations through the built-in runners unless you are implementing this
+   * protocol yourself, in which case honor the stop-at-terminal rule.
    */
   def poll(waker: Waker): Async[A]
 }

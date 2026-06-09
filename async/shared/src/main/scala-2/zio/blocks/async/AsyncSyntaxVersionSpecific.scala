@@ -97,8 +97,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
     def await: A = throw new IllegalStateException("`.await` was not rewritten by `Async.async`.")
 
     /**
-     * Combine `fa` with `that` using `f`. The two are sequenced; a failure on
-     * either side short-circuits and is propagated.
+     * Combine `fa` with `that` using `f`. The two are sequenced strictly
+     * left-to-right: `fa` is driven to a value first, and only then is `that`
+     * driven. A failure in `fa` short-circuits without driving `that`; a failure
+     * in `that` is surfaced only after `fa` has succeeded.
      */
     def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C] = {
       val ra: Any = fa

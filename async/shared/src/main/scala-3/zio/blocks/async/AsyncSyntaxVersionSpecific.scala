@@ -93,8 +93,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
       ${ zio.blocks.async.internal.AsyncDirect.awaitImpl[A]('fa) }
 
     /**
-     * Combine `fa` with `that` using `f`. The two are sequenced; a failure on
-     * either side short-circuits and is propagated.
+     * Combine `fa` with `that` using `f`. The two are sequenced strictly
+     * left-to-right: `fa` is driven to a value first, and only then is `that`
+     * driven. A failure in `fa` short-circuits without driving `that`; a
+     * failure in `that` is surfaced only after `fa` has succeeded.
      */
     inline def zipWith[B, C](inline that: Async[B])(inline f: (A, B) => C): Async[C] = {
       val ra: Any = fa
