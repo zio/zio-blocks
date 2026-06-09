@@ -98,22 +98,30 @@ object AsyncInterop {
       // shared waker re-enters `step` on the next microtask, so a stale waker
       // captured by an earlier suspension still resumes the current state.
       var current: Pollable[A] = any.asInstanceOf[Pollable[A]]
-      lazy val waker: Waker    = new Waker {
+      // `settled` makes resumption idempotent: a pollable may fire its waker
+      // more than once (a legitimate spurious / multi-source wakeup), scheduling
+      // several resumption microtasks. Without this guard a redundant `step`
+      // would re-poll the completed pollable and re-complete `p`, throwing
+      // `IllegalStateException: Promise already completed`. Mirrors the JVM
+      // driver, which collapses multiple wakeups and stops polling after a value.
+      var settled           = false
+      lazy val waker: Waker = new Waker {
         def wake(): Unit =
           js.Promise
             .resolve[Unit](())
             .toFuture
             .onComplete(_ => step())(ec)
       }
-      def step(): Unit = {
-        val next = current.poll(waker)
-        val nany = next.asInstanceOf[Any]
-        if (nany.isInstanceOf[Failure]) { p.failure(nany.asInstanceOf[Failure].cause); () }
-        else if (nany.isInstanceOf[Pollable[_]]) {
-          current = nany.asInstanceOf[Pollable[A]]; ()
-        } // advance; wait for waker
-        else { p.success(nany.asInstanceOf[A]); () }
-      }
+      def step(): Unit =
+        if (!settled) {
+          val next = current.poll(waker)
+          val nany = next.asInstanceOf[Any]
+          if (nany.isInstanceOf[Failure]) { settled = true; p.failure(nany.asInstanceOf[Failure].cause); () }
+          else if (nany.isInstanceOf[Pollable[_]]) {
+            current = nany.asInstanceOf[Pollable[A]]; ()
+          } // advance; wait for waker
+          else { settled = true; p.success(nany.asInstanceOf[A]); () }
+        }
       step()
     } else { p.success(any.asInstanceOf[A]); () }
   }

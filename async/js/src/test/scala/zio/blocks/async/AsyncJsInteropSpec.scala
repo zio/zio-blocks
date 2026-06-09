@@ -50,6 +50,21 @@ object AsyncJsInteropSpec extends ZIOSpecDefault {
       }
   }
 
+  /**
+   * Fires its waker TWICE on the first poll then stays pending; ready on every
+   * later poll. The microtask driver must coalesce the redundant resumption: a
+   * completed pollable must not be re-polled, and the backing `Promise` must
+   * not be completed twice (which would throw `Promise already completed`).
+   */
+  private final class DoubleWake extends Pollable[Int] {
+    var polls                          = 0
+    def poll(waker: Waker): Async[Int] = {
+      polls += 1
+      if (polls == 1) { waker.wake(); waker.wake(); this }
+      else Async.succeed(42)
+    }
+  }
+
   def spec = suite("AsyncJsInteropSpec")(
     suite("Future ↔ Async")(
       test("fromFuture: already-succeeded collapses to a value") {
@@ -86,6 +101,14 @@ object AsyncJsInteropSpec extends ZIOSpecDefault {
       },
       test("toFuture: driver advances to the pollable returned by poll (not re-polling the original)") {
         ZIO.fromFuture(_ => AsyncInterop.toFuture(new StepChain(5, 0))).map(v => assertTrue(v == 5))
+      },
+      test("toFuture: a multi-wake pollable resolves once and is not re-polled after completion") {
+        val p = new DoubleWake
+        for {
+          v <- ZIO.fromFuture(_ => AsyncInterop.toFuture(p))
+          // Let any stray resumption microtasks drain before reading the count.
+          _ <- Live.live(zio.ZIO.sleep(zio.Duration.fromMillis(50)))
+        } yield assertTrue(v == 42, p.polls == 2)
       }
     ),
     suite("js.Promise ↔ Async")(

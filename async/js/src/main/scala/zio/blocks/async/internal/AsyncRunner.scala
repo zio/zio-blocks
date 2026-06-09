@@ -91,7 +91,14 @@ private[async] object AsyncRunner {
     }
 
     private def step(): Unit = {
-      if (cancelled) return
+      // Guard on `terminated` (set by both completion and `cancel`), not just
+      // `cancelled`: a pollable may fire its waker more than once (a legitimate
+      // spurious / multi-source wakeup), scheduling several resumption
+      // microtasks. Once the run has settled, every later `step` must be a
+      // no-op so a completed pollable is never re-polled — matching the JVM
+      // `Parker`, which collapses multiple wakeups into one and stops polling
+      // after a terminal value.
+      if (terminated) return
       val next =
         try current.poll(waker)
         catch { case t: Throwable => terminate(Left(t)); return }
