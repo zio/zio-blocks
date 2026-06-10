@@ -38,6 +38,71 @@ allocation). On Scala 2 they are methods on an implicit `AsyncOps` class. The
 raw-value representation — a ready `Async[A]` *is* an `A` — holds identically on
 both.
 
+## Runnable example
+
+The [`async-examples`](https://github.com/zio/zio-blocks/tree/main/async-examples)
+module contains a single self-contained program that walks through the major
+features in one file — ready-path composition, direct-style `Async.async` /
+`.await`, `zip` / `collectAll`, error handling, `Async.promise`, a custom
+[[Pollable]] leaf, `tap` / `ensuring`, cancellable `unsafeRunAsync`, and JVM
+`Future` interop.
+
+```bash
+sbt "++3.8.3; async-examples/run"
+```
+
+The program models a small order-fulfillment pipeline: fetch a user and order,
+check warehouse stock, pack a shipment, and audit the steps. The structure is
+intentionally linear so you can read it top-to-bottom as a tutorial.
+
+### Direct-style fulfillment
+
+The heart of the demo is straight-line code over suspending steps — no
+callback nesting, no manual `flatMap` chains:
+
+```scala
+def fulfill(orderId: Int): Async[Shipment] = Async.async {
+  val order = fetchOrder(orderId).await
+  val lines = order.items.map { item =>
+    val stock = stockFor(item.sku).await
+    if (stock.onHand < item.qty)
+      throw new IllegalStateException(s"short ${item.sku}")
+    (item.sku, item.qty)
+  }
+  Shipment(orderId, lines, carrier = "zio-blocks-express")
+}
+```
+
+A failure from any `.await` short-circuits the block as a failed `Async`, the
+same as throwing inside synchronous code.
+
+### Callback bridge
+
+Legacy APIs that take success/error callbacks lift cleanly through
+`Async.promise` (Scala 3 context-function style):
+
+```scala
+val json: Async[String] =
+  Async.promise[String] {
+    // Capture the completer — nested callbacks do not inherit the `?=>` context.
+    val completer = summon[Completer[String]]
+    legacyHttpGet("/users/42", completer)
+  }
+```
+
+### Custom asynchronous leaves
+
+When you need a bespoke source of suspension — a socket read, a timer, a
+foreign runtime — implement [[Pollable]] and return it from `flatMap` to
+**sequence** it, or store it via `Async.succeed` / `map` to keep it as a
+**value** (the runtime wraps pollable success values so they are not driven by
+accident). The showcase includes a `Delayed` pollable that becomes ready after
+a few scheduler ticks.
+
+See
+[`AsyncShowcaseExample.scala`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
+for the full program.
+
 ## Installation
 
 Add the following to your `build.sbt`:
@@ -362,38 +427,34 @@ program, never on a scheduler/reactor thread.
 val result: Int = Async.succeed(20).map(_ + 1).block
 ```
 
-### Cancellable, callback-based running: `Async.unsafeRunAsync`
+### Eager, cancellable running: `Async.start` and `Async.Running`
 
-`Async.unsafeRunAsync(fa)(cb)` runs an `Async` without blocking and returns a
-`Cancelable`. It is the sanctioned, non-blocking way to drive an arbitrary
-`Async` (the encoding is otherwise sealed) and is the foundation cancellation
-and fiber-style wrappers build on.
+`Async.start(fa)` eagerly drives an `Async` without blocking and returns a
+`Running[A]` handle — itself an `Async[A]` you can poll, compose, or cancel.
+Compose with `either`, `tap`, `foldCause`, and the other operators **before**
+`start` to observe or transform the outcome:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val cancelable: Cancelable =
-  Async.unsafeRunAsync(Async.succeed(1).map(_ + 1)) {
-    case Right(value) => println(s"done: $value")
-    case Left(cause)  => println(s"failed: $cause")
-  }
+val running: Async.Running[Int] =
+  Async.succeed(1).map(_ + 1).either.tap {
+    case Right(value) => Async.succeed(println(s"done: $value"))
+    case Left(cause)  => Async.succeed(println(s"failed: $cause"))
+  }.start()
 
-cancelable.cancel() // idempotent; no-op once the run has completed
+running.cancel() // idempotent; no-op once the run has completed
 ```
 
-The callback fires **at most once**:
+`Async.start(body)` evaluates `body` on a background worker (JVM) or microtask
+(JS) and returns a `Running` for the result — the `Async` analogue of
+`Future.apply`.
 
-- exactly once with `Right(value)` on success or `Left(cause)` on failure
-  (including a `Throwable` thrown by a `poll`), **iff** the run reaches a
-  terminal state before `cancel()` wins;
-- never, if `cancel()` linearizes first.
-
-For an already-ready `Async` the callback runs synchronously on the calling
-thread (before `unsafeRunAsync` returns). For a suspended `Async` it runs on a
-daemon worker thread on the JVM, or a microtask on Scala.js — never while an
-internal driver lock is held, and never re-entrantly from inside a `poll`.
-`cancel()` is driver-level only: it stops the poll loop and suppresses the
-callback, but does not abort an in-flight leaf (socket, timer, JS promise).
+For an already-ready `Async`, observers composed before `start` run synchronously
+on the calling thread. For a suspended `Async`, driving proceeds on a daemon
+worker thread on the JVM, or via microtasks on Scala.js. `cancel()` is
+driver-level only: it stops the poll loop and suppresses publishing a terminal
+value, but does not abort an in-flight leaf (socket, timer, JS promise).
 
 ## Interop
 
@@ -420,13 +481,13 @@ val toStage: CompletableFuture[Int] = AsyncInterop.toCompletableFuture(Async.suc
 On Scala.js, `AsyncInterop` provides `fromFuture` / `toFuture` plus
 `fromJsPromise` / `toJsPromise` for native `scala.scalajs.js.Promise` interop.
 
-## Low-level building blocks: `Pollable` and `Waker`
+## Low-level building blocks: `Pollable`
 
 Most code should use the constructors and `Async.promise`. For custom
-asynchronous leaves you can implement a `Pollable[A]` directly. `poll(waker)`
+asynchronous leaves you can implement a `Pollable[A]` directly. `poll(onComplete)`
 returns the ready value (or a `Failure`) when available, or a `Pollable`
 (commonly `this`) when still pending; a pending pollable must arrange to call
-`waker.wake()` once progress can be made, prompting the scheduler to re-poll.
+`onComplete.run()` once progress can be made, prompting the scheduler to re-poll.
 
 ## Cross-platform and cross-version notes
 
@@ -435,7 +496,7 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
 | `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
-| `Async.unsafeRunAsync` / `Cancelable` | ✅ | ✅ | ✅        | ✅        | Non-blocking callback runner; worker thread (JVM) / microtask (JS) |
+| `Async.start` / `Async.Running`       | ✅ | ✅ | ✅        | ✅        | Eager non-blocking runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
 | `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
@@ -445,6 +506,7 @@ the cross-platform test suite fails if any user-visible behavior diverges.
 
 ## See Also
 
+- [Runnable example](#runnable-example) — `async-examples` single-file showcase
 - [Combinators](./combinators.md) — `Async#zip` uses the `Tuples` combiner for
   automatic tuple flattening.
 </content>

@@ -16,66 +16,50 @@
 
 package zio.blocks.async
 
+import zio.{Chunk, Task, ZIO}
 import zio.test._
+import zio.test.Assertion._
+
+import scala.util.Try
 
 /**
- * Cross-platform, cross-version semantics for the error channel: `Async.fail`,
- * `Async.attempt`, `.catchAll`, `.mapError`, `.orElse`, `.foldCause`,
- * `.either`. Mirrors the [[AsyncSpec]] style — only synchronously-resolvable
- * scenarios are tested here; thread-blocking variants live in
- * `AsyncBlockingSpec`.
+ * Error channel semantics.
  */
 object AsyncErrorSpec extends ZIOSpecDefault {
 
-  private val Boom: Throwable  = new RuntimeException("boom")
-  private val Boom2: Throwable = new RuntimeException("boom2")
-
-  /** A pollable that resolves to a failure on its first poll. */
-  private final class FailAfter(t: Throwable, pollsNeeded: Int) extends Pollable[Nothing] {
-    private var remaining                  = pollsNeeded
-    def poll(waker: Waker): Async[Nothing] =
-      if (remaining <= 0) Async.fail(t)
-      else { remaining -= 1; waker.wake(); this }
-  }
-
-  /** A pollable that resolves to a success on its first poll. */
-  private final class SucceedAfter[A](value: A, pollsNeeded: Int) extends Pollable[A] {
-    private var remaining            = pollsNeeded
-    def poll(waker: Waker): Async[A] =
-      if (remaining <= 0) Async.succeed(value)
-      else { remaining -= 1; waker.wake(); this }
-  }
+  private val boom = AsyncTestSupport.boom
+  private val Boom = AsyncTestSupport.boom
 
   def spec = suite("AsyncErrorSpec")(
-    suite("Async.fail / await")(
+    suite("fail")(
       test("await on a failed value throws the cause") {
-        val thrown = scala.util.Try(Async.fail(Boom).block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        val thrown = scala.util.Try(Async.fail(AsyncTestSupport.boom).block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
       },
       test("await on a fail pollable also throws the cause") {
-        val pa: Async[Int] = new FailAfter(Boom, 0)
+        val pa: Async[Int] = AsyncTestSupport.failAfter(AsyncTestSupport.boom, 0)
         val thrown         = scala.util.Try(pa.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
       },
       test("await on a fail pollable that suspends once still throws") {
-        val pa: Async[Int] = new FailAfter(Boom, 1)
+        val pa: Async[Int] = AsyncTestSupport.failAfter(AsyncTestSupport.boom, 1)
         val thrown         = scala.util.Try(pa.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
       }
     ),
-    suite("Async.attempt")(
+    suite("attempt")(
       test("captures a thrown exception as a failure") {
-        val thrown = scala.util.Try(Async.attempt[Int](throw Boom).block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        val thrown = scala.util.Try(Async.attempt[Int](throw AsyncTestSupport.boom).block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
       },
       test("propagates a successful body as a value") {
         val r = Async.attempt(7).block
         assertTrue(r == 7)
       }
     ),
-    suite(".catchAll")(
+    suite("catchAll")(
       test("recovers from a synchronous failure") {
-        val r = Async.fail(Boom).catchAll(_ => Async.succeed(42)).block
+        val r = Async.fail(AsyncTestSupport.boom).catchAll(_ => Async.succeed(42)).block
         assertTrue(r == 42)
       },
       test("does not invoke the handler on success") {
@@ -83,53 +67,85 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(r == 1)
       },
       test("the handler can itself fail") {
-        val thrown = scala.util.Try(Async.fail(Boom).catchAll(_ => Async.fail(Boom2)).block).failed.toOption
-        assertTrue(thrown.contains(Boom2))
+        val thrown = scala.util
+          .Try(Async.fail(AsyncTestSupport.boom).catchAll(_ => Async.fail(AsyncTestSupport.boom2)).block)
+          .failed
+          .toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom2))
       },
       test("recovers from a suspended failure") {
-        val pa: Async[Int] = new FailAfter(Boom, 1)
+        val pa: Async[Int] = AsyncTestSupport.failAfter(AsyncTestSupport.boom, 1)
         val r              = pa.catchAll(_ => Async.succeed(7)).block
         assertTrue(r == 7)
       },
       test("passes through a suspended success") {
-        val pa: Async[Int] = new SucceedAfter(5, 1)
+        val pa: Async[Int] = AsyncTestSupport.succeedAfter(5, 1)
         val r              = pa.catchAll(_ => Async.succeed(99)).block
         assertTrue(r == 5)
+      },
+      test("catchAll_pendingFail_handlerPollThrow_propagatesHandlerThrow") {
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val a = pending.catchAll(_ => AsyncTestSupport.throwingRecovery)
+        c.fail(AsyncTestSupport.primary)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.handlerPoll))
+      },
+      test("catchAll_readyFail_handlerPollThrow_propagatesHandlerThrow") {
+        val thrown =
+          Try(
+            Async.fail(AsyncTestSupport.primary).catchAll(_ => AsyncTestSupport.throwingRecovery).block
+          ).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.handlerPoll))
       }
     ),
-    suite("map / flatMap propagate failure")(
-      test("map past a fail does not invoke f") {
-        var called = false
-        val r      = Async.fail(Boom).map { (_: Any) => called = true; 0 }
-        val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom), !called)
-      },
-      test("flatMap past a fail does not invoke f") {
-        var called = false
-        val r      = Async.fail(Boom).flatMap { (_: Any) => called = true; Async.succeed(0) }
-        val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom), !called)
-      },
-      test("flatMap that itself returns a failure propagates the new cause") {
-        val r      = Async.succeed(1).flatMap(_ => Async.fail(Boom))
-        val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
-      }
-    ),
-    suite(".mapError")(
+    suite("mapError")(
       test("transforms the cause") {
-        val r      = Async.fail(Boom).mapError(_ => Boom2)
+        val r      = Async.fail(AsyncTestSupport.boom).mapError(_ => AsyncTestSupport.boom2)
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom2))
+        assertTrue(thrown.contains(AsyncTestSupport.boom2))
       },
       test("does not run on success") {
-        val r = Async.succeed(10).mapError(_ => Boom2).block
+        val r = Async.succeed(10).mapError(_ => AsyncTestSupport.boom2).block
         assertTrue(r == 10)
+      },
+      test("mapError_nullCause_eitherReifiesLeftNull") {
+        assertTrue(Async.fail(AsyncTestSupport.original).mapError(_ => null).either.block == Left(null))
+      },
+      test("mapError_nullCause_blockMatchesEither") {
+        val fa        = Async.fail(AsyncTestSupport.original).mapError(_ => null)
+        val viaEither = fa.either.block
+        val viaBlock  =
+          try {
+            fa.block
+            Right(None)
+          } catch {
+            case Failure.NullCauseMarker => Left(null)
+            case t: Throwable            => Left(t)
+          }
+        assertTrue(viaEither == Left(null), viaBlock == Left(null))
+      },
+      test("mapError_pendingNullCause_eitherAndBlockAgree") {
+        val c = new Completer[Unit]
+        val a = c.peek.flatMap(_ => Async.fail(null).mapError(identity))
+        c.succeed(())
+        val viaEither = a.either.block
+        val viaBlock  =
+          try {
+            a.block
+            Right(None)
+          } catch {
+            case Failure.NullCauseMarker => Left(null)
+            case t: Throwable            => Left(t)
+          }
+        assertTrue(viaEither == Left(null), viaBlock == Left(null))
       }
     ),
-    suite(".orElse")(
+    suite("orElse")(
       test("falls back to `that` on failure") {
-        val r = Async.fail(Boom).orElse(Async.succeed(99)).block
+        val r = Async.fail(AsyncTestSupport.boom).orElse(Async.succeed(99)).block
         assertTrue(r == 99)
       },
       test("ignores `that` on success") {
@@ -137,9 +153,9 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(r == 1)
       }
     ),
-    suite(".foldCause / .either")(
+    suite("foldCause")(
       test("foldCause applies onFailure on failure") {
-        val r = Async.fail(Boom).foldCause(t => s"err:${t.getMessage}")(_ => "ok").block
+        val r = Async.fail(AsyncTestSupport.boom).foldCause(t => s"err:${t.getMessage}")(_ => "ok").block
         assertTrue(r == "err:boom")
       },
       test("foldCause applies onSuccess on success") {
@@ -147,38 +163,256 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(r == 14)
       },
       test("either returns Left on failure") {
-        val r = Async.fail(Boom).either.block
-        assertTrue(r == Left(Boom))
+        val r = Async.fail(AsyncTestSupport.boom).either.block
+        assertTrue(r == Left(AsyncTestSupport.boom))
+      },
+      test("either returns Right on success") {
+        val r: Either[Throwable, Int] = Async.succeed(3).either.block
+        assertTrue(r == Right(3))
+      },
+      test("foldCause_readyNullFail_onFailureReceivesNull") {
+        var observed: Option[Throwable] = None
+        val r                           =
+          Async
+            .fail(null)
+            .foldCause { t => observed = Some(t); "fail" }(_ => "ok")
+            .block
+        assertTrue(r == "fail", observed.contains(null))
+      },
+      test("foldCause_pendingNullFail_onFailureReceivesNull") {
+        var observed: Option[Throwable] = None
+        val (c, pending)                = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val a =
+          pending
+            .flatMap(_ => Async.fail(null))
+            .foldCause { t => observed = Some(t); "fail" }(_ => "ok")
+        c.succeed(0)
+        assertTrue(a.block == "fail", observed.contains(null))
+      },
+      test("either_pendingNullFail_reifiesLeftNull") {
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val ei = pending.flatMap(_ => Async.fail(null)).either
+        c.succeed(0)
+        assertTrue(ei.block == Left(null))
+      }
+    ),
+    suite("either")(
+      test("foldCause applies onFailure on failure") {
+        val r = Async.fail(AsyncTestSupport.boom).foldCause(t => s"err:${t.getMessage}")(_ => "ok").block
+        assertTrue(r == "err:boom")
+      },
+      test("foldCause applies onSuccess on success") {
+        val r = Async.succeed(7).foldCause(_ => -1)(x => x * 2).block
+        assertTrue(r == 14)
+      },
+      test("either returns Left on failure") {
+        val r = Async.fail(AsyncTestSupport.boom).either.block
+        assertTrue(r == Left(AsyncTestSupport.boom))
       },
       test("either returns Right on success") {
         val r: Either[Throwable, Int] = Async.succeed(3).either.block
         assertTrue(r == Right(3))
       }
     ),
-    // Uses `Async.promiseInternal` (cross-version `=>` shape) — see the
-    // matching comment in `AsyncSpec` for why.
-    suite("Completer.fail")(
-      test("synchronous completer fail surfaces as a Failure") {
-        val a      = Async.promiseInternal[Int](c => c.fail(Boom))
-        val thrown = scala.util.Try(a.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+    suite("map / flatMap propagate failure")(
+      test("map past a fail does not invoke f") {
+        var called = false
+        val r      = Async.fail(AsyncTestSupport.boom).map { (_: Any) => called = true; 0 }
+        val thrown = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom), !called)
       },
-      test("succeed-then-fail keeps the first outcome (succeed)") {
-        val r = Async
-          .promiseInternal[Int] { c =>
-            c.succeed(1)
-            c.fail(Boom)
+      test("flatMap past a fail does not invoke f") {
+        var called = false
+        val r      = Async.fail(AsyncTestSupport.boom).flatMap { (_: Any) => called = true; Async.succeed(0) }
+        val thrown = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom), !called)
+      },
+      test("flatMap that itself returns a failure propagates the new cause") {
+        val r      = Async.succeed(1).flatMap(_ => Async.fail(AsyncTestSupport.boom))
+        val thrown = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
+      }
+    ),
+    suite("null cause")(
+      test("fail_nullCause_eitherReifiesLeftNull") {
+        assertTrue(Async.fail(null).either.block == Left(null))
+      },
+      test("fail_nullCause_blockMatchesEitherChannel") {
+        val viaEither = Async.fail(null).either.block
+        val viaBlock  =
+          try {
+            Async.fail(null).block
+            Right(None)
+          } catch {
+            case Failure.NullCauseMarker => Left(null)
+            case t: Throwable            => Left(t)
           }
-          .block
-        assertTrue(r == 1)
+        assertTrue(viaEither == Left(null), viaBlock == Left(null))
       },
-      test("fail-then-succeed keeps the first outcome (fail)") {
-        val a = Async.promiseInternal[Int] { c =>
-          c.fail(Boom)
-          c.succeed(1)
+      test("mapError_identityOnNullCause_blockMatchesEither") {
+        val fa        = Async.fail(null).mapError(identity)
+        val viaEither = fa.either.block
+        val viaBlock  =
+          try {
+            fa.block
+            Right(None)
+          } catch {
+            case Failure.NullCauseMarker => Left(null)
+            case t: Throwable            => Left(t)
+          }
+        assertTrue(viaEither == Left(null), viaBlock == Left(null))
+      },
+      test("ensuring with a null finalizer cause surfaces the AsyncTestSupport.primary, not an addSuppressed NPE") {
+        val boom   = AsyncTestSupport.boom
+        val a      = Async.fail(boom).ensuring(Async.fail(null))
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      }
+    ),
+    suite("poll throw")(
+      test("flatMap_readyOuter_contPollThrow_propagatesThrow") {
+        val thrown =
+          Try(
+            Async
+              .succeed(1)
+              .flatMap(_ => AsyncTestSupport.throwingContinuation)
+              .block
+          ).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.contPoll))
+      },
+      test("flatMap_pendingOuter_contPollThrow_propagatesThrow") {
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
         }
-        val thrown = scala.util.Try(a.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        val a = pending.flatMap(_ => AsyncTestSupport.throwingContinuation)
+        c.succeed(1)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.contPoll))
+      },
+      test("flatMap_outerPollThrow_doesNotInvokeContinuation") {
+        var invoked = false
+        val a       =
+          AsyncTestSupport.throwingOuter.flatMap(_ => Async.attempt { invoked = true; 0 })
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.outerPoll), !invoked)
+      },
+      test("ensuring_primaryFail_finalizerPollThrow_surfacesPrimary") {
+        val a      = Async.fail(AsyncTestSupport.primary).ensuring(AsyncTestSupport.throwingFinalizer)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.primary))
+      },
+      test("ensuring_primarySuccess_finalizerPollThrow_surfacesPrimaryValue") {
+        val a = Async.succeed(42).ensuring(AsyncTestSupport.throwingFinalizer)
+        assertTrue(a.block == 42)
+      },
+      test("ensuring_pendingPrimaryFail_finalizerPollThrow_surfacesPrimary") {
+        val c = new Completer[Int]
+        val a = c.peek.ensuring(AsyncTestSupport.throwingFinalizer)
+        c.fail(AsyncTestSupport.primary)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.primary))
+      },
+      test("ensuring_primaryFail_finalizerPollThrow_attachesFinalizerAsSuppressed") {
+        val a      = Async.fail(AsyncTestSupport.primary).ensuring(AsyncTestSupport.throwingFinalizer)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(
+          thrown.contains(AsyncTestSupport.primary),
+          thrown.exists(_.getSuppressed.toList.contains(AsyncTestSupport.finPoll))
+        )
+      },
+      test("ensuring_primaryPollThrow_stillRunsFinalizer") {
+        var finRan = false
+        val a      =
+          AsyncTestSupport.throwingPrimary.ensuring(Async.attempt { finRan = true; () })
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.primaryPoll), finRan)
+      },
+      test("ensuring_primaryPollThrow_observableFinalizerEffect") {
+        var finValue = -1
+        val a        =
+          AsyncTestSupport.throwingPrimary.ensuring(Async.succeed { finValue = 99; () })
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.primaryPoll), finValue == 99)
+      }
+    ),
+    suite("ensuring suppressed errors")(
+      test("a failing finalizer is attached to the AsyncTestSupport.primary failure as suppressed") {
+        val primaryCause = new RuntimeException("primary")
+        val fin          = new RuntimeException("finalizer")
+        val a            = Async.fail(primaryCause).ensuring(Async.fail(fin))
+        val thrown       = Try(a.block).failed.toOption
+        assertTrue(
+          thrown.contains(primaryCause),
+          thrown.exists(_.getSuppressed.toList.contains(fin))
+        )
+      },
+      test(
+        "ensuring with the same exception as AsyncTestSupport.primary and finalizer surfaces the AsyncTestSupport.primary, not a self-suppression crash"
+      ) {
+        val e      = new RuntimeException("shared")
+        val a      = Async.fail(e).ensuring(Async.fail(e))
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(e))
+      },
+      test(
+        "finalizer cause that is also the AsyncTestSupport.primary's cause still surfaces the AsyncTestSupport.primary"
+      ) {
+        val root          = new RuntimeException("root")
+        val primaryCause  = new RuntimeException("primary", root) // primaryCause.getCause eq root
+        val a: Async[Int] = Async.fail(primaryCause).ensuring(Async.fail(root))
+        val thrown        = Try(a.block).failed.toOption
+        assertTrue(
+          thrown.contains(primaryCause),
+          thrown.exists(_.getSuppressed.toList.contains(root))
+        )
+      },
+      test(
+        "a suppressed-graph cycle (finalizer caused-by AsyncTestSupport.primary) surfaces the AsyncTestSupport.primary without looping"
+      ) {
+        val primaryCause  = new RuntimeException("primary")
+        val fin           = new RuntimeException("fin", primaryCause) // fin.getCause eq primaryCause -> cycle once suppressed
+        val a: Async[Int] = Async.fail(primaryCause).ensuring(Async.fail(fin))
+        val thrown        = Try(a.block).failed.toOption
+        // Force the cyclic graph to be walked (printStackTrace uses a dejaVu set).
+        thrown.foreach { t =>
+          val sw = new java.io.StringWriter
+          t.printStackTrace(new java.io.PrintWriter(sw))
+        }
+        assertTrue(
+          thrown.contains(primaryCause),
+          thrown.exists(_.getSuppressed.toList.contains(fin))
+        )
+      },
+      test("deeply nested ensuring with mixed null / same / distinct finalizer causes keeps the primary") {
+        val primaryCause  = new RuntimeException("primary")
+        val f1            = new RuntimeException("f1")
+        val f2            = new RuntimeException("f2")
+        val a: Async[Int] =
+          Async
+            .fail(primaryCause)
+            .ensuring(Async.fail(f1))           // distinct -> attached
+            .ensuring(Async.fail(primaryCause)) // same instance as primary -> skipped (guarded)
+            .ensuring(Async.fail(null))         // null finalizer cause -> skipped (guarded)
+            .ensuring(Async.fail(f2))           // distinct -> attached
+        val thrown = Try(a.block).failed.toOption
+        val supp   = thrown.toList.flatMap(_.getSuppressed.toList)
+        assertTrue(
+          thrown.contains(primaryCause),
+          supp.contains(f1),
+          supp.contains(f2)
+        )
+      },
+      test("ensuring with a succeeding AsyncTestSupport.primary drops a failing finalizer without surfacing it") {
+        val fin           = new RuntimeException("fin")
+        val a: Async[Int] = Async.succeed(1).ensuring(Async.fail(fin))
+        assertTrue(a.block == 1)
       }
     )
   )

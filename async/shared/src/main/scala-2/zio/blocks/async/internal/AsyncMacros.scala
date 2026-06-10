@@ -2572,4 +2572,5 @@ private[async] object AsyncMacros {
     // intermediate `Try`-erased value type does not leak into the public type.
     c.Expr[zio.blocks.async.Async[A]](q"$result.asInstanceOf[_root_.zio.blocks.async.Async[${weakTypeOf[A]}]]")
   }
+
 }

@@ -40,5 +40,5 @@ import zio.blocks.async.*
  */
 given asyncRuntimeAwait: CpsRuntimeAwait[Async] with {
   def await[A](fa: Async[A])(ctx: CpsTryMonadContext[Async]): A =
-    fa.block
+    Async.slowPath.blockGeneric[A](fa)
 }

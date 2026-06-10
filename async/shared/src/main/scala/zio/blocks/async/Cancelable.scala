@@ -17,11 +17,12 @@
 package zio.blocks.async
 
 /**
- * Handle returned by [[Async.unsafeRunAsync]] that stops a running [[Async]].
+ * Handle returned by [[Async.start]] (via [[Async.Running]]) that stops a
+ * running [[Async]].
  *
- * [[cancel]] is idempotent and synchronous. It prevents the callback handed to
- * `unsafeRunAsync` from being invoked if cancellation linearizes before the run
- * reaches a terminal state, and it is a no-op once the run has completed.
+ * [[cancel]] is idempotent and synchronous. It prevents a terminal value from
+ * being published if cancellation linearizes before the run reaches completion,
+ * and it is a no-op once the run has completed.
  *
  * Cancellation is '''driver-level only''': it stops the poll loop and
  * suppresses the callback, but does NOT guarantee that an already-running

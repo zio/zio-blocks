@@ -39,9 +39,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
      */
     inline def flatMap[B](inline f: A => Async[B]): Async[B] = {
       val r: Any = fa
-      if (r.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.flatMapAsync[A, B](r, (a: A) => f(a))
-      else f(r.asInstanceOf[A])
+      if (r.isInstanceOf[Failure]) r.asInstanceOf[Async[B]]
+      else if (r.isInstanceOf[Pollable[?]])
+        Async.slowPath.flatMapAsync[A, B](r, (a: A) => f(a))
+      else f(AsyncEncoding.deliverSuccess[A](r))
     }
 
     /**
@@ -50,9 +51,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
      */
     inline def map[B](inline f: A => B): Async[B] = {
       val r: Any = fa
-      if (r.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.mapAsync[A, B](r, (a: A) => f(a))
-      else f(r.asInstanceOf[A]).asInstanceOf[Async[B]]
+      if (r.isInstanceOf[Failure]) r.asInstanceOf[Async[B]]
+      else if (r.isInstanceOf[Pollable[?]])
+        Async.slowPath.mapAsync[A, B](r, (a: A) => f(a))
+      else Async.succeed(f(AsyncEncoding.deliverSuccess[A](r))).asInstanceOf[Async[B]]
     }
 
     /**
@@ -61,9 +63,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
      */
     inline def catchAll[A1 >: A](inline f: Throwable => Async[A1]): Async[A1] = {
       val r: Any = fa
-      if (r.isInstanceOf[Pollable[?]])
-        if (r.isInstanceOf[Failure]) f(r.asInstanceOf[Failure].cause)
-        else AsyncSlowPath.catchAllAsync[A, A1](r, (t: Throwable) => f(t))
+      if (r.isInstanceOf[Failure])
+        try f(r.asInstanceOf[Failure].cause).asInstanceOf[Async[A1]]
+        catch { case t: Throwable => Async.fail(t).asInstanceOf[Async[A1]] }
+      else if (r.isInstanceOf[Pollable[?]])
+        Async.slowPath.catchAllAsync[A, A1](r, (t: Throwable) => f(t))
       else r.asInstanceOf[Async[A1]]
     }
 
@@ -77,12 +81,7 @@ private[async] trait AsyncSyntaxVersionSpecific {
      * block use the direct-style [[await]] instead, which runs without
      * blocking.
      */
-    inline def block: A = {
-      val r: Any = fa
-      if (r.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.awaitSuspended[A](r.asInstanceOf[Pollable[A]])
-      else r.asInstanceOf[A]
-    }
+    inline def block: A = Async.slowPath.block[A](fa)
 
     /**
      * Direct-style await: extract the value of `fa` without blocking, usable
@@ -102,8 +101,16 @@ private[async] trait AsyncSyntaxVersionSpecific {
       val ra: Any = fa
       val rb: Any = that
       if (ra.isInstanceOf[Pollable[?]] || rb.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.zipWithAsync[A, B, C](ra, rb, (a, b) => f(a, b))
-      else f(ra.asInstanceOf[A], rb.asInstanceOf[B]).asInstanceOf[Async[C]]
+        Async.slowPath.zipWithAsync[A, B, C](ra, rb, (a, b) => f(a, b))
+      else
+        Async
+          .succeed(
+            f(
+              AsyncEncoding.deliverSuccess[A](ra),
+              AsyncEncoding.deliverSuccess[B](rb)
+            )
+          )
+          .asInstanceOf[Async[C]]
     }
 
     /**
@@ -123,11 +130,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
     inline def tap(inline f: A => Async[Any]): Async[A] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.tapAsync[A](r, (a: A) => f(a))
-      else {
-        val a = r.asInstanceOf[A]
-        AsyncSlowPath.runThenValue[A](f(a), a, suppressFailure = false)
-      }
+        Async.slowPath.tapAsync[A](r, (a: A) => f(a))
+      else Async.slowPath.tapReady[A](AsyncEncoding.deliverSuccess[A](r), f)
     }
 
     /**
@@ -138,16 +142,21 @@ private[async] trait AsyncSyntaxVersionSpecific {
     inline def ensuring(inline finalizer: Async[Any]): Async[A] = {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[?]])
-        AsyncSlowPath.ensuringAsync[A](r, finalizer)
+        Async.slowPath.ensuringAsync[A](r, finalizer)
       else {
-        val a = r.asInstanceOf[A]
-        AsyncSlowPath.runThenValue[A](finalizer, a, suppressFailure = true)
+        val a = AsyncEncoding.deliverSuccess[A](r)
+        Async.slowPath.runThenValue[A](finalizer, a, suppressFailure = true)
       }
     }
 
     /** Transform the cause of any [[Failure]]; values pass through. */
-    inline def mapError(inline f: Throwable => Throwable): Async[A] =
-      catchAll((t: Throwable) => Async.fail(f(t)))
+    inline def mapError(inline f: Throwable => Throwable): Async[A] = {
+      val r: Any = fa
+      if (r.isInstanceOf[Failure]) Async.fail(f(r.asInstanceOf[Failure].cause))
+      else if (r.isInstanceOf[Pollable[?]])
+        Async.slowPath.catchAllAsync[A, A](r, (t: Throwable) => Async.fail(f(t)))
+      else r.asInstanceOf[Async[A]]
+    }
 
     /** Fall back to `that` if `fa` fails. */
     inline def orElse[A1 >: A](inline that: Async[A1]): Async[A1] =
@@ -158,12 +167,28 @@ private[async] trait AsyncSyntaxVersionSpecific {
      * handling both branches. Equivalent to
      * `fa.map(onSuccess).catchAll(t => Async.succeed(onFailure(t)))`.
      */
-    inline def foldCause[B](inline onFailure: Throwable => B)(inline onSuccess: A => B): Async[B] =
-      map(onSuccess).catchAll((t: Throwable) => Async.succeed(onFailure(t)))
+    inline def foldCause[B](inline onFailure: Throwable => B)(inline onSuccess: A => B): Async[B] = {
+      val r: Any = fa
+      if (r.isInstanceOf[Failure]) Async.succeed(onFailure(r.asInstanceOf[Failure].cause))
+      else if (r.isInstanceOf[Pollable[?]])
+        map(onSuccess).catchAll((t: Throwable) => Async.succeed(onFailure(t)))
+      else {
+        val a = AsyncEncoding.deliverSuccess[A](r)
+        Async.succeed(onSuccess(a))
+      }
+    }
 
     /** Convert any [[Failure]] into a `Left`; any value into a `Right`. */
-    inline def either: Async[Either[Throwable, A]] =
-      foldCause((t: Throwable) => Left(t))((a: A) => Right(a))
+    inline def either: Async[Either[Throwable, A]] = {
+      val r: Any = fa
+      if (r.isInstanceOf[Failure]) Async.succeed(Left(r.asInstanceOf[Failure].cause))
+      else if (r.isInstanceOf[Pollable[?]])
+        foldCause((t: Throwable) => Left(t))((a: A) => Right(a))
+      else {
+        val a = AsyncEncoding.deliverSuccess[A](r)
+        Async.succeed(Right(a))
+      }
+    }
 
     /** Replace the value with `b`. Equivalent to `fa.map(_ => b)`. */
     inline def as[B](inline b: B): Async[B] = map((_: A) => b)
@@ -176,11 +201,14 @@ private[async] trait AsyncSyntaxVersionSpecific {
 
     /** Sequence then return `fa`'s value (`zipLeft`, ZIO's `<*`). */
     inline def <*[B](inline that: Async[B]): Async[A] = zipWith(that)((a, _) => a)
+
+    /** Eagerly drive `fa` and return a [[Async.Running]] handle. */
+    inline def start: Async.Running[A] = Async.start(fa)
   }
 
   /** Flatten an `Async[Async[A]]` one level. */
   extension [A](inline ffa: Async[Async[A]]) {
-    inline def flatten: Async[A] = ffa.flatMap((fa: Async[A]) => fa)
+    inline def flatten: Async[A] = ffa.flatMap((inner: Async[A]) => inner)
   }
 
   /**

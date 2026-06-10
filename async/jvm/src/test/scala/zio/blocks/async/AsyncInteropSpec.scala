@@ -16,40 +16,45 @@
 
 package zio.blocks.async
 
+import zio.{Chunk, Task, ZIO}
+import zio.test._
+import zio.test.Assertion._
+
+import scala.util.Try
+
 import java.util.concurrent.{
   CancellationException,
   CompletableFuture,
   CompletionException,
+  CountDownLatch,
   ExecutionException,
   Executors,
   TimeUnit
 }
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 
-import zio.ZIO
-import zio.test._
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.concurrent.duration._
 
 /**
- * JVM-only conversions between [[Async]] and `scala.concurrent.Future` /
- * `java.util.concurrent.CompletionStage`. Covers:
- *
- *   - sync-completed and pending inputs (both directions)
- *   - success and failure propagation
- *   - `CompletionException` unwrapping on the `CompletionStage` side
+ * JVM interop with Future and CompletionStage.
  */
 object AsyncInteropSpec extends ZIOSpecDefault {
 
   private implicit val ec: ExecutionContext = ExecutionContext.global
 
+  private val boom = AsyncTestSupport.boom
+  private val Boom = AsyncTestSupport.boom
+
   def spec = suite("AsyncInteropSpec")(
-    suite("Future ↔ Async")(
+    suite("Future")(
       test("fromFuture: already-succeeded collapses to a value") {
         val r = AsyncInterop.fromFuture(Future.successful(7)).block
         assertTrue(r == 7)
       },
       test("fromFuture: already-failed collapses to a fail") {
-        val boom   = new RuntimeException("boom")
+        val boom   = AsyncTestSupport.boom
         val r      = AsyncInterop.fromFuture(Future.failed(boom))
         val thrown = scala.util.Try(r.block).failed.toOption
         assertTrue(thrown.contains(boom))
@@ -122,7 +127,7 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           }
       }
     ),
-    suite("CompletionStage ↔ Async")(
+    suite("CompletionStage")(
       test("fromCompletionStage: already-completed collapses to a value") {
         val cf = CompletableFuture.completedFuture(5)
         val r  = AsyncInterop.fromCompletionStage(cf).block
@@ -226,6 +231,395 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           })
         }
       }
+    ),
+    suite("null cause")(
+      test("fromFuture_completedNullFail_eitherReifiesLeftNull") {
+        val fa = AsyncInterop.fromFuture(Future.failed(null))
+        assertTrue(fa.either.block == Left(null))
+      },
+      test("fromFuture_completedNullFail_toFuture_roundTripsNull") {
+        val fa = AsyncInterop.fromFuture(Future.failed(null))
+        for {
+          result <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa)).either
+        } yield assertTrue(AsyncTestSupport.unwindFutureEither(result) == Left(null))
+      },
+      test("fromFuture_completedNullFail_toCompletableFuture_roundTripsNull") {
+        val fa       = AsyncInterop.fromFuture(Future.failed(null))
+        val cf       = AsyncInterop.toCompletableFuture(fa)
+        val observed =
+          try {
+            cf.join()
+            Right(None)
+          } catch {
+            case t: Throwable =>
+              val raw = t match {
+                case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
+                case other                                                               => other
+              }
+              Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+          }
+        assertTrue(observed == Left(null))
+      },
+      test("fromFuture_valueAlreadyFailedWithNull_isNotConfusedWithPending") {
+        val p = scala.concurrent.Promise[Int]()
+        p.failure(null)
+        val fa  = AsyncInterop.fromFuture(p.future)
+        val any = fa.asInstanceOf[Any]
+        assertTrue(
+          any.isInstanceOf[Failure] || !any.isInstanceOf[Pollable[_]],
+          fa.either.block == Left(null)
+        )
+      },
+      test("either_pendingNullFail_reifiesLeftNull") {
+        val (c, a) = AsyncTestSupport.pendingNullFail
+        val ei     = a.either
+        c.succeed(())
+        assertTrue(ei.block == Left(null))
+      },
+      test("unsafeRunAsync_pendingNullFail_deliversLeftNull") {
+        val (c, a)                      = AsyncTestSupport.pendingNullFail
+        var out: Either[Throwable, Any] = null.asInstanceOf[Either[Throwable, Any]]
+        AsyncTestSupport.startEither(a) { res => out = res }
+        c.succeed(())
+        // Spin until the background worker delivers (deterministic after complete).
+        var spins = 0
+        while (out == null && spins < 1000) {
+          Thread.sleep(1)
+          spins += 1
+        }
+        assertTrue(out == Left(null))
+      },
+      test("toFuture_pendingNullFail_failsWithNullCause") {
+        val (c, a) = AsyncTestSupport.pendingNullFail
+        c.succeed(())
+        for {
+          result <- ZIO.fromFuture(_ => AsyncInterop.toFuture(a)).either
+        } yield assertTrue(AsyncTestSupport.unwindFutureEither(result) == Left(null))
+      },
+      test("toFuture_readyNullFail_awaitObservesNullCause") {
+        val f   = AsyncInterop.toFuture(Async.fail(null))
+        val raw =
+          try {
+            Right(Await.result(f, 1.second))
+          } catch {
+            case t: Throwable => Left((t match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+          }
+        assertTrue(raw == Left(null))
+      },
+      test("toCompletableFuture_readyNullFail_joinObservesNullCause") {
+        val cf       = AsyncInterop.toCompletableFuture(Async.fail(null))
+        val observed =
+          try {
+            cf.join()
+            Right(None)
+          } catch {
+            case t: Throwable =>
+              val raw = t match {
+                case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
+                case other                                                               => other
+              }
+              Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+          }
+        assertTrue(observed == Left(null))
+      },
+      test("unsafeRunAsync_failNullCause_deliversLeftNull") {
+        for {
+          out <- ZIO.async[Any, Nothing, Either[Throwable, Any]] { cb =>
+                   val _ = AsyncTestSupport.startEither(Async.fail(null)) { res =>
+                     cb(ZIO.succeed(res))
+                   }
+                   ()
+                 }
+        } yield assertTrue(out == Left(null))
+      }
+    ),
+    suite("WrappedPollable interop")(
+      test("collectAll_succeedPollableElement_isNotSilentlyDriven") {
+        val inner: Pollable[String] = new Pollable[String] {
+          def poll(onComplete: Runnable): Async[String] = Async.succeed("driven")
+        }
+        val r = Async.collectAll(List(Async.succeed(inner)))
+        // collectAll fast-path misclassifies a ready Pollable as pending input.
+        val observed = r.block.head.asInstanceOf[AnyRef]
+        assertTrue(observed eq inner)
+      },
+      test("unsafeRunAsync_succeedPollable_deliversPollableNotDrivenValue") {
+        val inner: Pollable[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
+        }
+        var out: Either[Throwable, Pollable[Int]] = Right(inner)
+        val fa: Async[Pollable[Int]]              = Async.succeed(inner)
+        AsyncTestSupport.startEither(fa) { res => out = res }
+        assertTrue(out.toOption.exists((v: Pollable[Int]) => (v: AnyRef) eq inner))
+      },
+      test("either_succeedPollable_reifiesRightPollableNotDrivenValue") {
+        val inner: Pollable[String] = new Pollable[String] {
+          def poll(onComplete: Runnable): Async[String] = Async.succeed("driven")
+        }
+        val observed = Async.succeed(inner).either.block.toOption.get.asInstanceOf[AnyRef]
+        assertTrue(observed eq inner)
+      },
+      // Category E/L — fromCompletionStage must preserve null failure causes.
+      suite("fromCompletionStage null-cause round-trip")(
+        test("fromCompletionStage_completedNullFail_eitherReifiesLeftNull") {
+          val cf = new CompletableFuture[Int]()
+          cf.completeExceptionally(Failure.NullCauseMarker)
+          val fa = AsyncInterop.fromCompletionStage(cf)
+          assertTrue(fa.either.block == Left(null))
+        },
+        test("fromCompletionStage_completedNullFail_toCompletableFuture_roundTripsNull") {
+          val cf = new CompletableFuture[Int]()
+          cf.completeExceptionally(Failure.NullCauseMarker)
+          val fa       = AsyncInterop.fromCompletionStage(cf)
+          val out      = AsyncInterop.toCompletableFuture(fa)
+          val observed =
+            try {
+              out.join()
+              Right(None)
+            } catch {
+              case t: Throwable =>
+                val raw = t match {
+                  case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
+                  case other                                                               => other
+                }
+                Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+            }
+          assertTrue(observed == Left(null))
+        }
+      ),
+      // Category P — unsafeRunAsync cancel before pending completes suppresses callback.
+      suite("unsafeRunAsync cancel races completion")(
+        test("unsafeRunAsync_pending_cancelBeforeComplete_suppressesCallback") {
+          ZIO.attemptBlocking {
+            val c       = new Completer[Int]
+            val invoked = new AtomicInteger(0)
+            val start   = new CountDownLatch(1)
+            val running = AsyncTestSupport.startTap(c.peek)(_ => invoked.incrementAndGet())
+            start.countDown()
+            running.cancel()
+            // Give the worker a moment to observe cancellation.
+            Thread.sleep(50)
+            c.succeed(1)
+            Thread.sleep(50)
+            assertTrue(invoked.get() == 0)
+          }
+        }
+      ),
+      // Category P — unsafeRunAsync ready path callback is at-most-once.
+      suite("unsafeRunAsync at-most-once callback")(
+        test("unsafeRunAsync_readySuccess_callbackInvokedExactlyOnce") {
+          val count = new AtomicInteger(0)
+          AsyncTestSupport.startTap(Async.succeed(42))(_ => count.incrementAndGet())
+          assertTrue(count.get() == 1)
+        },
+        test("unsafeRunAsync_readyNullFail_callbackInvokedExactlyOnceWithNull") {
+          var out: Either[Throwable, Any] = Right(-1)
+          val count                       = new AtomicInteger(0)
+          AsyncTestSupport.startEither(Async.fail(null)) { res =>
+            count.incrementAndGet()
+            out = res
+          }
+          assertTrue(count.get() == 1, out == Left(null))
+        }
+      ),
+      // Category L — toFuture pending null failure must not leak NullCauseMarker.
+      suite("toFuture pending null-cause integrity")(
+        test("toFuture_pendingNullFail_roundTripsNull") {
+          val fa = Async.promiseInternal[Int](_.fail(null))
+          for {
+            result <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa)).either
+          } yield assertTrue(AsyncTestSupport.unwindFutureEither(result) == Left(null))
+        }
+      ),
+      // CONVERGENCE — JVM interop locks.
+      suite("CONVERGENCE: JVM pass-4 regression locks")(
+        test("fromFuture_pendingNullFail_toFuture_roundTripsNull") {
+          val p  = scala.concurrent.Promise[Int]()
+          val fa = AsyncInterop.fromFuture(p.future)
+          p.failure(null)
+          for {
+            result <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa)).either
+          } yield assertTrue(AsyncTestSupport.unwindFutureEither(result) == Left(null))
+        }
+      ),
+      // Category E — fromCompletionStage ready null success round-trip.
+      suite("fromCompletionStage null success")(
+        test("fromCompletionStage_readyNullSuccess_preservesNull") {
+          val cf = CompletableFuture.completedFuture(null.asInstanceOf[String])
+          val fa = AsyncInterop.fromCompletionStage(cf)
+          assertTrue(fa.block == null)
+        },
+        test("fromCompletionStage_readyNullSuccess_toCompletableFuture_roundTripsNull") {
+          val cf  = CompletableFuture.completedFuture(null.asInstanceOf[String])
+          val fa  = AsyncInterop.fromCompletionStage(cf)
+          val out = AsyncInterop.toCompletableFuture(fa).join()
+          assertTrue(out == null)
+        }
+      ),
+      // Category E/L — toCompletableFuture ready null failure uses marker transport.
+      suite("toCompletableFuture ready null-cause integrity")(
+        test("toCompletableFuture_readyNullFail_observesNullCause") {
+          val cf       = AsyncInterop.toCompletableFuture(Async.fail(null))
+          val observed =
+            try {
+              cf.join()
+              Right(None)
+            } catch {
+              case t: Throwable =>
+                val raw = t match {
+                  case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
+                  case other                                                               => other
+                }
+                Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+            }
+          assertTrue(observed == Left(null))
+        }
+      ),
+      // Category P — unsafeRunAsync completion wins race over late cancel.
+      suite("unsafeRunAsync completion wins cancel race")(
+        test("unsafeRunAsync_readySuccess_cancelConcurrently_stillExactlyOnce") {
+          val count   = new AtomicInteger(0)
+          val running = AsyncTestSupport.startTap(Async.succeed(7))(_ => count.incrementAndGet())
+          running.cancel()
+          assertTrue(count.get() == 1)
+        },
+        test("unsafeRunAsync_pending_completeBeforeCancel_invokesCallback") {
+          ZIO.attemptBlocking {
+            val c       = new Completer[Int]
+            val invoked = new AtomicInteger(0)
+            val running = AsyncTestSupport.startTap(c.peek)(_ => invoked.incrementAndGet())
+            c.succeed(99)
+            Thread.sleep(100)
+            running.cancel()
+            assertTrue(invoked.get() == 1)
+          }
+        }
+      ),
+      // Category E — fromFuture already-completed null success.
+      suite("fromFuture ready null success")(
+        test("fromFuture_completedNullSuccess_preservesNull") {
+          val p = Promise[String]()
+          p.success(null)
+          assertTrue(AsyncInterop.fromFuture(p.future).block == null)
+        }
+      ),
+      // CONVERGENCE — JVM extended locks.
+      suite("CONVERGENCE: JVM pass-4 extended regression locks")(
+        test("toFuture_readyNullSuccess_deliversNull") {
+          for {
+            v <- ZIO.fromFuture(_ => AsyncInterop.toFuture(Async.succeed(null: String)))
+          } yield assertTrue(v == null)
+        }
+      ),
+      // Category E/H — ready pollable-as-value must round-trip through JVM interop.
+      suite("JVM interop pollable-as-value egress")(
+        test("toFuture_succeedPollable_deliversPollableNotDrivenValue") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val f     = AsyncInterop.toFuture(Async.succeed(inner))
+          val raw   = Await.result(f, 1.second).asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
+        },
+        test("toCompletableFuture_succeedPollable_deliversPollableNotDrivenValue") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val cf    = AsyncInterop.toCompletableFuture(Async.succeed(inner))
+          val raw   = cf.join().asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
+        },
+        test("fromFuture_successPollable_toFuture_preservesPollableIdentity") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val fa    = AsyncInterop.fromFuture(Future.successful(inner))
+          for {
+            raw <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue((raw: AnyRef) eq inner)
+        },
+        test("fromCompletionStage_successPollable_blockPreservesPollableIdentity") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val cf    = CompletableFuture.completedFuture(inner)
+          val raw   = AsyncInterop.fromCompletionStage(cf).block.asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
+        }
+      ),
+      // Category E/H — pending interop path completing to pollable-as-value.
+      suite("JVM interop pending pollable-as-value egress")(
+        test("toFuture_pendingFlatMapSucceedPollable_deliversPollableIdentity") {
+          val inner                    = AsyncTestSupport.pollableSuccessValue
+          val c                        = new Completer[Unit]
+          val fa: Async[Pollable[Int]] =
+            c.peek.flatMap(_ => Async.succeed(inner))
+          val f = AsyncInterop.toFuture(fa)
+          c.succeed(())
+          for {
+            raw <- ZIO.fromFuture(_ => f)
+          } yield assertTrue((raw: AnyRef) eq inner)
+        },
+        test("toCompletableFuture_promiseSucceedPollable_deliversPollableIdentity") {
+          val inner                    = AsyncTestSupport.pollableSuccessValue
+          val fa: Async[Pollable[Int]] =
+            Async.promiseInternal[Pollable[Int]](_.succeed(inner))
+          val cf  = AsyncInterop.toCompletableFuture(fa)
+          val raw = cf.join().asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
+        }
+      ),
+      // CONVERGENCE — JVM pass-9 interop regression locks.
+      suite("CONVERGENCE: JVM pass-9 interop regression locks")(
+        test("toFuture_succeedPollable_eitherChannelAgreesWithBlock") {
+          val inner                    = AsyncTestSupport.pollableSuccessValue
+          val fa: Async[Pollable[Int]] = Async.succeed(inner)
+          for {
+            fromFuture <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue((fromFuture: AnyRef) eq inner, fa.block eq inner)
+        }
+      ),
+      // Category P — nested macro await with zipWith pollable terminal unwrap.
+      suite("Async.async nested await combinator chains")(
+        test("asyncAwait_zipWithPendingRightPollable_preservesPollableIdentity") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val c     = new Completer[Unit]
+          val fa    =
+            Async.async {
+              val right = c.peek.flatMap(_ => Async.succeed(inner))
+              Async.succeed(()).await
+              right.await
+            }
+
+          c.succeed(())
+          val result: Pollable[Int] = fa.block
+          assertTrue(result eq inner)
+        },
+        test("asyncAwait_pendingLeftPollableChain_zipWithReadyRight_preservesTupleIdentity") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val c     = new Completer[Unit]
+          val fa    =
+            Async.async {
+              val left = c.peek.flatMap(_ => Async.succeed(inner))
+              val pair = left.zipWith(Async.succeed(7))((p, n) => (p, n))
+              pair.await
+            }
+          c.succeed(())
+          val result = fa.block
+          assertTrue(result._1 eq inner, result == (inner, 7))
+        }
+      ),
+      // CONVERGENCE — JVM pass-10 macro regression locks.
+      suite("CONVERGENCE: JVM pass-10 macro regression locks")(
+        test("asyncAwait_foldCausePendingPollable_onSuccess_preservesPollableIdentity") {
+          val inner = AsyncTestSupport.pollableSuccessValue
+          val c     = new Completer[Unit]
+          val fa    =
+            Async.async {
+              val left =
+                c.peek
+                  .flatMap(_ => Async.succeed(inner))
+                  .foldCause(_ => AsyncTestSupport.pollableSuccessValue)(p => p)
+              left.await
+            }
+
+          c.succeed(())
+          val result: Pollable[Int] = fa.block
+          assertTrue(result eq inner)
+        }
+      )
     )
   )
 }

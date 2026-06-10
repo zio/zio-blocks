@@ -16,22 +16,22 @@
 
 package zio.blocks.async
 
+import zio.{Chunk, Task, ZIO}
 import zio.test._
+import zio.test.Assertion._
+
+import scala.util.Try
 
 /**
- * Cross-platform, cross-version semantics for combinators: `.zip`, `.zipWith`,
- * `.tap`, `.ensuring`, `Async.collectAll`, `Async.never`.
+ * Combinators: zip, zipWith, tap, ensuring, collectAll, when/unless.
  */
 object AsyncCombinatorsSpec extends ZIOSpecDefault {
 
-  private val Boom: Throwable = new RuntimeException("boom")
-
-  private final class Ready[A](value: A) extends Pollable[A] {
-    def poll(waker: Waker): Async[A] = Async.succeed(value)
-  }
+  private val boom = AsyncTestSupport.boom
+  private val Boom = AsyncTestSupport.boom
 
   def spec = suite("AsyncCombinatorsSpec")(
-    suite(".zipWith / .zip")(
+    suite("zipWith")(
       test("zipWith two ready values combines them eagerly") {
         val r = Async.succeed(3).zipWith(Async.succeed(4))(_ + _).block
         assertTrue(r == 7)
@@ -41,69 +41,216 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         assertTrue(r == ((1, "a")))
       },
       test("zipWith left = Pollable, right = value") {
-        val left: Async[Int] = new Ready(10)
+        val left: Async[Int] = AsyncTestSupport.syncReadyPollable(10)
         val r                = left.zipWith(Async.succeed(2))(_ * _).block
         assertTrue(r == 20)
       },
       test("zipWith left = value, right = Pollable") {
-        val right: Async[Int] = new Ready(2)
+        val right: Async[Int] = AsyncTestSupport.syncReadyPollable(2)
         val r                 = Async.succeed(10).zipWith(right)(_ * _).block
         assertTrue(r == 20)
       },
       test("zipWith both Pollables") {
-        val left: Async[Int]  = new Ready(3)
-        val right: Async[Int] = new Ready(4)
+        val left: Async[Int]  = AsyncTestSupport.syncReadyPollable(3)
+        val right: Async[Int] = AsyncTestSupport.syncReadyPollable(4)
         val r                 = left.zipWith(right)(_ + _).block
         assertTrue(r == 7)
       },
       test("zipWith propagates left failure") {
-        val r      = Async.fail(Boom).zipWith(Async.succeed(1))((_, b: Int) => b)
+        val r      = Async.fail(AsyncTestSupport.boom).zipWith(Async.succeed(1))((_, b: Int) => b)
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
       },
       test("zipWith propagates right failure") {
-        val r      = Async.succeed(1).zipWith(Async.fail(Boom))((a: Int, _) => a)
+        val r      = Async.succeed(1).zipWith(Async.fail(AsyncTestSupport.boom))((a: Int, _) => a)
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom))
+        assertTrue(thrown.contains(AsyncTestSupport.boom))
+      },
+      test("an already-failed right does not short-circuit a pending left (drives left first)") {
+        val (c, fa) = AsyncTestSupport.pending[Int]
+        val z       = fa.zipWith(Async.fail(boom))((a, _) => a)
+
+        // Left is pending, so the zip is pending even though the right is failed.
+        val r1 = AsyncTestSupport.pollOnce(z)
+        // Resolve the left; only now may the right's failure surface.
+        c.succeed(1)
+        val thrown = scala.util.Try(z.block).failed.toOption
+
+        assertTrue(
+          AsyncTestSupport.isPending(z),
+          AsyncTestSupport.isPending(r1),
+          thrown.contains(boom)
+        )
+      },
+      test("a pending-then-failing right also defers until the left resolves") {
+        val (cl, fa) = AsyncTestSupport.pending[Int]
+        val (cr, fb) = AsyncTestSupport.pending[Int]
+        val z        = fa.zipWith(fb)((a, _) => a)
+
+        val r1 = AsyncTestSupport.pollOnce(z)
+        cr.fail(boom) // right fails while left still pending
+        val r2     = AsyncTestSupport.pollOnce(z) // still pending: failure deferred
+        cl.succeed(1) // left resolves
+        val thrown = scala.util.Try(z.block).failed.toOption
+
+        assertTrue(
+          AsyncTestSupport.isPending(r1),
+          AsyncTestSupport.isPending(r2),
+          thrown.contains(boom)
+        )
+      },
+      test("a ready left with an already-failed right fails immediately (fast path preserved)") {
+        val z      = Async.succeed(1).zipWith(Async.fail(boom))((a, _) => a)
+        val thrown = scala.util.Try(z.block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("a failed left short-circuits without driving the right") {
+        var rightDriven       = false
+        val right: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { rightDriven = true; Async.succeed(2) }
+        }
+        val z      = Async.fail(boom).zipWith(right)((a, _) => a)
+        val thrown = scala.util.Try(z.block).failed.toOption
+        assertTrue(thrown.contains(boom), !rightDriven)
+      },
+      test("collectAll preserves order across interleaved pending/ready inputs settled out of order") {
+        val (c1, p1) = AsyncTestSupport.pending[Int]
+        val (c2, p2) = AsyncTestSupport.pending[Int]
+        val all      = Async.collectAll(List[Async[Int]](Async.succeed(1), p1, Async.succeed(3), p2, Async.succeed(5)))
+        c2.succeed(4)
+        c1.succeed(2)
+        assertTrue(all.block == List(1, 2, 3, 4, 5))
+      },
+      test("zipWith_failedLeft_doesNotInvokeCombine") {
+        var invoked = false
+        val (_, fb) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val z      = Async.fail(boom).zipWith(fb) { (_, _) => invoked = true; 0 }
+        val thrown = scala.util.Try(z.block).failed.toOption
+        assertTrue(thrown.contains(boom), !invoked)
+      },
+      test("zipWith_pendingLeft_readyRightFail_doesNotSurfaceRightUntilLeftCompletes") {
+        var rightPolled = false
+        val (c, left)   = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val right: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { rightPolled = true; Async.fail(AsyncTestSupport.rightBoom) }
+        }
+        val z = left.zipWith(right)((_, _) => 0)
+        c.fail(AsyncTestSupport.leftBoom)
+        val thrown = Try(z.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.leftBoom), !rightPolled)
+      },
+      test("zipWith_pendingLeft_readyRightFail_doesNotInvokeCombineOnLeftFail") {
+        var invoked   = false
+        val (c, left) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val z = left.zipWith(Async.fail(AsyncTestSupport.rightBoom)) { (_, _) => invoked = true; 0 }
+        c.fail(AsyncTestSupport.leftBoom)
+        val thrown = Try(z.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.leftBoom), !invoked)
       }
     ),
-    suite(".tap")(
+    suite("zip")(
+      test("a zip b yields a Tuple2") {
+        val r: (Int, String) = Async.succeed(1).zip(Async.succeed("a")).block
+        assertTrue(r == ((1, "a")))
+      },
+      test("a zip b zip c flattens to a Tuple3") {
+        val r: (Int, String, Boolean) =
+          Async.succeed(1).zip(Async.succeed("a")).zip(Async.succeed(true)).block
+        assertTrue(r == ((1, "a", true)))
+      },
+      test("a zip b zip c zip d flattens to a Tuple4") {
+        val r: (Int, String, Boolean, Double) =
+          Async
+            .succeed(1)
+            .zip(Async.succeed("a"))
+            .zip(Async.succeed(true))
+            .zip(Async.succeed(1.5))
+            .block
+        assertTrue(r == ((1, "a", true, 1.5)))
+      },
+      test("Unit on the right is erased") {
+        val r: Int = Async.succeed(1).zip(Async.succeed(())).block
+        assertTrue(r == 1)
+      },
+      test("Unit on the left is erased") {
+        val r: Int = Async.succeed(()).zip(Async.succeed(1)).block
+        assertTrue(r == 1)
+      }
+    ),
+    suite("tap")(
       test("runs effect and propagates value (ready)") {
         var seen: Int = 0
         val r         = Async.succeed(7).tap(a => Async.succeed { seen = a }).block
         assertTrue(r == 7, seen == 7)
       },
       test("runs effect on suspended input") {
-        val pa: Async[Int] = new Ready(11)
+        val pa: Async[Int] = AsyncTestSupport.syncReadyPollable(11)
         var seen: Int      = 0
         val r              = pa.tap(a => Async.succeed { seen = a }).block
         assertTrue(r == 11, seen == 11)
       },
       test("propagates failure without running the effect") {
         var called = false
-        val r      = Async.fail(Boom).tap((_: Any) => Async.succeed { called = true })
+        val r      = Async.fail(AsyncTestSupport.boom).tap((_: Any) => Async.succeed { called = true })
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom), !called)
+        assertTrue(thrown.contains(AsyncTestSupport.boom), !called)
+      },
+      test("tap_readyFail_doesNotInvokeEffect") {
+        var invoked = false
+        val a       = Async.fail(boom).tap((_: Nothing) => Async.attempt { invoked = true; () })
+        val thrown  = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(boom), !invoked)
+      },
+      test("tap_pendingFail_doesNotInvokeEffect") {
+        var invoked      = false
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val a = pending.tap(_ => Async.attempt { invoked = true; () })
+        c.fail(boom)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(boom), !invoked)
+      },
+      test("tap_readyValue_finalizerPollThrow_propagatesThrow") {
+        val thrown = Try(Async.succeed(1).tap(_ => AsyncTestSupport.throwingTapEffect).block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.finPoll))
+      },
+      test("tap_pendingPrimary_finalizerPollThrow_propagatesThrow") {
+        val c = new Completer[Int]
+        val a = c.peek.tap(_ => AsyncTestSupport.throwingTapEffect)
+        c.succeed(1)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.finPoll))
       }
     ),
-    suite(".ensuring")(
+    suite("ensuring")(
       test("runs finalizer on success") {
         var ran = false
         val r   = Async.succeed(1).ensuring(Async.succeed { ran = true }).block
         assertTrue(r == 1, ran)
       },
-      test("runs finalizer on failure (and propagates the original failure)") {
+      test("runs finalizer on failure (and propagates the AsyncTestSupport.original failure)") {
         var ran    = false
-        val r      = Async.fail(Boom).ensuring(Async.succeed { ran = true })
+        val r      = Async.fail(AsyncTestSupport.boom).ensuring(Async.succeed { ran = true })
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom), ran)
+        assertTrue(thrown.contains(AsyncTestSupport.boom), ran)
       },
-      test("suppresses finalizer failure (original outcome wins)") {
-        val r = Async.succeed(1).ensuring(Async.fail(Boom)).block
+      test("suppresses finalizer failure (AsyncTestSupport.original AsyncTestSupport.outcome wins)") {
+        val r = Async.succeed(1).ensuring(Async.fail(AsyncTestSupport.boom)).block
         assertTrue(r == 1)
       }
     ),
-    suite("Async.collectAll")(
+    suite("collectAll")(
       test("empty input yields empty list") {
         val r = Async.collectAll[Int](Nil).block
         assertTrue(r == Nil)
@@ -117,9 +264,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
           .collectAll[Int](
             List(
               Async.succeed(1),
-              new Ready(2).asInstanceOf[Async[Int]],
+              AsyncTestSupport.syncReadyPollable(2),
               Async.succeed(3),
-              new Ready(4).asInstanceOf[Async[Int]]
+              AsyncTestSupport.syncReadyPollable(4)
             )
           )
           .block
@@ -130,7 +277,7 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val r           = Async.collectAll(
           List[Async[Int]](
             Async.succeed(1),
-            Async.fail(Boom),
+            Async.fail(AsyncTestSupport.boom),
             Async.succeed { thirdCalled = true; 3 }
           )
         )
@@ -138,15 +285,171 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // construction. What matters is that the collected list short-circuits
         // and that's surfaced as the failure.
         val thrown = scala.util.Try(r.block).failed.toOption
-        assertTrue(thrown.contains(Boom), thirdCalled)
+        assertTrue(thrown.contains(AsyncTestSupport.boom), thirdCalled)
+      },
+      test("collectAll does not drive a Pollable input that follows a failure") {
+        val boom             = AsyncTestSupport.boom
+        var polledAfter      = false
+        val tail: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { polledAfter = true; Async.succeed(0) }
+        }
+        val r      = Async.collectAll(List[Async[Int]](Async.succeed(1), Async.fail(boom), tail))
+        val thrown = Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom), !polledAfter)
+      },
+      test("collectAll should accept a single-pass Iterator source (only .iterator is used)") {
+        typeCheck("""
+              import zio.blocks.async._
+              val it: Iterator[Async[Int]] = Iterator(Async.succeed(1), Async.succeed(2))
+              val r: Async[List[Int]] = Async.collectAll(it)
+              r
+            """).map(r => assert(r)(isRight))
+      },
+      test("CONVERGENCE: collectAll accepts an Iterable source (LazyList)") {
+        typeCheck("""
+              import zio.blocks.async._
+              val ll: LazyList[Async[Int]] = LazyList(Async.succeed(1))
+              val r: Async[List[Int]] = Async.collectAll(ll)
+              r
+            """).map(r => assert(r)(isRight))
+      },
+      test("collectAll_pendingThenFail_doesNotDriveTail") {
+        var tailPolled       = false
+        val tail: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { tailPolled = true; Async.succeed(0) }
+        }
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val r = Async.collectAll(List[Async[Int]](Async.succeed(1), pending, Async.fail(boom), tail))
+        c.fail(boom)
+        val thrown = Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom), !tailPolled)
+      },
+      test("collectAll_firstPendingFails_doesNotDriveRest") {
+        var secondPolled = false
+        val (c, pending) = {
+          val c = new Completer[Int]
+          (c, c.peek)
+        }
+        val second: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { secondPolled = true; Async.succeed(2) }
+        }
+        val r = Async.collectAll(List[Async[Int]](pending, second))
+        c.fail(boom)
+        val thrown = Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom), !secondPolled)
+      },
+      test("collectAll_readyFailFirst_doesNotDriveTail") {
+        var tailPolled       = false
+        val tail: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { tailPolled = true; Async.succeed(0) }
+        }
+        val r      = Async.collectAll(List[Async[Int]](Async.fail(boom), Async.succeed(1), tail))
+        val thrown = Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom), !tailPolled)
       }
     ),
-    suite("Async.never")(
-      test("polling returns the same pollable (never advances)") {
-        val n = Async.never
-        // Drive the pollable once and observe it returns itself.
-        val nany = n.asInstanceOf[Any]
-        assertTrue(nany.isInstanceOf[Pollable[_]])
+    suite("when / unless")(
+      test("when(true) runs the effect") {
+        var ran = false
+        when(true)(Async.succeed { ran = true }).block
+        assertTrue(ran)
+      },
+      test("when(false) does not run the effect") {
+        var ran = false
+        when(false)(Async.succeed { ran = true }).block
+        assertTrue(!ran)
+      },
+      test("unless(true) does not run the effect") {
+        var ran = false
+        unless(true)(Async.succeed { ran = true }).block
+        assertTrue(!ran)
+      },
+      test("unless(false) runs the effect") {
+        var ran = false
+        unless(false)(Async.succeed { ran = true }).block
+        assertTrue(ran)
+      }
+    ),
+    suite("as / unit / *> / <*")(
+      test("replaces the value (ready)") {
+        val r = Async.succeed(1).as("x").block
+        assertTrue(r == "x")
+      },
+      test("replaces the value (suspended)") {
+        val r = (AsyncTestSupport.syncReadyPollable(1): Async[Int]).as("x").block
+        assertTrue(r == "x")
+      },
+      test("propagates failure") {
+        val r      = Async.fail(new RuntimeException("boom")).as("x")
+        val thrown = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.exists(_.getMessage == "boom"))
+      },
+      test("discards the value (ready)") {
+        val r = Async.succeed("anything").unit.block
+        assertTrue(r == (()))
+      },
+      test("discards the value (suspended)") {
+        val r = (AsyncTestSupport.syncReadyPollable(42): Async[Int]).unit.block
+        assertTrue(r == (()))
+      },
+      test("returns rhs (both ready)") {
+        val r = (Async.succeed(1) *> Async.succeed(2)).block
+        assertTrue(r == 2)
+      },
+      test("returns rhs (lhs suspended)") {
+        val l: Async[Int] = AsyncTestSupport.syncReadyPollable(1)
+        val r             = (l *> Async.succeed(2)).block
+        assertTrue(r == 2)
+      },
+      test("returns rhs (rhs suspended)") {
+        val rh: Async[Int] = AsyncTestSupport.syncReadyPollable(2)
+        val r              = (Async.succeed(1) *> rh).block
+        assertTrue(r == 2)
+      },
+      test("propagates lhs failure") {
+        val boom            = AsyncTestSupport.boom
+        val lhs: Async[Int] = Async.fail(boom)
+        val r: Async[Int]   = lhs *> Async.succeed(2)
+        val thrown          = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("propagates rhs failure") {
+        val boom            = AsyncTestSupport.boom
+        val rhs: Async[Int] = Async.fail(boom)
+        val r: Async[Int]   = Async.succeed(1) *> rhs
+        val thrown          = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("returns lhs (both ready)") {
+        val r = (Async.succeed(1) <* Async.succeed(2)).block
+        assertTrue(r == 1)
+      },
+      test("returns lhs (lhs suspended)") {
+        val l: Async[Int] = AsyncTestSupport.syncReadyPollable(1)
+        val r             = (l <* Async.succeed(2)).block
+        assertTrue(r == 1)
+      },
+      test("returns lhs (rhs suspended)") {
+        val rh: Async[Int] = AsyncTestSupport.syncReadyPollable(2)
+        val r              = (Async.succeed(1) <* rh).block
+        assertTrue(r == 1)
+      },
+      test("propagates lhs failure") {
+        val boom            = AsyncTestSupport.boom
+        val lhs: Async[Int] = Async.fail(boom)
+        val r: Async[Int]   = lhs <* Async.succeed(2)
+        val thrown          = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("propagates rhs failure") {
+        val boom            = AsyncTestSupport.boom
+        val rhs: Async[Int] = Async.fail(boom)
+        val r: Async[Int]   = Async.succeed(1) <* rhs
+        val thrown          = scala.util.Try(r.block).failed.toOption
+        assertTrue(thrown.contains(boom))
       }
     )
   )

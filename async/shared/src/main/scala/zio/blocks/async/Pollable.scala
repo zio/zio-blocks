@@ -23,22 +23,22 @@ package zio.blocks.async
  *
  * Implementors define [[poll]]: when asked for its value, a pollable either
  * returns the completed result (a value, or a failed [[Async]]) or, if it is
- * still pending, stashes the supplied [[Waker]] and returns a pending `Async`
- * (typically itself). When the value later becomes available it must invoke
- * `waker.wake()` to ask the scheduler to poll again.
+ * still pending, stashes the supplied [[java.lang.Runnable]] and returns a
+ * pending `Async` (typically itself). When the value later becomes available it
+ * must invoke `onComplete.run()` to ask the scheduler to poll again.
  */
 abstract class Pollable[+A] {
 
   /**
    * Attempt to produce this computation's value. Returns the completed result
-   * if it is ready; otherwise registers `waker` (to be invoked when the value
-   * becomes available) and returns a still-pending `Async`.
+   * if it is ready; otherwise registers `onComplete` (to be invoked when the
+   * value becomes available) and returns a still-pending `Async`.
    *
    * Polling is a '''one-shot driver protocol''': a driver should keep polling
    * only while `poll` returns a still-pending `Pollable`, and must stop as soon
    * as it returns a terminal result — a raw value or a failed [[Async]]. The
-   * built-in drivers (`block`, `unsafeRunAsync`, and the interop runners) all
-   * follow this, so they never poll a settled computation again.
+   * built-in drivers (`block`, `start`, and the interop runners) all follow
+   * this, so they never poll a settled computation again.
    *
    * Re-polling a `Pollable` after it has returned a terminal result is outside
    * the contract and is '''not''' guaranteed to be a pure re-observation: a
@@ -46,5 +46,5 @@ abstract class Pollable[+A] {
    * computations through the built-in runners unless you are implementing this
    * protocol yourself, in which case honor the stop-at-terminal rule.
    */
-  def poll(waker: Waker): Async[A]
+  def poll(onComplete: Runnable): Async[A]
 }

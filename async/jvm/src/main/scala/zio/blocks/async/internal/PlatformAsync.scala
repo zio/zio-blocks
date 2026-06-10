@@ -17,7 +17,6 @@
 package zio.blocks.async.internal
 
 import java.util.concurrent.locks.ReentrantLock
-import zio.blocks.async.Waker
 
 /**
  * JVM platform helpers for the async runtime.
@@ -31,11 +30,11 @@ private[async] object PlatformAsync {
   def newParker(): Parker = new JvmParker
 
   private final class JvmParker extends Parker {
-    private val lock  = new ReentrantLock()
-    private val cond  = lock.newCondition()
-    private var ready = false
-    val waker: Waker  = new Waker {
-      def wake(): Unit = {
+    private val lock         = new ReentrantLock()
+    private val cond         = lock.newCondition()
+    private var ready        = false
+    val onComplete: Runnable = new Runnable {
+      def run(): Unit = {
         lock.lock()
         try {
           ready = true

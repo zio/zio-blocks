@@ -177,6 +177,44 @@ bug worth fixing while the module is open.
 
 ---
 
+## 4. Reject `Pollable` values inside `Async.succeed` (CORRECTNESS, required)
+
+The encoding is `Async[+A] >: Pollable[A]` with rep `= Any`: a *ready* value is
+the value itself, a *suspended* computation is a `Pollable`. Every operation
+folds the two apart with `isInstanceOf[Pollable[?]]`. This means the encoding
+**cannot** represent a ready `Async[A]` whose `A` is *itself* a `Pollable` — such
+a value would be misread as a suspended computation and silently driven instead
+of returned.
+
+This is latent today but becomes load-bearing for async **streams**: terminals
+will return `Async[Z]` for arbitrary user `Z`, and a generic collection element
+or fold result could, in principle, be a `Pollable`. A silent misinterpretation
+there is a correctness hole, not a curiosity.
+
+**Fix:** `Async.succeed` (and any other public entry that lifts a raw `A` into
+the encoding) must reject a `Pollable` argument by throwing — fail fast and
+loud rather than corrupt the computation:
+
+```scala
+def succeed[A](a: A): Async[A] = {
+  if (a.isInstanceOf[Pollable[_]])
+    throw new IllegalArgumentException(
+      "Async.succeed received a Pollable value; the Async encoding cannot " +
+      "represent a ready value that is itself a Pollable. Wrap it (e.g. in a " +
+      "holder) before lifting it into Async."
+    )
+  a.asInstanceOf[Async[A]]
+}
+```
+
+The check is a single `isInstanceOf` on a path that already runs once per
+terminal (not per element), so it is effectively free on the hot path. Document
+the restriction on `Async.succeed` and in the `Async` type docs, and add a
+regression test (`succeed(somePollable)` throws; `succeed(ordinaryValue)`
+round-trips). Streams must treat this as a hard guarantee they can rely on.
+
+---
+
 ## Out of scope (do NOT add for streams)
 
 - **Leaf/resource cancellation / drop hooks.** Aborting an in-flight socket,
@@ -195,6 +233,7 @@ bug worth fixing while the module is open.
 | 1 | `unsafeRunAsync(fa)(cb): Cancelable` (JVM + JS) | **required** | the entire core — driver, cancellation, fork |
 | 2 | `raceAll` / public select | required, deferrable | `merge` / `mapPar` (concurrency) |
 | 3 | null-completion fix (`Completer` + `EnsuringPollable`) | correctness | hygiene; avoidable streams-side |
+| 4 | reject `Pollable` in `Async.succeed` (throw + document) | **required** | safe `Async[Z]` terminals for arbitrary user `Z` |
 
-Bluntly: **add #1** and the async-streams core is unblocked. Add #2 when
+Bluntly: **add #1 and #4** and the async-streams core is unblocked. Add #2 when
 concurrency starts. Fix #3 for hygiene.

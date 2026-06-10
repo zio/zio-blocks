@@ -40,13 +40,13 @@ object AsyncInterop {
     val cur = future.value
     if (cur.isDefined) cur.get match {
       case SSuccess(v) => Async.succeed(v)
-      case SFailure(t) => Async.fail(t)
+      case SFailure(t) => Async.fail(ingressCause(t))
     }
     else
       Async.promiseInternal[A] { c =>
         future.onComplete {
           case SSuccess(v) => c.succeed(v)
-          case SFailure(t) => c.fail(t)
+          case SFailure(t) => c.fail(ingressCause(t))
         }(ExecutionContext.parasitic)
       }
   }
@@ -67,11 +67,13 @@ object AsyncInterop {
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) Future.failed(any.asInstanceOf[Failure].cause)
-    else if (any.isInstanceOf[Pollable[_]]) {
+    else if (AsyncEncoding.isSuspended(any)) {
       val p = Promise[A]()
       drive(fa, p)
       p.future
-    } else Future.successful(any.asInstanceOf[A])
+    } else
+      try Future.successful(Async.slowPath.block[A](fa))
+      catch { case t: Throwable => Future.failed(Failure.unwindCause(t)) }
   }
 
   /**
@@ -91,7 +93,7 @@ object AsyncInterop {
   private def drive[A](fa: Async[A], p: Promise[A])(implicit ec: ExecutionContext): Unit = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) { p.failure(any.asInstanceOf[Failure].cause); () }
-    else if (any.isInstanceOf[Pollable[_]]) {
+    else if (AsyncEncoding.isSuspended(any)) {
       // `current` holds the latest pollable; `step` advances it to the pollable
       // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
       // the *returned* pollable rather than re-polling the original. A single
@@ -105,8 +107,7 @@ object AsyncInterop {
       // `IllegalStateException: Promise already completed`. Mirrors the JVM
       // driver, which collapses multiple wakeups and stops polling after a value.
       var settled           = false
-      lazy val waker: Waker = new Waker {
-        def wake(): Unit =
+      lazy val onComplete: Runnable = new Runnable { def run(): Unit =
           js.Promise
             .resolve[Unit](())
             .toFuture
@@ -116,19 +117,30 @@ object AsyncInterop {
         if (!settled) {
           // A throwing `poll` (on the initial or any resumption microtask) must
           // surface as a failed `Promise`, not be thrown to the caller / orphan
-          // the future — matching the JVM driver and the JS `unsafeRunAsync`
+          // the future — matching the JVM driver and the JS `start` runner
           // runner, both of which funnel a thrown `poll` into the failure path.
           val next =
-            try current.poll(waker)
-            catch { case t: Throwable => settled = true; p.failure(t); return }
+            try current.poll(onComplete)
+            catch { case t: Throwable => settled = true; p.failure(Failure.unwindCause(t)); return }
           val nany = next.asInstanceOf[Any]
           if (nany.isInstanceOf[Failure]) { settled = true; p.failure(nany.asInstanceOf[Failure].cause); () }
           else if (nany.isInstanceOf[Pollable[_]]) {
             current = nany.asInstanceOf[Pollable[A]]; ()
           } // advance; wait for waker
-          else { settled = true; p.success(nany.asInstanceOf[A]); () }
+          else { settled = true; p.success(AsyncEncoding.deliverSuccess[A](nany)); () }
         }
       step()
-    } else { p.success(any.asInstanceOf[A]); () }
+    } else
+      try { p.success(Async.slowPath.block[A](any)); () }
+      catch { case t: Throwable => p.failure(Failure.unwindCause(t)); () }
   }
+
+  /**
+   * Unwrap Scala.js `JavaScriptException` from raw `js.Promise.reject(null)`.
+   */
+  private def ingressCause(t: Throwable): Throwable =
+    Failure.unwindCause(t match {
+      case e: js.JavaScriptException if e.exception == null => null
+      case other                                            => other
+    })
 }

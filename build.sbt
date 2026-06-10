@@ -256,6 +256,7 @@ lazy val root = project
     docs,
     `schema-examples`,
     `streams-examples`,
+    `async-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
@@ -1367,6 +1368,19 @@ lazy val `streams-examples` = project
     streams.jvm,
     chunk.jvm
   )
+
+lazy val `async-examples` = project
+  .in(file("async-examples"))
+  .settings(stdSettings("zio-blocks-async-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
+  )
+  .dependsOn(async.jvm)
 
 lazy val docs = project
   .in(file("zio-blocks-docs"))

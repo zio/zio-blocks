@@ -19,54 +19,55 @@ package zio.blocks.async.internal
 import scala.concurrent.ExecutionContext
 import scala.scalajs.js
 
-import zio.blocks.async.{Async, Cancelable, Failure, Pollable, Waker}
+import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
 /**
- * Scala.js implementation of [[Async.unsafeRunAsync]].
+ * Scala.js implementation of [[Async.start]].
  *
- * JavaScript is single-threaded and cannot block, so a suspended [[Async]] is
- * driven by a microtask polling loop (the same pattern as
- * `AsyncInterop.drive`). The waker re-enters the loop on a
- * `Promise.resolve().then(...)` microtask. Cancellation flips a flag that is
- * checked before scheduling the next microtask, at the top of the loop, and
- * before invoking the callback; because everything runs on the single JS
- * thread, a plain flag is sufficient (no atomics).
+ * Suspended values are driven by a microtask polling loop (the same pattern as
+ * `AsyncInterop.drive`). Cancellation suppresses publishing a terminal value.
  */
 private[async] object AsyncRunner {
 
-  def unsafeRunAsync[A](fa: Async[A])(cb: Either[Throwable, A] => Unit): Cancelable = {
+  def start[A](fa: Async[A]): Async.Running[A] = {
     val any = fa.asInstanceOf[Any]
-    if (any.isInstanceOf[Failure]) {
-      cb(Left(any.asInstanceOf[Failure].cause))
-      Cancelable.noop
-    } else if (any.isInstanceOf[Pollable[_]]) {
-      val run = new Run[A](cb)
-      run.drive(fa)
+    if (any.isInstanceOf[Failure])
+      new CompletedRunning[A](any)
+    else if (AsyncEncoding.isSuspended(any)) {
+      val run = new SuspendedRunning[A]
+      run.drive(any.asInstanceOf[Pollable[A]])
       run
-    } else {
-      cb(Right(any.asInstanceOf[A]))
-      Cancelable.noop
-    }
+    } else
+      try new CompletedRunning[A](Async.slowPath.block[A](any))
+      catch { case t: Throwable => new CompletedRunning[A](new Failure(Failure.unwindCause(t))) }
   }
 
-  private final class Run[A](cb: Either[Throwable, A] => Unit) extends Cancelable {
+  def startEval[A](body: => A): Async.Running[A] = {
+    val completer = new Completer[A]
+    val running   = start(completer.peek)
+    js.Promise
+      .resolve[Unit](())
+      .toFuture
+      .onComplete { _ =>
+        try completer.succeed(body)
+        catch { case t: Throwable => completer.fail(t) }
+      }(scala.scalajs.concurrent.JSExecutionContext.queue)
+    running
+  }
+
+  private final class SuspendedRunning[A] extends Async.Running[A] {
 
     private implicit val ec: ExecutionContext = scala.scalajs.concurrent.JSExecutionContext.queue
 
-    // Single JS thread: plain flags, no atomics. `terminated` guards
-    // at-most-once delivery; `cancelled` short-circuits the loop.
-    private var terminated = false
-    private var cancelled  = false
+    private var terminal: Any = null
+    private var cancelled     = false
+    private var settled       = false
+    private var waiters       = List.empty[Runnable]
 
-    // The latest pollable to drive. `step` advances this to the pollable
-    // returned by `poll`, exactly like the JVM driver (`awaitSuspended`) loops
-    // on the *returned* pollable rather than re-polling the original. A single
-    // shared waker re-enters `step` on the next microtask, so a stale waker
-    // captured by an earlier suspension still resumes the current state.
     private var current: Pollable[A] = null
 
-    private val waker = new Waker {
-      def wake(): Unit =
+    private val onComplete = new Runnable {
+      def run(): Unit =
         if (!cancelled)
           js.Promise
             .resolve[Unit](())
@@ -74,45 +75,44 @@ private[async] object AsyncRunner {
             .onComplete(_ => if (!cancelled) step())
     }
 
-    def cancel(): Unit =
-      if (!terminated) {
-        terminated = true
-        cancelled = true
-      }
-
-    def drive(fa: Async[A]): Unit = {
+    def drive(pa: Pollable[A]): Unit = {
       if (cancelled) return
-      val any = fa.asInstanceOf[Any]
-      if (any.isInstanceOf[Failure]) terminate(Left(any.asInstanceOf[Failure].cause))
-      else if (any.isInstanceOf[Pollable[_]]) {
-        current = any.asInstanceOf[Pollable[A]]
-        step()
-      } else terminate(Right(any.asInstanceOf[A]))
+      current = pa
+      step()
     }
 
     private def step(): Unit = {
-      // Guard on `terminated` (set by both completion and `cancel`), not just
-      // `cancelled`: a pollable may fire its waker more than once (a legitimate
-      // spurious / multi-source wakeup), scheduling several resumption
-      // microtasks. Once the run has settled, every later `step` must be a
-      // no-op so a completed pollable is never re-polled — matching the JVM
-      // `Parker`, which collapses multiple wakeups into one and stops polling
-      // after a terminal value.
-      if (terminated) return
+      if (settled) return
       val next =
-        try current.poll(waker)
-        catch { case t: Throwable => terminate(Left(t)); return }
+        try current.poll(onComplete)
+        catch { case t: Throwable => complete(new Failure(Failure.unwindCause(t))); return }
       val nany = next.asInstanceOf[Any]
-      if (nany.isInstanceOf[Failure]) terminate(Left(nany.asInstanceOf[Failure].cause))
+      if (nany.isInstanceOf[Failure]) complete(nany)
       else if (nany.isInstanceOf[Pollable[_]])
-        current = nany.asInstanceOf[Pollable[A]] // advance; wait for the waker to re-enter
-      else terminate(Right(nany.asInstanceOf[A]))
+        current = nany.asInstanceOf[Pollable[A]]
+      else complete(AsyncEncoding.deliverSuccess[A](nany))
     }
 
-    private def terminate(result: Either[Throwable, A]): Unit =
-      if (!terminated) {
-        terminated = true
-        cb(result)
+    private def complete(value: Any): Unit =
+      if (!cancelled && !settled) {
+        settled = true
+        terminal = value
+        val ws = waiters
+        waiters = Nil
+        ws.foreach(_.run())
+      }
+
+    def poll(onComplete: Runnable): Async[A] =
+      if (terminal != null) terminal.asInstanceOf[Async[A]]
+      else {
+        if (!waiters.contains(w)) waiters = w :: waiters
+        this
+      }
+
+    def cancel(): Unit =
+      if (!settled) {
+        settled = true
+        cancelled = true
       }
   }
 }

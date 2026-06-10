@@ -36,11 +36,16 @@ final class Completer[A] extends Pollable[A] {
 
   /** Complete successfully with `a`. Idempotent — the first completion wins. */
   def succeed(a: A): Unit = {
-    val v = a.asInstanceOf[AnyRef]
+    val any = a.asInstanceOf[Any]
     // A raw `null` value must be stored as the `NullValue` sentinel: storing
     // plain `null` would collide with the empty state, so `compareAndSet(null,
     // null)` would be a silent no-op and the completer would never settle.
-    settle(if (v == null) NullValue else v)
+    // Pollable success values are WrappedPollable-encoded (same as [[Async.succeed]])
+    // so combinator slow paths do not misread them as suspended computations.
+    val stored: AnyRef =
+      if (any == null) NullValue
+      else AsyncEncoding.liftSuccess(a).asInstanceOf[AnyRef] // mirrors [[Async.succeed]]
+    settle(stored)
   }
 
   /**
@@ -54,32 +59,32 @@ final class Completer[A] extends Pollable[A] {
     if (s == null) {
       if (!state.compareAndSet(null, value)) settle(value)
     } else if (s.isInstanceOf[WaitingMarker]) {
-      val w = s.asInstanceOf[WaitingMarker].waker
-      if (state.compareAndSet(s, value)) w.wake()
+      val w = s.asInstanceOf[WaitingMarker].onComplete
+      if (state.compareAndSet(s, value)) w.run()
       else settle(value)
     }
     // else: already settled — first writer wins, ignore subsequent attempts.
   }
 
   @tailrec
-  def poll(waker: Waker): Async[A] = {
+  def poll(onComplete: Runnable): Async[A] = {
     val s = state.get
     if (s == null) {
-      if (state.compareAndSet(null, new WaitingMarker(waker))) this
-      else poll(waker)
+      if (state.compareAndSet(null, new WaitingMarker(onComplete))) this
+      else poll(onComplete)
     } else if (s.isInstanceOf[WaitingMarker]) {
-      // Re-poll with a (possibly new) waker: replace the waiter.
-      if (state.compareAndSet(s, new WaitingMarker(waker))) this
-      else poll(waker)
+      // Re-poll with a (possibly new) onComplete: replace the waiter.
+      if (state.compareAndSet(s, new WaitingMarker(onComplete))) this
+      else poll(onComplete)
     } else if (s eq NullValue) null.asInstanceOf[Async[A]] // settled with a raw null
     else s.asInstanceOf[Async[A]]                          // settled: the value (or Failure)
   }
 
   /**
    * A snapshot of this completer as an [[Async]] that does '''not''' register a
-   * waker: if it has already been completed, the resulting `Async` is already
-   * completed with that value or failure; otherwise it is the still-pending
-   * computation backed by this completer.
+   * onComplete: if it has already been completed, the resulting `Async` is
+   * already completed with that value or failure; otherwise it is the
+   * still-pending computation backed by this completer.
    */
   def peek: Async[A] = {
     val s = state.get
@@ -92,11 +97,12 @@ final class Completer[A] extends Pollable[A] {
 private[async] object Completer {
 
   /**
-   * Wraps a `Waker` so it is distinguishable from a completed value (which is
-   * also stored as an `AnyRef`). Allocated only on the first `poll` that
-   * arrives before completion — the sync-complete hot path never sees it.
+   * Wraps an `onComplete` [[Runnable]] so it is distinguishable from a
+   * completed value (which is also stored as an `AnyRef`). Allocated only on
+   * the first `poll` that arrives before completion — the sync-complete hot
+   * path never sees it.
    */
-  final class WaitingMarker(val waker: Waker)
+  final class WaitingMarker(val onComplete: Runnable)
 
   /**
    * Sentinel stored in the state slot for a completion with a raw `null` value,

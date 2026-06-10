@@ -31,14 +31,72 @@ package zio.blocks.async
  *
  * No methods live here: every operation is either an inline extension on
  * `Async[A]` (see `AsyncSyntaxVersionSpecific`) which folds the encoding via
- * `isInstanceOf[Pollable[?]]`, or a slow-path helper in
- * `zio.blocks.async.internal.AsyncSlowPath`.
+ * `isInstanceOf[Pollable[?]]`, or a slow-path helper in [[Async.slowPath]].
  */
 private[async] abstract class AsyncEncoding {
   type Async[+A] >: Pollable[A]
 }
 
 private[async] object AsyncEncoding {
+
+  /**
+   * Sentinel for a '''success value''' whose runtime type is itself a
+   * [[Pollable]]: disambiguates "pollable-as-`A`" from "pollable-as-suspended
+   * computation". Does not extend [[Pollable]] so the `isInstanceOf[Pollable]`
+   * fast-path fold is unchanged on the common case (`succeed(42)`,
+   * `map(_ + 1)`). Allocated only on the rare `succeed` / `map` /
+   * `Completer.succeed` paths that store a [[Pollable]] as the success value.
+   *
+   * `depth` counts how many times this carrier has been wrapped (each
+   * [[Async.succeed]] / [[liftSuccess]] on a pollable or an existing carrier
+   * increments it). [[unwrapLayer]] decrements by one when supplying a value to
+   * a user callback; at depth `1` the bare [[Pollable]] is exposed.
+   */
+  final case class WrappedPollable(value: Pollable[?], depth: Int)
+
+  /** First [[Async.succeed]] of a user [[Pollable]] success value. */
+  def wrap(p: Pollable[?]): WrappedPollable = WrappedPollable(p, 1)
+
+  /** Nest one more [[Async.succeed]] around an existing carrier. */
+  def nest(w: WrappedPollable): WrappedPollable = WrappedPollable(w.value, w.depth + 1)
+
+  /**
+   * Peel one wrap layer before a user-defined callback. Depth `1` exposes the
+   * bare [[Pollable]]; depth `> 1` returns a shallower [[WrappedPollable]].
+   */
+  def unwrapLayer(any: Any): Any =
+    any match {
+      case WrappedPollable(v, d) if d > 1 => WrappedPollable(v, d - 1)
+      case WrappedPollable(v, 1)          => v
+      case other                          => other
+    }
+
+  /**
+   * Value supplied to user-defined callbacks (`map` / `flatMap` / `zipWith` /
+   * `tap` continuations, slow-path terminal polls, …): one [[unwrapLayer]] so
+   * carriers never escape and nested `Async` layers peel one level at a time.
+   */
+  def deliverSuccess[A](any: Any): A =
+    unwrapLayer(any).asInstanceOf[A]
+
+  /**
+   * Lift a success value into the [[Async]] encoding. [[Pollable]] values —
+   * including [[Failure]] stored as a success value — are wrapped; re-wrapping
+   * an existing carrier increments `depth`.
+   */
+
+  /** True when `any` is a bare suspended [[Pollable]] (not a ready carrier). */
+  def isSuspended(any: Any): Boolean =
+    any.isInstanceOf[Pollable[?]] && !any.isInstanceOf[Failure]
+  def liftSuccess[A](a: A): Async[A] = {
+    val any = a.asInstanceOf[Any]
+    any match {
+      case w: WrappedPollable               => nest(w).asInstanceOf[Async[A]]
+      case p if p.isInstanceOf[Pollable[_]] =>
+        wrap(p.asInstanceOf[Pollable[?]]).asInstanceOf[Async[A]]
+      case _ => a.asInstanceOf[Async[A]]
+    }
+  }
 
   /**
    * The one and only encoding instance. Ascribed to the bare [[AsyncEncoding]]

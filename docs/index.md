@@ -592,6 +592,9 @@ See the [Async reference](./reference/async.md) for the full API, including
 `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
 `Future` / `CompletionStage` interop.
 
+**Runnable tour:** the [`async-examples`](../async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
+module is a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`).
+
 ---
 
 ## Compatibility

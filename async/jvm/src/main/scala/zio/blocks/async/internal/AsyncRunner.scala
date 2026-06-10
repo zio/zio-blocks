@@ -16,70 +16,92 @@
 
 package zio.blocks.async.internal
 
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
-import zio.blocks.async.{Async, AsyncSlowPath, Cancelable, Failure, Pollable}
+import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
 /**
- * JVM implementation of [[Async.unsafeRunAsync]].
+ * JVM implementation of [[Async.start]].
  *
- * A ready (or already-failed) [[Async]] is settled synchronously on the caller
- * thread. A suspended [[Async]] is driven on a daemon worker thread that parks
- * between polls (via [[AsyncSlowPath.awaitSuspended]], which uses a
- * Loom-friendly `ReentrantLock` parker). Cancellation flips a single atomic
- * terminal flag and `interrupt()`s the worker so a parked `poll` unparks;
- * whoever flips the flag first wins, giving at-most-once callback delivery.
+ * Ready values settle synchronously. Suspended values are driven on a daemon
+ * worker that parks between polls (via [[Async.slowPath.awaitSuspended]]).
+ * Cancellation suppresses publishing a terminal value and interrupts the
+ * worker.
  */
 private[async] object AsyncRunner {
 
-  def unsafeRunAsync[A](fa: Async[A])(cb: Either[Throwable, A] => Unit): Cancelable = {
+  def start[A](fa: Async[A]): Async.Running[A] = {
     val any = fa.asInstanceOf[Any]
-    if (any.isInstanceOf[Failure]) {
-      cb(Left(any.asInstanceOf[Failure].cause))
-      Cancelable.noop
-    } else if (any.isInstanceOf[Pollable[_]]) {
-      val run = new Run[A](any.asInstanceOf[Pollable[A]], cb)
-      run.start()
+    if (any.isInstanceOf[Failure])
+      new CompletedRunning[A](any)
+    else if (AsyncEncoding.isSuspended(any)) {
+      val run = new SuspendedRunning[A](any.asInstanceOf[Pollable[A]])
+      run.kick()
       run
-    } else {
-      cb(Right(any.asInstanceOf[A]))
-      Cancelable.noop
-    }
+    } else
+      try new CompletedRunning[A](Async.slowPath.block[A](any))
+      catch { case t: Throwable => new CompletedRunning[A](new Failure(Failure.unwindCause(t))) }
   }
 
-  private final class Run[A](pa: Pollable[A], cb: Either[Throwable, A] => Unit) extends Cancelable {
+  def startEval[A](body: => A): Async.Running[A] = {
+    val completer = new Completer[A]
+    val running   = start(completer.peek)
+    val worker    = new Thread(new Runnable {
+      def run(): Unit =
+        try completer.succeed(body)
+        catch { case t: Throwable => completer.fail(t) }
+    })
+    worker.setName("zio-blocks-async-eval")
+    worker.setDaemon(true)
+    worker.start()
+    running
+  }
 
-    // The single linearization point: whoever CAS-es false -> true decides the
-    // outcome. The worker delivers `cb` only if it wins; `cancel()` suppresses
-    // `cb` only if it wins.
-    private val terminated = new AtomicBoolean(false)
+  private final class SuspendedRunning[A](pa: Pollable[A]) extends Async.Running[A] {
 
-    // Constructed eagerly (not in `start`) so the field is a non-null `val`: a
-    // `Cancelable` only escapes to a caller after `unsafeRunAsync` has returned
-    // this instance, by which point `worker` is set, so `cancel()` never needs a
-    // null guard.
+    private val terminal  = new AtomicReference[Any](null)
+    private val cancelled = new AtomicBoolean(false)
+    private val lock      = new AnyRef
+    private var waiters   = List.empty[Runnable]
+
     private val worker: Thread = {
-      val t = new Thread(new Runnable {
-        def run(): Unit = drive()
-      })
+      val t = new Thread(new Runnable { def run(): Unit = drive() })
       t.setName("zio-blocks-async-runner")
       t.setDaemon(true)
       t
     }
 
-    def start(): Unit = worker.start()
+    def kick(): Unit = worker.start()
 
     private def drive(): Unit = {
-      // `awaitSuspended` parks between polls and throws on failure (including a
-      // thrown `poll`), so success and every error funnel through here. If
-      // `cancel()` interrupted us, the resulting throwable's CAS simply loses.
-      val result: Either[Throwable, A] =
-        try Right(AsyncSlowPath.awaitSuspended(pa))
-        catch { case t: Throwable => Left(t) }
-      if (terminated.compareAndSet(false, true)) cb(result)
+      if (cancelled.get()) return
+      val value: Any =
+        try Async.slowPath.awaitSuspended(pa)
+        catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
+      if (!cancelled.get() && terminal.compareAndSet(null, value)) wakeAll()
+    }
+
+    def poll(onComplete: Runnable): Async[A] = {
+      val t = terminal.get()
+      if (t != null) t.asInstanceOf[Async[A]]
+      else {
+        registerOnComplete(onComplete)
+        this
+      }
     }
 
     def cancel(): Unit =
-      if (terminated.compareAndSet(false, true)) worker.interrupt()
+      if (cancelled.compareAndSet(false, true)) worker.interrupt()
+
+    private def registerOnComplete(w: Runnable): Unit = lock.synchronized {
+      if (terminal.get() != null) w.run()
+      else waiters = w :: waiters
+    }
+
+    private def wakeAll(): Unit = lock.synchronized {
+      val ws = waiters
+      waiters = Nil
+      ws.foreach(_.run())
+    }
   }
 }

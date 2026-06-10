@@ -39,6 +39,18 @@ object AsyncPromiseSpec extends ZIOSpecDefault {
       val a      = Async.promise[String](fail(Boom))
       val thrown = scala.util.Try(a.block).failed.toOption
       assertTrue(thrown.contains(Boom))
+    },
+    test("promise + succeed from another thread via summon") {
+      val a = Async.promise[String] {
+        val c = summon[Completer[String]]
+        val t = new Thread(() => {
+          Thread.sleep(30)
+          c.succeed("ok")
+        })
+        t.setDaemon(true)
+        t.start()
+      }
+      assertTrue(a.block == "ok")
     }
   )
 }

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package zio.blocks.async
+package zio.blocks.async.internal
 
-/**
- * Single-method callback handed to a [[zio.blocks.async.Pollable]] when it
- * suspends. The leaf (timer, socket, completer, ...) stashes the waker and
- * invokes [[wake]] when its value becomes available, asking the scheduler to
- * re-poll the pending computation.
- */
-trait Waker {
-  def wake(): Unit
+import zio.blocks.async.{Async}
+
+/** [[Async.Running]] that has already settled to a terminal [[Async]] encoding. */
+private[async] final class CompletedRunning[A](private val terminal: Any) extends Async.Running[A] {
+
+  def cancel(): Unit = ()
+
+  def poll(onComplete: Runnable): Async[A] = terminal.asInstanceOf[Async[A]]
 }

@@ -43,13 +43,13 @@ object AsyncInterop {
     val cur = future.value
     if (cur.isDefined) cur.get match {
       case SSuccess(v) => Async.succeed(v)
-      case SFailure(t) => Async.fail(t)
+      case SFailure(t) => Async.fail(Failure.unwindCause(t))
     }
     else
       Async.promiseInternal[A] { c =>
         future.onComplete {
           case SSuccess(v) => c.succeed(v)
-          case SFailure(t) => c.fail(t)
+          case SFailure(t) => c.fail(Failure.unwindCause(t))
         }(ExecutionContext.parasitic)
       }
   }
@@ -81,16 +81,18 @@ object AsyncInterop {
    */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
-    if (any.isInstanceOf[Failure]) Future.failed(any.asInstanceOf[Failure].cause)
-    else if (any.isInstanceOf[Pollable[_]]) {
+    if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
+    else if (AsyncEncoding.isSuspended(any)) {
       val p = Promise[A]()
       ec.execute(new Runnable {
         def run(): Unit =
-          try p.success(fa.block)
-          catch { case t: Throwable => p.failure(t); () }
+          try p.success(Async.slowPath.block[A](fa))
+          catch { case t: Throwable => p.failure(Failure.unwindCause(t)); () }
       })
       p.future
-    } else Future.successful(any.asInstanceOf[A])
+    } else
+      try Future.successful(Async.slowPath.block[A](fa))
+      catch { case t: Throwable => failFuture(Failure.unwindCause(t)) }
   }
 
   /**
@@ -103,19 +105,22 @@ object AsyncInterop {
     val any = fa.asInstanceOf[Any]
     val cf  = new CompletableFuture[A]()
     if (any.isInstanceOf[Failure]) {
-      cf.completeExceptionally(any.asInstanceOf[Failure].cause)
+      completeCfExceptionally(cf, any.asInstanceOf[Failure].cause)
       cf
-    } else if (any.isInstanceOf[Pollable[_]]) {
+    } else if (AsyncEncoding.isSuspended(any)) {
       ec.execute(new Runnable {
         def run(): Unit =
-          try { cf.complete(fa.block); () }
-          catch { case t: Throwable => cf.completeExceptionally(t); () }
+          try { cf.complete(Async.slowPath.block[A](fa)); () }
+          catch {
+            case t: Throwable => completeCfExceptionally(cf, t); ()
+          }
       })
       cf
-    } else {
-      cf.complete(any.asInstanceOf[A])
-      cf
-    }
+    } else
+      try { cf.complete(Async.slowPath.block[A](fa)); cf }
+      catch {
+        case t: Throwable => completeCfExceptionally(cf, t); cf
+      }
   }
 
   /**
@@ -124,9 +129,24 @@ object AsyncInterop {
    * level so the failure exposed via [[Async.fail]] matches what the producer
    * threw, rather than a generic completion-exception wrapper.
    */
-  private def unwrapCompletionException(t: Throwable): Throwable = t match {
-    case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
-    case ee: java.util.concurrent.ExecutionException if ee.getCause ne null  => ee.getCause
-    case other                                                               => other
+  private def unwrapCompletionException(t: Throwable): Throwable = {
+    val raw = t match {
+      case ce: java.util.concurrent.CompletionException if ce.getCause ne null => ce.getCause
+      case ee: java.util.concurrent.ExecutionException if ee.getCause ne null  => ee.getCause
+      case other                                                               => other
+    }
+    Failure.unwindCause(raw)
   }
+
+  /** `CompletableFuture` rejects `null` exceptional completions on the JVM. */
+  private def completeCfExceptionally[A](cf: CompletableFuture[A], t: Throwable): Unit = {
+    val cause = Failure.unwindCause(t)
+    if (cause eq null) cf.completeExceptionally(Failure.NullCauseMarker)
+    else cf.completeExceptionally(cause)
+  }
+
+  /** Scala `Future.failed` rejects a `null` exception on the JVM. */
+  private def failFuture[A](cause: Throwable): Future[A] =
+    if (cause eq null) Future.failed(Failure.NullCauseMarker)
+    else Future.failed(cause)
 }

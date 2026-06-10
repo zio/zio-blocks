@@ -263,7 +263,7 @@ class AsyncErrorBench {
   // smallest non-throwing way to actually consume the cause.
 
   @Benchmark def zb_fail(): Either[Throwable, Int] =
-    Async.fail(boom).either.block.asInstanceOf[Either[Throwable, Int]]
+    Async.fail(boom).either.block
 
   @Benchmark def kyo_fail(): Result[Throwable, Int] = {
     val fa: Int < Abort[Throwable] = Abort.fail(boom)
@@ -300,6 +300,17 @@ class AsyncErrorBench {
   @Benchmark def ce_catchAllOnSuccess(): Int =
     IO.pure(x).handleError(_ => 0).unsafeRunSync()
 
+  @Benchmark def kyo_catchAllOnSuccess(): Int = {
+    val fa: Int < Abort[Throwable] = x
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => v
+        case _                 => 0
+      }
+      .eval
+  }
+
   // ---- attempt: wrap a possibly-throwing block -----------------------------
 
   @Benchmark def zb_attemptSuccess(): Int =
@@ -307,6 +318,9 @@ class AsyncErrorBench {
 
   @Benchmark def ce_attemptSuccess(): Int =
     IO.delay(x + 1).unsafeRunSync()
+
+  @Benchmark def kyo_attemptSuccess(): Int =
+    (x + 1: Int < Any).eval
 
   // ---- mapError: transform the cause ---------------------------------------
 
@@ -316,10 +330,20 @@ class AsyncErrorBench {
       .mapError(t => new RuntimeException("wrapped", t))
       .either
       .block
-      .asInstanceOf[Either[Throwable, Int]]
 
   @Benchmark def ce_mapError(): Either[Throwable, Int] =
     IO.raiseError[Int](boom).adaptError(t => new RuntimeException("wrapped", t)).attempt.unsafeRunSync()
+
+  @Benchmark def kyo_mapError(): Result[Throwable, Int] = {
+    val fa: Int < Abort[Throwable] = Abort.fail(boom)
+    Abort
+      .run(fa)
+      .map {
+        case Result.Failure(e) => Result.Failure(new RuntimeException("wrapped", e))
+        case other             => other
+      }
+      .eval
+  }
 
   // ---- orElse: fallback on failure -----------------------------------------
 
@@ -328,6 +352,17 @@ class AsyncErrorBench {
 
   @Benchmark def ce_orElseRecovers(): Int =
     IO.raiseError[Int](boom).orElse(IO.pure(x)).unsafeRunSync()
+
+  @Benchmark def kyo_orElseRecovers(): Int = {
+    val fa: Int < Abort[Throwable] = Abort.fail(boom)
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => v
+        case _                 => x
+      }
+      .eval
+  }
 
   // ---- foldCause: cover both branches in one pass --------------------------
 
@@ -342,10 +377,10 @@ class AsyncErrorBench {
   // ---- either: convert to Either -------------------------------------------
 
   @Benchmark def zb_eitherSuccess(): Either[Throwable, Int] =
-    Async.succeed(x).either.block.asInstanceOf[Either[Throwable, Int]]
+    Async.succeed(x).either.block
 
   @Benchmark def zb_eitherFailure(): Either[Throwable, Int] =
-    Async.fail(boom).either.block.asInstanceOf[Either[Throwable, Int]]
+    Async.fail(boom).either.block
 }
 
 /**
@@ -395,9 +430,17 @@ class AsyncCombinatorBench {
 
   // ---- zip with Zippable (Tuple3) ------------------------------------------
 
-  @Benchmark def zb_zip3(): (Int, Int, Int) = {
-    val r = Async.succeed(x).zip(Async.succeed(x + 1)).zip(Async.succeed(x + 2)).block
-    r.asInstanceOf[(Int, Int, Int)]
+  @Benchmark def zb_zip3(): (Int, Int, Int) =
+    Async.succeed(x).zip(Async.succeed(x + 1)).zip(Async.succeed(x + 2)).block
+
+  @Benchmark def ce_zip3(): (Int, Int, Int) =
+    IO.pure(x).flatMap(a => IO.pure(x + 1).flatMap(b => IO.pure(x + 2).map(c => (a, b, c)))).unsafeRunSync()
+
+  @Benchmark def kyo_zip3(): (Int, Int, Int) = {
+    val fa: Int < Any = x
+    val fb: Int < Any = x + 1
+    val fc: Int < Any = x + 2
+    fa.flatMap(a => fb.flatMap(b => fc.map(c => (a, b, c)))).eval
   }
 
   // ---- collectAll (N already-ready inputs) ---------------------------------
@@ -407,7 +450,9 @@ class AsyncCombinatorBench {
     xs.size
   }
 
-  @Benchmark def ce_sequence(): Int = {
+  @Benchmark def ce_sequence(): Int = ce_collectAll()
+
+  @Benchmark def ce_collectAll(): Int = {
     var acc: IO[List[Int]] = IO.pure(Nil)
     var rem                = ceInputs
     while (rem.nonEmpty) {
@@ -463,11 +508,21 @@ class AsyncCombinatorBench {
   @Benchmark def ce_as(): String =
     IO.pure(x).as("k").unsafeRunSync()
 
+  @Benchmark def kyo_as(): String = {
+    val fa: Int < Any = x
+    fa.map(_ => "k").eval
+  }
+
   @Benchmark def zb_unit(): Unit =
     Async.succeed(x).unit.block
 
   @Benchmark def ce_unit(): Unit =
     IO.pure(x).void.unsafeRunSync()
+
+  @Benchmark def kyo_unit(): Unit = {
+    val fa: Int < Any = x
+    fa.map(_ => ()).eval
+  }
 
   @Benchmark def zb_zipRight(): Int =
     (Async.succeed(x) *> Async.succeed(x + 1)).block
@@ -475,11 +530,23 @@ class AsyncCombinatorBench {
   @Benchmark def ce_zipRight(): Int =
     (IO.pure(x) *> IO.pure(x + 1)).unsafeRunSync()
 
+  @Benchmark def kyo_zipRight(): Int = {
+    val fa: Int < Any = x
+    val fb: Int < Any = x + 1
+    fa.flatMap(_ => fb).eval
+  }
+
   @Benchmark def zb_zipLeft(): Int =
     (Async.succeed(x) <* Async.succeed(x + 1)).block
 
   @Benchmark def ce_zipLeft(): Int =
     (IO.pure(x) <* IO.pure(x + 1)).unsafeRunSync()
+
+  @Benchmark def kyo_zipLeft(): Int = {
+    val fa: Int < Any = x
+    val fb: Int < Any = x + 1
+    fb.flatMap(_ => fa).eval
+  }
 }
 
 /**

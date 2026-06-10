@@ -273,4 +273,26 @@ class AsyncBlockClosureBench {
     }
     fa.block
   }
+
+  @Benchmark def ce_flatMapFoldControl(): Int = {
+    var io = IO.pure(0)
+    var rem = xs
+    while (rem.nonEmpty) {
+      val h = rem.head
+      io = io.flatMap(acc => IO.pure(h + 1).map(v => acc + v))
+      rem = rem.tail
+    }
+    io.unsafeRunSync()
+  }
+
+  @Benchmark def kyo_flatMapFoldControl(): Int = {
+    var fa: Int < Any = 0
+    var rem           = xs
+    while (rem.nonEmpty) {
+      val h = rem.head
+      fa = fa.flatMap(acc => (h + 1: Int < Any).map(v => acc + v))
+      rem = rem.tail
+    }
+    fa.eval
+  }
 }

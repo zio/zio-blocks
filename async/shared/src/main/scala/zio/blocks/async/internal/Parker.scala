@@ -16,20 +16,18 @@
 
 package zio.blocks.async.internal
 
-import zio.blocks.async.Waker
-
 /**
- * Internal parking primitive used by `AsyncSlowPath.awaitSuspended`. One
+ * Internal parking primitive used by `Async.slowPath.awaitSuspended`. One
  * instance is allocated per `await` call and reused across loop iterations.
  *
  *   - [[reset]] is called before each `poll`, under the same exclusion the
- *     waker uses, so a wake that races with the poll cannot be lost.
- *   - [[waker]] is the single, stable [[Waker]] handed to every poll.
- *   - [[park]] blocks until the waker fires (JVM) or throws if the suspension
- *     did not complete synchronously (Scala.js — no thread to park).
+ *     onComplete uses, so a wake that races with the poll cannot be lost.
+ *   - [[onComplete]] is the single, stable [[Runnable]] handed to every poll.
+ *   - [[park]] blocks until the onComplete fires (JVM) or throws if the
+ *     suspension did not complete synchronously (Scala.js — no thread to park).
  */
 private[async] abstract class Parker {
-  def waker: Waker
+  def onComplete: Runnable
   def reset(): Unit
   def park(): Unit
 }
