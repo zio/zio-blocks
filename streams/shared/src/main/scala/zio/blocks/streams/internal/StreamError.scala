@@ -17,10 +17,31 @@
 package zio.blocks.streams.internal
 
 /**
- * Wraps a non-Throwable error value so it can propagate through the
- * Reader/Interpreter stack via exceptions. Used by
- * [[zio.blocks.streams.Stream.fail]] and caught by
- * [[zio.blocks.streams.Stream.run]]. The 4th constructor arg
- * (`writableStackTrace=false`) disables stack trace capture for performance.
+ * Wraps a non-Throwable error value raised by a *stream* so it can propagate
+ * through the Reader/Interpreter stack via exceptions. Used by
+ * [[zio.blocks.streams.Stream.fail]] and stream I/O readers, and caught by
+ * [[zio.blocks.streams.Stream.run]].
+ *
+ * The sibling [[SinkError]] carries *sink*-originated errors. The two are
+ * deliberately distinct, unrelated types so that `run` can project each through
+ * the correct side of its error `Concat` (stream → `left`, sink → `right`), and
+ * so that `Sink.mapError` (which catches only `SinkError`) never rewrites a
+ * stream-origin error.
+ *
+ * This is a non-local *control signal*, not an ordinary error, so it mixes in
+ * [[scala.util.control.ControlThrowable]]. That has two important consequences:
+ *
+ *   - It is excluded by [[scala.util.control.NonFatal]] and is not a subtype of
+ *     `Exception`, so idiomatic defect handling in a consumer (`catch
+ *     NonFatal`, `catch case _: Exception`, `scala.util.Try`) will not
+ *     accidentally swallow a typed stream error. Error recovery belongs to the
+ *     stream (`catchAll`), not to a sink. Only a deliberate
+ *     `catch case _: Throwable` can intercept it — and sinks must not do that
+ *     (see [[zio.blocks.streams.Sink.create]]).
+ *   - It is caught intentionally by the runtime via the exact `case e:
+ *     StreamError` type, which is unaffected by the parent change.
+ *
+ * `ControlThrowable` mixes in `NoStackTrace`, so stack trace capture is
+ * disabled for performance (matching the previous `writableStackTrace=false`).
  */
-final class StreamError(val value: Any) extends Exception(null, null, true, false)
+final class StreamError(val value: Any) extends scala.util.control.ControlThrowable

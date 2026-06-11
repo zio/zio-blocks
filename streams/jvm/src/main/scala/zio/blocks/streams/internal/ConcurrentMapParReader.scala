@@ -33,17 +33,23 @@ private[streams] final class ConcurrentMapParReader[A, B](
 
   require(n >= 1, s"ConcurrentMapParReader requires n >= 1, got $n")
 
-  private val outputQueues: Array[SpscRingBuffer[AnyRef]] =
+  // `outputQueues` and `inputQueues` are reassigned on `reset()` so `mapPar`
+  // can replay a resettable upstream (e.g. under `repeated`). All such
+  // reassignment happens on the consumer thread only after the previous run's
+  // threads have fully terminated (see `reset()`), so single-threaded mutation
+  // is safe there.
+  private var outputQueues: Array[SpscRingBuffer[AnyRef]] =
     Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
   @volatile private var consumerWaiter: Thread = null
 
-  private val inputQueues: Array[SpscRingBuffer[AnyRef]] =
+  private var inputQueues: Array[SpscRingBuffer[AnyRef]] =
     Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
   private val workerWaiters  = new AtomicReferenceArray[Thread](n)
   private val workerThreads  = new AtomicReferenceArray[Thread](n)
   private val workersRunning = new AtomicInteger(n)
 
   private val errorRef                            = new AtomicReference[Throwable](null)
+  @volatile private var errorDelivered: Boolean   = false
   @volatile private var consumerClosed: Boolean   = false
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
 
@@ -51,13 +57,6 @@ private[streams] final class ConcurrentMapParReader[A, B](
     new Runnable {
       def run(): Unit = workerLoop(idx)
     }
-  }
-
-  Array.tabulate(n) { idx =>
-    Platform.startVirtualThread(
-      s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
-      workerTasks(idx)
-    )
   }
 
   private val coordinatorTask: Runnable = new Runnable {
@@ -102,15 +101,30 @@ private[streams] final class ConcurrentMapParReader[A, B](
           recordError(t)
       } finally {
         signalWorkersToStop()
+        // A close failure must surface (Principle 4): record it so the
+        // consumer rethrows it from read() or close().
         try upstream.close()
-        catch { case _: Throwable => () }
+        catch { case t: Throwable => recordError(t) }
       }
   }
 
-  coordinatorThread = Platform.startVirtualThread(
-    s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
-    coordinatorTask
-  )
+  // Spawns the worker pool and the coordinator. Called from the constructor
+  // and from `reset()` after all per-run fields have been reinitialized (the
+  // `Runnable`s read instance fields, so they are reusable across runs).
+  private def startThreads(): Unit = {
+    Array.tabulate(n) { idx =>
+      Platform.startVirtualThread(
+        s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
+        workerTasks(idx)
+      )
+    }
+    coordinatorThread = Platform.startVirtualThread(
+      s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
+      coordinatorTask
+    )
+  }
+
+  startThreads()
 
   private def allOutputQueuesEmpty(): Boolean = {
     var i = 0
@@ -185,6 +199,69 @@ private[streams] final class ConcurrentMapParReader[A, B](
       }
       i += 1
     }
+
+    // A recorded error the consumer never observed via a read (e.g. an
+    // upstream close failure after the last element) must still surface
+    // (Principle 4): rethrow it exactly once at teardown.
+    val err = errorRef.get()
+    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  }
+
+  override def reset(): Unit = {
+    // `mapPar` is a pure decoupling transform: it must not weaken
+    // replayability.
+    // 1) Fully terminate the current run, exactly as close() does — but discard
+    //    any recorded error instead of rethrowing it (reset starts a fresh
+    //    run). `Thread.join` establishes happens-before with the coordinator's
+    //    and workers' termination, making the subsequent single-threaded
+    //    mutation of the per-run fields safe.
+    consumerClosed = true
+    val cw = consumerWaiter
+    if (cw ne null) LockSupport.unpark(cw)
+    var i = 0
+    while (i < n) {
+      val ww = workerWaiters.get(i)
+      if (ww ne null) LockSupport.unpark(ww)
+      i += 1
+    }
+    val ct = coordinatorThread
+    if (ct ne null) {
+      ct.interrupt()
+      ct.join(5000)
+    }
+    i = 0
+    while (i < n) {
+      val t = workerThreads.get(i)
+      if (t ne null) {
+        t.interrupt()
+        t.join(5000)
+      }
+      i += 1
+    }
+    // 2) Replay the upstream. A genuine one-shot source throws
+    //    UnsupportedOperationException here, which correctly propagates: a
+    //    mapPar over a one-shot source is itself one-shot. (The coordinator
+    //    already closed `upstream` in its finally block; resettable readers
+    //    re-enable reads.)
+    upstream.reset()
+    // 3) Reinstate fresh per-run state and respawn the threads.
+    outputQueues = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
+    inputQueues = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
+    i = 0
+    while (i < n) {
+      workerWaiters.set(i, null)
+      workerThreads.set(i, null)
+      i += 1
+    }
+    workersRunning.set(n)
+    errorRef.set(null)
+    errorDelivered = false
+    consumerClosed = false
+    consumerWaiter = null
+    scanStart = 0
+    doneSignalSeen = false
+    eofReturned = false
+    startThreads()
   }
 
   private def workerLoop(idx: Int): Unit = {
@@ -287,9 +364,12 @@ private[streams] final class ConcurrentMapParReader[A, B](
       }
     }
 
-  private def rethrow(t: Throwable): Nothing = t match {
-    case se: StreamError => throw se
-    case _               => throw t
+  private def rethrow(t: Throwable): Nothing = {
+    errorDelivered = true
+    t match {
+      case se: StreamError => throw se
+      case _               => throw t
+    }
   }
 }
 

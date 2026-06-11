@@ -17,7 +17,7 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.{Chunk, ChunkBuilder}
-import zio.blocks.streams.internal.{EndOfStream, Interpreter, StreamError, unsafeEvidence}
+import zio.blocks.streams.internal.{doubleEOF, longEOF, EndOfStream, Interpreter, SinkError, unsafeEvidence}
 import zio.blocks.streams.io.Reader
 
 /**
@@ -105,11 +105,12 @@ object Sink {
         if (et eq JvmType.Int) {
           var n = 0L; val s = Long.MinValue; while (reader.readInt(s)(unsafeEvidence) != s) n += 1L; n
         } else if (et eq JvmType.Long) {
-          var n = 0L; val s = Long.MaxValue; while (reader.readLong(s)(unsafeEvidence) != s) n += 1L; n
+          var n = 0L; val s = Long.MaxValue; while (!longEOF(reader, reader.readLong(s)(unsafeEvidence), s)) n += 1L; n
         } else if (et eq JvmType.Float) {
           var n = 0L; val s = Double.MaxValue; while (reader.readFloat(s)(unsafeEvidence) != s) n += 1L; n
         } else if (et eq JvmType.Double) {
-          var n = 0L; val s = Double.MaxValue; while (reader.readDouble(s)(unsafeEvidence) != s) n += 1L; n
+          var n = 0L; val s = Double.MaxValue;
+          while (!doubleEOF(reader, reader.readDouble(s)(unsafeEvidence), s)) n += 1L; n
         } else if (et eq JvmType.Byte) {
           var n = 0L; val s = Long.MinValue; while (reader.readInt(s)(unsafeEvidence) != s) n += 1L; n
         } else { var n = 0L; while (reader.read(EndOfStream).asInstanceOf[AnyRef] ne EndOfStream) n += 1L; n }
@@ -120,6 +121,15 @@ object Sink {
    * Creates a sink from a function that directly consumes a `Reader`. Use this
    * when none of the built-in sinks (`foldLeft`, `foreach`, `collectAll`, etc.)
    * meet your needs.
+   *
+   * Contract: the read loop must let stream *control signals* propagate. Typed
+   * stream errors travel up through `read` as
+   * `scala.util.control.ControlThrowable`s and are caught by [[Stream.run]] to
+   * form the `Left` result. Do not wrap reads in
+   * `catch { case _: Throwable => ... }` (or otherwise catch control throwables
+   * without rethrowing them), as that swallows stream errors and makes `run`
+   * report a spurious success. Catching `NonFatal` for your own defects is safe
+   * — control throwables are excluded from `NonFatal`.
    */
   def create[E, A, Z](f: Reader[A] => Z): Sink[E, A, Z] =
     new Sink[E, A, Z] {
@@ -135,11 +145,11 @@ object Sink {
         if (et eq JvmType.Int) {
           val s = Long.MinValue; while (reader.readInt(s)(unsafeEvidence) != s) ()
         } else if (et eq JvmType.Long) {
-          val s = Long.MaxValue; while (reader.readLong(s)(unsafeEvidence) != s) ()
+          val s = Long.MaxValue; while (!longEOF(reader, reader.readLong(s)(unsafeEvidence), s)) ()
         } else if (et eq JvmType.Float) {
           val s = Double.MaxValue; while (reader.readFloat(s)(unsafeEvidence) != s) ()
         } else if (et eq JvmType.Double) {
-          val s = Double.MaxValue; while (reader.readDouble(s)(unsafeEvidence) != s) ()
+          val s = Double.MaxValue; while (!doubleEOF(reader, reader.readDouble(s)(unsafeEvidence), s)) ()
         } else if (et eq JvmType.Byte) {
           val s = Long.MinValue; while (reader.readInt(s)(unsafeEvidence) != s) ()
         } else {
@@ -160,7 +170,7 @@ object Sink {
         } else if (et eq JvmType.Long) {
           val fl = pred.asInstanceOf[Long => Boolean]; val s = Long.MaxValue
           var v  = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { if (fl(v)) return true; v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) { if (fl(v)) return true; v = reader.readLong(s)(unsafeEvidence) }
         } else if (et eq JvmType.Float) {
           val ff = pred.asInstanceOf[Float => Boolean]; val s = Double.MaxValue
           var v  = reader.readFloat(s)(unsafeEvidence)
@@ -168,7 +178,7 @@ object Sink {
         } else if (et eq JvmType.Double) {
           val fd = pred.asInstanceOf[Double => Boolean]; val s = Double.MaxValue
           var v  = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { if (fd(v)) return true; v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) { if (fd(v)) return true; v = reader.readDouble(s)(unsafeEvidence) }
         } else if (et eq JvmType.Byte) {
           val fb = pred.asInstanceOf[Byte => Boolean]; val s = Long.MinValue
           var v  = reader.readInt(s)(unsafeEvidence)
@@ -191,7 +201,7 @@ object Sink {
   def fail[E](e: E): Sink[E, Any, Nothing] =
     new Sink[E, Any, Nothing] {
       private[streams] def drain(reader: Reader[_]): Nothing =
-        throw new StreamError(e)
+        throw new SinkError(e)
     }
 
   /** Returns the first element satisfying `pred`, or `None`. */
@@ -209,7 +219,9 @@ object Sink {
         } else if (et eq JvmType.Long) {
           val fl = pred.asInstanceOf[Long => Boolean]; val s = Long.MaxValue
           var v  = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { if (fl(v)) return Some(v.asInstanceOf[A]); v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) {
+            if (fl(v)) return Some(v.asInstanceOf[A]); v = reader.readLong(s)(unsafeEvidence)
+          }
           None
         } else if (et eq JvmType.Float) {
           val ff = pred.asInstanceOf[Float => Boolean]; val s = Double.MaxValue
@@ -221,7 +233,9 @@ object Sink {
         } else if (et eq JvmType.Double) {
           val fd = pred.asInstanceOf[Double => Boolean]; val s = Double.MaxValue
           var v  = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { if (fd(v)) return Some(v.asInstanceOf[A]); v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) {
+            if (fd(v)) return Some(v.asInstanceOf[A]); v = reader.readDouble(s)(unsafeEvidence)
+          }
           None
         } else if (et eq JvmType.Byte) {
           val fb = pred.asInstanceOf[Byte => Boolean]; val s = Long.MinValue
@@ -256,7 +270,7 @@ object Sink {
         } else if (et eq JvmType.Long) {
           val fl = pred.asInstanceOf[Long => Boolean]; val s = Long.MaxValue
           var v  = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { if (!fl(v)) return false; v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) { if (!fl(v)) return false; v = reader.readLong(s)(unsafeEvidence) }
         } else if (et eq JvmType.Float) {
           val ff = pred.asInstanceOf[Float => Boolean]; val s = Double.MaxValue
           var v  = reader.readFloat(s)(unsafeEvidence)
@@ -264,7 +278,7 @@ object Sink {
         } else if (et eq JvmType.Double) {
           val fd = pred.asInstanceOf[Double => Boolean]; val s = Double.MaxValue
           var v  = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { if (!fd(v)) return false; v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) { if (!fd(v)) return false; v = reader.readDouble(s)(unsafeEvidence) }
         } else if (et eq JvmType.Byte) {
           val fb = pred.asInstanceOf[Byte => Boolean]; val s = Long.MinValue
           var v  = reader.readInt(s)(unsafeEvidence)
@@ -291,7 +305,7 @@ object Sink {
           while (v != s) { fi(v.toInt); v = reader.readInt(s)(unsafeEvidence) }
         } else if (et eq JvmType.Long) {
           val fl = f.asInstanceOf[Long => Unit]; val s = Long.MaxValue; var v = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { fl(v); v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) { fl(v); v = reader.readLong(s)(unsafeEvidence) }
         } else if (et eq JvmType.Float) {
           val ff = f.asInstanceOf[Float => Unit]; val s = Double.MaxValue;
           var v  = reader.readFloat(s)(unsafeEvidence)
@@ -299,7 +313,7 @@ object Sink {
         } else if (et eq JvmType.Double) {
           val fd = f.asInstanceOf[Double => Unit]; val s = Double.MaxValue;
           var v  = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { fd(v); v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) { fd(v); v = reader.readDouble(s)(unsafeEvidence) }
         } else if (et eq JvmType.Byte) {
           val fb = f.asInstanceOf[Byte => Unit]; val s = Long.MinValue
           var v  = reader.readInt(s)(unsafeEvidence)
@@ -374,27 +388,27 @@ object Sink {
     if (zt eq JvmType.Int) {
       val fi = f.asInstanceOf[(Int, Long) => Int]; var a = acc.asInstanceOf[Int]
       var v  = reader.readLong(s)(unsafeEvidence)
-      while (v != s) { a = fi(a, v); v = reader.readLong(s)(unsafeEvidence) }
+      while (!longEOF(reader, v, s)) { a = fi(a, v); v = reader.readLong(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Long) {
       val fl = f.asInstanceOf[(Long, Long) => Long]; var a = acc.asInstanceOf[Long]
       var v  = reader.readLong(s)(unsafeEvidence)
-      while (v != s) { a = fl(a, v); v = reader.readLong(s)(unsafeEvidence) }
+      while (!longEOF(reader, v, s)) { a = fl(a, v); v = reader.readLong(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Float) {
       val ff = f.asInstanceOf[(Float, Long) => Float]; var a = acc.asInstanceOf[Float]
       var v  = reader.readLong(s)(unsafeEvidence)
-      while (v != s) { a = ff(a, v); v = reader.readLong(s)(unsafeEvidence) }
+      while (!longEOF(reader, v, s)) { a = ff(a, v); v = reader.readLong(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Double) {
       val fd = f.asInstanceOf[(Double, Long) => Double]; var a = acc.asInstanceOf[Double]
       var v  = reader.readLong(s)(unsafeEvidence)
-      while (v != s) { a = fd(a, v); v = reader.readLong(s)(unsafeEvidence) }
+      while (!longEOF(reader, v, s)) { a = fd(a, v); v = reader.readLong(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else {
       val fl = f.asInstanceOf[(Z, Long) => Z]; var a = acc
       var v  = reader.readLong(s)(unsafeEvidence)
-      while (v != s) { a = fl(a, v); v = reader.readLong(s)(unsafeEvidence) }
+      while (!longEOF(reader, v, s)) { a = fl(a, v); v = reader.readLong(s)(unsafeEvidence) }
       a
     }
   }
@@ -434,27 +448,27 @@ object Sink {
     if (zt eq JvmType.Int) {
       val fi = f.asInstanceOf[(Int, Double) => Int]; var a = acc.asInstanceOf[Int]
       var v  = reader.readDouble(s)(unsafeEvidence)
-      while (v != s) { a = fi(a, v); v = reader.readDouble(s)(unsafeEvidence) }
+      while (!doubleEOF(reader, v, s)) { a = fi(a, v); v = reader.readDouble(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Long) {
       val fl = f.asInstanceOf[(Long, Double) => Long]; var a = acc.asInstanceOf[Long]
       var v  = reader.readDouble(s)(unsafeEvidence)
-      while (v != s) { a = fl(a, v); v = reader.readDouble(s)(unsafeEvidence) }
+      while (!doubleEOF(reader, v, s)) { a = fl(a, v); v = reader.readDouble(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Float) {
       val ff = f.asInstanceOf[(Float, Double) => Float]; var a = acc.asInstanceOf[Float]
       var v  = reader.readDouble(s)(unsafeEvidence)
-      while (v != s) { a = ff(a, v); v = reader.readDouble(s)(unsafeEvidence) }
+      while (!doubleEOF(reader, v, s)) { a = ff(a, v); v = reader.readDouble(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else if (zt eq JvmType.Double) {
       val fd = f.asInstanceOf[(Double, Double) => Double]; var a = acc.asInstanceOf[Double]
       var v  = reader.readDouble(s)(unsafeEvidence)
-      while (v != s) { a = fd(a, v); v = reader.readDouble(s)(unsafeEvidence) }
+      while (!doubleEOF(reader, v, s)) { a = fd(a, v); v = reader.readDouble(s)(unsafeEvidence) }
       a.asInstanceOf[Z]
     } else {
       val fd = f.asInstanceOf[(Z, Double) => Z]; var a = acc
       var v  = reader.readDouble(s)(unsafeEvidence)
-      while (v != s) { a = fd(a, v); v = reader.readDouble(s)(unsafeEvidence) }
+      while (!doubleEOF(reader, v, s)) { a = fd(a, v); v = reader.readDouble(s)(unsafeEvidence) }
       a
     }
   }
@@ -527,13 +541,13 @@ object Sink {
           if (v != Long.MinValue) Some(v.toInt.asInstanceOf[A]) else None
         } else if (et eq JvmType.Long) {
           val v = reader.readLong(Long.MaxValue)(unsafeEvidence)
-          if (v != Long.MaxValue) Some(v.asInstanceOf[A]) else None
+          if (!longEOF(reader, v, Long.MaxValue)) Some(v.asInstanceOf[A]) else None
         } else if (et eq JvmType.Float) {
           val v = reader.readFloat(Double.MaxValue)(unsafeEvidence)
           if (v != Double.MaxValue) Some(v.toFloat.asInstanceOf[A]) else None
         } else if (et eq JvmType.Double) {
           val v = reader.readDouble(Double.MaxValue)(unsafeEvidence)
-          if (v != Double.MaxValue) Some(v.asInstanceOf[A]) else None
+          if (!doubleEOF(reader, v, Double.MaxValue)) Some(v.asInstanceOf[A]) else None
         } else if (et eq JvmType.Byte) {
           val v = reader.readInt(Long.MinValue)(unsafeEvidence)
           if (v != Long.MinValue) Some(v.toByte.asInstanceOf[A]) else None
@@ -554,7 +568,7 @@ object Sink {
           if (hasValue) Some(lastV.asInstanceOf[A]) else None
         } else if (et eq JvmType.Long) {
           val s = Long.MaxValue; var hasValue = false; var lastV = 0L; var v = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { hasValue = true; lastV = v; v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) { hasValue = true; lastV = v; v = reader.readLong(s)(unsafeEvidence) }
           if (hasValue) Some(lastV.asInstanceOf[A]) else None
         } else if (et eq JvmType.Float) {
           val s = Double.MaxValue; var hasValue = false; var lastV = 0f;
@@ -564,7 +578,7 @@ object Sink {
         } else if (et eq JvmType.Double) {
           val s = Double.MaxValue; var hasValue = false; var lastV = 0.0;
           var v = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { hasValue = true; lastV = v; v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) { hasValue = true; lastV = v; v = reader.readDouble(s)(unsafeEvidence) }
           if (hasValue) Some(lastV.asInstanceOf[A]) else None
         } else if (et eq JvmType.Byte) {
           val s = Long.MinValue; var hasValue = false; var lastV: Byte = 0;
@@ -623,7 +637,7 @@ object Sink {
         val b = new ChunkBuilder.Long(); var count = 0; val s = Long.MaxValue
         while (count < n) {
           val v = reader.readLong(s)(unsafeEvidence)
-          if (v == s) return b.result().asInstanceOf[Chunk[A]]
+          if (longEOF(reader, v, s)) return b.result().asInstanceOf[Chunk[A]]
           b.addOne(v); count += 1
         }
         b.result().asInstanceOf[Chunk[A]]
@@ -641,7 +655,7 @@ object Sink {
         val b = new ChunkBuilder.Double(); var count = 0; val s = Double.MaxValue
         while (count < n) {
           val v = reader.readDouble(s)(unsafeEvidence)
-          if (v == s) return b.result().asInstanceOf[Chunk[A]]
+          if (doubleEOF(reader, v, s)) return b.result().asInstanceOf[Chunk[A]]
           b.addOne(v); count += 1
         }
         b.result().asInstanceOf[Chunk[A]]
@@ -656,7 +670,10 @@ object Sink {
         b.result().asInstanceOf[Chunk[A]]
       }
       private def takeGeneric(reader: Reader[_]): Chunk[A] = {
-        val buf = ChunkBuilder.make[A](n); var count = 0
+        // Grow the builder (like the primitive `take*` siblings) instead of
+        // pre-sizing to `n`: `take(n)` takes UP TO `n`, so a huge `n` over a
+        // short stream must not allocate an `n`-element array up front (BUG-P1).
+        val buf = ChunkBuilder.make[A](); var count = 0
         while (count < n) {
           val v = reader.read(EndOfStream)
           if (v.asInstanceOf[AnyRef] eq EndOfStream) return buf.result()
@@ -676,7 +693,7 @@ object Sink {
   private def collectAllDouble(reader: Reader[_]): Chunk[Double] = {
     val b = new ChunkBuilder.Double()
     val s = Double.MaxValue; var v = reader.readDouble(s)(unsafeEvidence)
-    while (v != s) { b.addOne(v); v = reader.readDouble(s)(unsafeEvidence) }
+    while (!doubleEOF(reader, v, s)) { b.addOne(v); v = reader.readDouble(s)(unsafeEvidence) }
     b.result()
   }
 
@@ -698,7 +715,7 @@ object Sink {
   private def collectAllLong(reader: Reader[_]): Chunk[Long] = {
     val b = new ChunkBuilder.Long()
     val s = Long.MaxValue; var v = reader.readLong(s)(unsafeEvidence)
-    while (v != s) { b.addOne(v); v = reader.readLong(s)(unsafeEvidence) }
+    while (!longEOF(reader, v, s)) { b.addOne(v); v = reader.readLong(s)(unsafeEvidence) }
     b.result()
   }
 
@@ -713,7 +730,7 @@ object Sink {
       private[streams] def drain(reader: Reader[_]): Double =
         if (reader.jvmType eq JvmType.Double) {
           val s = Double.MaxValue; var acc = zero; var v = reader.readDouble(s)(unsafeEvidence)
-          while (v != s) { acc = step(acc, v); v = reader.readDouble(s)(unsafeEvidence) }
+          while (!doubleEOF(reader, v, s)) { acc = step(acc, v); v = reader.readDouble(s)(unsafeEvidence) }
           acc
         } else {
           var acc = zero; var v = reader.read(EndOfStream)
@@ -773,7 +790,7 @@ object Sink {
       private[streams] def drain(reader: Reader[_]): Long =
         if (reader.jvmType eq JvmType.Long) {
           val s = Long.MaxValue; var acc = zero; var v = reader.readLong(s)(unsafeEvidence)
-          while (v != s) { acc = step(acc, v); v = reader.readLong(s)(unsafeEvidence) }
+          while (!longEOF(reader, v, s)) { acc = step(acc, v); v = reader.readLong(s)(unsafeEvidence) }
           acc
         } else {
           var acc = zero; var v = reader.read(EndOfStream)
@@ -800,13 +817,20 @@ object Sink {
     }
   }
 
-  /** Sink that transforms the error channel with `f`. */
+  /**
+   * Sink that transforms the error channel with `f`.
+   *
+   * Catches only [[SinkError]] (sink-origin typed failures). A `StreamError`
+   * raised by the upstream stream flows through untouched, so `f` is never
+   * applied to a value of the wrong origin (which would otherwise cause a
+   * `ClassCastException`).
+   */
   private[streams] final class ErrorMapped[E, E2, A, Z](self: Sink[E, A, Z], f: E => E2) extends Sink[E2, A, Z] {
     private[streams] def drain(reader: Reader[_]): Z =
       try self.drain(reader)
       catch {
-        case e: StreamError =>
-          throw new StreamError(f(e.value.asInstanceOf[E]))
+        case e: SinkError =>
+          throw new SinkError(f(e.value.asInstanceOf[E]))
       }
   }
 
@@ -829,7 +853,7 @@ object Sink {
     private def foldLong(reader: Reader[_]): Double = {
       val fl = f.asInstanceOf[(Double, Long) => Double]; var acc = z; val s = Long.MaxValue
       var v  = reader.readLong(s)(unsafeEvidence);
-      while (v != s) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
+      while (!longEOF(reader, v, s)) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
     }
     private def foldFloat(reader: Reader[_]): Double = {
       val ff = f.asInstanceOf[(Double, Float) => Double]; var acc = z; val s = Double.MaxValue
@@ -839,7 +863,7 @@ object Sink {
     private def foldDouble(reader: Reader[_]): Double = {
       val fd = f.asInstanceOf[(Double, Double) => Double]; var acc = z; val s = Double.MaxValue
       var v  = reader.readDouble(s)(unsafeEvidence);
-      while (v != s) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
+      while (!doubleEOF(reader, v, s)) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
     }
     private def foldByte(reader: Reader[_]): Double = {
       val fb = f.asInstanceOf[(Double, Byte) => Double]; var acc = z; val s = Long.MinValue
@@ -872,7 +896,7 @@ object Sink {
     private def foldLong(reader: Reader[_]): Int = {
       val fl = f.asInstanceOf[(Int, Long) => Int]; var acc = z; val s = Long.MaxValue
       var v  = reader.readLong(s)(unsafeEvidence);
-      while (v != s) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
+      while (!longEOF(reader, v, s)) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
     }
     private def foldFloat(reader: Reader[_]): Int = {
       val ff = f.asInstanceOf[(Int, Float) => Int]; var acc = z; val s = Double.MaxValue
@@ -882,7 +906,7 @@ object Sink {
     private def foldDouble(reader: Reader[_]): Int = {
       val fd = f.asInstanceOf[(Int, Double) => Int]; var acc = z; val s = Double.MaxValue
       var v  = reader.readDouble(s)(unsafeEvidence);
-      while (v != s) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
+      while (!doubleEOF(reader, v, s)) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
     }
     private def foldByte(reader: Reader[_]): Int = {
       val fb = f.asInstanceOf[(Int, Byte) => Int]; var acc = z; val s = Long.MinValue
@@ -900,22 +924,27 @@ object Sink {
   private[streams] final class FoldLeftLong[A](z: Long, f: (Long, A) => Long) extends Sink[Nothing, A, Long] {
     private[streams] def drain(reader: Reader[_]): Long = {
       val et = reader.jvmType
-      if (et eq JvmType.Int) foldInt(reader)
+      // The Int lane delegates to the reader's bulk fold: composite readers
+      // (flatMap, concat) drain leaf segments in tight local loops instead of
+      // paying a multi-level virtual `readInt` hop per element. The default
+      // `Reader.foldInt` is exactly the sentinel pull loop the other lanes
+      // still use. Called DIRECTLY from `drain` (no private helper frame):
+      // the extra inline level pushed `Object.<init>` past `MaxInlineLevel`
+      // inside `pullOuter`'s inner-stream construction, which made the fresh
+      // per-element `SucceedPrim` escape and undid its scalar replacement
+      // (zb_flatMap: 202B/op -> 240KB/op, -9% — diagnosed via PrintInlining
+      // "failed to inline: inlining too deep").
+      if (et eq JvmType.Int) reader.foldInt(z, f.asInstanceOf[(Long, Int) => Long])(unsafeEvidence)
       else if (et eq JvmType.Long) foldLong(reader)
       else if (et eq JvmType.Float) foldFloat(reader)
       else if (et eq JvmType.Double) foldDouble(reader)
       else if (et eq JvmType.Byte) foldByte(reader)
       else foldGeneric(reader)
     }
-    private def foldInt(reader: Reader[_]): Long = {
-      val fi = f.asInstanceOf[(Long, Int) => Long]; var acc = z; val s = Long.MinValue
-      var v  = reader.readInt(s)(unsafeEvidence);
-      while (v != s) { acc = fi(acc, v.toInt); v = reader.readInt(s)(unsafeEvidence) }; acc
-    }
     private def foldLong(reader: Reader[_]): Long = {
       val fl = f.asInstanceOf[(Long, Long) => Long]; var acc = z; val s = Long.MaxValue
       var v  = reader.readLong(s)(unsafeEvidence);
-      while (v != s) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
+      while (!longEOF(reader, v, s)) { acc = fl(acc, v); v = reader.readLong(s)(unsafeEvidence) }; acc
     }
     private def foldFloat(reader: Reader[_]): Long = {
       val ff = f.asInstanceOf[(Long, Float) => Long]; var acc = z; val s = Double.MaxValue
@@ -925,7 +954,7 @@ object Sink {
     private def foldDouble(reader: Reader[_]): Long = {
       val fd = f.asInstanceOf[(Long, Double) => Long]; var acc = z; val s = Double.MaxValue
       var v  = reader.readDouble(s)(unsafeEvidence);
-      while (v != s) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
+      while (!doubleEOF(reader, v, s)) { acc = fd(acc, v); v = reader.readDouble(s)(unsafeEvidence) }; acc
     }
     private def foldByte(reader: Reader[_]): Long = {
       val fb = f.asInstanceOf[(Long, Byte) => Long]; var acc = z; val s = Long.MinValue

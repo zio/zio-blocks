@@ -99,10 +99,18 @@ private[streams] final class ChannelReader(ch: ReadableByteChannel, bufSize: Int
 
   override def readUpToN[A1 >: Byte](n: Int): Chunk[A1] = {
     if (n <= 0 || isClosed) return Chunk.empty
-    val arr  = new Array[Byte](n)
-    val read = readBytes(arr, 0, n)(unsafeEvidence)
+    // A single `readBytes` call returns at most one internal buffer's worth of
+    // bytes (`bufSize`), so bound the allocation by `bufSize` to avoid
+    // pre-allocating a multi-GB array for a huge `n` (e.g. Int.MaxValue) and
+    // OOMing — mirroring `readN` and the bounded sizing in the Int/Long/Double/
+    // Float ByteBuffer readers and the base `Reader.readUpToN`. The observable
+    // result is unchanged: `readBytes` already caps at `buf.remaining() <=
+    // bufSize`.
+    val cap  = math.min(n, bufSize)
+    val arr  = new Array[Byte](cap)
+    val read = readBytes(arr, 0, cap)(unsafeEvidence)
     if (read <= 0) Chunk.empty
-    else if (read == n) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+    else if (read == cap) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
     else Chunk.fromArray(java.util.Arrays.copyOf(arr, read)).asInstanceOf[Chunk[A1]]
   }
 

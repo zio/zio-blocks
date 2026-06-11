@@ -78,10 +78,21 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
   private val lookAheadStep: Long = Math.max(1, Math.min(capacity / 4, 4096)).toLong
 
   def offer(a: Long): Boolean = {
-    if (a == EMPTY || a == DONE)
+    if (isReserved(a))
       throw new IllegalArgumentException(
         s"offer($a) is not permitted: Long.MinValue and Long.MinValue + 1L are reserved sentinels"
       )
+    offerNonReserved(a)
+  }
+
+  /**
+   * Unchecked insert for a value the caller has already proven is not a
+   * reserved sentinel (i.e. `a > DONE`). This skips the `isReserved` guard so
+   * callers on a hot path pay for the check exactly once. Callers that may hold
+   * reserved values must route them out-of-band (see the escape protocol used
+   * by the concurrent merge / mapPar readers) and never pass them here.
+   */
+  private[blocks] def offerNonReserved(a: Long): Boolean = {
     val pIdx = producerIndex
     if (pIdx >= producerLimit) {
       if (!offerSlowPath(pIdx)) return false
@@ -101,6 +112,35 @@ final class LongSpscRingBuffer(val capacity: Int) extends LongSpscPad2 {
     if (pIdx >= producerLimit) {
       if (!offerSlowPath(pIdx)) return false
     }
+    val offset = (pIdx & mask).toInt
+    LONG_HANDLE.setRelease(data, offset, DONE)
+    PRODUCER_INDEX.setOpaque(this, pIdx + 1L)
+    true
+  }
+
+  /**
+   * Atomically (with respect to the consumer) publish a `DONE` token, running
+   * `beforePublish` first. This is the primitive used to carry an out-of-band
+   * escape payload alongside a `DONE` marker: the caller passes an action that
+   * enqueues the escape value, and this method runs it ONLY after it has proven
+   * a slot is available and immediately BEFORE the release-store of `DONE`.
+   *
+   * Returns `false` (without running `beforePublish`) if the buffer is full, so
+   * the escape is enqueued at most once and is never orphaned: a return of
+   * `false` means nothing was published, while `true` means `beforePublish` ran
+   * and the matching `DONE` was published with release semantics. The
+   * `setRelease(DONE)` provides the happens-before edge so a consumer that
+   * `getAcquire`-observes this `DONE` also observes the `beforePublish`
+   * effects.
+   *
+   * Producer-thread-only, like [[offerDone]].
+   */
+  private[blocks] def offerDoneAfter(beforePublish: => Unit): Boolean = {
+    val pIdx = producerIndex
+    if (pIdx >= producerLimit) {
+      if (!offerSlowPath(pIdx)) return false
+    }
+    beforePublish
     val offset = (pIdx & mask).toInt
     LONG_HANDLE.setRelease(data, offset, DONE)
     PRODUCER_INDEX.setOpaque(this, pIdx + 1L)
@@ -181,6 +221,13 @@ object LongSpscRingBuffer {
 
   /** Reserved sentinel: in-band end-of-stream marker. */
   final val DONE: Long = Long.MinValue + 1L
+
+  /**
+   * True iff `a` is one of the two reserved sentinels (`EMPTY` or `DONE`).
+   * Since `EMPTY == Long.MinValue` and `DONE == Long.MinValue + 1L` are the two
+   * smallest `Long` values, this is a single signed comparison.
+   */
+  @inline private[blocks] def isReserved(a: Long): Boolean = a <= DONE
 
   private val PRODUCER_INDEX: VarHandle =
     MethodHandles

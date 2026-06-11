@@ -38,6 +38,13 @@ private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSi
   private var pos: Int           = 0
   private var limit: Int         = 0
   private var upstreamDone       = false
+  // An upstream failure raised mid-refill, AFTER elements were already
+  // prefetched. `buffer` is a pure decoupling transform: the prefetched
+  // prefix must be served before the error surfaces — rethrowing from inside
+  // the refill loop would silently abandon those elements, diverging from the
+  // JVM `ConcurrentBufferedReader`, which drains its queue before surfacing
+  // the producer error (BUG-R5-05).
+  private var pendingError: Throwable = null
 
   def isClosed: Boolean = pos >= limit && (upstreamDone || upstream.isClosed)
 
@@ -47,13 +54,20 @@ private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSi
       pos += 1
       v.asInstanceOf[A1]
     } else if (upstreamDone) {
+      if (pendingError ne null) throw pendingError
       sentinel
     } else {
       pos = 0
       limit = 0
       var i = 0
       while (i < bufferSize) {
-        val v = upstream.read[Any](EndOfStream)
+        val v =
+          try upstream.read[Any](EndOfStream)
+          catch {
+            case t: Throwable =>
+              pendingError = t
+              EndOfStream
+          }
         if (v.asInstanceOf[AnyRef] eq EndOfStream) {
           upstreamDone = true
           i = bufferSize
@@ -68,6 +82,7 @@ private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSi
         pos += 1
         v.asInstanceOf[A1]
       } else {
+        if (pendingError ne null) throw pendingError
         sentinel
       }
     }
@@ -89,6 +104,7 @@ private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSi
       }
       b.result()
     } else if (pos >= limit) {
+      if (pendingError ne null) throw pendingError
       Chunk.empty
     } else {
       val count = math.min(n, limit - pos)
@@ -104,4 +120,16 @@ private[streams] final class SyncBufferedReader[A](upstream: Reader[A], bufferSi
   }
 
   def close(): Unit = upstream.close()
+
+  override def reset(): Unit = {
+    // `buffer` is a pure decoupling transform: it must not weaken replayability.
+    // Reset the upstream (propagating UnsupportedOperationException for a genuine
+    // one-shot source) and discard any prefetched elements.
+    upstream.reset()
+    java.util.Arrays.fill(buf, null)
+    pos = 0
+    limit = 0
+    upstreamDone = false
+    pendingError = null
+  }
 }
