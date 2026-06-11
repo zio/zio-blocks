@@ -2016,6 +2016,14 @@ object Reflect {
       case _ => 0
     }
 
+  /** Public accessor for the register offset of a Reflect node. */
+  def publicRegisterOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
+    registerOffset(reflect)
+
+  /** Public accessor for the type tag of a Reflect node. */
+  def publicTypeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
+    typeTag(reflect)
+
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
     private[this] val keys   = new Array[String](mask + 1)

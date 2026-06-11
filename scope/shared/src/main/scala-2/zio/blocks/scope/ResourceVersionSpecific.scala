@@ -597,9 +597,9 @@ private[scope] object ResourceMacros {
               val depValName = depValNames(depKey)
               val valName    = TermName(c.freshName("dep"))
               q"""
-                val $valName: $dep = $depValName.make($scopeName)
-                ${buildDepAcquisition(rest, boundValues :+ (dep, valName), scopeName)}
-              """
+                  val $valName: $dep = $scopeName.allocate($depValName).asInstanceOf[$dep]
+                  ${buildDepAcquisition(rest, boundValues :+ (dep, valName), scopeName)}
+                """
           }
 
         val scopeName = TermName(c.freshName("scope"))
