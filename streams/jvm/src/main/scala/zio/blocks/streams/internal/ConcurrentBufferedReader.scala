@@ -38,8 +38,13 @@ import java.util.concurrent.atomic.AtomicLong
 private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bufferSize: Int) extends Reader[A] {
   import ConcurrentBufferedReader._
 
-  private val queue: BlockingSpscQueue[AnyRef]   = new BlockingSpscQueue[AnyRef](bufferSize)
+  // `queue` and `producerThread` are reassigned on `reset()` so the buffer can
+  // replay a resettable upstream (e.g. under `repeated`). All such reassignment
+  // happens on the consumer thread only after the previous producer has fully
+  // terminated (see `reset()`), so single-threaded mutation is safe there.
+  private var queue: BlockingSpscQueue[AnyRef]   = new BlockingSpscQueue[AnyRef](bufferSize)
   @volatile private var producerError: Throwable = null
+  @volatile private var errorDelivered: Boolean  = false
   @volatile private var consumerClosed: Boolean  = false
   @volatile private var producerDone: Boolean    = false
   private var upstreamClosedByProducer: Boolean  = false
@@ -68,17 +73,23 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
         queue.close()
         if (!upstreamClosedByProducer) {
           upstreamClosedByProducer = true
+          // A close failure must surface (Principle 4): record it (without
+          // displacing an earlier read error) so the consumer rethrows it from
+          // read() or close().
           try upstream.close()
-          catch { case _: Throwable => () }
+          catch { case t: Throwable => if (producerError eq null) producerError = t }
         }
         producerDone = true
       }
   }
 
-  private val producerThread: Thread = Platform.startVirtualThread(
-    s"zio-blocks-buffer-${ConcurrentBufferedReader.counter.getAndIncrement()}",
-    producerTask
-  )
+  private var producerThread: Thread = spawnProducer()
+
+  private def spawnProducer(): Thread =
+    Platform.startVirtualThread(
+      s"zio-blocks-buffer-${ConcurrentBufferedReader.counter.getAndIncrement()}",
+      producerTask
+    )
 
   def isClosed: Boolean = producerDone && queue.isEmpty
 
@@ -149,11 +160,44 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     queue.close()
     producerThread.interrupt()
     producerThread.join(5000)
+    // A recorded error the consumer never observed via a read (e.g. an
+    // upstream close failure after the last element) must still surface
+    // (Principle 4): rethrow it exactly once at teardown.
+    val err = producerError
+    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
   }
 
-  private def rethrow(t: Throwable): Nothing = t match {
-    case se: StreamError => throw se
-    case _               => throw t
+  override def reset(): Unit = {
+    // `buffer` is a pure decoupling transform: it must not weaken replayability.
+    // 1) Fully terminate the current producer so no thread touches `upstream` or
+    //    the fields below. `Thread.join` establishes happens-before with the
+    //    producer's termination, making the subsequent single-threaded mutation
+    //    (including the non-volatile `upstreamClosedByProducer`) safe.
+    consumerClosed = true
+    queue.close()
+    producerThread.interrupt()
+    producerThread.join(5000)
+    // 2) Replay the upstream. A genuine one-shot source throws
+    //    UnsupportedOperationException here, which correctly propagates: a buffer
+    //    over a one-shot source is itself one-shot. (The producer already closed
+    //    `upstream` in its finally block; resettable readers re-enable reads.)
+    upstream.reset()
+    // 3) Reinstate fresh producer state and restart the producer.
+    queue = new BlockingSpscQueue[AnyRef](bufferSize)
+    producerError = null
+    errorDelivered = false
+    consumerClosed = false
+    producerDone = false
+    upstreamClosedByProducer = false
+    producerThread = spawnProducer()
+  }
+
+  private def rethrow(t: Throwable): Nothing = {
+    errorDelivered = true
+    t match {
+      case se: StreamError => throw se
+      case _               => throw t
+    }
   }
 }
 

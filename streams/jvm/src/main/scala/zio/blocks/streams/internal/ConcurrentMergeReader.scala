@@ -41,12 +41,19 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
 
   require(maxOpen >= 1, s"ConcurrentMergeReader requires maxOpen >= 1, got $maxOpen")
 
-  private val outer: Reader[Any]                          = outerReader.asInstanceOf[Reader[Any]]
-  private val outputQueues: Array[SpscRingBuffer[AnyRef]] =
+  private val outer: Reader[Any] = outerReader.asInstanceOf[Reader[Any]]
+
+  // `outputQueues`, `workQueue` and `drainerLatch` are reassigned on `reset()`
+  // so the merge can replay a resettable outer reader (e.g. under `repeated`).
+  // All such reassignment happens on the consumer thread only after the
+  // previous run's threads have fully terminated (see `reset()`), so
+  // single-threaded mutation is safe there.
+  private var outputQueues: Array[SpscRingBuffer[AnyRef]] =
     Array.tabulate(maxOpen)(_ => new SpscRingBuffer[AnyRef](bufferSize))
   @volatile private var consumerWaiter: Thread = null
 
   private val errorRef                          = new AtomicReference[Throwable](null)
+  @volatile private var errorDelivered: Boolean = false
   @volatile private var consumerClosed: Boolean = false
 
   private var completedCount: Int = 0
@@ -54,18 +61,11 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
   @volatile private var totalStarted: Int        = 0
   @volatile private var coordinatorDone: Boolean = false
 
-  private val workQueue      = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
-  private val drainerLatch   = new CountDownLatch(maxOpen)
+  private var workQueue      = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
+  private var drainerLatch   = new CountDownLatch(maxOpen)
   private val drainerThreads = new AtomicReferenceArray[Thread](maxOpen)
 
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
-
-  Array.tabulate(maxOpen) { idx =>
-    Platform.startVirtualThread(
-      s"zio-blocks-merge-drainer-${counter.getAndIncrement()}-$idx",
-      new Runnable { def run(): Unit = drainerLoop(idx) }
-    )
-  }
 
   private val coordinatorTask: Runnable = new Runnable {
     def run(): Unit =
@@ -96,22 +96,38 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
         } catch {
           case t: Throwable => recordError(t)
         } finally {
+          // Close the outer reader BEFORE publishing completion so a close
+          // failure (recorded via recordError, Principle 4 — never swallowed)
+          // is visible to the consumer before it can observe terminal state.
+          try outer.close()
+          catch { case t: Throwable => recordError(t) }
           // Publish completion via a volatile flag rather than an AllDone enqueue.
           // The SPSC queues are owned by a single drainer at a time; sending
           // AllDone from a different thread would violate that contract.
           coordinatorDone = true
           val cw = consumerWaiter
           if (cw ne null) LockSupport.unpark(cw)
-          try outer.close()
-          catch { case _: Throwable => () }
         }
       }
   }
 
-  coordinatorThread = Platform.startVirtualThread(
-    s"zio-blocks-merge-coordinator-${counter.getAndIncrement()}",
-    coordinatorTask
-  )
+  // Spawns the drainer pool and the coordinator. Called from the constructor
+  // and from `reset()` after all per-run fields have been reinitialized (the
+  // `Runnable`s read instance fields, so they are reusable across runs).
+  private def startThreads(): Unit = {
+    Array.tabulate(maxOpen) { idx =>
+      Platform.startVirtualThread(
+        s"zio-blocks-merge-drainer-${counter.getAndIncrement()}-$idx",
+        new Runnable { def run(): Unit = drainerLoop(idx) }
+      )
+    }
+    coordinatorThread = Platform.startVirtualThread(
+      s"zio-blocks-merge-coordinator-${counter.getAndIncrement()}",
+      coordinatorTask
+    )
+  }
+
+  startThreads()
 
   private def allOutputQueuesEmpty(): Boolean = {
     var i = 0
@@ -224,6 +240,60 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
       }
       i += 1
     }
+
+    // A recorded error the consumer never observed via read() (e.g. an inner/
+    // outer close failure after the last element) must still surface
+    // (Principle 4): rethrow it exactly once at teardown.
+    val err = errorRef.get()
+    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  }
+
+  override def reset(): Unit = {
+    // `mergeAll` is a pure fan-in transform: it must not weaken replayability.
+    // 1) Fully terminate the current run, exactly as close() does — but discard
+    //    any recorded error instead of rethrowing it (reset starts a fresh
+    //    run). `Thread.join` establishes happens-before with the coordinator's
+    //    and drainers' termination, making the subsequent single-threaded
+    //    mutation of the per-run fields safe.
+    consumerClosed = true
+    val cw = consumerWaiter
+    if (cw ne null) LockSupport.unpark(cw)
+    workQueue.close()
+    coordinatorThread.interrupt()
+    coordinatorThread.join(5000)
+    var i = 0
+    while (i < maxOpen) {
+      val t = drainerThreads.get(i)
+      if (t ne null) {
+        t.interrupt()
+        t.join(5000)
+      }
+      i += 1
+    }
+    // 2) Replay the outer reader. A genuine one-shot source throws
+    //    UnsupportedOperationException here, which correctly propagates: a
+    //    merge over a one-shot source is itself one-shot. (The coordinator
+    //    already closed `outer` in its finally block; resettable readers
+    //    re-enable reads.)
+    outer.reset()
+    // 3) Reinstate fresh per-run state and respawn the threads.
+    outputQueues = Array.tabulate(maxOpen)(_ => new SpscRingBuffer[AnyRef](bufferSize))
+    workQueue = new BlockingMpmcQueue[AnyRef](Math.max(maxOpen, 16))
+    drainerLatch = new CountDownLatch(maxOpen)
+    i = 0
+    while (i < maxOpen) {
+      drainerThreads.set(i, null)
+      i += 1
+    }
+    errorRef.set(null)
+    errorDelivered = false
+    consumerClosed = false
+    consumerWaiter = null
+    completedCount = 0
+    totalStarted = 0
+    coordinatorDone = false
+    scanStart = 0
+    startThreads()
   }
 
   private def drainerLoop(idx: Int): Unit = {
@@ -275,6 +345,13 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
       case t: Throwable =>
         recordError(t)
     } finally {
+      // Close the inner reader BEFORE offering InnerDone so a close failure
+      // (recorded via recordError, Principle 4 — never swallowed) is visible
+      // to the consumer before it can count this inner as completed.
+      if (innerReader ne null) {
+        try innerReader.close()
+        catch { case t: Throwable => recordError(t) }
+      }
       var doneOffered = false
       while (!doneOffered) {
         if (outputQueues(drainerIdx).offer(InnerDone)) {
@@ -284,10 +361,6 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
         } else {
           LockSupport.parkNanos(this, 1000L)
         }
-      }
-      if (innerReader ne null) {
-        try innerReader.close()
-        catch { case _: Throwable => () }
       }
     }
   }
@@ -308,9 +381,12 @@ private[streams] final class ConcurrentMergeReader[A](outerReader: Reader[?], ma
       }
     }
 
-  private def rethrow(t: Throwable): Nothing = t match {
-    case se: StreamError => throw se
-    case _               => throw t
+  private def rethrow(t: Throwable): Nothing = {
+    errorDelivered = true
+    t match {
+      case se: StreamError => throw se
+      case _               => throw t
+    }
   }
 }
 

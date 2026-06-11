@@ -26,6 +26,7 @@ import zio.blocks.ringbuffer.{
 import zio.blocks.streams.{JvmType, Platform}
 import zio.blocks.streams.io.Reader
 
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.{AtomicReference, AtomicReferenceArray}
 import java.util.concurrent.locks.LockSupport
 
@@ -65,27 +66,37 @@ private[streams] final class FloatConcurrentMapParReader[B](
   private val floatToFloatFn: (Float => Float) =
     if (outType eq JvmType.Float) f.asInstanceOf[Float => Float] else null
 
-  private val outIntQs: Array[IntSpscRingBuffer] =
+  // Output queues: exactly one of these is non-null per instance. The queue
+  // fields (and `inputQueues`) are reassigned on `reset()` so `mapPar` can
+  // replay a resettable upstream (e.g. under `repeated`); their null/non-null
+  // pattern never changes after construction. All such reassignment happens on
+  // the consumer thread only after the previous run's threads have fully
+  // terminated (see `reset()`), so single-threaded mutation is safe there.
+  private var outIntQs: Array[IntSpscRingBuffer] =
     if (outType eq JvmType.Int) Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize)) else null
-  private val outLongQs: Array[LongSpscRingBuffer] =
+  private var outLongQs: Array[LongSpscRingBuffer] =
     if (outType eq JvmType.Long) Array.tabulate(n)(_ => new LongSpscRingBuffer(bufferSize)) else null
-  private val outFloatQs: Array[FloatSpscRingBuffer] =
+  // Out-of-band escape channel for reserved Long OUTPUT values (only when outputting Long).
+  private var outLongEscapes: Array[ConcurrentLinkedQueue[java.lang.Long]] =
+    if (outType eq JvmType.Long) Array.tabulate(n)(_ => new ConcurrentLinkedQueue[java.lang.Long]()) else null
+  private var outFloatQs: Array[FloatSpscRingBuffer] =
     if (outType eq JvmType.Float) Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize)) else null
-  private val outDoubleQs: Array[DoubleSpscRingBuffer] =
+  private var outDoubleQs: Array[DoubleSpscRingBuffer] =
     if (outType eq JvmType.Double) Array.tabulate(n)(_ => new DoubleSpscRingBuffer(bufferSize)) else null
-  private val outRefQs: Array[SpscRingBuffer[AnyRef]] =
+  private var outRefQs: Array[SpscRingBuffer[AnyRef]] =
     if ((outIntQs eq null) && (outLongQs eq null) && (outFloatQs eq null) && (outDoubleQs eq null))
       Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
     else null
 
   @volatile private var consumerWaiter: Thread = null
 
-  private val inputQueues: Array[FloatSpscRingBuffer] =
+  private var inputQueues: Array[FloatSpscRingBuffer] =
     Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize))
   private val workerWaiters = new AtomicReferenceArray[Thread](n)
   private val workerThreads = new AtomicReferenceArray[Thread](n)
 
   private val errorRef                            = new AtomicReference[Throwable](null)
+  @volatile private var errorDelivered: Boolean   = false
   @volatile private var consumerClosed: Boolean   = false
   @volatile private var coordinatorThread: Thread = null.asInstanceOf[Thread]
 
@@ -93,13 +104,6 @@ private[streams] final class FloatConcurrentMapParReader[B](
     new Runnable {
       def run(): Unit = workerLoop(idx)
     }
-  }
-
-  Array.tabulate(n) { idx =>
-    Platform.startVirtualThread(
-      s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
-      workerTasks(idx)
-    )
   }
 
   private val coordinatorTask: Runnable = new Runnable {
@@ -144,15 +148,30 @@ private[streams] final class FloatConcurrentMapParReader[B](
           recordError(t)
       } finally {
         signalWorkersToStop()
+        // A close failure must surface (Principle 4): record it so the
+        // consumer rethrows it from read() or close().
         try upstream.close()
-        catch { case _: Throwable => () }
+        catch { case t: Throwable => recordError(t) }
       }
   }
 
-  coordinatorThread = Platform.startVirtualThread(
-    s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
-    coordinatorTask
-  )
+  // Spawns the worker pool and the coordinator. Called from the constructor
+  // and from `reset()` after all per-run fields have been reinitialized (the
+  // `Runnable`s read instance fields, so they are reusable across runs).
+  private def startThreads(): Unit = {
+    Array.tabulate(n) { idx =>
+      Platform.startVirtualThread(
+        s"zio-blocks-mappar-worker-${counter.getAndIncrement()}-$idx",
+        workerTasks(idx)
+      )
+    }
+    coordinatorThread = Platform.startVirtualThread(
+      s"zio-blocks-mappar-coordinator-${counter.getAndIncrement()}",
+      coordinatorTask
+    )
+  }
+
+  startThreads()
 
   def isClosed: Boolean = eofReturned || consumerClosed
 
@@ -169,7 +188,7 @@ private[streams] final class FloatConcurrentMapParReader[B](
       else Int.box(v.toInt).asInstanceOf[B1]
     } else if (outLongQs ne null) {
       val v = pollLongOnce(LongSpscRingBuffer.EMPTY)
-      if (v == LongSpscRingBuffer.EMPTY) sentinel
+      if (lastReadWasEOF) sentinel
       else Long.box(v).asInstanceOf[B1]
     } else if (outFloatQs ne null) {
       val packed = pollFloatPacked()
@@ -192,8 +211,10 @@ private[streams] final class FloatConcurrentMapParReader[B](
 
   override def readLong(sentinel: Long)(implicit ev: B <:< Long): Long =
     if (outLongQs ne null) {
+      // pollLongOnce sets lastReadWasEOF authoritatively (a real value may equal
+      // the EMPTY marker once reserved values are escaped).
       val v = pollLongOnce(LongSpscRingBuffer.EMPTY)
-      if (v == LongSpscRingBuffer.EMPTY) sentinel else v
+      if (lastReadWasEOF) sentinel else v
     } else readLongFromRef(sentinel)
 
   override def readFloat(sentinel: Double)(implicit ev: B <:< Float): Double =
@@ -206,8 +227,8 @@ private[streams] final class FloatConcurrentMapParReader[B](
   override def readDouble(sentinel: Double)(implicit ev: B <:< Double): Double =
     if (outDoubleQs ne null) {
       val packed = pollDoublePacked()
-      if (packed == DoubleSpscRingBuffer.EMPTY_BITS) sentinel
-      else java.lang.Double.longBitsToDouble(packed)
+      if (packed == DoubleSpscRingBuffer.EMPTY_BITS) { markReadEOF(); sentinel }
+      else { markReadValue(); java.lang.Double.longBitsToDouble(packed) }
     } else readDoubleFromRef(sentinel)
 
   private def pollIntOnce(emptyMarker: Long): Long = {
@@ -243,6 +264,11 @@ private[streams] final class FloatConcurrentMapParReader[B](
     emptyMarker
   }
 
+  // A real Long output value can equal `emptyMarker` (Long.MinValue) once
+  // reserved values are escaped, so EOF cannot be inferred from the return value
+  // alone. This poller sets the reader's `lastReadWasEOF` flag authoritatively
+  // (`markReadValue` on data, `markReadEOF` on EOF); callers must consult that
+  // flag rather than comparing the returned value to `emptyMarker`.
   private def pollLongOnce(emptyMarker: Long): Long = {
     val self = Thread.currentThread()
     while (true) {
@@ -254,25 +280,37 @@ private[streams] final class FloatConcurrentMapParReader[B](
           val qIdx   = (scanStart + i) % n
           val packed = outLongQs(qIdx).pollPacked()
           if (packed == LongSpscRingBuffer.DONE) {
-            workersDoneCount += 1
-            sawAny = true
+            val esc = outLongEscapes(qIdx).poll()
+            if (esc ne null) {
+              sawAny = true
+              scanStart = (qIdx + 1) % n
+              val err = errorRef.get()
+              if (err ne null) rethrow(err)
+              markReadValue()
+              return esc.longValue()
+            } else {
+              workersDoneCount += 1
+              sawAny = true
+            }
           } else if (packed != LongSpscRingBuffer.EMPTY) {
             sawAny = true
             scanStart = (qIdx + 1) % n
             val err = errorRef.get()
             if (err ne null) rethrow(err)
+            markReadValue()
             return packed
           }
           i += 1
         }
         val err = errorRef.get()
         if (err ne null) rethrow(err)
-        if (workersDoneCount >= n) { eofReturned = true; return emptyMarker }
+        if (workersDoneCount >= n) { eofReturned = true; markReadEOF(); return emptyMarker }
         if (!sawAny && errorRef.get() == null) LockSupport.park(this)
       } finally {
         consumerWaiter = null
       }
     }
+    markReadEOF()
     emptyMarker
   }
 
@@ -381,8 +419,8 @@ private[streams] final class FloatConcurrentMapParReader[B](
   }
   private def readLongFromRef(sentinel: Long): Long = {
     val v = readRef[Any](EndOfStream)
-    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-    else v.asInstanceOf[java.lang.Number].longValue()
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) { markReadEOF(); sentinel }
+    else { markReadValue(); v.asInstanceOf[java.lang.Number].longValue() }
   }
   private def readFloatFromRef(sentinel: Double): Double = {
     val v = readRef[Any](EndOfStream)
@@ -391,8 +429,8 @@ private[streams] final class FloatConcurrentMapParReader[B](
   }
   private def readDoubleFromRef(sentinel: Double): Double = {
     val v = readRef[Any](EndOfStream)
-    if (v.asInstanceOf[AnyRef] eq EndOfStream) sentinel
-    else v.asInstanceOf[java.lang.Number].doubleValue()
+    if (v.asInstanceOf[AnyRef] eq EndOfStream) { markReadEOF(); sentinel }
+    else { markReadValue(); v.asInstanceOf[java.lang.Number].doubleValue() }
   }
 
   def close(): Unit = {
@@ -421,6 +459,76 @@ private[streams] final class FloatConcurrentMapParReader[B](
       }
       i += 1
     }
+
+    // A recorded error the consumer never observed via a read (e.g. an
+    // upstream close failure after the last element) must still surface
+    // (Principle 4): rethrow it exactly once at teardown.
+    val err = errorRef.get()
+    if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  }
+
+  override def reset(): Unit = {
+    // `mapPar` is a pure decoupling transform: it must not weaken
+    // replayability.
+    // 1) Fully terminate the current run, exactly as close() does — but discard
+    //    any recorded error instead of rethrowing it (reset starts a fresh
+    //    run). `Thread.join` establishes happens-before with the coordinator's
+    //    and workers' termination, making the subsequent single-threaded
+    //    mutation of the per-run fields safe.
+    consumerClosed = true
+    val cw = consumerWaiter
+    if (cw ne null) LockSupport.unpark(cw)
+    var i = 0
+    while (i < n) {
+      val ww = workerWaiters.get(i)
+      if (ww ne null) LockSupport.unpark(ww)
+      i += 1
+    }
+    val ct = coordinatorThread
+    if (ct ne null) {
+      ct.interrupt()
+      ct.join(5000)
+    }
+    i = 0
+    while (i < n) {
+      val t = workerThreads.get(i)
+      if (t ne null) {
+        t.interrupt()
+        t.join(5000)
+      }
+      i += 1
+    }
+    // 2) Replay the upstream. A genuine one-shot source throws
+    //    UnsupportedOperationException here, which correctly propagates: a
+    //    mapPar over a one-shot source is itself one-shot. (The coordinator
+    //    already closed `upstream` in its finally block; resettable readers
+    //    re-enable reads.)
+    upstream.reset()
+    // 3) Reinstate fresh per-run state (preserving the output-queue null/
+    //    non-null pattern selected at construction) and respawn the threads.
+    if (outIntQs ne null) outIntQs = Array.tabulate(n)(_ => new IntSpscRingBuffer(bufferSize))
+    if (outLongQs ne null) {
+      outLongQs = Array.tabulate(n)(_ => new LongSpscRingBuffer(bufferSize))
+      outLongEscapes = Array.tabulate(n)(_ => new ConcurrentLinkedQueue[java.lang.Long]())
+    }
+    if (outFloatQs ne null) outFloatQs = Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize))
+    if (outDoubleQs ne null) outDoubleQs = Array.tabulate(n)(_ => new DoubleSpscRingBuffer(bufferSize))
+    if (outRefQs ne null) outRefQs = Array.tabulate(n)(_ => new SpscRingBuffer[AnyRef](bufferSize))
+    inputQueues = Array.tabulate(n)(_ => new FloatSpscRingBuffer(bufferSize))
+    i = 0
+    while (i < n) {
+      workerWaiters.set(i, null)
+      workerThreads.set(i, null)
+      i += 1
+    }
+    errorRef.set(null)
+    errorDelivered = false
+    consumerClosed = false
+    consumerWaiter = null
+    scanStart = 0
+    workersDoneCount = 0
+    eofReturned = false
+    startThreads()
   }
 
   private def workerLoop(idx: Int): Unit = {
@@ -488,16 +596,33 @@ private[streams] final class FloatConcurrentMapParReader[B](
 
   private def offerToLongOutput(idx: Int, value: Long, self: Thread): Boolean = {
     val q = outLongQs(idx)
-    while (true) {
-      if (consumerClosed || self.isInterrupted) return false
-      if (q.offer(value)) {
-        val cw = consumerWaiter
-        if (cw ne null) LockSupport.unpark(cw)
-        return true
+    if (value > LongSpscRingBuffer.DONE) {
+      while (true) {
+        if (consumerClosed || self.isInterrupted) return false
+        if (q.offerNonReserved(value)) {
+          val cw = consumerWaiter
+          if (cw ne null) LockSupport.unpark(cw)
+          return true
+        }
+        LockSupport.parkNanos(this, 1000L)
       }
-      LockSupport.parkNanos(this, 1000L)
+      false
+    } else {
+      // Reserved output value: escape out-of-band via offerDoneAfter, which
+      // enqueues into outLongEscapes only when a slot is available and just
+      // before publishing the DONE token, so it is enqueued at most once and is
+      // never orphaned.
+      while (true) {
+        if (consumerClosed || self.isInterrupted) return false
+        if (q.offerDoneAfter(outLongEscapes(idx).offer(java.lang.Long.valueOf(value)): Unit)) {
+          val cw = consumerWaiter
+          if (cw ne null) LockSupport.unpark(cw)
+          return true
+        }
+        LockSupport.parkNanos(this, 1000L)
+      }
+      false
     }
-    false
   }
 
   private def offerToFloatOutput(idx: Int, value: Float, self: Thread): Boolean = {
@@ -603,8 +728,11 @@ private[streams] final class FloatConcurrentMapParReader[B](
       }
     }
 
-  private def rethrow(t: Throwable): Nothing = t match {
-    case se: StreamError => throw se
-    case _               => throw t
+  private def rethrow(t: Throwable): Nothing = {
+    errorDelivered = true
+    t match {
+      case se: StreamError => throw se
+      case _               => throw t
+    }
   }
 }

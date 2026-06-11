@@ -17,7 +17,7 @@
 package zio.blocks.streams
 
 import zio.blocks.streams.io.Reader
-import zio.blocks.streams.internal.EndOfStream
+import zio.blocks.streams.internal.{runBoth, EndOfStream}
 
 /**
  * JavaScript-specific platform implementation.
@@ -60,10 +60,12 @@ trait PlatformSpecific extends Platform {
             if (v.asInstanceOf[AnyRef] ne EndOfStream) {
               return v.asInstanceOf[A1]
             }
-            // Inner stream exhausted, close it and get next
-            try inner.close()
-            catch { case _: Throwable => () }
+            // Inner stream exhausted: close it and get next. A close failure
+            // must surface (Principle 4), never be swallowed; clear `inner`
+            // first so a throwing close is not finalized twice by close().
+            val toClose = inner
             inner = null
+            toClose.close()
           }
           // Try to get next inner stream from outer
           val nextInner = outer.read[Any](EndOfStream)
@@ -77,13 +79,30 @@ trait PlatformSpecific extends Platform {
       }
 
       def close(): Unit = {
-        if (inner != null) {
-          try inner.close()
-          catch { case _: Throwable => () }
-          inner = null
-        }
-        outer.close()
         outerDone = true
+        if (inner != null) {
+          val toClose = inner
+          inner = null
+          // Both finalizers must run; a failure propagates with suppression
+          // (Principle 4).
+          runBoth(toClose.close())(outer.close())
+        } else outer.close()
+      }
+
+      override def reset(): Unit = {
+        // Sequential merge must not weaken replayability. Close any open inner
+        // first — a close failure must surface (Principle 4); clear `inner`
+        // before closing so a throwing close is not finalized twice. Then
+        // replay the outer reader: a genuine one-shot outer throws
+        // UnsupportedOperationException here, which correctly propagates (a
+        // merge over a one-shot source is itself one-shot).
+        if (inner != null) {
+          val toClose = inner
+          inner = null
+          toClose.close()
+        }
+        outer.reset()
+        outerDone = false
       }
     }
 
@@ -110,5 +129,10 @@ trait PlatformSpecific extends Platform {
       }
 
       def close(): Unit = upstream.close()
+
+      // Sequential mapPar is stateless: replaying is just replaying the
+      // upstream. A genuine one-shot upstream throws
+      // UnsupportedOperationException here, which correctly propagates.
+      override def reset(): Unit = upstream.reset()
     }
 }

@@ -17,6 +17,7 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.streams.internal.cleanupWithPrimary
 import zio.blocks.streams.io.Reader
 
 /**
@@ -178,11 +179,42 @@ object Pipeline {
     sink: Sink[E, B, Z]
   ) extends Sink[E, A, Z] {
     private[streams] def drain(reader: Reader[_]): Z = {
-      val synthStream         = Stream.fromReader[E, A](reader.asInstanceOf[Reader[A]])
+      // The incoming `reader` is borrowed: its owner (`Stream.run`) closes it.
+      // The pipe builds a transforming reader chain whose leaf is this reader
+      // and whose `close()` would propagate down to it; shielding the borrowed
+      // reader with a no-op close keeps it from being finalized twice (double
+      // finalization). The shield delegates every other operation unchanged.
+      val borrowed            = new RunViaSink.NonClosing[A](reader.asInstanceOf[Reader[A]])
+      val synthStream         = Stream.fromReader[E, A](borrowed)
       val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
       val pipedReader         = Stream.compileToReader(piped)
-      try sink.drain(pipedReader)
-      finally pipedReader.close()
+      // try-with-resources suppression: a `close()` failure never discards an
+      // in-flight `drain` failure, and is surfaced when nothing else is in
+      // flight (Principle 4).
+      var primary: Throwable = null
+      val z                  =
+        try sink.drain(pipedReader)
+        catch {
+          case t: Throwable =>
+            primary = t
+            null.asInstanceOf[Z]
+        }
+      val toThrow = cleanupWithPrimary(primary)(pipedReader.close())
+      if (toThrow ne null) throw toThrow
+      z
+    }
+  }
+
+  private[streams] object RunViaSink {
+
+    /**
+     * A borrowing view of a reader whose `close()` is a no-op: the underlying
+     * reader is owned and closed by `Stream.run`, so the pipe must not close it
+     * (doing so would finalize the source twice). Every other operation
+     * delegates unchanged.
+     */
+    private[streams] final class NonClosing[A](inner: Reader[A]) extends Reader.DelegatingReader[A](inner) {
+      override def close(): Unit = ()
     }
   }
 

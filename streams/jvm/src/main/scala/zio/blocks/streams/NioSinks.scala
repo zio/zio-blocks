@@ -16,7 +16,7 @@
 
 package zio.blocks.streams
 
-import zio.blocks.streams.internal.StreamError
+import zio.blocks.streams.internal.SinkError
 import zio.blocks.streams.io.Reader
 
 import java.io.IOException
@@ -49,6 +49,13 @@ object NioSinks {
    * Creates a sink that writes all stream Doubles into a [[ByteBuffer]] (8
    * bytes per element). Throws `BufferOverflowException` if the buffer has
    * insufficient remaining capacity.
+   *
+   * PERFORMANCE-CRITICAL SENTINEL POLICY: the drain loop must stay a single
+   * primitive comparison per element — do NOT add per-element EOF-flag or
+   * rawbits checks here (see AGENTS.md, "Sentinel performance policy"). A
+   * stream containing a real `Double.MaxValue` element (the sentinel value) is
+   * rejected with [[IllegalArgumentException]], detected at zero hot-path cost
+   * by consulting the reader's out-of-band EOF flag once, after the loop exits.
    */
   def fromByteBufferDouble(buf: ByteBuffer): Sink[Nothing, Double, Unit] =
     new Sink[Nothing, Double, Unit] {
@@ -57,6 +64,11 @@ object NioSinks {
         val doubleReader = reader.asInstanceOf[Reader[Double]]
         var v            = doubleReader.readDouble(s)
         while (v != s) { buf.putDouble(v); v = doubleReader.readDouble(s) }
+        if (!doubleReader.lastReadWasEOF)
+          throw new IllegalArgumentException(
+            "NioSinks.fromByteBufferDouble: stream contains Double.MaxValue, which collides with the EOF sentinel; " +
+              "use a generic sink (e.g. Sink.collectAll/Sink.foreach) for data that may contain Double.MaxValue"
+          )
       }
     }
 
@@ -94,6 +106,13 @@ object NioSinks {
    * Creates a sink that writes all stream Longs into a [[ByteBuffer]] (8 bytes
    * per element). Throws `BufferOverflowException` if the buffer has
    * insufficient remaining capacity.
+   *
+   * PERFORMANCE-CRITICAL SENTINEL POLICY: the drain loop must stay a single
+   * primitive comparison per element — do NOT add per-element EOF-flag checks
+   * here (see AGENTS.md, "Sentinel performance policy"). A stream containing a
+   * real `Long.MaxValue` element (the sentinel value) is rejected with
+   * [[IllegalArgumentException]], detected at zero hot-path cost by consulting
+   * the reader's out-of-band EOF flag once, after the loop exits.
    */
   def fromByteBufferLong(buf: ByteBuffer): Sink[Nothing, Long, Unit] =
     new Sink[Nothing, Long, Unit] {
@@ -102,6 +121,11 @@ object NioSinks {
         val longReader = reader.asInstanceOf[Reader[Long]]
         var v          = longReader.readLong(s)
         while (v != s) { buf.putLong(v); v = longReader.readLong(s) }
+        if (!longReader.lastReadWasEOF)
+          throw new IllegalArgumentException(
+            "NioSinks.fromByteBufferLong: stream contains Long.MaxValue, which collides with the EOF sentinel; " +
+              "use a generic sink (e.g. Sink.collectAll/Sink.foreach) for data that may contain Long.MaxValue"
+          )
       }
     }
 
@@ -124,7 +148,7 @@ object NioSinks {
           if (!buf.hasRemaining) {
             buf.flip()
             try { while (buf.hasRemaining) ch.write(buf) }
-            catch { case e: IOException => throw new StreamError(e) }
+            catch { case e: IOException => throw new SinkError(e) }
             buf.compact()
           }
           buf.put(b.toByte)
@@ -132,7 +156,7 @@ object NioSinks {
         }
         buf.flip()
         try { while (buf.hasRemaining) ch.write(buf) }
-        catch { case e: IOException => throw new StreamError(e) }
+        catch { case e: IOException => throw new SinkError(e) }
       }
     }
 }
