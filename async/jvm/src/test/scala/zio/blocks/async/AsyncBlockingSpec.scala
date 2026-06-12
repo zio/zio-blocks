@@ -237,6 +237,21 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             finally ran = true
           }.block
           assertTrue(r == 0, ran)
+        },
+        test("an await inside a catch handler arm recovers with the awaited value") {
+          val r = Async.async {
+            try Async.fail(AsyncTestSupport.boom).await
+            catch { case _: Throwable => Async.succeed(7).await }
+          }.block
+          assertTrue(r == 7)
+        },
+        test("an await inside a finally block runs for its effect") {
+          var fin = 0
+          val r   = Async.async {
+            try Async.succeed(5).await
+            finally fin = Async.succeed(9).await
+          }.block
+          assertTrue(r == 5, fin == 9)
         }
       ),
       suite("match with .await")(
