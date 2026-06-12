@@ -29,7 +29,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
   private val boom = AsyncTestSupport.boom
   private val Boom = AsyncTestSupport.boom
 
-  /** A pending leaf that advances by returning a brand-new pollable each poll. */
+  /**
+   * A pending leaf that advances by returning a brand-new pollable each poll.
+   */
   private def replacementChain(value: Int, steps: Int): Pollable[Int] = new Pollable[Int] {
     def poll(onComplete: Runnable): Async[Int] =
       if (steps <= 0) Async.succeed(value)
@@ -229,8 +231,8 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // DELIVERED values — the bare user pollable, by identity, for a
         // carrier; the plain value for the rest.
         val anomalies = for {
-          ls <- encodingShapes
-          rs <- encodingShapes
+          ls       <- encodingShapes
+          rs       <- encodingShapes
           (l, lExp) = encodedOperand(ls, 1)
           (r, rExp) = encodedOperand(rs, 2)
           got       = blockOutcome(l.zipWith(r)((a, b) => (a, b)))
@@ -603,8 +605,8 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
       },
       test("*> sequences every left/right pairing of the five operand encodings and keeps the right value") {
         val anomalies = for {
-          ls <- encodingShapes
-          rs <- encodingShapes
+          ls       <- encodingShapes
+          rs       <- encodingShapes
           (l, lExp) = encodedOperand(ls, 1)
           (r, rExp) = encodedOperand(rs, 2)
           got       = blockOutcome(l *> r)
@@ -619,8 +621,8 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
       },
       test("<* sequences every left/right pairing of the five operand encodings and keeps the left value") {
         val anomalies = for {
-          ls <- encodingShapes
-          rs <- encodingShapes
+          ls       <- encodingShapes
+          rs       <- encodingShapes
           (l, lExp) = encodedOperand(ls, 1)
           (r, rExp) = encodedOperand(rs, 2)
           got       = blockOutcome(l <* r)

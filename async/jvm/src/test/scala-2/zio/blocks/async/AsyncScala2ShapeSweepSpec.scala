@@ -47,21 +47,21 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
         a
       """).map(r => assert(r)(isRight))
     },
-    test("try/finally with a Nothing-typed awaited body compiles") {
+    test("try/finally with a Nothing-typed awaited body compiles and propagates the cause") {
       // A bare `Async.fail(t).await` (or any `Nothing`-typed expression) under
       // `try`/`finally` with no widening catch arm is legitimate straight-line
       // Scala and compiles on every Scala 3 cell; the finalizer
       // materialization must not require inference of a `Nothing` lambda
-      // parameter (which surfaces as a bare "missing parameter type" at the
-      // block — neither actionable nor naming the construct).
-      typeCheck("""
-        import zio.blocks.async._
-        val a = Async.async[Int] {
-          try Async.fail(new RuntimeException("x")).await
-          finally ()
-        }
-        a
-      """).map(r => assert(r)(isRight))
+      // parameter. Probed by direct compilation (this very test) rather than
+      // `typeCheck`: `c.typecheck` types macro-expanded trees more strictly
+      // than the real compiler and rejects shapes that compile normally.
+      var fin = false
+      val a: Async[Int] = Async.async[Int] {
+        try Async.fail(AsyncTestSupport.boom).await
+        finally fin = true
+      }
+      val thrown = scala.util.Try(a.block).failed.toOption
+      assertTrue(thrown.contains(AsyncTestSupport.boom), fin)
     },
     test("await of a method chain compiles") {
       typeCheck("""

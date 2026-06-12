@@ -1015,10 +1015,6 @@ private[async] object AsyncMacros {
 
     // ---- emit helpers -------------------------------------------------------
 
-    /** A single-arg function literal with an inferred parameter type. */
-    def lam(name: TermName, lbody: Tree): Tree =
-      lamT(name, TypeTree(), lbody)
-
     /** A single-arg function literal with an explicit parameter type tree. */
     def lamT(name: TermName, tpt: Tree, lbody: Tree): Tree =
       Function(List(ValDef(Modifiers(Flag.PARAM), name, tpt, EmptyTree)), lbody)
@@ -2259,7 +2255,11 @@ private[async] object AsyncMacros {
             {
               def $runFin(): _root_.zio.blocks.async.Async[Unit] = $finA
               val $mat =
-                $OpsObj($OpsObj($caught).map(${lam(v, q"_root_.scala.util.Success($v): _root_.scala.util.Try[Any]")}))
+                $OpsObj($OpsObj($caught).map(${lamT(
+              v,
+              tq"_root_.scala.Any",
+              q"_root_.scala.util.Success($v): _root_.scala.util.Try[Any]"
+            )}))
                   .catchAll { ($e: _root_.java.lang.Throwable) => $AsyncObj.succeed(_root_.scala.util.Failure($e): _root_.scala.util.Try[Any]) }
               $OpsObj($mat).flatMap { ($tr: _root_.scala.util.Try[Any]) =>
                 $tr match {

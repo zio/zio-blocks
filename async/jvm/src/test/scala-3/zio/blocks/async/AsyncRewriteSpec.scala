@@ -51,7 +51,7 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
    * shape as our rewritten extension, differing only by symbol owner.
    */
   private object userAwaitOps {
-    var hits: Int = 0
+    var hits: Int                            = 0
     extension [A](fa: Async[A]) def await: A = { hits += 1; fa.block }
   }
 

@@ -85,6 +85,50 @@ object AsyncCpsMonad extends CpsTryMonadInstanceContext[Async] {
     else
       applyF(TrySuccess(AsyncEncoding.deliverSuccess[A](r)))
   }
+
+  // The CpsTryMonad defaults for the try/finally combinators attach the
+  // in-flight failure to a throwing finalizer's exception via an UNGUARDED
+  // `addSuppressed(primary)`. `Async.fail(null)` is first-class here, and
+  // `Throwable.addSuppressed(null)` throws NullPointerException — destroying
+  // both the finalizer's failure and the original. Same logic, null-guarded.
+
+  override def withAction[A](fa: Async[A])(action: => Unit): Async[A] =
+    flatMapTry(fa) { ra =>
+      try {
+        action
+        fromTry(ra)
+      } catch {
+        case ex: Throwable =>
+          suppressPrimary(ex, ra)
+          error(ex)
+      }
+    }
+
+  override def withAsyncAction[A](fa: Async[A])(action: => Async[Unit]): Async[A] =
+    flatMapTry(fa) { ra =>
+      flatMapTry(action) { rb =>
+        rb match {
+          case TrySuccess(_)  => fromTry(ra)
+          case TryFailure(ex) =>
+            suppressPrimary(ex, ra)
+            error(ex)
+        }
+      }
+    }
+
+  /**
+   * Plain-Scala try/finally semantics: a throwing finalizer replaces the
+   * in-flight failure, keeping the original reachable as a suppressed exception
+   * when that is legal (non-null, distinct — `addSuppressed` throws on both a
+   * null argument and self-suppression).
+   */
+  private def suppressPrimary(ex: Throwable, primary: Try[?]): Unit =
+    primary match {
+      case TryFailure(ex1) if (ex1 ne null) && (ex1 ne ex) =>
+        try ex.addSuppressed(ex1)
+        catch { case _: Throwable => () }
+      case _ => ()
+    }
 }
 
 /**

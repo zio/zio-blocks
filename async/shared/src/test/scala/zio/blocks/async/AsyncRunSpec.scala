@@ -214,7 +214,7 @@ object AsyncRunSpec extends ZIOSpecDefault {
                          .repeatUntil(identity)
                          .timeoutTo(false)(identity)(5.seconds)
                      )
-            _ = stash.get().run() // resume the driver: the next poll cancels mid-flight
+            _         = stash.get().run() // resume the driver: the next poll cancels mid-flight
             repolled <- Live.live(
                           (ZIO.sleep(10.millis) *> ZIO.succeed(polls.get() >= 2))
                             .repeatUntil(identity)
