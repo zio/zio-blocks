@@ -59,9 +59,16 @@ final class Completer[A] extends Pollable[A] {
     if (s == null) {
       if (!state.compareAndSet(null, value)) settle(value)
     } else if (s.isInstanceOf[WaitingMarker]) {
-      val w = s.asInstanceOf[WaitingMarker].onComplete
-      if (state.compareAndSet(s, value)) w.run()
-      else settle(value)
+      if (state.compareAndSet(s, value)) {
+        // Wake every registered waiter: one promise-backed Async may be
+        // observed by several independent drivers (fan-out), each of which
+        // registered its own onComplete while pending.
+        var w = s.asInstanceOf[WaitingMarker]
+        while (w ne null) {
+          w.onComplete.run()
+          w = w.next
+        }
+      } else settle(value)
     }
     // else: already settled — first writer wins, ignore subsequent attempts.
   }
@@ -70,11 +77,15 @@ final class Completer[A] extends Pollable[A] {
   def poll(onComplete: Runnable): Async[A] = {
     val s = state.get
     if (s == null) {
-      if (state.compareAndSet(null, new WaitingMarker(onComplete))) this
+      if (state.compareAndSet(null, new WaitingMarker(onComplete, null))) this
       else poll(onComplete)
     } else if (s.isInstanceOf[WaitingMarker]) {
-      // Re-poll with a (possibly new) onComplete: replace the waiter.
-      if (state.compareAndSet(s, new WaitingMarker(onComplete))) this
+      // Re-poll while pending: an identical runnable is already armed (a
+      // driver's re-poll — coalesce, no-op); a distinct runnable is another
+      // driver observing the same completer — add it so completion wakes all.
+      val head = s.asInstanceOf[WaitingMarker]
+      if (head.contains(onComplete)) this
+      else if (state.compareAndSet(s, new WaitingMarker(onComplete, head))) this
       else poll(onComplete)
     } else if (s eq NullValue) null.asInstanceOf[Async[A]] // settled with a raw null
     else s.asInstanceOf[Async[A]]                          // settled: the value (or Failure)
@@ -98,11 +109,24 @@ private[async] object Completer {
 
   /**
    * Wraps an `onComplete` [[Runnable]] so it is distinguishable from a
-   * completed value (which is also stored as an `AnyRef`). Allocated only on
-   * the first `poll` that arrives before completion — the sync-complete hot
-   * path never sees it.
+   * completed value (which is also stored as an `AnyRef`). Allocated only on a
+   * `poll` that arrives before completion — the sync-complete hot path never
+   * sees it. `next` chains additional waiters when more than one driver
+   * observes the same completer (fan-out); the chain is almost always length
+   * one.
    */
-  final class WaitingMarker(val onComplete: Runnable)
+  final class WaitingMarker(val onComplete: Runnable, val next: WaitingMarker) {
+
+    /** True when `r` is already registered in this chain (identity). */
+    def contains(r: Runnable): Boolean = {
+      var w = this
+      while (w ne null) {
+        if (w.onComplete eq r) return true
+        w = w.next
+      }
+      false
+    }
+  }
 
   /**
    * Sentinel stored in the state slot for a completion with a raw `null` value,

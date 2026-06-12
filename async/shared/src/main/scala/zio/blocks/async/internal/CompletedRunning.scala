@@ -16,9 +16,11 @@
 
 package zio.blocks.async.internal
 
-import zio.blocks.async.{Async}
+import zio.blocks.async.Async
 
-/** [[Async.Running]] that has already settled to a terminal [[Async]] encoding. */
+/**
+ * [[Async.Running]] that has already settled to a terminal [[Async]] encoding.
+ */
 private[async] final class CompletedRunning[A](private val terminal: Any) extends Async.Running[A] {
 
   def cancel(): Unit = ()

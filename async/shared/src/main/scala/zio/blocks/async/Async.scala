@@ -151,9 +151,11 @@ object Async extends AsyncCompanionVersionSpecific {
 
   /**
    * Drain `it`, appending into `buf`. While inputs are raw values we stay in a
-   * tight loop; on the first [[Pollable]] we hand the rest to
-   * [[continueCollectAll]] (a single `flatMap` continuation that reuses the
-   * same iterator and buffer to avoid copying).
+   * tight loop; on the first [[Pollable]] the rest is handed to a single
+   * [[CollectAllPollable]] that reuses the same iterator and buffer — one
+   * allocation for the whole batch, and (unlike a per-element `flatMap` chain)
+   * iterative draining: a batch of already-settled pollables consumes constant
+   * stack regardless of size.
    */
   private def drainCollectAll[A](
     it: Iterator[Async[A]],
@@ -161,25 +163,49 @@ object Async extends AsyncCompanionVersionSpecific {
   ): Async[List[A]] = {
     while (it.hasNext) {
       val any = it.next().asInstanceOf[Any]
-      if (any.isInstanceOf[Pollable[_]]) return continueCollectAll[A](any, it, buf)
+      if (any.isInstanceOf[Failure]) return any.asInstanceOf[Async[List[A]]]
+      else if (any.isInstanceOf[Pollable[_]])
+        return new CollectAllPollable[A](any.asInstanceOf[Pollable[A]], it, buf)
       else buf += AsyncEncoding.deliverSuccess[A](any)
     }
     succeed(buf.toList)
   }
 
   /**
-   * Continuation: drive `pending` to a value (failures propagate via
-   * `flatMap`'s short-circuit), append, then resume draining.
+   * Sequencing continuation for [[collectAll]]: drive `cur` to a value, append,
+   * then keep draining ready elements in place. A failure — whether an element
+   * is already failed or `cur` resolves to one — short-circuits without driving
+   * the remaining inputs. The drain is a flat loop: completed elements never
+   * re-enter `poll`, so stack depth and re-poll cost stay constant no matter
+   * how many elements settle between wakeups.
    */
-  private def continueCollectAll[A](
-    pending: Any,
+  private final class CollectAllPollable[A](
+    private var cur: Pollable[A],
     it: Iterator[Async[A]],
     buf: scala.collection.mutable.ListBuffer[A]
-  ): Async[List[A]] =
-    pending.asInstanceOf[Async[A]].flatMap { a =>
-      buf += a
-      drainCollectAll[A](it, buf)
+  ) extends Pollable[List[A]] {
+
+    def poll(onComplete: Runnable): Async[List[A]] = {
+      while (true) {
+        val res = cur.poll(onComplete)
+        if (res.isInstanceOf[Failure]) return res.asInstanceOf[Async[List[A]]]
+        if (res.isInstanceOf[Pollable[?]]) {
+          cur = res.asInstanceOf[Pollable[A]]
+          return this
+        }
+        buf += AsyncEncoding.deliverSuccess[A](res)
+        cur = null
+        while ((cur eq null) && it.hasNext) {
+          val any = it.next().asInstanceOf[Any]
+          if (any.isInstanceOf[Failure]) return any.asInstanceOf[Async[List[A]]]
+          else if (any.isInstanceOf[Pollable[_]]) cur = any.asInstanceOf[Pollable[A]]
+          else buf += AsyncEncoding.deliverSuccess[A](any)
+        }
+        if (cur eq null) return Async.succeed(buf.toList)
+      }
+      throw new IllegalStateException("unreachable")
     }
+  }
 
   /**
    * Slow-path implementation for suspended [[Async]] combinators. Called from
@@ -193,9 +219,17 @@ object Async extends AsyncCompanionVersionSpecific {
      */
     private def terminalValue(any: Any): Any = AsyncEncoding.unwrapLayer(any)
 
-    /** `poll` re-arms itself by returning the same [[Pollable]] instance. */
-    private def stillPending(res: Any, cur: Pollable[?]): Boolean =
-      !res.isInstanceOf[Failure] && (res.asInstanceOf[AnyRef] eq cur.asInstanceOf[AnyRef])
+    // Poll-protocol note shared by every continuation pollable below: a `poll`
+    // that returns a non-[[Failure]] [[Pollable]] is STILL PENDING — the result
+    // is either the same instance (re-armed) or a replacement pollable that the
+    // caller must advance to, exactly as the top-level drivers (`block`,
+    // `start`, the interop runners) do. A terminal success is never encoded as
+    // a bare `Pollable`: pollable-as-value successes travel as
+    // [[AsyncEncoding.WrappedPollable]] carriers (which do not extend
+    // [[Pollable]]). Combinators that have applied their user function and owe
+    // the caller nothing further return their child's pending pollable
+    // directly (a replacement), which keeps resume O(1) and collapses
+    // continuation chains instead of growing one nesting level per suspension.
 
     /**
      * Sentinel for [[EnsuringPollable]]'s `outcome` slot meaning "`pa` has not
@@ -276,14 +310,26 @@ object Async extends AsyncCompanionVersionSpecific {
      * Drive `target` for effects but settle to `observed` (pollable-as-value
      * tap must not replace the user [[Pollable]] with its polled scalar).
      */
-    private final class ObservedPollable[A](target: Pollable[A], observed: A) extends Pollable[A] {
+    private final class ObservedPollable[A](target0: Pollable[A], observed: A) extends Pollable[A] {
+      private var target: Pollable[A]          = target0
       def poll(onComplete: Runnable): Async[A] = {
         val res = target.poll(onComplete)
         if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[A]]
-        else if (stillPending(res, target)) this
-        else Async.succeed(observed).asInstanceOf[Async[A]]
+        else if (res.isInstanceOf[Pollable[?]]) {
+          target = res.asInstanceOf[Pollable[A]]
+          this
+        } else Async.succeed(observed).asInstanceOf[Async[A]]
       }
     }
+
+    /**
+     * Drive the user [[Pollable]] stored as a ready success value for its
+     * effects, settling to the pollable itself. Used by the platform `start`
+     * runners so a pollable-as-value input is driven on the background
+     * worker/microtask instead of blocking (or failing) the caller.
+     */
+    private[async] def observe[A](target: Pollable[A], observed: A): Pollable[A] =
+      new ObservedPollable(target, observed)
 
     /**
      * Drive `fin` for its effect, then yield `a`. `fin` may be a value, a
@@ -371,12 +417,6 @@ object Async extends AsyncCompanionVersionSpecific {
     }
 
     /**
-     * Sequences `pa` then `f`. The `stage` memo is what makes resume O(1): once
-     * `pa` completes we latch onto `f`'s pollable and never re-poll `pa` (which
-     * also stops a consumed leaf — e.g. a socket read — from re-running). A
-     * [[Failure]] surfaced at any stage is propagated as-is.
-     */
-    /**
      * True when `p` is a combinator continuation, not a user pollable-as-value.
      */
     private def isContinuationPollable(p: Any): Boolean = p match {
@@ -389,124 +429,120 @@ object Async extends AsyncCompanionVersionSpecific {
     /**
      * `map` continuation: `f` produces a plain value (never a nested `Async` to
      * flatten). User [[Pollable]] success values are lifted via
-     * [[Async.succeed]]; CPS/await-generated combinator pollables are latched
-     * and driven.
+     * [[Async.succeed]]; CPS/await-generated combinator pollables are driven —
+     * once `f` has been applied this pollable owes nothing more, so a pending
+     * continuation is returned directly as a replacement.
      */
-    private final class MapPollable[A, B](pa: Pollable[A], f: A => B) extends Pollable[B] {
+    private final class MapPollable[A, B](pa0: Pollable[A], f: A => B) extends Pollable[B] {
 
-      private var stage: Pollable[B] = null
+      private var pa: Pollable[A] = pa0
 
-      private def advanceStage(onComplete: Runnable): Async[B] = stage.poll(onComplete)
-
-      def poll(onComplete: Runnable): Async[B] =
-        if (stage != null) advanceStage(onComplete)
-        else {
-          val res = pa.poll(onComplete)
-          if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]]
-          else if (stillPending(res, pa)) this
-          else {
-            val b    = f(terminalValue(res).asInstanceOf[A])
-            val bAny = b.asInstanceOf[Any]
-            if (bAny.isInstanceOf[Pollable[_]] && !bAny.isInstanceOf[Failure] && isContinuationPollable(bAny)) {
-              stage = b.asInstanceOf[Pollable[B]]
-              stage.poll(onComplete)
-            } else Async.succeed(b).asInstanceOf[Async[B]]
-          }
+      def poll(onComplete: Runnable): Async[B] = {
+        val res = pa.poll(onComplete)
+        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]]
+        else if (res.isInstanceOf[Pollable[?]]) {
+          pa = res.asInstanceOf[Pollable[A]]
+          this
+        } else {
+          val b    = f(terminalValue(res).asInstanceOf[A])
+          val bAny = b.asInstanceOf[Any]
+          if (bAny.isInstanceOf[Pollable[_]] && !bAny.isInstanceOf[Failure] && isContinuationPollable(bAny))
+            bAny.asInstanceOf[Pollable[B]].poll(onComplete)
+          else Async.succeed(b).asInstanceOf[Async[B]]
         }
+      }
     }
 
-    private final class FlatMapPollable[A, B](pa: Pollable[A], f: A => Async[B]) extends Pollable[B] {
+    private final class FlatMapPollable[A, B](pa0: Pollable[A], f: A => Async[B]) extends Pollable[B] {
 
-      private var stage: Pollable[B] = null
+      private var pa: Pollable[A] = pa0
 
-      private def advanceStage(onComplete: Runnable): Async[B] = {
-        val res = stage.poll(onComplete)
-        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]]
-        else if (stillPending(res, stage)) this
-        else Async.succeed(terminalValue(res).asInstanceOf[B]).asInstanceOf[Async[B]]
-      }
-
-      def poll(onComplete: Runnable): Async[B] =
-        if (stage != null) advanceStage(onComplete) // already past pa; drive f's pollable
-        else {
-          val res = pa.poll(onComplete)
-          if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]] // pa failed: propagate
-          else if (stillPending(res, pa)) this                      // pa still pending; pa re-armed onComplete itself
-          else {
-            val a    = terminalValue(res).asInstanceOf[A]
-            val fRes = f(a) // f(a): Async[B] — may be ready, suspend, or fail
-            if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
-            else if (fRes.isInstanceOf[Pollable[?]]) { // f suspended: latch and advance
-              stage = fRes.asInstanceOf[Pollable[B]]
-              advanceStage(onComplete)
-            } else fRes // f finished synchronously (may carry WrappedPollable for pollable-as-value)
-          }
+      def poll(onComplete: Runnable): Async[B] = {
+        val res = pa.poll(onComplete)
+        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]] // pa failed: propagate
+        else if (res.isInstanceOf[Pollable[?]]) {                 // pa still pending; it re-armed onComplete itself
+          pa = res.asInstanceOf[Pollable[A]]
+          this
+        } else {
+          val a    = terminalValue(res).asInstanceOf[A]
+          val fRes = f(a) // f(a): Async[B] — may be ready, suspend, or fail
+          if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
+          else if (fRes.isInstanceOf[Pollable[?]])
+            // f suspended: drive it once; a pending result is handed to the
+            // caller as a replacement (this pollable has no further role).
+            fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+          else fRes // f finished synchronously (may carry WrappedPollable for pollable-as-value)
         }
+      }
     }
 
     /**
      * Recovery continuation: drive `pa` to a value or failure; on success
-     * propagate the value; on failure invoke `f` and (if `f` returns a
-     * pollable) latch onto it. The `stage` memo makes resume after recovery
-     * O(1).
+     * propagate the value; on failure invoke `f` — guarded like the ready path,
+     * so a synchronously-throwing handler surfaces as a [[Failure]] — and hand
+     * any pending recovery pollable to the caller as a replacement.
      */
-    private final class CatchAllPollable[A, B >: A](pa: Pollable[A], f: Throwable => Async[B]) extends Pollable[B] {
+    private final class CatchAllPollable[A, B >: A](pa0: Pollable[A], f: Throwable => Async[B]) extends Pollable[B] {
 
-      private var stage: Pollable[B] = null
+      private var pa: Pollable[A] = pa0
 
-      private def advanceStage(onComplete: Runnable): Async[B] = {
-        val res = stage.poll(onComplete)
-        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]]
-        else if (stillPending(res, stage)) this
-        else Async.succeed(terminalValue(res).asInstanceOf[B]).asInstanceOf[Async[B]]
+      def poll(onComplete: Runnable): Async[B] = {
+        val res = pa.poll(onComplete)
+        if (res.isInstanceOf[Failure]) {
+          val fRes = // handler can produce a value, pollable, another failure, or throw
+            try f(res.asInstanceOf[Failure].cause)
+            catch { case t: Throwable => new Failure(t) }
+          if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
+          else if (fRes.isInstanceOf[Pollable[?]]) fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+          else fRes.asInstanceOf[Async[B]]
+        } else if (res.isInstanceOf[Pollable[?]]) { // pa still pending
+          pa = res.asInstanceOf[Pollable[A]]
+          this
+        } else res.asInstanceOf[Async[B]] // pa succeeded: terminal encoding propagates as-is
       }
-
-      def poll(onComplete: Runnable): Async[B] =
-        if (stage != null) advanceStage(onComplete)
-        else {
-          val res = pa.poll(onComplete)
-          if (res.isInstanceOf[Failure]) {
-            val fRes = f(res.asInstanceOf[Failure].cause) // handler can produce value, pollable, or another failure
-            if (fRes.isInstanceOf[Pollable[?]] && !fRes.isInstanceOf[Failure]) {
-              stage = fRes.asInstanceOf[Pollable[B]]
-              advanceStage(onComplete)
-            } else if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
-            else Async.succeed(terminalValue(fRes).asInstanceOf[B]).asInstanceOf[Async[B]]
-          } else if (stillPending(res, pa)) this                                        // pa still pending
-          else Async.succeed(terminalValue(res).asInstanceOf[B]).asInstanceOf[Async[B]] // pa succeeded
-        }
     }
 
     /**
      * Drive `fa` to a value, then `fb` to a value, then `f(a, b)`. Either side
-     * being a [[Failure]] is propagated immediately. The two-stage memo
-     * (`aReady`, `aValue`) means a leaf for `fa` is never re-polled after it
-     * yields its value, even while `fb` is still pending.
+     * being a [[Failure]] is propagated immediately. `faSt` keeps the resolved
+     * left side's '''raw terminal encoding''' (value or `WrappedPollable`
+     * carrier) — `faResolved` marks it settled so a pollable-as-value left is
+     * never re-dispatched as a suspended computation on a later poll, and the
+     * leaf for `fa` is never re-polled after it yields its value, even while
+     * `fb` is still pending. Unwrapping to user values happens once, at the
+     * combine.
      */
     private final class ZipWithPollable[A, B, C](fa0: Any, fb0: Any, f: (A, B) => C) extends Pollable[C] {
 
       // `Any` because either field can hold value | Pollable | Failure at start.
-      private var faSt: Any = fa0
-      private var fbSt: Any = fb0
+      private var faSt: Any  = fa0
+      private var fbSt: Any  = fb0
+      private var faResolved = false
 
       def poll(onComplete: Runnable): Async[C] = {
-        // Resolve fa first to a value or surface a failure/suspension.
-        if (faSt.isInstanceOf[Pollable[?]] && !faSt.isInstanceOf[Failure]) {
-          val next = faSt.asInstanceOf[Pollable[A]].poll(onComplete)
-          if (next.isInstanceOf[Failure]) return next.asInstanceOf[Async[C]]
-          else if (stillPending(next, faSt.asInstanceOf[Pollable[A]])) return this
-          else faSt = terminalValue(next)
-        } else if (faSt.isInstanceOf[Failure]) return faSt.asInstanceOf[Async[C]]
-        else faSt = terminalValue(faSt)
-        // fa is a value now; resolve fb the same way.
-        if (fbSt.isInstanceOf[Pollable[?]] && !fbSt.isInstanceOf[Failure]) {
+        // Resolve fa first to a terminal encoding or surface a failure/suspension.
+        if (!faResolved) {
+          if (faSt.isInstanceOf[Failure]) return faSt.asInstanceOf[Async[C]]
+          if (faSt.isInstanceOf[Pollable[?]]) {
+            val next = faSt.asInstanceOf[Pollable[A]].poll(onComplete)
+            if (next.isInstanceOf[Failure]) return next.asInstanceOf[Async[C]]
+            if (next.isInstanceOf[Pollable[?]]) { faSt = next; return this } // still pending
+            faSt = next
+          }
+          faResolved = true
+        }
+        // fa is terminal now; resolve fb the same way (poll is one-shot, so this
+        // section runs at most until fb settles — no flag needed).
+        if (fbSt.isInstanceOf[Failure]) return fbSt.asInstanceOf[Async[C]]
+        if (fbSt.isInstanceOf[Pollable[?]]) {
           val next = fbSt.asInstanceOf[Pollable[B]].poll(onComplete)
           if (next.isInstanceOf[Failure]) return next.asInstanceOf[Async[C]]
-          else if (stillPending(next, fbSt.asInstanceOf[Pollable[B]])) return this
-          else fbSt = terminalValue(next)
-        } else if (fbSt.isInstanceOf[Failure]) return fbSt.asInstanceOf[Async[C]]
-        else fbSt = terminalValue(fbSt)
-        Async.succeed(f(faSt.asInstanceOf[A], fbSt.asInstanceOf[B])).asInstanceOf[Async[C]]
+          if (next.isInstanceOf[Pollable[?]]) { fbSt = next; return this } // still pending
+          fbSt = next
+        }
+        Async
+          .succeed(f(terminalValue(faSt).asInstanceOf[A], terminalValue(fbSt).asInstanceOf[B]))
+          .asInstanceOf[Async[C]]
       }
     }
 
@@ -523,13 +559,18 @@ object Async extends AsyncCompanionVersionSpecific {
       def poll(onComplete: Runnable): Async[A] = {
         if (st.isInstanceOf[Pollable[?]] && !st.isInstanceOf[Failure]) {
           try {
-            val cur  = st.asInstanceOf[Pollable[Any]]
-            val next = cur.poll(onComplete)
-            if (stillPending(next, cur)) return this
+            val next = st.asInstanceOf[Pollable[Any]].poll(onComplete)
+            if (!next.isInstanceOf[Failure] && next.isInstanceOf[Pollable[?]]) {
+              st = next // still pending (possibly a replacement pollable)
+              return this
+            }
             st = next
           } catch {
             case t: Throwable =>
-              if (suppressFailure) return a.asInstanceOf[Async[A]]
+              // A throwing finalizer poll is the finalizer's failure channel:
+              // suppressed (encoded, so a pollable-as-value `a` stays a settled
+              // carrier) or propagated, mirroring the resolved-Failure arm below.
+              if (suppressFailure) return Async.succeed(a).asInstanceOf[Async[A]]
               else throw t
           }
         }
@@ -546,8 +587,9 @@ object Async extends AsyncCompanionVersionSpecific {
      * `outcome` memo holds the resolved value-or-failure so that, once the
      * finalizer is being driven, we don't re-poll `pa`.
      */
-    private final class EnsuringPollable[A](pa: Pollable[A], finalizer: Async[Any]) extends Pollable[A] {
+    private final class EnsuringPollable[A](pa0: Pollable[A], finalizer: Async[Any]) extends Pollable[A] {
 
+      private var pa: Pollable[A] = pa0
       // NotResolved while pa is still pending; otherwise holds the resolved
       // Async[A] (which is either a raw value — possibly null — or a Failure).
       private var outcome: Any = NotResolved
@@ -556,9 +598,16 @@ object Async extends AsyncCompanionVersionSpecific {
 
       def poll(onComplete: Runnable): Async[A] = {
         if (outcome.asInstanceOf[AnyRef] eq NotResolved) {
-          val next = pa.poll(onComplete)
-          if (stillPending(next, pa))
+          // A throw escaping `pa.poll` is the primary's failure channel (the
+          // top-level drivers reify it the same way); the finalizer must still
+          // run before that failure propagates.
+          val next =
+            try pa.poll(onComplete)
+            catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
+          if (!next.isInstanceOf[Failure] && next.isInstanceOf[Pollable[?]]) {
+            pa = next.asInstanceOf[Pollable[A]]
             return this // still pending; pa re-armed waker
+          }
           outcome = next
           finSt = finalizer
         }
@@ -567,9 +616,11 @@ object Async extends AsyncCompanionVersionSpecific {
           // including a Failure pollable, which we want to *suppress*
           if (!finSt.isInstanceOf[Failure]) {
             try {
-              val cur  = finSt.asInstanceOf[Pollable[Any]]
-              val next = cur.poll(onComplete)
-              if (stillPending(next, cur)) return this
+              val next = finSt.asInstanceOf[Pollable[Any]].poll(onComplete)
+              if (!next.isInstanceOf[Failure] && next.isInstanceOf[Pollable[?]]) {
+                finSt = next // still pending (possibly a replacement pollable)
+                return this
+              }
               finSt = next
             } catch {
               case t: Throwable =>
@@ -597,9 +648,9 @@ object Async extends AsyncCompanionVersionSpecific {
           if ((primaryCause ne finalizerCause) && (primaryCause ne null) && (finalizerCause ne null))
             primaryCause.addSuppressed(finalizerCause)
         }
-        if (outcome.isInstanceOf[Failure]) outcome.asInstanceOf[Async[A]]
-        else if (!outcome.isInstanceOf[Pollable[_]]) outcome.asInstanceOf[Async[A]]
-        else Async.succeed(terminalValue(outcome).asInstanceOf[A]).asInstanceOf[Async[A]]
+        // `outcome` is a terminal encoding — a Failure, a raw value, or a
+        // settled WrappedPollable carrier — and propagates as-is.
+        outcome.asInstanceOf[Async[A]]
       }
     }
   }

@@ -3301,10 +3301,10 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       suite("Completer state machine")(
-        test("re-poll while waiting replaces the registered waker") {
+        test("re-poll while waiting coalesces an identical waker") {
           val c              = new Completer[Int]
           val r1: Async[Int] = c.poll(AsyncTestSupport.noopRunnable) // null -> WaitingMarker
-          val r2: Async[Int] = c.poll(AsyncTestSupport.noopRunnable) // WaitingMarker -> replace
+          val r2: Async[Int] = c.poll(AsyncTestSupport.noopRunnable) // same runnable -> coalesced, not duplicated
           assertTrue(AsyncTestSupport.isPending(r1), AsyncTestSupport.isPending(r2)) && {
             c.succeed(7)
             assertTrue(AsyncTestSupport.outcome(c.poll(AsyncTestSupport.noopRunnable)) == Right(7)) // settled -> value

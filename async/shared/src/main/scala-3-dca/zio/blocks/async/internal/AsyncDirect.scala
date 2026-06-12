@@ -63,6 +63,20 @@ private[async] object AsyncDirect {
   def asyncImpl[A: Type](body: Expr[A])(using Quotes): Expr[Async[A]] = {
     import quotes.reflect.*
 
+    // True when `tree` contains one of our (not-yet-rewritten) `.await` calls.
+    def containsAwait(tree: Tree): Boolean = {
+      val acc = new TreeAccumulator[Boolean] {
+        def foldTree(found: Boolean, t: Tree)(owner: Symbol): Boolean =
+          if (found) true
+          else
+            t match {
+              case Apply(TypeApply(fun, List(_)), List(_)) if isAwait(fun) => true
+              case _                                                       => foldOverTree(found, t)(owner)
+            }
+      }
+      acc.foldTree(false, tree)(Symbol.spliceOwner)
+    }
+
     val transformer = new TreeMap {
       override def transformTerm(term: Term)(owner: Symbol): Term =
         term match {
@@ -82,6 +96,60 @@ private[async] object AsyncDirect {
                   cps.await[Async, t, Async]($q)
                 }.asTerm
             }
+
+          // `while` with `.await` in the condition or body: DCA's WhileHelper
+          // recurses through `flatMap` once per iteration, so a loop whose
+          // awaits are synchronously ready grows the stack without bound and
+          // overflows on real-world iteration counts (the Scala 2 macro's
+          // generated loop is iterative). Rewrite the loop ourselves, exactly
+          // like the Scala 2 backend: stay in a tight `while` as long as the
+          // condition and body settle synchronously, and fall back to a
+          // `flatMap` chain (one recursion per *suspension*, driven by the
+          // poll loop with a fresh stack) only when one of them suspends. The
+          // condition and body become nested `cps.async` blocks so their own
+          // awaits are CPS-rewritten in isolation.
+          case While(cond, bodyT) if containsAwait(cond) || containsAwait(bodyT) =>
+            given Quotes = owner.asQuotes
+            val condT    = transformTerm(cond)(owner)
+            val bodyT2   = transformTerm(bodyT)(owner)
+            val condE    = '{
+              given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+              cps.async[Async](${ condT.asExprOf[Boolean] })
+            }
+            val bodyE = '{
+              given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+              cps.async[Async] {
+                ${ bodyT2.asExpr };
+                ()
+              }
+            }
+            '{
+              given cps.CpsMonadContext[Async] =
+                new cps.CpsTryMonadInstanceContextBody[Async](AsyncCpsMonad)
+              val condFn: () => Async[Boolean] = () => $condE
+              val bodyFn: () => Async[Unit]    = () => $bodyE
+              def loop0(): Async[Unit]         = {
+                var out: Async[Unit] = null.asInstanceOf[Async[Unit]]
+                while (out == null) {
+                  val c: Any = condFn()
+                  if (c.isInstanceOf[Pollable[?]])
+                    // suspended (or failed — flatMap short-circuits a Failure)
+                    out = c.asInstanceOf[Async[Boolean]].flatMap { (cv: Boolean) =>
+                      if (cv) bodyFn().flatMap((_: Unit) => loop0())
+                      else Async.succeed(())
+                    }
+                  else if (!c.asInstanceOf[Boolean]) out = Async.succeed(())
+                  else {
+                    val b: Any = bodyFn()
+                    if (b.isInstanceOf[Pollable[?]])
+                      out = b.asInstanceOf[Async[Unit]].flatMap((_: Unit) => loop0())
+                  }
+                }
+                out
+              }
+              cps.await[Async, Unit, Async](loop0())
+            }.asTerm
+
           case _ => super.transformTerm(term)(owner)
         }
     }

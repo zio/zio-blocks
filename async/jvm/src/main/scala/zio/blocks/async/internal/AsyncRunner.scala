@@ -38,12 +38,21 @@ private[async] object AsyncRunner {
       val run = new SuspendedRunning[A](any.asInstanceOf[Pollable[A]])
       run.kick()
       run
+    } else if (any.isInstanceOf[AsyncEncoding.WrappedPollable]) {
+      // A ready success whose value is itself a pollable: drive the user
+      // pollable for its effects on the background worker — `start` must not
+      // block the caller — and settle to the pollable-as-value carrier.
+      val inner = any.asInstanceOf[AsyncEncoding.WrappedPollable].value
+      if (inner.isInstanceOf[Failure])
+        new CompletedRunning[A](any) // a Failure-as-value carrier is already settled
+      else {
+        val run =
+          new SuspendedRunning[A](Async.slowPath.observe(inner.asInstanceOf[Pollable[A]], inner.asInstanceOf[A]))
+        run.kick()
+        run
+      }
     } else
-      // Re-encode the driven result so a pollable-as-value terminal is stored as
-      // a settled `WrappedPollable`, not a bare `Pollable` (which the Running's
-      // `poll` would re-expose as a still-suspended computation -> re-block deadlock).
-      try new CompletedRunning[A](AsyncEncoding.liftSuccess(Async.slowPath.block[A](any)))
-      catch { case t: Throwable => new CompletedRunning[A](new Failure(Failure.unwindCause(t))) }
+      new CompletedRunning[A](any) // plain ready value: already settled
   }
 
   def startEval[A](body: => A): Async.Running[A] = {

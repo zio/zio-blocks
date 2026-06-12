@@ -34,6 +34,13 @@ abstract class Pollable[+A] {
    * if it is ready; otherwise registers `onComplete` (to be invoked when the
    * value becomes available) and returns a still-pending `Async`.
    *
+   * A still-pending result is either this pollable itself (the common case) or
+   * a '''replacement''' pollable that represents the rest of the computation;
+   * the caller must direct its next poll at whatever pollable was returned. The
+   * built-in drivers (`block`, `start`, the interop runners) and every
+   * combinator follow this, so a conforming `poll` may hand back a new pollable
+   * at any suspension.
+   *
    * Polling is a '''one-shot driver protocol''': a driver should keep polling
    * only while `poll` returns a still-pending `Pollable`, and must stop as soon
    * as it returns a terminal result — a raw value or a failed [[Async]]. The
