@@ -207,6 +207,18 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             sum
           }.block
           assertTrue(r == 15, sum == 15)
+        },
+        test("a long while loop of ready awaits completes (stack safety probe)") {
+          val n = 100000
+          val r = Async.async {
+            var i = 0
+            while (i < n) {
+              val _ = Async.succeed(i).await
+              i += 1
+            }
+            i
+          }.block
+          assertTrue(r == n)
         }
       ),
       suite("try / catch / finally with .await")(
