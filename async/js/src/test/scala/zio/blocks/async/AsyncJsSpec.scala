@@ -269,6 +269,25 @@ object AsyncJsSpec extends ZIOSpecDefault {
           eJs  <- ZIO.fromFuture(_ => AsyncInterop.toJsPromise(new ThrowFirst).toFuture).either
           _    <- drain
         } yield assertTrue(eRun == Left(boom), eFut == Left(boom), eJs == Left(boom))
+      },
+      test("Running.poll: two distinct but ==-equal wakers are both woken on completion") {
+        // Waiter dedup must coalesce only an IDENTICAL re-polled runnable (a
+        // driver's re-poll), exactly as Completer's chain dedups by identity —
+        // never collapse two independent drivers whose wakers happen to compare
+        // equal. Dropping the second waker is a lost wakeup: that driver never
+        // resumes (JVM registers both; parity).
+        val woken = Array(false, false)
+        case class EqualWaker(tag: String)(idx: Int) extends Runnable {
+          def run(): Unit = woken(idx) = true
+        }
+        val c       = new Completer[Int]
+        val running = Async.start(c.peek)
+        running.poll(EqualWaker("same")(0))
+        running.poll(EqualWaker("same")(1))
+        c.succeed(7)
+        for {
+          _ <- drain
+        } yield assertTrue(woken(0), woken(1))
       }
     )
   )

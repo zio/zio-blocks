@@ -372,6 +372,22 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           for {
             _ <- drain
           } yield assertTrue(out.isRight, out.toOption.exists((v: Pollable[Int]) => (v: AnyRef) eq inner))
+        },
+        test("toFuture_succeedStillPendingPollable_completesAfterInnerSettles") {
+          // A success value that is itself a STILL-PENDING pollable must be
+          // driven via microtasks (exactly as `Async.start` drives it) and the
+          // Future completed with the pollable identity once the leaf settles —
+          // not routed through the blocking `block` path, whose JS parker throws
+          // IllegalStateException and surfaces a perfectly drivable computation
+          // as a failed Future.
+          val c                        = new Completer[Int]
+          val fa: Async[Pollable[Int]] = Async.succeed(c: Pollable[Int])
+          val f                        = AsyncInterop.toFuture(fa)
+          c.succeed(7)
+          for {
+            raw <- ZIO.fromFuture(_ => f)
+            _   <- drain
+          } yield assertTrue((raw: AnyRef) eq c)
         }
       ),
       // CONVERGENCE — JS pass-9 interop regression locks.
