@@ -846,7 +846,14 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         try failedNull.await
         finally finThrow()
       }
-      ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(progNull) == Some(finBoom)))
+      ZIO.succeed(
+        assertTrue(
+          AsyncTestSupport.blockAsLeftCause(progNull) == Some(finBoom),
+          // The logical null cannot legally be suppressed; nothing may be
+          // attached — never the null, never an internal transport marker.
+          finBoom.getSuppressed.isEmpty
+        )
+      )
     },
     test("a throwing finalizer attaches the in-flight awaited failure as suppressed") {
       // Plain-Scala replacement semantics PLUS error-graph preservation: the
@@ -1018,6 +1025,28 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         assertTrue(
           AsyncTestSupport.blockAsLeftCause(prog) == Some(handlerCause),
           AsyncTestSupport.outcome(progNull) == Left(null)
+        )
+      )
+    },
+    test("a throwing finalizer attaches the catch handler's awaited failure as suppressed (await-free body)") {
+      // With no await in the try body, the handler's awaited failure is the
+      // in-flight one when the finalizer throws: the finalizer's throw wins
+      // and the handler's failure must stay reachable via getSuppressed —
+      // the same parity contract the other five cells honor.
+      val handlerCause        = new RuntimeException("handler")
+      val finBoom             = new RuntimeException("fin")
+      def finThrow(): Unit    = throw finBoom
+      def boomNow(): Int      = throw Boom
+      def failedH: Async[Int] = Async.fail(handlerCause)
+      val prog                = Async.async {
+        try boomNow()
+        catch { case t: Throwable if t eq Boom => failedH.await }
+        finally finThrow()
+      }
+      ZIO.succeed(
+        assertTrue(
+          AsyncTestSupport.blockAsLeftCause(prog) == Some(finBoom),
+          finBoom.getSuppressed.toList.contains(handlerCause)
         )
       )
     },
