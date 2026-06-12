@@ -21,6 +21,7 @@ import zio.test._
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext
+import scala.scalajs.js
 
 /**
  * Scala 3 / Scala.js direct-style `Async.async { ... .await ... }` semantics.
@@ -558,6 +559,169 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("Array.collect preserves the Array type") {
       val prog = Async.async(Array(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await })
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.toList == List(1, 3)))
+    },
+    // Backend-agreement semantics: readiness, delivered-value identity, error
+    // identity, and execution order must agree between the DCA rewrite
+    // (Scala 3 < 3.8) and the native `js.async`/`js.await` backend (3.8+) —
+    // this spec compiles and runs on both cells, which is what keeps them honest.
+    test("an async block whose awaits are all ready is itself ready (`.block` returns the value)") {
+      // Every other cell (JVM, JS DCA, Scala 2) rewrites ready awaits into a
+      // ready flatMap chain; the value must be observable synchronously.
+      val prog = Async.async(Async.succeed(7).await + 1)
+      val r    = scala.util.Try(prog.block)
+      ZIO.succeed(assertTrue(r == scala.util.Success(8)))
+    },
+    test("a pending await delivers a js.Promise success value by identity") {
+      // A js.Promise held as DATA (promise-as-value) must come out of `.await`
+      // as the promise itself, never replaced by its adopted/settled result.
+      val inner: js.Promise[Int]          = js.Promise.resolve[Int](42)
+      val pending: Async[js.Promise[Int]] = Async.promiseInternal[js.Promise[Int]] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(inner)); ()
+      }
+      val prog = Async.async {
+        val p = pending.await
+        (p: AnyRef) eq (inner: AnyRef)
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("the block result preserves a js.Promise value by identity") {
+      // Same promise-as-value contract for the block's RESULT position.
+      val inner: js.Promise[Int] = js.Promise.resolve[Int](42)
+      val prog: Async[AnyRef]    = Async.async {
+        val x = Async.succeed(1).await
+        val _ = x
+        inner: AnyRef
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r eq (inner: AnyRef)))
+    },
+    test("a pending await delivers a raw null success value") {
+      val pending: Async[String] = Async.promiseInternal[String] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(null)); ()
+      }
+      val prog = Async.async {
+        val s = pending.await
+        s == null
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("a pending await of a pollable-as-value delivers the bare user pollable") {
+      val inner: Pollable[Int] = new Pollable[Int] {
+        def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
+      }
+      val pending: Async[Pollable[Int]] = Async.promiseInternal[Pollable[Int]] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(inner)); ()
+      }
+      val prog = Async.async {
+        (pending.await: AnyRef) eq (inner: AnyRef)
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("the body runs synchronously up to the first pending await") {
+      val c          = new Completer[Int]
+      var sideEffect = 0
+      val prog       = Async.async {
+        sideEffect = 1
+        c.peek.await
+      }
+      val syncObserved = sideEffect
+      c.succeed(5)
+      ZIO.fromFuture(_ => run(prog)).map(v => assertTrue(syncObserved == 1, v == 5))
+    },
+    test("a pending await preserves failure-cause identity") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.fail(Boom)); ()
+      }
+      val prog = Async.async {
+        try { pending.await; "no-throw" }
+        catch { case t: Throwable => if (t eq Boom) "same" else s"different: $t" }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == "same"))
+    },
+    test("getOrElse: an awaiting by-name default is skipped on a Some") {
+      var forced = 0
+      val prog   = Async.async {
+        Option(1).getOrElse { forced += 1; Async.succeed(2).await }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 1, forced == 0))
+    },
+    test("&& short-circuits a failing right await") {
+      val prog = Async.async {
+        Async.succeed(false).await && (Async.fail(Boom).await: Boolean)
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == false))
+    },
+    test("|| short-circuits after a pending left await") {
+      val pending: Async[Boolean] = Async.promiseInternal[Boolean] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(true)); ()
+      }
+      val prog = Async.async {
+        pending.await || (Async.fail(Boom).await: Boolean)
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("try/finally: a pending awaited body still runs an awaiting finally block") {
+      var fin                 = 0
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(7)); ()
+      }
+      val prog = Async.async {
+        try pending.await
+        finally {
+          fin = Async.succeed(1).await
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 7, fin == 1))
+    },
+    test("string interpolation over a pending await") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(7)); ()
+      }
+      val prog = Async.async(s"v=${pending.await}")
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == "v=7"))
+    },
+    test("out-of-order named arguments around an await") {
+      def g(a: Int, b: Int): Int = a * 10 + b
+      val prog                   = Async.async(g(b = Async.succeed(2).await, a = 1))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 12))
+    },
+    test("constructor argument awaits a pending value") {
+      final case class Box(v: Int)
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(9)); ()
+      }
+      val prog = Async.async(Box(pending.await))
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == Box(9)))
+    },
+    test("match with pending awaits in scrutinee and case body") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(2)); ()
+      }
+      val prog = Async.async {
+        pending.await match {
+          case 2 => Async.succeed("two").await
+          case _ => "other"
+        }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == "two"))
+    },
+    test("while loop driven by pending awaits") {
+      var calls              = 0
+      def step(): Async[Int] = {
+        calls += 1
+        Async.promiseInternal[Int] { c =>
+          js.timers.setTimeout(0.0)(c.succeed(calls)); ()
+        }
+      }
+      val prog = Async.async {
+        var sum = 0
+        while (sum < 6) sum += step().await
+        sum
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6, calls == 3))
+    },
+    test("awaits in varargs positions") {
+      val prog = Async.async(List(Async.succeed(1).await, Async.succeed(2).await).sum)
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3))
     }
   )
 }
