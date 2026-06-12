@@ -144,6 +144,38 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val thrown = Try(z.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.leftBoom), !rightPolled)
       },
+      test("zipWith left advancing through a replacement pollable to a pollable-as-value carrier combines once") {
+        // Poll protocol: a pending poll may return a REPLACEMENT pollable. A
+        // left that hands back a replacement and then settles to a carrier
+        // (Async.succeed of a user pollable) must mark the left resolved with
+        // its raw terminal encoding — the combine sees the bare user pollable
+        // (one unwrap), and the left leaf is never re-polled afterwards.
+        val inner: Pollable[Int]       = AsyncTestSupport.syncReadyPollable(99)
+        var leafPolls                  = 0
+        val left: Async[Pollable[Int]] = new Pollable[Pollable[Int]] {
+          def poll(onComplete: Runnable): Async[Pollable[Int]] = {
+            leafPolls += 1
+            onComplete.run()
+            new Pollable[Pollable[Int]] {
+              def poll(onComplete: Runnable): Async[Pollable[Int]] = Async.succeed(inner)
+            }
+          }
+        }
+        val (cr, right)  = AsyncTestSupport.pending[Int]
+        var seen: AnyRef = null
+        var combines     = 0
+        val z            = left.zipWith(right) { (p, b) => seen = p; combines += 1; b }
+        val r1           = AsyncTestSupport.pollOnce(z) // left advances to its replacement
+        cr.succeed(7)
+        val r = z.block
+        assertTrue(
+          AsyncTestSupport.isPending(r1),
+          r == 7,
+          seen eq inner,
+          combines == 1,
+          leafPolls == 1
+        )
+      },
       test("zipWith_pendingLeft_readyRightFail_doesNotInvokeCombineOnLeftFail") {
         var invoked   = false
         val (c, left) = {
@@ -323,6 +355,43 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
               val r: Async[List[Int]] = Async.collectAll(ll)
               r
             """).map(r => assert(r)(isRight))
+      },
+      test("collectAll drives elements that advance through replacement pollables, preserving order") {
+        def chain(n: Int, value: Int): Pollable[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] =
+            if (n <= 0) Async.succeed(value)
+            else {
+              onComplete.run()
+              chain(n - 1, value) // a replacement, never `this`
+            }
+        }
+        val r = Async.collectAll(List[Async[Int]](chain(3, 1), Async.succeed(2), chain(2, 3))).block
+        assertTrue(r == List(1, 2, 3))
+      },
+      test("collectAll delivers a pollable-as-value element as the bare user pollable (one unwrap)") {
+        val inner: Pollable[Int] = AsyncTestSupport.syncReadyPollable(99)
+        val (c, p)               = AsyncTestSupport.pending[Pollable[Int]]
+        val all                  = Async.collectAll(List[Async[Pollable[Int]]](p))
+        c.succeed(inner)
+        val r = all.block
+        assertTrue(r.length == 1, r.head.asInstanceOf[AnyRef] eq inner)
+      },
+      test("collectAll propagates a failure surfaced by a replacement pollable without driving the tail") {
+        var tailPolled       = false
+        val tail: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { tailPolled = true; Async.succeed(9) }
+        }
+        val failingChain: Pollable[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = {
+            onComplete.run()
+            new Pollable[Int] {
+              def poll(onComplete: Runnable): Async[Int] = Async.fail(boom)
+            }
+          }
+        }
+        val all    = Async.collectAll(List[Async[Int]](failingChain, tail))
+        val thrown = Try(all.block).failed.toOption
+        assertTrue(thrown.contains(boom), !tailPolled)
       },
       test("collectAll_pendingThenFail_doesNotDriveTail") {
         var tailPolled       = false
