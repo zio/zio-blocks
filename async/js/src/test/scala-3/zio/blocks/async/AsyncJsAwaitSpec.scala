@@ -1028,6 +1028,64 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         )
       )
     },
+    test("a catch handler that awaits a pending-failed Async fails the block with the handler's cause") {
+      // Same contract as the ready-failed case above, but the handler's
+      // failure arrives over the asynchronous channel: it must not be re-fed
+      // to the same catch, and a null cause must be decoded back to the
+      // logical null by the time the block settles.
+      val handlerCause            = new RuntimeException("handler")
+      def boomNow(): Int          = throw Boom
+      val pendingFail: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.fail(handlerCause)); ()
+      }
+      val pendingNull: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.fail(null)); ()
+      }
+      val prog = Async.async {
+        try boomNow()
+        catch { case t: Throwable => if (t eq Boom) pendingFail.await else -1 }
+      }
+      val progNull = Async.async {
+        try boomNow()
+        catch { case t: Throwable => if (t eq Boom) pendingNull.await else -1 }
+      }
+      for {
+        out     <- ZIO.fromFuture(_ => run(prog)).either
+        outNull <- ZIO.fromFuture(_ => run(progNull)).either
+      } yield assertTrue(
+        AsyncTestSupport.unwindFutureEither(out) == Left(handlerCause),
+        AsyncTestSupport.unwindFutureEither(outNull) == Left(null)
+      )
+    },
+    test("an outer catch arm observes the failure awaited by an inner handler (and never a transport marker)") {
+      // The inner try keeps its awaits in the handler only; the outer try's
+      // body contains them, so the outer catch must match the LOGICAL cause of
+      // the handler's awaited failure: a matching arm recovers, and a
+      // null-cause failure matches no `t: Throwable` arm and propagates as the
+      // logical null.
+      val handlerCause           = new RuntimeException("handler")
+      def boomNow(): Int         = throw Boom
+      def failedH: Async[Int]    = Async.fail(handlerCause)
+      def failedNull: Async[Int] = Async.fail(null)
+      val prog                   = Async.async {
+        try {
+          try boomNow()
+          catch { case t: Throwable if t eq Boom => failedH.await }
+        } catch { case t: Throwable if t eq handlerCause => 7 }
+      }
+      val progNull = Async.async[Int] {
+        try {
+          try boomNow()
+          catch { case t: Throwable if t eq Boom => failedNull.await }
+        } catch { case t: Throwable => -1 }
+      }
+      ZIO.succeed(
+        assertTrue(
+          scala.util.Try(prog.block) == scala.util.Success(7),
+          AsyncTestSupport.outcome(progNull) == Left(null)
+        )
+      )
+    },
     test("a throwing finalizer attaches the catch handler's awaited failure as suppressed (await-free body)") {
       // With no await in the try body, the handler's awaited failure is the
       // in-flight one when the finalizer throws: the finalizer's throw wins
