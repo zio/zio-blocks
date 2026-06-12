@@ -293,6 +293,24 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           result <- ZIO.fromFuture(_ => AsyncInterop.toFuture(a)).either
         } yield assertTrue(AsyncTestSupport.unwindFutureEither(result) == Left(null))
       },
+      test("toFuture_genuinelyPendingNullFail_awaitObservesNullCause") {
+        // Twin of `toFuture_readyNullFail_awaitObservesNullCause` below, with
+        // the Async genuinely pending when `toFuture` is called, so the failure
+        // travels through the driven (executor) arm. That arm must use the same
+        // marker transport as the ready arm (and as `toCompletableFuture` and
+        // the JS driver): failing the promise with a raw null makes
+        // `Await.result` throw a fabricated NullPointerException instead.
+        val (c, fa) = AsyncTestSupport.pending[Int]
+        val fut     = AsyncInterop.toFuture(fa)
+        c.fail(null)
+        val raw =
+          try {
+            Right(Await.result(fut, 5.seconds))
+          } catch {
+            case t: Throwable => Left((t match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+          }
+        assertTrue(raw == Left(null))
+      },
       test("toFuture_readyNullFail_awaitObservesNullCause") {
         val f   = AsyncInterop.toFuture(Async.fail(null))
         val raw =
