@@ -1354,6 +1354,28 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(direct eq inner, done.get(), result.get() eq inner)
         }
       },
+      test("start of a GENUINELY PENDING pollable-as-value returns the Running without blocking the caller") {
+        ZIO.attemptBlocking {
+          // `Async.start` promises to drive eagerly WITHOUT blocking. A success
+          // value that is itself a still-pending pollable must be driven on the
+          // background worker like any other suspension — not parked on the
+          // calling thread until the leaf completes.
+          val c        = new Completer[Int]
+          val returned = new AtomicBoolean(false)
+          val caller   = new Thread(new Runnable {
+            def run(): Unit = {
+              val _ = Async.start(Async.succeed(c): Async[Completer[Int]])
+              returned.set(true)
+            }
+          })
+          caller.setDaemon(true)
+          caller.start()
+          caller.join(2000) // bound the regression: a blocking `start` parks here until the completer settles
+          val returnedWhileInnerStillPending = returned.get()
+          c.succeed(1) // un-wedge a parked caller so the suite does not leak the thread
+          assertTrue(returnedWhileInnerStillPending)
+        }
+      },
       test("cancel interrupts a parked worker, killing the thread and suppressing the callback") {
         ZIO.attemptBlocking {
           val fired = new AtomicBoolean(false)

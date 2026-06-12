@@ -310,6 +310,21 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         val a = Async.succeed(42).ensuring(AsyncTestSupport.throwingFinalizer)
         assertTrue(a.block == 42)
       },
+      test("ensuring_primarySucceedPollable_finalizerPollThrow_settlesToPollableValueCarrier") {
+        // Same shape as above but the primary value is itself a pollable-as-value.
+        // Suppressing the finalizer defect must settle to the wrapped success
+        // carrier (as the non-throwing finalizer sibling does); surfacing the bare
+        // pollable instead makes the driver treat the already-settled result as a
+        // still-suspended computation (block parks forever on an unarmed waker).
+        val inner                    = AsyncTestSupport.pollableSuccessValue
+        val fa: Async[Pollable[Int]] =
+          Async.succeed(inner).ensuring(AsyncTestSupport.throwingFinalizer)
+        val res = AsyncTestSupport.pollOnce(fa)
+        assertTrue(
+          !AsyncTestSupport.isPending(res),
+          AsyncEncoding.deliverSuccess[AnyRef](res) eq inner
+        )
+      },
       test("ensuring_pendingPrimaryFail_finalizerPollThrow_surfacesPrimary") {
         val c = new Completer[Int]
         val a = c.peek.ensuring(AsyncTestSupport.throwingFinalizer)

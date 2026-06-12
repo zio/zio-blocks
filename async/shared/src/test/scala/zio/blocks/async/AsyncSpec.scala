@@ -435,6 +435,25 @@ object AsyncSpec extends ZIOSpecDefault {
           val thrown =
             Try(Async.fail(boom).catchAll(_ => throw AsyncTestSupport.handlerFx).block).failed.toOption
           assertTrue(thrown.contains(AsyncTestSupport.handlerFx))
+        },
+        test("catchAll_handlerThrows_thenEither_readyAndPendingAgree") {
+          // Ready path converts a synchronously-throwing handler into Async.fail,
+          // so `.either` reifies it as Left. The pending path must agree: the same
+          // program over a genuinely pending failure must also settle to Left, not
+          // let the handler throw escape `.block` past the `.either`.
+          val readyOut: Either[Throwable, Int] =
+            Async.fail(boom).catchAll((_: Throwable) => throw AsyncTestSupport.handlerFx).either.block
+          val (c, pending) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val sus = pending.catchAll(_ => throw AsyncTestSupport.handlerFx).either
+          c.fail(boom)
+          val pendingOut: Either[Throwable, Either[Throwable, Int]] = Try(sus.block).toEither
+          assertTrue(
+            readyOut == Left(AsyncTestSupport.handlerFx),
+            pendingOut == Right(Left(AsyncTestSupport.handlerFx))
+          )
         }
       ),
       // Category K — zipWith combine throw on pending path must escape (not hang).
@@ -2453,6 +2472,22 @@ object AsyncSpec extends ZIOSpecDefault {
           c.succeed(())
           val result = fa.block
           assertTrue(result._1 eq inner, result == (inner, 7))
+        },
+        test("zipWith_readyLeftSucceedPollable_rightStillPendingAcrossPolls_preservesPollableIdentity") {
+          // The left side resolves to a pollable-as-value on the FIRST poll while
+          // the right side is still pending; the next poll must not re-dispatch
+          // the already-resolved left value as a suspended computation.
+          val inner      = AsyncTestSupport.pollableSuccessValue
+          val (c, right) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val fa: Async[(Pollable[Int], Int)] =
+            (Async.succeed(inner): Async[Pollable[Int]]).zipWith(right)((p, n) => (p, n))
+          val _ = AsyncTestSupport.pollOnce(fa) // left settles to the pollable value; right still pending
+          c.succeed(5)
+          val result = fa.block
+          assertTrue((result._1: AnyRef) eq inner, result._2 == 5)
         }
       ),
       // Category P — unsafeRunAsync on pending path returning WrappedPollable from flatMap.
@@ -3294,6 +3329,20 @@ object AsyncSpec extends ZIOSpecDefault {
           c.succeed(2)
           c.fail(boom)
           assertTrue(AsyncTestSupport.outcome(c.poll(AsyncTestSupport.noopRunnable)) == Right(1))
+        },
+        test("two distinct pollers registered before completion are both woken") {
+          // Fan-out: one promise-backed Async observed by two independent drivers
+          // (e.g. the same `Async.promise` value passed to two `Async.start`s).
+          // Each driver registers its own waker while the completer is pending;
+          // completion must wake both, or the un-woken driver never completes.
+          // (Async.Running.poll keeps a waiter list for exactly this reason.)
+          val c  = new Completer[Int]
+          var w1 = false
+          var w2 = false
+          c.poll(new Runnable { def run(): Unit = w1 = true })
+          c.poll(new Runnable { def run(): Unit = w2 = true })
+          c.succeed(7)
+          assertTrue(w1, w2)
         }
       )
     ),

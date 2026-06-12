@@ -90,6 +90,15 @@ object AsyncRunSpec extends ZIOSpecDefault {
           // Would never deliver under a re-poll-the-AsyncTestSupport.original driver; completes
           // only because the runner walks the chain of distinct pollables.
           AsyncTestSupport.runAsync(new StepChain(5, 0)).map(v => assertTrue(v == 5))
+        },
+        test("map composed over a pollable that advances by returning a new pollable") {
+          // Same conforming leaf as above (poll returns a NEW pending pollable, per
+          // the Pollable contract: "returns a pending Async (typically itself)").
+          // The combinator must keep driving it, exactly as the bare driver does,
+          // rather than misreading the fresh pending pollable as a terminal value.
+          val direct = AsyncTestSupport.fromPollable(new StepChain(2, 0)).block
+          val mapped = scala.util.Try(AsyncTestSupport.fromPollable(new StepChain(2, 0)).map(_ + 1).block)
+          assertTrue(direct == 2, mapped == scala.util.Success(3))
         }
       ),
       suite("failure surfacing")(
