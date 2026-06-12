@@ -116,12 +116,20 @@ private[async] object AsyncDirect {
           new Scan(true).traverseTreeChildren(dd)(owner)
         case cd: ClassDef =>
           new Scan(true).traverseTreeChildren(cd)(owner)
-        case tr: Try if tr.cases.nonEmpty && AsyncDcaTransform.containsAwait(tr.body) =>
+        case tr: Try
+            if (tr.cases.nonEmpty && AsyncDcaTransform.containsAwait(tr.body)) ||
+              (tr.finalizer.nonEmpty &&
+                (AsyncDcaTransform.containsAwait(tr.body) ||
+                  tr.finalizer.exists(f => AsyncDcaTransform.containsAwait(f)))) =>
           // A failure thrown by an await in the body lands in the user catch:
-          // only the DCA catch emulation preserves logical-cause matching.
+          // only the DCA catch emulation preserves logical-cause matching. And
+          // a failing finalizer over an in-flight failure must attach it as a
+          // suppressed exception (parity with the other cells), which the raw
+          // JS try/finally transport cannot do — so an awaiting try/finally
+          // also takes the DCA fallback.
           new Scan(true).traverseTree(tr.body)(owner)
-          tr.cases.foreach(c => traverseTree(c)(owner))
-          tr.finalizer.foreach(f => traverseTree(f)(owner))
+          tr.cases.foreach(c => new Scan(true).traverseTree(c)(owner))
+          tr.finalizer.foreach(f => new Scan(true).traverseTree(f)(owner))
         case ap @ Apply(fun, args) =>
           traverseTree(fun)(owner)
           val paramTypes = ap.fun.tpe.widen match {

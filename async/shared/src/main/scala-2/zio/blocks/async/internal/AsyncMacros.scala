@@ -2247,6 +2247,7 @@ private[async] object AsyncMacros {
           val tr     = fresh("tr$")
           val v      = fresh("v$")
           val e      = fresh("e$")
+          val e2     = fresh("finErr$")
           val mat    = fresh("materialized$")
           val finA   = transform(finalizer)(_ => q"$AsyncObj.succeed(())")
           // Materialise the body outcome as a `Try`, run the finalizer exactly
@@ -2264,7 +2265,18 @@ private[async] object AsyncMacros {
               $OpsObj($mat).flatMap { ($tr: _root_.scala.util.Try[Any]) =>
                 $tr match {
                   case _root_.scala.util.Success($v) => $OpsObj($runFin()).flatMap { (_: Unit) => $AsyncObj.succeed($v) }
-                  case _root_.scala.util.Failure($e) => $OpsObj($runFin()).flatMap { (_: Unit) => $AsyncObj.fail($e) }
+                  case _root_.scala.util.Failure($e) =>
+                    // A failing finalizer replaces the in-flight failure; keep
+                    // the original reachable as a suppressed exception when
+                    // legal (non-null, distinct) — parity with the Scala 3
+                    // cells' null-guarded suppression.
+                    $OpsObj($OpsObj($runFin()).catchAll { ($e2: _root_.java.lang.Throwable) =>
+                      if (($e2 ne null) && ($e ne null) && ($e2 ne $e)) {
+                        try $e2.addSuppressed($e)
+                        catch { case _: _root_.java.lang.Throwable => () }
+                      }
+                      $AsyncObj.fail($e2)
+                    }).flatMap { (_: Unit) => $AsyncObj.fail($e) }
                 }
               }
             }
