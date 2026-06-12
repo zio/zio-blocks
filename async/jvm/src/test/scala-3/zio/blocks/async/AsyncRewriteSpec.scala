@@ -60,6 +60,21 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       }.block
       assertTrue(r == 42)
     },
+    test("`.await` imported under a rename is still rewritten") {
+      import zio.blocks.async.{await => waitFor}
+      val r = Async.async(Async.succeed(21).waitFor * 2).block
+      assertTrue(r == 42)
+    },
+    test("a local (non-awaiting) lazy val alongside an await compiles and runs") {
+      // Only a lazy val whose INITIALIZER awaits is rejected; an ordinary lazy
+      // val sharing the block with awaits must pass through (parity with the
+      // Scala 2 macro probe of the same shape).
+      val r = Async.async {
+        lazy val k = 21
+        Async.succeed(k).await * 2
+      }.block
+      assertTrue(r == 42)
+    },
     test("a lazy val initializer containing await is rejected with a named diagnostic") {
       // Suspending lazy initialization is unsupported; silently forcing the
       // initializer eagerly would be a miscompile, so the macro rejects the

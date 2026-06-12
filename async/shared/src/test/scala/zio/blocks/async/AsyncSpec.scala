@@ -2276,6 +2276,18 @@ object AsyncSpec extends ZIOSpecDefault {
         test("collectAll_emptyIterator_returnsNil") {
           assertTrue(Async.collectAll(Iterator.empty[Async[Int]]).block == Nil)
         },
+        test("collectAll_infiniteIteratorWithFailedPrefix_shortCircuitsWithoutConsumingMore") {
+          // A failure must stop the drain immediately: the iterator is not
+          // advanced past the failed element (otherwise an infinite source
+          // would spin forever / run construction effects it must not).
+          var consumed             = 0
+          val it: Iterator[Async[Int]] = Iterator.from(1).map { i =>
+            consumed = i
+            if (i == 3) Async.fail(boom) else Async.succeed(i)
+          }
+          val out = AsyncTestSupport.blockAsLeftCause(Async.collectAll(it))
+          assertTrue(out == Some(boom), consumed == 3)
+        },
         test("either_promiseSucceedPollable_matchesBlockIdentity") {
           val inner                    = AsyncTestSupport.pollableSuccessValue
           val fa: Async[Pollable[Int]] =
