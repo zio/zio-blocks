@@ -45,6 +45,16 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
     def await[T](fa: Async[T]): T = { calls += 1; fa.block }
   }
 
+  /**
+   * A user EXTENSION named `await` on `Async` itself: invoked in explicit
+   * application form (`userAwaitOps.await(fa)`) it elaborates to the same tree
+   * shape as our rewritten extension, differing only by symbol owner.
+   */
+  private object userAwaitOps {
+    var hits: Int = 0
+    extension [A](fa: Async[A]) def await: A = { hits += 1; fa.block }
+  }
+
   def spec = suite("AsyncRewriteSpec")(
     test("a user method named `await` is not hijacked by the rewrite") {
       legacyClient.calls = 0
@@ -56,6 +66,26 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
     test("a nested Async.async block awaited by the outer one composes") {
       val r = Async.async {
         val inner = Async.async(Async.succeed(20).await + 1)
+        inner.await * 2
+      }.block
+      assertTrue(r == 42)
+    },
+    test("a user extension method named `await` is not hijacked by the rewrite") {
+      // Elaborates to the exact `Apply(TypeApply(await, [T]), List(qual))`
+      // shape our extension produces — only the SYMBOL (owner) differs, so a
+      // shape- or name-based matcher would hijack it.
+      userAwaitOps.hits = 0
+      val r = Async.async {
+        userAwaitOps.await(Async.succeed(20)) * 2 + Async.succeed(2).await
+      }.block
+      assertTrue(r == 42, userAwaitOps.hits == 1)
+    },
+    test("a lazy val whose initializer is a nested Async.async block is not rejected") {
+      // The inner block expands before the outer macro runs (inline arguments
+      // are typed first), so the inner's awaits are its own: the outer
+      // lazy-val rejection must not fire on the expanded, opaque Async value.
+      val r = Async.async {
+        lazy val inner = Async.async(Async.succeed(20).await + 1)
         inner.await * 2
       }.block
       assertTrue(r == 42)

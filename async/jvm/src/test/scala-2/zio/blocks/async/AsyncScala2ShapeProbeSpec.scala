@@ -62,6 +62,19 @@ object AsyncScala2ShapeProbeSpec extends ZIOSpecDefault {
         a
       """).map(r => assert(r)(isRight))
     },
+    test("a lazy val whose initializer is a nested Async.async block should compile") {
+      // Scala 2 expands macros bottom-up: the inner block is already rewritten
+      // (no `.await` tokens left) by the time the outer macro's lazy-val check
+      // runs, so the rejection must not fire (parity with the Scala 3 cells).
+      typeCheck("""
+        import zio.blocks.async._
+        val a = Async.async {
+          lazy val inner = Async.async(Async.succeed(20).await + 1)
+          inner.await * 2
+        }
+        a
+      """).map(r => assert(r)(isRight))
+    },
     test("a local (non-awaiting) class alongside an await should compile") {
       typeCheck("""
         import zio.blocks.async._
