@@ -139,6 +139,23 @@ object AsyncErrorSpec extends ZIOSpecDefault {
             case t: Throwable            => Left(t)
           }
         assertTrue(viaEither == Left(null), viaBlock == Left(null))
+      },
+      test("mapError_pendingFail_mapperThrow_reifiesAsFailure") {
+        val c            = new Completer[Int]
+        val a: Async[Int] = c.peek.mapError(_ => throw AsyncTestSupport.handlerFx)
+        c.fail(AsyncTestSupport.primary)
+        assertTrue(a.either.block == Left(AsyncTestSupport.handlerFx))
+      },
+      test("mapError_readyFail_mapperThrow_reifiesAsFailure") {
+        // Ready/pending parity: the pending path routes through the guarded
+        // CatchAllPollable (a synchronously-throwing mapper is reified as a
+        // Failure — see the pending sibling above, and catchAll's own ready
+        // path, which guards the handler identically). The ready path must
+        // agree, not let the mapper's throw escape the `mapError` call site.
+        val out = Try(
+          Async.fail(AsyncTestSupport.primary).mapError(_ => throw AsyncTestSupport.handlerFx).either.block
+        )
+        assertTrue(out == scala.util.Success(Left(AsyncTestSupport.handlerFx)))
       }
     ),
     suite("orElse")(
@@ -198,6 +215,26 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         val ei = pending.flatMap(_ => Async.fail(null)).either
         c.succeed(0)
         assertTrue(ei.block == Left(null))
+      },
+      test("foldCause_pendingFail_onFailureThrow_reifiesAsFailure") {
+        val c               = new Completer[Int]
+        val a: Async[String] = c.peek.foldCause[String](_ => throw AsyncTestSupport.handlerFx)(_ => "ok")
+        c.fail(AsyncTestSupport.primary)
+        assertTrue(a.either.block == Left(AsyncTestSupport.handlerFx))
+      },
+      test("foldCause_readyFail_onFailureThrow_reifiesAsFailure") {
+        // Ready/pending parity: the pending path wraps onFailure in catchAll's
+        // guarded handler (a throwing onFailure is reified as a Failure — see
+        // the pending sibling above). The ready path must agree, not let the
+        // throw escape the `foldCause` call site.
+        val out = Try(
+          Async
+            .fail(AsyncTestSupport.primary)
+            .foldCause[String](_ => throw AsyncTestSupport.handlerFx)(_ => "ok")
+            .either
+            .block
+        )
+        assertTrue(out == scala.util.Success(Left(AsyncTestSupport.handlerFx)))
       }
     ),
     suite("either")(

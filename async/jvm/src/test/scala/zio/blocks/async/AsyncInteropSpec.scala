@@ -556,6 +556,50 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           val cf  = AsyncInterop.toCompletableFuture(fa)
           val raw = cf.join().asInstanceOf[AnyRef]
           assertTrue(raw eq inner)
+        },
+        test("toFuture_succeedStillPendingPollable_returnsWithoutBlockingCaller") {
+          ZIO.attemptBlocking {
+            // `toFuture` promises that a not-yet-complete input "is driven on
+            // `ec`, so this call returns immediately". A success value that is
+            // itself a still-pending pollable must be driven like any other
+            // suspension (exactly as `Async.start` drives it on the background
+            // worker) — not parked on the calling thread until the leaf settles.
+            val c        = new Completer[Int]
+            val returned = new java.util.concurrent.atomic.AtomicBoolean(false)
+            val caller   = new Thread(new Runnable {
+              def run(): Unit = {
+                val _ = AsyncInterop.toFuture(Async.succeed(c: Pollable[Int]))
+                returned.set(true)
+              }
+            })
+            caller.setDaemon(true)
+            caller.start()
+            caller.join(2000) // bound the regression: a blocking toFuture parks here until the completer settles
+            val returnedWhileInnerStillPending = returned.get()
+            c.succeed(1) // un-wedge a parked caller so the suite does not leak the thread
+            assertTrue(returnedWhileInnerStillPending)
+          }
+        },
+        test("toCompletableFuture_succeedStillPendingPollable_returnsWithoutBlockingCaller") {
+          ZIO.attemptBlocking {
+            // Same non-blocking contract as toFuture (`toCompletableFuture`
+            // "behaves like toFuture"): a pending pollable-as-value carrier must
+            // not park the calling thread.
+            val c        = new Completer[Int]
+            val returned = new java.util.concurrent.atomic.AtomicBoolean(false)
+            val caller   = new Thread(new Runnable {
+              def run(): Unit = {
+                val _ = AsyncInterop.toCompletableFuture(Async.succeed(c: Pollable[Int]))
+                returned.set(true)
+              }
+            })
+            caller.setDaemon(true)
+            caller.start()
+            caller.join(2000)
+            val returnedWhileInnerStillPending = returned.get()
+            c.succeed(1)
+            assertTrue(returnedWhileInnerStillPending)
+          }
         }
       ),
       // CONVERGENCE — JVM pass-9 interop regression locks.
