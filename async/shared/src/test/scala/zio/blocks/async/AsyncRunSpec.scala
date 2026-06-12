@@ -130,18 +130,23 @@ object AsyncRunSpec extends ZIOSpecDefault {
         },
         test("publishes a null body result (terminal is published)") {
           // Same publication contract as the Completer-settled null above, via
-          // the by-name `Async.start(body)` entry point.
+          // the by-name `Async.start(body)` entry point. Observed by polling
+          // the Running directly (the standard Pollable driver protocol) so a
+          // defective run fails the assertion after the bounded wait instead of
+          // parking a second runner forever.
           val running = Async.start {
             val s: String = null
             s
           }
+          def settled = !AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable))
           for {
-            fiber <- AsyncTestSupport.runAsync(running).fork
-            v     <- Live.live(
-                       fiber.join
-                         .timeoutFail(new RuntimeException("eval Running never published the null terminal"))(5.seconds)
-                     )
-          } yield assertTrue(v == null)
+            published <- Live.live(
+                           (ZIO.sleep(10.millis) *> ZIO.succeed(settled))
+                             .repeatUntil(identity)
+                             .timeoutTo(false)(identity)(5.seconds)
+                         )
+            out = running.poll(AsyncTestSupport.noopRunnable)
+          } yield assertTrue(published, out == null)
         }
       ),
       suite("failure surfacing")(
