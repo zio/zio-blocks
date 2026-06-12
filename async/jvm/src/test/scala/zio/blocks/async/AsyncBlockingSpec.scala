@@ -273,12 +273,20 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(r == 12)
         },
         test("do-while idiom (body-in-condition block) with await") {
-          var i = 0
-          val r = Async.async {
-            while ({ i += Async.succeed(1).await; i < 3 }) ()
+          // NOTE: the natural spelling of this idiom has a PURE empty body —
+          // `while ({ i += fa.await; i < 3 }) ()` — but on Scala 3.3.7 the
+          // while-rewrite splices that body into statement position and the
+          // resulting "pure expression does nothing" warning is fatal, aborting
+          // compilation of the entire module (3.8.3 and Scala 2 accept it). The
+          // body below carries a side effect to keep this cross-version; the
+          // pure-body shape is tracked as a macro-robustness finding.
+          var i     = 0
+          var loops = 0
+          val r     = Async.async {
+            while ({ i += Async.succeed(1).await; i < 3 }) loops += 1
             i
           }.block
-          assertTrue(r == 3)
+          assertTrue(r == 3, loops == 2)
         },
         test("a failing await in the loop condition propagates without running the body") {
           var bodyRan = false
