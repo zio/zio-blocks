@@ -110,6 +110,49 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           assertTrue(anomaly.isEmpty)
         }
       },
+      test("every distinct waker registered while pending is resumed under settle contention (waiter chain)") {
+        ZIO.attemptBlocking {
+          // Round-2 surface: Completer keeps a CAS-linked chain of distinct
+          // waiters. Under contention each poller must either be woken by the
+          // settle chain-walk or lose the CAS and observe the settled value
+          // directly — never silently dropped from the chain.
+          val trials  = 500
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val c       = new Completer[Int]
+            val pollers = 8
+            val start   = new CountDownLatch(1)
+            val done    = new CountDownLatch(pollers)
+            val resumed = new AtomicInteger(0)
+            (0 until pollers).foreach { _ =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  start.await()
+                  val waker  = new Runnable { def run(): Unit = { resumed.incrementAndGet(); () } }
+                  val r: Any = c.poll(waker)
+                  if (!r.isInstanceOf[Completer[_]]) resumed.incrementAndGet() // observed the value directly
+                  done.countDown()
+                }
+              })
+              t.setDaemon(true)
+              t.start()
+            }
+            val settler = new Thread(new Runnable {
+              def run(): Unit = { start.await(); c.succeed(7) }
+            })
+            settler.setDaemon(true)
+            settler.start()
+            start.countDown()
+            done.await()
+            settler.join()
+            val n = resumed.get()
+            if (n != pollers) anomaly = Some(s"trial $i: $n of $pollers pollers resumed (lost wakeup or double count)")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
       test("unsafeRunAsync delivers the callback at most once when completion races cancel") {
         ZIO.attemptBlocking {
           val trials  = 1000

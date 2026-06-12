@@ -53,6 +53,21 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       }.block
       assertTrue(r == 42, legacyClient.calls == 1)
     },
+    test("a nested Async.async block awaited by the outer one composes") {
+      val r = Async.async {
+        val inner = Async.async(Async.succeed(20).await + 1)
+        inner.await * 2
+      }.block
+      assertTrue(r == 42)
+    },
+    test("a lazy val initializer containing await is not forced eagerly when unused") {
+      var forced = false
+      val r      = Async.async {
+        lazy val x = { forced = true; Async.succeed(5).await }
+        Async.succeed(1).await
+      }.block
+      assertTrue(r == 1, !forced)
+    },
     test("a pending `.await` is rewritten to a non-blocking chain (construction does not block)") {
       val cRef        = new AtomicReference[Completer[Int]]()
       val pending     = Async.promiseInternal[Int](c => cRef.set(c))
