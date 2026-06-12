@@ -374,6 +374,47 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             finally fin = Async.succeed(9).await
           }.block
           assertTrue(r == 5, fin == 9)
+        },
+        test("a throwing finalizer replaces the in-flight awaited failure (plain try/finally semantics)") {
+          // Scala semantics: a throw from `finally` replaces the in-flight
+          // exception.
+          val finBoom            = new RuntimeException("fin")
+          def finThrow(): Unit   = throw finBoom
+          def failed: Async[Int] = Async.fail(AsyncTestSupport.boom)
+          val a                  = Async.async[Int] {
+            try failed.await
+            finally finThrow()
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a throwing finalizer replaces an in-flight null-cause awaited failure with the finalizer's throw") {
+          // Same replacement law when the in-flight failure carries the logical
+          // null cause: the block must fail with the finalizer's throw — never
+          // an internal NullPointerException from combining the two.
+          val finBoom                = new RuntimeException("fin")
+          def finThrow(): Unit       = throw finBoom
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally finThrow()
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a finalizer that awaits and then throws still replaces an in-flight null-cause failure") {
+          // The awaiting finalizer routes through the async-finalizer
+          // machinery; the replacement law (and null-cause safety) must hold
+          // there too.
+          val finBoom                = new RuntimeException("fin")
+          def finThrow(): Unit       = throw finBoom
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally {
+              val _ = Async.succeed(1).await
+              finThrow()
+            }
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
         }
       ),
       suite("match with .await")(

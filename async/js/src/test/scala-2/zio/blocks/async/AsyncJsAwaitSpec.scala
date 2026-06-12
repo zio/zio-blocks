@@ -111,6 +111,31 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog = Async.async(Async.fail(Boom).await)
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
       },
+      test("a throwing finalizer replaces the in-flight awaited failure (plain try/finally semantics)") {
+        // Scala semantics: a throw from `finally` replaces the in-flight
+        // exception.
+        val finBoom            = new RuntimeException("fin")
+        def finThrow(): Unit   = throw finBoom
+        def failed: Async[Int] = Async.fail(Boom)
+        val prog               = Async.async[Int] {
+          try failed.await
+          finally finThrow()
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
+      },
+      test("a throwing finalizer replaces an in-flight null-cause awaited failure with the finalizer's throw") {
+        // Same replacement law when the in-flight failure carries the logical
+        // null cause: the block must fail with the finalizer's throw — never an
+        // internal NullPointerException from combining the two.
+        val finBoom                = new RuntimeException("fin")
+        def finThrow(): Unit       = throw finBoom
+        def failedNull: Async[Int] = Async.fail(null)
+        val prog                   = Async.async[Int] {
+          try failedNull.await
+          finally finThrow()
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
+      },
       test("a body that throws propagates the throwable") {
         val prog = Async.async[Int]((throw Boom): Int)
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
