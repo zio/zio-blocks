@@ -420,21 +420,11 @@ object Async extends AsyncCompanionVersionSpecific {
     }
 
     /**
-     * True when `p` is a combinator continuation, not a user pollable-as-value.
-     */
-    private def isContinuationPollable(p: Any): Boolean = p match {
-      case _: FlatMapPollable[?, ?] | _: MapPollable[?, ?] | _: CatchAllPollable[?, ?] | _: ZipWithPollable[?, ?, ?] |
-          _: RunThenValuePollable[?] | _: EnsuringPollable[?] =>
-        true
-      case _ => false
-    }
-
-    /**
-     * `map` continuation: `f` produces a plain value (never a nested `Async` to
-     * flatten). User [[Pollable]] success values are lifted via
-     * [[Async.succeed]]; CPS/await-generated combinator pollables are driven —
-     * once `f` has been applied this pollable owes nothing more, so a pending
-     * continuation is returned directly as a replacement.
+     * `map` continuation: `f` produces a plain '''value''' (never a nested
+     * `Async` to flatten), so the result is always lifted via [[Async.succeed]]
+     * — exactly like the ready path. A [[Pollable]] returned by `f` (including
+     * a combinator-built `Async` held as data) is a pollable-as-value, never a
+     * computation to drive; flattening belongs to `flatMap`.
      */
     private final class MapPollable[A, B](pa0: Pollable[A], f: A => B) extends Pollable[B] {
 
@@ -446,13 +436,7 @@ object Async extends AsyncCompanionVersionSpecific {
         else if (res.isInstanceOf[Pollable[?]]) {
           pa = res.asInstanceOf[Pollable[A]]
           this
-        } else {
-          val b    = f(terminalValue(res).asInstanceOf[A])
-          val bAny = b.asInstanceOf[Any]
-          if (bAny.isInstanceOf[Pollable[_]] && !bAny.isInstanceOf[Failure] && isContinuationPollable(bAny))
-            bAny.asInstanceOf[Pollable[B]].poll(onComplete)
-          else Async.succeed(b).asInstanceOf[Async[B]]
-        }
+        } else Async.succeed(f(terminalValue(res).asInstanceOf[A])).asInstanceOf[Async[B]]
       }
     }
 

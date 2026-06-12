@@ -72,6 +72,14 @@ private[async] object AsyncRunner {
     running
   }
 
+  /**
+   * Sentinel stored in `terminal` for a run that settles with a raw `null`
+   * success value: storing plain `null` would be indistinguishable from "not
+   * yet settled", so the publish CAS would silently succeed without ever making
+   * `poll` observe completion (mirrors `Completer.NullValue`).
+   */
+  private val NullTerminal: AnyRef = new AnyRef
+
   private final class SuspendedRunning[A](pa: Pollable[A]) extends Async.Running[A] {
 
     private val terminal  = new AtomicReference[Any](null)
@@ -91,14 +99,16 @@ private[async] object AsyncRunner {
     private def drive(): Unit = {
       if (cancelled.get()) return
       val value: Any =
-        try AsyncEncoding.liftSuccess(Async.slowPath.awaitSuspended(pa))
-        catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
+        try {
+          val v = AsyncEncoding.liftSuccess(Async.slowPath.awaitSuspended(pa))
+          if (v == null) NullTerminal else v // a raw null success must still publish
+        } catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
       if (!cancelled.get() && terminal.compareAndSet(null, value)) wakeAll()
     }
 
     def poll(onComplete: Runnable): Async[A] = {
       val t = terminal.get()
-      if (t != null) t.asInstanceOf[Async[A]]
+      if (t != null) (if (t.asInstanceOf[AnyRef] eq NullTerminal) null else t).asInstanceOf[Async[A]]
       else {
         registerOnComplete(onComplete)
         this

@@ -2280,7 +2280,7 @@ object AsyncSpec extends ZIOSpecDefault {
           // A failure must stop the drain immediately: the iterator is not
           // advanced past the failed element (otherwise an infinite source
           // would spin forever / run construction effects it must not).
-          var consumed             = 0
+          var consumed                 = 0
           val it: Iterator[Async[Int]] = Iterator.from(1).map { i =>
             consumed = i
             if (i == 3) Async.fail(boom) else Async.succeed(i)

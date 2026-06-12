@@ -96,9 +96,9 @@ object AsyncRunSpec extends ZIOSpecDefault {
             fiber <- AsyncTestSupport.runAsync(c.peek).fork
             _     <- ZIO.succeed(c.succeed(null))
             v     <- Live.live(
-                       fiber.join
-                         .timeoutFail(new RuntimeException("Running never published the null terminal"))(5.seconds)
-                     )
+                   fiber.join
+                     .timeoutFail(new RuntimeException("Running never published the null terminal"))(5.seconds)
+                 )
           } yield assertTrue(v == null)
         },
         test("driver advances to the pollable returned by poll (not re-polling the original)") {

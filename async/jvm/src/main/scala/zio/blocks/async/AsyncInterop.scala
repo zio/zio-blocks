@@ -90,7 +90,7 @@ object AsyncInterop {
       ec.execute(new Runnable {
         def run(): Unit =
           try p.success(Async.slowPath.block[A](fa))
-          catch { case t: Throwable => p.failure(Failure.unwindCause(t)); () }
+          catch { case t: Throwable => failPromise(p, Failure.unwindCause(t)) }
       })
       p.future
     } else
@@ -152,4 +152,11 @@ object AsyncInterop {
   private def failFuture[A](cause: Throwable): Future[A] =
     if (cause eq null) Future.failed(Failure.NullCauseMarker)
     else Future.failed(cause)
+
+  /** `Promise.failure` likewise rejects a `null` exception. */
+  private def failPromise[A](p: Promise[A], cause: Throwable): Unit = {
+    if (cause eq null) p.failure(Failure.NullCauseMarker)
+    else p.failure(cause)
+    ()
+  }
 }
