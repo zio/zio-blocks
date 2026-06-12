@@ -218,6 +218,54 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       }
       assertTrue(scala.util.Try(fa.block).failed.toOption.contains(boom2))
     },
+    test("a throwing finalizer attaches the in-flight awaited failure as suppressed") {
+      // Plain-Scala replacement semantics PLUS error-graph preservation on the
+      // DCA arm: the finalizer's throw wins, and the original failure stays
+      // reachable via getSuppressed (legal here: non-null, distinct). This is
+      // AsyncCpsMonad.withAction (an await-free finalizer).
+      val primary            = new RuntimeException("primary")
+      val finBoom            = new RuntimeException("fin")
+      def finThrow(): Unit   = throw finBoom
+      def failed: Async[Int] = Async.fail(primary)
+      val fa                 = Async.async[Int] {
+        try failed.await
+        finally finThrow()
+      }
+      val thrown = scala.util.Try(fa.block).failed.toOption
+      assertTrue(thrown.contains(finBoom), finBoom.getSuppressed.toList.contains(primary))
+    },
+    test("a finalizer that awaits and then fails attaches the in-flight failure as suppressed") {
+      // The awaiting finalizer routes through AsyncCpsMonad.withAsyncAction;
+      // its suppression contract must match the synchronous withAction arm.
+      val primary              = new RuntimeException("primary")
+      val finBoom              = new RuntimeException("fin")
+      def failFin: Async[Unit] = Async.fail(finBoom)
+      def failed: Async[Int]   = Async.fail(primary)
+      val fa                   = Async.async[Int] {
+        try failed.await
+        finally {
+          val _ = Async.succeed(1).await
+          failFin.await
+        }
+      }
+      val thrown = scala.util.Try(fa.block).failed.toOption
+      assertTrue(thrown.contains(finBoom), finBoom.getSuppressed.toList.contains(primary))
+    },
+    test("a failing async finalizer after a successful awaited body attaches nothing as suppressed") {
+      // Success-side withAsyncAction: the finalizer's failure is the block's
+      // failure and there is no in-flight failure to attach.
+      val finBoom              = new RuntimeException("fin")
+      def failFin: Async[Unit] = Async.fail(finBoom)
+      val fa                   = Async.async[Int] {
+        try Async.succeed(5).await
+        finally {
+          val _ = Async.succeed(1).await
+          failFin.await
+        }
+      }
+      val thrown = scala.util.Try(fa.block).failed.toOption
+      assertTrue(thrown.contains(finBoom), finBoom.getSuppressed.isEmpty)
+    },
     test("a raw exception thrown by the post-await continuation inside try is recovered by the surrounding catch") {
       // After the await, `require` throws a raw IllegalArgumentException in the
       // post-await continuation. DCA's try-block machinery captures it and

@@ -63,6 +63,25 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
       val thrown = scala.util.Try(a.block).failed.toOption
       assertTrue(thrown.contains(AsyncTestSupport.boom), fin)
     },
+    test("an unascribed Nothing-typed await in an if branch compiles and propagates at runtime") {
+      // The branch is `Nothing`-typed with no user ascription; the element-type
+      // tracking must not require one (direct compilation, like the try/finally
+      // probe above).
+      val a: Async[Int] = Async.async[Int] {
+        if (Async.succeed(true).await) Async.fail(AsyncTestSupport.boom).await
+        else 0
+      }
+      assertTrue(scala.util.Try(a.block).failed.toOption.contains(AsyncTestSupport.boom))
+    },
+    test("an unascribed Nothing-typed await in a match arm compiles and propagates at runtime") {
+      val a: Async[Int] = Async.async[Int] {
+        Async.succeed(1).await match {
+          case 1 => Async.fail(AsyncTestSupport.boom).await
+          case _ => 0
+        }
+      }
+      assertTrue(scala.util.Try(a.block).failed.toOption.contains(AsyncTestSupport.boom))
+    },
     test("await of a method chain compiles") {
       typeCheck("""
         import zio.blocks.async._

@@ -848,6 +848,92 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(progNull) == Some(finBoom)))
     },
+    test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
+      // Success side of the replacement law: the body's value is discarded and
+      // nothing is attached as suppressed (there is no in-flight failure).
+      val finBoom          = new RuntimeException("fin")
+      def finThrow(): Unit = throw finBoom
+      val prog             = Async.async[Int] {
+        try Async.succeed(5).await
+        finally finThrow()
+      }
+      ZIO.succeed(
+        assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(finBoom), finBoom.getSuppressed.isEmpty)
+      )
+    },
+    test("a finalizer that rethrows the in-flight cause itself propagates it without a self-suppression crash") {
+      // `Throwable.addSuppressed(self)` throws IllegalArgumentException; when
+      // the finalizer's throw IS the in-flight cause the combiner must skip
+      // suppression and surface the shared instance untouched.
+      val shared             = new RuntimeException("shared")
+      def finThrow(): Unit   = throw shared
+      def failed: Async[Int] = Async.fail(shared)
+      val prog               = Async.async[Int] {
+        try failed.await
+        finally finThrow()
+      }
+      ZIO.succeed(
+        assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(shared), shared.getSuppressed.isEmpty)
+      )
+    },
+    test("a finalizer that fails via an awaited Async replaces an in-flight null-cause failure") {
+      val finBoom                = new RuntimeException("fin")
+      def failFin: Async[Unit]   = Async.fail(finBoom)
+      def failedNull: Async[Int] = Async.fail(null)
+      val prog                   = Async.async[Int] {
+        try failedNull.await
+        finally failFin.await
+      }
+      ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(finBoom)))
+    },
+    test("a finalizer that fails with a null cause replaces the in-flight failure with the logical null") {
+      // The finalizer side can carry the logical null too: the block fails
+      // with null (decoded), never an internal error from combining the two
+      // failures.
+      def failFinNull: Async[Unit] = Async.fail(null)
+      def failed: Async[Int]       = Async.fail(Boom)
+      val prog                     = Async.async[Int] {
+        try failed.await
+        finally failFinNull.await
+      }
+      ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(null)))
+    },
+    test("a Nothing-typed awaited body under try/finally propagates the cause and runs the finalizer once") {
+      // `Async.fail(t).await` types as Nothing; with no widening catch arm the
+      // try expression itself is Nothing-typed. Both JS Scala 3 cells (DCA and
+      // the 3.8+ hybrid fallback) must accept it and keep plain try/finally
+      // semantics.
+      var fin                           = 0
+      def failedNothing: Async[Nothing] = Async.fail(Boom)
+      val prog                          = Async.async[Int] {
+        try failedNothing.await
+        finally fin += 1
+      }
+      ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(Boom), fin == 1))
+    },
+    test("a Nothing-typed awaited body under try/catch/finally recovers and runs the finalizer once") {
+      var fin                           = 0
+      def failedNothing: Async[Nothing] = Async.fail(Boom)
+      val prog                          = Async.async {
+        try failedNothing.await
+        catch { case t: Throwable if t eq Boom => 42 }
+        finally fin += 1
+      }
+      ZIO.succeed(assertTrue(scala.util.Try(prog.block) == scala.util.Success(42), fin == 1))
+    },
+    test("nested try/finally over a Nothing-typed awaited body runs both finalizers once, inner first") {
+      var trace                         = List.empty[String]
+      def failedNothing: Async[Nothing] = Async.fail(Boom)
+      val prog                          = Async.async[Int] {
+        try {
+          try failedNothing.await
+          finally trace ::= "inner"
+        } finally trace ::= "outer"
+      }
+      ZIO.succeed(
+        assertTrue(AsyncTestSupport.blockAsLeftCause(prog) == Some(Boom), trace == List("outer", "inner"))
+      )
+    },
     test("awaits only in the catch handler (await-free body) recover a thrown body failure") {
       // With no await in the try body the native arm is kept; the handler's own
       // awaits must still work — suspending (pending) and ready (block stays

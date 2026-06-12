@@ -136,6 +136,94 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
       },
+      test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
+        // Success side of the replacement law: the body's value is discarded
+        // and the finalizer's throw is the failure.
+        val finBoom          = new RuntimeException("fin")
+        def finThrow(): Unit = throw finBoom
+        val prog             = Async.async[Int] {
+          try Async.succeed(5).await
+          finally finThrow()
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
+      },
+      test("a finalizer that rethrows the in-flight cause itself propagates it without a self-suppression crash") {
+        // When the finalizer's throw IS the in-flight cause the combiner must
+        // surface the shared instance untouched (no self-suppression crash).
+        val shared             = new RuntimeException("shared")
+        def finThrow(): Unit   = throw shared
+        def failed: Async[Int] = Async.fail(shared)
+        val prog               = Async.async[Int] {
+          try failed.await
+          finally finThrow()
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(shared), shared.getSuppressed.isEmpty))
+      },
+      test("a finalizer that fails via an awaited Async replaces an in-flight null-cause failure") {
+        // The finalizer's failure arrives through the async channel (an
+        // awaited Async.fail), not a raw throw; the replacement law is the
+        // same.
+        val finBoom                = new RuntimeException("fin")
+        def failFin: Async[Unit]   = Async.fail(finBoom)
+        def failedNull: Async[Int] = Async.fail(null)
+        val prog                   = Async.async[Int] {
+          try failedNull.await
+          finally failFin.await
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
+      },
+      test("a finalizer that fails with a null cause replaces the in-flight failure with the logical null") {
+        // The finalizer side can carry the logical null too: the block fails
+        // with null (decoded), never an internal error from combining the two
+        // failures.
+        def failFinNull: Async[Unit] = Async.fail(null)
+        def failed: Async[Int]       = Async.fail(Boom)
+        val prog                     = Async.async[Int] {
+          try failed.await
+          finally failFinNull.await
+        }
+        ZIO
+          .fromFuture(_ => run(prog))
+          .either
+          .map(e => assertTrue(AsyncTestSupport.unwindFutureEither(e) == Left(null)))
+      },
+      test("a Nothing-typed awaited body under try/finally propagates the cause and runs the finalizer once") {
+        // `Async.fail(t).await` types as Nothing; with no widening catch arm
+        // the try expression itself is Nothing-typed. The finalizer
+        // materialization must not require inference of a Nothing lambda
+        // parameter on the JS Scala 2 cell either.
+        var fin                           = 0
+        def failedNothing: Async[Nothing] = Async.fail(Boom)
+        val prog                          = Async.async[Int] {
+          try failedNothing.await
+          finally fin += 1
+        }
+        ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom), fin == 1))
+      },
+      test("a Nothing-typed awaited body under try/catch/finally recovers and runs the finalizer once") {
+        var fin                           = 0
+        def failedNothing: Async[Nothing] = Async.fail(Boom)
+        val prog                          = Async.async {
+          try failedNothing.await
+          catch { case t: Throwable if t eq Boom => 42 }
+          finally fin += 1
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 42, fin == 1))
+      },
+      test("nested try/finally over a Nothing-typed awaited body runs both finalizers once, inner first") {
+        var trace                         = List.empty[String]
+        def failedNothing: Async[Nothing] = Async.fail(Boom)
+        val prog                          = Async.async[Int] {
+          try {
+            try failedNothing.await
+            finally trace ::= "inner"
+          } finally trace ::= "outer"
+        }
+        ZIO
+          .fromFuture(_ => run(prog))
+          .either
+          .map(e => assertTrue(e == Left(Boom), trace == List("outer", "inner")))
+      },
       test("a body that throws propagates the throwable") {
         val prog = Async.async[Int]((throw Boom): Int)
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))

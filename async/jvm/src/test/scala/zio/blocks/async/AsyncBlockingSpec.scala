@@ -415,6 +415,153 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             }
           }
           assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
+          // The replacement law also covers the success side: the body's value
+          // is discarded, the finalizer's throw is the failure — and nothing
+          // gets attached as suppressed (there is no in-flight failure).
+          val finBoom          = new RuntimeException("fin")
+          def finThrow(): Unit = throw finBoom
+          val a                = Async.async[Int] {
+            try Async.succeed(5).await
+            finally finThrow()
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            finBoom.getSuppressed.isEmpty
+          )
+        },
+        test("a finalizer that rethrows the in-flight cause itself propagates it without a self-suppression crash") {
+          // `Throwable.addSuppressed(self)` throws IllegalArgumentException;
+          // when the finalizer's throw IS the in-flight cause the combiner must
+          // skip suppression and surface the shared instance untouched.
+          val shared             = new RuntimeException("shared")
+          def finThrow(): Unit   = throw shared
+          def failed: Async[Int] = Async.fail(shared)
+          val a                  = Async.async[Int] {
+            try failed.await
+            finally finThrow()
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(shared),
+            shared.getSuppressed.isEmpty
+          )
+        },
+        test("try/finally over a ready null-cause failed await preserves the logical null and runs the finalizer") {
+          var fin                    = 0
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally fin += 1
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(null), fin == 1)
+        },
+        test("a finalizer that awaits (and succeeds) preserves an in-flight null-cause failure") {
+          // A succeeding async finalizer must not disturb the in-flight
+          // failure, even when its cause is the logical null.
+          var fin                    = 0
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally fin = Async.succeed(9).await
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(null), fin == 9)
+        },
+        test("a finalizer that fails via an awaited Async replaces the in-flight failure") {
+          // The finalizer's failure arrives through the async channel (an
+          // awaited Async.fail), not a raw throw; the replacement law is the
+          // same.
+          val finBoom              = new RuntimeException("fin")
+          def failFin: Async[Unit] = Async.fail(finBoom)
+          def failed: Async[Int]   = Async.fail(AsyncTestSupport.boom)
+          val a                    = Async.async[Int] {
+            try failed.await
+            finally failFin.await
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a finalizer that fails via an awaited Async replaces an in-flight null-cause failure") {
+          val finBoom                = new RuntimeException("fin")
+          def failFin: Async[Unit]   = Async.fail(finBoom)
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally failFin.await
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a finalizer that fails with a null cause replaces the in-flight failure with the logical null") {
+          // The finalizer side can carry the logical null too: the block fails
+          // with null (decoded), never an internal NullPointerException from
+          // trying to combine the two failures.
+          def failFinNull: Async[Unit] = Async.fail(null)
+          def failed: Async[Int]       = Async.fail(AsyncTestSupport.boom)
+          val a                        = Async.async[Int] {
+            try failed.await
+            finally failFinNull.await
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(null))
+        },
+        test("a throwing finalizer replaces a genuinely-pending null-cause awaited failure") {
+          // The null-cause primary arrives through the SUSPENDED channel (a
+          // Completer failed off-thread), so the failure is in flight when the
+          // throwing finalizer runs.
+          val finBoom          = new RuntimeException("fin")
+          def finThrow(): Unit = throw finBoom
+          val cRef             = new AtomicReference[Completer[Int]]()
+          val pendingNull      = Async.promiseInternal[Int](c => cRef.set(c))
+          val a                = Async.async[Int] {
+            try pendingNull.await
+            finally finThrow()
+          }
+          val worker = new Thread(() => { Thread.sleep(25); cRef.get().fail(null) })
+          worker.setDaemon(true)
+          worker.start()
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
+        test("a Nothing-typed awaited body under try/finally propagates the cause and runs the finalizer once") {
+          // `Async.fail(t).await` types as Nothing; with no widening catch arm
+          // the try expression itself is Nothing-typed. The rewrite must accept
+          // it on every Scala version and keep plain try/finally semantics.
+          var fin                           = 0
+          def failedNothing: Async[Nothing] = Async.fail(AsyncTestSupport.boom)
+          val a: Async[Int]                 = Async.async[Int] {
+            try failedNothing.await
+            finally fin += 1
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(AsyncTestSupport.boom), fin == 1)
+        },
+        test("a Nothing-typed awaited body under try/catch recovers") {
+          def failedNothing: Async[Nothing] = Async.fail(AsyncTestSupport.boom)
+          val r                             = Async.async {
+            try failedNothing.await
+            catch { case t: Throwable if t eq AsyncTestSupport.boom => 42 }
+          }.block
+          assertTrue(r == 42)
+        },
+        test("a Nothing-typed awaited body under try/catch/finally recovers and runs the finalizer once") {
+          var fin                           = 0
+          def failedNothing: Async[Nothing] = Async.fail(AsyncTestSupport.boom)
+          val r                             = Async.async {
+            try failedNothing.await
+            catch { case t: Throwable if t eq AsyncTestSupport.boom => 42 }
+            finally fin += 1
+          }.block
+          assertTrue(r == 42, fin == 1)
+        },
+        test("nested try/finally over a Nothing-typed awaited body runs both finalizers once, inner first") {
+          var trace                         = List.empty[String]
+          def failedNothing: Async[Nothing] = Async.fail(AsyncTestSupport.boom)
+          val a: Async[Int]                 = Async.async[Int] {
+            try {
+              try failedNothing.await
+              finally trace ::= "inner"
+            } finally trace ::= "outer"
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(AsyncTestSupport.boom),
+            trace == List("outer", "inner")
+          )
         }
       ),
       suite("match with .await")(
