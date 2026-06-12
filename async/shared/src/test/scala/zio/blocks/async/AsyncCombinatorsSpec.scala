@@ -296,6 +296,18 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val thrown = Try(r.block).failed.toOption
         assertTrue(thrown.contains(boom), !polledAfter)
       },
+      test("collectAll over many settled promise-backed elements is stack-safe") {
+        // A batch of promise-backed elements that have all completed by the time
+        // the result is driven (e.g. a fan-in of finished callbacks) must drain
+        // iteratively: one stack frame chain per element overflows on real-world
+        // batch sizes.
+        val n      = 20000
+        val cs     = List.fill(n)(new Completer[Int])
+        val asyncs = cs.map(_.peek) // captured while pending, so each is a genuine Pollable
+        cs.zipWithIndex.foreach { case (c, i) => c.succeed(i) }
+        val r = Async.collectAll(asyncs).block
+        assertTrue(r.length == n, r.take(3) == List(0, 1, 2))
+      },
       test("collectAll should accept a single-pass Iterator source (only .iterator is used)") {
         typeCheck("""
               import zio.blocks.async._
