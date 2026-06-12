@@ -437,6 +437,81 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             finBoom.getSuppressed.toList.contains(primary)
           )
         },
+        test("a finalizer that awaits and then fails attaches the in-flight failure as suppressed") {
+          // The awaiting finalizer routes through the async-finalizer
+          // machinery; its suppression contract must match the synchronous
+          // arm on every Scala version.
+          val primary              = new RuntimeException("primary")
+          val finBoom              = new RuntimeException("fin")
+          def failFin: Async[Unit] = Async.fail(finBoom)
+          def failed: Async[Int]   = Async.fail(primary)
+          val a                    = Async.async[Int] {
+            try failed.await
+            finally {
+              val _ = Async.succeed(1).await
+              failFin.await
+            }
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            finBoom.getSuppressed.toList.contains(primary)
+          )
+        },
+        test("a throwing finalizer that replaces the in-flight failure runs exactly once") {
+          // Attaching the suppressed failure must not re-run the finalizer or
+          // change which failure wins: one run, finalizer's throw, original
+          // suppressed.
+          var fin                = 0
+          val primary            = new RuntimeException("primary")
+          val finBoom            = new RuntimeException("fin")
+          def failed: Async[Int] = Async.fail(primary)
+          val a                  = Async.async[Int] {
+            try failed.await
+            finally {
+              fin += 1
+              throw finBoom
+            }
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            fin == 1,
+            finBoom.getSuppressed.toList.contains(primary)
+          )
+        },
+        test("a throwing finalizer over a null-cause in-flight failure attaches nothing as suppressed") {
+          // The logical null cannot legally be suppressed (`addSuppressed(null)`
+          // throws); the finalizer's throw must win with an EMPTY suppressed
+          // list — never the null, never an internal transport marker.
+          val finBoom                = new RuntimeException("fin")
+          def finThrow(): Unit       = throw finBoom
+          def failedNull: Async[Int] = Async.fail(null)
+          val a                      = Async.async[Int] {
+            try failedNull.await
+            finally finThrow()
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            finBoom.getSuppressed.isEmpty
+          )
+        },
+        test("a throwing finalizer attaches a failure raised by the catch handler as suppressed") {
+          // When the handler itself throws, ITS failure is the in-flight one
+          // by the time the finalizer runs — that is what gets suppressed (the
+          // body's original cause was already consumed by the catch).
+          val handlerBoom        = new RuntimeException("handler")
+          val finBoom            = new RuntimeException("fin")
+          def finThrow(): Unit   = throw finBoom
+          def failed: Async[Int] = Async.fail(AsyncTestSupport.boom)
+          val a                  = Async.async[Int] {
+            try failed.await
+            catch { case t: Throwable if t eq AsyncTestSupport.boom => throw handlerBoom }
+            finally finThrow()
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            finBoom.getSuppressed.toList.contains(handlerBoom)
+          )
+        },
         test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
           // The replacement law also covers the success side: the body's value
           // is discarded, the finalizer's throw is the failure — and nothing

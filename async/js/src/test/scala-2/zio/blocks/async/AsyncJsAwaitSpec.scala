@@ -147,6 +147,43 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         }
         ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(finBoom)))
       },
+      test("a throwing finalizer attaches the in-flight awaited failure as suppressed") {
+        // Plain-Scala replacement semantics PLUS error-graph preservation: the
+        // finalizer's throw wins and the original failure stays reachable via
+        // getSuppressed (legal here: non-null, distinct) — same macro path as
+        // the JVM 2.13 cell.
+        val primary            = new RuntimeException("primary")
+        val finBoom            = new RuntimeException("fin")
+        def finThrow(): Unit   = throw finBoom
+        def failed: Async[Int] = Async.fail(primary)
+        val prog               = Async.async[Int] {
+          try failed.await
+          finally finThrow()
+        }
+        ZIO
+          .fromFuture(_ => run(prog))
+          .either
+          .map(e => assertTrue(e == Left(finBoom), finBoom.getSuppressed.toList.contains(primary)))
+      },
+      test("a finalizer that awaits and then fails attaches the in-flight failure as suppressed") {
+        // The awaiting finalizer routes through the async-finalizer machinery;
+        // its suppression contract must match the synchronous arm.
+        val primary              = new RuntimeException("primary")
+        val finBoom              = new RuntimeException("fin")
+        def failFin: Async[Unit] = Async.fail(finBoom)
+        def failed: Async[Int]   = Async.fail(primary)
+        val prog                 = Async.async[Int] {
+          try failed.await
+          finally {
+            val _ = Async.succeed(1).await
+            failFin.await
+          }
+        }
+        ZIO
+          .fromFuture(_ => run(prog))
+          .either
+          .map(e => assertTrue(e == Left(finBoom), finBoom.getSuppressed.toList.contains(primary)))
+      },
       test("a finalizer that rethrows the in-flight cause itself propagates it without a self-suppression crash") {
         // When the finalizer's throw IS the in-flight cause the combiner must
         // surface the shared instance untouched (no self-suppression crash).
