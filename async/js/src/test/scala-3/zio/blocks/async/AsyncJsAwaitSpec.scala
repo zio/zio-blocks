@@ -17,6 +17,7 @@
 package zio.blocks.async
 
 import zio.ZIO
+import zio.durationInt
 import zio.test._
 
 import scala.concurrent.Future
@@ -600,6 +601,115 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       val r = scala.util.Try(prog.block)
       ZIO.succeed(assertTrue(r == scala.util.Success(42)))
+    },
+    test("try/finally over a ready-failed await runs the finally and stays a ready failure") {
+      // The synchronous ready-failure channel must still honor the finally
+      // block before the failure escapes — and nothing here can suspend, so
+      // the result must be a READY failure with the original cause.
+      var fin                = 0
+      def failed: Async[Int] = Async.fail(Boom)
+      val prog               = Async.async[Int] {
+        try failed.await
+        finally fin += 1
+      }
+      val r = scala.util.Try(prog.block)
+      ZIO.succeed(assertTrue(r == scala.util.Failure(Boom), fin == 1))
+    },
+    test("a ready-failed first await short-circuits the rest of the body without losing readiness") {
+      // The statements after the failing await — including a genuinely pending
+      // await — must never run; the block settles as a ready failure.
+      var ran                = false
+      def failed: Async[Int] = Async.fail(Boom)
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(1)); ()
+      }
+      val prog = Async.async[Int] {
+        val x = failed.await
+        ran = true
+        x + pending.await
+      }
+      val r = scala.util.Try(prog.block)
+      ZIO.succeed(assertTrue(r == scala.util.Failure(Boom), !ran))
+    },
+    test("a null-cause ready-failed await is a ready failure with the null cause decoded") {
+      // A null cause travels the thrown channel as the marker and must be
+      // decoded back to the logical null by the time the block settles —
+      // `.block` exposes it through the same channel as `Async.fail(null)`.
+      def failedNull: Async[Int] = Async.fail(null)
+      val prog                   = Async.async[Int](failedNull.await)
+      ZIO.succeed(assertTrue(AsyncTestSupport.blockAsNullCause(prog) == Left(null)))
+    },
+    test("a catch arm that recovers a ready failure by awaiting a pending value completes") {
+      // Mixed-readiness recovery: the scrutinee fails synchronously (cause
+      // identity intact at the handler) and the recovery itself suspends.
+      def failed: Async[Int]  = Async.fail(Boom)
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(40)); ()
+      }
+      val prog = Async.async {
+        try failed.await
+        catch { case t: Throwable => if (t eq Boom) pending.await + 2 else -1 }
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 42))
+    },
+    test("a ready-failure block does not leave an unhandled promise rejection behind") {
+      // The 3.8+ native arm reports a ready failure through the synchronous
+      // channel; the rejection of the underlying js.async promise must be
+      // marked handled so the JS engine raises no unhandledRejection event.
+      val proc            = js.Dynamic.global.process
+      val canObserve      = js.typeOf(proc) != "undefined" && js.typeOf(proc.on) == "function"
+      var strayRejections = 0
+      val handler: js.Function2[Any, Any, Unit] = (_, _) => strayRejections += 1
+      if (canObserve) proc.on("unhandledRejection", handler)
+      def failed: Async[Int] = Async.fail(Boom)
+      val ready              =
+        (1 to 20).forall(_ => AsyncTestSupport.blockAsLeftCause(Async.async(failed.await + 1)) == Some(Boom))
+      Live
+        .live(ZIO.sleep(100.millis))
+        .as {
+          if (canObserve) { proc.removeListener("unhandledRejection", handler); () }
+          assertTrue(ready, strayRejections == 0)
+        }
+    },
+    test("a succeed carrier holding a Failure is delivered by the await as data, not rethrown") {
+      // `Async.succeed` stores an effect value as DATA (one wrap layer); an
+      // await of the carrier must deliver the bare failed Async by identity —
+      // the ready-failure fast path must not fire on the carrier encoding.
+      val failedValue: Async[Int] = Async.fail(Boom)
+      val prog                    = Async.async {
+        val v = Async.succeed(failedValue).await
+        v.asInstanceOf[AnyRef] eq failedValue.asInstanceOf[AnyRef]
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("a user catch over a null-cause failed await observes the logical null cause (backend parity)") {
+      // Every other cell (JVM DCA, JS DCA, the Scala 2 macro on both
+      // platforms) applies the catch handler to the LOGICAL cause: a null
+      // cause does not match `case t: Throwable`, so the handler must not run
+      // and the failure propagates as Failure(null). The transport marker the
+      // thrown channel uses internally must never be observable to a user
+      // catch inside the block — on either the ready or the pending path.
+      def failedNull: Async[Int] = Async.fail(null)
+      val readyProg              = Async.async[Int] {
+        try failedNull.await
+        catch { case t: Throwable => if (t == null) -1 else -2 }
+      }
+      val pendingNull: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.fail(null)); ()
+      }
+      val pendingProg = Async.async[Int] {
+        try pendingNull.await
+        catch { case t: Throwable => if (t == null) -1 else -2 }
+      }
+      ZIO
+        .fromFuture(_ => run(pendingProg))
+        .either
+        .map { pendingOut =>
+          assertTrue(
+            AsyncTestSupport.blockAsNullCause(readyProg) == Left(null),
+            AsyncTestSupport.unwindFutureEither(pendingOut) == Left(null)
+          )
+        }
     },
     test("a pending Async[Unit] awaited directly compiles and completes") {
       // The boxed promise transport keeps the underlying js.Promise element
