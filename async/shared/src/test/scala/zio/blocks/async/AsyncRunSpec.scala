@@ -164,8 +164,12 @@ object AsyncRunSpec extends ZIOSpecDefault {
         // computation, replacing the value with its polled scalar.
         val inner                               = AsyncTestSupport.pollableSuccessValue
         val nested: Async[Async[Pollable[Int]]] = Async.succeed(Async.succeed(inner))
-        val direct: AnyRef                      = (nested.flatten.block: AnyRef)
-        val started: AnyRef                     = (Async.start(nested).flatten.block: AnyRef)
+        // Observe through Async[AnyRef] (covariance) so the regression fails as
+        // an assertion on every platform: blocking at the precise Pollable type
+        // makes the depth-collapsed scalar trip Scala.js's CHECKED class cast
+        // (an uncatchable UndefinedBehaviorError that kills the JS runner).
+        val direct: AnyRef  = (nested.flatten: Async[AnyRef]).block
+        val started: AnyRef = (Async.start(nested).flatten: Async[AnyRef]).block
         assertTrue(direct eq inner, started eq inner)
       }
     ),
