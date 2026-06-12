@@ -416,6 +416,27 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }
           assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
         },
+        test("a throwing finalizer attaches the in-flight awaited failure as suppressed") {
+          // Plain-Scala replacement semantics PLUS error-graph preservation:
+          // the finalizer's throw wins and the original failure stays reachable
+          // via getSuppressed (legal here: non-null, distinct). The Scala 3
+          // cells honor this via AsyncCpsMonad.withAction/withAsyncAction; the
+          // Scala 2 macro's try/finally materializer restores the finalizer's
+          // failure without attaching the in-flight one, losing it
+          // irrecoverably.
+          val primary            = new RuntimeException("primary")
+          val finBoom            = new RuntimeException("fin")
+          def finThrow(): Unit   = throw finBoom
+          def failed: Async[Int] = Async.fail(primary)
+          val a                  = Async.async[Int] {
+            try failed.await
+            finally finThrow()
+          }
+          assertTrue(
+            AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom),
+            finBoom.getSuppressed.toList.contains(primary)
+          )
+        },
         test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
           // The replacement law also covers the success side: the body's value
           // is discarded, the finalizer's throw is the failure — and nothing

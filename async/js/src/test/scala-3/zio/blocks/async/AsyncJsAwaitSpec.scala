@@ -848,6 +848,50 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       ZIO.succeed(assertTrue(AsyncTestSupport.blockAsLeftCause(progNull) == Some(finBoom)))
     },
+    test("a throwing finalizer attaches the in-flight awaited failure as suppressed") {
+      // Plain-Scala replacement semantics PLUS error-graph preservation: the
+      // finalizer's throw wins and the original failure stays reachable via
+      // getSuppressed (legal here: non-null, distinct). The DCA cells (JVM 3.x,
+      // JS 3.3.7) honor this via AsyncCpsMonad.withAction; the 3.8+ native arm
+      // keeps the bare try/finally on the js.async transport, which drops the
+      // in-flight failure irrecoverably.
+      val primary            = new RuntimeException("primary")
+      val finBoom            = new RuntimeException("fin")
+      def finThrow(): Unit   = throw finBoom
+      def failed: Async[Int] = Async.fail(primary)
+      val prog               = Async.async[Int] {
+        try failed.await
+        finally finThrow()
+      }
+      ZIO.succeed(
+        assertTrue(
+          AsyncTestSupport.blockAsLeftCause(prog) == Some(finBoom),
+          finBoom.getSuppressed.toList.contains(primary)
+        )
+      )
+    },
+    test("a finalizer that awaits and then fails attaches the in-flight failure as suppressed") {
+      // The awaiting finalizer routes through the async-finalizer machinery
+      // (withAsyncAction on the DCA arm); its suppression contract must match
+      // the synchronous arm.
+      val primary              = new RuntimeException("primary")
+      val finBoom              = new RuntimeException("fin")
+      def failFin: Async[Unit] = Async.fail(finBoom)
+      def failed: Async[Int]   = Async.fail(primary)
+      val prog                 = Async.async[Int] {
+        try failed.await
+        finally {
+          val _ = Async.succeed(1).await
+          failFin.await
+        }
+      }
+      ZIO.succeed(
+        assertTrue(
+          AsyncTestSupport.blockAsLeftCause(prog) == Some(finBoom),
+          finBoom.getSuppressed.toList.contains(primary)
+        )
+      )
+    },
     test("a throwing finalizer after a successful awaited body fails the block with the finalizer's throw") {
       // Success side of the replacement law: the body's value is discarded and
       // nothing is attached as suppressed (there is no in-flight failure).
