@@ -850,6 +850,13 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6, calls == 3))
     },
+    test("an await nested in the qualifier of another await is rewritten inside-out") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(1)); ()
+      }
+      val prog = Async.async(Async.succeed(pending.await + 1).await)
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 2))
+    },
     test("awaits in varargs positions") {
       val prog = Async.async(List(Async.succeed(1).await, Async.succeed(2).await).sum)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3))
