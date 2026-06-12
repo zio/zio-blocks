@@ -489,8 +489,11 @@ On Scala.js, `AsyncInterop` provides `fromFuture` / `toFuture` plus
 Most code should use the constructors and `Async.promise`. For custom
 asynchronous leaves you can implement a `Pollable[A]` directly. `poll(onComplete)`
 returns the ready value (or a `Failure`) when available, or a `Pollable`
-(commonly `this`) when still pending; a pending pollable must arrange to call
-`onComplete.run()` once progress can be made, prompting the scheduler to re-poll.
+(commonly `this`, optionally a replacement representing the rest of the
+computation — drivers and combinators direct their next poll at whichever
+pollable was returned) when still pending; a pending pollable must arrange to
+call `onComplete.run()` once progress can be made, prompting the scheduler to
+re-poll.
 
 ## Cross-platform and cross-version notes
 

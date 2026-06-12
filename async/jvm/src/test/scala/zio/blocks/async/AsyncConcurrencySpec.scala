@@ -16,11 +16,8 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
+import zio.ZIO
 import zio.test._
-import zio.test.Assertion._
-
-import scala.util.Try
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger

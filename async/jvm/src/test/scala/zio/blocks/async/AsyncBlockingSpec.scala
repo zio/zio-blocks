@@ -16,11 +16,7 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
 import zio.test._
-import zio.test.Assertion._
-
-import scala.util.Try
 
 import zio.ZIO
 import java.util.concurrent.{CompletableFuture, CountDownLatch, Executors, TimeUnit}
@@ -1381,7 +1377,7 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(direct eq inner, done.get(), result.get() eq inner)
         }
       },
-      test("start of a GENUINELY PENDING pollable-as-value returns the Running without blocking the caller") {
+      test("start of a still-pending pollable-as-value returns the Running without blocking the caller") {
         ZIO.attemptBlocking {
           // `Async.start` promises to drive eagerly WITHOUT blocking. A success
           // value that is itself a still-pending pollable must be driven on the

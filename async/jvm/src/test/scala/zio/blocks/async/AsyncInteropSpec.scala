@@ -16,11 +16,8 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
+import zio.ZIO
 import zio.test._
-import zio.test.Assertion._
-
-import scala.util.Try
 
 import java.util.concurrent.{
   CancellationException,
@@ -32,7 +29,7 @@ import java.util.concurrent.{
   TimeUnit
 }
 
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
