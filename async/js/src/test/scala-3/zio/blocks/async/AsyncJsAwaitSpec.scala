@@ -723,6 +723,19 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val prog = Async.async(List(Async.succeed(1).await, Async.succeed(2).await).sum)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3))
     },
+    // NOTE: a `lazy val` whose initializer awaits — `Async.async { lazy val x =
+    // fa.await; x }` — is rejected on every DCA cell (JVM, JS < 3.8, and the
+    // 3.8 DCA fallback) with the named diagnostic "`.await` inside a `lazy
+    // val` is not supported (suspending lazy initialization is not
+    // supported); use a strict `val` inside `Async.async`." On the JS 3.8+
+    // native path the hybrid Scan does not detect the lazy initializer, takes
+    // the js.async arm, and the user instead gets the raw Scala.js error
+    // "Illegal use of js.await(). It can only be used inside a js.async {...}
+    // block ..." pointing at implementation machinery the user never wrote.
+    // Neither variant compiles on both cells, so the runnable probe cannot
+    // live in this shared spec; this note is the evidence. (The named-
+    // diagnostic contract itself is locked in by AsyncRewriteSpec on the JVM.)
+    //
     // NOTE: nested `Async.async` blocks — `Async.async { val inner =
     // Async.async(fa.await + 1); inner.await + 10 }` — compile and run on the
     // JVM (AsyncRewriteSpec) and on JS Scala 3 < 3.8, but FAIL TO COMPILE on
