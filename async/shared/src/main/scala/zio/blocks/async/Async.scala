@@ -42,10 +42,12 @@ object Async extends AsyncCompanionVersionSpecific {
   /**
    * Lift an already-available value into a successful [[Async]].
    *
-   * The value must not itself be an `Async` (i.e. `Async[Async[A]]` and other
-   * nested forms are unsupported): `Async` is a restricted monad whose success
-   * values may not be effects. Sequence effects with `flatMap` instead of
-   * nesting them. (Nesting plain, non-effect values is fine.)
+   * The value may itself be an `Async` (or a [[Pollable]]): such a value is
+   * carried as '''data''', one nesting level at a time — `map`/`flatMap`
+   * continuations, `.block`, and the drivers deliver it unwrapped exactly one
+   * layer per delivery (`flatten` peels one level), never silently running it
+   * as a computation. Sequencing effects is `flatMap`'s job; reach for nesting
+   * only when an effect value is genuinely the payload.
    */
   def succeed[A](a: A): Async[A] = AsyncEncoding.liftSuccess(a)
 

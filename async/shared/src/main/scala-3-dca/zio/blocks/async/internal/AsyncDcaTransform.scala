@@ -38,8 +38,13 @@ import scala.quoted.*
  * Because DCA never sees our `.await` token (only the `cps.await` we emit), the
  * public API surface stays exactly `Async.async` + `.await`; users never touch
  * `cps.*`.
+ *
+ * Packaged separately from the per-backend [[AsyncDirect]] entry points so the
+ * Scala 3.8+ JS backend can fall back to this transform for await shapes the
+ * native `js.async`/`js.await` primitives cannot express (awaits under a
+ * lambda, by-name argument, or nested method).
  */
-private[async] object AsyncDirect {
+private[async] object AsyncDcaTransform {
 
   /**
    * Expansion of a bare `.await` that survived to code generation — i.e. one

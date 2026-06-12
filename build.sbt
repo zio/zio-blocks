@@ -1494,11 +1494,14 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(
     mimaSettings(failOnProblem = false),
-    // DCA direct-style implementation: every Scala 3.x JVM build uses it.
+    // DCA direct-style implementation: every Scala 3.x JVM build uses it
+    // (`scala-3-dca` holds the transform, `scala-3-dca-direct` the
+    // AsyncDirect entry point that delegates to it).
     Compile / unmanagedSourceDirectories ++= {
+      val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
       CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((3, _)) =>
-          Seq(baseDirectory.value.getParentFile / "shared" / "src" / "main" / "scala-3-dca")
+          Seq(sharedMain / "scala-3-dca", sharedMain / "scala-3-dca-direct")
         case _ => Seq.empty
       }
     }
@@ -1508,9 +1511,19 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // Target ES2017 so Scala.js can emit native async/await (`js.async`/
     // `js.await`), used by the Scala 3.8+ direct-style implementation.
     scalaJSLinkerConfig ~= { _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017)) },
+    // The repo-wide `jsSettings` drops the latest Scala (3.8.x) from JS cross
+    // builds; async opts back in because its native `js.async`/`js.await`
+    // backend exists only on 3.8+ and would otherwise never be compiled or
+    // tested.
+    crossScalaVersions += Scala3,
     // Direct-style implementation selection on JS:
-    //   - Scala 3.8+ → native `js.async`/`js.await` (faster than DCA on JS).
-    //   - Scala 3.x < 3.8 → DCA (older Scala 3 lacks `js.async`/`js.await`).
+    //   - Scala 3.8+ → native `js.async`/`js.await` for direct-position
+    //     awaits (faster than DCA on JS), with the shared DCA transform as
+    //     fallback for awaits under lambdas / by-name args / nested methods
+    //     (which `js.await` cannot cross). Needs `scala-3-dca` (the transform
+    //     + CpsMonad) but NOT `scala-3-dca-direct` (it ships its own
+    //     AsyncDirect).
+    //   - Scala 3.x < 3.8 → DCA only (older Scala 3 lacks `js.async`).
     //   - Scala 2 → the shared `scala-2` def-macro (`internal.AsyncMacros`)
     //     emits a platform-neutral flatMap chain, so no JS-specific source dir
     //     is needed; JS behavior is covered by
@@ -1527,8 +1540,8 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
       val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
       val jsMain     = baseDirectory.value / "src" / "main"
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, n)) if n >= 8 => Seq(jsMain / "scala-3.8")
-        case Some((3, _))           => Seq(sharedMain / "scala-3-dca")
+        case Some((3, n)) if n >= 8 => Seq(sharedMain / "scala-3-dca", jsMain / "scala-3.8")
+        case Some((3, _))           => Seq(sharedMain / "scala-3-dca", sharedMain / "scala-3-dca-direct")
         case _                      => Seq.empty
       }
     }

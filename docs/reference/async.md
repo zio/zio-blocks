@@ -95,9 +95,12 @@ val json: Async[String] =
 When you need a bespoke source of suspension — a socket read, a timer, a
 foreign runtime — implement [[Pollable]] and return it from `flatMap` to
 **sequence** it, or store it via `Async.succeed` / `map` to keep it as a
-**value** (the runtime wraps pollable success values so they are not driven by
-accident). The showcase includes a `Delayed` pollable that becomes ready after
-a few scheduler ticks.
+**value** (the runtime wraps pollable success values so combinators never
+mistake them for suspended computations; note that the top-level drivers —
+`.block`, `Async.start`, and the interop converters — do drive a directly
+stored pollable for its effects at delivery, settling to the pollable itself).
+The showcase includes a `Delayed` pollable that becomes ready after a few
+scheduler ticks.
 
 See
 [`AsyncShowcaseExample.scala`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
@@ -500,7 +503,7 @@ re-poll.
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`takeWhile`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), native `js.async`/`js.await` for direct-position awaits with DCA fallback for closure/by-name awaits (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`takeWhile`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.start` / `Async.Running`       | ✅ | ✅ | ✅        | ✅        | Eager non-blocking runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
