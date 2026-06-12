@@ -152,7 +152,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
     /** Transform the cause of any [[Failure]]; values pass through. */
     inline def mapError(inline f: Throwable => Throwable): Async[A] = {
       val r: Any = fa
-      if (r.isInstanceOf[Failure]) Async.fail(f(r.asInstanceOf[Failure].cause))
+      if (r.isInstanceOf[Failure])
+        // Guarded like the pending path (CatchAllPollable): a throwing mapper
+        // is reified as the failure, never thrown at the call site.
+        try Async.fail(f(r.asInstanceOf[Failure].cause))
+        catch { case t: Throwable => Async.fail(t) }
       else if (r.isInstanceOf[Pollable[?]])
         Async.slowPath.catchAllAsync[A, A](r, (t: Throwable) => Async.fail(f(t)))
       else r.asInstanceOf[Async[A]]
@@ -169,7 +173,11 @@ private[async] trait AsyncSyntaxVersionSpecific {
      */
     inline def foldCause[B](inline onFailure: Throwable => B)(inline onSuccess: A => B): Async[B] = {
       val r: Any = fa
-      if (r.isInstanceOf[Failure]) Async.succeed(onFailure(r.asInstanceOf[Failure].cause))
+      if (r.isInstanceOf[Failure])
+        // Guarded like the pending path (CatchAllPollable): a throwing
+        // onFailure is reified as the failure, never thrown at the call site.
+        try Async.succeed(onFailure(r.asInstanceOf[Failure].cause))
+        catch { case t: Throwable => Async.fail(t) }
       else if (r.isInstanceOf[Pollable[?]])
         map(onSuccess).catchAll((t: Throwable) => Async.succeed(onFailure(t)))
       else {

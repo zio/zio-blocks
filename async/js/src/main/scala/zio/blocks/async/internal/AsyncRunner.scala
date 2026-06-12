@@ -38,15 +38,18 @@ private[async] object AsyncRunner {
       run.drive(any.asInstanceOf[Pollable[A]])
       run
     } else if (any.isInstanceOf[AsyncEncoding.WrappedPollable]) {
-      // A ready success whose value is itself a pollable: drive the user
-      // pollable for its effects via microtasks — `start` cannot block on JS —
-      // and settle to the pollable-as-value carrier.
-      val inner = any.asInstanceOf[AsyncEncoding.WrappedPollable].value
-      if (inner.isInstanceOf[Failure])
-        new CompletedRunning[A](any) // a Failure-as-value carrier is already settled
+      // A depth-1 ready success whose value is the user pollable itself: drive
+      // it for its effects via microtasks — `start` cannot block on JS — and
+      // settle to the pollable-as-value carrier. A deeper carrier (nested
+      // `succeed`) is already settled as-is; publishing it unchanged preserves
+      // nesting depth so post-`start` unwrapping agrees with the unstarted
+      // value.
+      val w = any.asInstanceOf[AsyncEncoding.WrappedPollable]
+      if (w.depth > 1 || w.value.isInstanceOf[Failure])
+        new CompletedRunning[A](any)
       else {
         val run = new SuspendedRunning[A]
-        run.drive(Async.slowPath.observe(inner.asInstanceOf[Pollable[A]], inner.asInstanceOf[A]))
+        run.drive(Async.slowPath.observe(w.value.asInstanceOf[Pollable[A]], w.value.asInstanceOf[A]))
         run
       }
     } else
@@ -112,13 +115,19 @@ private[async] object AsyncRunner {
         hasTerminal = true
         val ws = waiters
         waiters = Nil
-        ws.foreach(_.run())
+        // A throwing waker must not starve the remaining waiters.
+        ws.foreach { w =>
+          try w.run()
+          catch { case _: Throwable => () }
+        }
       }
 
     def poll(onComplete: Runnable): Async[A] =
       if (hasTerminal) terminal.asInstanceOf[Async[A]]
       else {
-        if (!waiters.contains(onComplete)) waiters = onComplete :: waiters
+        // Coalesce by identity only: two distinct drivers may register
+        // `==`-equal runnables, and each must still be woken.
+        if (!waiters.exists(_ eq onComplete)) waiters = onComplete :: waiters
         this
       }
 

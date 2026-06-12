@@ -16,26 +16,24 @@
 
 package zio.blocks.async.internal
 
-
 /**
  * Scala.js platform helpers for the async runtime.
  *
  * JavaScript is single-threaded and has no blocking primitive, so the parker
  * cannot wait. Instead, each suspension gets one chance to complete
- * synchronously inside `poll`: if the underlying callback invokes
- * `waker.run()` before `poll` returns, [[park]] is a no-op and the runtime
- * loops; otherwise [[park]] throws. Code that observes truly asynchronous
- * results on Scala.js must consume the [[zio.blocks.async.Pollable]] surface
- * directly rather than calling `await`.
+ * synchronously inside `poll`: if the underlying callback invokes `waker.run()`
+ * before `poll` returns, [[park]] is a no-op and the runtime loops; otherwise
+ * [[park]] throws. Code that observes truly asynchronous results on Scala.js
+ * must consume the [[zio.blocks.async.Pollable]] surface directly rather than
+ * calling `await`.
  */
 private[async] object PlatformAsync {
 
   def newParker(): Parker = new JsParker
 
   private final class JsParker extends Parker {
-    private var ready = false
-    val onComplete: Runnable  = new Runnable { def run(): Unit = ready = true
-    }
+    private var ready        = false
+    val onComplete: Runnable = new Runnable { def run(): Unit = ready = true }
 
     def reset(): Unit = ready = false
 

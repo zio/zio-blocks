@@ -46,7 +46,10 @@ private[async] object AsyncJsTestSupport {
       ()
     }
 
-  /** A pollable whose poll throws the null-cause marker (a failure with a `null` cause). */
+  /**
+   * A pollable whose poll throws the null-cause marker (a failure with a `null`
+   * cause).
+   */
   def markerThrowingPollable: Pollable[Int] = new Pollable[Int] {
     def poll(onComplete: Runnable): Async[Int] = throw Failure.NullCauseMarker
   }
@@ -62,7 +65,7 @@ private[async] object AsyncJsTestSupport {
    * coalesce redundant resumptions and not re-poll a completed pollable.
    */
   final class MultiWake extends Pollable[Int] {
-    var polls = 0
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = {
       polls += 1
       if (polls == 1) { onComplete.run(); onComplete.run(); onComplete.run(); this }
@@ -71,16 +74,22 @@ private[async] object AsyncJsTestSupport {
     }
   }
 
-  /** Always pending; always fires `onComplete` (used by the cancellation-race probe). */
+  /**
+   * Always pending; always fires `onComplete` (used by the cancellation-race
+   * probe).
+   */
   final class AlwaysWake extends Pollable[Int] {
-    var polls = 0
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = { polls += 1; onComplete.run(); this }
   }
 
-  /** Captures the `onComplete`; after completion the test fires the stale runnable. */
+  /**
+   * Captures the `onComplete`; after completion the test fires the stale
+   * runnable.
+   */
   final class StaleWaker extends Pollable[Int] {
-    var captured: Runnable = null
-    var polls              = 0
+    var captured: Runnable                     = null
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = {
       polls += 1
       captured = onComplete
@@ -89,9 +98,11 @@ private[async] object AsyncJsTestSupport {
     }
   }
 
-  /** Suspends on poll #1 (fires `onComplete`), THROWS on the resumption poll #2. */
+  /**
+   * Suspends on poll #1 (fires `onComplete`), THROWS on the resumption poll #2.
+   */
   final class ResumeThrow extends Pollable[Int] {
-    var polls = 0
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = {
       polls += 1
       if (polls == 1) { onComplete.run(); this }
@@ -99,9 +110,11 @@ private[async] object AsyncJsTestSupport {
     }
   }
 
-  /** Suspends on poll #1 (fires `onComplete`), FAILS on the resumption poll #2. */
+  /**
+   * Suspends on poll #1 (fires `onComplete`), FAILS on the resumption poll #2.
+   */
   final class ResumeFail extends Pollable[Int] {
-    var polls = 0
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = {
       polls += 1
       if (polls == 1) { onComplete.run(); this }
@@ -115,9 +128,9 @@ private[async] object AsyncJsTestSupport {
   }
 
   /**
-   * A chain of distinct pollables: each `poll` arms `onComplete` and returns the
-   * NEXT, brand-new pollable, never `this`. The driver only walks the chain to
-   * completion if it advances to the pollable returned by `poll` rather than
+   * A chain of distinct pollables: each `poll` arms `onComplete` and returns
+   * the NEXT, brand-new pollable, never `this`. The driver only walks the chain
+   * to completion if it advances to the pollable returned by `poll` rather than
    * re-polling the original.
    */
   final class StepChain(remaining: Int, taken: Int) extends Pollable[Int] {
@@ -130,12 +143,12 @@ private[async] object AsyncJsTestSupport {
   }
 
   /**
-   * Fires `onComplete` TWICE on the first poll then stays pending; ready on every
-   * later poll. The driver must coalesce the redundant resumption: a completed
-   * pollable must not be re-polled.
+   * Fires `onComplete` TWICE on the first poll then stays pending; ready on
+   * every later poll. The driver must coalesce the redundant resumption: a
+   * completed pollable must not be re-polled.
    */
   final class DoubleWake extends Pollable[Int] {
-    var polls = 0
+    var polls                                  = 0
     def poll(onComplete: Runnable): Async[Int] = {
       polls += 1
       if (polls == 1) { onComplete.run(); onComplete.run(); this }

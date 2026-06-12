@@ -82,7 +82,10 @@ object AsyncInterop {
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
-    else if (AsyncEncoding.isSuspended(any)) {
+    // `requiresDriver` also routes a depth-1 pollable-as-value carrier through
+    // the executor: delivering it drives the user pollable for effects, which
+    // may suspend — the caller must not be parked for that.
+    else if (AsyncEncoding.requiresDriver(any)) {
       val p = Promise[A]()
       ec.execute(new Runnable {
         def run(): Unit =
@@ -107,7 +110,7 @@ object AsyncInterop {
     if (any.isInstanceOf[Failure]) {
       completeCfExceptionally(cf, any.asInstanceOf[Failure].cause)
       cf
-    } else if (AsyncEncoding.isSuspended(any)) {
+    } else if (AsyncEncoding.requiresDriver(any)) { // see toFuture: includes depth-1 carriers
       ec.execute(new Runnable {
         def run(): Unit =
           try { cf.complete(Async.slowPath.block[A](fa)); () }

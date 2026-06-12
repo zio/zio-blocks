@@ -39,15 +39,18 @@ private[async] object AsyncRunner {
       run.kick()
       run
     } else if (any.isInstanceOf[AsyncEncoding.WrappedPollable]) {
-      // A ready success whose value is itself a pollable: drive the user
-      // pollable for its effects on the background worker — `start` must not
-      // block the caller — and settle to the pollable-as-value carrier.
-      val inner = any.asInstanceOf[AsyncEncoding.WrappedPollable].value
-      if (inner.isInstanceOf[Failure])
-        new CompletedRunning[A](any) // a Failure-as-value carrier is already settled
+      // A depth-1 ready success whose value is the user pollable itself: drive
+      // it for its effects on the background worker — `start` must not block
+      // the caller — and settle to the pollable-as-value carrier. A deeper
+      // carrier (nested `succeed`) is already settled as-is; publishing it
+      // unchanged preserves nesting depth so post-`start` unwrapping agrees
+      // with the unstarted value.
+      val w = any.asInstanceOf[AsyncEncoding.WrappedPollable]
+      if (w.depth > 1 || w.value.isInstanceOf[Failure])
+        new CompletedRunning[A](any)
       else {
         val run =
-          new SuspendedRunning[A](Async.slowPath.observe(inner.asInstanceOf[Pollable[A]], inner.asInstanceOf[A]))
+          new SuspendedRunning[A](Async.slowPath.observe(w.value.asInstanceOf[Pollable[A]], w.value.asInstanceOf[A]))
         run.kick()
         run
       }
@@ -106,14 +109,21 @@ private[async] object AsyncRunner {
       if (cancelled.compareAndSet(false, true)) worker.interrupt()
 
     private def registerOnComplete(w: Runnable): Unit = lock.synchronized {
-      if (terminal.get() != null) w.run()
+      if (terminal.get() != null) runWaker(w)
       else waiters = w :: waiters
     }
 
     private def wakeAll(): Unit = lock.synchronized {
       val ws = waiters
       waiters = Nil
-      ws.foreach(_.run())
+      ws.foreach(runWaker)
     }
+
+    /**
+     * A throwing waker must not starve the remaining waiters (or the worker).
+     */
+    private def runWaker(w: Runnable): Unit =
+      try w.run()
+      catch { case _: Throwable => () }
   }
 }

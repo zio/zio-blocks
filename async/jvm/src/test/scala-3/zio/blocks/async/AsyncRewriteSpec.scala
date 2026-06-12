@@ -60,13 +60,20 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       }.block
       assertTrue(r == 42)
     },
-    test("a lazy val initializer containing await is not forced eagerly when unused") {
-      var forced = false
-      val r      = Async.async {
-        lazy val x = { forced = true; Async.succeed(5).await }
-        Async.succeed(1).await
-      }.block
-      assertTrue(r == 1, !forced)
+    test("a lazy val initializer containing await is rejected with a named diagnostic") {
+      // Suspending lazy initialization is unsupported; silently forcing the
+      // initializer eagerly would be a miscompile, so the macro rejects the
+      // construct (parity with the Scala 2 macro's diagnostic).
+      typeCheck {
+        """
+        import zio.blocks.async._
+        val a = Async.async {
+          lazy val x = Async.succeed(5).await
+          Async.succeed(1).await
+        }
+        a
+        """
+      }.map(result => assert(result)(Assertion.isLeft))
     },
     test("a pending `.await` is rewritten to a non-blocking chain (construction does not block)") {
       val cRef        = new AtomicReference[Completer[Int]]()

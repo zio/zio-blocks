@@ -88,6 +88,19 @@ private[async] object AsyncEncoding {
   /** True when `any` is a bare suspended [[Pollable]] (not a ready carrier). */
   def isSuspended(any: Any): Boolean =
     any.isInstanceOf[Pollable[?]] && !any.isInstanceOf[Failure]
+
+  /**
+   * True when driving `any` to its delivered value may suspend: a bare
+   * suspended [[Pollable]], or a depth-1 carrier whose user pollable is driven
+   * for effects at delivery. Drivers that promise not to block the caller
+   * (`start`, `toFuture`, ...) must route these through their asynchronous
+   * path.
+   */
+  def requiresDriver(any: Any): Boolean =
+    isSuspended(any) || (any match {
+      case w: WrappedPollable => w.depth == 1 && !w.value.isInstanceOf[Failure]
+      case _                  => false
+    })
   def liftSuccess[A](a: A): Async[A] = {
     val any = a.asInstanceOf[Any]
     any match {

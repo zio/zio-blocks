@@ -77,6 +77,25 @@ private[async] object AsyncDirect {
       acc.foldTree(false, tree)(Symbol.spliceOwner)
     }
 
+    // `lazy val` initializers must not run eagerly, but the CPS rewrite has no
+    // way to suspend lazy initialization — DCA silently forces the initializer
+    // at declaration. Reject the construct with a named diagnostic, exactly as
+    // the Scala 2 macro does.
+    new TreeTraverser {
+      override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
+        tree match {
+          case vd: ValDef if vd.symbol.flags.is(Flags.Lazy) && containsAwait(vd) =>
+            report.errorAndAbort(
+              "`.await` inside a `lazy val` is not supported (suspending lazy initialization is not supported); " +
+                "use a strict `val` inside `Async.async`.",
+              vd.pos
+            )
+          case _ => ()
+        }
+        traverseTreeChildren(tree)(owner)
+      }
+    }.traverseTree(body.asTerm)(Symbol.spliceOwner)
+
     val transformer = new TreeMap {
       override def transformTerm(term: Term)(owner: Symbol): Term =
         term match {
@@ -116,13 +135,23 @@ private[async] object AsyncDirect {
               given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
               cps.async[Async](${ condT.asExprOf[Boolean] })
             }
-            val bodyE = '{
-              given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
-              cps.async[Async] {
-                ${ bodyT2.asExpr };
-                ()
-              }
-            }
+            // A Unit-typed body is spliced directly (a `body; ()` wrapper would
+            // put a pure body in statement position — a fatal warning on Scala
+            // 3.3); a non-Unit body is discarded through `val _ = ...`.
+            val bodyE =
+              if (bodyT2.tpe <:< TypeRepr.of[Unit])
+                '{
+                  given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+                  cps.async[Async](${ bodyT2.asExprOf[Unit] })
+                }
+              else
+                '{
+                  given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+                  cps.async[Async] {
+                    val _ = ${ bodyT2.asExpr }
+                    ()
+                  }
+                }
             '{
               given cps.CpsMonadContext[Async] =
                 new cps.CpsTryMonadInstanceContextBody[Async](AsyncCpsMonad)
@@ -166,13 +195,21 @@ private[async] object AsyncDirect {
     }
   }
 
-  /** Does `fun` reference our `.await` extension method? */
+  /**
+   * Does `fun` reference our `.await` extension method? Matched by '''symbol'''
+   * (name + owner inside `zio.blocks.async`), not by name alone: a user method
+   * that happens to be called `await` must never be hijacked by the rewrite.
+   */
   private def isAwait(using Quotes)(fun: quotes.reflect.Term): Boolean = {
     import quotes.reflect.*
-    fun match {
+    val nameMatches = fun match {
       case Ident("await")     => true
       case Select(_, "await") => true
       case _                  => false
+    }
+    nameMatches && {
+      val sym = fun.symbol
+      sym != Symbol.noSymbol && sym.owner.fullName == "zio.blocks.async.AsyncSyntaxVersionSpecific"
     }
   }
 }

@@ -67,7 +67,10 @@ object AsyncInterop {
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
-    else if (AsyncEncoding.isSuspended(any)) {
+    // `requiresDriver` also routes a depth-1 pollable-as-value carrier through
+    // the microtask driver: delivering it drives the user pollable for
+    // effects, which may suspend — and JS cannot block for that.
+    else if (AsyncEncoding.requiresDriver(any)) {
       val p = Promise[A]()
       drive(fa, p)
       p.future
@@ -93,13 +96,19 @@ object AsyncInterop {
   private def drive[A](fa: Async[A], p: Promise[A])(implicit ec: ExecutionContext): Unit = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure]) failPromise(p, any.asInstanceOf[Failure].cause)
-    else if (AsyncEncoding.isSuspended(any)) {
+    else if (AsyncEncoding.requiresDriver(any)) {
       // `current` holds the latest pollable; `step` advances it to the pollable
       // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
       // the *returned* pollable rather than re-polling the original. A single
       // shared waker re-enters `step` on the next microtask, so a stale waker
       // captured by an earlier suspension still resumes the current state.
-      var current: Pollable[A] = any.asInstanceOf[Pollable[A]]
+      // A depth-1 pollable-as-value carrier is driven for effects through an
+      // observing pollable that settles to the user pollable itself.
+      var current: Pollable[A] =
+        if (any.isInstanceOf[AsyncEncoding.WrappedPollable]) {
+          val w = any.asInstanceOf[AsyncEncoding.WrappedPollable]
+          Async.slowPath.observe(w.value.asInstanceOf[Pollable[A]], w.value.asInstanceOf[A])
+        } else any.asInstanceOf[Pollable[A]]
       // `settled` makes resumption idempotent: a pollable may fire its waker
       // more than once (a legitimate spurious / multi-source wakeup), scheduling
       // several resumption microtasks. Without this guard a redundant `step`

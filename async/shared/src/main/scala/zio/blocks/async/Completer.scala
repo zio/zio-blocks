@@ -62,10 +62,13 @@ final class Completer[A] extends Pollable[A] {
       if (state.compareAndSet(s, value)) {
         // Wake every registered waiter: one promise-backed Async may be
         // observed by several independent drivers (fan-out), each of which
-        // registered its own onComplete while pending.
+        // registered its own onComplete while pending. A throwing waker is a
+        // defect of that one driver — it must not starve the rest of the
+        // chain, nor surface inside the completing I/O callback.
         var w = s.asInstanceOf[WaitingMarker]
         while (w ne null) {
-          w.onComplete.run()
+          try w.onComplete.run()
+          catch { case _: Throwable => () }
           w = w.next
         }
       } else settle(value)

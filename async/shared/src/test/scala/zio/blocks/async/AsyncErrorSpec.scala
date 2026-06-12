@@ -141,7 +141,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(viaEither == Left(null), viaBlock == Left(null))
       },
       test("mapError_pendingFail_mapperThrow_reifiesAsFailure") {
-        val c            = new Completer[Int]
+        val c             = new Completer[Int]
         val a: Async[Int] = c.peek.mapError(_ => throw AsyncTestSupport.handlerFx)
         c.fail(AsyncTestSupport.primary)
         assertTrue(a.either.block == Left(AsyncTestSupport.handlerFx))
@@ -217,7 +217,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(ei.block == Left(null))
       },
       test("foldCause_pendingFail_onFailureThrow_reifiesAsFailure") {
-        val c               = new Completer[Int]
+        val c                = new Completer[Int]
         val a: Async[String] = c.peek.foldCause[String](_ => throw AsyncTestSupport.handlerFx)(_ => "ok")
         c.fail(AsyncTestSupport.primary)
         assertTrue(a.either.block == Left(AsyncTestSupport.handlerFx))

@@ -79,13 +79,23 @@ private[async] object AsyncDirect {
       '{ Async.attempt[A]($body) }
   }
 
-  /** Does `fun` reference our `.await` extension method? */
+  /**
+   * Does `fun` reference our `.await` extension method? Matched by '''symbol'''
+   * (name + owner inside `zio.blocks.async`), not by name alone, so a user
+   * method that happens to be called `await` does not trip the detection (here
+   * that would only cost an unnecessary `js.async` round-trip, but the DCA
+   * backend rewrites on this predicate — keep them identical).
+   */
   private def isAwait(using Quotes)(fun: quotes.reflect.Term): Boolean = {
     import quotes.reflect.*
-    fun match {
+    val nameMatches = fun match {
       case Ident("await")     => true
       case Select(_, "await") => true
       case _                  => false
+    }
+    nameMatches && {
+      val sym = fun.symbol
+      sym != Symbol.noSymbol && sym.owner.fullName == "zio.blocks.async.AsyncSyntaxVersionSpecific"
     }
   }
 }

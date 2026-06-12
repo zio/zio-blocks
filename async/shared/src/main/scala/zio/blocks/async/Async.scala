@@ -383,11 +383,14 @@ object Async extends AsyncCompanionVersionSpecific {
      */
     def block[A](fa: Any): A =
       if (fa.isInstanceOf[AsyncEncoding.WrappedPollable]) {
-        val v: Any = fa.asInstanceOf[AsyncEncoding.WrappedPollable].value
-        if (v.isInstanceOf[Failure]) v.asInstanceOf[A]
-        else if (v.isInstanceOf[Pollable[?]])
-          awaitObservedPollable(v.asInstanceOf[Pollable[A]], v.asInstanceOf[A])
-        else v.asInstanceOf[A]
+        val w        = fa.asInstanceOf[AsyncEncoding.WrappedPollable]
+        val out: Any = AsyncEncoding.unwrapLayer(fa) // one delivery layer, depth-aware
+        // Only a depth-1 carrier exposes the user pollable itself as the
+        // delivered value, so only then is it driven for effects. A deeper
+        // carrier (nested `succeed`) delivers a shallower carrier untouched —
+        // peeling more than one layer here would skip nesting levels.
+        if (w.depth > 1 || w.value.isInstanceOf[Failure]) out.asInstanceOf[A]
+        else awaitObservedPollable(w.value.asInstanceOf[Pollable[A]], out.asInstanceOf[A])
       } else if (fa.isInstanceOf[Failure])
         Failure.throwCause(fa.asInstanceOf[Failure].cause)
       else if (fa.isInstanceOf[Pollable[?]])
