@@ -29,6 +29,42 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
   private val boom = AsyncTestSupport.boom
   private val Boom = AsyncTestSupport.boom
 
+  /** A pending leaf that advances by returning a brand-new pollable each poll. */
+  private def replacementChain(value: Int, steps: Int): Pollable[Int] = new Pollable[Int] {
+    def poll(onComplete: Runnable): Async[Int] =
+      if (steps <= 0) Async.succeed(value)
+      else {
+        onComplete.run()
+        replacementChain(value, steps - 1)
+      }
+  }
+
+  /**
+   * The five runtime encodings a combinator operand can arrive in: a ready
+   * value, a ready succeed-carrier holding a user [[Pollable]] as data, a ready
+   * [[Failure]], a pending pollable that re-arms itself, and a pending pollable
+   * that advances through replacement pollables. Paired with the outcome
+   * `.block` must deliver for the operand alone (the bare user pollable for the
+   * carrier, by identity).
+   */
+  private val encodingShapes: List[String] = List("value", "carrier", "failure", "pending", "replacement")
+
+  private def encodedOperand(shape: String, tag: Int): (Async[Any], Either[Throwable, Any]) = shape match {
+    case "value"   => (Async.succeed(tag), Right(tag))
+    case "carrier" =>
+      val p = AsyncTestSupport.syncReadyPollable(tag)
+      (Async.succeed(p), Right(p))
+    case "failure" =>
+      val t = new RuntimeException(s"boom-$shape-$tag")
+      (Async.fail(t), Left(t))
+    case "pending" => (AsyncTestSupport.fromPollable(AsyncTestSupport.succeedAfter(tag, 2)), Right(tag))
+    case _         => (AsyncTestSupport.fromPollable(replacementChain(tag, 2)), Right(tag))
+  }
+
+  private def blockOutcome(fa: Async[Any]): Either[Throwable, Any] =
+    try Right(fa.block)
+    catch { case t: Throwable => Left(t) }
+
   def spec = suite("AsyncCombinatorsSpec")(
     suite("zipWith")(
       test("zipWith two ready values combines them eagerly") {
@@ -186,6 +222,26 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         c.fail(AsyncTestSupport.leftBoom)
         val thrown = Try(z.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.leftBoom), !invoked)
+      },
+      test("zipWith combines every left/right pairing of the five operand encodings") {
+        // Full cartesian over the runtime encodings: any failed side surfaces
+        // its own cause (left first), and any successful pairing combines the
+        // DELIVERED values — the bare user pollable, by identity, for a
+        // carrier; the plain value for the rest.
+        val anomalies = for {
+          ls <- encodingShapes
+          rs <- encodingShapes
+          (l, lExp) = encodedOperand(ls, 1)
+          (r, rExp) = encodedOperand(rs, 2)
+          got       = blockOutcome(l.zipWith(r)((a, b) => (a, b)))
+          want      = (lExp, rExp) match {
+                   case (Left(t), _)         => Left(t)
+                   case (_, Left(t))         => Left(t)
+                   case (Right(a), Right(b)) => Right((a, b))
+                 }
+          if got != want
+        } yield s"$ls zipWith $rs: got $got, want $want"
+        assertTrue(anomalies == Nil)
       }
     ),
     suite("zip")(
@@ -262,6 +318,20 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         c.succeed(1)
         val thrown = Try(a.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.finPoll))
+      },
+      test("tap over each of the five operand encodings observes the delivered value and preserves the outcome") {
+        val anomalies = encodingShapes.flatMap { shape =>
+          val (fa, exp) = encodedOperand(shape, 9)
+          var seen      = List.empty[Any]
+          val got       = blockOutcome(fa.tap { a => seen = a :: seen; Async.succeed(()) })
+          val effectOk  = exp match {
+            case Right(v) => seen == List(v)
+            case Left(_)  => seen.isEmpty
+          }
+          if (effectOk && got == exp) Nil
+          else List(s"$shape: got $got (effect saw $seen), want $exp")
+        }
+        assertTrue(anomalies == Nil)
       }
     ),
     suite("ensuring")(
@@ -530,6 +600,51 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val r: Async[Int]   = Async.succeed(1) <* rhs
         val thrown          = scala.util.Try(r.block).failed.toOption
         assertTrue(thrown.contains(boom))
+      },
+      test("*> sequences every left/right pairing of the five operand encodings and keeps the right value") {
+        val anomalies = for {
+          ls <- encodingShapes
+          rs <- encodingShapes
+          (l, lExp) = encodedOperand(ls, 1)
+          (r, rExp) = encodedOperand(rs, 2)
+          got       = blockOutcome(l *> r)
+          want      = (lExp, rExp) match {
+                   case (Left(t), _)  => Left(t)
+                   case (_, Left(t))  => Left(t)
+                   case (_, Right(b)) => Right(b)
+                 }
+          if got != want
+        } yield s"$ls *> $rs: got $got, want $want"
+        assertTrue(anomalies == Nil)
+      },
+      test("<* sequences every left/right pairing of the five operand encodings and keeps the left value") {
+        val anomalies = for {
+          ls <- encodingShapes
+          rs <- encodingShapes
+          (l, lExp) = encodedOperand(ls, 1)
+          (r, rExp) = encodedOperand(rs, 2)
+          got       = blockOutcome(l <* r)
+          want      = (lExp, rExp) match {
+                   case (Left(t), _)  => Left(t)
+                   case (_, Left(t))  => Left(t)
+                   case (Right(a), _) => Right(a)
+                 }
+          if got != want
+        } yield s"$ls <* $rs: got $got, want $want"
+        assertTrue(anomalies == Nil)
+      },
+      test("as and unit over each of the five operand encodings replace or discard only successes") {
+        val anomalies = encodingShapes.flatMap { shape =>
+          val (fa1, exp1) = encodedOperand(shape, 3)
+          val (fa2, exp2) = encodedOperand(shape, 3)
+          val gotAs       = blockOutcome(fa1.as("x"))
+          val gotUnit     = blockOutcome(fa2.unit)
+          val wantAs      = exp1.map(_ => "x")
+          val wantUnit    = exp2.map(_ => ())
+          if (gotAs == wantAs && gotUnit == wantUnit) Nil
+          else List(s"$shape: as → $gotAs (want $wantAs), unit → $gotUnit (want $wantUnit)")
+        }
+        assertTrue(anomalies == Nil)
       }
     )
   )

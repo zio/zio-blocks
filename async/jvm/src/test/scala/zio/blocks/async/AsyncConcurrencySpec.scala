@@ -153,6 +153,46 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           assertTrue(anomaly.isEmpty)
         }
       },
+      test("Completer peek racing settle observes only pending-or-the-value (null settle included)") {
+        ZIO.attemptBlocking {
+          // `peek` is the registration-free snapshot: while a settle is in
+          // flight on another thread it must observe either the still-pending
+          // completer itself or the exact settled value — never a foreign
+          // state (in particular the internal null-value sentinel must not
+          // escape, and a registered waiter chain must read as pending).
+          val trials  = 2000
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val useNull       = i % 2 == 1
+            val expected: Any = if (useNull) null else "v"
+            val c             = new Completer[String]
+            if (i % 4 < 2) { c.poll(AsyncTestSupport.noopRunnable); () } // chain a waiter first on half the trials
+            val start   = new CountDownLatch(1)
+            val settler = new Thread(new Runnable {
+              def run(): Unit = { start.await(); c.succeed(if (useNull) null else "v") }
+            })
+            settler.setDaemon(true)
+            settler.start()
+            start.countDown()
+            var settledSeen = false
+            var spins       = 0
+            while (!settledSeen && anomaly.isEmpty && spins < 10000000) {
+              val p: Any = c.peek
+              if (p.asInstanceOf[AnyRef] eq c) ()        // still pending: peek returns the completer
+              else if (p == expected) settledSeen = true // settled: the exact value (or raw null)
+              else anomaly = Some(s"trial $i: peek observed $p (expected pending or $expected)")
+              spins += 1
+            }
+            settler.join()
+            val fin: Any = c.peek
+            if (anomaly.isEmpty && fin != expected)
+              anomaly = Some(s"trial $i: post-settle peek observed $fin instead of $expected")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
       test("Running pollers racing a null-terminal publish are all resumed and observe null") {
         ZIO.attemptBlocking {
           // Round-3 surface: the JVM runner publishes a raw-null success through

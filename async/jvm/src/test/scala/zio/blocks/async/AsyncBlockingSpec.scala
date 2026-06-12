@@ -132,6 +132,28 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(v == 1 || v == 2)
         }
       },
+      test("two threads blocking the same promise-backed Async both observe the settled value") {
+        ZIO.attemptBlocking {
+          // Completer fan-out: each `.block` is an independent driver with its
+          // own parker; both must be registered on the waiter chain and woken
+          // by the single settle — neither may stay parked or see a stale state.
+          val c       = new Completer[Int]
+          val fa      = c.peek
+          val results = new java.util.concurrent.atomic.AtomicIntegerArray(2)
+          val done    = new CountDownLatch(2)
+          (0 until 2).foreach { i =>
+            val t = new Thread(new Runnable {
+              def run(): Unit = { results.set(i, fa.block); done.countDown() }
+            })
+            t.setDaemon(true)
+            t.start()
+          }
+          sleep(20) // give both drivers a chance to park before the settle
+          c.succeed(42)
+          val completed = done.await(5, TimeUnit.SECONDS)
+          assertTrue(completed, results.get(0) == 42, results.get(1) == 42)
+        }
+      },
       suite("plain .await positions")(
         test("`.await` of a succeeded Async returns the value") {
           val r = Async.async {
@@ -499,6 +521,20 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }
           val thrown = scala.util.Try(a.block).failed.toOption
           assertTrue(thrown.contains(AsyncTestSupport.boom), seen == List(3, 2, 1))
+        },
+        test("a Failure stored as a success value travels through the closure as data") {
+          // `Async.succeed` carries an effect value as DATA (one wrap layer): a
+          // Failure stored that way must be delivered by the closure's await as
+          // the bare failed Async, by identity — never short-circuiting the
+          // surrounding HOF sequencing as if the element itself had failed.
+          val failed: Async[Int] = Async.fail(boom)
+          val r                  = Async.async {
+            List(1, 2).map(_ => Async.succeed(failed).await)
+          }.block
+          assertTrue(
+            r.length == 2,
+            r.forall(x => x.asInstanceOf[AnyRef] eq failed.asInstanceOf[AnyRef])
+          )
         }
       ),
       // `.await` inside a `List.foreach` closure has LAZY/sequential semantics on

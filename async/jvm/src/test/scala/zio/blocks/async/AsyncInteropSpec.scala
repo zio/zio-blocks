@@ -161,6 +161,32 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           }
         }
       },
+      test("fromCompletionStage: a stage completed by a foreign thread during conversion still delivers") {
+        ZIO.attemptBlocking {
+          // Race the conversion's ready fast-path check against a foreign
+          // completion landing mid-call: whichever side wins, the resulting
+          // Async must surface the value (`whenComplete` on an already-done
+          // future still fires its callback).
+          val trials  = 500
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val cf    = new CompletableFuture[Int]()
+            val start = new CountDownLatch(1)
+            val t     = new Thread(new Runnable {
+              def run(): Unit = { start.await(); cf.complete(7); () }
+            })
+            t.setDaemon(true)
+            t.start()
+            start.countDown()
+            val v = AsyncInterop.fromCompletionStage(cf).block
+            t.join()
+            if (v != 7) anomaly = Some(s"trial $i: observed $v instead of 7")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
       test("fromCompletionStage: pending failure is unwrapped from CompletionException") {
         ZIO.attemptBlocking {
           val boom = new RuntimeException("late-ce")

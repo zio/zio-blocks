@@ -21,7 +21,7 @@ import zio.test._
 
 import zio.durationInt
 import zio.test.Live
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
 
 /**
  * start, driver parity, cancellation.
@@ -192,6 +192,40 @@ object AsyncRunSpec extends ZIOSpecDefault {
           running.cancel()
           running.cancel()
           Live.live(ZIO.sleep(100.millis)).as(assertTrue(!fired.get()))
+        },
+        test("cancel invoked from inside poll suppresses the terminal that same poll returns") {
+          // `cancel()` is driver-level and always wins: a leaf that cancels its
+          // own Running handle mid-poll (e.g. observing shutdown) must not have
+          // the value it then returns published as a terminal — the handle
+          // stays pending forever, exactly like a cancel from outside.
+          val handle = new AtomicReference[Async.Running[Int]](null)
+          val stash  = new AtomicReference[Runnable](null)
+          val polls  = new AtomicInteger(0)
+          val leaf   = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] =
+              if (polls.incrementAndGet() == 1) { stash.set(onComplete); this }
+              else { handle.get().cancel(); Async.succeed(42) }
+          }
+          val running = Async.start(AsyncTestSupport.fromPollable(leaf))
+          handle.set(running)
+          for {
+            armed <- Live.live(
+                       (ZIO.sleep(1.millis) *> ZIO.succeed(stash.get() ne null))
+                         .repeatUntil(identity)
+                         .timeoutTo(false)(identity)(5.seconds)
+                     )
+            _ = stash.get().run() // resume the driver: the next poll cancels mid-flight
+            repolled <- Live.live(
+                          (ZIO.sleep(10.millis) *> ZIO.succeed(polls.get() >= 2))
+                            .repeatUntil(identity)
+                            .timeoutTo(false)(identity)(5.seconds)
+                        )
+            _ <- Live.live(ZIO.sleep(50.millis)) // allow any (defective) publish to land
+          } yield assertTrue(
+            armed,
+            repolled,
+            AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable))
+          )
         }
       ),
       test("a multi-wake pollable is not re-polled after completion (JVM/JS parity)") {
