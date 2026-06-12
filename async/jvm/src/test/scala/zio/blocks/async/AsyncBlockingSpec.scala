@@ -540,6 +540,30 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           worker.start()
           assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
         },
+        test("a finalizer runs exactly once when the catch handler itself throws, and the handler's throw propagates") {
+          var fin                = 0
+          val handlerBoom        = new RuntimeException("handler")
+          def failed: Async[Int] = Async.fail(AsyncTestSupport.boom)
+          val a                  = Async.async[Int] {
+            try failed.await
+            catch { case t: Throwable if t eq AsyncTestSupport.boom => throw handlerBoom }
+            finally fin += 1
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(handlerBoom), fin == 1)
+        },
+        test("a throwing finalizer replaces the value of a catch arm that already recovered") {
+          // The handler recovers to 42, then the finalizer throws: plain Scala
+          // semantics discard the recovery and fail with the finalizer's throw.
+          val finBoom            = new RuntimeException("fin")
+          def finThrow(): Unit   = throw finBoom
+          def failed: Async[Int] = Async.fail(AsyncTestSupport.boom)
+          val a                  = Async.async[Int] {
+            try failed.await
+            catch { case t: Throwable if t eq AsyncTestSupport.boom => 42 }
+            finally finThrow()
+          }
+          assertTrue(AsyncTestSupport.blockAsLeftCause(a) == Some(finBoom))
+        },
         test("a Nothing-typed awaited body under try/finally propagates the cause and runs the finalizer once") {
           // `Async.fail(t).await` types as Nothing; with no widening catch arm
           // the try expression itself is Nothing-typed. The rewrite must accept
