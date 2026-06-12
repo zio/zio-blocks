@@ -321,6 +321,28 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           }
         assertTrue(raw == Left(null))
       },
+      test("toCompletableFuture_genuinelyPendingNullFail_joinObservesNullCause") {
+        // Twin of `toFuture_genuinelyPendingNullFail_awaitObservesNullCause`:
+        // the Async is genuinely pending when `toCompletableFuture` is called,
+        // so the null cause travels through the driven (executor) arm, which
+        // must use the same marker transport as the ready arm.
+        val (c, fa) = AsyncTestSupport.pending[Int]
+        val cf      = AsyncInterop.toCompletableFuture(fa)
+        c.fail(null)
+        val observed =
+          try {
+            cf.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            Right(None)
+          } catch {
+            case t: Throwable =>
+              val raw = t match {
+                case ee: java.util.concurrent.ExecutionException if ee.getCause ne null => ee.getCause
+                case other                                                              => other
+              }
+              Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
+          }
+        assertTrue(observed == Left(null))
+      },
       test("toCompletableFuture_readyNullFail_joinObservesNullCause") {
         val cf       = AsyncInterop.toCompletableFuture(Async.fail(null))
         val observed =

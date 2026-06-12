@@ -153,6 +153,60 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           assertTrue(anomaly.isEmpty)
         }
       },
+      test("Running pollers racing a null-terminal publish are all resumed and observe null") {
+        ZIO.attemptBlocking {
+          // Round-3 surface: the JVM runner publishes a raw-null success through
+          // the `NullTerminal` sentinel. Pollers racing that publish must either
+          // be woken by `wakeAll` or observe the terminal directly on `poll` —
+          // never stay pending, and never read the sentinel as a value.
+          val trials  = 500
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val c       = new Completer[String]
+            val running = Async.start(c.peek)
+            val pollers = 4
+            val start   = new CountDownLatch(1)
+            val done    = new CountDownLatch(pollers)
+            val resumed = new AtomicInteger(0)
+            (0 until pollers).foreach { _ =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  start.await()
+                  val waker  = new Runnable { def run(): Unit = { resumed.incrementAndGet(); () } }
+                  val r: Any = running.poll(waker)
+                  if (!r.isInstanceOf[Async.Running[_]]) resumed.incrementAndGet() // observed terminal directly
+                  done.countDown()
+                }
+              })
+              t.setDaemon(true)
+              t.start()
+            }
+            val settler = new Thread(new Runnable {
+              def run(): Unit = { start.await(); c.succeed(null) }
+            })
+            settler.setDaemon(true)
+            settler.start()
+            start.countDown()
+            done.await()
+            settler.join()
+            // Wait for the worker to publish, then check every poller resumed and
+            // a fresh poll exposes the raw null value (not the sentinel, not `this`).
+            var spins = 0
+            while (AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable)) && spins < 5000) {
+              Thread.sleep(1); spins += 1
+            }
+            val terminal: Any = running.poll(AsyncTestSupport.noopRunnable)
+            var waitWake      = 0
+            while (resumed.get() < pollers && waitWake < 5000) { Thread.sleep(1); waitWake += 1 }
+            if (terminal != null) anomaly = Some(s"trial $i: terminal was $terminal, expected raw null")
+            else if (resumed.get() < pollers)
+              anomaly = Some(s"trial $i: only ${resumed.get()} of $pollers pollers resumed (lost wakeup)")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
       test("unsafeRunAsync delivers the callback at most once when completion races cancel") {
         ZIO.attemptBlocking {
           val trials  = 1000

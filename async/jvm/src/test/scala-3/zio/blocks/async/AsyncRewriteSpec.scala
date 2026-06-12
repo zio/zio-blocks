@@ -61,6 +61,7 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       assertTrue(r == 42)
     },
     test("`.await` imported under a rename is still rewritten") {
+      import zio.blocks.async.{await => waitFor}
       val r = Async.async(Async.succeed(21).waitFor * 2).block
       assertTrue(r == 42)
     },

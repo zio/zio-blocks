@@ -722,6 +722,25 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
     test("awaits in varargs positions") {
       val prog = Async.async(List(Async.succeed(1).await, Async.succeed(2).await).sum)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3))
+    },
+    // NOTE: nested `Async.async` blocks — `Async.async { val inner =
+    // Async.async(fa.await + 1); inner.await + 10 }` — compile and run on the
+    // JVM (AsyncRewriteSpec) and on JS Scala 3 < 3.8, but FAIL TO COMPILE on
+    // the JS 3.8+ hybrid backend: the inner transparent-inline block expands
+    // to `js.async { ...await... }` before the outer macro runs, the outer
+    // Scan then counts the inner's (still-unexpanded) awaits as its own
+    // indirect awaits and routes the outer block to the DCA fallback, which
+    // aborts with "Can't find AsyncShift[scala.scalajs.js.package]" at the
+    // `js.async` call. Because the failure aborts compilation of this whole
+    // module on that one cell, the runnable probe cannot live here; this note
+    // (plus the passing JVM/JS-3.3 siblings) is the evidence.
+    test("an inner async block built OUTSIDE the outer block composes via await") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(5)); ()
+      }
+      val inner = Async.async(pending.await + 1)
+      val prog  = Async.async(inner.await + 10)
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 16))
     }
   )
 }
