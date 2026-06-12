@@ -723,30 +723,36 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val prog = Async.async(List(Async.succeed(1).await, Async.succeed(2).await).sum)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3))
     },
-    // NOTE: a `lazy val` whose initializer awaits — `Async.async { lazy val x =
-    // fa.await; x }` — is rejected on every DCA cell (JVM, JS < 3.8, and the
-    // 3.8 DCA fallback) with the named diagnostic "`.await` inside a `lazy
-    // val` is not supported (suspending lazy initialization is not
-    // supported); use a strict `val` inside `Async.async`." On the JS 3.8+
-    // native path the hybrid Scan does not detect the lazy initializer, takes
-    // the js.async arm, and the user instead gets the raw Scala.js error
-    // "Illegal use of js.await(). It can only be used inside a js.async {...}
-    // block ..." pointing at implementation machinery the user never wrote.
-    // Neither variant compiles on both cells, so the runnable probe cannot
-    // live in this shared spec; this note is the evidence. (The named-
-    // diagnostic contract itself is locked in by AsyncRewriteSpec on the JVM.)
-    //
-    // NOTE: nested `Async.async` blocks — `Async.async { val inner =
-    // Async.async(fa.await + 1); inner.await + 10 }` — compile and run on the
-    // JVM (AsyncRewriteSpec) and on JS Scala 3 < 3.8, but FAIL TO COMPILE on
-    // the JS 3.8+ hybrid backend: the inner transparent-inline block expands
-    // to `js.async { ...await... }` before the outer macro runs, the outer
-    // Scan then counts the inner's (still-unexpanded) awaits as its own
-    // indirect awaits and routes the outer block to the DCA fallback, which
-    // aborts with "Can't find AsyncShift[scala.scalajs.js.package]" at the
-    // `js.async` call. Because the failure aborts compilation of this whole
-    // module on that one cell, the runnable probe cannot live here; this note
-    // (plus the passing JVM/JS-3.3 siblings) is the evidence.
+    test("a lazy val initializer containing await is rejected with a named diagnostic") {
+      // Every Scala 3 backend (DCA and the 3.8+ native arm) shares the same
+      // rejection: suspending lazy initialization is unsupported, and silently
+      // forcing the initializer eagerly (or surfacing a raw js.await error)
+      // would be a miscompile.
+      typeCheck {
+        """
+        import zio.blocks.async._
+        val a = Async.async {
+          lazy val x = Async.succeed(5).await
+          Async.succeed(1).await
+        }
+        a
+        """
+      }.map(result => assert(result)(Assertion.isLeft))
+    },
+    test("a nested Async.async block awaited by the outer one composes") {
+      // The inner block expands first (inline arguments are typed before the
+      // outer macro runs) and must land as an opaque Async value: every
+      // backend rewrites its own awaits during expansion, so the outer block
+      // never mistakes the inner's awaits for its own.
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(5)); ()
+      }
+      val prog = Async.async {
+        val inner = Async.async(pending.await + 1)
+        inner.await + 10
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 16))
+    },
     test("an inner async block built OUTSIDE the outer block composes via await") {
       val pending: Async[Int] = Async.promiseInternal[Int] { c =>
         js.timers.setTimeout(0.0)(c.succeed(5)); ()

@@ -68,38 +68,7 @@ private[async] object AsyncDcaTransform {
   def asyncImpl[A: Type](body: Expr[A])(using Quotes): Expr[Async[A]] = {
     import quotes.reflect.*
 
-    // True when `tree` contains one of our (not-yet-rewritten) `.await` calls.
-    def containsAwait(tree: Tree): Boolean = {
-      val acc = new TreeAccumulator[Boolean] {
-        def foldTree(found: Boolean, t: Tree)(owner: Symbol): Boolean =
-          if (found) true
-          else
-            t match {
-              case Apply(TypeApply(fun, List(_)), List(_)) if isAwait(fun) => true
-              case _                                                       => foldOverTree(found, t)(owner)
-            }
-      }
-      acc.foldTree(false, tree)(Symbol.spliceOwner)
-    }
-
-    // `lazy val` initializers must not run eagerly, but the CPS rewrite has no
-    // way to suspend lazy initialization — DCA silently forces the initializer
-    // at declaration. Reject the construct with a named diagnostic, exactly as
-    // the Scala 2 macro does.
-    new TreeTraverser {
-      override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
-        tree match {
-          case vd: ValDef if vd.symbol.flags.is(Flags.Lazy) && containsAwait(vd) =>
-            report.errorAndAbort(
-              "`.await` inside a `lazy val` is not supported (suspending lazy initialization is not supported); " +
-                "use a strict `val` inside `Async.async`.",
-              vd.pos
-            )
-          case _ => ()
-        }
-        traverseTreeChildren(tree)(owner)
-      }
-    }.traverseTree(body.asTerm)(Symbol.spliceOwner)
+    rejectLazyAwaitVals(body.asTerm)
 
     val transformer = new TreeMap {
       override def transformTerm(term: Term)(owner: Symbol): Term =
@@ -201,20 +170,61 @@ private[async] object AsyncDcaTransform {
   }
 
   /**
-   * Does `fun` reference our `.await` extension method? Matched by '''symbol'''
-   * (name + owner inside `zio.blocks.async`), not by name alone: a user method
-   * that happens to be called `await` must never be hijacked by the rewrite.
+   * True when `tree` contains one of our (not-yet-rewritten) `.await` calls.
    */
-  private def isAwait(using Quotes)(fun: quotes.reflect.Term): Boolean = {
+  private[internal] def containsAwait(using Quotes)(tree: quotes.reflect.Tree): Boolean = {
     import quotes.reflect.*
-    val nameMatches = fun match {
-      case Ident("await")     => true
-      case Select(_, "await") => true
-      case _                  => false
+    val acc = new TreeAccumulator[Boolean] {
+      def foldTree(found: Boolean, t: Tree)(owner: Symbol): Boolean =
+        if (found) true
+        else
+          t match {
+            case Apply(TypeApply(fun, List(_)), List(_)) if isAwait(fun) => true
+            case _                                                       => foldOverTree(found, t)(owner)
+          }
     }
-    nameMatches && {
-      val sym = fun.symbol
-      sym != Symbol.noSymbol && sym.owner.fullName == "zio.blocks.async.AsyncSyntaxVersionSpecific"
-    }
+    acc.foldTree(false, tree)(Symbol.spliceOwner)
+  }
+
+  /**
+   * Reject `lazy val`s whose initializer awaits, with a named diagnostic
+   * (parity with the Scala 2 macro). `lazy val` initializers must not run
+   * eagerly, but no backend can suspend lazy initialization: DCA silently
+   * forces the initializer at declaration, and native `js.await` rejects the
+   * shape with an error naming machinery the user never wrote. Shared by every
+   * Scala 3 backend.
+   */
+  private[internal] def rejectLazyAwaitVals(using Quotes)(root: quotes.reflect.Tree): Unit = {
+    import quotes.reflect.*
+    new TreeTraverser {
+      override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
+        tree match {
+          case vd: ValDef if vd.symbol.flags.is(Flags.Lazy) && containsAwait(vd) =>
+            report.errorAndAbort(
+              "`.await` inside a `lazy val` is not supported (suspending lazy initialization is not supported); " +
+                "use a strict `val` inside `Async.async`.",
+              vd.pos
+            )
+          case _ => ()
+        }
+        traverseTreeChildren(tree)(owner)
+      }
+    }.traverseTree(root)(Symbol.spliceOwner)
+  }
+
+  /**
+   * Does `fun` reference our `.await` extension method? Matched purely by
+   * '''symbol''' (declared name + owner): the call-site spelling cannot be
+   * trusted in either direction — a user method that happens to be called
+   * `await` must never be hijacked, and our extension reached through an import
+   * rename (`import zio.blocks.async.{await => waitFor}`) must still be
+   * rewritten.
+   */
+  private[internal] def isAwait(using Quotes)(fun: quotes.reflect.Term): Boolean = {
+    import quotes.reflect.*
+    val sym = fun.symbol
+    sym != Symbol.noSymbol &&
+    sym.name == "await" &&
+    sym.owner.fullName == "zio.blocks.async.AsyncSyntaxVersionSpecific"
   }
 }

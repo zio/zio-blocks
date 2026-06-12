@@ -61,8 +61,11 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       assertTrue(r == 42)
     },
     test("`.await` imported under a rename is still rewritten") {
+      // The renamed-extension import below IS used by the next line (postfix
+      // `.waitFor`). Import-cleanup tools mis-flag it as unused — do not
+      // remove it; the explicit application form keeps the usage visible.
       import zio.blocks.async.{await => waitFor}
-      val r = Async.async(Async.succeed(21).waitFor * 2).block
+      val r = Async.async(waitFor(Async.succeed(21)) * 2).block
       assertTrue(r == 42)
     },
     test("a local (non-awaiting) lazy val alongside an await compiles and runs") {

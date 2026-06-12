@@ -37,6 +37,24 @@ import scala.quoted.*
  *   - any `.await` under a lambda / by-name argument / nested method or class →
  *     the shared DCA transform, identical to the Scala 3 (< 3.8) JS cell.
  *
+ * The native arm preserves the library's semantics exactly:
+ *
+ *   - '''Readiness''': `js.async` always returns a promise, but a body whose
+ *     awaits are all ready runs to completion synchronously (ready awaits never
+ *     reach `js.await`). The generated wrapper observes that via a completion
+ *     flag and returns a ready `Async` — matching the JVM/DCA cells — falling
+ *     back to the promise only for genuine suspension. A throw before the first
+ *     suspension likewise settles to a ready failure.
+ *   - '''Value integrity''': everything crossing the promise transport is boxed
+ *     ([[AsyncJsRuntime.Box]]) because JS promise resolution adopts thenables —
+ *     a `js.Promise`-as-value success would otherwise be replaced by its
+ *     settled value. (Boxing also sidesteps the Scala 3.8.3
+ *     `js.await(js.Promise[Unit])` compiler limitation.)
+ *   - '''Composability''': `.await` calls are rewritten here, in the enclosing
+ *     `Async.async` expansion — never left to self-expand — so a nested,
+ *     already-expanded `Async.async` block contains no `.await` tokens and is
+ *     treated as the opaque `Async` value it is, on every backend arm.
+ *
  * Shares the same `awaitImpl` / `asyncImpl` macro entry points as the DCA
  * implementation, so the package-object syntax (`AsyncSyntaxVersionSpecific`,
  * `AsyncCompanionVersionSpecific`) is identical across every Scala 3 cell.
@@ -44,37 +62,37 @@ import scala.quoted.*
 private[async] object AsyncDirect {
 
   /**
-   * `qual.await` → `js.await(toJsPromise(qual))` for a suspended value; a ready
-   * value short-circuits with no `Promise` allocation. Fires only for `.await`
-   * calls left in place by [[asyncImpl]]'s native fast path (the DCA fallback
-   * rewrites them to `cps.await` before this inline expands); used outside an
-   * `Async.async` block it is a Scala.js compile error ("Illegal use of
-   * js.await()").
+   * Expansion of a bare `.await` that survived to code generation — i.e. one
+   * used outside any `Async.async { ... }` block ([[asyncImpl]] rewrites every
+   * `.await` it accepts, on both the native and DCA arms). Always a compile
+   * error; this is what gives `.await` its lexical restriction.
    */
-  def awaitImpl[A: Type](self: Expr[Async[A]])(using Quotes): Expr[A] =
-    '{
-      val r: Any = $self
-      if (r.isInstanceOf[Pollable[?]])
-        scala.scalajs.js.await(AsyncInterop.toJsPromise[A](r.asInstanceOf[Async[A]]))
-      else AsyncEncoding.deliverSuccess[A](r)
-    }
+  def awaitImpl[A: Type](self: Expr[Async[A]])(using Quotes): Expr[A] = {
+    import quotes.reflect.*
+    report.errorAndAbort(
+      "`.await` may only be used directly inside an `Async.async { ... }` block.",
+      self.asTerm.pos
+    )
+  }
 
   /**
-   * `Async.async { body }` → `fromJsPromise(js.async { body })` when every
-   * `.await` is in direct position, [[AsyncDcaTransform.asyncImpl]] when any
-   * `.await` sits under a lambda / by-name argument / nested method, and a
+   * `Async.async { body }` → a readiness-preserving `js.async` wrapper when
+   * every `.await` is in direct position, [[AsyncDcaTransform.asyncImpl]] when
+   * any `.await` sits under a lambda / by-name argument / nested method, and a
    * plain `Async.attempt` when the body contains no `.await` at all (zero
    * suspension, no `Promise` round-trip).
    */
   def asyncImpl[A: Type](body: Expr[A])(using Quotes): Expr[Async[A]] = {
     import quotes.reflect.*
 
+    AsyncDcaTransform.rejectLazyAwaitVals(body.asTerm)
+
     var hasAwait    = false
     var hasIndirect = false
 
     def isAwaitCall(t: Tree): Boolean = t match {
-      case Apply(TypeApply(fun, _), _) if isAwait(fun) => true
-      case _                                           => false
+      case Apply(TypeApply(fun, _), _) if AsyncDcaTransform.isAwait(fun) => true
+      case _                                                             => false
     }
 
     /**
@@ -115,26 +133,63 @@ private[async] object AsyncDirect {
 
     if (!hasAwait) '{ Async.attempt[A]($body) }
     else if (hasIndirect) AsyncDcaTransform.asyncImpl(body)
-    else '{ AsyncInterop.fromJsPromise[A](scala.scalajs.js.async($body)) }
-  }
-
-  /**
-   * Does `fun` reference our `.await` extension method? Matched by '''symbol'''
-   * (name + owner `zio.blocks.async.AsyncSyntaxVersionSpecific`), not by name
-   * alone, so a user method that happens to be called `await` is never
-   * miscounted (and the DCA backend rewrites on this same predicate — keep them
-   * identical).
-   */
-  private def isAwait(using Quotes)(fun: quotes.reflect.Term): Boolean = {
-    import quotes.reflect.*
-    val nameMatches = fun match {
-      case Ident("await")     => true
-      case Select(_, "await") => true
-      case _                  => false
-    }
-    nameMatches && {
-      val sym = fun.symbol
-      sym != Symbol.noSymbol && sym.owner.fullName == "zio.blocks.async.AsyncSyntaxVersionSpecific"
+    else {
+      // Rewrite every direct `.await` to the boxed native transport: a ready
+      // value short-circuits with no Promise allocation; a suspended (or
+      // failed) Async is driven via `js.await` of a boxed promise.
+      val rewriter = new TreeMap {
+        override def transformTerm(term: Term)(owner: Symbol): Term =
+          term match {
+            case Apply(TypeApply(fun, List(tTpe)), List(qual)) if AsyncDcaTransform.isAwait(fun) =>
+              tTpe.tpe.asType match {
+                case '[t] =>
+                  given Quotes = owner.asQuotes
+                  val q        = transformTerm(qual)(owner).asExprOf[Async[t]]
+                  '{
+                    val r: Any = $q
+                    if (r.isInstanceOf[Pollable[?]])
+                      scala.scalajs.js.await(AsyncJsRuntime.toBoxedPromise[t](r.asInstanceOf[Async[t]])).value
+                    else AsyncJsRuntime.deliver[t](r)
+                  }.asTerm
+              }
+            case _ => super.transformTerm(term)(owner)
+          }
+      }
+      val rewritten = rewriter.transformTerm(body.asTerm)(Symbol.spliceOwner).asExprOf[A]
+      '{
+        var settled = false
+        // `Any`-typed on purpose: a typed `var value: A` would need a default
+        // via `null.asInstanceOf[A]`, which is a CHECKED cast on Scala.js and
+        // explodes eagerly when `A = Nothing` (e.g. a block ending in a failed
+        // await). The cast to `A` below runs only on the success branch.
+        var value: Any         = null
+        var failed             = false
+        var failure: Throwable = null
+        val p                  = scala.scalajs.js.async {
+          try {
+            val v = $rewritten
+            settled = true
+            value = v
+            new AsyncJsRuntime.Box[A](v)
+          } catch {
+            case t: Throwable =>
+              settled = true
+              failed = true
+              failure = t
+              throw t
+          }
+        }
+        // Read once, synchronously after `js.async` returns: `settled` is true
+        // iff the body ran to completion (or threw) without suspending — late
+        // writes from a resumed body happen after this read and publish via
+        // the promise instead.
+        if (settled) {
+          if (failed) {
+            AsyncJsRuntime.discardRejection(p) // reported via readyFailure instead
+            AsyncJsRuntime.readyFailure[A](failure)
+          } else Async.succeed(value.asInstanceOf[A])
+        } else AsyncJsRuntime.fromBoxedPromise[A](p)
+      }
     }
   }
 }
