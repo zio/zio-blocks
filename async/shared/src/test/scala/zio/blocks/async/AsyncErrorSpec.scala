@@ -353,6 +353,21 @@ object AsyncErrorSpec extends ZIOSpecDefault {
           AsyncTestSupport.throwingPrimary.ensuring(Async.succeed { finValue = 99; () })
         val thrown = Try(a.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.primaryPoll), finValue == 99)
+      },
+      test("ensuring_primaryPollThrow_drivesASuspendedFinalizer") {
+        // The two probes above observe their effect at CONSTRUCTION time
+        // (`attempt` / `succeed` are eager), so they cannot tell whether the
+        // finalizer is actually driven. A finalizer whose effect happens only
+        // when polled must still run when the primary's poll throws — that throw
+        // is this computation's failure channel, and `ensuring` promises the
+        // finalizer on success, failure, or suspension.
+        var finPolled        = false
+        val fin: Async[Unit] = new Pollable[Unit] {
+          def poll(onComplete: Runnable): Async[Unit] = { finPolled = true; Async.succeed(()) }
+        }
+        val a      = AsyncTestSupport.throwingPrimary.ensuring(fin)
+        val thrown = Try(a.block).failed.toOption
+        assertTrue(thrown.contains(AsyncTestSupport.primaryPoll), finPolled)
       }
     ),
     suite("ensuring suppressed errors")(
