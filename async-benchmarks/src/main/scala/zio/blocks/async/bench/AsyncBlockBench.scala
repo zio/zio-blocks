@@ -53,13 +53,21 @@ import kyo.{Async => _, *}
  *     ≈ 1.2e9 ops/s — identical to hand-written.
  *
  * `zb_asyncAwaitN` is the one shape that allocates: a `var` mutated '''across'''
- * a `.await` inside a `while` loop. DCA must lift those vars (`acc`, `i`) into
- * heap ref-cells and turn the loop into a recursive `flatMap` continuation —
- * a fixed ≈ 128 B/op, '''constant in `n`''' (not per-link). This is the
- * inherent CPS cost of carrying mutable loop state through a suspension point;
- * every effect system pays it for this shape. The hand-written control avoids
- * it only because it builds a lazy `flatMap` chain of ready values that escape
- * analysis folds away entirely — an eager shape, not the same computation.
+ * a `.await` inside a `while` loop forces the vars (`acc`, `i`) into heap
+ * ref-cells — a fixed cost, '''constant in `n`''' (not per-link), measured at
+ * ≤ 72 B/op after the loop rewrite below. This is the inherent CPS cost of
+ * carrying mutable loop state through a suspension point; every effect system
+ * pays it for this shape. The hand-written control avoids it only because it
+ * builds a lazy `flatMap` chain of ready values that escape analysis folds
+ * away entirely — an eager shape, not the same computation.
+ *
+ * Since the original measurement, while-loops with awaits are no longer
+ * expanded through DCA's recursive `WhileHelper`: the `Async.async` macro
+ * rewrites them into an iterative loop (constant stack for ready iterations,
+ * see `AsyncDcaTransform`), and an await-free condition is read directly each
+ * turn with no per-iteration thunk. Net effect on this bench (JDK 26, Apple
+ * M3 Ultra): n=1 ≈ 7.6e8 ops/s (was ≈ 9.1e7), n=100 ≈ 1.1e7 (was ≈ 1.8e6),
+ * n=1000 ≈ 1.1e6 (was ≈ 2.0e5).
  *
  * Net: R2's goal (zero allocation per macro-emitted `flatMap` link) is met —
  * the per-link cost is zero; the residual is a fixed per-block cost confined to

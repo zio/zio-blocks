@@ -70,6 +70,10 @@ import kyo.{Async => _, *}
  *      (waiting) / value (settled). This dropped a per-completion allocation
  *      and gave the JIT enough headroom for escape-analysis to scalar-replace
  *      the entire `Completer` in the sync-complete hot path.
+ *   3. Inlining `tap`'s plain-ready arm (the user effect applies inline; a
+ *      ready successful effect passes the original encoding through), which
+ *      brought `zb_tap` to parity with `zb_map1` (≈ 2.8e9 ops/s, 0 B/op on
+ *      JDK 26 / Apple M3 Ultra).
  *
  * Net effect on the hottest paths (single-op, fully sync): ZB Async at ≈ 0.3
  * ns/op vs CE IO ≈ 11 µs/op (~35,000x), Kyo ≈ 6 ns/op (~20x).
