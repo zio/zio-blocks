@@ -1029,6 +1029,43 @@ object AsyncSpec extends ZIOSpecDefault {
           }
         }
       ),
+      // Category B/H — pollable success values through pending map.
+      suite("Ready carrier through pending map")(
+        test("map_pendingSource_userPollableValue_blockReturnsPollableIdentity") {
+          val inner        = AsyncTestSupport.pollableSuccessValue
+          val (c, pending) = {
+            val c = new Completer[Unit]
+            (c, c.peek)
+          }
+          val fa: Async[Pollable[Int]] = pending.map(_ => inner)
+          c.succeed(())
+          val result: Pollable[Int] = fa.block
+          assertTrue(result eq inner)
+        },
+        test("map_pendingSource_combinatorAsyncValue_staysAValueLikeTheReadyPath") {
+          // The mapped value here is a *combinator-built* Async (a continuation
+          // pollable), not a user Pollable. `map`'s function returns a value:
+          // the pending path must lift it exactly as the ready path
+          // (`Async.succeed`) does, not re-dispatch it as the rest of the
+          // computation and replace the value with its polled scalar.
+          val (cSrc, src) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val inner: Async[Int] = src.map(_ + 1)
+          val (cGate, gate)     = {
+            val c = new Completer[Unit]
+            (c, c.peek)
+          }
+          val nested: Async[Async[Int]] = gate.map(_ => inner)
+          val ready: Async[Async[Int]]  = Async.succeed(()).map(_ => inner)
+          cGate.succeed(())
+          cSrc.succeed(41) // settled, so a (defective) drive of `inner` cannot hang `.block`
+          val viaReady: Any   = ready.block
+          val viaPending: Any = nested.block
+          assertTrue(viaReady == inner, viaPending == inner)
+        }
+      ),
       // Category B/H — Ready carrier through tap on pending path.
       suite("Ready carrier through pending tap")(
         test("tap_pendingSucceedPollable_blockReturnsPollableNotReadyOrDriven") {
