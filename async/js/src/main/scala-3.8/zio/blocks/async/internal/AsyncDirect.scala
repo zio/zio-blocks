@@ -120,6 +120,7 @@ private[async] object AsyncDirect {
             if (tr.cases.nonEmpty && AsyncDcaTransform.containsAwait(tr.body)) ||
               (tr.finalizer.nonEmpty &&
                 (AsyncDcaTransform.containsAwait(tr.body) ||
+                  tr.cases.exists(c => AsyncDcaTransform.containsAwait(c)) ||
                   tr.finalizer.exists(f => AsyncDcaTransform.containsAwait(f)))) =>
           // A failure thrown by an await in the body lands in the user catch:
           // only the DCA catch emulation preserves logical-cause matching. And
