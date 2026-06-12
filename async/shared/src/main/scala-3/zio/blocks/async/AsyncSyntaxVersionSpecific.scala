@@ -131,7 +131,18 @@ private[async] trait AsyncSyntaxVersionSpecific {
       val r: Any = fa
       if (r.isInstanceOf[Pollable[?]])
         Async.slowPath.tapAsync[A](r, (a: A) => f(a))
-      else Async.slowPath.tapReady[A](AsyncEncoding.deliverSuccess[A](r), f)
+      else if (r.isInstanceOf[AsyncEncoding.WrappedPollable])
+        Async.slowPath.tapReady[A](AsyncEncoding.deliverSuccess[A](r), f)
+      else {
+        // Plain ready value: apply `f` inline. A ready successful effect means
+        // the original encoding passes through unchanged — no re-lift needed.
+        val a        = r.asInstanceOf[A]
+        val fin: Any = f(a)
+        if (fin.isInstanceOf[Failure]) fin.asInstanceOf[Async[A]]
+        else if (fin.isInstanceOf[Pollable[?]])
+          Async.slowPath.runThenValue[A](fin, a, suppressFailure = false)
+        else r.asInstanceOf[Async[A]]
+      }
     }
 
     /**

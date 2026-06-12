@@ -101,18 +101,68 @@ private[async] object AsyncDcaTransform {
           // poll loop with a fresh stack) only when one of them suspends. The
           // condition and body become nested `cps.async` blocks so their own
           // awaits are CPS-rewritten in isolation.
-          case While(cond, bodyT) if containsAwait(cond) || containsAwait(bodyT) =>
+          // `while` with `.await` in the CONDITION (with or without body
+          // awaits): the general loop — both cond and body are nested
+          // `cps.async` thunks evaluated per turn.
+          case While(cond, bodyT) if containsAwait(cond) =>
             given Quotes = owner.asQuotes
             val condT    = transformTerm(cond)(owner)
             val bodyT2   = transformTerm(bodyT)(owner)
-            val condE    = '{
-              given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
-              cps.async[Async](${ condT.asExprOf[Boolean] })
+            val bodyE    =
+              if (bodyT2.tpe <:< TypeRepr.of[Unit])
+                '{
+                  given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+                  cps.async[Async](${ bodyT2.asExprOf[Unit] })
+                }
+              else
+                '{
+                  given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+                  cps.async[Async] {
+                    val _ = ${ bodyT2.asExpr }
+                    ()
+                  }
+                }
+            locally {
+              val condE = '{
+                given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
+                cps.async[Async](${ condT.asExprOf[Boolean] })
+              }
+              '{
+                given cps.CpsMonadContext[Async] =
+                  new cps.CpsTryMonadInstanceContextBody[Async](AsyncCpsMonad)
+                val condFn: () => Async[Boolean] = () => $condE
+                val bodyFn: () => Async[Unit]    = () => $bodyE
+                def loop0(): Async[Unit]         = {
+                  var out: Async[Unit] = null.asInstanceOf[Async[Unit]]
+                  while (out == null) {
+                    val c: Any = condFn()
+                    if (c.isInstanceOf[Pollable[?]])
+                      // suspended (or failed — flatMap short-circuits a Failure)
+                      out = c.asInstanceOf[Async[Boolean]].flatMap { (cv: Boolean) =>
+                        if (cv) bodyFn().flatMap((_: Unit) => loop0())
+                        else Async.succeed(())
+                      }
+                    else if (!c.asInstanceOf[Boolean]) out = Async.succeed(())
+                    else {
+                      val b: Any = bodyFn()
+                      if (b.isInstanceOf[Pollable[?]])
+                        out = b.asInstanceOf[Async[Unit]].flatMap((_: Unit) => loop0())
+                    }
+                  }
+                  out
+                }
+                cps.await[Async, Unit, Async](loop0())
+              }.asTerm
             }
-            // A Unit-typed body is spliced directly (a `body; ()` wrapper would
-            // put a pure body in statement position — a fatal warning on Scala
-            // 3.3); a non-Unit body is discarded through `val _ = ...`.
-            val bodyE =
+
+          // `while` with `.await` only in the BODY (the common
+          // `while (i < n) { ... fa.await ... }` shape): the condition is read
+          // directly each turn — no per-iteration `cps.async` thunk for it.
+          case While(cond, bodyT) if containsAwait(bodyT) =>
+            given Quotes = owner.asQuotes
+            val condT    = transformTerm(cond)(owner)
+            val bodyT2   = transformTerm(bodyT)(owner)
+            val bodyE    =
               if (bodyT2.tpe <:< TypeRepr.of[Unit])
                 '{
                   given cps.CpsTryMonadInstanceContext[Async] = AsyncCpsMonad
@@ -129,19 +179,11 @@ private[async] object AsyncDcaTransform {
             '{
               given cps.CpsMonadContext[Async] =
                 new cps.CpsTryMonadInstanceContextBody[Async](AsyncCpsMonad)
-              val condFn: () => Async[Boolean] = () => $condE
-              val bodyFn: () => Async[Unit]    = () => $bodyE
-              def loop0(): Async[Unit]         = {
+              val bodyFn: () => Async[Unit] = () => $bodyE
+              def loop0(): Async[Unit]      = {
                 var out: Async[Unit] = null.asInstanceOf[Async[Unit]]
                 while (out == null) {
-                  val c: Any = condFn()
-                  if (c.isInstanceOf[Pollable[?]])
-                    // suspended (or failed — flatMap short-circuits a Failure)
-                    out = c.asInstanceOf[Async[Boolean]].flatMap { (cv: Boolean) =>
-                      if (cv) bodyFn().flatMap((_: Unit) => loop0())
-                      else Async.succeed(())
-                    }
-                  else if (!c.asInstanceOf[Boolean]) out = Async.succeed(())
+                  if (!${ condT.asExprOf[Boolean] }) out = Async.succeed(())
                   else {
                     val b: Any = bodyFn()
                     if (b.isInstanceOf[Pollable[?]])
