@@ -38,7 +38,10 @@ private[async] object AsyncRunner {
       run.drive(any.asInstanceOf[Pollable[A]])
       run
     } else
-      try new CompletedRunning[A](Async.slowPath.block[A](any))
+      // Re-encode the driven result so a pollable-as-value terminal is stored as
+      // a settled `WrappedPollable`, not a bare `Pollable` (which the Running's
+      // `poll` would re-expose as a still-suspended computation).
+      try new CompletedRunning[A](AsyncEncoding.liftSuccess(Async.slowPath.block[A](any)))
       catch { case t: Throwable => new CompletedRunning[A](new Failure(Failure.unwindCause(t))) }
   }
 
@@ -60,6 +63,7 @@ private[async] object AsyncRunner {
     private implicit val ec: ExecutionContext = scala.scalajs.concurrent.JSExecutionContext.queue
 
     private var terminal: Any = null
+    private var hasTerminal   = false
     private var cancelled     = false
     private var settled       = false
     private var waiters       = List.empty[Runnable]
@@ -90,22 +94,23 @@ private[async] object AsyncRunner {
       if (nany.isInstanceOf[Failure]) complete(nany)
       else if (nany.isInstanceOf[Pollable[_]])
         current = nany.asInstanceOf[Pollable[A]]
-      else complete(AsyncEncoding.deliverSuccess[A](nany))
+      else complete(nany) // store the raw terminal encoding (preserves pollable-as-value)
     }
 
     private def complete(value: Any): Unit =
       if (!cancelled && !settled) {
         settled = true
         terminal = value
+        hasTerminal = true
         val ws = waiters
         waiters = Nil
         ws.foreach(_.run())
       }
 
     def poll(onComplete: Runnable): Async[A] =
-      if (terminal != null) terminal.asInstanceOf[Async[A]]
+      if (hasTerminal) terminal.asInstanceOf[Async[A]]
       else {
-        if (!waiters.contains(w)) waiters = w :: waiters
+        if (!waiters.contains(onComplete)) waiters = onComplete :: waiters
         this
       }
 

@@ -16,7 +16,6 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
 import zio.test._
 import zio.test.Assertion._
 
@@ -338,7 +337,7 @@ object AsyncSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(a.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.boom))
       },
-      test("succeed-then-fail keeps the first AsyncTestSupport.outcome (succeed)") {
+      test("succeed-then-fail keeps the first outcome (succeed)") {
         val r = Async
           .promiseInternal[Int] { c =>
             c.succeed(1)
@@ -347,7 +346,7 @@ object AsyncSpec extends ZIOSpecDefault {
           .block
         assertTrue(r == 1)
       },
-      test("fail-then-succeed keeps the first AsyncTestSupport.outcome (fail)") {
+      test("fail-then-succeed keeps the first outcome (fail)") {
         val a = Async.promiseInternal[Int] { c =>
           c.fail(AsyncTestSupport.boom)
           c.succeed(1)
@@ -396,7 +395,7 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       // Category L — ensuring must not let null-finalizer addSuppressed NPE replace AsyncTestSupport.primary.
-      suite("ensuring null finalizer cause on pending AsyncTestSupport.primary")(
+      suite("ensuring null finalizer cause on pending primary")(
         test("ensuring_pendingPrimaryFail_nullFinalizerFail_surfacesPrimaryNotNpe") {
           val (c, pending) = {
             val c = new Completer[Int]
@@ -755,9 +754,10 @@ object AsyncSpec extends ZIOSpecDefault {
           assertTrue(Async.attempt(null: String).block == null)
         },
         test("promise_succeedNull_peekIsReadyNullNotPending") {
-          val a   = Async.promiseInternal[String](c => c.succeed(null))
-          val any = a.asInstanceOf[Any]
-          assertTrue(!any.isInstanceOf[Pollable[_]], a.block == null)
+          val a         = Async.promiseInternal[String](c => c.succeed(null))
+          val any       = a.asInstanceOf[Any]
+          val suspended = any != null && any.isInstanceOf[Pollable[_]]
+          assertTrue(!suspended, a.block == null)
         }
       ),
       // Category L — orElse chain with null failure on pending fallback.
@@ -1002,9 +1002,12 @@ object AsyncSpec extends ZIOSpecDefault {
             done.succeed(())
           }
           c.succeed(())
-          done.peek.block
-          running.cancel()
-          assertTrue(out == Right(inner))
+          for {
+            _ <- AsyncTestSupport.runAsync(done.peek)
+          } yield {
+            running.cancel()
+            assertTrue(out == Right(inner))
+          }
         }
       ),
       // Category B/H — Ready carrier through tap on pending path.
@@ -1233,7 +1236,7 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       // Category L — ensuring AsyncTestSupport.primary succeed + finalizer null fail preserves pollable.
-      suite("ensuring null finalizer with pollable AsyncTestSupport.primary")(
+      suite("ensuring null finalizer with pollable primary")(
         test("ensuring_pendingPrimarySucceedPollable_nullFinalizerFail_deliversPollableNotNpe") {
           val inner        = AsyncTestSupport.pollableSuccessValue
           val (c, pending) = {
@@ -1483,7 +1486,7 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       // Category J/M — EnsuringPollable Ready AsyncTestSupport.outcome branch after poll returns succeed(pollable).
-      suite("ensuring Ready AsyncTestSupport.outcome propagation")(
+      suite("ensuring Ready outcome propagation")(
         test("ensuring_pollReturnsSucceedPollable_preservesPollableIdentity") {
           val inner                       = AsyncTestSupport.pollableSuccessValue
           val pa: Pollable[Pollable[Int]] = new Pollable[Pollable[Int]] {
@@ -1678,9 +1681,12 @@ object AsyncSpec extends ZIOSpecDefault {
           }
           c1.fail(boom)
           c2.succeed(())
-          done.peek.block
-          running.cancel()
-          assertTrue(out == Right(inner))
+          for {
+            _ <- AsyncTestSupport.runAsync(done.peek)
+          } yield {
+            running.cancel()
+            assertTrue(out == Right(inner))
+          }
         }
       ),
       // Category L — either/block agreement on pending pollable success chain.
@@ -1945,7 +1951,7 @@ object AsyncSpec extends ZIOSpecDefault {
         },
         test("orElse_promiseFail_promiseFallbackSucceedPollable_preservesPollableIdentity") {
           val inner          = AsyncTestSupport.pollableSuccessValue
-          val boom2          = new RuntimeException("AsyncTestSupport.primary")
+          val boom2          = new RuntimeException("primary")
           val result: AnyRef =
             Async
               .promiseInternal[Pollable[Int]](_.fail(boom2))
@@ -2262,7 +2268,7 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       // Category J — EnsuringPollable AsyncTestSupport.outcome branch when pa resolves to WrappedPollable.
-      suite("ensuring WrappedPollable AsyncTestSupport.outcome branch")(
+      suite("ensuring WrappedPollable outcome branch")(
         test("ensuring_pendingSucceedPollable_finalizerFail_preservesPollableIdentity") {
           val inner        = AsyncTestSupport.pollableSuccessValue
           val (c, pending) = {
@@ -2463,9 +2469,12 @@ object AsyncSpec extends ZIOSpecDefault {
             done.succeed(())
           }
           c.succeed(())
-          done.peek.block
-          running.cancel()
-          assertTrue(out == Right(inner))
+          for {
+            _ <- AsyncTestSupport.runAsync(done.peek)
+          } yield {
+            running.cancel()
+            assertTrue(out == Right(inner))
+          }
         }
       ),
       // Category J — Completer.poll after succeed pollable must match peek egress.
@@ -2802,6 +2811,46 @@ object AsyncSpec extends ZIOSpecDefault {
           assertTrue(result._1 eq inner, result == (inner, "x"))
         }
       ),
+      // Category H/B — map/as over a *suspended* source must preserve a public
+      // Completer held as a success value, identically to the ready path. A
+      // Completer is a value-capable public Pollable, not a CPS continuation, so
+      // it must not be driven (which would substitute its inner value).
+      suite("map/as Completer-as-value preservation (pending source)")(
+        test("map_pendingSourceCompleterValue_isNotSilentlyDriven") {
+          val cv = new Completer[String]
+          cv.succeed("driven")
+          val value: AnyRef = cv
+
+          val ready: AnyRef = Async.succeed(0).map(_ => value).block
+
+          val (c, pending) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val fa: Async[AnyRef] = pending.map(_ => value)
+          c.succeed(0)
+          val suspended: AnyRef = fa.block
+
+          assertTrue(ready eq cv, suspended eq cv)
+        },
+        test("as_pendingSourceCompleterValue_isNotSilentlyDriven") {
+          val cv = new Completer[String]
+          cv.succeed("driven")
+          val value: AnyRef = cv
+
+          val ready: AnyRef = Async.succeed(0).as(value).block
+
+          val (c, pending) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val fa: Async[AnyRef] = pending.as(value)
+          c.succeed(0)
+          val suspended: AnyRef = fa.block
+
+          assertTrue(ready eq cv, suspended eq cv)
+        }
+      ),
       test("succeed_pollableValue_isNotSilentlyDriven") {
         val inner: Pollable[Int] = new Pollable[Int] {
           def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
@@ -2988,7 +3037,7 @@ object AsyncSpec extends ZIOSpecDefault {
         }
       ),
       suite("tap (RunThenValuePollable)")(
-        test("pending input, tap effect runs then yields the AsyncTestSupport.original value") {
+        test("pending input, tap effect runs then yields the original value") {
           val (c, fa) = AsyncTestSupport.pending[Int]
           var seen    = 0
           val t       = fa.tap { v => seen = v; Async.succeed(()) }
@@ -3055,7 +3104,7 @@ object AsyncSpec extends ZIOSpecDefault {
           c2.succeed(())
           assertTrue(AsyncTestSupport.outcome(AsyncTestSupport.driveToEnd(r2)) == Right(9))
         },
-        test("a failing finalizer is suppressed; AsyncTestSupport.original AsyncTestSupport.outcome wins") {
+        test("a failing finalizer is suppressed; original outcome wins") {
           val (c, fa) = AsyncTestSupport.pending[Int]
           val e       = fa.ensuring(Async.fail(boom))
           val r1      = AsyncTestSupport.pollOnce(e)

@@ -16,16 +16,12 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
+import zio.ZIO
 import zio.test._
-import zio.test.Assertion._
-
-import scala.util.Try
 
 import zio.durationInt
 import zio.test.Live
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicReference}
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 
 /**
  * start, driver parity, cancellation.
@@ -90,7 +86,7 @@ object AsyncRunSpec extends ZIOSpecDefault {
             e     <- fiber.join
           } yield assertTrue(e == Left(boom))
         },
-        test("driver advances to the pollable returned by poll (not re-polling the AsyncTestSupport.original)") {
+        test("driver advances to the pollable returned by poll (not re-polling the original)") {
           // Would never deliver under a re-poll-the-AsyncTestSupport.original driver; completes
           // only because the runner walks the chain of distinct pollables.
           AsyncTestSupport.runAsync(new StepChain(5, 0)).map(v => assertTrue(v == 5))
@@ -102,6 +98,16 @@ object AsyncRunSpec extends ZIOSpecDefault {
             def poll(onComplete: Runnable): Async[Int] = throw boom
           }
           AsyncTestSupport.runAsync(thrower).either.map(e => assertTrue(e == Left(boom)))
+        },
+        test("a throwing finalizer on a pending failure still surfaces the primary") {
+          val c = new Completer[Int]
+          val a = c.peek.ensuring(AsyncTestSupport.throwingFinalizer)
+          for {
+            out <- ZIO.async[Any, Nothing, Either[Throwable, Int]] { k =>
+                     AsyncTestSupport.startEither(a)(res => k(ZIO.succeed(res)))
+                     c.fail(AsyncTestSupport.primary)
+                   }
+          } yield assertTrue(out == Left(AsyncTestSupport.primary))
         }
       ),
       suite("cancellation")(
@@ -138,19 +144,6 @@ object AsyncRunSpec extends ZIOSpecDefault {
           // Let any stray resumptions (extra microtasks on JS) drain before we read.
           _ <- Live.live(ZIO.sleep(50.millis))
         } yield assertTrue(result == 42, p.polls.get() == 2)
-      },
-      test("start_ensuringPrimaryFail_finalizerPollThrow_deliversPrimary") {
-        val c                           = new Completer[Int]
-        val a                           = c.peek.ensuring(AsyncTestSupport.throwingFinalizer)
-        var out: Either[Throwable, Int] = null.asInstanceOf[Either[Throwable, Int]]
-        AsyncTestSupport.startEither(a)(res => out = res)
-        c.fail(AsyncTestSupport.primary)
-        var spins = 0
-        while (out == null && spins < 1000) {
-          Thread.sleep(1)
-          spins += 1
-        }
-        assertTrue(out == Left(AsyncTestSupport.primary))
       }
     ),
     suite("cancel")(

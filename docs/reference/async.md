@@ -44,8 +44,8 @@ The [`async-examples`](https://github.com/zio/zio-blocks/tree/main/async-example
 module contains a single self-contained program that walks through the major
 features in one file — ready-path composition, direct-style `Async.async` /
 `.await`, `zip` / `collectAll`, error handling, `Async.promise`, a custom
-[[Pollable]] leaf, `tap` / `ensuring`, cancellable `unsafeRunAsync`, and JVM
-`Future` interop.
+[[Pollable]] leaf, `tap` / `ensuring`, cancellable `Async.start` /
+`Async.Running`, and JVM `Future` interop.
 
 ```bash
 sbt "++3.8.3; async-examples/run"
@@ -251,16 +251,15 @@ positions diverge between Scala 2 and Scala 3 — those are called out explicitl
   `Some`/`None` branch — `None` short-circuits (the closure never runs), `Some(x)`
   runs the closure and (for `map`/`flatMap`) rewraps the result; a failed await
   propagates.
-- **`Vector` / immutable `Set`** (`map` / `flatMap` / `foreach`): **lazy /
-  sequential** like `List.foreach` (the closure for element `n+1` runs only after
-  element `n`'s await completes; a failure short-circuits the rest). Note that
-  `Vector.map` is lazy — only `List.map` is eager (it is the special case backed
-  by dotty-cps-async's `ListAsyncShift`). The result **collection type is
-  preserved** (`Vector.map` → `Vector`, `Set.map` → `Set`); for `Set`, the
-  *awaited* values are deduplicated. The other strict immutable `Seq` families
-  `scala.collection.immutable.Queue` and `scala.collection.immutable.ArraySeq`
-  behave identically to `Vector` (lazy / sequential, family preserved), since
-  they reuse the same builder-backed `iterable` rewrites.
+- **`Vector` / immutable `Set` / immutable `Queue` / immutable `ArraySeq`**
+  (`map` / `flatMap` / `foreach`, plus the builder-backed methods below): **lazy
+  / sequential** like `List.foreach` (the closure for element `n+1` runs only
+  after element `n`'s await completes; a failure short-circuits the rest). Note
+  that `Vector.map` / `Queue.map` / `ArraySeq.map` are lazy — only `List.map` is
+  eager (it is the special case backed by dotty-cps-async's `ListAsyncShift`).
+  The result **collection type is preserved** (`Vector.map` → `Vector`,
+  `Queue.map` → `Queue`, `ArraySeq.map` → `ArraySeq`, `Set.map` → `Set`); for
+  `Set`, the *awaited* values are deduplicated.
 - **`Array`** (`map` / `flatMap` / `foreach` / `filter` / `takeWhile` /
   `dropWhile` / `foldLeft` / `collect` / `find` / `exists` / `forall`): the
   result is always an `Array[B]` with the **element type preserved, including
@@ -306,34 +305,37 @@ positions diverge between Scala 2 and Scala 3 — those are called out explicitl
   initial accumulator (the op never runs); a failed await short-circuits the
   remaining (right-to-left) elements.
 - **`filter` / `filterNot`** (predicate `A => Boolean`): **lazy / sequential**
-  over a `List` / `Vector` / immutable `Set` / `Option` — the predicate for
-  element `n+1` runs only after element `n`'s await completes, and a failed
-  await short-circuits the rest. The result **collection type is preserved**
-  (`filter` keeps elements whose predicate is `true`, `filterNot` those whose
-  predicate is `false`). **Divergence:** `Map.filter` / `Map.filterNot` with
-  `.await` is a **Scala-2-only superset** — dotty-cps-async has no working
-  `MapOpsAsyncShift.filter` and rejects it on Scala 3.
+  over a `List` / `Vector` / `Array` / immutable `Set` / immutable `Queue` /
+  immutable `ArraySeq` / `Option` — the predicate for element `n+1` runs only
+  after element `n`'s await completes, and a failed await short-circuits the
+  rest. The result **collection type is preserved** (`filter` keeps elements
+  whose predicate is `true`, `filterNot` those whose predicate is `false`).
+  **Divergence:** `Map.filter` / `Map.filterNot` with `.await` is a
+  **Scala-2-only superset** — dotty-cps-async has no working `MapOpsAsyncShift.filter`
+  and rejects it on Scala 3.
 - **`takeWhile` / `dropWhile`** (predicate `A => Boolean`): **lazy / sequential**
-  over an ordered `Seq` (`List` / `Vector`) — these are **prefix-ordered**, so the
-  predicate for element `n+1` runs only after element `n`'s await completes, and
-  the FIRST element whose predicate is `false` decides the boundary (`takeWhile`
-  keeps the leading run and discards it and the rest; `dropWhile` drops the
-  leading run and keeps it and the rest **unconditionally**, never re-evaluating
-  the predicate). A failed await short-circuits the rest. The result **collection
-  type is preserved**. They are restricted to ordered receivers because a
-  leading-prefix predicate is ill-defined on an unordered `Set` / `Map` (and
-  `Option` does not provide them); the Scala 2 macro rejects those with an
-  actionable compile error.
+  over an ordered receiver (`List` / `Vector` / immutable `Queue` / immutable
+  `ArraySeq` / `Array`) — these are **prefix-ordered**, so the predicate for
+  element `n+1` runs only after element `n`'s await completes, and the FIRST
+  element whose predicate is `false` decides the boundary (`takeWhile` keeps the
+  leading run and discards it and the rest; `dropWhile` drops the leading run and
+  keeps it and the rest **unconditionally**, never re-evaluating the predicate).
+  A failed await short-circuits the rest. The result **collection type is
+  preserved**. They are restricted to ordered receivers because a leading-prefix
+  predicate is ill-defined on an unordered `Set` / `Map` (and `Option` does not
+  provide them); the Scala 2 macro rejects those with an actionable compile
+  error.
 - **`collect`** (partial function `{ case ... }`): **lazy / sequential** over a
-  `List` / `Vector` / `Array` / immutable `Set` — keeps the elements the partial
-  function is defined at, mapping each through its (awaiting) case body; the case
-  for element `n+1` runs only after element `n`'s await completes, and a failed
-  await short-circuits the rest. The result **collection type is preserved**. An
-  `Option` receiver is supported too: `None` short-circuits without evaluating
-  the partial function, `Some(a)` yields `Some(b)` if a case matches, else
-  `None`. A **non-pair `Map.collect`** (whose case bodies yield a `B`, so the
-  result is an `Iterable[B]`) is supported on every cell. The case guard runs
-  exactly once per element (Scala 2). A `.await` in a case GUARD is rejected.
+  `List` / `Vector` / `Array` / immutable `Set` / immutable `Queue` / immutable
+  `ArraySeq` — keeps the elements the partial function is defined at, mapping
+  each through its (awaiting) case body; the case for element `n+1` runs only
+  after element `n`'s await completes, and a failed await short-circuits the
+  rest. The result **collection type is preserved**. An `Option` receiver is
+  supported too: `None` short-circuits without evaluating the partial function,
+  `Some(a)` yields `Some(b)` if a case matches, else `None`. A **non-pair
+  `Map.collect`** (whose case bodies yield a `B`, so the result is an
+  `Iterable[B]`) is supported on every cell. The case guard runs exactly once per
+  element (Scala 2). A `.await` in a case GUARD is rejected.
   **Divergence:** a **pair-yielding `Map.collect`** (whose case bodies yield
   `(K2, V2)` pairs, so the result is a `Map[K2, V2]`) is **unsupported on every
   cell** — dotty-cps-async has only an `IterableOpsAsyncShift.collect[F, B]`
@@ -367,9 +369,10 @@ val pairs: Async[List[Int]] = Async.async {
 > `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
 > scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`,
 > `foldRight`, and `reduce` / `reduceLeft` over
-> those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered `Seq`
-> receivers (`List` / `Vector` / `Array`), `collect` over builder-backed receivers
-> (`List` / `Vector` / `Array` / `Set`), and the
+> those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered
+> receivers (`List` / `Vector` / immutable `Queue` / immutable `ArraySeq` /
+> `Array`), `collect` over builder-backed receivers (`List` / `Vector` / `Array`
+> / immutable `Set` / immutable `Queue` / immutable `ArraySeq`), and the
 > for-comprehensions that desugar to the former (including guards), but **rejects**
 > `.await` inside other function
 > literals / higher-order-function arguments (and HOFs over collections other than
@@ -437,11 +440,11 @@ Compose with `either`, `tap`, `foldCause`, and the other operators **before**
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Int] =
+val running: Async.Running[Either[Throwable, Int]] =
   Async.succeed(1).map(_ + 1).either.tap {
     case Right(value) => Async.succeed(println(s"done: $value"))
     case Left(cause)  => Async.succeed(println(s"failed: $cause"))
-  }.start()
+  }.start
 
 running.cancel() // idempotent; no-op once the run has completed
 ```
@@ -494,15 +497,23 @@ returns the ready value (or a `Failure`) when available, or a `Pollable`
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
 |----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
 | Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`take`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
+| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), `js.async`/`js.await` (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`takeWhile`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.start` / `Async.Running`       | ✅ | ✅ | ✅        | ✅        | Eager non-blocking runner; worker thread (JVM) / microtask (JS) |
 | `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
 | `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
 
-The public API is identical across all platforms and Scala versions by design;
-the cross-platform test suite fails if any user-visible behavior diverges.
+The core `Async` API is identical across all platforms and Scala versions by
+design; platform interop APIs are intentionally platform-specific as shown
+above. The cross-platform test suite fails if any user-visible core behavior
+diverges.
+
+Scala.js on Scala 3.8.3 has one known compiler limitation: a direct
+`Async[Unit].await` can expand to `js.await(Promise[Unit])`, which that compiler
+rejects. The limitation is in Scala.js native `js.await` and is deferred until
+Scala 3.8.4 is stable; bind or widen the awaited value away from `Unit` when
+targeting Scala.js 3.8.3.
 
 ## See Also
 

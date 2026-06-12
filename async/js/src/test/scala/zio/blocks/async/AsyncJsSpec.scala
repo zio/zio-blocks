@@ -16,11 +16,14 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
+import zio._
 import zio.test._
-import zio.test.Assertion._
 
+import scala.concurrent.{Future, Promise => SPromise}
+import scala.scalajs.js
 import scala.util.Try
+
+import AsyncJsTestSupport._
 
 /**
  * Scala.js cannot block.
@@ -95,7 +98,7 @@ object AsyncJsSpec extends ZIOSpecDefault {
         for {
           vf <- ZIO.fromFuture(_ => AsyncInterop.toFuture(pf))
           vr <- AsyncTestSupport.runAsync(pr)
-          _ <- drain
+          _  <- drain
         } yield assertTrue(vf == vr, pf.polls == pr.polls, vf == 3)
       },
       // -------- (e) value on poll #1 (no suspension) through the suspended entry path --------
@@ -119,7 +122,8 @@ object AsyncJsSpec extends ZIOSpecDefault {
         var cbCount = 0
         for {
           v <- ZIO.async[Any, Throwable, Int] { k =>
-                 AsyncTestSupport.startEither(p){ res => cbCount += 1
+                 AsyncTestSupport.startEither(p) { res =>
+                   cbCount += 1
                    p.captured.run() // re-entrant: fired from inside the terminating callback
                    k(ZIO.fromEither(res))
                  }

@@ -1216,6 +1216,14 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             .async(scala.collection.immutable.ArraySeq(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
             .block
           assertTrue(r == 6)
+        },
+        test("ArraySeq.collect preserves the ArraySeq type") {
+          val r = Async.async {
+            scala.collection.immutable.ArraySeq(1, 2, 3, 4).collect {
+              case i if i % 2 == 1 => Async.succeed(i * 10).await
+            }
+          }.block
+          assertTrue(r == scala.collection.immutable.ArraySeq(10, 30))
         }
       ),
       // `Array` is special: it is invariant, is not an `Iterable`, and its HOFs go
@@ -1316,6 +1324,34 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }
           latch.await()
           assertTrue(cbThread.get() ne callerThread)
+        }
+      },
+      test("start of a pollable-as-value settles to the pollable identity and re-blocks without deadlock") {
+        ZIO.attemptBlocking {
+          val inner: Pollable[Int] = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
+          }
+
+          // Un-started block preserves the pollable-as-value (established contract).
+          val direct: AnyRef = (Async.succeed(inner): Async[Pollable[Int]]).block.asInstanceOf[AnyRef]
+
+          // A Running is itself an Async[A]; blocking it must yield the same value.
+          // Regression: `start` stored the bare pollable terminal, so the Running's
+          // `poll` re-exposed it as a still-suspended computation and the blocking
+          // worker parked forever (no wakeup) -> deadlock.
+          val running = Async.start(Async.succeed(inner))
+          val result  = new AtomicReference[AnyRef](null)
+          val done    = new AtomicBoolean(false)
+          val worker  = new Thread(new Runnable {
+            def run(): Unit =
+              try result.set((running: Async[Pollable[Int]]).block.asInstanceOf[AnyRef])
+              finally done.set(true)
+          })
+          worker.setDaemon(true)
+          worker.start()
+          worker.join(2000) // bound a potential regression so the suite fails instead of hanging
+
+          assertTrue(direct eq inner, done.get(), result.get() eq inner)
         }
       },
       test("cancel interrupts a parked worker, killing the thread and suppressing the callback") {

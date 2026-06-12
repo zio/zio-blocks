@@ -16,7 +16,6 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
 import zio.test._
 import zio.test.Assertion._
 
@@ -239,13 +238,13 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val r   = Async.succeed(1).ensuring(Async.succeed { ran = true }).block
         assertTrue(r == 1, ran)
       },
-      test("runs finalizer on failure (and propagates the AsyncTestSupport.original failure)") {
+      test("runs finalizer on failure (and propagates the original failure)") {
         var ran    = false
         val r      = Async.fail(AsyncTestSupport.boom).ensuring(Async.succeed { ran = true })
         val thrown = scala.util.Try(r.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.boom), ran)
       },
-      test("suppresses finalizer failure (AsyncTestSupport.original AsyncTestSupport.outcome wins)") {
+      test("suppresses finalizer failure (original outcome wins)") {
         val r = Async.succeed(1).ensuring(Async.fail(AsyncTestSupport.boom)).block
         assertTrue(r == 1)
       }

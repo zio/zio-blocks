@@ -279,7 +279,7 @@ object AsyncShowcaseExample extends App {
   val callbackFired = new AtomicBoolean(false)
 
   val running: Async.Running[Nothing] =
-    Async.start(Async.never.tap(_ => { callbackFired.set(true); Async.succeed(()) }))
+    Async.start(Async.never.tap((_: Nothing) => { callbackFired.set(true); Async.succeed(()) }))
 
   running.cancel()
   Thread.sleep(50)

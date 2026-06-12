@@ -66,14 +66,14 @@ object AsyncInterop {
    */
   def toFuture[A](fa: Async[A])(implicit ec: ExecutionContext): Future[A] = {
     val any = fa.asInstanceOf[Any]
-    if (any.isInstanceOf[Failure]) Future.failed(any.asInstanceOf[Failure].cause)
+    if (any.isInstanceOf[Failure]) failFuture(any.asInstanceOf[Failure].cause)
     else if (AsyncEncoding.isSuspended(any)) {
       val p = Promise[A]()
       drive(fa, p)
       p.future
     } else
       try Future.successful(Async.slowPath.block[A](fa))
-      catch { case t: Throwable => Future.failed(Failure.unwindCause(t)) }
+      catch { case t: Throwable => failFuture(Failure.unwindCause(t)) }
   }
 
   /**
@@ -92,7 +92,7 @@ object AsyncInterop {
    */
   private def drive[A](fa: Async[A], p: Promise[A])(implicit ec: ExecutionContext): Unit = {
     val any = fa.asInstanceOf[Any]
-    if (any.isInstanceOf[Failure]) { p.failure(any.asInstanceOf[Failure].cause); () }
+    if (any.isInstanceOf[Failure]) failPromise(p, any.asInstanceOf[Failure].cause)
     else if (AsyncEncoding.isSuspended(any)) {
       // `current` holds the latest pollable; `step` advances it to the pollable
       // returned by `poll`, exactly like the JVM driver (`Async.block`) loops on
@@ -106,8 +106,9 @@ object AsyncInterop {
       // would re-poll the completed pollable and re-complete `p`, throwing
       // `IllegalStateException: Promise already completed`. Mirrors the JVM
       // driver, which collapses multiple wakeups and stops polling after a value.
-      var settled           = false
-      lazy val onComplete: Runnable = new Runnable { def run(): Unit =
+      var settled                   = false
+      lazy val onComplete: Runnable = new Runnable {
+        def run(): Unit =
           js.Promise
             .resolve[Unit](())
             .toFuture
@@ -121,9 +122,9 @@ object AsyncInterop {
           // runner, both of which funnel a thrown `poll` into the failure path.
           val next =
             try current.poll(onComplete)
-            catch { case t: Throwable => settled = true; p.failure(Failure.unwindCause(t)); return }
+            catch { case t: Throwable => settled = true; failPromise(p, Failure.unwindCause(t)); return }
           val nany = next.asInstanceOf[Any]
-          if (nany.isInstanceOf[Failure]) { settled = true; p.failure(nany.asInstanceOf[Failure].cause); () }
+          if (nany.isInstanceOf[Failure]) { settled = true; failPromise(p, nany.asInstanceOf[Failure].cause) }
           else if (nany.isInstanceOf[Pollable[_]]) {
             current = nany.asInstanceOf[Pollable[A]]; ()
           } // advance; wait for waker
@@ -132,7 +133,7 @@ object AsyncInterop {
       step()
     } else
       try { p.success(Async.slowPath.block[A](any)); () }
-      catch { case t: Throwable => p.failure(Failure.unwindCause(t)); () }
+      catch { case t: Throwable => failPromise(p, Failure.unwindCause(t)) }
   }
 
   /**
@@ -143,4 +144,15 @@ object AsyncInterop {
       case e: js.JavaScriptException if e.exception == null => null
       case other                                            => other
     })
+
+  /** Scala `Future` / `Promise.failure` reject a `null` exception. */
+  private def failFuture[A](cause: Throwable): Future[A] =
+    if (cause eq null) Future.failed(Failure.NullCauseMarker)
+    else Future.failed(cause)
+
+  private def failPromise[A](promise: Promise[A], cause: Throwable): Unit = {
+    if (cause eq null) promise.failure(Failure.NullCauseMarker)
+    else promise.failure(cause)
+    ()
+  }
 }

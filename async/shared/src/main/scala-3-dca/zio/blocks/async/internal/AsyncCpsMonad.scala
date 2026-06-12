@@ -83,7 +83,7 @@ object AsyncCpsMonad extends CpsTryMonadInstanceContext[Async] {
         .catchAll((t: Throwable) => Async.succeed(TryFailure(t): Try[A]))
         .flatMap(applyF)
     else
-      applyF(TrySuccess(r.asInstanceOf[A]))
+      applyF(TrySuccess(AsyncEncoding.deliverSuccess[A](r)))
   }
 }
 

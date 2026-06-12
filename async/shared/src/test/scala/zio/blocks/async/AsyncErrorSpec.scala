@@ -16,9 +16,7 @@
 
 package zio.blocks.async
 
-import zio.{Chunk, Task, ZIO}
 import zio.test._
-import zio.test.Assertion._
 
 import scala.util.Try
 
@@ -268,7 +266,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
           }
         assertTrue(viaEither == Left(null), viaBlock == Left(null))
       },
-      test("ensuring with a null finalizer cause surfaces the AsyncTestSupport.primary, not an addSuppressed NPE") {
+      test("ensuring with a null finalizer cause surfaces the primary, not an addSuppressed NPE") {
         val boom   = AsyncTestSupport.boom
         val a      = Async.fail(boom).ensuring(Async.fail(null))
         val thrown = Try(a.block).failed.toOption
@@ -343,7 +341,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
       }
     ),
     suite("ensuring suppressed errors")(
-      test("a failing finalizer is attached to the AsyncTestSupport.primary failure as suppressed") {
+      test("a failing finalizer is attached to the primary failure as suppressed") {
         val primaryCause = new RuntimeException("primary")
         val fin          = new RuntimeException("finalizer")
         val a            = Async.fail(primaryCause).ensuring(Async.fail(fin))
@@ -354,7 +352,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         )
       },
       test(
-        "ensuring with the same exception as AsyncTestSupport.primary and finalizer surfaces the AsyncTestSupport.primary, not a self-suppression crash"
+        "ensuring with the same exception as primary and finalizer surfaces the primary, not a self-suppression crash"
       ) {
         val e      = new RuntimeException("shared")
         val a      = Async.fail(e).ensuring(Async.fail(e))
@@ -362,7 +360,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         assertTrue(thrown.contains(e))
       },
       test(
-        "finalizer cause that is also the AsyncTestSupport.primary's cause still surfaces the AsyncTestSupport.primary"
+        "finalizer cause that is also the primary's cause still surfaces the primary"
       ) {
         val root          = new RuntimeException("root")
         val primaryCause  = new RuntimeException("primary", root) // primaryCause.getCause eq root
@@ -374,7 +372,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         )
       },
       test(
-        "a suppressed-graph cycle (finalizer caused-by AsyncTestSupport.primary) surfaces the AsyncTestSupport.primary without looping"
+        "a suppressed-graph cycle (finalizer caused-by primary) surfaces the primary without looping"
       ) {
         val primaryCause  = new RuntimeException("primary")
         val fin           = new RuntimeException("fin", primaryCause) // fin.getCause eq primaryCause -> cycle once suppressed
@@ -409,7 +407,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
           supp.contains(f2)
         )
       },
-      test("ensuring with a succeeding AsyncTestSupport.primary drops a failing finalizer without surfacing it") {
+      test("ensuring with a succeeding primary drops a failing finalizer without surfacing it") {
         val fin           = new RuntimeException("fin")
         val a: Async[Int] = Async.succeed(1).ensuring(Async.fail(fin))
         assertTrue(a.block == 1)

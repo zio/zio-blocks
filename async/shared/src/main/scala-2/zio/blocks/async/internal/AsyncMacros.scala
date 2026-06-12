@@ -592,17 +592,18 @@ private[async] object AsyncMacros {
                 case _                        => recv
               }
               val t = if (underlying.tpe != null) underlying.tpe.dealias.widen else NoType
-              // `Array` is ordered too (via `ArrayOps`) but is not a `Seq`, so
-              // admit it alongside ordered `Seq` receivers.
+              // `Array` is ordered too (via `ArrayOps`) but is not a `Seq`; admit
+              // it alongside ordered immutable `Seq` receivers (`List`, `Vector`,
+              // `Queue`, `ArraySeq`, ...).
               val isOrdered =
                 t <:< SeqAnyTpe || t.typeSymbol == ArrayOpsSym || t.typeSymbol == ArrayClassSym
               if (!isOrdered)
                 c.abort(
                   tt.pos,
                   s"`.await` inside a `$m` closure is currently supported only for ordered `Seq` receivers " +
-                    "(`List` / `Vector` / `Array`) in the Scala 2 `Async.async` macro: a leading-prefix predicate is " +
+                    "(`List` / `Vector` / immutable `Queue` / immutable `ArraySeq`) and `Array` in the Scala 2 `Async.async` macro: a leading-prefix predicate is " +
                     "ill-defined on an unordered `Set` / `Map` (and `Option` does not provide it). Convert the " +
-                    "receiver to a `List` / `Vector` / `Array` first, or bind the awaited values before the lambda."
+                    "receiver to a `List` / `Vector` / immutable `Queue` / immutable `ArraySeq` / `Array` first, or bind the awaited values before the lambda."
                 )
             }
             hofRecvKinds.enqueue(kind)
@@ -650,7 +651,7 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a `foldLeft` op closure is currently supported only for `List`, `Option`, " +
-                  "`Vector`, immutable `Set`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
+                  "`Vector`, `Array`, immutable `Set`, immutable `Queue`, immutable `ArraySeq`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
                   "convert the receiver to one of those first, or bind the awaited values before the lambda."
               )
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
@@ -690,7 +691,7 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a `reduce` / `reduceLeft` op closure is currently supported only for `List`, " +
-                  "`Option`, `Vector`, immutable `Set`, and immutable `Map` receivers in the Scala 2 `Async.async` " +
+                  "`Option`, `Vector`, `Array`, immutable `Set`, immutable `Queue`, immutable `ArraySeq`, and immutable `Map` receivers in the Scala 2 `Async.async` " +
                   "macro; convert the receiver to one of those first, or bind the awaited values before the lambda."
               )
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
@@ -729,7 +730,7 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a `foldRight` op closure is currently supported only for `List`, `Option`, " +
-                  "`Vector`, immutable `Set`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
+                  "`Vector`, `Array`, immutable `Set`, immutable `Queue`, immutable `ArraySeq`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
                   "convert the receiver to one of those first, or bind the awaited values before the lambda."
               )
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
@@ -759,9 +760,10 @@ private[async] object AsyncMacros {
     // emitted builder-drain `def` needs that explicit return type, and the
     // element type `B` (its `typeArgs.head`) for the receiver's builder. Recorded
     // in transform order and validated here: `collect` with `.await` is
-    // supported (Scala 2) for `List` / `Vector` / `Array` / immutable `Set` (the
-    // builder-backed iterable receivers), `Option` (single-element `Some`/
-    // `None`), and immutable `Map` — but ONLY a non-pair `Map.collect` (result
+    // supported (Scala 2) for `List` / `Vector` / `Array` / immutable `Set` /
+    // immutable `Queue` / immutable `ArraySeq` (the builder-backed iterable
+    // receivers), `Option` (single-element `Some`/`None`), and immutable `Map` —
+    // but ONLY a non-pair `Map.collect` (result
     // `Iterable[B]`). A pair-yielding `Map.collect` (result `Map[K2, V2]`) is
     // rejected to stay strictly at parity with Scala 3: dotty-cps-async has only
     // an `IterableOpsAsyncShift.collect[F, B]` shift (no Map-specific one), so
@@ -792,7 +794,7 @@ private[async] object AsyncMacros {
               c.abort(
                 tt.pos,
                 "`.await` inside a `collect` case is currently supported only for `List`, `Vector`, `Array`, " +
-                  "immutable `Set`, `Option`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
+                  "immutable `Set`, immutable `Queue`, immutable `ArraySeq`, `Option`, and immutable `Map` receivers in the Scala 2 `Async.async` macro; " +
                   "convert the receiver to one of those first, or bind the awaited values before the partial function."
               )
             )

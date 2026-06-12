@@ -80,6 +80,16 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
       }
       assertTrue(fa.block == 42)
     },
+    test("try/catch over a ready pollable-as-value await preserves pollable identity") {
+      val inner: Pollable[Int] = new Pollable[Int] {
+        def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
+      }
+      val fa = Async.async {
+        try Async.succeed(inner).await
+        catch { case _: Throwable => null }
+      }
+      assertTrue(fa.block.asInstanceOf[AnyRef] eq inner.asInstanceOf[AnyRef])
+    },
     test("try/catch over a pending await drives CpsTryMonad's suspended success path") {
       // A genuinely-pending await inside try/catch routes through
       // AsyncCpsMonad.flatMapTry's Pollable branch (map/catchAll reification),

@@ -126,7 +126,28 @@ object Async extends AsyncCompanionVersionSpecific {
    * failure is propagated.
    */
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]] =
-    drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])
+    as match {
+      case list: List[?] => collectAllList[A](list.asInstanceOf[List[Async[A]]])
+      case _             => drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])
+    }
+
+  /**
+   * Fast path for immutable lists of already-ready values. In that case the
+   * input spine is already the result spine, so copying into a new List is pure
+   * allocation. Wrapped pollable success values still need unwrapping, and any
+   * suspended/failed element needs normal sequencing, so those shapes fall back
+   * to the iterator implementation.
+   */
+  private def collectAllList[A](list: List[Async[A]]): Async[List[A]] = {
+    var rem = list
+    while (rem.nonEmpty) {
+      val any = rem.head.asInstanceOf[Any]
+      if (any.isInstanceOf[Pollable[?]] || any.isInstanceOf[AsyncEncoding.WrappedPollable])
+        return drainCollectAll[A](list.iterator, new scala.collection.mutable.ListBuffer[A])
+      rem = rem.tail
+    }
+    list.asInstanceOf[Async[List[A]]]
+  }
 
   /**
    * Drain `it`, appending into `buf`. While inputs are raw values we stay in a
@@ -360,7 +381,7 @@ object Async extends AsyncCompanionVersionSpecific {
      */
     private def isContinuationPollable(p: Any): Boolean = p match {
       case _: FlatMapPollable[?, ?] | _: MapPollable[?, ?] | _: CatchAllPollable[?, ?] | _: ZipWithPollable[?, ?, ?] |
-          _: RunThenValuePollable[?] | _: EnsuringPollable[?] | _: Completer[?] =>
+          _: RunThenValuePollable[?] | _: EnsuringPollable[?] =>
         true
       case _ => false
     }

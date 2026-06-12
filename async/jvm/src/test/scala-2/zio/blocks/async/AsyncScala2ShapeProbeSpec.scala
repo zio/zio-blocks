@@ -28,21 +28,14 @@ import zio.test.Assertion._
  * We assert `isRight`; a `Left` (or crash) means the macro rejects/crashes on
  * legitimate code.
  *
- * Root cause: `AsyncMacros.transformBlock` only special-cases `ValDef`
- * statements; a `DefDef` / `ClassDef` / `ModuleDef` statement that does not
- * await falls through to `transform` -> `bind`, which wraps it as
- * `val tmp = <decl>` — invalid for a def/class/object declaration.
+ * Regression coverage: `AsyncMacros.transformBlock` must keep local member
+ * definitions (`def` / `class` / `object` / `type`) and imports verbatim rather
+ * than treating them as ANF-bindable values. Binding them as `val tmp = <decl>`
+ * is invalid for `def` / `type` declarations and can crash the compiler for
+ * local classes/objects.
  *
- * Outcomes on current code (Scala 2.13):
- *   - local non-awaiting `def`   => FAILS (Left): spurious compile error
- *     [BUG-ASYNC-003]
- *   - local non-awaiting `class` => FAILS (crash): macro "assertion failed"
- *     compiler crash [BUG-ASYNC-004]
- *   - local non-awaiting `lazy val` => PASSES (convergence; ValDef path)
- *   - string interpolation w/ await => PASSES (convergence; apply spine)
- *
- * Parity: Scala 3 (dotty-cps-async) compiles and runs BOTH the def and class
- * shapes correctly, so these are Scala-2-only defects.
+ * Parity: Scala 3 (dotty-cps-async) compiles and runs these shapes, so Scala 2
+ * must continue accepting them too.
  */
 object AsyncScala2ShapeProbeSpec extends ZIOSpecDefault {
 

@@ -39,7 +39,10 @@ private[async] object AsyncRunner {
       run.kick()
       run
     } else
-      try new CompletedRunning[A](Async.slowPath.block[A](any))
+      // Re-encode the driven result so a pollable-as-value terminal is stored as
+      // a settled `WrappedPollable`, not a bare `Pollable` (which the Running's
+      // `poll` would re-expose as a still-suspended computation -> re-block deadlock).
+      try new CompletedRunning[A](AsyncEncoding.liftSuccess(Async.slowPath.block[A](any)))
       catch { case t: Throwable => new CompletedRunning[A](new Failure(Failure.unwindCause(t))) }
   }
 
@@ -76,7 +79,7 @@ private[async] object AsyncRunner {
     private def drive(): Unit = {
       if (cancelled.get()) return
       val value: Any =
-        try Async.slowPath.awaitSuspended(pa)
+        try AsyncEncoding.liftSuccess(Async.slowPath.awaitSuspended(pa))
         catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
       if (!cancelled.get() && terminal.compareAndSet(null, value)) wakeAll()
     }

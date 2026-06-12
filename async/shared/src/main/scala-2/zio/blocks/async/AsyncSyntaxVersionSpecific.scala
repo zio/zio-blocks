@@ -192,8 +192,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
       }
     }
 
-    /** Replace the value with `b`. */
-    def as[B](b: B): Async[B] = map((_: A) => b)
+    /** Replace the value with `b`. Equivalent to `fa.map(_ => b)`. */
+    def as[B](b: => B): Async[B] = map((_: A) => b)
 
     /** Discard the value. */
     def unit: Async[Unit] = as(())

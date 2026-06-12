@@ -23,27 +23,15 @@ import zio.test._
  * Possible, Low).
  *
  * A `while` loop with `.await` in its body is fully supported (see
- * `AsyncAwaitBlockSpec`), but its sibling `do { ... } while (...)` — a
- * legitimate Scala 2.13 loop — is not. The macro's `transform` does not match
- * the `do/while` `LabelDef` shape (only the two `while` shapes), so it falls
- * through to the generic catch-all:
- *
- *   "This expression position is not supported by the Scala 2 `Async.async` macro."
- *
- * That diagnostic is confusing: it neither names `do/while` nor suggests the
- * supported `while` form, leaving the user with no actionable guidance for a
- * trivially-rewritable loop. Per the adversarial-testing contract, an abort on
- * an unsupported shape is acceptable only with a CLEAR diagnostic; a generic
- * "not supported" message here is a DX defect.
+ * `AsyncAwaitBlockSpec`), but its sibling `do { ... } while (...)` is not. The
+ * macro rejects the `do/while` `LabelDef` shape with a diagnostic that names the
+ * construct and points users toward an equivalent supported `while` form.
  *
  * Oracle: a compile diagnostic is part of the API/DX contract; an unsupported
  * shape must fail with a message that identifies the shape and the remedy.
  *
- * This test FAILS now: it asserts the diagnostic identifies the `do/while`
- * construct (mentions "do" or "while"), which the current generic message does
- * not. Fix direction: either support the `do/while` `LabelDef` shape in
- * `transformWhile`, or emit a targeted abort ("`do/while` is not supported
- * inside `Async.async`; rewrite as a `while` loop").
+ * If the macro ever supports `do/while`, this test may pass by compiling. Until
+ * then, the diagnostic must remain specific enough to be actionable.
  */
 object AsyncScala2DoWhileProbeSpec extends ZIOSpecDefault {
 

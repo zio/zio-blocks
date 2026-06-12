@@ -47,11 +47,11 @@ private[async] object AsyncDirect {
    */
   def awaitImpl[A: Type](self: Expr[Async[A]])(using Quotes): Expr[A] =
     '{
-      val r: Any = $self
-      if (r.isInstanceOf[Pollable[?]])
-        scala.scalajs.js.await(AsyncInterop.toJsPromise[A](r.asInstanceOf[Async[A]]))
-      else r.asInstanceOf[A]
-    }
+        val r: Any = $self
+        if (r.isInstanceOf[Pollable[?]])
+          scala.scalajs.js.await(AsyncInterop.toJsPromise[A](r.asInstanceOf[Async[A]]))
+        else AsyncEncoding.deliverSuccess[A](r)
+      }
 
   /**
    * `Async.async { body }` → `fromJsPromise(js.async { body })`. The body's

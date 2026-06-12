@@ -69,6 +69,13 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       test("`.await` of a succeeded Async returns the value") {
         ZIO.fromFuture(_ => run(Async.async(Async.succeed(7).await + 1))).map(r => assertTrue(r == 8))
       },
+      test("`.await` of a succeeded pollable-as-value returns the pollable identity") {
+        val inner: Pollable[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = Async.succeed(99)
+        }
+        val prog = Async.async(Async.succeed(inner).await)
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r.asInstanceOf[AnyRef] eq inner.asInstanceOf[AnyRef]))
+      },
       test("sequential awaits compose in order") {
         val prog = Async.async {
           val a = Async.succeed(2).await
@@ -613,6 +620,14 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         val prog =
           Async.async(scala.collection.immutable.ArraySeq(1, 2, 3).foldLeft(0)((a, x) => a + Async.succeed(x).await))
         ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6))
+      },
+      test("ArraySeq.collect preserves the ArraySeq type") {
+        val prog = Async.async {
+          scala.collection.immutable.ArraySeq(1, 2, 3, 4).collect {
+            case i if i % 2 == 1 => Async.succeed(i * 10).await
+          }
+        }
+        ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == scala.collection.immutable.ArraySeq(10, 30)))
       }
     ),
     // `Array`: `map` eager, `flatMap` lazy / sequential, result always `Array[B]`
