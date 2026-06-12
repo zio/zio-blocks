@@ -86,6 +86,21 @@ object AsyncRunSpec extends ZIOSpecDefault {
             e     <- fiber.join
           } yield assertTrue(e == Left(boom))
         },
+        test("completes when a fiber settles the Completer with null (terminal is published)") {
+          // A suspended run that resolves to a raw null success must still
+          // publish its terminal: the runner cannot reuse null as its own
+          // "not yet settled" sentinel (the JS runner keeps an explicit
+          // has-terminal flag; the JVM runner must agree — JVM/JS parity).
+          val c = new Completer[String]
+          for {
+            fiber <- AsyncTestSupport.runAsync(c.peek).fork
+            _     <- ZIO.succeed(c.succeed(null))
+            v     <- Live.live(
+                       fiber.join
+                         .timeoutFail(new RuntimeException("Running never published the null terminal"))(5.seconds)
+                     )
+          } yield assertTrue(v == null)
+        },
         test("driver advances to the pollable returned by poll (not re-polling the original)") {
           // Would never deliver under a re-poll-the-AsyncTestSupport.original driver; completes
           // only because the runner walks the chain of distinct pollables.
@@ -99,6 +114,34 @@ object AsyncRunSpec extends ZIOSpecDefault {
           val direct = AsyncTestSupport.fromPollable(new StepChain(2, 0)).block
           val mapped = scala.util.Try(AsyncTestSupport.fromPollable(new StepChain(2, 0)).map(_ + 1).block)
           assertTrue(direct == 2, mapped == scala.util.Success(3))
+        }
+      ),
+      suite("eval runner (Async.start(body))")(
+        test("evaluates the thunk off the caller and publishes its value") {
+          AsyncTestSupport.runAsync(Async.start(21 * 2)).map(v => assertTrue(v == 42))
+        },
+        test("reifies a thrown body as a failure") {
+          val running = Async.start[Int] {
+            val n = 0
+            if (n == 0) throw boom
+            n
+          }
+          AsyncTestSupport.runAsync(running).either.map(e => assertTrue(e == Left(boom)))
+        },
+        test("publishes a null body result (terminal is published)") {
+          // Same publication contract as the Completer-settled null above, via
+          // the by-name `Async.start(body)` entry point.
+          val running = Async.start {
+            val s: String = null
+            s
+          }
+          for {
+            fiber <- AsyncTestSupport.runAsync(running).fork
+            v     <- Live.live(
+                       fiber.join
+                         .timeoutFail(new RuntimeException("eval Running never published the null terminal"))(5.seconds)
+                     )
+          } yield assertTrue(v == null)
         }
       ),
       suite("failure surfacing")(
