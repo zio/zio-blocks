@@ -57,6 +57,18 @@ object AsyncJsRuntime {
   def deliver[A](encoded: Any): A = AsyncEncoding.deliverSuccess[A](encoded)
 
   /**
+   * Re-throw a ready failure's cause at the await site, synchronously — a ready
+   * `Failure` must not ride the promise transport (which costs a mandatory
+   * microtask and turns a ready block into a pending one). The throw is caught
+   * by the enclosing user `try`/`catch` or by the `js.async` wrapper's
+   * completion capture, both synchronously, exactly like the DCA cells. A
+   * `null` cause travels as `NullCauseMarker` and is decoded back by
+   * [[readyFailure]].
+   */
+  def rethrowReadyFailure(failed: Any): Nothing =
+    Failure.throwCause(failed.asInstanceOf[Failure].cause)
+
+  /**
    * A body that threw before its first suspension settles to a ready failure,
    * exactly like the other backends (`NullCauseMarker` decoded back to a null
    * cause).

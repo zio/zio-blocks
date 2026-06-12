@@ -147,7 +147,12 @@ private[async] object AsyncDirect {
                   val q        = transformTerm(qual)(owner).asExprOf[Async[t]]
                   '{
                     val r: Any = $q
-                    if (r.isInstanceOf[Pollable[?]])
+                    if (r.isInstanceOf[Failure])
+                      // A ready failure throws synchronously (DCA parity);
+                      // riding the promise transport would cost a mandatory
+                      // microtask and forfeit the block's readiness.
+                      AsyncJsRuntime.rethrowReadyFailure(r)
+                    else if (r.isInstanceOf[Pollable[?]])
                       scala.scalajs.js.await(AsyncJsRuntime.toBoxedPromise[t](r.asInstanceOf[Async[t]])).value
                     else AsyncJsRuntime.deliver[t](r)
                   }.asTerm

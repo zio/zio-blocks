@@ -122,8 +122,10 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 
 Supported platforms: JVM and Scala.js, Scala 2.13 and Scala 3.x. The
 direct-style `Async.async` block is rewritten by dotty-cps-async on Scala 3
-(JVM and older Scala 3 JS), by native `js.async` / `js.await` on Scala 3.8+ JS,
-and by a hand-written macro on Scala 2.
+(JVM and older Scala 3 JS), by a hybrid backend on Scala 3.8+ JS (native
+`js.async` / `js.await` for direct-position awaits, with the dotty-cps-async
+transform as fallback for awaits inside closures, by-name arguments, or nested
+methods), and by a hand-written macro on Scala 2.
 
 ## Constructors
 
@@ -498,6 +500,18 @@ pollable was returned) when still pending; a pending pollable must arrange to
 call `onComplete.run()` once progress can be made, prompting the scheduler to
 re-poll.
 
+### Combinator chain depth
+
+Combinator continuations poll their children recursively without a trampoline
+(a deliberate trade: the poll path stays allocation- and indirection-free).
+Sequencing via `flatMap` chains, `collectAll`, and direct-style `Async.async`
+loops all consume constant stack regardless of length — but a single
+*hand-built, left-nested* tower of pending combinators (e.g. folding tens of
+thousands of `.map` calls over one not-yet-completed `Async`) polls one stack
+frame per level and overflows around default-JVM-stack depths of a few tens of
+thousands. Restructure such shapes around `flatMap` sequencing or
+`collectAll`, which are depth-safe.
+
 ## Cross-platform and cross-version notes
 
 | Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
@@ -514,12 +528,6 @@ The core `Async` API is identical across all platforms and Scala versions by
 design; platform interop APIs are intentionally platform-specific as shown
 above. The cross-platform test suite fails if any user-visible core behavior
 diverges.
-
-Scala.js on Scala 3.8.3 has one known compiler limitation: a direct
-`Async[Unit].await` can expand to `js.await(Promise[Unit])`, which that compiler
-rejects. The limitation is in Scala.js native `js.await` and is deferred until
-Scala 3.8.4 is stable; bind or widen the awaited value away from `Unit` when
-targeting Scala.js 3.8.3.
 
 ## See Also
 
