@@ -35,7 +35,24 @@ import java.util.concurrent.atomic.AtomicReference
  */
 object AsyncRewriteSpec extends ZIOSpecDefault {
 
+  /**
+   * A user API that happens to have a method named `await` — the rewrite must
+   * only touch the `zio.blocks.async` `.await` extension, never a same-named
+   * user method (the Scala 2 macro rejects the latter with a diagnostic).
+   */
+  private object legacyClient {
+    var calls: Int                = 0
+    def await[T](fa: Async[T]): T = { calls += 1; fa.block }
+  }
+
   def spec = suite("AsyncRewriteSpec")(
+    test("a user method named `await` is not hijacked by the rewrite") {
+      legacyClient.calls = 0
+      val r = Async.async {
+        legacyClient.await(Async.succeed(21)) * 2
+      }.block
+      assertTrue(r == 42, legacyClient.calls == 1)
+    },
     test("a pending `.await` is rewritten to a non-blocking chain (construction does not block)") {
       val cRef        = new AtomicReference[Completer[Int]]()
       val pending     = Async.promiseInternal[Int](c => cRef.set(c))

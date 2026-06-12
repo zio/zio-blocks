@@ -153,6 +153,20 @@ object AsyncRunSpec extends ZIOSpecDefault {
           // Let any stray resumptions (extra microtasks on JS) drain before we read.
           _ <- Live.live(ZIO.sleep(50.millis))
         } yield assertTrue(result == 42, p.polls.get() == 2)
+      },
+      test("start of a nested succeed carrier preserves depth (flatten agrees with the unstarted value)") {
+        // A Running is itself an Async[A], so composing the same operator over
+        // the started and unstarted value must agree. `flatten` peels exactly
+        // one succeed layer, and `deliverSuccess` peels nested layers one at a
+        // time — so a double-succeed pollable-as-value carrier must come out of
+        // `start` with its depth intact. Collapsing it to depth 1 makes the
+        // post-start `flatten` re-expose the user pollable as a suspended
+        // computation, replacing the value with its polled scalar.
+        val inner                               = AsyncTestSupport.pollableSuccessValue
+        val nested: Async[Async[Pollable[Int]]] = Async.succeed(Async.succeed(inner))
+        val direct: AnyRef                      = (nested.flatten.block: AnyRef)
+        val started: AnyRef                     = (Async.start(nested).flatten.block: AnyRef)
+        assertTrue(direct eq inner, started eq inner)
       }
     ),
     suite("cancel")(

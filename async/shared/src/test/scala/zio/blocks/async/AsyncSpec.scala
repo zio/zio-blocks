@@ -3343,6 +3343,24 @@ object AsyncSpec extends ZIOSpecDefault {
           c.poll(new Runnable { def run(): Unit = w2 = true })
           c.succeed(7)
           assertTrue(w1, w2)
+        },
+        test("a waker that throws does not starve the other registered pollers") {
+          // Category K (contract proposal): settle promises to "wake every
+          // registered waiter" (fan-out, above). A hostile waker registered by
+          // one driver must not prevent the remaining well-behaved drivers from
+          // being woken — and must not propagate its throw into the I/O
+          // callback that performs the completion (`succeed` is the completion
+          // channel, not the waker's failure channel).
+          val c  = new Completer[Int]
+          var w1 = false
+          c.poll(new Runnable { def run(): Unit = w1 = true })
+          c.poll(new Runnable { def run(): Unit = throw AsyncTestSupport.sideFx })
+          val settled = scala.util.Try(c.succeed(7))
+          assertTrue(
+            w1,
+            settled.isSuccess,
+            AsyncTestSupport.outcome(c.poll(AsyncTestSupport.noopRunnable)) == Right(7)
+          )
         }
       )
     ),

@@ -215,6 +215,96 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             i
           }.block
           assertTrue(r == n)
+        },
+        test("a long while loop of genuinely-suspending awaits completes (suspension stack safety probe)") {
+          val n = 50000
+          val r = Async.async {
+            var i = 0
+            while (i < n) {
+              val _ = AsyncTestSupport.fromPollable(AsyncTestSupport.succeedAfter(i, 1)).await
+              i += 1
+            }
+            i
+          }.block
+          assertTrue(r == n)
+        },
+        test("await in the loop condition only") {
+          val r = Async.async {
+            var i = 0
+            while (Async.succeed(i < 3).await) i += 1
+            i
+          }.block
+          assertTrue(r == 3)
+        },
+        test("await in the condition and body across genuine suspensions") {
+          var sum = 0
+          val r   = Async.async {
+            var i = 0
+            while (pending(i).await < 4) {
+              sum += pending(i * 10).await
+              i += 1
+            }
+            sum
+          }.block
+          assertTrue(r == 60, sum == 60)
+        },
+        test("nested while loops with awaits in both bodies") {
+          var total = 0
+          val r     = Async.async {
+            var i = 0
+            while (i < 3) {
+              var j = 0
+              while (j < 2) {
+                total += Async.succeed(i * 10 + j).await
+                j += 1
+              }
+              i += 1
+            }
+            total
+          }.block
+          assertTrue(r == 63, total == 63)
+        },
+        test("a var mutated by awaited values in the body is visible to the condition") {
+          val r = Async.async {
+            var acc = 0
+            while (acc < 10) acc += Async.succeed(3).await
+            acc
+          }.block
+          assertTrue(r == 12)
+        },
+        test("do-while idiom (body-in-condition block) with await") {
+          var i = 0
+          val r = Async.async {
+            while ({ i += Async.succeed(1).await; i < 3 }) ()
+            i
+          }.block
+          assertTrue(r == 3)
+        },
+        test("a failing await in the loop condition propagates without running the body") {
+          var bodyRan = false
+          val a       = Async.async {
+            while (Async.fail(AsyncTestSupport.boom).await: Boolean) bodyRan = true
+            0
+          }
+          val thrown = scala.util.Try(a.block).failed.toOption
+          assertTrue(thrown.contains(AsyncTestSupport.boom), !bodyRan)
+        },
+        test("a failing await in the loop body stops iteration and runs the enclosing finally") {
+          var fin        = false
+          var iterations = 0
+          val a          = Async.async {
+            try {
+              var i = 0
+              while (i < 5) {
+                iterations += 1
+                if (i == 2) (Async.fail(AsyncTestSupport.boom).await: Int) else Async.succeed(i).await
+                i += 1
+              }
+              i
+            } finally fin = true
+          }
+          val thrown = scala.util.Try(a.block).failed.toOption
+          assertTrue(thrown.contains(AsyncTestSupport.boom), fin, iterations == 3)
         }
       ),
       suite("try / catch / finally with .await")(
