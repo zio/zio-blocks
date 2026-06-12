@@ -99,7 +99,12 @@ private[async] object AsyncDirect {
      * Scan with a context flag: `indirect` is true once we are under any
      * construct `js.await` may not cross (lambda/nested method bodies appear as
      * `DefDef`s, match-lambdas and local classes as `ClassDef`s, and by-name
-     * arguments are detected from the applied method's parameter types).
+     * arguments are detected from the applied method's parameter types) — or
+     * one whose '''semantics''' the native transport cannot reproduce: a `try`
+     * with catch clauses over an awaiting body must use the DCA fallback,
+     * because a native throw delivers a `null` failure cause to the user catch
+     * as the (internal) `NullCauseMarker` Throwable, which the handler would
+     * wrongly match; the DCA cells match handlers against the logical cause.
      */
     final class Scan(indirect: Boolean) extends TreeTraverser {
       override def traverseTree(t: Tree)(owner: Symbol): Unit = t match {
@@ -111,6 +116,12 @@ private[async] object AsyncDirect {
           new Scan(true).traverseTreeChildren(dd)(owner)
         case cd: ClassDef =>
           new Scan(true).traverseTreeChildren(cd)(owner)
+        case tr: Try if tr.cases.nonEmpty && AsyncDcaTransform.containsAwait(tr.body) =>
+          // A failure thrown by an await in the body lands in the user catch:
+          // only the DCA catch emulation preserves logical-cause matching.
+          new Scan(true).traverseTree(tr.body)(owner)
+          tr.cases.foreach(c => traverseTree(c)(owner))
+          tr.finalizer.foreach(f => traverseTree(f)(owner))
         case ap @ Apply(fun, args) =>
           traverseTree(fun)(owner)
           val paramTypes = ap.fun.tpe.widen match {
