@@ -571,6 +571,38 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val r    = scala.util.Try(prog.block)
       ZIO.succeed(assertTrue(r == scala.util.Success(8)))
     },
+    test("an async block whose await is an already-failed Async is a ready failure (`.block` throws the cause)") {
+      // Docs: `Async.async { Async.fail(t).await }` is equivalent to
+      // `Async.fail(t)` — a READY failure on every cell (JVM, JS DCA, Scala 2
+      // all short-circuit the flatMap chain synchronously), so `.block` must
+      // throw the original cause rather than observe a pending value.
+      val prog = Async.async(Async.fail(Boom).await)
+      val r    = scala.util.Try(prog.block)
+      ZIO.succeed(assertTrue(r == scala.util.Failure(Boom)))
+    },
+    test("a try/catch that recovers an already-failed await is itself ready") {
+      // Same readiness contract as above, observed through the recovery arm:
+      // nothing in this block can suspend, so the result must be ready.
+      val prog = Async.async {
+        try Async.fail(Boom).await
+        catch { case _: Throwable => 42 }
+      }
+      val r = scala.util.Try(prog.block)
+      ZIO.succeed(assertTrue(r == scala.util.Success(42)))
+    },
+    test("a pending Async[Unit] awaited directly compiles and completes") {
+      // The boxed promise transport keeps the underlying js.Promise element
+      // type non-Unit, so this shape must work on Scala.js 3.8.3 too (the raw
+      // `js.await(js.Promise[Unit])` compiler limitation does not apply).
+      val pending: Async[Unit] = Async.promiseInternal[Unit] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(())); ()
+      }
+      val prog = Async.async {
+        pending.await
+        5
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 5))
+    },
     test("a pending await delivers a js.Promise success value by identity") {
       // A js.Promise held as DATA (promise-as-value) must come out of `.await`
       // as the promise itself, never replaced by its adopted/settled result.
@@ -593,6 +625,94 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
         inner: AnyRef
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r eq (inner: AnyRef)))
+    },
+    test("a pending await delivers a still-pending js.Promise value by identity") {
+      // The promise-as-value contract must hold even when the delivered
+      // js.Promise has not yet settled: transport-level thenable adoption
+      // would otherwise stall on (or replace) the pending inner promise.
+      val inner: js.Promise[Int] = new js.Promise[Int]((resolve, _) => {
+        js.timers.setTimeout(30.0)(resolve(42)); ()
+      })
+      val pending: Async[js.Promise[Int]] = Async.promiseInternal[js.Promise[Int]] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(inner)); ()
+      }
+      val prog = Async.async {
+        val p = pending.await
+        (p: AnyRef) eq (inner: AnyRef)
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r))
+    },
+    test("a pending await preserves a raw null failure cause") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.fail(null)); ()
+      }
+      val prog = Async.async(pending.await)
+      ZIO
+        .fromFuture(_ => run(prog))
+        .either
+        .map(e => assertTrue(AsyncTestSupport.unwindFutureEither(e) == Left(null)))
+    },
+    test("a body that throws after its first suspension fails with the same cause") {
+      // A post-suspension throw publishes through the asynchronous channel
+      // (the block is already pending); the cause identity must survive.
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(1)); ()
+      }
+      val prog = Async.async[Int] {
+        val x = pending.await
+        if (x == 1) throw Boom
+        x
+      }
+      ZIO.fromFuture(_ => run(prog)).either.map(e => assertTrue(e == Left(Boom)))
+    },
+    test("ready, pending, and ready awaits interleave side effects in source order") {
+      val order               = scala.collection.mutable.ListBuffer[String]()
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0) { order += "settle"; c.succeed(2) }; ()
+      }
+      val prog = Async.async {
+        order += "a"
+        val x = Async.succeed(1).await
+        order += "b"
+        val y = pending.await
+        order += "c"
+        val z = Async.succeed(3).await
+        order += "d"
+        x + y + z
+      }
+      // Ready awaits never suspend: everything before the first pending await
+      // runs synchronously at block construction, on every backend.
+      val syncPrefix = order.toList
+      ZIO
+        .fromFuture(_ => run(prog))
+        .map(r =>
+          assertTrue(
+            r == 6,
+            syncPrefix == List("a", "b"),
+            order.toList == List("a", "b", "settle", "c", "d")
+          )
+        )
+    },
+    test("three-level nested async blocks compose") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(1)); ()
+      }
+      val prog = Async.async {
+        val l2 = Async.async {
+          val l3 = Async.async(pending.await + 1)
+          l3.await + 10
+        }
+        l2.await + 100
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 112))
+    },
+    test("awaiting a started (Running) computation delivers its result") {
+      val pending: Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(20)); ()
+      }
+      val running = Async.start(pending)
+      val prog    = Async.async(running.await + 1)
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 21))
     },
     test("a pending await delivers a raw null success value") {
       val pending: Async[String] = Async.promiseInternal[String] { c =>
