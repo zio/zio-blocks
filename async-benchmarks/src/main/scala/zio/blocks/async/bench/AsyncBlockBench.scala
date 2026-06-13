@@ -33,14 +33,14 @@ import kyo.{Async => _, *}
 
 /**
  * Direct-style `.await` vs hand-written `flatMap`: proves the
- * `Async.async { ... .await ... }` rewrite (dotty-cps-async on JVM Scala 3)
- * has the same cost model as a hand-written `flatMap` chain for ready values.
+ * `Async.async { ... .await ... }` rewrite (dotty-cps-async on JVM Scala 3) has
+ * the same cost model as a hand-written `flatMap` chain for ready values.
  *
  * The body does `n` sequential `.await`s of already-ready values inside a
- * single `Async.async` block, then `.block`s the result. The control builds
- * the equivalent `n`-link `flatMap` chain by hand and `.block`s it. Both do
- * the same logical work; the only difference is whether the chain came from
- * the macro rewrite or from explicit `flatMap` calls.
+ * single `Async.async` block, then `.block`s the result. The control builds the
+ * equivalent `n`-link `flatMap` chain by hand and `.block`s it. Both do the
+ * same logical work; the only difference is whether the chain came from the
+ * macro rewrite or from explicit `flatMap` calls.
  *
  * ==Finding (gc-profiled, JVM Scala 3.8.3 + DCA)==
  *
@@ -49,25 +49,25 @@ import kyo.{Async => _, *}
  *
  *   - `zb_asyncAwait1` (single `.await`): ≈ 0 B/op, ≈ 2.1e9 ops/s — identical
  *     to the hand-written control.
- *   - `zb_asyncAwaitSeqVals` (two sequential `val` awaits): ≈ 0 B/op,
- *     ≈ 1.2e9 ops/s — identical to hand-written.
+ *   - `zb_asyncAwaitSeqVals` (two sequential `val` awaits): ≈ 0 B/op, ≈ 1.2e9
+ *     ops/s — identical to hand-written.
  *
- * `zb_asyncAwaitN` is the one shape that allocates: a `var` mutated '''across'''
- * a `.await` inside a `while` loop forces the vars (`acc`, `i`) into heap
- * ref-cells — a fixed cost, '''constant in `n`''' (not per-link), measured at
- * ≤ 72 B/op after the loop rewrite below. This is the inherent CPS cost of
- * carrying mutable loop state through a suspension point; every effect system
- * pays it for this shape. The hand-written control avoids it only because it
- * builds a lazy `flatMap` chain of ready values that escape analysis folds
- * away entirely — an eager shape, not the same computation.
+ * `zb_asyncAwaitN` is the one shape that allocates: a `var` mutated
+ * '''across''' a `.await` inside a `while` loop forces the vars (`acc`, `i`)
+ * into heap ref-cells — a fixed cost, '''constant in `n`''' (not per-link),
+ * measured at ≤ 72 B/op after the loop rewrite below. This is the inherent CPS
+ * cost of carrying mutable loop state through a suspension point; every effect
+ * system pays it for this shape. The hand-written control avoids it only
+ * because it builds a lazy `flatMap` chain of ready values that escape analysis
+ * folds away entirely — an eager shape, not the same computation.
  *
  * Since the original measurement, while-loops with awaits are no longer
  * expanded through DCA's recursive `WhileHelper`: the `Async.async` macro
  * rewrites them into an iterative loop (constant stack for ready iterations,
  * see `AsyncDcaTransform`), and an await-free condition is read directly each
- * turn with no per-iteration thunk. Net effect on this bench (JDK 26, Apple
- * M3 Ultra): n=1 ≈ 7.6e8 ops/s (was ≈ 9.1e7), n=100 ≈ 1.1e7 (was ≈ 1.8e6),
- * n=1000 ≈ 1.1e6 (was ≈ 2.0e5).
+ * turn with no per-iteration thunk. Net effect on this bench (JDK 26, Apple M3
+ * Ultra): n=1 ≈ 7.6e8 ops/s (was ≈ 9.1e7), n=100 ≈ 1.1e7 (was ≈ 1.8e6), n=1000
+ * ≈ 1.1e6 (was ≈ 2.0e5).
  *
  * Net: R2's goal (zero allocation per macro-emitted `flatMap` link) is met —
  * the per-link cost is zero; the residual is a fixed per-block cost confined to
@@ -206,7 +206,7 @@ class AsyncBlockHybridBench {
       var acc = x
       var i   = 0
       while (i < n) { acc = Async.succeed(acc + 1).await; i += 1 }
-      acc = Async.promise[Int] { succeed(acc + 1) }.await
+      acc = Async.promise[Int](succeed(acc + 1)).await
       i = 0
       while (i < n) { acc = Async.succeed(acc + 1).await; i += 1 }
       acc
@@ -239,12 +239,12 @@ class AsyncBlockHybridBench {
 }
 
 /**
- * `.await` inside a higher-order-function closure. On JVM Scala 3 this exercises
- * dotty-cps-async's collection `AsyncShift` (`List.map` is shifted into a
- * sequenced traversal) — the rewrite path for awaits that escape straight-line
- * position. Validates that the HOF-closure shape compiles and runs (PLAN §8
- * `AsyncBlockClosureBench`), and measures its overhead vs a hand-written
- * `collectAll`-style fold.
+ * `.await` inside a higher-order-function closure. On JVM Scala 3 this
+ * exercises dotty-cps-async's collection `AsyncShift` (`List.map` is shifted
+ * into a sequenced traversal) — the rewrite path for awaits that escape
+ * straight-line position. Validates that the HOF-closure shape compiles and
+ * runs (PLAN §8 `AsyncBlockClosureBench`), and measures its overhead vs a
+ * hand-written `collectAll`-style fold.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Array(Mode.Throughput))
@@ -283,7 +283,7 @@ class AsyncBlockClosureBench {
   }
 
   @Benchmark def ce_flatMapFoldControl(): Int = {
-    var io = IO.pure(0)
+    var io  = IO.pure(0)
     var rem = xs
     while (rem.nonEmpty) {
       val h = rem.head

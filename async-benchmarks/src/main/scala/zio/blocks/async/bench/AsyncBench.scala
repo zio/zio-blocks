@@ -72,8 +72,8 @@ import kyo.{Async => _, *}
  *      the entire `Completer` in the sync-complete hot path.
  *   3. Inlining `tap`'s plain-ready arm (the user effect applies inline; a
  *      ready successful effect passes the original encoding through), which
- *      brought `zb_tap` to parity with `zb_map1` (≈ 2.8e9 ops/s, 0 B/op on
- *      JDK 26 / Apple M3 Ultra).
+ *      brought `zb_tap` to parity with `zb_map1` (≈ 2.8e9 ops/s, 0 B/op on JDK
+ *      26 / Apple M3 Ultra).
  *
  * Net effect on the hottest paths (single-op, fully sync): ZB Async at ≈ 0.3
  * ns/op vs CE IO ≈ 11 µs/op (~35,000x), Kyo ≈ 6 ns/op (~20x).
@@ -369,22 +369,84 @@ class AsyncErrorBench {
   }
 
   // ---- foldCause: cover both branches in one pass --------------------------
+  // CE analog is `redeem` (fold both channels in one pass); Kyo runs the
+  // `Abort` and matches the `Result`.
 
   @Benchmark def zb_foldCauseSuccess(): Int =
     Async.succeed(x).foldCause(_ => 0)(v => v + 1).block
+
+  @Benchmark def ce_foldCauseSuccess(): Int =
+    IO.pure(x).redeem(_ => 0, v => v + 1).unsafeRunSync()
+
+  @Benchmark def kyo_foldCauseSuccess(): Int = {
+    val fa: Int < Abort[Throwable] = x
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => v + 1
+        case _                 => 0
+      }
+      .eval
+  }
 
   @Benchmark def zb_foldCauseFailure(): Int = {
     val fa: Async[Int] = Async.fail(boom)
     fa.foldCause(_ => x)((v: Int) => v).block
   }
 
+  @Benchmark def ce_foldCauseFailure(): Int =
+    IO.raiseError[Int](boom).redeem(_ => x, v => v).unsafeRunSync()
+
+  @Benchmark def kyo_foldCauseFailure(): Int = {
+    val fa: Int < Abort[Throwable] = Abort.fail(boom)
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => v
+        case _                 => x
+      }
+      .eval
+  }
+
   // ---- either: convert to Either -------------------------------------------
+  // CE analog is `attempt`; Kyo runs the `Abort` and reifies the `Result` as
+  // an `Either`.
 
   @Benchmark def zb_eitherSuccess(): Either[Throwable, Int] =
     Async.succeed(x).either.block
 
+  @Benchmark def ce_eitherSuccess(): Either[Throwable, Int] =
+    IO.pure(x).attempt.unsafeRunSync()
+
+  @Benchmark def kyo_eitherSuccess(): Either[Throwable, Int] = {
+    val fa: Int < Abort[Throwable] = x
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => Right(v): Either[Throwable, Int]
+        case Result.Failure(e) => Left(e): Either[Throwable, Int]
+        case other             => Left(new RuntimeException(String.valueOf(other))): Either[Throwable, Int]
+      }
+      .eval
+  }
+
   @Benchmark def zb_eitherFailure(): Either[Throwable, Int] =
     Async.fail(boom).either.block
+
+  @Benchmark def ce_eitherFailure(): Either[Throwable, Int] =
+    IO.raiseError[Int](boom).attempt.unsafeRunSync()
+
+  @Benchmark def kyo_eitherFailure(): Either[Throwable, Int] = {
+    val fa: Int < Abort[Throwable] = Abort.fail(boom)
+    Abort
+      .run(fa)
+      .map {
+        case Result.Success(v) => Right(v): Either[Throwable, Int]
+        case Result.Failure(e) => Left(e): Either[Throwable, Int]
+        case other             => Left(new RuntimeException(String.valueOf(other))): Either[Throwable, Int]
+      }
+      .eval
+  }
 }
 
 /**
@@ -479,10 +541,12 @@ class AsyncCombinatorBench {
   }
 
   // ---- tap, ensuring -------------------------------------------------------
-  // Kyo's bare `<` carrier has no direct `.tap`/`.ensuring`; equivalents are
-  // built on `Abort`/`IO`. We benchmark the closest CE analog (`flatTap`
-  // for `tap`; `guarantee` for `ensuring`) and omit Kyo to avoid an
-  // apples-to-oranges comparison.
+  // Kyo's bare `<` carrier has no built-in `.tap`/`.ensuring`. The closest
+  // faithful analog for the SUCCESS path these benchmarks exercise is a `map`
+  // that runs the side effect and threads the original value through — that is
+  // exactly the observable shape of `tap` (effect, keep value) and of
+  // success-path `ensuring` (finalizer, keep value). CE uses `flatTap` /
+  // `guarantee`, which additionally model the failure path (not exercised here).
 
   @Benchmark def zb_tap(): Int = {
     var sink = 0
@@ -494,6 +558,12 @@ class AsyncCombinatorBench {
     IO.pure(x).flatTap(v => IO.delay { sink = v }).unsafeRunSync() + sink
   }
 
+  @Benchmark def kyo_tap(): Int = {
+    var sink          = 0
+    val fa: Int < Any = x
+    fa.map { v => sink = v; v }.eval + sink
+  }
+
   @Benchmark def zb_ensuring(): Int = {
     var sink = 0
     Async.succeed(x).ensuring(Async.succeed { sink = 1 }).block + sink
@@ -502,6 +572,12 @@ class AsyncCombinatorBench {
   @Benchmark def ce_ensuring(): Int = {
     var sink = 0
     IO.pure(x).guarantee(IO.delay { sink = 1 }).unsafeRunSync() + sink
+  }
+
+  @Benchmark def kyo_ensuring(): Int = {
+    var sink          = 0
+    val fa: Int < Any = x
+    fa.map { v => sink = 1; v }.eval + sink
   }
 
   // ---- as, unit, *>, <* ----------------------------------------------------
