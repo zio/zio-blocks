@@ -1394,6 +1394,24 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       }
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 6, calls == 3))
     },
+    test("an await-free side-effecting condition runs once per turn across pending body awaits") {
+      // Parity with the JVM body-only fast path: the await-free condition is
+      // evaluated exactly once per iteration even when the body suspends on a
+      // genuine pending await (three true reads + one false).
+      var probes             = 0
+      def step(i: Int): Async[Int] = Async.promiseInternal[Int] { c =>
+        js.timers.setTimeout(0.0)(c.succeed(i)); ()
+      }
+      val prog = Async.async {
+        var i = 0
+        while ({ probes += 1; i < 3 }) {
+          val _ = step(i).await
+          i += 1
+        }
+        i
+      }
+      ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 3, probes == 4))
+    },
     test("a while loop whose body recovers a failed await via try/catch iterates to completion") {
       // Composes the iterative while rewrite with the try/catch emulation: the
       // recovery must be local to each iteration and the loop must keep going.
