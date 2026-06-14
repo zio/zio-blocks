@@ -161,6 +161,53 @@ object AsyncSpec extends ZIOSpecDefault {
           assertTrue(thrown.contains(boom))
         }
       ),
+      // Category F / L — zip Unit-erasure must still propagate a pending failure
+      // from either side, preserving the failure's identity.
+      suite("zip Unit-erasure failure propagation")(
+        test("zip_readyUnitLeft_pendingFailRight_propagatesRightFailure") {
+          val (c, right) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val z          = Async.succeed(()).zip(right)
+          c.fail(boom)
+          val thrown = Try(z.block).failed.toOption
+          assertTrue(thrown.contains(boom))
+        },
+        test("zip_pendingFailLeft_readyUnitRight_propagatesLeftFailureWithoutDrivingRight") {
+          var rightPolled = false
+          val right: Async[Unit] = new Pollable[Unit] {
+            def poll(onComplete: Runnable): Async[Unit] = { rightPolled = true; Async.succeed(()) }
+          }
+          val (c, left) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val z         = left.zip(right)
+          c.fail(boom)
+          val thrown = Try(z.block).failed.toOption
+          assertTrue(thrown.contains(boom), !rightPolled)
+        }
+      ),
+      // Category L / M — a 3-way zip chain whose MIDDLE operand fails must surface
+      // exactly that middle failure (right association preserved), driving neither
+      // a later operand after the failure nor losing the failure's identity.
+      suite("three-way zip middle failure association")(
+        test("zipChain_pendingMiddleFail_surfacesMiddleFailureAndSkipsTail") {
+          var tailPolled        = false
+          val tail: Async[Int]  = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = { tailPolled = true; Async.succeed(3) }
+          }
+          val (c, middle) = {
+            val c = new Completer[Int]
+            (c, c.peek)
+          }
+          val z = Async.succeed(1).zip(middle).zip(tail)
+          c.fail(AsyncTestSupport.midSent)
+          val thrown = Try(z.block).failed.toOption
+          assertTrue(thrown.contains(AsyncTestSupport.midSent), !tailPolled)
+        }
+      ),
       // Category A / B — null success values through combinators.
       suite("null success preservation")(
         test("zipWith_pendingNullLeft_readyRight_preservesNullInCombine") {
