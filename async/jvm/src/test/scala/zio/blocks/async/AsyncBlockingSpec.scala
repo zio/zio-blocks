@@ -294,6 +294,37 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }.block
           assertTrue(r == 12)
         },
+        test("an await-free side-effecting condition is evaluated exactly once per turn across suspensions") {
+          // The body-only fast path reads the await-free condition directly each
+          // turn (no per-iteration `cps.async` thunk). A side effect in the
+          // condition must therefore run exactly once per iteration even when the
+          // body genuinely suspends and the loop resumes via the flatMap chain:
+          // three true reads plus one final false read.
+          var probes = 0
+          var i      = 0
+          val r      = Async.async {
+            while ({ probes += 1; i < 3 }) {
+              val _ = pending(i).await
+              i += 1
+            }
+            i
+          }.block
+          assertTrue(r == 3, probes == 4)
+        },
+        test("an await-free side-effecting condition false on entry runs once and skips the body") {
+          var probes = 0
+          var ran    = false
+          val r      = Async.async {
+            var i = 5
+            while ({ probes += 1; i < 3 }) {
+              ran = true
+              val _ = Async.succeed(i).await
+              i += 1
+            }
+            i
+          }.block
+          assertTrue(r == 5, probes == 1, !ran)
+        },
         test("do-while idiom (body-in-condition block) with await") {
           var i     = 0
           var loops = 0
