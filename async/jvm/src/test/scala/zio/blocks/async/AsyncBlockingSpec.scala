@@ -294,6 +294,30 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }.block
           assertTrue(r == 12)
         },
+        test("a body-only loop whose body returns a non-Unit pollable-as-value discards it and terminates") {
+          // The body-only while fast path wraps a non-Unit body in
+          // `cps.async { val _ = body; () }`. When the body's final expression is
+          // an `.await` that yields a pollable-as-value (an `Async` carried as
+          // data), the loop must discard that value per iteration and still
+          // terminate; the carried pollable must never be re-dispatched as the
+          // rest of the loop.
+          val carried: Pollable[Int] = AsyncTestSupport.syncReadyPollable(123)
+          var driven                 = false
+          val observing: Pollable[Int] = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = { driven = true; Async.succeed(0) }
+          }
+          var i = 0
+          val r = Async.async {
+            while (i < 3) {
+              i += 1
+              // `Async.succeed(carrierPollable)` is a pollable-as-value; awaiting
+              // it yields the `Pollable[Int]` itself as a plain value.
+              Async.succeed(if (i == 99) observing else carried).await
+            }
+            i
+          }.block
+          assertTrue(r == 3, !driven)
+        },
         test("an await-free side-effecting condition is evaluated exactly once per turn across suspensions") {
           // The body-only fast path reads the await-free condition directly each
           // turn (no per-iteration `cps.async` thunk). A side effect in the
@@ -1750,6 +1774,25 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             .failed
             .toOption
           assertTrue(thrown.contains(AsyncTestSupport.boom), seen == List(3, 2, 1))
+        },
+        test("Array.map preserves a non-specialized primitive element type (Byte)") {
+          // Function1 is @specialized on Int/Long/Float/Double returns but NOT on
+          // Byte/Short/Char/Boolean. The doc claims "element type preserved,
+          // including primitives" — so an awaited Byte must rebuild a primitive
+          // Array[Byte], not box or corrupt.
+          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 2).toByte).await)).block
+          val isByteArray = r.getClass.getComponentType == java.lang.Byte.TYPE
+          assertTrue(r.toList == List[Byte](2, 4, 6), isByteArray)
+        },
+        test("Array.map preserves a non-specialized primitive element type (Boolean)") {
+          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed(i % 2 == 0).await)).block
+          val isBoolArray = r.getClass.getComponentType == java.lang.Boolean.TYPE
+          assertTrue(r.toList == List(false, true, false), isBoolArray)
+        },
+        test("Array.map preserves a non-specialized primitive element type (Char)") {
+          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed(('a' + i).toChar).await)).block
+          val isCharArray = r.getClass.getComponentType == java.lang.Character.TYPE
+          assertTrue(r.toList == List('b', 'c', 'd'), isCharArray)
         },
         test("Array.flatMap concatenates and preserves the Array type") {
           val r = Async.async(Array(1, 2, 3).flatMap(i => Array(Async.succeed(i).await, i * 10))).block
