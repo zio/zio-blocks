@@ -600,6 +600,28 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           val cf    = CompletableFuture.completedFuture(inner)
           val raw   = AsyncInterop.fromCompletionStage(cf).block.asInstanceOf[AnyRef]
           assertTrue(raw eq inner)
+        },
+        test("toFuture_depth2SucceedCarrier_deliversOneLayerUnwrappedNestedAsync") {
+          // `Async.succeed(Async.succeed(inner))` has logical type
+          // `Async[Async[Pollable[Int]]]`; `toFuture` must deliver exactly one
+          // delivery layer — the inner `Async[Pollable[Int]]` — never the bare
+          // pollable (that would skip a nesting level) and never the user-visible
+          // internal carrier. `.block` on the delivered nested `Async` then drives
+          // `inner` for effects and yields `inner`'s identity.
+          val inner                             = AsyncTestSupport.pollableSuccessValue
+          val fa: Async[Async[Pollable[Int]]]   = Async.succeed(Async.succeed(inner))
+          val f                                 = AsyncInterop.toFuture(fa)
+          val delivered: Async[Pollable[Int]]   = Await.result(f, 1.second)
+          val raw                               = delivered.block.asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
+        },
+        test("toCompletableFuture_depth2SucceedCarrier_deliversOneLayerUnwrappedNestedAsync") {
+          val inner                           = AsyncTestSupport.pollableSuccessValue
+          val fa: Async[Async[Pollable[Int]]] = Async.succeed(Async.succeed(inner))
+          val cf                              = AsyncInterop.toCompletableFuture(fa)
+          val delivered: Async[Pollable[Int]] = cf.join()
+          val raw                             = delivered.block.asInstanceOf[AnyRef]
+          assertTrue(raw eq inner)
         }
       ),
       // Category E/H — pending interop path completing to pollable-as-value.
