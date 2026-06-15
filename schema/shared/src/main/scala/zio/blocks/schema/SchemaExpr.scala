@@ -172,19 +172,22 @@ object SchemaExpr {
    */
   implicit final class BooleanOps[A](private val self: SchemaExpr[A, Boolean]) extends AnyVal {
 
-    def &&(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
+    def and(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
         self.inputSchema,
         Schema[Boolean]
       )
 
-    def ||(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
+    def or(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
         self.inputSchema,
         Schema[Boolean]
       )
+
+    def &&(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] = and(that)
+    def ||(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] = or(that)
   }
 
   private def outOfRange(value: Any, target: String): Either[Predef.String, DynamicValue] =
