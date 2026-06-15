@@ -152,20 +152,23 @@ object SchemaExpr {
   /**
    * Logical combinators for boolean SchemaExprs.
    *
-   * Provided as an implicit class rather than direct methods on SchemaExpr so that
-   * downstream libraries can supply their own implicit class with &&/|| overloads for
-   * a different result type (e.g. a DDB-specific or SQL-specific expression ADT).
+   * Provided as an implicit class rather than direct methods on SchemaExpr so
+   * that downstream libraries can supply their own implicit class with &&/||
+   * overloads for a different result type (e.g. a DDB-specific or SQL-specific
+   * expression ADT).
    *
-   * In Scala 2, a direct method found by name suppresses implicit receiver views even
-   * when the argument type does not match (SLS §7.3). Moving &&/|| here lifts that
-   * suppression: when a downstream library brings in its own ops class via an explicit
-   * import, that import-scope implicit takes priority over this companion-scope implicit
-   * (Scala 2 implicit priority: local/import > companion), so the downstream overload
-   * wins for `se && downstreamValue` without ambiguity in that context.
+   * In Scala 2, a direct method found by name suppresses implicit receiver
+   * views even when the argument type does not match (SLS §7.3). Moving &&/||
+   * here lifts that suppression: when a downstream library brings in its own
+   * ops class via an explicit import, that import-scope implicit takes priority
+   * over this companion-scope implicit (Scala 2 implicit priority: local/import
+   * > companion), so the downstream overload wins for `se && downstreamValue`
+   * without ambiguity in that context.
    *
-   * Note: two companion-scope implicits providing &&/|| would still be ambiguous for
-   * `se && se2`. Downstream libraries should introduce their ops via explicit import
-   * (or a user-facing object) rather than a companion to avoid that scenario.
+   * Note: two companion-scope implicits providing &&/|| would still be
+   * ambiguous for `se && se2`. Downstream libraries should introduce their ops
+   * via explicit import (or a user-facing object) rather than a companion to
+   * avoid that scenario.
    */
   implicit final class BooleanOps[A](private val self: SchemaExpr[A, Boolean]) extends AnyVal {
 
