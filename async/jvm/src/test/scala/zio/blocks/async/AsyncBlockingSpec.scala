@@ -1836,6 +1836,36 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           val r = Async.async(Array(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed(i).await }).block
           assertTrue(r.toList == List(1, 3))
         },
+        // The Array `map` probes above prove the producer's advertised ClassTag
+        // is right for the non-specialized Function1 returns (Byte/Short/Char/
+        // Boolean). `collect` / `flatMap` rebuild through their OWN
+        // `Array.newBuilder[B]` from the user-supplied `ClassTag[B]`, a distinct
+        // (wrapper-delegated) construction path — so they must independently
+        // rebuild a primitive Array of the non-specialized element type, never
+        // box or corrupt. `map` -> Short rounds out the producer-tag check.
+        test("Array.collect preserves a non-specialized primitive element type (Byte)") {
+          val r =
+            Async.async(Array(1, 2, 3, 4).collect { case i if i % 2 == 1 => Async.succeed((i * 2).toByte).await }).block
+          val isByteArray = r.getClass.getComponentType == java.lang.Byte.TYPE
+          assertTrue(r.toList == List[Byte](2, 6), isByteArray)
+        },
+        test("Array.collect preserves a non-specialized primitive element type (Boolean)") {
+          val r =
+            Async.async(Array(1, 2, 3, 4).collect { case i if i > 1 => Async.succeed(i % 2 == 0).await }).block
+          val isBoolArray = r.getClass.getComponentType == java.lang.Boolean.TYPE
+          assertTrue(r.toList == List(true, false, true), isBoolArray)
+        },
+        test("Array.flatMap preserves a non-specialized primitive element type (Byte)") {
+          val r =
+            Async.async(Array(1, 2).flatMap(i => Array(Async.succeed(i.toByte).await, (i * 10).toByte))).block
+          val isByteArray = r.getClass.getComponentType == java.lang.Byte.TYPE
+          assertTrue(r.toList == List[Byte](1, 10, 2, 20), isByteArray)
+        },
+        test("Array.map preserves a non-specialized primitive element type (Short)") {
+          val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 100).toShort).await)).block
+          val isShortArray = r.getClass.getComponentType == java.lang.Short.TYPE
+          assertTrue(r.toList == List[Short](100, 200, 300), isShortArray)
+        },
         test("Array.exists short-circuits at the first matching await") {
           val r = Async.async(Array(1, 2, 3).exists(i => Async.succeed(i == 2).await)).block
           assertTrue(r)
