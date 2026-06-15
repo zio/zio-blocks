@@ -145,28 +145,40 @@ final case class SchemaExpr[A, B](
    * Get the underlying dynamic expression.
    */
   def toDynamic: DynamicSchemaExpr = dynamic
-
-  // Logical combinators
-  def &&[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr(
-      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
-      inputSchema,
-      Schema[Boolean]
-    )
-
-  def ||[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr(
-      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
-      inputSchema,
-      Schema[Boolean]
-    )
 }
 
 object SchemaExpr {
+
+  /**
+   * Logical combinators for boolean SchemaExprs.
+   *
+   * Provided as an implicit class rather than direct methods on SchemaExpr so that
+   * downstream libraries can supply their own implicit class with &&/|| overloads for
+   * a different result type (e.g. a DDB-specific or SQL-specific expression ADT).
+   * In Scala 2, a direct method found by name suppresses implicit receiver views even
+   * when the argument type does not match; an implicit class in the companion avoids
+   * this and allows downstream bridges to fire without ambiguity.
+   */
+  implicit final class BooleanOps[A](private val self: SchemaExpr[A, Boolean]) extends AnyVal {
+
+    def &&[B2](
+      that: SchemaExpr[A, B2]
+    )(implicit ev: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+      SchemaExpr(
+        DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
+        self.inputSchema,
+        Schema[Boolean]
+      )
+
+    def ||[B2](
+      that: SchemaExpr[A, B2]
+    )(implicit ev: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+      SchemaExpr(
+        DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
+        self.inputSchema,
+        Schema[Boolean]
+      )
+  }
 
   private def outOfRange(value: Any, target: String): Either[Predef.String, DynamicValue] =
     Left(s"Value $value is out of range for $target")
