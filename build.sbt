@@ -490,8 +490,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       }
     },
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.7.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.7.0",
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -1095,8 +1095,8 @@ lazy val zioGolemCoreJS = project
     libraryDependencies ++= Seq(
       "dev.zio"           %%% "zio-test"                   % "2.1.26" % Test,
       "dev.zio"           %%% "zio-test-sbt"               % "2.1.26" % Test,
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0"  % Test,
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.7.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.7.0"  % Test,
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4"  % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"  % Test
     ),
@@ -1160,8 +1160,8 @@ lazy val zioGolemTestAgents = project
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"      % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb" % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time"      % "2.7.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb" % "2.7.0",
       "dev.zio"           %%% "zio-http"             % "3.0.1"
     ),
     Test / test := {
