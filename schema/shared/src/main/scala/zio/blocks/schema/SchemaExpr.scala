@@ -169,18 +169,14 @@ object SchemaExpr {
    */
   implicit final class BooleanOps[A](private val self: SchemaExpr[A, Boolean]) extends AnyVal {
 
-    def &&[B2](
-      that: SchemaExpr[A, B2]
-    )(implicit ev: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+    def &&(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
         self.inputSchema,
         Schema[Boolean]
       )
 
-    def ||[B2](
-      that: SchemaExpr[A, B2]
-    )(implicit ev: B2 =:= Boolean): SchemaExpr[A, Boolean] =
+    def ||(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
         self.inputSchema,
