@@ -170,7 +170,7 @@ object SchemaExpr {
    * via explicit import (or a user-facing object) rather than a companion to
    * avoid that scenario.
    */
-  implicit final class BooleanOps[A](private val self: SchemaExpr[A, Boolean]) extends AnyVal {
+  implicit final class BooleanOps[A, B <: Boolean](private val self: SchemaExpr[A, B]) extends AnyVal {
 
     def and(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
       SchemaExpr(
