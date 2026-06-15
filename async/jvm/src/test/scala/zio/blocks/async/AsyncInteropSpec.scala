@@ -448,6 +448,21 @@ object AsyncInteropSpec extends ZIOSpecDefault {
                 Left((raw match { case Failure.NullCauseMarker => null; case t: Throwable => t }))
             }
           assertTrue(observed == Left(null))
+        },
+        test("fromCompletionStage_bareNullCauseCompletionException_surfacesTheWrapperItself") {
+          // A CompletionException whose *cause* is null is not unwrapped (there is
+          // nothing to unwrap to); the wrapper itself must surface as the failure
+          // rather than collapsing to a null cause or a success.
+          val ce = new java.util.concurrent.CompletionException(null)
+          val cf = new CompletableFuture[Int]()
+          cf.completeExceptionally(ce)
+          val e = AsyncInterop.fromCompletionStage(cf).either.block
+          assertTrue(e == Left(ce))
+        },
+        test("toFuture_roundTrip_preservesSuccessValueThroughTheEncoding") {
+          val fut = AsyncInterop.toFuture(Async.succeed(123).map(_ + 1))
+          val rt  = AsyncInterop.fromFuture(fut).map(_ * 2).block
+          assertTrue(rt == 248)
         }
       ),
       // Category P — unsafeRunAsync cancel before pending completes suppresses callback.

@@ -150,6 +150,33 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val thrown = scala.util.Try(z.block).failed.toOption
         assertTrue(thrown.contains(boom), !rightDriven)
       },
+      test("three-way zip agrees with a hand flatMap chain on value and exact poll order/count") {
+        // Metamorphic: the same logical sequencing built two ways must drive the
+        // leaves in the same order the same number of times and yield the same
+        // value. Each leaf re-arms its waker until it settles after `polls` polls.
+        def counted(name: String, log: scala.collection.mutable.ArrayBuffer[String], polls: Int, v: Int): Pollable[Int] =
+          new Pollable[Int] {
+            private var remaining = polls
+            def poll(onComplete: Runnable): Async[Int] = {
+              log += s"$name.poll"
+              if (remaining <= 0) Async.succeed(v)
+              else { remaining -= 1; onComplete.run(); this }
+            }
+          }
+        val logZ         = scala.collection.mutable.ArrayBuffer.empty[String]
+        val za: Async[Int] = counted("a", logZ, 1, 1)
+        val zb: Async[Int] = counted("b", logZ, 2, 2)
+        val zc: Async[Int] = counted("c", logZ, 1, 3)
+        val zr             = za.zip(zb).zip(zc).block
+
+        val logF         = scala.collection.mutable.ArrayBuffer.empty[String]
+        val fa: Async[Int] = counted("a", logF, 1, 1)
+        val fb: Async[Int] = counted("b", logF, 2, 2)
+        val fc: Async[Int] = counted("c", logF, 1, 3)
+        val fr             = fa.flatMap(a => fb.flatMap(b => fc.map(c => (a, b, c)))).block
+
+        assertTrue(zr == ((1, 2, 3)), fr == ((1, 2, 3)), logZ.toList == logF.toList)
+      },
       test("collectAll preserves order across interleaved pending/ready inputs settled out of order") {
         val (c1, p1) = AsyncTestSupport.pending[Int]
         val (c2, p2) = AsyncTestSupport.pending[Int]
@@ -501,6 +528,41 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val r      = Async.collectAll(List[Async[Int]](Async.fail(boom), Async.succeed(1), tail))
         val thrown = Try(r.block).failed.toOption
         assertTrue(thrown.contains(boom), !tailPolled)
+      },
+      test("collectAll reifies a source iterator that throws mid-drive rather than leaking it") {
+        // A throw escaping `poll` (here from `iterator.next()` while draining past
+        // a pending element) is the same failure channel every driver reifies;
+        // `.block` must rethrow the cause, not let it escape the encoding.
+        val itBoom = new RuntimeException("iterator-boom")
+        val (c, p) = AsyncTestSupport.pending[Int]
+        val source = new IterableOnce[Async[Int]] {
+          def iterator: Iterator[Async[Int]] = new Iterator[Async[Int]] {
+            private var idx          = 0
+            def hasNext: Boolean     = true
+            def next(): Async[Int]   = { val i = idx; idx += 1; if (i == 0) p else throw itBoom }
+          }
+        }
+        val all            = Async.collectAll(source)
+        val pendingAtStart = AsyncTestSupport.isPending(all)
+        c.succeed(1)
+        val thrown = Try(all.block).failed.toOption
+        assertTrue(pendingAtStart, thrown.contains(itBoom))
+      },
+      test("collectAll over many mixed ready+pending elements is stack-safe and order-preserving") {
+        val n          = 50000
+        val completers = scala.collection.mutable.ArrayBuffer.empty[Completer[Int]]
+        val items: List[Async[Int]] = (0 until n).map { i =>
+          if (i % 1000 == 0) {
+            val (c, fa) = AsyncTestSupport.pending[Int]
+            completers += c
+            fa
+          } else Async.succeed(i)
+        }.toList
+        val all = Async.collectAll(items)
+        var ci  = 0
+        (0 until n).foreach(i => if (i % 1000 == 0) { completers(ci).succeed(i); ci += 1 })
+        val r = all.block
+        assertTrue(r == (0 until n).toList)
       }
     ),
     suite("when / unless")(
