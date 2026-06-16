@@ -278,15 +278,18 @@ object AsyncShowcaseExample extends App {
 
   val callbackFired = new AtomicBoolean(false)
 
+  // Driving an already-built `Async` is the `fa.start` extension — NOT the
+  // companion `Async.start(body)`, which would treat the `Async` as a by-name
+  // body to evaluate and merely wrap (not drive) its result.
   val running: Async.Running[Nothing] =
-    Async.start(Async.never.tap((_: Nothing) => { callbackFired.set(true); Async.succeed(()) }))
+    Async.never.tap((_: Nothing) => { callbackFired.set(true); Async.succeed(()) }).start
 
   running.cancel()
   Thread.sleep(50)
   println(s"  callback suppressed after cancel => ${!callbackFired.get()}")
 
   var asyncOut: Either[Throwable, Int] = Right(-1)
-  Async.start(Async.succeed(99).map(_ + 1).either.tap(res => { asyncOut = res; Async.succeed(()) }))
+  Async.succeed(99).map(_ + 1).either.tap(res => { asyncOut = res; Async.succeed(()) }).start
   Thread.sleep(20)
   println(s"  start result => ${asyncOut.toTry}")
 

@@ -167,6 +167,40 @@ object AsyncRunSpec extends ZIOSpecDefault {
                          )
             out = running.poll(AsyncTestSupport.noopRunnable)
           } yield assertTrue(published, out == null)
+        },
+        test("Async.start(body) evaluating to a suspended Async wraps it (the body's tap is NOT driven)") {
+          // `Async.start(body)` is `Future.apply`-shaped: it evaluates the
+          // by-name body and lifts its RESULT with the standard encoding. When
+          // the body is itself a suspended `Async` (a `tap` over a pending
+          // pollable), the result is carried as a pollable-as-value — never run
+          // as a computation. So the `tap` effect must NOT fire: driving an
+          // already-built `Async` is the `fa.start` extension's job (see the
+          // "drive" suite below), not the companion `Async.start(body)`.
+          val fired  = new AtomicBoolean(false)
+          val c      = new Completer[Int]
+          val body   = c.peek.tap(_ => { fired.set(true); Async.succeed(()) })
+          Async.start[Async[Int]](body)
+          c.succeed(1)
+          Live.live(ZIO.sleep(200.millis)).as(assertTrue(!fired.get()))
+        }
+      ),
+      suite("drive extension (fa.start)")(
+        test("fa.start drives a tap over a pending pollable to completion (the effect fires)") {
+          // The differential partner of the eval-runner test above: the `fa.start`
+          // extension DRIVES an already-built `Async`, so a `tap` composed before
+          // `start` runs its effect once the leaf settles.
+          val fired  = new AtomicBoolean(false)
+          val c      = new Completer[Int]
+          val driven = c.peek.tap(_ => { fired.set(true); Async.succeed(()) })
+          driven.start
+          c.succeed(1)
+          for {
+            ok <- Live.live(
+                    (ZIO.sleep(5.millis) *> ZIO.succeed(fired.get()))
+                      .repeatUntil(identity)
+                      .timeoutTo(false)(identity)(5.seconds)
+                  )
+          } yield assertTrue(ok)
         }
       ),
       suite("failure surfacing")(
