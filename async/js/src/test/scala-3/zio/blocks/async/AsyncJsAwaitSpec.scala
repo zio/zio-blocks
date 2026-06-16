@@ -1493,6 +1493,29 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val inner = Async.async(pending.await + 1)
       val prog  = Async.async(inner.await + 10)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 16))
+    },
+    test("a built-but-undriven Async.async block does not advance past its first suspension on its own") {
+      // Cross-cell parity (the spec's stated invariant). `Async.async { ... }`
+      // is EAGER only for its synchronous prefix up to the first PENDING await;
+      // there it must SUSPEND and produce a pending `Async` that advances only
+      // when an external driver (`.block` / `.start` / a `toFuture` runner)
+      // polls it. The continuation after a pending await — here the
+      // `effect.set(true)` — must therefore NOT run until something drives the
+      // resulting value. On the JVM (DCA) and the JS DCA (Scala 3.3.x) cell the
+      // built value is inert; the JS-native (3.8+) `js.async`/`js.await` arm
+      // must agree and not self-resume the continuation off the JS microtask
+      // queue while no one is driving the `Async`.
+      val effect              = new java.util.concurrent.atomic.AtomicBoolean(false)
+      val gate                = new Completer[Int]
+      val built: Async[Int]   = Async.async {
+        val v = gate.peek.await // first await is genuinely pending
+        effect.set(true)        // post-suspension continuation: must wait for a driver
+        v + 1
+      }
+      // Settle the gate but never drive `built`. A correct implementation
+      // leaves the continuation un-run; a self-driving native arm runs it.
+      gate.succeed(5)
+      Live.live(ZIO.sleep(150.millis)).as(assertTrue(!effect.get()))
     }
   )
 }
