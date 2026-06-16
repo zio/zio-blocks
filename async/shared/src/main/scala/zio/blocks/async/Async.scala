@@ -128,10 +128,17 @@ object Async extends AsyncCompanionVersionSpecific {
    * failure is propagated.
    */
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]] =
-    as match {
-      case list: List[?] => collectAllList[A](list.asInstanceOf[List[Async[A]]])
-      case _             => drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])
-    }
+    // Reify a fault in the source itself (acquiring the iterator, `hasNext`,
+    // `next`) through the failure channel rather than letting it escape the
+    // construction call — matching the deferred drain, where a throw from
+    // inside `CollectAllPollable.poll` is reified by the driver. A `try` with
+    // no throw is free on the JVM happy path (exception-table metadata only).
+    try
+      as match {
+        case list: List[?] => collectAllList[A](list.asInstanceOf[List[Async[A]]])
+        case _             => drainCollectAll[A](as.iterator, new scala.collection.mutable.ListBuffer[A])
+      }
+    catch { case t: Throwable => fail(t) }
 
   /**
    * Fast path for immutable lists of already-ready values. In that case the
