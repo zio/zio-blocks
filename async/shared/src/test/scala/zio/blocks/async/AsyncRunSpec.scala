@@ -128,6 +128,26 @@ object AsyncRunSpec extends ZIOSpecDefault {
           }
           AsyncTestSupport.runAsync(running).either.map(e => assertTrue(e == Left(boom)))
         },
+        test("reifies a Nothing-typed throwing body as a failure (no eager throw at the call site)") {
+          // `Async.start(body)` is documented as "the `Async` analogue of
+          // `Future.apply`", which captures a throwing body. When the by-name
+          // body is statically `Nothing`-typed (e.g. `{ setup(); throw e }`,
+          // `sys.error(...)`, `???`), overload resolution must still pick the
+          // by-name `start(body: => A)` entry point — NOT the by-value
+          // `start(fa: Async[A])` one (a bare `throw` is `Nothing <: Async[A]`),
+          // which would force the body eagerly and throw at the call site.
+          val started =
+            try Right(Async.start { val _ = 0; throw boom })
+            catch { case t: Throwable => Left(t) }
+          started match {
+            case Right(running) =>
+              AsyncTestSupport.runAsync(running).either.map(e => assertTrue(e == Left(boom)))
+            case Left(eager) =>
+              // The body was forced eagerly at the call site (overload picked the
+              // by-value `Async[A]` arm) instead of being captured into a Running.
+              ZIO.succeed(assertTrue((eager: Throwable) == null, eager != boom))
+          }
+        },
         test("publishes a null body result (terminal is published)") {
           // Same publication contract as the Completer-settled null above, via
           // the by-name `Async.start(body)` entry point. Observed by polling
