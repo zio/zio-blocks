@@ -548,6 +548,31 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val thrown = Try(all.block).failed.toOption
         assertTrue(pendingAtStart, thrown.contains(itBoom))
       },
+      test("collectAll reifies a source iterator that throws while draining all-ready elements (no eager leak)") {
+        // Parity with the mid-drive-past-a-pending-element case above: a source
+        // iterator that throws must surface through the Async failure channel,
+        // not leak at the `collectAll` call site. When every element is ready
+        // the drain is eager (`drainCollectAll` / the `List` fast path), so the
+        // iterator throw escapes the construction call unless it is reified —
+        // an inconsistency with the deferred (pending-element) drain, which
+        // does reify it.
+        val itBoom = new RuntimeException("eager-iterator-boom")
+        val source = new IterableOnce[Async[Int]] {
+          def iterator: Iterator[Async[Int]] = new Iterator[Async[Int]] {
+            private var idx        = 0
+            def hasNext: Boolean   = true
+            def next(): Async[Int] = { val i = idx; idx += 1; if (i == 0) Async.succeed(1) else throw itBoom }
+          }
+        }
+        val constructed =
+          try Right(Async.collectAll(source))
+          catch { case t: Throwable => Left(t) }
+        val outcome = constructed match {
+          case Right(all) => Try(all.block).failed.toOption
+          case Left(eager) => Some(eager) // leaked at the call site (the defect)
+        }
+        assertTrue(constructed.isRight, outcome.contains(itBoom))
+      },
       test("collectAll over many mixed ready+pending elements is stack-safe and order-preserving") {
         val n          = 50000
         val completers = scala.collection.mutable.ArrayBuffer.empty[Completer[Int]]
