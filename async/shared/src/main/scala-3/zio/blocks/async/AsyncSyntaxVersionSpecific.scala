@@ -17,6 +17,7 @@
 package zio.blocks.async
 
 import zio.blocks.combinators.Tuples.Tuples
+import zio.blocks.async.internal.AsyncRunner
 
 /**
  * Scala 3 surface for [[Async]]: extension methods on `Async[A]` and a
@@ -220,9 +221,17 @@ private[async] trait AsyncSyntaxVersionSpecific {
 
     /** Sequence then return `fa`'s value (`zipLeft`, ZIO's `<*`). */
     inline def <*[B](inline that: Async[B]): Async[A] = zipWith(that)((a, _) => a)
+  }
 
-    /** Eagerly drive `fa` and return a [[Async.Running]] handle. */
-    inline def start: Async.Running[A] = Async.start(fa)
+  /**
+   * Eagerly drive an already-built `fa` and return a [[Async.Running]] handle.
+   * Separate (non-`inline`) extension so it can reach the in-package
+   * `internal.AsyncRunner` driver directly — driving an existing `Async` is
+   * distinct from the companion `Async.start(body)`, which evaluates a by-name
+   * body (`Future.apply`-style).
+   */
+  extension [A](fa: Async[A]) {
+    def start: Async.Running[A] = AsyncRunner.start(fa)
   }
 
   /** Flatten an `Async[Async[A]]` one level. */

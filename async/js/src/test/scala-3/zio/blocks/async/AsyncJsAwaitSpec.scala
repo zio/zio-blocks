@@ -1265,7 +1265,7 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       val pending: Async[Int] = Async.promiseInternal[Int] { c =>
         js.timers.setTimeout(0.0)(c.succeed(20)); ()
       }
-      val running = Async.start(pending)
+      val running = pending.start
       val prog    = Async.async(running.await + 1)
       ZIO.fromFuture(_ => run(prog)).map(r => assertTrue(r == 21))
     },
@@ -1398,7 +1398,7 @@ object AsyncJsAwaitSpec extends ZIOSpecDefault {
       // Parity with the JVM body-only fast path: the await-free condition is
       // evaluated exactly once per iteration even when the body suspends on a
       // genuine pending await (three true reads + one false).
-      var probes             = 0
+      var probes                   = 0
       def step(i: Int): Async[Int] = Async.promiseInternal[Int] { c =>
         js.timers.setTimeout(0.0)(c.succeed(i)); ()
       }

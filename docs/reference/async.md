@@ -437,10 +437,10 @@ val result: Int = Async.succeed(20).map(_ + 1).block
 
 ### Eager, cancellable running: `Async.start` and `Async.Running`
 
-`Async.start(fa)` eagerly drives an `Async` without blocking and returns a
-`Running[A]` handle — itself an `Async[A]` you can poll, compose, or cancel.
-Compose with `either`, `tap`, `foldCause`, and the other operators **before**
-`start` to observe or transform the outcome:
+The `fa.start` extension eagerly drives an already-built `Async` without
+blocking and returns a `Running[A]` handle — itself an `Async[A]` you can poll,
+compose, or cancel. Compose with `either`, `tap`, `foldCause`, and the other
+operators **before** `start` to observe or transform the outcome:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -454,9 +454,13 @@ val running: Async.Running[Either[Throwable, Int]] =
 running.cancel() // idempotent; no-op once the run has completed
 ```
 
-`Async.start(body)` evaluates `body` on a background worker (JVM) or microtask
-(JS) and returns a `Running` for the result — the `Async` analogue of
-`Future.apply`.
+The companion `Async.start(body)` is a single by-name method that evaluates
+`body` on a background worker (JVM) or microtask (JS) and returns a `Running`
+for the result — the `Async` analogue of `Future.apply`. It captures a throwing
+body (even a statically `Nothing`-typed one such as `Async.start(sys.error(...))`)
+as a failed run rather than letting it escape at the call site. (Driving an
+existing `Async` value is the `fa.start` extension above, not `Async.start(fa)`,
+which would treat `fa` as a by-name body to evaluate.)
 
 For an already-ready `Async`, observers composed before `start` run synchronously
 on the calling thread. For a suspended `Async`, driving proceeds on a daemon

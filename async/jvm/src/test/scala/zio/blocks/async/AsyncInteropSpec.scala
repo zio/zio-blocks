@@ -623,11 +623,11 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           // pollable (that would skip a nesting level) and never the user-visible
           // internal carrier. `.block` on the delivered nested `Async` then drives
           // `inner` for effects and yields `inner`'s identity.
-          val inner                             = AsyncTestSupport.pollableSuccessValue
-          val fa: Async[Async[Pollable[Int]]]   = Async.succeed(Async.succeed(inner))
-          val f                                 = AsyncInterop.toFuture(fa)
-          val delivered: Async[Pollable[Int]]   = Await.result(f, 1.second)
-          val raw                               = delivered.block.asInstanceOf[AnyRef]
+          val inner                           = AsyncTestSupport.pollableSuccessValue
+          val fa: Async[Async[Pollable[Int]]] = Async.succeed(Async.succeed(inner))
+          val f                               = AsyncInterop.toFuture(fa)
+          val delivered: Async[Pollable[Int]] = Await.result(f, 1.second)
+          val raw                             = delivered.block.asInstanceOf[AnyRef]
           assertTrue(raw eq inner)
         },
         test("toCompletableFuture_depth2SucceedCarrier_deliversOneLayerUnwrappedNestedAsync") {

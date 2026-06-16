@@ -90,26 +90,24 @@ object Async extends AsyncCompanionVersionSpecific {
   }
 
   /**
-   * Eagerly drive `fa` without blocking and return a [[Running]] handle.
-   * Compose with `either`, `tap`, `foldCause`, and the other operators
-   * '''before''' `start` to observe or transform the outcome (e.g.
-   * `fa.either.tap(record).start`).
-   *
-   *   - A [[Running]] is itself an `Async[A]` and may be polled, cancelled, or
-   *     further composed.
-   *   - Driving begins immediately for suspended inputs; ready values settle
-   *     synchronously on the calling thread.
-   *   - [[Cancelable.cancel]] stops the driver before a terminal value is
-   *     published; cancellation is a no-op once the run has completed.
-   *   - On the JVM a suspended run proceeds on a background worker; on Scala.js
-   *     it proceeds via microtasks without blocking the event loop.
-   */
-  def start[A](fa: Async[A]): Running[A] =
-    AsyncRunner.start(fa)
-
-  /**
    * Evaluate `body` on a background worker (JVM) or microtask (JS) and return a
    * [[Running]] for the result — the `Async` analogue of `Future.apply`.
+   *
+   * A single by-name entry point (no by-value overload): the worker evaluates
+   * `body`, capturing a throw — including a statically `Nothing`-typed body
+   * (`Async.start { ...; throw e }`, `Async.start(???)`) — as a failed run
+   * rather than letting it escape at the call site, and lifts the result with
+   * the same runtime encoding as every other value received from the user (a
+   * `Pollable` success value is wrapped, a [[AsyncEncoding.WrappedPollable]]
+   * carrier has its depth incremented).
+   *
+   * To eagerly drive an '''already-built''' `Async` instead — composing with
+   * `either`, `tap`, `foldCause`, ... before driving (e.g.
+   * `fa.either.tap(record).start`) — use the `fa.start` extension method. A
+   * [[Running]] is itself an `Async[A]` and may be polled,
+   * [[Cancelable.cancel]] led (a no-op once completed), or further composed; on
+   * the JVM a suspended run proceeds on a background worker, on Scala.js via
+   * microtasks.
    */
   def start[A](body: => A): Running[A] =
     AsyncRunner.startEval(body)

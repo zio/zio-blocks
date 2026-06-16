@@ -281,7 +281,7 @@ object AsyncJsSpec extends ZIOSpecDefault {
           def run(): Unit = woken(idx) = true
         }
         val c       = new Completer[Int]
-        val running = Async.start(c.peek)
+        val running = c.peek.start
         running.poll(EqualWaker("same")(0))
         running.poll(EqualWaker("same")(1))
         c.succeed(7)

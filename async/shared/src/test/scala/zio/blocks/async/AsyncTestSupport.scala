@@ -112,7 +112,7 @@ private[async] object AsyncTestSupport {
 
   def runAsync[A](fa: Async[A]): Task[A] =
     ZIO.async[Any, Throwable, A] { k =>
-      val running = Async.start(fa)
+      val running = fa.start
       object Resume {
         def apply(next: Async[A]): Unit = {
           val any = next.asInstanceOf[Any]
@@ -130,16 +130,16 @@ private[async] object AsyncTestSupport {
   def startEither[A](fa: Async[A])(observe: Either[Throwable, A] => Unit): Async.Running[Either[Throwable, A]] = {
     val any = fa.asInstanceOf[Any]
     if (any.isInstanceOf[Failure] || !AsyncEncoding.isSuspended(any))
-      Async.start(fa.either.tap { e => observe(e); Async.succeed(()) })
+      fa.either.tap { e => observe(e); Async.succeed(()) }.start
     else {
-      val running = Async.start(fa)
-      Async.start(running.either.tap { e => observe(e); Async.succeed(()) })
+      val running = fa.start
+      running.either.tap { e => observe(e); Async.succeed(()) }.start
     }
   }
 
   /** Start `fa` and observe each success value (compositional `start`). */
   def startTap[A](fa: Async[A])(observe: A => Unit): Async.Running[A] =
-    Async.start(fa.tap { a => observe(a); Async.succeed(()) })
+    fa.tap { a => observe(a); Async.succeed(()) }.start
 
   val sideFx: Throwable      = new RuntimeException("side-fx")
   val handlerFx: Throwable   = new RuntimeException("handler-throw")

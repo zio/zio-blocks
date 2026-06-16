@@ -154,22 +154,27 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // Metamorphic: the same logical sequencing built two ways must drive the
         // leaves in the same order the same number of times and yield the same
         // value. Each leaf re-arms its waker until it settles after `polls` polls.
-        def counted(name: String, log: scala.collection.mutable.ArrayBuffer[String], polls: Int, v: Int): Pollable[Int] =
+        def counted(
+          name: String,
+          log: scala.collection.mutable.ArrayBuffer[String],
+          polls: Int,
+          v: Int
+        ): Pollable[Int] =
           new Pollable[Int] {
-            private var remaining = polls
+            private var remaining                      = polls
             def poll(onComplete: Runnable): Async[Int] = {
               log += s"$name.poll"
               if (remaining <= 0) Async.succeed(v)
               else { remaining -= 1; onComplete.run(); this }
             }
           }
-        val logZ         = scala.collection.mutable.ArrayBuffer.empty[String]
+        val logZ           = scala.collection.mutable.ArrayBuffer.empty[String]
         val za: Async[Int] = counted("a", logZ, 1, 1)
         val zb: Async[Int] = counted("b", logZ, 2, 2)
         val zc: Async[Int] = counted("c", logZ, 1, 3)
         val zr             = za.zip(zb).zip(zc).block
 
-        val logF         = scala.collection.mutable.ArrayBuffer.empty[String]
+        val logF           = scala.collection.mutable.ArrayBuffer.empty[String]
         val fa: Async[Int] = counted("a", logF, 1, 1)
         val fb: Async[Int] = counted("b", logF, 2, 2)
         val fc: Async[Int] = counted("c", logF, 1, 3)
@@ -537,9 +542,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val (c, p) = AsyncTestSupport.pending[Int]
         val source = new IterableOnce[Async[Int]] {
           def iterator: Iterator[Async[Int]] = new Iterator[Async[Int]] {
-            private var idx          = 0
-            def hasNext: Boolean     = true
-            def next(): Async[Int]   = { val i = idx; idx += 1; if (i == 0) p else throw itBoom }
+            private var idx        = 0
+            def hasNext: Boolean   = true
+            def next(): Async[Int] = { val i = idx; idx += 1; if (i == 0) p else throw itBoom }
           }
         }
         val all            = Async.collectAll(source)
@@ -568,14 +573,14 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
           try Right(Async.collectAll(source))
           catch { case t: Throwable => Left(t) }
         val outcome = constructed match {
-          case Right(all) => Try(all.block).failed.toOption
+          case Right(all)  => Try(all.block).failed.toOption
           case Left(eager) => Some(eager) // leaked at the call site (the defect)
         }
         assertTrue(constructed.isRight, outcome.contains(itBoom))
       },
       test("collectAll over many mixed ready+pending elements is stack-safe and order-preserving") {
-        val n          = 50000
-        val completers = scala.collection.mutable.ArrayBuffer.empty[Completer[Int]]
+        val n                       = 50000
+        val completers              = scala.collection.mutable.ArrayBuffer.empty[Completer[Int]]
         val items: List[Async[Int]] = (0 until n).map { i =>
           if (i % 1000 == 0) {
             val (c, fa) = AsyncTestSupport.pending[Int]

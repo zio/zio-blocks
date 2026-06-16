@@ -301,8 +301,8 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           // data), the loop must discard that value per iteration and still
           // terminate; the carried pollable must never be re-dispatched as the
           // rest of the loop.
-          val carried: Pollable[Int] = AsyncTestSupport.syncReadyPollable(123)
-          var driven                 = false
+          val carried: Pollable[Int]   = AsyncTestSupport.syncReadyPollable(123)
+          var driven                   = false
           val observing: Pollable[Int] = new Pollable[Int] {
             def poll(onComplete: Runnable): Async[Int] = { driven = true; Async.succeed(0) }
           }
@@ -1780,17 +1780,17 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           // Byte/Short/Char/Boolean. The doc claims "element type preserved,
           // including primitives" — so an awaited Byte must rebuild a primitive
           // Array[Byte], not box or corrupt.
-          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 2).toByte).await)).block
+          val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 2).toByte).await)).block
           val isByteArray = r.getClass.getComponentType == java.lang.Byte.TYPE
           assertTrue(r.toList == List[Byte](2, 4, 6), isByteArray)
         },
         test("Array.map preserves a non-specialized primitive element type (Boolean)") {
-          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed(i % 2 == 0).await)).block
+          val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed(i % 2 == 0).await)).block
           val isBoolArray = r.getClass.getComponentType == java.lang.Boolean.TYPE
           assertTrue(r.toList == List(false, true, false), isBoolArray)
         },
         test("Array.map preserves a non-specialized primitive element type (Char)") {
-          val r = Async.async(Array(1, 2, 3).map(i => Async.succeed(('a' + i).toChar).await)).block
+          val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed(('a' + i).toChar).await)).block
           val isCharArray = r.getClass.getComponentType == java.lang.Character.TYPE
           assertTrue(r.toList == List('b', 'c', 'd'), isCharArray)
         },
@@ -1862,7 +1862,7 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           assertTrue(r.toList == List[Byte](1, 10, 2, 20), isByteArray)
         },
         test("Array.map preserves a non-specialized primitive element type (Short)") {
-          val r           = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 100).toShort).await)).block
+          val r            = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 100).toShort).await)).block
           val isShortArray = r.getClass.getComponentType == java.lang.Short.TYPE
           assertTrue(r.toList == List[Short](100, 200, 300), isShortArray)
         },
@@ -1914,7 +1914,7 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           // Regression: `start` stored the bare pollable terminal, so the Running's
           // `poll` re-exposed it as a still-suspended computation and the blocking
           // worker parked forever (no wakeup) -> deadlock.
-          val running = Async.start(Async.succeed(inner))
+          val running = (Async.succeed(inner): Async[Pollable[Int]]).start
           val result  = new AtomicReference[AnyRef](null)
           val done    = new AtomicBoolean(false)
           val worker  = new Thread(new Runnable {
@@ -1939,7 +1939,7 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           val returned = new AtomicBoolean(false)
           val caller   = new Thread(new Runnable {
             def run(): Unit = {
-              val _ = Async.start(Async.succeed(c): Async[Completer[Int]])
+              val _ = (Async.succeed(c): Async[Completer[Int]]).start
               returned.set(true)
             }
           })

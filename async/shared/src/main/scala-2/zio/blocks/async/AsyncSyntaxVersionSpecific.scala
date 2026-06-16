@@ -17,6 +17,7 @@
 package zio.blocks.async
 
 import zio.blocks.combinators.Tuples.Tuples
+import zio.blocks.async.internal.AsyncRunner
 import scala.annotation.compileTimeOnly
 
 /**
@@ -213,7 +214,10 @@ private[async] trait AsyncSyntaxVersionSpecific {
     def <*[B](that: Async[B]): Async[A] = zipWith(that)((a, _) => a)
 
     /** Eagerly drive `fa` and return a [[Async.Running]] handle. */
-    def start: Async.Running[A] = Async.start(fa)
+    // Eagerly drive an already-built `fa` (distinct from the companion
+    // `Async.start(body)`, which evaluates a by-name body). Reaches the
+    // in-package `internal.AsyncRunner` driver directly.
+    def start: Async.Running[A] = AsyncRunner.start(fa)
   }
 
   implicit class AsyncFlattenOps[A](private val ffa: Async[Async[A]]) {

@@ -226,7 +226,7 @@ object AsyncRunSpec extends ZIOSpecDefault {
               if (polls.incrementAndGet() == 1) { stash.set(onComplete); this }
               else { handle.get().cancel(); Async.succeed(42) }
           }
-          val running = Async.start(AsyncTestSupport.fromPollable(leaf))
+          val running = AsyncTestSupport.fromPollable(leaf).start
           handle.set(running)
           for {
             armed <- Live.live(
@@ -271,7 +271,7 @@ object AsyncRunSpec extends ZIOSpecDefault {
         // makes the depth-collapsed scalar trip Scala.js's CHECKED class cast
         // (an uncatchable UndefinedBehaviorError that kills the JS runner).
         val direct: AnyRef  = (nested.flatten: Async[AnyRef]).block
-        val started: AnyRef = (Async.start(nested).flatten: Async[AnyRef]).block
+        val started: AnyRef = (nested.start.flatten: Async[AnyRef]).block
         assertTrue(direct eq inner, started eq inner)
       }
     ),

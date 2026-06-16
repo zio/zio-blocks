@@ -169,13 +169,13 @@ object AsyncSpec extends ZIOSpecDefault {
             val c = new Completer[Int]
             (c, c.peek)
           }
-          val z          = Async.succeed(()).zip(right)
+          val z = Async.succeed(()).zip(right)
           c.fail(boom)
           val thrown = Try(z.block).failed.toOption
           assertTrue(thrown.contains(boom))
         },
         test("zip_pendingFailLeft_readyUnitRight_propagatesLeftFailureWithoutDrivingRight") {
-          var rightPolled = false
+          var rightPolled        = false
           val right: Async[Unit] = new Pollable[Unit] {
             def poll(onComplete: Runnable): Async[Unit] = { rightPolled = true; Async.succeed(()) }
           }
@@ -183,7 +183,7 @@ object AsyncSpec extends ZIOSpecDefault {
             val c = new Completer[Int]
             (c, c.peek)
           }
-          val z         = left.zip(right)
+          val z = left.zip(right)
           c.fail(boom)
           val thrown = Try(z.block).failed.toOption
           assertTrue(thrown.contains(boom), !rightPolled)
@@ -194,8 +194,8 @@ object AsyncSpec extends ZIOSpecDefault {
       // a later operand after the failure nor losing the failure's identity.
       suite("three-way zip middle failure association")(
         test("zipChain_pendingMiddleFail_surfacesMiddleFailureAndSkipsTail") {
-          var tailPolled        = false
-          val tail: Async[Int]  = new Pollable[Int] {
+          var tailPolled       = false
+          val tail: Async[Int] = new Pollable[Int] {
             def poll(onComplete: Runnable): Async[Int] = { tailPolled = true; Async.succeed(3) }
           }
           val (c, middle) = {

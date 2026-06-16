@@ -204,7 +204,7 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           var i       = 0
           while (i < trials && anomaly.isEmpty) {
             val c       = new Completer[String]
-            val running = Async.start(c.peek)
+            val running = c.peek.start
             val pollers = 4
             val start   = new CountDownLatch(1)
             val done    = new CountDownLatch(pollers)
