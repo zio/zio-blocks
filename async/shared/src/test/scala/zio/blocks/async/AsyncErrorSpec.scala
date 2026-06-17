@@ -478,6 +478,28 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         val fin           = new RuntimeException("fin")
         val a: Async[Int] = Async.succeed(1).ensuring(Async.fail(fin))
         assertTrue(a.block == 1)
+      },
+      test("a suspended primary failure and a suspended finalizer failure attach across the interleaved drive") {
+        // Both sides resolve over multiple polls (each re-arms its waker twice
+        // before settling), exercising the EnsuringPollable `outcome` memo and
+        // the finalizer replacement loop together — not just ready operands.
+        val primaryCause   = new RuntimeException("primary")
+        val finCause       = new RuntimeException("fin")
+        val primaryP       = AsyncTestSupport.failAfter(primaryCause, 2)
+        val finP           = AsyncTestSupport.failAfter(finCause, 2)
+        val a: Async[Int]  = (primaryP: Async[Int]).ensuring(finP)
+        val thrown         = Try(a.block).failed.toOption
+        assertTrue(
+          thrown.contains(primaryCause),
+          thrown.exists(_.getSuppressed.toList.contains(finCause))
+        )
+      },
+      test("a suspended success and a suspended failing finalizer drop the finalizer and keep the value") {
+        val finCause      = new RuntimeException("fin")
+        val primaryP      = AsyncTestSupport.succeedAfter(7, 2)
+        val finP          = AsyncTestSupport.failAfter(finCause, 2)
+        val a: Async[Int] = (primaryP: Async[Int]).ensuring(finP)
+        assertTrue(a.block == 7)
       }
     )
   )
