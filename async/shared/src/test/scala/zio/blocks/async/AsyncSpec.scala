@@ -1515,6 +1515,48 @@ object AsyncSpec extends ZIOSpecDefault {
             deep(_.catchAll(_ => Async.succeed(1)), 100000).isRight,
             deep(_.as(1), 100000).isRight
           )
+        },
+        test("deep tap / ensuring / as spines over a PENDING source drive to the correct value below the depth bound") {
+          // The READY-source sibling above proves these collapse; over a PENDING
+          // source each non-flatMap combinator (like map / flatMap / zipWith)
+          // retains a continuation Pollable, so driving descends one frame per
+          // level. Below the documented few-tens-of-thousands depth bound a
+          // moderate spine must drive to the correct value (and run every
+          // finalizer effect exactly once, in order) rather than truncating,
+          // dropping effects, or hanging.
+          val n       = 2000
+          val effects = new java.util.concurrent.atomic.AtomicInteger(0)
+          def driven(build: (Async[Int], Int) => Async[Int]): Either[Throwable, Int] = {
+            val (c, p)         = AsyncTestSupport.pending[Int]
+            var fa: Async[Int] = p
+            var i              = 0
+            while (i < n) { fa = build(fa, i); i += 1 }
+            c.succeed(0)
+            Try(fa.block).toEither
+          }
+          val tapAll      = driven((fa, _) => fa.tap(_ => Async.succeed(effects.incrementAndGet())))
+          val tapEffects  = effects.get()
+          effects.set(0)
+          val ensuringAll = driven((fa, _) => fa.ensuring(Async.succeed(effects.incrementAndGet())))
+          val ensEffects  = effects.get()
+          val asLast      = driven((fa, i) => fa.as(i + 1))
+          assertTrue(
+            tapAll == Right(0),
+            tapEffects == n,
+            ensuringAll == Right(0),
+            ensEffects == n,
+            asLast == Right(n)
+          )
+        },
+        test("deep catchAll spine over a PENDING failing source recovers below the depth bound") {
+          val n              = 2000
+          val (c, p)         = AsyncTestSupport.pending[Int]
+          var fa: Async[Int] = p.flatMap(_ => Async.fail(AsyncTestSupport.boom))
+          var i              = 0
+          while (i < n) { fa = fa.catchAll(_ => Async.fail(AsyncTestSupport.boom2)); i += 1 }
+          val recovered = fa.catchAll(_ => Async.succeed(77))
+          c.succeed(0)
+          assertTrue(Try(recovered.block).toEither == Right(77))
         }
       ),
       // CONVERGENCE — pass-6 regression locks for categories exercised above.

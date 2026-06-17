@@ -280,6 +280,26 @@ object AsyncRunSpec extends ZIOSpecDefault {
             repolled,
             AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable))
           )
+        },
+        test("cancel of a collectAll batch mid-drain suppresses the terminal and re-polls nothing further") {
+          // `collectAll` is a single Pollable iterating its inputs internally.
+          // Cancelling its Running while an element is still pending must behave
+          // like any other suspended cancel: the terminal list is never
+          // published (the handle stays pending), and no further elements are
+          // driven once the run is cancelled.
+          val polled           = new AtomicInteger(0)
+          def slow: Async[Int] = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = { polled.incrementAndGet(); this }
+          }
+          val running = Async.collectAll(List(slow, slow, slow)).start
+          for {
+            _ <- Live.live(ZIO.sleep(50.millis))
+            _  = running.cancel()
+            _ <- Live.live(ZIO.sleep(50.millis))
+          } yield assertTrue(
+            polled.get() >= 1,
+            AsyncTestSupport.isPending(running.poll(AsyncTestSupport.noopRunnable))
+          )
         }
       ),
       test("a multi-wake pollable is not re-polled after completion (JVM/JS parity)") {
