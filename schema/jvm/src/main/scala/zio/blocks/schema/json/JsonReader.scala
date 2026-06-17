@@ -2167,23 +2167,51 @@ final class JsonReader private[json] (
     var buf = this.buf
     setMark(pos)
     try {
-      var hash    = 0
-      var b: Byte = 0
-      while ({
-        if (pos >= tail) {
-          pos = loadMoreOrError(pos)
-          buf = this.buf
+      var hash, bs = 0L
+      while (
+        (pos + 7 < tail || {
+          var b = 0: Byte
+          while ({
+            if (pos >= tail) {
+              pos = loadMoreOrError(pos)
+              buf = this.buf
+            }
+            b = buf(pos)
+            pos += 1
+            b != '"'
+          }) {
+            bs >>>= 8
+            bs |= b.toLong << 56
+            if (bs.toByte != 0) {
+              hash = (hash << 5) - hash + bs
+              bs = 0
+            }
+          }
+          if (bs != 0) hash = (hash << 5) - hash + bs
+          false
+        }) && {
+          bs = ByteArrayAccess.getLong(buf, pos)
+          val m = ((bs ^ 0x2222222222222222L) - 0x0101010101010101L) & ~bs & 0x8080808080808080L
+          m == 0 || {
+            val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
+            pos += offset + 1
+            if (offset > 0) {
+              bs <<= -offset << 3
+              hash = (hash << 5) - hash + bs
+            }
+            false
+          }
         }
-        b = buf(pos)
-        pos += 1
-        b != '"'
-      }) hash = (hash << 5) - hash + b
+      ) {
+        hash = (hash << 5) - hash + bs
+        pos += 8
+      }
       var k = zoneIdKey
       if (k eq null) {
         k = new Key
         zoneIdKey = k
       }
-      k.set(hash, buf, marks(markNum - 1), pos - 1)
+      k.set(((hash >> 32) ^ hash).toInt, buf, marks(markNum - 1), pos - 1)
       var zoneId = zoneIds.get(k)
       if (zoneId eq null) zoneId = toZoneId(k)
       head = pos
@@ -4298,22 +4326,50 @@ final class JsonReader private[json] (
       buf = this.buf
       setMark(pos)
       try {
-        var hash = 0
-        while ({
-          if (pos >= tail) {
-            pos = loadMoreOrError(pos)
-            buf = this.buf
+        var hash, bs = 0L
+        while (
+          (pos + 7 < tail || {
+            while ({
+              if (pos >= tail) {
+                pos = loadMoreOrError(pos)
+                buf = this.buf
+              }
+              b = buf(pos)
+              pos += 1
+              b != ']'
+            }) {
+              bs >>>= 8
+              bs |= b.toLong << 56
+              if (bs.toByte != 0) {
+                hash = (hash << 5) - hash + bs
+                bs = 0
+              }
+            }
+            if (bs != 0) hash = (hash << 5) - hash + bs
+            false
+          }) && {
+            bs = ByteArrayAccess.getLong(buf, pos)
+            val m = ((bs ^ 0x5d5d5d5d5d5d5d5dL) - 0x0101010101010101L) & ~bs & 0x8080808080808080L
+            m == 0 || {
+              val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
+              pos += offset + 1
+              if (offset > 0) {
+                bs <<= -offset << 3
+                hash = (hash << 5) - hash + bs
+              }
+              false
+            }
           }
-          b = buf(pos)
-          pos += 1
-          b != ']'
-        }) hash = (hash << 5) - hash + b
+        ) {
+          hash = (hash << 5) - hash + bs
+          pos += 8
+        }
         var k = zoneIdKey
         if (k eq null) {
           k = new Key
           zoneIdKey = k
         }
-        k.set(hash, buf, marks(markNum - 1), pos - 1)
+        k.set(((hash >> 32) ^ hash).toInt, buf, marks(markNum - 1), pos - 1)
         var zoneId = zoneIds.get(k)
         if (zoneId eq null) zoneId = toZoneId(k)
         if (isRaw) head = pos
@@ -5233,13 +5289,12 @@ private class Key {
     val off  = from
     val koff = k.fromIndex
     val len  = to - off
-    k.toIndex - koff == len && {
-      val bs  = this.bs
-      val kbs = k.bytes
-      var idx = 0
-      while (idx < len && kbs(koff + idx) == bs(off + idx)) idx += 1
-      idx == len
-    }
+    if (k.toIndex - koff != len) return false
+    val bs  = this.bs
+    val kbs = k.bytes
+    var i   = 0
+    while (i < len && kbs(koff + i) == bs(off + i)) i += 1
+    i == len
   }
 
   @inline
