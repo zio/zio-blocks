@@ -500,6 +500,39 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         val finP          = AsyncTestSupport.failAfter(finCause, 2)
         val a: Async[Int] = (primaryP: Async[Int]).ensuring(finP)
         assertTrue(a.block == 7)
+      },
+      test("the failing finalizer is attached to the primary exactly once, even if the result is polled again") {
+        // A `Pollable` may be polled repeatedly and must yield a stable terminal
+        // outcome. Re-polling a settled `ensuring` must not re-attach the
+        // finalizer's cause: `getSuppressed` must stay a single element, not
+        // grow one copy per extra poll (error-graph multiplicity).
+        val primaryCause  = new RuntimeException("primary")
+        val finCause      = new RuntimeException("fin")
+        val a: Async[Int] = Async.fail(primaryCause).ensuring(Async.fail(finCause))
+        AsyncTestSupport.pollOnce(a) // drive to terminal
+        AsyncTestSupport.pollOnce(a) // re-poll the settled result
+        val terminal      = AsyncTestSupport.pollOnce(a).asInstanceOf[Any]
+        val cause         = terminal.asInstanceOf[Failure].cause
+        assertTrue(
+          cause == primaryCause,
+          cause.getSuppressed.toList == List(finCause)
+        )
+      },
+      test("two independent consumers of one failing-finalizer ensuring each see a single suppressed cause") {
+        // Fan-out: the same `Async` is driven by two callers (e.g. `.block`
+        // twice, or `.block` after `.start`). The second consumer must observe
+        // the same single-element suppressed graph as the first, not a primary
+        // whose suppressed list has been mutated to hold a duplicate finalizer.
+        val primaryCause  = new RuntimeException("primary")
+        val finCause      = new RuntimeException("fin")
+        val a: Async[Int] = Async.fail(primaryCause).ensuring(Async.fail(finCause))
+        val first         = Try(a.block).failed.toOption
+        val second        = Try(a.block).failed.toOption
+        assertTrue(
+          first.contains(primaryCause),
+          second.contains(primaryCause),
+          primaryCause.getSuppressed.toList == List(finCause)
+        )
       }
     )
   )
