@@ -490,12 +490,14 @@ object Async extends AsyncCompanionVersionSpecific {
           val fRes = f(a) // f(a): Async[B] — may be ready, suspend, or fail
           if (fRes.isInstanceOf[Failure]) { done = fRes.asInstanceOf[Async[B]]; done }
           else if (fRes.isInstanceOf[Pollable[?]]) {
-            // f suspended: drive it once; a pending result is handed to the
-            // caller as a replacement (this pollable has no further role), so
-            // memoize only a terminal — a pending replacement must not be cached.
-            val next = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
-            if (!next.isInstanceOf[Pollable[?]] || next.isInstanceOf[Failure]) done = next
-            next
+            // f suspended: drive it once and memoize the result — terminal OR a
+            // pending replacement. Caching the replacement is what makes a
+            // re-poll/fan-out idempotent: a second consumer gets the SAME inner
+            // pollable to follow (itself idempotent) instead of re-applying `f`.
+            // A single driver still follows the replacement directly, so the
+            // chain still collapses (this pollable drops out of its path).
+            done = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+            done
           } else { done = fRes; fRes } // f finished synchronously (may carry WrappedPollable for pollable-as-value)
         }
       }
@@ -521,9 +523,11 @@ object Async extends AsyncCompanionVersionSpecific {
             catch { case t: Throwable => new Failure(t) }
           if (fRes.isInstanceOf[Failure]) { done = fRes.asInstanceOf[Async[B]]; done }
           else if (fRes.isInstanceOf[Pollable[?]]) {
-            val next = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
-            if (!next.isInstanceOf[Pollable[?]] || next.isInstanceOf[Failure]) done = next
-            next
+            // Memoize the handler's result — terminal or pending replacement —
+            // so a re-poll/fan-out follows the same inner pollable instead of
+            // re-invoking the recovery handler (see FlatMapPollable).
+            done = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+            done
           } else { done = fRes.asInstanceOf[Async[B]]; done }
         } else if (res.isInstanceOf[Pollable[?]]) { // pa still pending
           pa = res.asInstanceOf[Pollable[A]]
