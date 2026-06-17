@@ -407,6 +407,49 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         }
         val r = Async.succeed(5).ensuring(Async.succeed(p)).block
         assertTrue(r == 5, !driven)
+      },
+      test("bracket: a resource closed via ensuring is released exactly once on success and on failure") {
+        // ensuring as the cleanup half of acquire/use/release: the finalizer
+        // must run exactly once whether `use` succeeds or fails, with no leak
+        // (acquire-without-release) and no double-close.
+        def runBracket(use: Async[Int]): (Int, Either[Throwable, Int]) = {
+          var closes = 0
+          val a      = use.ensuring(Async.succeed { closes += 1 })
+          val out    =
+            try Right(a.block)
+            catch { case t: Throwable => Left(t) }
+          (closes, out)
+        }
+        val (cSucc, rSucc)               = runBracket(Async.succeed(1))
+        val (cFail, rFail)               = runBracket(Async.fail(boom))
+        val (cPend, rPend)               = {
+          val (c, p) = AsyncTestSupport.pending[Int]
+          var closes = 0
+          val a      = p.ensuring(Async.succeed { closes += 1 })
+          c.succeed(7)
+          (closes, scala.util.Try(a.block).toEither)
+        }
+        assertTrue(
+          rSucc == Right(1) && cSucc == 1,
+          rFail.left.toOption.contains(boom) && cFail == 1,
+          rPend == Right(7) && cPend == 1
+        )
+      },
+      test("nested ensuring finalizers run inner-before-outer, each exactly once, on failure") {
+        // Stacked brackets must unwind innermost-first; both finalizers run once
+        // and the original failure is preserved. The finalizer effect fires when
+        // the finalizer is DRIVEN (a poll-time effect), not at eager construction,
+        // so the recorded order is the genuine unwind order.
+        val order                     = scala.collection.mutable.ArrayBuffer.empty[String]
+        def closer(label: String): Async[Unit] = new Pollable[Unit] {
+          def poll(onComplete: Runnable): Async[Unit] = { order += label; Async.succeed(()) }
+        }
+        val a =
+          (Async.fail(boom): Async[Int])
+            .ensuring(closer("close-inner"))
+            .ensuring(closer("close-outer"))
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(thrown.contains(boom), order.toList == List("close-inner", "close-outer"))
       }
     ),
     suite("collectAll")(

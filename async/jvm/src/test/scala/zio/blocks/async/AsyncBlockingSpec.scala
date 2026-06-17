@@ -193,6 +193,37 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           }
           val thrown = scala.util.Try(a.block).failed.toOption
           assertTrue(thrown.contains(AsyncTestSupport.boom), !laterRan)
+        },
+        test("direct-style .await drives pending leaves in the same order/count as a hand flatMap chain") {
+          // Metamorphic/differential: the same logical sequencing built two ways
+          // — a direct-style `Async.async { .await; .await }` block and a hand
+          // `flatMap` chain — must drive the pending leaves in the same order,
+          // the same number of polls, and yield the same value. Each leaf
+          // re-arms its waker `polls` times before settling.
+          def leaf(name: String, log: scala.collection.mutable.ArrayBuffer[String], polls: Int, v: Int): Pollable[Int] =
+            new Pollable[Int] {
+              private var remaining                      = polls
+              def poll(onComplete: Runnable): Async[Int] = {
+                log += s"poll:$name"
+                if (remaining <= 0) Async.succeed(v)
+                else { remaining -= 1; onComplete.run(); this }
+              }
+            }
+          val logF             = scala.collection.mutable.ArrayBuffer.empty[String]
+          val af: Async[Int]   = leaf("a", logF, 1, 1)
+          val bf: Async[Int]   = leaf("b", logF, 2, 2)
+          val rF               = af.flatMap(x => bf.map(y => x + y)).block
+
+          val logA             = scala.collection.mutable.ArrayBuffer.empty[String]
+          val aa: Async[Int]   = leaf("a", logA, 1, 1)
+          val ba: Async[Int]   = leaf("b", logA, 2, 2)
+          val rA               = Async.async {
+            val x = aa.await
+            val y = ba.await
+            x + y
+          }.block
+
+          assertTrue(rF == 3, rA == 3, logF.toList == logA.toList)
         }
       ),
       suite("if / else with .await in branches")(
@@ -1865,6 +1896,16 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
           val r            = Async.async(Array(1, 2, 3).map(i => Async.succeed((i * 100).toShort).await)).block
           val isShortArray = r.getClass.getComponentType == java.lang.Short.TYPE
           assertTrue(r.toList == List[Short](100, 200, 300), isShortArray)
+        },
+        test("Array.map preserves the (specialized) primitive element type (Double)") {
+          val r             = Async.async(Array(1.5, 2.5, 3.5).map(d => Async.succeed(d * 2).await)).block
+          val isDoubleArray = r.getClass.getComponentType == java.lang.Double.TYPE
+          assertTrue(r.toList == List(3.0, 5.0, 7.0), isDoubleArray)
+        },
+        test("Array.map preserves a non-specialized primitive element type (Float)") {
+          val r            = Async.async(Array(1.0f, 2.0f, 3.0f).map(f => Async.succeed(f + 0.5f).await)).block
+          val isFloatArray = r.getClass.getComponentType == java.lang.Float.TYPE
+          assertTrue(r.toList == List(1.5f, 2.5f, 3.5f), isFloatArray)
         },
         test("Array.exists short-circuits at the first matching await") {
           val r = Async.async(Array(1, 2, 3).exists(i => Async.succeed(i == 2).await)).block
