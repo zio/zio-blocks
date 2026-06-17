@@ -101,6 +101,42 @@ object AsyncInteropSpec extends ZIOSpecDefault {
               case Left(t)  => assertTrue(t eq boom)
               case Right(_) => assertTrue(false)
             }
+        },
+        test("fromJsPromise: rejected with a non-Error JS value (string) keeps a non-null cause") {
+          // A reject with a plain string is a JavaScriptException whose payload
+          // is non-null, so the failure cause must NOT collapse to null.
+          val p  = js.Promise.reject("oops").asInstanceOf[js.Promise[Int]]
+          val fa = AsyncInterop.fromJsPromise(p).either
+          for {
+            e <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue(e.isLeft, e.left.toOption.flatMap(t => Option(t)).isDefined)
+        },
+        test("fromJsPromise: rejected with undefined surfaces through the failure channel") {
+          val p  = js.Promise.reject(js.undefined).asInstanceOf[js.Promise[Int]]
+          val fa = AsyncInterop.fromJsPromise(p).either
+          for {
+            e <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue(e.isLeft)
+        },
+        test("toJsPromise ∘ fromJsPromise round-trips a success value through the encoding") {
+          val jp = AsyncInterop.toJsPromise(Async.succeed(123).map(_ + 1))
+          val fa = AsyncInterop.fromJsPromise(jp)
+          for {
+            v <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue(v == 124)
+        },
+        test("fromJsPromise: a promise resolving with a Pollable carries it as data through .either") {
+          // The resolved value is itself a user Pollable; the non-driving
+          // `.either` channel must reify it by identity, never run its poll
+          // (which would surface boom).
+          val inner: Pollable[Int] = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = Async.fail(AsyncTestSupport.boom)
+          }
+          val jp = js.Promise.resolve[Pollable[Int]](inner)
+          val fa = AsyncInterop.fromJsPromise(jp).either
+          for {
+            e <- ZIO.fromFuture(_ => AsyncInterop.toFuture(fa))
+          } yield assertTrue(e.toOption.exists((v: Pollable[Int]) => (v: AnyRef) eq inner))
         }
       )
     ),
