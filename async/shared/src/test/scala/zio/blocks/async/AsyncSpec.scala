@@ -1136,6 +1136,30 @@ object AsyncSpec extends ZIOSpecDefault {
             Async.succeed(inner).tap(_ => Async.succeed(AsyncTestSupport.pollableSuccessValue))
           val result: Pollable[Int] = fa.block
           assertTrue(result eq inner)
+        },
+        test("tap_primaryPollableAsValue_doesNotDriveItAsAComputation") {
+          // A pollable-as-value (`Async.succeed(p)` where `p: Pollable`) is
+          // DATA, not a suspended computation: `map`/`flatMap`/`zipWith`/
+          // `ensuring`/`either` all carry it one nesting level deep without
+          // running it (only the value-delivering drivers — `.block`, `start`
+          // — drive it for effects). `tap`'s contract is "run `f` for its
+          // effect, then yield the original value", so it must treat that value
+          // identically. The differential oracle is `map(identity)`: viewed
+          // through the non-driving `.either` channel both must observe the same
+          // success carrying the pollable, never run the pollable's `poll`.
+          // Here `poll` yields a Failure: `map(identity).either` stays `Right`
+          // (value untouched), but `tap`'s ready path wraps it in an
+          // ObservedPollable and drives it, surfacing the poll-failure as a
+          // `Left` — corrupting a successful `tap` into a failure.
+          val driven                        = new RuntimeException("pollable-as-value driven by tap")
+          def pv(): Pollable[Int]           = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = Async.fail(driven)
+          }
+          val viaMap: Either[Throwable, Pollable[Int]] =
+            Async.succeed(pv()).map(identity).either.block
+          val viaTap: Either[Throwable, Pollable[Int]] =
+            Async.succeed(pv()).tap(_ => Async.succeed(())).either.block
+          assertTrue(viaMap.isRight, viaTap.isRight)
         }
       ),
       // Category B/H — Ready carrier through ensuring on pending path.
