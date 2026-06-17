@@ -353,6 +353,17 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         val thrown = Try(a.block).failed.toOption
         assertTrue(thrown.contains(AsyncTestSupport.finPoll))
       },
+      test("a tap effect that is a pollable-as-value carrier is data, not a computation (not driven)") {
+        // Parity with the ensuring sibling: a `tap` whose effect resolves to a
+        // pollable-as-value carrier treats it as the (discarded) effect value,
+        // never driving the user pollable.
+        var driven            = false
+        val p: Pollable[Unit] = new Pollable[Unit] {
+          def poll(onComplete: Runnable): Async[Unit] = { driven = true; Async.succeed(()) }
+        }
+        val r = Async.succeed(5).tap(_ => Async.succeed(p)).block
+        assertTrue(r == 5, !driven)
+      },
       test("tap over each of the five operand encodings observes the delivered value and preserves the outcome") {
         val anomalies = encodingShapes.flatMap { shape =>
           val (fa, exp) = encodedOperand(shape, 9)
@@ -383,6 +394,19 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
       test("suppresses finalizer failure (original outcome wins)") {
         val r = Async.succeed(1).ensuring(Async.fail(AsyncTestSupport.boom)).block
         assertTrue(r == 1)
+      },
+      test("a finalizer that is a pollable-as-value carrier is data, not a computation (not driven)") {
+        // `Async.succeed(p)` is a SUCCESSFUL finalizer whose value happens to be a
+        // Pollable. `ensuring` runs the finalizer for effect-then-discard, but a
+        // pollable-as-value carrier is data — driving it would run the user
+        // pollable for effects it never asked to run, diverging from `tap`'s
+        // identical treatment of an effect-as-value.
+        var driven           = false
+        val p: Pollable[Unit] = new Pollable[Unit] {
+          def poll(onComplete: Runnable): Async[Unit] = { driven = true; Async.succeed(()) }
+        }
+        val r = Async.succeed(5).ensuring(Async.succeed(p)).block
+        assertTrue(r == 5, !driven)
       }
     ),
     suite("collectAll")(

@@ -82,6 +82,53 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
       }
       assertTrue(scala.util.Try(a.block).failed.toOption.contains(AsyncTestSupport.boom))
     },
+    test("await in the right operand of && short-circuits (right await is not run when left is false)") {
+      // `&&`'s right operand is by-name; the macro must preserve short-circuit
+      // evaluation, not hoist the right `.await` before the boolean test.
+      var rightRan      = false
+      val a: Async[Boolean] = Async.async {
+        val left = Async.succeed(false).await
+        left && { val v = Async.succeed(true).await; rightRan = true; v }
+      }
+      assertTrue(a.block == false, !rightRan)
+    },
+    test("await in the right operand of || short-circuits (right await is not run when left is true)") {
+      var rightRan      = false
+      val a: Async[Boolean] = Async.async {
+        val left = Async.succeed(true).await
+        left || { val v = Async.succeed(false).await; rightRan = true; v }
+      }
+      assertTrue(a.block == true, !rightRan)
+    },
+    test("await in a while condition with an awaiting body and var mutation evaluates left-to-right") {
+      val a: Async[Int] = Async.async {
+        var i   = 0
+        var sum = 0
+        while (Async.succeed(i < 4).await) {
+          val v = Async.succeed(i * 10).await
+          sum += v
+          i += 1
+        }
+        sum
+      }
+      assertTrue(a.block == 60) // 0 + 10 + 20 + 30
+    },
+    test("await in a match scrutinee whose case bodies also await selects and runs the right arm") {
+      val a: Async[String] = Async.async {
+        Async.succeed(2).await match {
+          case 1 => Async.succeed("one").await
+          case 2 => Async.succeed("two").await
+          case _ => Async.succeed("other").await
+        }
+      }
+      assertTrue(a.block == "two")
+    },
+    test("await inside string interpolation evaluates each interpolated await") {
+      val a: Async[String] = Async.async {
+        s"v=${Async.succeed(7).await}-${Async.succeed(8).await}"
+      }
+      assertTrue(a.block == "v=7-8")
+    },
     test("await of a method chain compiles") {
       typeCheck("""
         import zio.blocks.async._
