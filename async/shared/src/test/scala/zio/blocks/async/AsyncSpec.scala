@@ -1414,6 +1414,67 @@ object AsyncSpec extends ZIOSpecDefault {
           assertTrue(l eq inner, r eq inner)
         }
       ),
+      // Category W — driving a deep flatMap / map chain over one suspended leaf
+      // must stay LINEAR: the leaf is polled once per suspension round (k+1
+      // times), independent of the chain depth N. A re-poll-the-prefix
+      // implementation would re-drive the leaf on every level and make the leaf
+      // poll count grow with N (super-linear total work). The collapse of a
+      // settled prefix is what keeps total work O(N) rather than O(N*depth).
+      suite("deep combinator chain drive cost is linear in depth")(
+        test("flatMap chain over a leaf polls the leaf exactly once per suspension round, regardless of depth") {
+          def leafPolls(n: Int, k: Int): Int = {
+            val counter        = Array(0)
+            var fa: Async[Int] = new Pollable[Int] {
+              private var remaining                    = k
+              def poll(onComplete: Runnable): Async[Int] = {
+                counter(0) += 1
+                if (remaining <= 0) Async.succeed(0)
+                else { remaining -= 1; onComplete.run(); this }
+              }
+            }
+            var i = 0
+            while (i < n) { fa = fa.flatMap(x => Async.succeed(x)); i += 1 }
+            var cur: Any = fa
+            while (cur.isInstanceOf[Pollable[?]] && !cur.isInstanceOf[Failure])
+              cur = cur.asInstanceOf[Pollable[Int]].poll(AsyncTestSupport.noopRunnable)
+            counter(0)
+          }
+          // k+1 leaf polls (k re-arm rounds + the resolving poll) for every N.
+          assertTrue(
+            leafPolls(500, 0) == 1,
+            leafPolls(4000, 0) == 1,
+            leafPolls(500, 3) == 4,
+            leafPolls(4000, 3) == 4,
+            leafPolls(500, 3) == leafPolls(4000, 3)
+          )
+        },
+        test("map chain over a leaf polls the leaf exactly once per suspension round, regardless of depth") {
+          def leafPolls(n: Int, k: Int): Int = {
+            val counter        = Array(0)
+            var fa: Async[Int] = new Pollable[Int] {
+              private var remaining                    = k
+              def poll(onComplete: Runnable): Async[Int] = {
+                counter(0) += 1
+                if (remaining <= 0) Async.succeed(0)
+                else { remaining -= 1; onComplete.run(); this }
+              }
+            }
+            var i = 0
+            while (i < n) { fa = fa.map(x => x); i += 1 }
+            var cur: Any = fa
+            while (cur.isInstanceOf[Pollable[?]] && !cur.isInstanceOf[Failure])
+              cur = cur.asInstanceOf[Pollable[Int]].poll(AsyncTestSupport.noopRunnable)
+            counter(0)
+          }
+          assertTrue(
+            leafPolls(500, 0) == 1,
+            leafPolls(4000, 0) == 1,
+            leafPolls(500, 3) == 4,
+            leafPolls(4000, 3) == 4,
+            leafPolls(500, 3) == leafPolls(4000, 3)
+          )
+        }
+      ),
       // CONVERGENCE — pass-6 regression locks for categories exercised above.
       suite("CONVERGENCE: pass-6 regression locks")(
         test("flatMap_readySucceedPollable_preservesPollableIdentity") {
