@@ -662,6 +662,68 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         assertTrue(r == (0 until n).toList)
       }
     ),
+    suite("fan-out idempotency")(
+      // A single `Async` value may be driven by more than one consumer (two
+      // `.start`s, `.start` + `.block`, an interop runner + a `.block`). Each
+      // such driver polls the SAME combinator pollable: while pending it
+      // registers its own waker; when the shared completer settles, every
+      // registered driver is woken and polls once more to observe the value.
+      // That second driver's settling poll must be a pure observation — it must
+      // NOT re-invoke the user function or re-run the side effect. `ensuring`'s
+      // finalizer was already locked against this (BUG-041); the same contract
+      // holds for `map` / `flatMap` / `tap` / `zipWith` / `catchAll`.
+      //
+      // `twoDriverFanOut` reproduces exactly the driver interleaving above with
+      // two distinct wakers over one pending completer: poll-A (pending),
+      // poll-B (pending), settle, poll-A (observe), poll-B (observe). It returns
+      // the two observed outcomes so each combinator test can assert the user
+      // effect ran exactly once.
+      {
+        def twoDriverFanOut[A](build: Completer[Int] => Async[A]): (Async[A], Async[A]) = {
+          val c        = new Completer[Int]
+          val fa       = build(c)
+          val pa       = fa.asInstanceOf[Pollable[A]]
+          val wakerA: Runnable = () => ()
+          val wakerB: Runnable = () => ()
+          pa.poll(wakerA) // driver A registers
+          pa.poll(wakerB) // driver B registers (distinct waker -> fan-out)
+          c.succeed(1)
+          val a = pa.poll(wakerA) // driver A observes terminal
+          val b = pa.poll(wakerB) // driver B observes terminal (must not re-fire)
+          (a, b)
+        }
+
+        suite("two consumers driving one settled value run the user effect exactly once")(
+          test("map") {
+            var calls    = 0
+            val (a, b)   = twoDriverFanOut(c => c.peek.map(x => { calls += 1; x + 1 }))
+            assertTrue(calls == 1, a.block == 2, b.block == 2)
+          },
+          test("flatMap") {
+            var calls  = 0
+            val (a, b) = twoDriverFanOut(c => c.peek.flatMap(x => { calls += 1; Async.succeed(x + 1) }))
+            assertTrue(calls == 1, a.block == 2, b.block == 2)
+          },
+          test("tap") {
+            var calls  = 0
+            val (a, b) = twoDriverFanOut(c => c.peek.tap(_ => Async.succeed { calls += 1; () }))
+            assertTrue(calls == 1, a.block == 1, b.block == 1)
+          },
+          test("zipWith") {
+            var calls  = 0
+            val (a, b) = twoDriverFanOut(c => c.peek.zipWith(Async.succeed(3))((x, y) => { calls += 1; x + y }))
+            assertTrue(calls == 1, a.block == 4, b.block == 4)
+          },
+          test("catchAll") {
+            var calls  = 0
+            val (a, b) = twoDriverFanOut { c =>
+              c.peek.flatMap(_ => Async.fail(boom)).catchAll(_ => { calls += 1; Async.succeed(0) })
+            }
+            assertTrue(calls == 1, a.block == 0, b.block == 0)
+          }
+        )
+      }
+    ),
     suite("when / unless")(
       test("when(true) runs the effect") {
         var ran = false
