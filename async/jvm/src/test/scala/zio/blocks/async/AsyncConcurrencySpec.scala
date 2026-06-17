@@ -19,7 +19,7 @@ package zio.blocks.async
 import zio.ZIO
 import zio.test._
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{CountDownLatch, CyclicBarrier}
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -242,6 +242,55 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
             if (terminal != null) anomaly = Some(s"trial $i: terminal was $terminal, expected raw null")
             else if (resumed.get() < pollers)
               anomaly = Some(s"trial $i: only ${resumed.get()} of $pollers pollers resumed (lost wakeup)")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
+      test("two concurrent drivers polling one settled map-continuation run the user function exactly once") {
+        // Fan-out is a documented consumer scenario: a single `Async` may be
+        // driven by more than one consumer (two `fa.start`s, or `fa.start` plus
+        // `fa.block`), each polling the SAME combinator pollable. The settling
+        // poll of every driver must be a pure observation — the user function
+        // runs exactly once. The single-threaded fan-out suite already asserts
+        // this; here the two drivers poll CONCURRENTLY. The `done` memo guards
+        // the function with a plain `var` read-then-write, so if both drivers
+        // enter `poll` before either has written `done`, both re-run the
+        // function. We settle the leaf first, then release both pollers through
+        // a barrier so they poll the already-settled pollable simultaneously.
+        ZIO.attemptBlocking {
+          val trials  = 5000
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val calls = new AtomicInteger(0)
+            val c     = new Completer[Int]
+            val fa    = c.peek.map { x => calls.incrementAndGet(); x + 1 }
+            val pa    = fa.asInstanceOf[Pollable[Int]]
+            // Documented fan-out interleaving: each of two distinct drivers
+            // first polls while PENDING (registering its own waker), so neither
+            // has set `done`. The leaf then settles, and both drivers are woken
+            // and poll once more to OBSERVE the value — concurrently, gated by a
+            // barrier. The settling polls must collectively run `f` once.
+            pa.poll(AsyncTestSupport.noopRunnable) // driver A registers (pending)
+            pa.poll(() => ())                      // driver B registers (distinct waker)
+            c.succeed(1)
+            val barrier = new CyclicBarrier(2)
+            val threads = (0 until 2).map { _ =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  barrier.await()
+                  pa.poll(AsyncTestSupport.noopRunnable)
+                  ()
+                }
+              })
+              t.setDaemon(true)
+              t.start()
+              t
+            }
+            threads.foreach(_.join())
+            val n = calls.get()
+            if (n != 1) anomaly = Some(s"trial $i: map function ran $n times under concurrent fan-out (must be 1)")
             i += 1
           }
           assertTrue(anomaly.isEmpty)
