@@ -720,6 +720,34 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
               c.peek.flatMap(_ => Async.fail(boom)).catchAll(_ => { calls += 1; Async.succeed(0) })
             }
             assertTrue(calls == 1, a.block == 0, b.block == 0)
+          },
+          test("flatMap whose continuation suspends runs the continuation exactly once under fan-out") {
+            // Same fan-out as the other cases, but `f` returns a PENDING pollable
+            // (not a ready value). Driver A polls `pa` to its value, runs `f`, and
+            // drives `f`'s pending result once — handing it back as a replacement.
+            // Because that replacement is still pending, the FlatMapPollable's `done`
+            // memo is not set. Driver B then re-polls the SAME FlatMapPollable, which
+            // re-polls the already-settled `pa` and runs `f` a SECOND time.
+            var calls       = 0
+            val (innerC, _) = AsyncTestSupport.pending[Int]
+            val (a, b)      = twoDriverFanOut { c =>
+              c.peek.flatMap { x => calls += 1; innerC.peek.map(_ => x + 1) }
+            }
+            innerC.succeed(100)
+            assertTrue(calls == 1, a.block == 2, b.block == 2)
+          },
+          test("catchAll whose recovery suspends runs the handler exactly once under fan-out") {
+            // Mirror of the flatMap case for the recovery channel: the handler
+            // returns a PENDING pollable, so CatchAllPollable hands back the pending
+            // replacement without memoizing. A second fan-out driver re-polls and
+            // re-invokes the handler.
+            var calls       = 0
+            val (innerC, _) = AsyncTestSupport.pending[Int]
+            val (a, b)      = twoDriverFanOut { c =>
+              c.peek.flatMap(_ => Async.fail(boom)).catchAll { _ => calls += 1; innerC.peek.map(_ => 0) }
+            }
+            innerC.succeed(100)
+            assertTrue(calls == 1, a.block == 0, b.block == 0)
           }
         )
       },
