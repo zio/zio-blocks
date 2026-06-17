@@ -422,6 +422,27 @@ object AsyncInteropSpec extends ZIOSpecDefault {
         val observed = Async.succeed(inner).either.block.toOption.get.asInstanceOf[AnyRef]
         assertTrue(observed eq inner)
       },
+      test("fromFuture_completedWithPollableValue_carriesItAsDataThroughNonDrivingChannel") {
+        // A Future whose success value is itself a user Pollable lifts through
+        // Async.succeed, which WRAPS it as a pollable-as-value. The non-driving
+        // `.either` channel must reify it as `Right(inner)` by identity, never
+        // running its poll (which would surface `boom`). Covers both the
+        // already-completed (synchronous) and pending future ingress paths.
+        // (`.block` deliberately DRIVES a depth-1 carrier for effects — the
+        // documented BUG-044 contract — so it is not the oracle here.)
+        val inner: Pollable[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = Async.fail(boom) // would surface if driven
+        }
+        val readyOut = AsyncInterop.fromFuture(Future.successful(inner)).either.block
+        val p        = Promise[Pollable[Int]]()
+        val pendingAsync = AsyncInterop.fromFuture(p.future).either
+        p.success(inner)
+        val pendingOut = pendingAsync.block
+        assertTrue(
+          readyOut.toOption.exists((v: Pollable[Int]) => (v: AnyRef) eq inner),
+          pendingOut.toOption.exists((v: Pollable[Int]) => (v: AnyRef) eq inner)
+        )
+      },
       // Category E/L — fromCompletionStage must preserve null failure causes.
       suite("fromCompletionStage null-cause round-trip")(
         test("fromCompletionStage_completedNullFail_eitherReifiesLeftNull") {

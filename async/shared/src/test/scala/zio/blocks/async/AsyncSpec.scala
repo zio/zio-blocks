@@ -1497,6 +1497,24 @@ object AsyncSpec extends ZIOSpecDefault {
             leafPolls(4000, 3) == 4,
             leafPolls(500, 3) == leafPolls(4000, 3)
           )
+        },
+        test("deep tap / ensuring / catchAll / as spines over a READY source are depth-safe like map / flatMap") {
+          // The docs claim depth-safety over a ready source explicitly for
+          // flatMap / map / zipWith; the sibling non-flatMap combinators collapse
+          // identically (a ready receiver resolves eagerly, retaining no
+          // Pollable), so a 100k-deep spine of each must drive without overflow.
+          def deep(build: Async[Int] => Async[Int], n: Int): Either[Throwable, Int] = {
+            var fa: Async[Int] = Async.succeed(0)
+            var i              = 0
+            while (i < n) { fa = build(fa); i += 1 }
+            Try(fa.block).toEither
+          }
+          assertTrue(
+            deep(_.tap(_ => Async.succeed(())), 100000).isRight,
+            deep(_.ensuring(Async.succeed(())), 100000).isRight,
+            deep(_.catchAll(_ => Async.succeed(1)), 100000).isRight,
+            deep(_.as(1), 100000).isRight
+          )
         }
       ),
       // CONVERGENCE — pass-6 regression locks for categories exercised above.

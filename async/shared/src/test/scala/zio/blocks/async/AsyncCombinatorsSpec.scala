@@ -796,6 +796,21 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
             }
             innerC.succeed(100)
             assertTrue(calls == 1, a.block == 0, b.block == 0)
+          },
+          test("tap whose side effect suspends runs the effect exactly once under fan-out") {
+            // `tap` routes through a FlatMapPollable whose continuation is
+            // `runThenValue(f(a), a, ...)`. When `f(a)` itself suspends (returns a
+            // PENDING pollable), the FlatMapPollable memoizes the pending
+            // replacement in `done`, so a second fan-out driver follows that same
+            // replacement instead of re-invoking `f`. Sibling of the flatMap /
+            // catchAll suspended-continuation cases above, for the tap channel.
+            var calls       = 0
+            val (innerC, _) = AsyncTestSupport.pending[Int]
+            val (a, b)      = twoDriverFanOut { c =>
+              c.peek.tap { _ => calls += 1; innerC.peek.map(_ => ()) }
+            }
+            innerC.succeed(100)
+            assertTrue(calls == 1, a.block == 1, b.block == 1)
           }
         )
       },
