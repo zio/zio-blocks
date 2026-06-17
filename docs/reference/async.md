@@ -551,24 +551,35 @@ re-poll.
 ### Combinator chain depth
 
 Combinator continuations poll their children recursively without a trampoline
-(a deliberate trade: the poll path stays allocation- and indirection-free).
-What is depth-safe depends on the *shape* of the chain, not the combinator:
+(a deliberate trade: the poll path stays allocation- and indirection-free). The
+determinant of depth-safety is whether driving has to unwind a deep chain of
+combinators in **receiver position** over a value that is still **pending** —
+not whether the chain was written iteratively or recursively:
 
-- **Iterative / right-associated accumulation is depth-safe** — building a chain
-  by folding into an accumulator (`var fa = …; while (…) fa = fa.flatMap(g)`, or
-  the same with `.map`), `collectAll`, and direct-style `Async.async` `while`
-  loops all consume constant stack regardless of length. A settled prefix is
-  collapsed each poll, so total work stays O(N) and stack depth stays O(1).
-- **Hand-built, left-nested recursion over a *pending* value is NOT depth-safe** —
-  a recursive shape such as `def loop(n) = if (n <= 0) Async.succeed(0) else
-  src.flatMap(_ => loop(n - 1))` (or the analogous left-nested `map` / `zipWith`
-  tower) over a not-yet-completed `src` polls one stack frame per level and
-  overflows around default-JVM-stack depths of a few tens of thousands
-  (~50–80k). This applies to `flatMap`, `map`, and `zipWith` alike. Restructure
-  such shapes into iterative accumulation or `collectAll`.
+- **Over a ready source, `flatMap` / `map` / `zipWith` chains are depth-safe to
+  any length.** When the receiver is already a value, each step resolves
+  eagerly and collapses — no `Pollable` is retained — so `var fa = …;
+  while (…) fa = fa.flatMap(g)` (and the `.map` form) consume constant stack
+  regardless of length (verified into the millions).
+- **Over a pending source, a deep receiver-position chain is NOT depth-safe.**
+  When the receiver stays pending, each `fa.flatMap(g)` / `fa.map(g)` /
+  `fa.zipWith(...)` wraps the previous pending value, so driving descends one
+  stack frame per level before anything settles and overflows around
+  default-JVM-stack depths of a few tens of thousands (~50–100k). This is true
+  for **both** a recursive shape (`def loop(n) = src.flatMap(_ => loop(n-1))`)
+  **and** an iterative accumulation (`fa = fa.flatMap(_ => src.flatMap(...))`) —
+  the syntax doesn't matter, the pending receiver spine does.
+- **`Async.collectAll` and direct-style `Async.async` `while` loops are
+  depth-safe even over pending sources.** `collectAll` is a single `Pollable`
+  that iterates its elements internally (no receiver spine), and the
+  `Async.async` loop rewrite advances one iteration per driver poll rather than
+  pre-building a deep chain — both verified at 200k+ pending steps.
 
-(Over a *ready* `src` the recursion resolves synchronously without retaining the
-frames, so only the pending-source case overflows.)
+So: to sequence a large, *pending-heavy* workload, reach for `collectAll` or an
+`Async.async` `while` loop, not a hand-built `flatMap`/`map`/`zipWith` tower over
+a pending value. (`Future` avoids this overflow for any shape only because it
+bounces every `flatMap` through its `ExecutionContext`; `Async` skips that hop
+for speed and accepts the depth bound instead.)
 
 ## Cross-platform and cross-version notes
 
