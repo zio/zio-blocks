@@ -192,10 +192,17 @@ object Async extends AsyncCompanionVersionSpecific {
     buf: scala.collection.mutable.ListBuffer[A]
   ) extends Pollable[List[A]] {
 
+    // Memoized terminal (the completed `List` or a short-circuit `Failure`). The
+    // iterator and buffer are single-use, so once settled `cur` is nulled and
+    // re-entering the drain would NPE / re-consume; a second poll — a re-poll or
+    // a multi-consumer fan-out — returns this stable result instead.
+    private var done: Async[List[A]] = null
+
     def poll(onComplete: Runnable): Async[List[A]] = {
+      if (done != null) return done
       while (true) {
         val res = cur.poll(onComplete)
-        if (res.isInstanceOf[Failure]) return res.asInstanceOf[Async[List[A]]]
+        if (res.isInstanceOf[Failure]) { done = res.asInstanceOf[Async[List[A]]]; return done }
         if (res.isInstanceOf[Pollable[?]]) {
           cur = res.asInstanceOf[Pollable[A]]
           return this
@@ -204,11 +211,11 @@ object Async extends AsyncCompanionVersionSpecific {
         cur = null
         while ((cur eq null) && it.hasNext) {
           val any = it.next().asInstanceOf[Any]
-          if (any.isInstanceOf[Failure]) return any.asInstanceOf[Async[List[A]]]
+          if (any.isInstanceOf[Failure]) { done = any.asInstanceOf[Async[List[A]]]; return done }
           else if (any.isInstanceOf[Pollable[_]]) cur = any.asInstanceOf[Pollable[A]]
           else buf += AsyncEncoding.deliverSuccess[A](any)
         }
-        if (cur eq null) return Async.succeed(buf.toList)
+        if (cur eq null) { done = Async.succeed(buf.toList); return done }
       }
       throw new IllegalStateException("unreachable")
     }
@@ -433,39 +440,63 @@ object Async extends AsyncCompanionVersionSpecific {
      * a combinator-built `Async` held as data) is a pollable-as-value, never a
      * computation to drive; flattening belongs to `flatMap`.
      */
+    // Each continuation pollable memoizes its settled terminal in a `done` slot
+    // and short-circuits to it on a subsequent poll. This is DEFENSIVE, not a
+    // contract change: [[Pollable]] still documents re-polling after a terminal
+    // as undefined and potentially platform-specific. But because a single
+    // `Async` can be driven by more than one consumer (two `fa.start`s, a
+    // `.block` plus a `toFuture` runner — each registers its own waker on the
+    // shared leaf), the second consumer's settling poll would otherwise re-run
+    // the user function (double-firing effects) or, for `collectAll`, crash on
+    // the consumed iterator. Memoizing makes that the path of least surprise.
+    // The check is a perfectly-predicted null branch dwarfed by the `pa.poll`
+    // it guards, the `done` field fits the object's alignment padding (0 extra
+    // bytes/op under compressed oops), and the ready/fast path never allocates
+    // these pollables at all — measured free single-threaded and at -t 16.
+
     private final class MapPollable[A, B](pa0: Pollable[A], f: A => B) extends Pollable[B] {
 
       private var pa: Pollable[A] = pa0
+      private var done: Async[B]  = null
 
       def poll(onComplete: Runnable): Async[B] = {
+        if (done != null) return done
         val res = pa.poll(onComplete)
-        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]]
+        if (res.isInstanceOf[Failure]) { done = res.asInstanceOf[Async[B]]; done }
         else if (res.isInstanceOf[Pollable[?]]) {
           pa = res.asInstanceOf[Pollable[A]]
           this
-        } else Async.succeed(f(terminalValue(res).asInstanceOf[A])).asInstanceOf[Async[B]]
+        } else {
+          done = Async.succeed(f(terminalValue(res).asInstanceOf[A])).asInstanceOf[Async[B]]
+          done
+        }
       }
     }
 
     private final class FlatMapPollable[A, B](pa0: Pollable[A], f: A => Async[B]) extends Pollable[B] {
 
       private var pa: Pollable[A] = pa0
+      private var done: Async[B]  = null
 
       def poll(onComplete: Runnable): Async[B] = {
+        if (done != null) return done
         val res = pa.poll(onComplete)
-        if (res.isInstanceOf[Failure]) res.asInstanceOf[Async[B]] // pa failed: propagate
-        else if (res.isInstanceOf[Pollable[?]]) {                 // pa still pending; it re-armed onComplete itself
+        if (res.isInstanceOf[Failure]) { done = res.asInstanceOf[Async[B]]; done } // pa failed: propagate
+        else if (res.isInstanceOf[Pollable[?]]) {                                  // pa still pending; it re-armed onComplete itself
           pa = res.asInstanceOf[Pollable[A]]
           this
         } else {
           val a    = terminalValue(res).asInstanceOf[A]
           val fRes = f(a) // f(a): Async[B] — may be ready, suspend, or fail
-          if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
-          else if (fRes.isInstanceOf[Pollable[?]])
+          if (fRes.isInstanceOf[Failure]) { done = fRes.asInstanceOf[Async[B]]; done }
+          else if (fRes.isInstanceOf[Pollable[?]]) {
             // f suspended: drive it once; a pending result is handed to the
-            // caller as a replacement (this pollable has no further role).
-            fRes.asInstanceOf[Pollable[B]].poll(onComplete)
-          else fRes // f finished synchronously (may carry WrappedPollable for pollable-as-value)
+            // caller as a replacement (this pollable has no further role), so
+            // memoize only a terminal — a pending replacement must not be cached.
+            val next = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+            if (!next.isInstanceOf[Pollable[?]] || next.isInstanceOf[Failure]) done = next
+            next
+          } else { done = fRes; fRes } // f finished synchronously (may carry WrappedPollable for pollable-as-value)
         }
       }
     }
@@ -479,20 +510,25 @@ object Async extends AsyncCompanionVersionSpecific {
     private final class CatchAllPollable[A, B >: A](pa0: Pollable[A], f: Throwable => Async[B]) extends Pollable[B] {
 
       private var pa: Pollable[A] = pa0
+      private var done: Async[B]  = null // memoized terminal (see MapPollable note)
 
       def poll(onComplete: Runnable): Async[B] = {
+        if (done != null) return done
         val res = pa.poll(onComplete)
         if (res.isInstanceOf[Failure]) {
           val fRes = // handler can produce a value, pollable, another failure, or throw
             try f(res.asInstanceOf[Failure].cause)
             catch { case t: Throwable => new Failure(t) }
-          if (fRes.isInstanceOf[Failure]) fRes.asInstanceOf[Async[B]]
-          else if (fRes.isInstanceOf[Pollable[?]]) fRes.asInstanceOf[Pollable[B]].poll(onComplete)
-          else fRes.asInstanceOf[Async[B]]
+          if (fRes.isInstanceOf[Failure]) { done = fRes.asInstanceOf[Async[B]]; done }
+          else if (fRes.isInstanceOf[Pollable[?]]) {
+            val next = fRes.asInstanceOf[Pollable[B]].poll(onComplete)
+            if (!next.isInstanceOf[Pollable[?]] || next.isInstanceOf[Failure]) done = next
+            next
+          } else { done = fRes.asInstanceOf[Async[B]]; done }
         } else if (res.isInstanceOf[Pollable[?]]) { // pa still pending
           pa = res.asInstanceOf[Pollable[A]]
           this
-        } else res.asInstanceOf[Async[B]] // pa succeeded: terminal encoding propagates as-is
+        } else { done = res.asInstanceOf[Async[B]]; done } // pa succeeded: terminal encoding propagates as-is
       }
     }
 
@@ -509,17 +545,19 @@ object Async extends AsyncCompanionVersionSpecific {
     private final class ZipWithPollable[A, B, C](fa0: Any, fb0: Any, f: (A, B) => C) extends Pollable[C] {
 
       // `Any` because either field can hold value | Pollable | Failure at start.
-      private var faSt: Any  = fa0
-      private var fbSt: Any  = fb0
-      private var faResolved = false
+      private var faSt: Any      = fa0
+      private var fbSt: Any      = fb0
+      private var faResolved     = false
+      private var done: Async[C] = null // memoized terminal (see MapPollable note)
 
       def poll(onComplete: Runnable): Async[C] = {
+        if (done != null) return done
         // Resolve fa first to a terminal encoding or surface a failure/suspension.
         if (!faResolved) {
-          if (faSt.isInstanceOf[Failure]) return faSt.asInstanceOf[Async[C]]
+          if (faSt.isInstanceOf[Failure]) { done = faSt.asInstanceOf[Async[C]]; return done }
           if (faSt.isInstanceOf[Pollable[?]]) {
             val next = faSt.asInstanceOf[Pollable[A]].poll(onComplete)
-            if (next.isInstanceOf[Failure]) return next.asInstanceOf[Async[C]]
+            if (next.isInstanceOf[Failure]) { done = next.asInstanceOf[Async[C]]; return done }
             if (next.isInstanceOf[Pollable[?]]) { faSt = next; return this } // still pending
             faSt = next
           }
@@ -527,16 +565,17 @@ object Async extends AsyncCompanionVersionSpecific {
         }
         // fa is terminal now; resolve fb the same way (poll is one-shot, so this
         // section runs at most until fb settles — no flag needed).
-        if (fbSt.isInstanceOf[Failure]) return fbSt.asInstanceOf[Async[C]]
+        if (fbSt.isInstanceOf[Failure]) { done = fbSt.asInstanceOf[Async[C]]; return done }
         if (fbSt.isInstanceOf[Pollable[?]]) {
           val next = fbSt.asInstanceOf[Pollable[B]].poll(onComplete)
-          if (next.isInstanceOf[Failure]) return next.asInstanceOf[Async[C]]
+          if (next.isInstanceOf[Failure]) { done = next.asInstanceOf[Async[C]]; return done }
           if (next.isInstanceOf[Pollable[?]]) { fbSt = next; return this } // still pending
           fbSt = next
         }
-        Async
+        done = Async
           .succeed(f(terminalValue(faSt).asInstanceOf[A], terminalValue(fbSt).asInstanceOf[B]))
           .asInstanceOf[Async[C]]
+        done
       }
     }
 
