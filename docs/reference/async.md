@@ -552,13 +552,23 @@ re-poll.
 
 Combinator continuations poll their children recursively without a trampoline
 (a deliberate trade: the poll path stays allocation- and indirection-free).
-Sequencing via `flatMap` chains, `collectAll`, and direct-style `Async.async`
-loops all consume constant stack regardless of length — but a single
-*hand-built, left-nested* tower of pending combinators (e.g. folding tens of
-thousands of `.map` calls over one not-yet-completed `Async`) polls one stack
-frame per level and overflows around default-JVM-stack depths of a few tens of
-thousands. Restructure such shapes around `flatMap` sequencing or
-`collectAll`, which are depth-safe.
+What is depth-safe depends on the *shape* of the chain, not the combinator:
+
+- **Iterative / right-associated accumulation is depth-safe** — building a chain
+  by folding into an accumulator (`var fa = …; while (…) fa = fa.flatMap(g)`, or
+  the same with `.map`), `collectAll`, and direct-style `Async.async` `while`
+  loops all consume constant stack regardless of length. A settled prefix is
+  collapsed each poll, so total work stays O(N) and stack depth stays O(1).
+- **Hand-built, left-nested recursion over a *pending* value is NOT depth-safe** —
+  a recursive shape such as `def loop(n) = if (n <= 0) Async.succeed(0) else
+  src.flatMap(_ => loop(n - 1))` (or the analogous left-nested `map` / `zipWith`
+  tower) over a not-yet-completed `src` polls one stack frame per level and
+  overflows around default-JVM-stack depths of a few tens of thousands
+  (~50–80k). This applies to `flatMap`, `map`, and `zipWith` alike. Restructure
+  such shapes into iterative accumulation or `collectAll`.
+
+(Over a *ready* `src` the recursion resolves synchronously without retaining the
+frames, so only the pending-source case overflows.)
 
 ## Cross-platform and cross-version notes
 
