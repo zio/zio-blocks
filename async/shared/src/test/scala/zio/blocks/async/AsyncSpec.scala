@@ -2174,15 +2174,22 @@ object AsyncSpec extends ZIOSpecDefault {
           val thrown = Try(fa.block).failed.toOption
           assertTrue(thrown.contains(AsyncTestSupport.handlerFx))
         },
-        test("tap_promiseSucceedPollable_sideEffectThrow_propagatesThrow") {
+        test("tap_promiseSucceedPollable_sideEffectThrow_propagatesThrowEagerly") {
+          // A promise already completed with a pollable-as-value is a READY
+          // success (the carrier is data, not a suspended computation — BUG-044),
+          // so `tap` runs its side effect eagerly, exactly like
+          // `Async.succeed(v).tap(...)`. A synchronously-thrown side effect on the
+          // ready path therefore escapes at construction (the eager-up-to-
+          // suspension model — `map`/`flatMap` behave the same), not when the
+          // result is later driven. The differential control below confirms the
+          // pollable-as-value path is identical to a plain ready value.
           val inner = AsyncTestSupport.pollableSuccessValue
           val fx    = new RuntimeException("tap-throw")
-          val fa    =
-            Async
-              .promiseInternal[Pollable[Int]](_.succeed(inner))
-              .tap(_ => throw fx)
-          val thrown = Try(fa.block).failed.toOption
-          assertTrue(thrown.contains(fx))
+          val viaPromise =
+            Try(Async.promiseInternal[Pollable[Int]](_.succeed(inner)).tap(_ => throw fx)).failed.toOption
+          val viaSucceed =
+            Try(Async.succeed(inner).tap(_ => throw fx)).failed.toOption
+          assertTrue(viaPromise.contains(fx), viaSucceed.contains(fx))
         }
       ),
       // Category L — error integrity on promise paths.

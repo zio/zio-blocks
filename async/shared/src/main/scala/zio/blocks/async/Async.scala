@@ -302,14 +302,15 @@ object Async extends AsyncCompanionVersionSpecific {
 
     /**
      * Ready-path `tap` after [[AsyncEncoding.deliverSuccess]] has unwrapped
-     * carriers.
+     * carriers. `a` is the delivered user value: run `f(a)` for its effect, then
+     * yield `a` unchanged. A pollable-as-value `a` is '''data''', not a
+     * computation — it is carried through `runThenValue`/[[Async.succeed]]
+     * exactly as `map`/`flatMap`/`zipWith`/`ensuring` and the pending `tapAsync`
+     * path do, never driven (driving it would surface its poll outcome instead
+     * of `a`, or hang on a non-settling value).
      */
-    def tapReady[A](a: A, f: A => Async[Any]): Async[A] = {
-      val aAny = a.asInstanceOf[Any]
-      if (aAny.isInstanceOf[Pollable[?]] && !aAny.isInstanceOf[Failure])
-        tapAsync(new ObservedPollable(aAny.asInstanceOf[Pollable[A]], a), f)
-      else runThenValue(f(a), a, suppressFailure = false)
-    }
+    def tapReady[A](a: A, f: A => Async[Any]): Async[A] =
+      runThenValue(f(a), a, suppressFailure = false)
 
     /** Slow-path `tap`: input is suspended (or failed). */
     def tapAsync[A](fa: Any, f: A => Async[Any]): Async[A] =
