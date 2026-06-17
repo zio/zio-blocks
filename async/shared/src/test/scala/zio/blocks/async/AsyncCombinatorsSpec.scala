@@ -435,6 +435,26 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
           rPend == Right(7) && cPend == 1
         )
       },
+      test("a pending finalizer is awaited before the primary success propagates") {
+        val (c, fin) = AsyncTestSupport.pending[Unit]
+        val a        = Async.succeed(5).ensuring(fin)
+        val r1       = AsyncTestSupport.pollOnce(a)
+        c.succeed(())
+        assertTrue(AsyncTestSupport.isPending(r1), a.block == 5)
+      },
+      test("a pending finalizer is awaited before the primary failure propagates") {
+        val (c, fin) = AsyncTestSupport.pending[Unit]
+        val a        = Async.fail(boom).ensuring(fin)
+        val r1       = AsyncTestSupport.pollOnce(a)
+        c.succeed(())
+        val thrown = scala.util.Try(a.block).failed.toOption
+        assertTrue(AsyncTestSupport.isPending(r1), thrown.contains(boom))
+      },
+      test("a never finalizer keeps the whole ensuring pending (success primary)") {
+        val a = Async.succeed(1).ensuring(Async.never)
+        val r = AsyncTestSupport.driveToEnd(a, 16)
+        assertTrue(AsyncTestSupport.isPending(a), AsyncTestSupport.isPending(r))
+      },
       test("nested ensuring finalizers run inner-before-outer, each exactly once, on failure") {
         // Stacked brackets must unwind innermost-first; both finalizers run once
         // and the original failure is preserved. The finalizer effect fires when
@@ -510,6 +530,34 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         cs.zipWithIndex.foreach { case (c, i) => c.succeed(i) }
         val r = Async.collectAll(asyncs).block
         assertTrue(r.length == n, r.take(3) == List(0, 1, 2))
+      },
+      test("collectAll over a single-element Iterator yields a singleton list") {
+        val r = Async.collectAll(Iterator(Async.succeed(42))).block
+        assertTrue(r == List(42))
+      },
+      test("collectAll over a single-element pending Iterator completes when the element settles") {
+        val (c, p)                   = AsyncTestSupport.pending[Int]
+        val all                      = Async.collectAll(Iterator(p))
+        val pendingAtStart           = AsyncTestSupport.isPending(all)
+        c.succeed(7)
+        assertTrue(pendingAtStart, all.block == List(7))
+      },
+      test("collectAll pulls the source iterator exactly once per element (single-pass)") {
+        var nextCalls = 0
+        val src       = new IterableOnce[Async[Int]] {
+          def iterator: Iterator[Async[Int]] = new Iterator[Async[Int]] {
+            private val backing  = List(Async.succeed(1), Async.succeed(2), Async.succeed(3)).iterator
+            def hasNext: Boolean = backing.hasNext
+            def next(): Async[Int] = { nextCalls += 1; backing.next() }
+          }
+        }
+        val r = Async.collectAll(src).block
+        assertTrue(r == List(1, 2, 3), nextCalls == 3)
+      },
+      test("collectAll containing never stays pending without spurious completion") {
+        val all = Async.collectAll(List[Async[Int]](Async.succeed(1), Async.never, Async.succeed(3)))
+        val r   = AsyncTestSupport.driveToEnd(all, 16)
+        assertTrue(AsyncTestSupport.isPending(all), AsyncTestSupport.isPending(r))
       },
       test("collectAll should accept a single-pass Iterator source (only .iterator is used)") {
         typeCheck("""

@@ -1103,6 +1103,30 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             } yield Async.succeed(i + j).await
           }.block
           assertTrue(r == List(11, 21, 13, 23))
+        },
+        test("three-generator `for ... yield` produces the Cartesian product in order") {
+          val r = Async.async {
+            for {
+              i <- List(1, 2)
+              j <- List(10, 20)
+              k <- List(100, 200)
+            } yield Async.succeed(i + j + k).await
+          }.block
+          val expected = for { i <- List(1, 2); j <- List(10, 20); k <- List(100, 200) } yield i + j + k
+          assertTrue(r == expected)
+        },
+        test("three-generator `for ... yield` with a middle guard agrees with plain Scala") {
+          val r = Async.async {
+            for {
+              i <- List(1, 2, 3)
+              if i != 2
+              j <- List(10, 20)
+              k <- List(100, 200)
+            } yield Async.succeed(i + j + k).await
+          }.block
+          val expected =
+            for { i <- List(1, 2, 3); if i != 2; j <- List(10, 20); k <- List(100, 200) } yield i + j + k
+          assertTrue(r == expected)
         }
         // NOTE: *multiple* guards (`if ... if ...`, i.e. chained `withFilter`) are
         // supported by the Scala 2 macro but NOT by dotty-cps-async on Scala 3
