@@ -2523,6 +2523,27 @@ private[async] object AsyncMacros {
       else (q"_root_.scala.runtime.ObjectRef", List[Tree](TypeTree(t)))
     }
 
+    // Build the ref cell via a constructor (`new IntRef(init)`) rather than the
+    // `IntRef.create(init)` static-module term. When the initializer awaits, the
+    // untypecheck/typecheck round-trip in `boxVars` resolves the `IntRef` term
+    // qualifier as the *class* (`class scala.runtime.IntRef is not a value`);
+    // putting the ref type in constructor (type) position avoids that term
+    // resolution entirely. Equivalent to `create` (which is just `new` + box).
+    def refNew(tpe: Type, init: Tree): Tree = {
+      val t            = tpe.dealias.widen
+      val d            = definitions
+      def n(name: String) = q"new _root_.scala.runtime.${TypeName(name)}($init)"
+      if (t =:= d.IntTpe) n("IntRef")
+      else if (t =:= d.LongTpe) n("LongRef")
+      else if (t =:= d.DoubleTpe) n("DoubleRef")
+      else if (t =:= d.FloatTpe) n("FloatRef")
+      else if (t =:= d.ShortTpe) n("ShortRef")
+      else if (t =:= d.CharTpe) n("CharRef")
+      else if (t =:= d.ByteTpe) n("ByteRef")
+      else if (t =:= d.BooleanTpe) n("BooleanRef")
+      else q"new _root_.scala.runtime.ObjectRef[${TypeTree(t)}]($init)"
+    }
+
     def varValueType(vd: ValDef): Type =
       if (vd.tpt.tpe != null && vd.tpt.tpe != NoType) vd.tpt.tpe.dealias.widen
       else vd.symbol.asTerm.info.resultType.dealias.widen
@@ -2548,8 +2569,22 @@ private[async] object AsyncMacros {
             case vd: ValDef if cells.contains(vd.symbol) =>
               val (module, targs) = refModule(varValueType(vd))
               val init            = transform(vd.rhs)
-              val create          = if (targs.isEmpty) q"$module.create($init)" else q"$module.create[..$targs]($init)"
-              ValDef(Modifiers(), cells(vd.symbol), TypeTree(), create)
+              if (containsAwait(vd.rhs)) {
+                // The initializer awaits. Two things break the retypecheck below
+                // for the `IntRef.create(<await>)` form: the `IntRef` term
+                // qualifier mis-resolves to the class, and `.await` carries no
+                // expected type as a bare argument. Build the cell via a
+                // constructor instead (`refNew`, ref type in type position) and
+                // ascribe the initializer to the var's declared type so `.await`
+                // is typed against it. The CPS transform then extracts the await
+                // from the ascription normally and the constructor sees an
+                // ordinary value.
+                val ascribed = q"$init: ${TypeTree(varValueType(vd))}"
+                ValDef(Modifiers(), cells(vd.symbol), TypeTree(), refNew(varValueType(vd), ascribed))
+              } else {
+                val create = if (targs.isEmpty) q"$module.create($init)" else q"$module.create[..$targs]($init)"
+                ValDef(Modifiers(), cells(vd.symbol), TypeTree(), create)
+              }
             case Assign(lhs, rhs) if lhs.symbol != null && cells.contains(lhs.symbol) =>
               q"${Ident(cells(lhs.symbol))}.elem = ${transform(rhs)}"
             case id: Ident if id.symbol != null && cells.contains(id.symbol) =>
