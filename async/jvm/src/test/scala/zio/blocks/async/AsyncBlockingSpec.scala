@@ -851,6 +851,18 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             }
           }.block
           assertTrue(r == "two")
+        },
+        test("a non-matched arm's side effect does not run (only the matched arm executes)") {
+          var ranOne   = false
+          var ranOther = false
+          val r        = Async.async {
+            Async.succeed(2).await match {
+              case 1 => ranOne = true; Async.succeed("one").await
+              case 2 => Async.succeed("two").await
+              case _ => ranOther = true; "other"
+            }
+          }.block
+          assertTrue(r == "two", !ranOne, !ranOther)
         }
       ),
       suite("throw inside async block")(
@@ -931,6 +943,32 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
             Async.succeed(false).await && Async.succeed { rhsRan = true; true }.await
           }.block
           assertTrue(!r, !rhsRan)
+        },
+        test("an awaited value reused in both branches of a subsequent if runs only the taken branch") {
+          var thenRan = false
+          var elseRan = false
+          val r       = Async.async {
+            val n = Async.succeed(7).await
+            if (n > 5) { thenRan = true; n * 2 }
+            else { elseRan = true; n * 3 }
+          }.block
+          assertTrue(r == 14, thenRan, !elseRan)
+        },
+        test("`&&` always evaluates a non-awaiting side-effecting left, then awaits the right when needed") {
+          var lhsRan = false
+          var rhsRan = false
+          val r      = Async.async {
+            { lhsRan = true; true } && Async.succeed { rhsRan = true; true }.await
+          }.block
+          assertTrue(r, lhsRan, rhsRan)
+        },
+        test("`||` always evaluates a non-awaiting side-effecting left, then short-circuits the awaited right") {
+          var lhsRan = false
+          var rhsRan = false
+          val r      = Async.async {
+            { lhsRan = true; true } || Async.succeed { rhsRan = true; false }.await
+          }.block
+          assertTrue(r, lhsRan, !rhsRan)
         },
         test("tuple destructuring of an awaited value binds both components") {
           val r = Async.async {
