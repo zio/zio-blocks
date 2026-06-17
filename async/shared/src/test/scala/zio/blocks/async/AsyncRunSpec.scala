@@ -176,9 +176,9 @@ object AsyncRunSpec extends ZIOSpecDefault {
           // as a computation. So the `tap` effect must NOT fire: driving an
           // already-built `Async` is the `fa.start` extension's job (see the
           // "drive" suite below), not the companion `Async.start(body)`.
-          val fired  = new AtomicBoolean(false)
-          val c      = new Completer[Int]
-          val body   = c.peek.tap(_ => { fired.set(true); Async.succeed(()) })
+          val fired = new AtomicBoolean(false)
+          val c     = new Completer[Int]
+          val body  = c.peek.tap { _ => fired.set(true); Async.succeed(()) }
           Async.start[Async[Int]](body)
           c.succeed(1)
           Live.live(ZIO.sleep(200.millis)).as(assertTrue(!fired.get()))
@@ -191,7 +191,7 @@ object AsyncRunSpec extends ZIOSpecDefault {
           // `start` runs its effect once the leaf settles.
           val fired  = new AtomicBoolean(false)
           val c      = new Completer[Int]
-          val driven = c.peek.tap(_ => { fired.set(true); Async.succeed(()) })
+          val driven = c.peek.tap { _ => fired.set(true); Async.succeed(()) }
           driven.start
           c.succeed(1)
           for {

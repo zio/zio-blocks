@@ -49,6 +49,14 @@ private[async] trait AsyncCompanionVersionSpecific {
    *
    * `.await` is lexically restricted to this block — using it anywhere else is
    * a compile error.
-   */
+   *
+   * '''Evaluation is eager up to the first pending suspension''' (see the
+   * "Evaluation model" docs): the synchronous prefix and any ready `.await`s
+   * run at construction. At a genuinely pending `.await` the platforms diverge
+   * by design — on the JVM (and Scala.js < 3.8) the continuation runs only when
+   * the result is driven (`.block` / `fa.start` / interop), while the Scala.js
+   * 3.8+ native `js.async`/`js.await` arm self-resumes it off the event loop.
+   * The delivered value is identical everywhere.
+   *   */
   def async[A](body: A): Async[A] = macro internal.AsyncMacros.asyncImpl[A]
 }

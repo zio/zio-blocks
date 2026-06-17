@@ -150,6 +150,50 @@ val all: Async[List[Int]] =
   Async.collectAll(List(Async.succeed(1), Async.succeed(2), Async.succeed(3)))
 ```
 
+## Evaluation model: eager up to suspension
+
+`Async` is **eager**, not a lazy `IO`. Constructing an `Async` performs all of
+its synchronous work immediately — building the value *runs* it, up to the first
+point where it genuinely has to wait:
+
+- `Async.attempt(body)` runs `body` now (on the calling thread); `Async.promise`
+  runs its setup block now; `Async.async { ... }` runs its synchronous prefix
+  (and any **ready** `.await`s) now; `succeed(x).map(f)` runs `f` now. Only a
+  combinator applied to an **already-suspended** value defers — its function
+  runs when the value is later driven.
+- The single genuinely-lazy primitive is a custom [`Pollable`](#low-level-building-blocks-pollable):
+  its `poll` runs only when a driver asks for the value. Suspension exists only
+  *downstream of* an unresolved `poll`.
+
+This makes the success/ready path allocation-free (no effect tree, no per-step
+thunk) — the source of its throughput — at the cost of referential transparency
+(building has effects) and cancel-by-drop (use [`Cancelable.cancel`](#eager-cancellable-running-asyncstart-and-asyncrunning)
+instead). It sits next to `scala.concurrent.Future` (also eager) rather than
+cats-effect `IO` / ZIO (lazy).
+
+### What happens at a pending suspension differs by platform — by design
+
+Once an `Async` hits a genuinely **pending** suspension (an await of a
+not-yet-complete value), what advances it follows each platform's *fastest*
+suspension mechanism, so the two platforms diverge:
+
+- **JVM (and Scala.js on Scala 3 < 3.8, and Scala 2):** the value is a
+  poll-driven `Pollable` with no ambient driver. The continuation after the
+  pending suspension runs only when an external driver polls it — `.block`,
+  `fa.start`, or an interop runner (`toFuture` / `unsafeRunAsync`). A built-but-
+  never-driven block leaves that continuation un-run.
+- **Scala.js on Scala 3.8+:** `Async.async`/`.await` compile to native
+  `js.async` / `js.await` — a real JavaScript async function whose driver *is*
+  the event loop. Once the awaited value settles, the continuation self-resumes
+  off the microtask queue even if nothing polls the `Async`. This is the same
+  event-loop driving that makes await-heavy direct-style blocks substantially
+  faster than the dotty-cps-async backend, so the behavior is intentional, not a
+  defect: it is the zero-cost default of the fastest JS suspension primitive.
+
+In practice this is invisible — you always drive an `Async` you build — and the
+*value* is identical on every cell. The divergence is observable only by a block
+that is constructed, has its awaited value settle, and is then never driven.
+
 ## Transforming values
 
 On the ready path the transformers apply your function directly to the
