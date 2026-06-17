@@ -512,6 +512,31 @@ worker thread on the JVM, or via microtasks on Scala.js. `cancel()` is
 driver-level only: it stops the poll loop and suppresses publishing a terminal
 value, but does not abort an in-flight leaf (socket, timer, JS promise).
 
+#### Fanning one `Async` out to several consumers
+
+To deliver one `Async`'s result to multiple consumers, **start it once and share
+the `Running` handle** — `Running` publishes its outcome through an atomic, so
+the underlying `Async` (and any side effects in `map`/`flatMap`/`tap`) is driven
+exactly once no matter how many consumers poll, block, or compose on the handle:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val shared: Async.Running[Int] = Async.succeed(1).map(_ + 1).start
+val a: Int = shared.block // both observe the one result;
+val b: Int = shared.block // the `+ 1` ran once, on the worker
+```
+
+Do **not** instead drive the same raw `Async` from two places at once (two
+separate `fa.start`s on the same `fa`, or `fa.start` racing `fa.block`). On the
+JVM that polls the same combinator concurrently, which is **undefined**: a
+`map`/`flatMap`/`tap` function may run more than once, and a `collectAll` batch
+may observe its drain buffer mid-update. This matches `Pollable`'s contract that
+re-polling a settled value is undefined and platform-specific — it cannot arise
+on single-threaded Scala.js. Sequential re-use (re-polling or composing after an
+earlier drive has settled) is fine; only *concurrent* re-driving of the raw
+value is not.
+
 ## Interop
 
 `AsyncInterop` converts between `Async` and the platform's standard async types,

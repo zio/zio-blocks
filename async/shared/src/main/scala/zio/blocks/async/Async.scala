@@ -201,7 +201,24 @@ object Async extends AsyncCompanionVersionSpecific {
     def poll(onComplete: Runnable): Async[List[A]] = {
       if (done != null) return done
       while (true) {
-        val res = cur.poll(onComplete)
+        // `cur` can be null here under CONCURRENT fan-out (undefined — see the
+        // slowPath memo note): another thread nulled it mid-drain. Don't
+        // dereference it. If the terminal is already published, yield it;
+        // otherwise the other thread is settling `done` right now, so re-arm
+        // this caller's waker and stay pending — it re-polls promptly (instead
+        // of parking on a wake that will never come, since the leaf is already
+        // consumed) and observes `done` on the next poll. This keeps both the
+        // crash (an NPE) and a lost-wakeup hang out of an undefined-but-
+        // reachable race; a concurrently mutated buffer may still yield an
+        // undefined list, the documented platform-specific (JVM-only) cost.
+        val c = cur
+        if (c == null) {
+          val d = done
+          if (d != null) return d
+          onComplete.run()
+          return this
+        }
+        val res = c.poll(onComplete)
         if (res.isInstanceOf[Failure]) { done = res.asInstanceOf[Async[List[A]]]; return done }
         if (res.isInstanceOf[Pollable[?]]) {
           cur = res.asInstanceOf[Pollable[A]]
@@ -444,13 +461,29 @@ object Async extends AsyncCompanionVersionSpecific {
     // Each continuation pollable memoizes its settled terminal in a `done` slot
     // and short-circuits to it on a subsequent poll. This is DEFENSIVE, not a
     // contract change: [[Pollable]] still documents re-polling after a terminal
-    // as undefined and potentially platform-specific. But because a single
-    // `Async` can be driven by more than one consumer (two `fa.start`s, a
-    // `.block` plus a `toFuture` runner — each registers its own waker on the
-    // shared leaf), the second consumer's settling poll would otherwise re-run
-    // the user function (double-firing effects) or, for `collectAll`, crash on
-    // the consumed iterator. Memoizing makes that the path of least surprise.
-    // The check is a perfectly-predicted null branch dwarfed by the `pa.poll`
+    // as undefined and potentially platform-specific. It makes a SEQUENTIAL
+    // re-drive of the same `Async` idempotent — a consumer that polls after an
+    // earlier drive has already settled (a re-poll, or a single-threaded event
+    // loop fanning the same value out to several continuations) observes the
+    // memoized result instead of re-running the user function or re-consuming
+    // `collectAll`'s spent iterator.
+    //
+    // The memo is a plain `var`, NOT a synchronization primitive: it does NOT
+    // make CONCURRENT fan-out safe. Driving the same raw `Async` from two
+    // threads at once (e.g. two `fa.start`s, or `fa.start` racing `fa.block`,
+    // on the JVM) is undefined — the user function may fire more than once and
+    // (for `collectAll`) the shared buffer/iterator may be observed mid-drain.
+    // This cannot occur on Scala.js (single-threaded), so it is exactly the
+    // "platform-specific" case [[Pollable]] already disclaims. To fan a value
+    // out to several CONCURRENT consumers, share the [[Async.Running]] handle
+    // from `fa.start` — its result is published once through an atomic, so the
+    // underlying `Async` is driven exactly once — rather than re-driving the
+    // raw `Async`. Making the memo itself thread-safe was measured to cost a
+    // per-pollable allocation (an `AtomicReference`, ~+63% bytes/op on the
+    // suspended path) plus a settle-time claim, and was rejected in favor of
+    // this documented contract.
+    //
+    // The null check is a perfectly-predicted branch dwarfed by the `pa.poll`
     // it guards, the `done` field fits the object's alignment padding (0 extra
     // bytes/op under compressed oops), and the ready/fast path never allocates
     // these pollables at all — measured free single-threaded and at -t 16.

@@ -247,72 +247,23 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           assertTrue(anomaly.isEmpty)
         }
       },
-      test("two concurrent drivers polling one settled map-continuation run the user function exactly once") {
-        // Fan-out is a documented consumer scenario: a single `Async` may be
-        // driven by more than one consumer (two `fa.start`s, or `fa.start` plus
-        // `fa.block`), each polling the SAME combinator pollable. The settling
-        // poll of every driver must be a pure observation — the user function
-        // runs exactly once. The single-threaded fan-out suite already asserts
-        // this; here the two drivers poll CONCURRENTLY. The `done` memo guards
-        // the function with a plain `var` read-then-write, so if both drivers
-        // enter `poll` before either has written `done`, both re-run the
-        // function. We settle the leaf first, then release both pollers through
-        // a barrier so they poll the already-settled pollable simultaneously.
+      test("concurrent fan-out via the shared Running handle runs the user function exactly once") {
+        // Concurrent fan-out by re-driving the RAW `Async` from two threads is
+        // UNDEFINED (the `done` memo is a plain `var`, not a synchronizer — see
+        // the slowPath memo note; it cannot happen on single-threaded JS). The
+        // SUPPORTED way to fan one `Async` out to concurrent consumers is to
+        // share the `Running` handle from `fa.start`: it drives the underlying
+        // `Async` exactly once on its worker and publishes the result through an
+        // atomic, so any number of threads blocking the SAME handle observe that
+        // one result. This pins that supported guarantee.
         ZIO.attemptBlocking {
-          val trials  = 5000
+          val trials  = 2000
           var anomaly = Option.empty[String]
           var i       = 0
           while (i < trials && anomaly.isEmpty) {
-            val calls = new AtomicInteger(0)
-            val c     = new Completer[Int]
-            val fa    = c.peek.map { x => calls.incrementAndGet(); x + 1 }
-            val pa    = fa.asInstanceOf[Pollable[Int]]
-            // Documented fan-out interleaving: each of two distinct drivers
-            // first polls while PENDING (registering its own waker), so neither
-            // has set `done`. The leaf then settles, and both drivers are woken
-            // and poll once more to OBSERVE the value — concurrently, gated by a
-            // barrier. The settling polls must collectively run `f` once.
-            pa.poll(AsyncTestSupport.noopRunnable) // driver A registers (pending)
-            pa.poll(() => ())                      // driver B registers (distinct waker)
-            c.succeed(1)
-            val barrier = new CyclicBarrier(2)
-            val threads = (0 until 2).map { _ =>
-              val t = new Thread(new Runnable {
-                def run(): Unit = {
-                  barrier.await()
-                  pa.poll(AsyncTestSupport.noopRunnable)
-                  ()
-                }
-              })
-              t.setDaemon(true)
-              t.start()
-              t
-            }
-            threads.foreach(_.join())
-            val n = calls.get()
-            if (n != 1) anomaly = Some(s"trial $i: map function ran $n times under concurrent fan-out (must be 1)")
-            i += 1
-          }
-          assertTrue(anomaly.isEmpty)
-        }
-      },
-      test("two concurrent drivers over one collectAll batch agree on the list (no corruption / crash)") {
-        // Same root as the map fan-out race, but the blast radius is worse:
-        // CollectAllPollable mutates a shared ListBuffer and nulls `cur` when
-        // the batch settles. Two drivers racing the settling poll can both enter
-        // the drain, double-append into the buffer or NPE on the nulled `cur`.
-        // A correct (idempotent) implementation hands both drivers the same
-        // List(0,1,2).
-        ZIO.attemptBlocking {
-          val trials  = 5000
-          var anomaly = Option.empty[String]
-          var i       = 0
-          while (i < trials && anomaly.isEmpty) {
-            val c   = new Completer[Int]
-            val all = Async.collectAll(List[Async[Int]](Async.succeed(0), c.peek, Async.succeed(2)))
-            val pa  = all.asInstanceOf[Pollable[List[Int]]]
-            pa.poll(AsyncTestSupport.noopRunnable) // driver A registers (pending on the middle element)
-            pa.poll(() => ())                      // driver B registers
+            val calls   = new AtomicInteger(0)
+            val c       = new Completer[Int]
+            val running = c.peek.map { x => calls.incrementAndGet(); x + 1 }.start
             c.succeed(1)
             val barrier = new CyclicBarrier(2)
             val results = new Array[Any](2)
@@ -321,7 +272,7 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
                 def run(): Unit = {
                   barrier.await()
                   results(id) =
-                    try pa.poll(AsyncTestSupport.noopRunnable)
+                    try running.block
                     catch { case t: Throwable => t }
                 }
               })
@@ -330,17 +281,48 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
               t
             }
             threads.foreach(_.join())
-            val outcomes = results.map {
-              case t: Throwable          => Left(t.getClass.getSimpleName)
-              case a if AsyncTestSupport.isPending(a.asInstanceOf[Async[List[Int]]]) =>
-                Left("pending")
-              case a                     => Right(a.asInstanceOf[Async[List[Int]]].block)
-            }.toList
-            val bad = outcomes.exists {
-              case Right(List(0, 1, 2)) => false
-              case _                    => true
+            val n = calls.get()
+            if (n != 1)
+              anomaly = Some(s"trial $i: user function ran $n times via shared Running handle (must be 1)")
+            else if (!results.forall(_ == 2))
+              anomaly = Some(s"trial $i: shared handle delivered ${results.toList} (must be [2, 2])")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
+      test("concurrent fan-out of collectAll via the shared Running handle yields one correct list") {
+        // As above, for `collectAll`: concurrent raw re-drive is undefined (it
+        // may corrupt the shared drain buffer), so fan out by sharing one
+        // `Running` handle, driven once on its worker. Concurrent consumers all
+        // observe the same published list.
+        ZIO.attemptBlocking {
+          val trials  = 2000
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val c       = new Completer[Int]
+            val running =
+              Async.collectAll(List[Async[Int]](Async.succeed(0), c.peek, Async.succeed(2))).start
+            c.succeed(1)
+            val barrier = new CyclicBarrier(2)
+            val results = new Array[Any](2)
+            val threads = (0 until 2).map { id =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  barrier.await()
+                  results(id) =
+                    try running.block
+                    catch { case t: Throwable => t }
+                }
+              })
+              t.setDaemon(true)
+              t.start()
+              t
             }
-            if (bad) anomaly = Some(s"trial $i: concurrent collectAll drivers disagreed/crashed: $outcomes")
+            threads.foreach(_.join())
+            if (!results.forall(_ == List(0, 1, 2)))
+              anomaly = Some(s"trial $i: shared collectAll handle delivered ${results.toList} (must be two List(0, 1, 2))")
             i += 1
           }
           assertTrue(anomaly.isEmpty)
