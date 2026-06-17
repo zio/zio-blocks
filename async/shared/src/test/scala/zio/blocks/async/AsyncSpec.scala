@@ -974,9 +974,20 @@ object AsyncSpec extends ZIOSpecDefault {
       // Category K — waker reentrancy must not observe partial driver state.
       suite("waker reentrancy during poll")(
         test("poll_wakerReentersUnsafeRunAsync_completesBothRunsAtMostOnce") {
+          // A waker that re-enters `start` from INSIDE a `poll` must complete the
+          // re-entered (inner) run at most once and surface its outcome intact,
+          // while the outer driver still resumes at most once. Drive `nested`
+          // from a SINGLE thread: re-driving one raw `Async` from two threads at
+          // once is undefined (BUG-045), and the inner counters are plain
+          // mutable state that a background worker would write without a
+          // happens-before edge to this thread's assertion — an unsynchronized
+          // cross-thread read, not a production defect. The inner
+          // `start(Async.fail(...))` settles synchronously inside the poll, so
+          // its outcome is fully observed on this same thread before the
+          // assertion runs.
           val boomInner                        = new RuntimeException("inner-cb-throw")
-          var outerCount                       = 0
-          var innerCount                       = 0
+          val outerCount                       = new java.util.concurrent.atomic.AtomicInteger(0)
+          val innerCount                       = new java.util.concurrent.atomic.AtomicInteger(0)
           var innerOut: Either[Throwable, Any] = Right(-1)
           val nested: Pollable[Int]            = new Pollable[Int] {
             private var polls                          = 0
@@ -984,21 +995,27 @@ object AsyncSpec extends ZIOSpecDefault {
               polls += 1
               if (polls == 1) {
                 AsyncTestSupport.startEither(Async.fail(boomInner)) { res =>
-                  innerCount += 1
+                  innerCount.incrementAndGet()
                   innerOut = res
                 }
                 onComplete.run()
                 this
-              } else Async.fail(boomInner)
+              } else {
+                outerCount.incrementAndGet()
+                Async.fail(boomInner)
+              }
             }
           }
-          val running = AsyncTestSupport.startTap(nested) { _ =>
-            outerCount += 1
-            ()
-          }
-          val _ = Try(AsyncTestSupport.driveToEnd(nested).block)
-          running.cancel()
-          assertTrue(innerCount <= 1, outerCount <= 1, innerOut == Left(boomInner))
+          // Single driver on this thread: the first poll arms the inner run
+          // (which completes synchronously) and re-fires the waker; the second
+          // poll surfaces the outer failure. `driveToEnd` stops at the failure.
+          val out = AsyncTestSupport.blockAsLeftCause(AsyncTestSupport.driveToEnd(nested))
+          assertTrue(
+            innerCount.get() == 1,
+            outerCount.get() == 1,
+            innerOut == Left(boomInner),
+            out.contains(boomInner)
+          )
         }
       ),
       // Category F — foldCause onSuccess throw on ready path (documented eager escape).
