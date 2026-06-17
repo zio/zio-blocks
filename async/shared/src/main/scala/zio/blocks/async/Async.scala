@@ -639,6 +639,12 @@ object Async extends AsyncCompanionVersionSpecific {
         if (finSt.isInstanceOf[Failure] && outcome.isInstanceOf[Failure]) {
           val primaryCause   = outcome.asInstanceOf[Failure].cause
           val finalizerCause = finSt.asInstanceOf[Failure].cause
+          // Attach exactly once: clear the finalizer slot BEFORE attaching so a
+          // re-poll (the Pollable protocol permits repeated polls) or fan-out
+          // (two consumers driving one settled `Async`) cannot append the same
+          // suppressed cause again — `addSuppressed` does not de-duplicate. The
+          // catch-path above is already single-shot via the same `finSt = null`.
+          finSt = null
           if ((primaryCause ne finalizerCause) && (primaryCause ne null) && (finalizerCause ne null))
             primaryCause.addSuppressed(finalizerCause)
         }
