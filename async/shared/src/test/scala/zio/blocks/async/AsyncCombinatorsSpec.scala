@@ -722,6 +722,29 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
             assertTrue(calls == 1, a.block == 0, b.block == 0)
           }
         )
+      },
+      test("collectAll: a second driver observing one settled batch sees the same list (no crash, no double-append)") {
+        // collectAll's continuation mutates a shared ListBuffer and nulls `cur`
+        // when the batch settles. A second fan-out driver that polls after the
+        // batch settles must observe the SAME completed list — not crash on the
+        // nulled `cur`, nor re-drain the spent iterator/buffer.
+        val c1   = new Completer[Int]
+        val all  = Async.collectAll(List[Async[Int]](Async.succeed(0), c1.peek, Async.succeed(2)))
+        val pa   = all.asInstanceOf[Pollable[List[Int]]]
+        val wakerA: Runnable = () => ()
+        val wakerB: Runnable = () => ()
+        pa.poll(wakerA)
+        pa.poll(wakerB)
+        c1.succeed(1)
+        val a = pa.poll(wakerA) // driver A drains the batch
+        val b =
+          try Right(pa.poll(wakerB)) // driver B observes the settled batch
+          catch { case t: Throwable => Left(t) }
+        assertTrue(
+          a.block == List(0, 1, 2),
+          b.isRight,
+          b.toOption.map(_.block).contains(List(0, 1, 2))
+        )
       }
     ),
     suite("when / unless")(
