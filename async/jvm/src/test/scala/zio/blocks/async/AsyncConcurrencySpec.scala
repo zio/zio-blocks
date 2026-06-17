@@ -296,6 +296,56 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           assertTrue(anomaly.isEmpty)
         }
       },
+      test("two concurrent drivers over one collectAll batch agree on the list (no corruption / crash)") {
+        // Same root as the map fan-out race, but the blast radius is worse:
+        // CollectAllPollable mutates a shared ListBuffer and nulls `cur` when
+        // the batch settles. Two drivers racing the settling poll can both enter
+        // the drain, double-append into the buffer or NPE on the nulled `cur`.
+        // A correct (idempotent) implementation hands both drivers the same
+        // List(0,1,2).
+        ZIO.attemptBlocking {
+          val trials  = 5000
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val c   = new Completer[Int]
+            val all = Async.collectAll(List[Async[Int]](Async.succeed(0), c.peek, Async.succeed(2)))
+            val pa  = all.asInstanceOf[Pollable[List[Int]]]
+            pa.poll(AsyncTestSupport.noopRunnable) // driver A registers (pending on the middle element)
+            pa.poll(() => ())                      // driver B registers
+            c.succeed(1)
+            val barrier = new CyclicBarrier(2)
+            val results = new Array[Any](2)
+            val threads = (0 until 2).map { id =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  barrier.await()
+                  results(id) =
+                    try pa.poll(AsyncTestSupport.noopRunnable)
+                    catch { case t: Throwable => t }
+                }
+              })
+              t.setDaemon(true)
+              t.start()
+              t
+            }
+            threads.foreach(_.join())
+            val outcomes = results.map {
+              case t: Throwable          => Left(t.getClass.getSimpleName)
+              case a if AsyncTestSupport.isPending(a.asInstanceOf[Async[List[Int]]]) =>
+                Left("pending")
+              case a                     => Right(a.asInstanceOf[Async[List[Int]]].block)
+            }.toList
+            val bad = outcomes.exists {
+              case Right(List(0, 1, 2)) => false
+              case _                    => true
+            }
+            if (bad) anomaly = Some(s"trial $i: concurrent collectAll drivers disagreed/crashed: $outcomes")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
+      },
       test("unsafeRunAsync delivers the callback at most once when completion races cancel") {
         ZIO.attemptBlocking {
           val trials  = 1000
