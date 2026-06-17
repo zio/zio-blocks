@@ -858,6 +858,40 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         var ran = false
         unless(false)(Async.succeed { ran = true }).block
         assertTrue(ran)
+      },
+      test("when(true) over a failing fa propagates the failure") {
+        val thrown = scala.util.Try(when(true)(Async.fail(boom)).block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("when(false) over a failing fa neither runs nor fails (by-name fa not constructed)") {
+        var constructed = false
+        val r           = when(false) { constructed = true; Async.fail(boom) }.block
+        assertTrue(r == (()), !constructed)
+      },
+      test("unless(false) over a failing fa propagates the failure") {
+        val thrown = scala.util.Try(unless(false)(Async.fail(boom)).block).failed.toOption
+        assertTrue(thrown.contains(boom))
+      },
+      test("unless(true) over a failing fa neither runs nor fails (by-name fa not constructed)") {
+        var constructed = false
+        val r           = unless(true) { constructed = true; Async.fail(boom) }.block
+        assertTrue(r == (()), !constructed)
+      },
+      test("when(true) over a pending-then-failing fa awaits then propagates the failure") {
+        val (c, fa) = AsyncTestSupport.pending[Int]
+        val w       = when(true)(fa)
+        val r1      = AsyncTestSupport.pollOnce(w)
+        c.fail(boom)
+        val thrown = scala.util.Try(w.block).failed.toOption
+        assertTrue(AsyncTestSupport.isPending(r1), thrown.contains(boom))
+      },
+      test("when(true) over a pollable-as-value carrier discards the value without driving it") {
+        var driven            = false
+        val p: Pollable[Unit] = new Pollable[Unit] {
+          def poll(onComplete: Runnable): Async[Unit] = { driven = true; Async.succeed(()) }
+        }
+        val r = when(true)(Async.succeed(p)).block
+        assertTrue(r == (()), !driven)
       }
     ),
     suite("as / unit / *> / <*")(
@@ -969,6 +1003,20 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
           if got != want
         } yield s"$ls <* $rs: got $got, want $want"
         assertTrue(anomalies == Nil)
+      },
+      test("*> with a never left stays pending and never observes the right") {
+        var rightDriven       = false
+        val right: Async[Int] = new Pollable[Int] {
+          def poll(onComplete: Runnable): Async[Int] = { rightDriven = true; Async.succeed(2) }
+        }
+        val z = Async.never *> right
+        val r = AsyncTestSupport.driveToEnd(z, 16)
+        assertTrue(AsyncTestSupport.isPending(z), AsyncTestSupport.isPending(r), !rightDriven)
+      },
+      test("<* with a never right stays pending after the left resolves (right never settles)") {
+        val z = Async.succeed(1) <* Async.never
+        val r = AsyncTestSupport.driveToEnd(z, 16)
+        assertTrue(AsyncTestSupport.isPending(z), AsyncTestSupport.isPending(r))
       },
       test("as and unit over each of the five operand encodings replace or discard only successes") {
         val anomalies = encodingShapes.flatMap { shape =>
