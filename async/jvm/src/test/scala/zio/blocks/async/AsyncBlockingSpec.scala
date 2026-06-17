@@ -92,13 +92,14 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
       },
       test("complete-then-await is non-blocking") {
         ZIO.attemptBlocking {
-          // If the completion happens BEFORE await, peek returns the bare value
-          // and await never enters the slow path. We assert the timing.
-          val a       = Async.promiseInternal[Int](c => c.succeed(7))
-          val started = System.nanoTime()
-          val v       = a.block
-          val elapsed = System.nanoTime() - started
-          assertTrue(v == 7, elapsed < 50_000_000L)
+          // Completion happens BEFORE await, so `peek` returns the bare value and
+          // await never enters the slow path. The oracle is structural, not a
+          // wall-clock bound: the completed promise is already a READY value (not
+          // a pending Pollable), so `.block` cannot park. A timing upper bound
+          // here would be an unsound, flake-prone oracle — a GC pause or
+          // scheduler stall could exceed it on a logically-synchronous path.
+          val a = Async.promiseInternal[Int](c => c.succeed(7))
+          assertTrue(!AsyncTestSupport.isPending(a), a.block == 7)
         }
       },
       test("double complete from concurrent threads is safe and yields the first value") {
