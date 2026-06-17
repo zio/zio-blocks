@@ -94,6 +94,24 @@ object AsyncScala2ShapeProbeSpec extends ZIOSpecDefault {
         }
         a
       """).map(r => assert(r)(isRight))
+    },
+    // A block-local `var` whose initializer contains an `.await` is legitimate
+    // direct-style code: both Scala 3 backends (dotty-cps-async on 3.3.x and the
+    // 3.8+ native transform) compile and run `var a = succeed(1).await; ...`
+    // correctly. The Scala 2 macro's `boxVars` pre-pass rewrites the `var` into
+    // `IntRef.create(<rhs>)` BEFORE the CPS transform extracts the await from
+    // `<rhs>`, producing a malformed tree that fails to retypecheck with
+    // `class scala.runtime.IntRef is not a value`. Parity demands this compile.
+    test("a var whose initializer awaits should compile (Scala 3 parity)") {
+      typeCheck("""
+        import zio.blocks.async._
+        val a = Async.async {
+          var x = Async.succeed(1).await
+          x = x + 10
+          x
+        }
+        a
+      """).map(r => assert(r)(isRight))
     }
   )
 }
