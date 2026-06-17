@@ -451,6 +451,58 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
           }
           assertTrue(anomaly.isEmpty)
         }
+      },
+      test("many threads blocking ONE shared Running handle all wake and agree when completion lands after they park") {
+        // Directly stresses the SuspendedRunning lost-wakeup window: the
+        // off-thread leaf completes AFTER every blocker has already entered
+        // `.block` (and is parking inside `registerOnComplete`/park), so the
+        // terminal publish + lock-guarded `wakeAll` must drain EVERY waiter
+        // added before it ran — no blocker may stay parked, and all must agree
+        // on the single published value exactly once. (Existing fan-out probes
+        // complete the leaf BEFORE blocking; this one inverts the order so the
+        // waiter chain is non-empty at publish time.)
+        ZIO.attemptBlocking {
+          val trials  = 400
+          val blockers = 8
+          var anomaly = Option.empty[String]
+          var i       = 0
+          while (i < trials && anomaly.isEmpty) {
+            val c        = new Completer[Int]
+            val running  = c.peek.map(_ + 1).start
+            val parked   = new CountDownLatch(blockers)
+            val release  = new CountDownLatch(1)
+            val results  = new Array[Any](blockers)
+            val threads  = (0 until blockers).map { id =>
+              val t = new Thread(new Runnable {
+                def run(): Unit = {
+                  parked.countDown()  // announce intent to block
+                  release.await()     // all blockers released together
+                  results(id) =
+                    try running.block
+                    catch { case t: Throwable => t }
+                }
+              })
+              t.setDaemon(true); t.start(); t
+            }
+            parked.await()
+            release.countDown()
+            // Complete off-thread only AFTER releasing the blockers, so the
+            // publish races them parking — the waiter chain is populated when
+            // wakeAll runs (or a late blocker observes the terminal directly).
+            val settler = new Thread(new Runnable {
+              def run(): Unit = { Thread.sleep(2); c.succeed(41) }
+            })
+            settler.setDaemon(true); settler.start()
+            threads.foreach(_.join(5000))
+            settler.join(5000)
+            val stuck = threads.zipWithIndex.collect { case (t, idx) if t.isAlive => idx }
+            if (stuck.nonEmpty) anomaly = Some(s"trial $i: blockers $stuck never woke (lost wakeup)")
+            else if (!results.forall(_ == 42))
+              anomaly = Some(s"trial $i: blockers disagreed/wrong: ${results.toList} (all must be 42)")
+            i += 1
+          }
+          assertTrue(anomaly.isEmpty)
+        }
       }
     )
   )
