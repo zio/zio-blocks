@@ -484,6 +484,28 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           val fut = AsyncInterop.toFuture(Async.succeed(123).map(_ + 1))
           val rt  = AsyncInterop.fromFuture(fut).map(_ * 2).block
           assertTrue(rt == 248)
+        },
+        test("fromCompletionStage_completedWithNullValue_deliversNull") {
+          // CompletableFuture.completedFuture(null) is a legitimate normal
+          // completion with a null value; the bridge must deliver a raw null
+          // success, not mistake it for "not yet done" or an error.
+          val cf = CompletableFuture.completedFuture(null.asInstanceOf[Integer])
+          val a  = AsyncInterop.fromCompletionStage(cf)
+          assertTrue(Option(a.block.asInstanceOf[AnyRef]).isEmpty)
+        },
+        test("fromCompletionStage_whenCompleteFiresTwice_bridgeIsAtMostOnce") {
+          // A hostile stage whose whenComplete fires success then exception must
+          // not double-settle the Async: Completer's one-shot contract makes the
+          // first callback win and silently drops the second.
+          val cf = new CompletableFuture[Int]() {
+            override def whenComplete(action: java.util.function.BiConsumer[_ >: Int, _ >: Throwable]): CompletableFuture[Int] = {
+              action.accept(5, null)
+              action.accept(null.asInstanceOf[Integer], boom)
+              this
+            }
+          }
+          val a = AsyncInterop.fromCompletionStage(cf)
+          assertTrue(a.block == 5)
         }
       ),
       // Category P — unsafeRunAsync cancel before pending completes suppresses callback.

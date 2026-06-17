@@ -51,6 +51,16 @@ object AsyncPromiseSpec extends ZIOSpecDefault {
         t.start()
       }
       assertTrue(a.block == "ok")
+    },
+    test("promise body that completes then throws lets the throw escape (eager body)") {
+      // The body completes the completer and then throws synchronously. The
+      // completer is one-shot so the value is already settled, but `promise`
+      // does not capture a throwing body (it is run eagerly like `attempt`'s
+      // body is not double-wrapped) — the throw escapes the construction call.
+      val caught =
+        try { Async.promise[Int] { summon[Completer[Int]].succeed(1); throw Boom }; None }
+        catch { case t: Throwable => Some(t) }
+      assertTrue(caught.contains(Boom))
     }
   )
 }

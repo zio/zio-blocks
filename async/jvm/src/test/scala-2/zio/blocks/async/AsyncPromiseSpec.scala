@@ -39,6 +39,16 @@ object AsyncPromiseSpec extends ZIOSpecDefault {
       val a      = Async.promise[String](implicit c => fail(Boom))
       val thrown = scala.util.Try(a.block).failed.toOption
       assertTrue(thrown.contains(Boom))
+    },
+    test("promise body that completes then throws lets the throw escape (eager body)") {
+      // The body completes the completer and then throws synchronously. The
+      // completer is one-shot so the value is already settled, but `promise`
+      // does not capture a throwing body — the throw escapes the construction
+      // call (eager evaluation, like the rest of `Async`).
+      val caught =
+        try { Async.promise[Int] { c => c.succeed(1); throw Boom }; None }
+        catch { case t: Throwable => Some(t) }
+      assertTrue(caught.contains(Boom))
     }
   )
 }

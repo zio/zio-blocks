@@ -278,6 +278,36 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
         } catch { case _: IllegalArgumentException => 99 }
       }
       assertTrue(fa.block == 99)
+    },
+    test("two positional awaited arguments evaluate left-to-right") {
+      val log                    = new scala.collection.mutable.ListBuffer[String]
+      def f(a: Int, b: Int): Int = a + b
+      val r = Async.async {
+        f(
+          { val v = Async.succeed(1).await; log += "a"; v },
+          { val v = Async.succeed(2).await; log += "b"; v }
+        )
+      }
+      assertTrue(r.block == 3, log.toList == List("a", "b"))
+    },
+    test("reordered named awaited arguments evaluate in textual order") {
+      val log                    = new scala.collection.mutable.ListBuffer[String]
+      def f(a: Int, b: Int): Int = a * 10 + b
+      val r = Async.async {
+        f(
+          b = { val v = Async.succeed(2).await; log += "b"; v },
+          a = { val v = Async.succeed(1).await; log += "a"; v }
+        )
+      }
+      assertTrue(r.block == 12, log.toList == List("b", "a"))
+    },
+    test("for-comprehension over a pattern-binding generator awaits each yield") {
+      val r = Async.async {
+        for {
+          (x, y) <- List((1, 2), (3, 4))
+        } yield Async.succeed(x + y).await
+      }
+      assertTrue(r.block == List(3, 7))
     }
   )
 }

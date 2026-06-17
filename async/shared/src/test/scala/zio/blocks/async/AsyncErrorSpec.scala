@@ -534,6 +534,49 @@ object AsyncErrorSpec extends ZIOSpecDefault {
           primaryCause.getSuppressed.toList == List(finCause)
         )
       }
+    ),
+    suite("orElse fallback-chain integrity")(
+      test("three failing branches surface the last cause (ready)") {
+        // `orElse` falls back on failure; with every branch failing, the cause
+        // observed is the final fallback's. Behavior must be identical across
+        // platforms/versions (the docs promise identical core behavior).
+        val a = Async
+          .fail(AsyncTestSupport.leftSent)
+          .orElse(Async.fail(AsyncTestSupport.midSent))
+          .orElse(Async.fail(AsyncTestSupport.rightSent))
+        assertTrue(AsyncTestSupport.blockAsLeftCause(a).contains(AsyncTestSupport.rightSent))
+      },
+      test("three failing branches surface the last cause (pending)") {
+        val (c, p) = AsyncTestSupport.pending[Int]
+        val a = p
+          .flatMap(_ => Async.fail(AsyncTestSupport.leftSent))
+          .orElse(Async.fail(AsyncTestSupport.midSent))
+          .orElse(Async.fail(AsyncTestSupport.rightSent))
+        c.succeed(0)
+        assertTrue(AsyncTestSupport.blockAsLeftCause(a).contains(AsyncTestSupport.rightSent))
+      }
+    ),
+    suite("null-cause recovery reification (ready/pending parity)")(
+      test("catchAll handler returning fail(null) reifies Left(null) on the ready path") {
+        val a = Async.fail(boom).catchAll(_ => Async.fail(null))
+        assertTrue(a.either.block == Left(null))
+      },
+      test("catchAll handler returning fail(null) reifies Left(null) on the pending path") {
+        val (c, p) = AsyncTestSupport.pending[Int]
+        val a      = p.flatMap(_ => Async.fail(boom)).catchAll(_ => Async.fail(null))
+        c.succeed(0)
+        assertTrue(a.either.block == Left(null))
+      },
+      test("mapError returning null reifies Left(null) on the ready path") {
+        val a = Async.fail(boom).mapError(_ => null)
+        assertTrue(a.either.block == Left(null))
+      },
+      test("mapError returning null reifies Left(null) on the pending path") {
+        val (c, p) = AsyncTestSupport.pending[Int]
+        val a      = p.flatMap(_ => Async.fail(boom)).mapError(_ => null)
+        c.succeed(0)
+        assertTrue(a.either.block == Left(null))
+      }
     )
   )
 }

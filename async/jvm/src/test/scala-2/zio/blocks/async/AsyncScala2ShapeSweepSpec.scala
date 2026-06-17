@@ -167,6 +167,47 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
         }
         a
       """).map(r => assert(r)(isRight))
+    },
+    test("two positional awaited arguments evaluate left-to-right") {
+      val log                    = new scala.collection.mutable.ListBuffer[String]
+      def f(a: Int, b: Int): Int = a + b
+      val r = Async.async {
+        f(
+          { val v = Async.succeed(1).await; log += "a"; v },
+          { val v = Async.succeed(2).await; log += "b"; v }
+        )
+      }
+      assertTrue(r.block == 3, log.toList == List("a", "b"))
+    },
+    test("reordered named awaited arguments evaluate in textual order") {
+      val log                    = new scala.collection.mutable.ListBuffer[String]
+      def f(a: Int, b: Int): Int = a * 10 + b
+      val r = Async.async {
+        f(
+          b = { val v = Async.succeed(2).await; log += "b"; v },
+          a = { val v = Async.succeed(1).await; log += "a"; v }
+        )
+      }
+      // Scala evaluates named args in textual order: b then a.
+      assertTrue(r.block == 12, log.toList == List("b", "a"))
+    },
+    test("await in the RHS of an assignment to an outer var inside a nested block") {
+      val r = Async.async {
+        var x = 0
+        locally {
+          x = Async.succeed(41).await + 1
+        }
+        x
+      }
+      assertTrue(r.block == 42)
+    },
+    test("for-comprehension over a pattern-binding generator awaits each yield") {
+      val r = Async.async {
+        for {
+          (x, y) <- List((1, 2), (3, 4))
+        } yield Async.succeed(x + y).await
+      }
+      assertTrue(r.block == List(3, 7))
     }
   )
 }
