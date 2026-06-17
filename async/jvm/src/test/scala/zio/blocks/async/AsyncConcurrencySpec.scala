@@ -30,7 +30,102 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
   private val boom = AsyncTestSupport.boom
   private val Boom = AsyncTestSupport.boom
 
+  // A genuinely-asynchronous leaf: a daemon thread sleeps `ms` then completes a
+  // Completer off the driving thread. Unlike the synchronous `succeedAfter`
+  // helpers (which complete inside `poll`), this exercises the waker/park path
+  // with a real off-thread wakeup landing between polls.
+  private def realAsync[A](value: A, ms: Long): Async[A] = {
+    val c = new Completer[A]
+    val t = new Thread(new Runnable { def run(): Unit = { Thread.sleep(ms); c.succeed(value) } })
+    t.setDaemon(true); t.start()
+    c.peek
+  }
+
+  private def realAsyncFail(cause: Throwable, ms: Long): Async[Nothing] = {
+    val c = new Completer[Nothing]
+    val t = new Thread(new Runnable { def run(): Unit = { Thread.sleep(ms); c.fail(cause) } })
+    t.setDaemon(true); t.start()
+    c.peek
+  }
+
   def spec = suite("AsyncConcurrencySpec")(
+    // Round-32 convergence: combinators driven over GENUINELY off-thread leaves
+    // (a worker that sleeps then completes a Completer), where the wakeup lands
+    // between polls via the park/onComplete path — not synchronously inside
+    // `poll` as the `succeedAfter` helpers do. Covers the timing/scheduling
+    // surface (real async wakeups through map/flatMap/zip/collectAll/ensuring).
+    suite("real off-thread leaves through combinators")(
+      test("zipWith of two off-thread leaves lands both wakeups and combines") {
+        ZIO.attemptBlocking {
+          val r = (realAsync(3, 30): Async[Int]).zipWith(realAsync(4, 5): Async[Int])(_ + _)
+          assertTrue(r.block == 7)
+        }
+      },
+      test("collectAll over off-thread leaves completing out of order preserves input order") {
+        ZIO.attemptBlocking {
+          val r = Async.collectAll(List[Async[Int]](realAsync(1, 40), realAsync(2, 5), realAsync(3, 20)))
+          assertTrue(r.block == List(1, 2, 3))
+        }
+      },
+      test("zipWith slow-success left and fast-fail right waits for left then surfaces right's failure") {
+        ZIO.attemptBlocking {
+          val rs  = new RuntimeException("zip-right")
+          val r   = (realAsync(1, 40): Async[Int]).zipWith(realAsyncFail(rs, 5): Async[Int])(_ + _)
+          val got =
+            try { r.block; None }
+            catch { case t: Throwable => Some(t) }
+          assertTrue(got.contains(rs))
+        }
+      },
+      test("collectAll with an off-thread middle failure does not drive a still-pending later element") {
+        ZIO.attemptBlocking {
+          val mid    = new RuntimeException("collect-mid")
+          val driven = new AtomicInteger(0)
+          val later: Async[Int] = new Pollable[Int] {
+            def poll(onComplete: Runnable): Async[Int] = { driven.incrementAndGet(); onComplete.run(); this }
+          }
+          val r   = Async.collectAll(List[Async[Int]](realAsync(1, 10), realAsyncFail(mid, 20), later))
+          val got =
+            try { r.block; None }
+            catch { case t: Throwable => Some(t) }
+          assertTrue(got.contains(mid), driven.get() == 0)
+        }
+      },
+      test("ensuring runs an off-thread finalizer after an off-thread primary succeeds") {
+        ZIO.attemptBlocking {
+          val fin = new AtomicInteger(0)
+          val r   = (realAsync(5, 20): Async[Int]).ensuring((realAsync((), 20): Async[Unit]).map(_ => fin.incrementAndGet()))
+          assertTrue(r.block == 5, fin.get() == 1)
+        }
+      },
+      test("ensuring over off-thread primary-fail and off-thread finalizer-fail keeps primary with finalizer suppressed") {
+        ZIO.attemptBlocking {
+          val prim = new RuntimeException("ens-primary")
+          val fin  = new RuntimeException("ens-finalizer")
+          val r    = (realAsyncFail(prim, 20): Async[Int]).ensuring(realAsyncFail(fin, 20))
+          val got  =
+            try { r.block; None }
+            catch { case t: Throwable => Some(t) }
+          val suppressed = got.toList.flatMap(_.getSuppressed.toList)
+          assertTrue(got.contains(prim), suppressed.contains(fin))
+        }
+      },
+      test("deep flatMap chain over off-thread leaves resumes across every wakeup") {
+        ZIO.attemptBlocking {
+          val r = (realAsync(1, 10): Async[Int])
+            .flatMap(a => (realAsync(a + 1, 10): Async[Int]))
+            .flatMap(b => (realAsync(b + 1, 10): Async[Int]))
+            .flatMap(c => (realAsync(c + 1, 10): Async[Int]))
+          assertTrue(r.block == 4)
+        }
+      },
+      test("zipWith of off-thread leaves driven through start observes the combined value") {
+        ZIO.attemptBlocking {
+          val r = (realAsync(3, 20): Async[Int]).zipWith(realAsync(4, 5): Async[Int])(_ + _).start
+          assertTrue(r.block == 7)
+        }
+      }
+    ),
     suite("concurrency")(
       test("Completer settles exactly once under many racing succeed/fail callers") {
         ZIO.attemptBlocking {
