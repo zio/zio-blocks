@@ -235,6 +235,35 @@ object AsyncErrorSpec extends ZIOSpecDefault {
             .block
         )
         assertTrue(out == scala.util.Success(Left(AsyncTestSupport.handlerFx)))
+      },
+      test("foldCause over a pending source that fails recovers to the onFailure value") {
+        // The pending failure flows through `map(onSuccess).catchAll(...)`: the
+        // map short-circuits (source failed), the catchAll handler produces the
+        // onFailure value. Drive across two polls so the source actually suspends.
+        val src = AsyncTestSupport.failAfter(AsyncTestSupport.primary, 2)
+        val a   = (src: Async[Int]).foldCause(t => s"recovered:${t.getMessage}")(n => s"ok:$n")
+        assertTrue(a.block == "recovered:primary")
+      }
+    ),
+    suite("orElse / never corners")(
+      test("orElse on a pending-then-failing source falls back to the alternative's value") {
+        val src = AsyncTestSupport.failAfter(AsyncTestSupport.boom, 2)
+        val a   = (src: Async[Int]).orElse(Async.succeed(99))
+        assertTrue(a.block == 99)
+      },
+      test("orElse(never) on a failure stays pending forever (never is the right-zero of recovery)") {
+        // Recovering a failure INTO `never` must leave the whole thing pending —
+        // structural oracle: the result is a non-Failure Pollable and one poll
+        // does not settle it. No wall-clock bound.
+        val a: Async[Int] = Async.fail(AsyncTestSupport.boom).orElse(Async.never)
+        assertTrue(
+          AsyncTestSupport.isPending(a),
+          AsyncTestSupport.isPending(AsyncTestSupport.pollOnce(a))
+        )
+      },
+      test("orElse(never) on a success delivers the value (alternative never consulted)") {
+        val a: Async[Int] = Async.succeed(7).orElse(Async.never)
+        assertTrue(a.block == 7)
       }
     ),
     suite("either")(
