@@ -1033,6 +1033,9 @@ private[async] object AsyncMacros {
       safe(q"""{ val $tmp = $expr; ${k(q"$tmp")} }""")
     }
 
+    /** Terminal continuation: lift a pure value into a ready `Async`. */
+    val pureReturn: Tree => Tree = v => q"$AsyncObj.succeed($v)"
+
     /** Bind an `Async` value: `fa.flatMap(a => k(a))`, throw-safe. */
     def asyncBind(fa: Tree)(k: Tree => Tree): Tree =
       asyncBindT(fa, TypeTree())(k)
@@ -1046,14 +1049,24 @@ private[async] object AsyncMacros {
      * parameter type of `Nothing` ("missing parameter type"). For every other
      * element type inference also works, but ascribing it costs nothing and
      * keeps the generated code robust.
+     *
+     * Right-identity elision: when the continuation is the terminal
+     * [[pureReturn]] (`a => Async.succeed(a)`), `fa.flatMap(a => Async.succeed(a))`
+     * is observably `fa` itself (monad right identity — and it holds at every
+     * carrier depth in this encoding: deliver-one-layer then re-`succeed` is the
+     * identity). So an awaiting expression in tail position emits just `fa`
+     * instead of an identity `flatMap` link — no extra closure, no
+     * decode/re-encode round-trip, and no `FlatMapPollable` when `fa` suspends.
+     * Keyed on the stable `pureReturn` `val` identity (`eq`); any other
+     * continuation takes the normal `flatMap` path. The explicit-`tpt`
+     * `Async[Nothing]` concern does not arise here since no lambda is emitted.
      */
-    def asyncBindT(fa: Tree, tpt: Tree)(k: Tree => Tree): Tree = {
-      val a = fresh("a$")
-      safe(q"""$OpsObj($fa).flatMap(${lamT(a, tpt, k(q"$a"))})""")
-    }
-
-    /** Terminal continuation: lift a pure value into a ready `Async`. */
-    val pureReturn: Tree => Tree = v => q"$AsyncObj.succeed($v)"
+    def asyncBindT(fa: Tree, tpt: Tree)(k: Tree => Tree): Tree =
+      if (k eq pureReturn) safe(fa)
+      else {
+        val a = fresh("a$")
+        safe(q"""$OpsObj($fa).flatMap(${lamT(a, tpt, k(q"$a"))})""")
+      }
 
     /**
      * Rewrite `recvVal.map(pname => fbody-with-await)` (receiver already a
