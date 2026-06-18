@@ -22,6 +22,9 @@ import zio.blocks.async.*
 
 import scala.compiletime.uninitialized
 
+import scala.concurrent.{Future, ExecutionContext}
+import scala.util.Try
+
 import java.util.concurrent.TimeUnit
 
 // ---- Cats Effect ----
@@ -54,6 +57,13 @@ import kyo.{Async => _, *}
  *     `import zio.blocks.async.*`.
  *   - '''kyo''' — Kyo (`A < S` pending-type carrier).
  *   - '''ce''' — Cats Effect IO (boxed effect tree + `unsafeRunSync()`).
+ *   - '''fut''' — `scala.concurrent.Future`, run EAGERLY and SYNCHRONOUSLY:
+ *     every `map`/`flatMap`/`recover`/`transform`/`zipWith` uses
+ *     `ExecutionContext.parasitic` (callbacks run inline on the calling thread,
+ *     no thread hop), and the realized value is read via `f.value.get.get`
+ *     (the future is already completed under parasitic, so no `Await`
+ *     thread-park is needed). This keeps Future apples-to-apples with the
+ *     other runtimes' synchronous `.block`/`.unsafeRunSync()`/`.eval`.
  *
  * The `ce_*` numbers include the fixed cost of `unsafeRunSync()` per op;
  * [[AsyncChainBench]] amortizes that cost over many ops.
@@ -111,6 +121,9 @@ class AsyncBench {
   @Benchmark def ce_succeed(): Int =
     IO.pure(x).unsafeRunSync()
 
+  @Benchmark def fut_succeed(): Int =
+    Future.successful(x).value.get.get
+
   // ---- map1: lift + 1 map + run --------------------------------------------
 
   @Benchmark def zb_map1(): Int =
@@ -124,6 +137,9 @@ class AsyncBench {
   @Benchmark def ce_map1(): Int =
     IO.pure(x).map(_ + 1).unsafeRunSync()
 
+  @Benchmark def fut_map1(): Int =
+    Future.successful(x).map(_ + 1)(ExecutionContext.parasitic).value.get.get
+
   // ---- flatMap1: lift + 1 flatMap + run ------------------------------------
 
   @Benchmark def zb_flatMap1(): Int =
@@ -136,6 +152,14 @@ class AsyncBench {
 
   @Benchmark def ce_flatMap1(): Int =
     IO.pure(x).flatMap(v => IO.pure(v + 1)).unsafeRunSync()
+
+  @Benchmark def fut_flatMap1(): Int =
+    Future
+      .successful(x)
+      .flatMap(v => Future.successful(v + 1))(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 }
 
 /**
@@ -196,6 +220,16 @@ class AsyncChainBench {
     io.unsafeRunSync()
   }
 
+  @Benchmark def fut_mapN(): Int = {
+    var fa = Future.successful(x)
+    var i  = 0
+    while (i < n) {
+      fa = fa.map(_ + 1)(ExecutionContext.parasitic)
+      i += 1
+    }
+    fa.value.get.get
+  }
+
   // ---- flatMapN ------------------------------------------------------------
 
   @Benchmark def zb_flatMapN(): Int = {
@@ -226,6 +260,16 @@ class AsyncChainBench {
       i += 1
     }
     io.unsafeRunSync()
+  }
+
+  @Benchmark def fut_flatMapN(): Int = {
+    var fa = Future.successful(x)
+    var i  = 0
+    while (i < n) {
+      fa = fa.flatMap(v => Future.successful(v + 1))(ExecutionContext.parasitic)
+      i += 1
+    }
+    fa.value.get.get
   }
 }
 
@@ -277,6 +321,17 @@ class AsyncErrorBench {
   @Benchmark def ce_fail(): Either[Throwable, Int] =
     IO.raiseError[Int](boom).attempt.unsafeRunSync()
 
+  @Benchmark def fut_fail(): Either[Throwable, Int] =
+    Future
+      .failed[Int](boom)
+      .transform {
+        case scala.util.Success(v) => Try(Right(v): Either[Throwable, Int])
+        case scala.util.Failure(e) => Try(Left(e): Either[Throwable, Int])
+      }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   // ---- catchAll on failure: fail-then-recover ------------------------------
 
   @Benchmark def zb_catchAllOnFail(): Int =
@@ -295,6 +350,14 @@ class AsyncErrorBench {
 
   @Benchmark def ce_catchAllOnFail(): Int =
     IO.raiseError[Int](boom).handleError(_ => x).unsafeRunSync()
+
+  @Benchmark def fut_catchAllOnFail(): Int =
+    Future
+      .failed[Int](boom)
+      .recoverWith { case _ => Future.successful(x) }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 
   // ---- catchAll on success: succeed (no recovery) --------------------------
 
@@ -315,6 +378,14 @@ class AsyncErrorBench {
       .eval
   }
 
+  @Benchmark def fut_catchAllOnSuccess(): Int =
+    Future
+      .successful(x)
+      .recoverWith { case _ => Future.successful(0) }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   // ---- attempt: wrap a possibly-throwing block -----------------------------
 
   @Benchmark def zb_attemptSuccess(): Int =
@@ -325,6 +396,9 @@ class AsyncErrorBench {
 
   @Benchmark def kyo_attemptSuccess(): Int =
     (x + 1: Int < Any).eval
+
+  @Benchmark def fut_attemptSuccess(): Int =
+    Future.fromTry(Try(x + 1)).value.get.get
 
   // ---- mapError: transform the cause ---------------------------------------
 
@@ -349,6 +423,20 @@ class AsyncErrorBench {
       .eval
   }
 
+  @Benchmark def fut_mapError(): Either[Throwable, Int] = {
+    val ec = ExecutionContext.parasitic
+    Future
+      .failed[Int](boom)
+      .transform(identity, t => new RuntimeException("wrapped", t))(ec)
+      .transform {
+        case scala.util.Success(v) => Try(Right(v): Either[Throwable, Int])
+        case scala.util.Failure(e) => Try(Left(e): Either[Throwable, Int])
+      }(ec)
+      .value
+      .get
+      .get
+  }
+
   // ---- orElse: fallback on failure -----------------------------------------
 
   @Benchmark def zb_orElseRecovers(): Int =
@@ -367,6 +455,14 @@ class AsyncErrorBench {
       }
       .eval
   }
+
+  @Benchmark def fut_orElseRecovers(): Int =
+    Future
+      .failed[Int](boom)
+      .recoverWith { case _ => Future.successful(x) }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 
   // ---- foldCause: cover both branches in one pass --------------------------
   // CE analog is `redeem` (fold both channels in one pass); Kyo runs the
@@ -389,6 +485,17 @@ class AsyncErrorBench {
       .eval
   }
 
+  @Benchmark def fut_foldCauseSuccess(): Int =
+    Future
+      .successful(x)
+      .transform {
+        case scala.util.Success(v) => Try(v + 1)
+        case scala.util.Failure(_) => Try(0)
+      }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   @Benchmark def zb_foldCauseFailure(): Int = {
     val fa: Async[Int] = Async.fail(boom)
     fa.foldCause(_ => x)((v: Int) => v).block
@@ -407,6 +514,17 @@ class AsyncErrorBench {
       }
       .eval
   }
+
+  @Benchmark def fut_foldCauseFailure(): Int =
+    Future
+      .failed[Int](boom)
+      .transform {
+        case scala.util.Success(v) => Try(v)
+        case scala.util.Failure(_) => Try(x)
+      }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 
   // ---- either: convert to Either -------------------------------------------
   // CE analog is `attempt`; Kyo runs the `Abort` and reifies the `Result` as
@@ -430,6 +548,17 @@ class AsyncErrorBench {
       .eval
   }
 
+  @Benchmark def fut_eitherSuccess(): Either[Throwable, Int] =
+    Future
+      .successful(x)
+      .transform {
+        case scala.util.Success(v) => Try(Right(v): Either[Throwable, Int])
+        case scala.util.Failure(e) => Try(Left(e): Either[Throwable, Int])
+      }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   @Benchmark def zb_eitherFailure(): Either[Throwable, Int] =
     Async.fail(boom).either.block
 
@@ -447,6 +576,17 @@ class AsyncErrorBench {
       }
       .eval
   }
+
+  @Benchmark def fut_eitherFailure(): Either[Throwable, Int] =
+    Future
+      .failed[Int](boom)
+      .transform {
+        case scala.util.Success(v) => Try(Right(v): Either[Throwable, Int])
+        case scala.util.Failure(e) => Try(Left(e): Either[Throwable, Int])
+      }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 }
 
 /**
@@ -467,10 +607,11 @@ class AsyncCombinatorBench {
   @Param(Array("100", "1000"))
   var n: Int = uninitialized
 
-  var x: Int                     = 0
-  var inputs: List[Async[Int]]   = uninitialized
-  var ceInputs: List[IO[Int]]    = uninitialized
-  var kyoInputs: List[Int < Any] = uninitialized
+  var x: Int                       = 0
+  var inputs: List[Async[Int]]     = uninitialized
+  var ceInputs: List[IO[Int]]      = uninitialized
+  var kyoInputs: List[Int < Any]   = uninitialized
+  var futInputs: List[Future[Int]] = uninitialized
 
   @Setup
   def setup(): Unit = {
@@ -478,6 +619,7 @@ class AsyncCombinatorBench {
     inputs = List.tabulate(n)(i => Async.succeed(i))
     ceInputs = List.tabulate(n)(i => IO.pure(i))
     kyoInputs = List.tabulate(n)(i => (i: Int < Any))
+    futInputs = List.tabulate(n)(i => Future.successful(i))
   }
 
   // ---- zipWith (single pair) -----------------------------------------------
@@ -494,6 +636,14 @@ class AsyncCombinatorBench {
     fa.flatMap(a => fb.map(b => a + b)).eval
   }
 
+  @Benchmark def fut_zipWith(): Int =
+    Future
+      .successful(x)
+      .zipWith(Future.successful(x + 1))(_ + _)(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   // ---- zip with Zippable (Tuple3) ------------------------------------------
 
   @Benchmark def zb_zip3(): (Int, Int, Int) =
@@ -508,6 +658,16 @@ class AsyncCombinatorBench {
     val fc: Int < Any = x + 2
     fa.flatMap(a => fb.flatMap(b => fc.map(c => (a, b, c)))).eval
   }
+
+  @Benchmark def fut_zip3(): (Int, Int, Int) =
+    Future
+      .successful(x)
+      .zip(Future.successful(x + 1))
+      .zip(Future.successful(x + 2))
+      .map { case ((a, b), c) => (a, b, c) }(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 
   // ---- collectAll (N already-ready inputs) ---------------------------------
 
@@ -540,6 +700,11 @@ class AsyncCombinatorBench {
     acc.eval.size
   }
 
+  @Benchmark def fut_sequence(): Int = fut_collectAll()
+
+  @Benchmark def fut_collectAll(): Int =
+    Future.sequence(futInputs)(implicitly, ExecutionContext.parasitic).value.get.get.size
+
   // ---- tap, ensuring -------------------------------------------------------
   // Kyo's bare `<` carrier has no built-in `.tap`/`.ensuring`. The closest
   // faithful analog for the SUCCESS path these benchmarks exercise is a `map`
@@ -564,6 +729,11 @@ class AsyncCombinatorBench {
     fa.map { v => sink = v; v }.eval + sink
   }
 
+  @Benchmark def fut_tap(): Int = {
+    var sink = 0
+    Future.successful(x).map { v => sink = v; v }(ExecutionContext.parasitic).value.get.get + sink
+  }
+
   @Benchmark def zb_ensuring(): Int = {
     var sink = 0
     Async.succeed(x).ensuring(Async.succeed { sink = 1 }).block + sink
@@ -580,6 +750,11 @@ class AsyncCombinatorBench {
     fa.map { v => sink = 1; v }.eval + sink
   }
 
+  @Benchmark def fut_ensuring(): Int = {
+    var sink = 0
+    Future.successful(x).andThen { case _ => sink = 1 }(ExecutionContext.parasitic).value.get.get + sink
+  }
+
   // ---- as, unit, *>, <* ----------------------------------------------------
 
   @Benchmark def zb_as(): String =
@@ -593,6 +768,9 @@ class AsyncCombinatorBench {
     fa.map(_ => "k").eval
   }
 
+  @Benchmark def fut_as(): String =
+    Future.successful(x).map(_ => "k")(ExecutionContext.parasitic).value.get.get
+
   @Benchmark def zb_unit(): Unit =
     Async.succeed(x).unit.block
 
@@ -603,6 +781,9 @@ class AsyncCombinatorBench {
     val fa: Int < Any = x
     fa.map(_ => ()).eval
   }
+
+  @Benchmark def fut_unit(): Unit =
+    Future.successful(x).map(_ => ())(ExecutionContext.parasitic).value.get.get
 
   @Benchmark def zb_zipRight(): Int =
     (Async.succeed(x) *> Async.succeed(x + 1)).block
@@ -616,6 +797,14 @@ class AsyncCombinatorBench {
     fa.flatMap(_ => fb).eval
   }
 
+  @Benchmark def fut_zipRight(): Int =
+    Future
+      .successful(x)
+      .zipWith(Future.successful(x + 1))((_, b) => b)(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
+
   @Benchmark def zb_zipLeft(): Int =
     (Async.succeed(x) <* Async.succeed(x + 1)).block
 
@@ -627,6 +816,14 @@ class AsyncCombinatorBench {
     val fb: Int < Any = x + 1
     fb.flatMap(_ => fa).eval
   }
+
+  @Benchmark def fut_zipLeft(): Int =
+    Future
+      .successful(x)
+      .zipWith(Future.successful(x + 1))((a, _) => a)(ExecutionContext.parasitic)
+      .value
+      .get
+      .get
 }
 
 /**
@@ -669,6 +866,17 @@ class AsyncAsyncOpBench {
 
   @Benchmark def ce_asyncSync(): Int =
     IO.async_[Int](cb => cb(Right(x))).unsafeRunSync()
+
+  // Future analog: a `Promise` whose callback fires synchronously inside the
+  // body (the same shape as `IO.async_`'s synchronous-callback path and ZB's
+  // `promiseInternal`). The promise is already completed by the time we read
+  // `.future.value`, so no thread-park is needed.
+  @Benchmark def fut_asyncSync(): Int = {
+    val p = scala.concurrent.Promise[Int]()
+    val cb: (Int => Unit) = v => p.success(v)
+    cb(x)
+    p.future.value.get.get
+  }
 
   // Kyo counterpart intentionally omitted: Kyo's `<` carrier does not
   // distinguish a "completes synchronously inside a callback" path from a
@@ -753,5 +961,22 @@ class AsyncHybridBench {
     i = 0
     while (i < n) { fa = fa.map(_ + 1); i += 1 }
     fa.eval
+  }
+
+  @Benchmark def fut_hybrid(): Int = {
+    val ec             = ExecutionContext.parasitic
+    var fa: Future[Int] = Future.successful(x)
+    var i               = 0
+    while (i < n) { fa = fa.flatMap(v => Future.successful(v + 1))(ec); i += 1 }
+    // Inline async hop: a Promise completed synchronously inside the body,
+    // mirroring `IO.async_` and ZB's `promiseInternal`.
+    fa = fa.flatMap { v =>
+      val p = scala.concurrent.Promise[Int]()
+      p.success(v + 1)
+      p.future
+    }(ec)
+    i = 0
+    while (i < n) { fa = fa.flatMap(v => Future.successful(v + 1))(ec); i += 1 }
+    fa.value.get.get
   }
 }
