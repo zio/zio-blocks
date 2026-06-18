@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zio-blocks Async — Cross-Runtime Benchmarks</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#11182e; --panel2:#0e1528; --ink:#e8ecf6; --muted:#93a0bd;
+    --line:#22304f; --track:#1a2340;
+    --zb:#34d399; --fut:#818cf8; --kyo:#fbbf24; --ce:#fb7185;
+    --zb-d:#065f46; --fut-d:#3730a3; --kyo-d:#92400e; --ce-d:#9f1239;
+  }
+  *{box-sizing:border-box}
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:linear-gradient(180deg,#0a0e1c 0%,#0b1020 40%,#0c1326 100%);
+    color:var(--ink); min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px; line-height:1.5; padding:0 0 64px;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:0 24px}
+  header.hero{
+    padding:56px 24px 40px; text-align:center;
+    background:radial-gradient(900px 360px at 50% -120px, rgba(52,211,153,.16), transparent 70%);
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{ letter-spacing:.18em; text-transform:uppercase; font-size:12px; font-weight:700; color:var(--zb); margin:0 0 12px }
+  h1{ font-size:34px; line-height:1.15; margin:0 0 14px; font-weight:800; letter-spacing:-.02em }
+  h1 .grad{ background:linear-gradient(90deg,#34d399,#818cf8); -webkit-background-clip:text; background-clip:text; color:transparent }
+  .sub{ color:var(--muted); max-width:680px; margin:0 auto; font-size:15px }
+  .setup{ margin:22px auto 0; display:flex; flex-wrap:wrap; gap:8px; justify-content:center }
+  .pill{ font-size:12.5px; color:var(--muted); background:var(--panel); border:1px solid var(--line); padding:5px 11px; border-radius:999px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+
+  .legend{ position:sticky; top:0; z-index:5; backdrop-filter:blur(8px);
+    background:rgba(11,16,32,.82); border-bottom:1px solid var(--line); padding:12px 0; margin-bottom:8px }
+  .legend .wrap{ display:flex; gap:18px; flex-wrap:wrap; align-items:center; justify-content:center }
+  .chip{ display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:13.5px }
+  .dot{ width:12px; height:12px; border-radius:4px; display:inline-block }
+  .legnote{ color:var(--muted); font-size:12.5px; font-weight:400 }
+
+  section.card{ background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line); border-radius:16px; padding:20px 22px 8px; margin:26px 0;
+    box-shadow:0 10px 40px -24px rgba(0,0,0,.8) }
+  section.card > h2{ margin:2px 0 4px; font-size:19px; font-weight:700; letter-spacing:-.01em; display:flex; align-items:baseline; gap:10px }
+  section.card > h2 .h2sub{ font-size:13px; color:var(--muted); font-weight:400 }
+
+  .op{ padding:14px 0; border-top:1px solid var(--line) }
+  .op:first-of-type{ border-top:0 }
+  .op .name{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:14.5px; font-weight:600; margin-bottom:9px; color:#cdd6ee }
+  .op .name .tag{ font-family:inherit; font-size:11.5px; color:var(--muted); font-weight:500 }
+  .op .name .note{ font-size:12px; color:var(--muted); font-weight:400; font-family:-apple-system,sans-serif }
+
+  .bars{ display:grid; grid-template-columns:54px 1fr; gap:6px 12px; align-items:center }
+  .rt{ font-size:12px; font-weight:700; text-align:right; letter-spacing:.02em }
+  .rt.zb{color:var(--zb)} .rt.fut{color:var(--fut)} .rt.kyo{color:var(--kyo)} .rt.ce{color:var(--ce)}
+  .lane{ display:flex; align-items:center; gap:10px; min-width:0 }
+  .track{ position:relative; flex:1 1 auto; height:22px; background:var(--track); border-radius:7px; overflow:hidden; min-width:0 }
+  .fill{ position:absolute; left:0; top:0; bottom:0; border-radius:7px; min-width:3px; opacity:.92 }
+  .fill.zb{background:linear-gradient(90deg,var(--zb-d),var(--zb))}
+  .fill.fut{background:linear-gradient(90deg,var(--fut-d),var(--fut))}
+  .fill.kyo{background:linear-gradient(90deg,var(--kyo-d),var(--kyo))}
+  .fill.ce{background:linear-gradient(90deg,var(--ce-d),var(--ce))}
+  .val{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; white-space:nowrap; color:#dbe2f4 }
+  .val .win{ color:var(--zb); font-weight:700 }
+  .alloc{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; white-space:nowrap; padding:2px 7px; border-radius:6px; border:1px solid transparent }
+  .a0{ color:#34d399; background:rgba(52,211,153,.10); border-color:rgba(52,211,153,.25) }
+  .alo{ color:#a7b2cc; background:rgba(148,163,189,.08); border-color:rgba(148,163,189,.18) }
+  .amid{ color:#fbbf24; background:rgba(251,191,36,.08); border-color:rgba(251,191,36,.20) }
+  .ahi{ color:#fb7185; background:rgba(251,113,133,.09); border-color:rgba(251,113,133,.22) }
+  .na{ color:var(--muted); font-size:12.5px; font-style:italic }
+
+  .foot{ color:var(--muted); font-size:13px; margin-top:30px; padding:20px 22px; background:var(--panel2); border:1px solid var(--line); border-radius:14px }
+  .foot b{ color:#cdd6ee }
+  .foot code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:rgba(255,255,255,.04); padding:1px 5px; border-radius:5px; color:#cdd6ee }
+  .foot ul{ margin:10px 0 0; padding-left:18px } .foot li{ margin:5px 0 }
+  @media (max-width:560px){ .bars{ grid-template-columns:46px 1fr } h1{font-size:27px} .val{font-size:11.5px} }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">zio-blocks · async</p>
+    <h1>Async — <span class="grad">cross-runtime benchmarks</span></h1>
+    <p class="sub">Throughput and per-operation allocation for <b>ZB&nbsp;Async</b> vs <b>scala.concurrent.Future</b>, <b>Kyo</b>, and <b>Cats&nbsp;Effect</b>, on the ready-value / eager path each runtime drives synchronously.</p>
+    <div class="setup">
+      <span class="pill">Apple M3 Ultra</span>
+      <span class="pill">OpenJDK 26</span>
+      <span class="pill">Scala 3.8.3</span>
+      <span class="pill">JMH -wi 5 -i 5 -f 2 -prof gc</span>
+    </div>
+  </div>
+</header>
+
+<div class="legend"><div class="wrap">
+  <span class="chip"><span class="dot" style="background:var(--zb)"></span>ZB Async</span>
+  <span class="chip"><span class="dot" style="background:var(--fut)"></span>Future</span>
+  <span class="chip"><span class="dot" style="background:var(--kyo)"></span>Kyo</span>
+  <span class="chip"><span class="dot" style="background:var(--ce)"></span>Cats Effect</span>
+  <span class="legnote">— bars are <b>log-scaled</b> throughput · badges are bytes/op</span>
+</div></div>
+
+<main class="wrap" id="app"></main>
+
+<div class="wrap">
+  <div class="foot">
+    <b>How to read this.</b> Throughput is higher-is-better (k/s = thousand, M/s = million, B/s = billion ops/sec); bars use a logarithmic scale because the fastest and slowest runtimes differ by ~5 orders of magnitude. The allocation badge is <code>gc.alloc.rate.norm</code> (bytes allocated per op, lower-is-better); <span class="alloc a0">≈0&nbsp;B</span> means escape analysis scalar-replaced everything.
+    <ul>
+      <li><b>Fairness.</b> Every runtime is driven to a value <i>synchronously</i> on the eager path: ZB <code>.block</code>, Cats Effect <code>.unsafeRunSync()</code>, Kyo <code>.eval</code>. <b>Future</b> runs on <code>ExecutionContext.parasitic</code> (callbacks inline, no thread hop) with the value read via <code>f.value.get.get</code> — i.e. Future's <i>best case</i>; a real thread-pool executor would be substantially slower.</li>
+      <li><b>Residual ZB allocations</b> are the unavoidable user-facing objects: <code>Either</code>/<code>Failure</code> (16&nbsp;B), the <code>Tuple3</code> from <code>zip3</code> (56&nbsp;B), and the <code>Completer</code> behind <code>promise</code> (16&nbsp;B).</li>
+      <li><b>mapError</b> is bounded by the user's <code>new RuntimeException(cause)</code> stack-trace fill-in across all four runtimes — not library overhead.</li>
+      <li>Combinator rows are <code>n</code>-independent and shown at n=100; chain &amp; batch rows show both n=100 and n=1000. Kyo has no apples-to-apples <code>promise</code>/sync-callback analog (—).</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+// [opsPerSec in MILLIONS, bytesPerOp]   (null = no fair analog)
+const DATA = [
+  { title:"Core", sub:"ready-value hot path", rows:[
+    { op:"succeed",   zb:[2746,0], fut:[1831,0],  kyo:[225,0],  ce:[0.116,1036] },
+    { op:"map",       zb:[2750,0], fut:[97.5,64], kyo:[151,0],  ce:[0.115,1072] },
+    { op:"flatMap",   zb:[2747,0], fut:[98.0,64], kyo:[148,0],  ce:[0.116,1065] },
+  ]},
+  { title:"Error handling", sub:"", rows:[
+    { op:"attempt", tag:"success", zb:[2745,0], fut:[1492,0], kyo:[254,0], ce:[0.117,1072] },
+    { op:"fail",                    zb:[283,16], fut:[97.3,80], kyo:[61.1,64], ce:[0.113,1444] },
+    { op:"catchAll", tag:"recovers", zb:[2759,0], fut:[99.7,80], kyo:[60.2,64], ce:[0.115,1200] },
+    { op:"catchAll", tag:"passthrough", zb:[2723,0], fut:[311,16], kyo:[84.3,0], ce:[0.116,1084] },
+    { op:"orElse", tag:"recovers",  zb:[2763,0], fut:[91.2,88], kyo:[60.1,64], ce:[0.116,1175] },
+    { op:"foldCause", tag:"success", zb:[2751,0], fut:[94.3,64], kyo:[84.9,0], ce:[0.111,1104] },
+    { op:"foldCause", tag:"failure", zb:[2675,0], fut:[95.6,80], kyo:[60.3,64], ce:[0.114,1192] },
+    { op:"either", tag:"success",   zb:[293,16], fut:[90.6,80], kyo:[77.2,16], ce:[0.116,1072] },
+    { op:"either", tag:"failure",   zb:[285,16], fut:[97.9,80], kyo:[54.6,80], ce:[0.112,1472] },
+    { op:"mapError", note:"dominated by exception stack-trace fill-in (all runtimes)", zb:[1.84,744], fut:[1.31,880], kyo:[1.73,808], ce:[0.073,3193] },
+  ]},
+  { title:"Combinators", sub:"n-independent (n=100)", rows:[
+    { op:"as",       zb:[3639,0], fut:[100,64], kyo:[146,0], ce:[0.114,1076] },
+    { op:"unit",     zb:[2767,0], fut:[102,64], kyo:[148,0], ce:[0.114,1064] },
+    { op:"tap",      zb:[2765,0], fut:[91.6,96], kyo:[151,0], ce:[0.114,1208] },
+    { op:"ensuring", zb:[2762,0], fut:[68.8,104], kyo:[152,0], ce:[0.106,1368] },
+    { op:"zipWith",  zb:[2727,0], fut:[86.8,104], kyo:[119,0], ce:[0.109,1144] },
+    { op:"zipLeft",  zb:[2742,0], fut:[87.0,104], kyo:[142,0], ce:[0.113,1144] },
+    { op:"zipRight", zb:[2698,0], fut:[87.8,104], kyo:[142,0], ce:[0.112,1072] },
+    { op:"zip3",     zb:[234,56], fut:[22.8,312], kyo:[71.2,24], ce:[0.112,1228] },
+  ]},
+  { title:"Chains & batch", sub:"deep sequencing / collection", rows:[
+    { op:"map", tag:"×100",        zb:[14.8,0], fut:[1.11,4832], kyo:[2.82,0], ce:[0.101,4640] },
+    { op:"map", tag:"×1000",       zb:[1.68,0], fut:[0.111,62128], kyo:[0.243,14080], ce:[0.048,48944] },
+    { op:"flatMap", tag:"×100",    zb:[14.5,0], fut:[1.10,4832], kyo:[2.83,0], ce:[0.096,6240] },
+    { op:"flatMap", tag:"×1000",   zb:[1.69,0], fut:[0.112,62128], kyo:[0.244,14080], ce:[0.039,64928] },
+    { op:"collectAll", tag:"n=100", zb:[3.20,0], fut:[0.646,9728], kyo:[1.28,2400], ce:[0.083,12640] },
+    { op:"collectAll", tag:"n=1000", zb:[0.298,0], fut:[0.066,96128], kyo:[0.129,37952], ce:[0.024,128788] },
+  ]},
+  { title:"Promise & mixed", sub:"", rows:[
+    { op:"promise", tag:"sync complete", zb:[415,16], fut:[310,32], kyo:null, ce:[0.105,1376] },
+    { op:"hybrid", tag:"n=10",  zb:[53.2,16], fut:[4.14,1376], kyo:[13.2,0], ce:[0.100,2416] },
+    { op:"hybrid", tag:"n=100", zb:[6.58,16], fut:[0.431,14096], kyo:[1.29,1200], ce:[0.071,13080] },
+  ]},
+];
+
+const RT = [["zb","ZB"],["fut","Fut"],["kyo","Kyo"],["ce","CE"]];
+
+// global log-scale bounds over all measured throughputs
+const all = [];
+DATA.forEach(s=>s.rows.forEach(r=>RT.forEach(([k])=>{ const v=r[k]; if(v&&v[0]>0) all.push(v[0]); })));
+const LMIN = Math.log10(Math.min(...all)), LMAX = Math.log10(Math.max(...all));
+const barW = ops => ops>0 ? Math.max(2.5, (Math.log10(ops)-LMIN)/(LMAX-LMIN)*100) : 0;
+
+function fmtOps(m){ // m in millions
+  if(m>=1000) return (m/1000).toFixed(2)+" B/s";
+  if(m>=100)  return Math.round(m)+" M/s";
+  if(m>=1)    return m.toFixed(1)+" M/s";
+  return Math.round(m*1000)+" k/s";
+}
+function allocBadge(b){
+  if(b<=0.5) return '<span class="alloc a0">≈0&nbsp;B</span>';
+  const cls = b<256 ? "alo" : b<4096 ? "amid" : "ahi";
+  const txt = b<1024 ? Math.round(b)+" B" : (b/1024).toFixed(1)+" KB";
+  return '<span class="alloc '+cls+'">'+txt+'</span>';
+}
+
+const app = document.getElementById("app");
+DATA.forEach(sec=>{
+  const card = document.createElement("section"); card.className="card";
+  let h = '<h2>'+sec.title+(sec.sub?' <span class="h2sub">'+sec.sub+'</span>':'')+'</h2>';
+  sec.rows.forEach(r=>{
+    // fastest runtime for this op (for the "win" highlight)
+    let best=-1; RT.forEach(([k])=>{ if(r[k]&&r[k][0]>best) best=r[k][0]; });
+    let name = '<span>'+r.op+'</span>';
+    if(r.tag)  name += ' <span class="tag">· '+r.tag+'</span>';
+    if(r.note) name += ' <span class="note">— '+r.note+'</span>';
+    h += '<div class="op"><div class="name">'+name+'</div><div class="bars">';
+    RT.forEach(([k,label])=>{
+      const v=r[k];
+      h += '<div class="rt '+k+'">'+label+'</div><div class="lane">';
+      if(!v){ h += '<div class="track"></div><span class="na">— n/a</span>'; }
+      else {
+        const winner = v[0]===best;
+        h += '<div class="track"><div class="fill '+k+'" style="width:'+barW(v[0]).toFixed(2)+'%"></div></div>'
+           + '<span class="val'+(winner?' ':'')+'">'+(winner?'<span class="win">'+fmtOps(v[0])+'</span>':fmtOps(v[0]))+'</span>'
+           + allocBadge(v[1]);
+      }
+      h += '</div>';
+    });
+    h += '</div></div>';
+  });
+  card.innerHTML = h;
+  app.appendChild(card);
+});
+</script>
+</body>
+</html>
