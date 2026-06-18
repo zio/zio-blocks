@@ -67,7 +67,7 @@
   .fill.kyo{background:linear-gradient(90deg,var(--kyo-d),var(--kyo))}
   .fill.ce{background:linear-gradient(90deg,var(--ce-d),var(--ce))}
   .val{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; white-space:nowrap; color:#dbe2f4 }
-  .val .win{ color:var(--zb); font-weight:700 }
+  .val .win{ font-weight:700 } /* colored inline by the winning runtime */
   .alloc{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; white-space:nowrap; padding:2px 7px; border-radius:6px; border:1px solid transparent }
   .a0{ color:#34d399; background:rgba(52,211,153,.10); border-color:rgba(52,211,153,.25) }
   .alo{ color:#a7b2cc; background:rgba(148,163,189,.08); border-color:rgba(148,163,189,.18) }
@@ -87,7 +87,7 @@
   <div class="wrap">
     <p class="eyebrow">zio-blocks · async</p>
     <h1>Async — <span class="grad">cross-runtime benchmarks</span></h1>
-    <p class="sub">Throughput and per-operation allocation for <b>ZB&nbsp;Async</b> vs <b>scala.concurrent.Future</b>, <b>Kyo</b>, and <b>Cats&nbsp;Effect</b>, on the ready-value / eager path each runtime drives synchronously.</p>
+    <p class="sub">Throughput and per-operation allocation for <b>ZB&nbsp;Async</b> vs <b>scala.concurrent.Future</b>, <b>Kyo</b>, and <b>Cats&nbsp;Effect</b> — on the eager / ready path each runtime drives synchronously, <b>and</b> on genuinely-suspended work completed off-thread (the <i>True async</i> section).</p>
     <div class="setup">
       <span class="pill">Apple M3 Ultra</span>
       <span class="pill">OpenJDK 26</span>
@@ -109,7 +109,7 @@
 
 <div class="wrap">
   <div class="foot">
-    <b>How to read this.</b> Throughput is higher-is-better (k/s = thousand, M/s = million, B/s = billion ops/sec). Bars are <b>linear</b> and normalized to the fastest runtime in each row — ZB&nbsp;Async is the fastest on every operation, so it is a full 100% bar throughout and the competitors render as thin slivers because they are genuinely 10×–10,000× slower (read the numeric labels for the exact magnitude). The allocation badge is <code>gc.alloc.rate.norm</code> (bytes allocated per op, lower-is-better); <span class="alloc a0">≈0&nbsp;B</span> means escape analysis scalar-replaced everything.
+    <b>How to read this.</b> Throughput is higher-is-better (k/s = thousand, M/s = million, B/s = billion ops/sec). Bars are <b>linear</b> and normalized to the fastest runtime in each row — ZB&nbsp;Async is the fastest on every operation, so it is a full 100% bar throughout and the competitors render as thin slivers because they are genuinely 10×–10,000× slower on the eager path (read the numeric labels for the exact magnitude). In the <b>True async</b> section the bars are much closer — there the cross-thread wakeup dominates, not the runtime overhead, so the field narrows to within ~3×. The allocation badge is <code>gc.alloc.rate.norm</code> (bytes allocated per op, lower-is-better); <span class="alloc a0">≈0&nbsp;B</span> means escape analysis scalar-replaced everything.
     <ul>
       <li><b>Fairness.</b> Every runtime is driven to a value <i>synchronously</i> on the eager path: ZB <code>.block</code>, Cats Effect <code>.unsafeRunSync()</code>, Kyo <code>.eval</code>. <b>Future</b> runs on <code>ExecutionContext.parasitic</code> (callbacks inline, no thread hop) with the value read via <code>f.value.get.get</code> — i.e. Future's <i>best case</i>; a real thread-pool executor would be substantially slower.</li>
       <li><b>Residual ZB allocations</b> are the unavoidable user-facing objects: <code>Either</code>/<code>Failure</code> (16&nbsp;B), the <code>Tuple3</code> from <code>zip3</code> (56&nbsp;B), and the <code>Completer</code> behind <code>promise</code> (16&nbsp;B).</li>
@@ -147,6 +147,11 @@ const DATA = [
     { op:"map · flatMap", tag:"chain ×1000", zb:[1.68,0], fut:[0.111,62128], kyo:[0.243,14080], ce:[0.048,48944] },
     { op:"collectAll", tag:"n=1000", zb:[0.298,0], fut:[0.066,96128], kyo:[0.129,37952], ce:[0.024,128788] },
   ]},
+  { title:"True async", sub:"value genuinely suspends, completed off-thread — OS scheduling dominates, so the field narrows", rows:[
+    { op:"round-trip", tag:"1 off-thread completion", zb:[0.171,280], fut:[0.167,240], kyo:[0.102,991], ce:[0.057,1553] },
+    { op:"async chain", tag:"×4 boundaries", zb:[0.0409,904], fut:[0.0388,864], kyo:[0.0333,3390], ce:[0.0225,3243] },
+    { op:"async chain", tag:"×16 boundaries", zb:[0.0104,3401], fut:[0.0097,3385], kyo:[0.00874,18651], ce:[0.00672,10130] },
+  ]},
   { title:"Promise & mixed", sub:"", rows:[
     { op:"promise", tag:"sync complete", zb:[415,16], fut:[310,32], kyo:null, ce:[0.105,1376] },
     { op:"hybrid", tag:"flatMap+promise, n=100", zb:[6.58,16], fut:[0.431,14096], kyo:[1.29,1200], ce:[0.071,13080] },
@@ -174,9 +179,9 @@ function allocBadge(b){
 }
 
 const app = document.getElementById("app");
-// explicit 3-column placement: [Core, Error] | [Combinators] | [Chains & batch, Promise & mixed]
+// explicit 3-column placement: [Core, Error] | [Combinators, Chains & batch] | [True async, Promise & mixed]
 const NCOL = 3;
-const COLS = { "Core":0, "Error handling":0, "Combinators":1, "Chains & batch":2, "Promise & mixed":2 };
+const COLS = { "Core":0, "Error handling":0, "Combinators":1, "Chains & batch":1, "True async":2, "Promise & mixed":2 };
 const cols = Array.from({length:NCOL}, ()=>{ const d=document.createElement("div"); d.className="col"; app.appendChild(d); return d; });
 DATA.forEach(sec=>{
   const card = document.createElement("section"); card.className="card";
@@ -195,7 +200,7 @@ DATA.forEach(sec=>{
       else {
         const winner = v[0]===best;
         h += '<div class="track"><div class="fill '+k+'" style="width:'+barW(v[0],best).toFixed(2)+'%"></div></div>'
-           + '<span class="val'+(winner?' ':'')+'">'+(winner?'<span class="win">'+fmtOps(v[0])+'</span>':fmtOps(v[0]))+'</span>'
+           + '<span class="val">'+(winner?'<span class="win" style="color:var(--'+k+')">'+fmtOps(v[0])+'</span>':fmtOps(v[0]))+'</span>'
            + allocBadge(v[1]);
       }
       h += '</div>';
