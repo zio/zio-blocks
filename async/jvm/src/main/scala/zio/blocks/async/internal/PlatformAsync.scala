@@ -30,9 +30,14 @@ private[async] object PlatformAsync {
   def newParker(): Parker = new JvmParker
 
   private final class JvmParker extends Parker {
-    private val lock         = new ReentrantLock()
-    private val cond         = lock.newCondition()
-    private var ready        = false
+    private val lock = new ReentrantLock()
+    private val cond = lock.newCondition()
+    // `@volatile` so `reset` and the `park` fast path can read/write it without
+    // the lock. The lock is still taken for the genuine wait (`cond.await`) and
+    // its matching wake (`signalAll`), which is what makes the wait
+    // interruptible (cancellation) and lost-wakeup-free.
+    @volatile private var ready = false
+
     val onComplete: Runnable = new Runnable {
       def run(): Unit = {
         lock.lock()
@@ -43,13 +48,20 @@ private[async] object PlatformAsync {
       }
     }
 
-    def reset(): Unit = {
-      lock.lock()
-      try ready = false
-      finally lock.unlock()
-    }
+    // Lock-free by design — do NOT re-add the lock. The driver calls
+    // `reset(); poll(onComplete); if (pending) park()` each round, so `reset`
+    // is program-ordered before this round's waker is even registered (inside
+    // `poll`); it can never race a live wakeup for the current round. A stale
+    // wakeup from a prior round only causes a spurious `park` return, which the
+    // driver's re-poll absorbs.
+    def reset(): Unit = ready = false
 
     def park(): Unit = {
+      // Fast path: on the common synchronous-wakeup path `onComplete` fired
+      // inside `poll`, so we never actually block — skip the lock entirely. The
+      // value handoff happens through the leaf's own synchronization on re-poll,
+      // not through `ready`, so a plain volatile read is sufficient here.
+      if (ready) return
       lock.lock()
       try while (!ready) cond.await()
       finally lock.unlock()
