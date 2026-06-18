@@ -19,9 +19,12 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     font-size:15px; line-height:1.5; padding:0 0 64px;
   }
-  .wrap{max-width:1040px; margin:0 auto; padding:0 24px}
+  .wrap{max-width:1240px; margin:0 auto; padding:0 24px}
+  /* two-column masonry of the section cards so the whole report fits one screenshot */
+  #app{ column-count:2; column-gap:26px; padding-top:18px }
+  @media (max-width:820px){ #app{ column-count:1 } }
   header.hero{
-    padding:56px 24px 40px; text-align:center;
+    padding:36px 24px 26px; text-align:center;
     background:radial-gradient(900px 360px at 50% -120px, rgba(52,211,153,.16), transparent 70%);
     border-bottom:1px solid var(--line);
   }
@@ -40,8 +43,9 @@
   .legnote{ color:var(--muted); font-size:12.5px; font-weight:400 }
 
   section.card{ background:linear-gradient(180deg,var(--panel),var(--panel2));
-    border:1px solid var(--line); border-radius:16px; padding:20px 22px 8px; margin:26px 0;
-    box-shadow:0 10px 40px -24px rgba(0,0,0,.8) }
+    border:1px solid var(--line); border-radius:16px; padding:20px 22px 8px; margin:0 0 26px;
+    box-shadow:0 10px 40px -24px rgba(0,0,0,.8);
+    break-inside:avoid; -webkit-column-break-inside:avoid; display:inline-block; width:100% }
   section.card > h2{ margin:2px 0 4px; font-size:19px; font-weight:700; letter-spacing:-.01em; display:flex; align-items:baseline; gap:10px }
   section.card > h2 .h2sub{ font-size:13px; color:var(--muted); font-weight:400 }
 
