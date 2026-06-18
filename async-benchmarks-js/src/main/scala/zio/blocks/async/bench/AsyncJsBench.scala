@@ -104,6 +104,44 @@ object AsyncJsBench {
       acc
     }.block
 
+  // ---- suspended-path harness -----------------------------------------------
+  // The ready benchmarks above all settle synchronously inside `.block`. The
+  // GENUINELY-suspended driver — where each wakeup re-enters the poll loop on a
+  // microtask — is a different path (`AsyncInterop.toFuture` / `start`), and is
+  // the one a per-wakeup allocation change touches. `HopChain` suspends `hops`
+  // times, re-arming its waker each poll; driving it to a value costs `hops`
+  // microtask hops. We drive `n` chains SEQUENTIALLY (one in flight at a time,
+  // to bound the microtask queue) and report hops/sec across the batch. This is
+  // async, so it completes on a callback after `main` returns.
+
+  private final class HopChain(value: Int, private var remaining: Int) extends Pollable[Int] {
+    def poll(onComplete: Runnable): Async[Int] =
+      if (remaining <= 0) Async.succeed(value)
+      else { remaining -= 1; onComplete.run(); this }
+  }
+
+  private def measureSuspended(label: String, hops: Int, warmup: Int, n: Int)(next: () => Unit): Unit = {
+    import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+    def run(count: Int, started: Double, onDone: Double => Unit): Unit = {
+      var completed = 0
+      def one(): Unit =
+        AsyncInterop.toFuture((new HopChain(7, hops)): Async[Int]).onComplete { _ =>
+          completed += 1
+          if (completed < count) one() else onDone(now() - started)
+        }
+      one()
+    }
+    // Warmup batch, then a timed batch; print on completion, then chain `next`.
+    run(warmup, now(), { _ =>
+      val start = now()
+      run(n, start, { elapsedNs =>
+        val hopsPerSec = (n.toDouble * hops) / (elapsedNs / 1e9)
+        println(f"  $label%-22s ${hopsPerSec}%16.0f ${"hops/sec"}%12s")
+        next()
+      })
+    })
+  }
+
   // ---- measurement engine ---------------------------------------------------
 
   private final case class Result(name: String, opsPerSec: Double, bytesPerOp: Double)
@@ -179,5 +217,11 @@ object AsyncJsBench {
     }
     // Print the sink so the optimizer cannot eliminate the work.
     if (sink == Int.MinValue) println(s"sink=$sink")
+
+    // Suspended-path throughput (async; prints after the synchronous block).
+    // Chained so the two runs do not interleave their microtask queues.
+    measureSuspended("suspend.hop8", hops = 8, warmup = 20000, n = 100000) { () =>
+      measureSuspended("suspend.hop32", hops = 32, warmup = 10000, n = 50000)(() => ())
+    }
   }
 }

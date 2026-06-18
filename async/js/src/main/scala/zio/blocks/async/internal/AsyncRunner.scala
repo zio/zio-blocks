@@ -81,13 +81,19 @@ private[async] object AsyncRunner {
 
     private var current: Pollable[A] = null
 
-    private val onComplete = new Runnable {
-      def run(): Unit =
-        if (!cancelled)
-          js.Promise
-            .resolve[Unit](())
-            .toFuture
-            .onComplete(_ => if (!cancelled) step())
+    // Re-arm on the next microtask via a cached `Runnable` scheduled directly
+    // onto the JS microtask queue (`ec.execute`, which Scala.js implements as
+    // `Promise.resolve().then(...)`), instead of allocating a
+    // Promise + Future + `Try` bridge (`Promise.resolve().toFuture.onComplete`)
+    // on every wakeup. Same "one synchronous chance, then resume on the next
+    // microtask" semantics; `cancelled` is still re-checked at both the wakeup
+    // and the resumption.
+    private val resume: Runnable = new Runnable {
+      def run(): Unit = if (!cancelled) step()
+    }
+
+    private val onComplete: Runnable = new Runnable {
+      def run(): Unit = if (!cancelled) ec.execute(resume)
     }
 
     def drive(pa: Pollable[A]): Unit = {

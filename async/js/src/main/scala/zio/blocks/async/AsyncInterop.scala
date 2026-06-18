@@ -116,12 +116,14 @@ object AsyncInterop {
       // `IllegalStateException: Promise already completed`. Mirrors the JVM
       // driver, which collapses multiple wakeups and stops polling after a value.
       var settled                   = false
+      // Re-arm on the next microtask via a cached `Runnable` scheduled directly
+      // onto the JS microtask queue (`ec.execute`, which Scala.js implements as
+      // `Promise.resolve().then(...)`), instead of allocating a
+      // Promise + Future + `Try` bridge per wakeup. `step` already guards on
+      // `settled`, so a redundant resumption stays idempotent.
+      lazy val resume: Runnable      = new Runnable { def run(): Unit = step() }
       lazy val onComplete: Runnable = new Runnable {
-        def run(): Unit =
-          js.Promise
-            .resolve[Unit](())
-            .toFuture
-            .onComplete(_ => step())(ec)
+        def run(): Unit = ec.execute(resume)
       }
       def step(): Unit =
         if (!settled) {
