@@ -25,8 +25,13 @@ package zio.blocks.async.internal
  *   - [[onComplete]] is the single, stable [[Runnable]] handed to every poll.
  *   - [[park]] blocks until the onComplete fires (JVM) or throws if the
  *     suspension did not complete synchronously (Scala.js — no thread to park).
+ *
+ * A `trait` (not an abstract class) so the JVM impl can additionally extend
+ * `java.util.concurrent.locks.ReentrantLock` and act as its own waker,
+ * collapsing the lock, parker, and `Runnable` into a single object (one
+ * allocation per `await`). Purely internal (`private[async]`).
  */
-private[async] abstract class Parker {
+private[async] trait Parker {
   def onComplete: Runnable
   def reset(): Unit
   def park(): Unit

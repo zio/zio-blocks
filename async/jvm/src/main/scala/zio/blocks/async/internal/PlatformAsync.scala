@@ -29,23 +29,28 @@ private[async] object PlatformAsync {
 
   def newParker(): Parker = new JvmParker
 
-  private final class JvmParker extends Parker {
-    private val lock = new ReentrantLock()
-    private val cond = lock.newCondition()
+  // Extends `ReentrantLock` and IS its own waker (`onComplete = this`), so a
+  // single `JvmParker` object carries the lock, condition, parker, and Runnable
+  // — one allocation per `await` instead of three (the standalone lock and the
+  // anonymous Runnable are gone). `JvmParker` is `private final` inside a
+  // `private[async]` object, so inheriting `ReentrantLock`'s public methods
+  // leaks nothing user-facing.
+  private final class JvmParker extends ReentrantLock with Parker with Runnable {
+    private val cond = newCondition()
     // `@volatile` so `reset` and the `park` fast path can read/write it without
     // the lock. The lock is still taken for the genuine wait (`cond.await`) and
     // its matching wake (`signalAll`), which is what makes the wait
     // interruptible (cancellation) and lost-wakeup-free.
     @volatile private var ready = false
 
-    val onComplete: Runnable = new Runnable {
-      def run(): Unit = {
-        lock.lock()
-        try {
-          ready = true
-          cond.signalAll()
-        } finally lock.unlock()
-      }
+    def onComplete: Runnable = this
+
+    def run(): Unit = {
+      lock()
+      try {
+        ready = true
+        cond.signalAll()
+      } finally unlock()
     }
 
     // Lock-free by design — do NOT re-add the lock. The driver calls
@@ -62,9 +67,9 @@ private[async] object PlatformAsync {
       // value handoff happens through the leaf's own synchronization on re-poll,
       // not through `ready`, so a plain volatile read is sufficient here.
       if (ready) return
-      lock.lock()
+      lock()
       try while (!ready) cond.await()
-      finally lock.unlock()
+      finally unlock()
     }
   }
 }
