@@ -170,24 +170,28 @@ object SchemaExpr {
    * via explicit import (or a user-facing object) rather than a companion to
    * avoid that scenario.
    */
-  implicit final class BooleanOps[A, B <: Boolean](private val self: SchemaExpr[A, B]) extends AnyVal {
+  implicit final class BooleanOps[A, B](private val self: SchemaExpr[A, B]) extends AnyVal {
 
-    def and(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
+    def and(that: SchemaExpr[A, Boolean])(implicit
+      @scala.annotation.unused ev: B <:< Boolean
+    ): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
         self.inputSchema,
         Schema[Boolean]
       )
 
-    def or(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] =
+    def or(that: SchemaExpr[A, Boolean])(implicit
+      @scala.annotation.unused ev: B <:< Boolean
+    ): SchemaExpr[A, Boolean] =
       SchemaExpr(
         DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
         self.inputSchema,
         Schema[Boolean]
       )
 
-    def &&(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] = and(that)
-    def ||(that: SchemaExpr[A, Boolean]): SchemaExpr[A, Boolean] = or(that)
+    def &&(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = and(that)
+    def ||(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = or(that)
   }
 
   private def outOfRange(value: Any, target: String): Either[Predef.String, DynamicValue] =
