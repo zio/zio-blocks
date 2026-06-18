@@ -96,8 +96,12 @@ private[async] object AsyncRunner {
     // null = pending; `Cancelled` = cancelled (suppress); anything else = the
     // settled outcome (a value, `NullTerminal`, or a `Failure`).
     private val terminal = new AtomicReference[Any](null)
-    private val lock      = new AnyRef
     private var waiters   = List.empty[Runnable]
+    // The waiter-list critical sections (`registerOnComplete` / `wakeAll`)
+    // synchronize on `this` rather than a dedicated lock object — one fewer
+    // allocation per `start`. They never block while held (only list mutation +
+    // non-blocking wakers run inside), so this does not risk Loom carrier
+    // pinning; a `ReentrantLock` would only add its `Sync` object here.
 
     // True once `terminal` holds a real settled outcome (not pending, not
     // cancelled).
@@ -139,12 +143,12 @@ private[async] object AsyncRunner {
     def cancel(): Unit =
       if (terminal.compareAndSet(null, Cancelled)) worker.interrupt()
 
-    private def registerOnComplete(w: Runnable): Unit = lock.synchronized {
+    private def registerOnComplete(w: Runnable): Unit = synchronized {
       if (settled(terminal.get())) runWaker(w)
       else waiters = w :: waiters
     }
 
-    private def wakeAll(): Unit = lock.synchronized {
+    private def wakeAll(): Unit = synchronized {
       val ws = waiters
       waiters = Nil
       ws.foreach(runWaker)
