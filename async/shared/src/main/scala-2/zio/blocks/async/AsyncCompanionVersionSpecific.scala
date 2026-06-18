@@ -41,6 +41,21 @@ private[async] trait AsyncCompanionVersionSpecific {
     Async.promiseInternal(body)
 
   /**
+   * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
+   * [[Async]] (see [[Async.fail]]). The standard way to bridge throw-based code
+   * into `Async` so that `.catchAll` can recover the error. (The Scala 3 sibling
+   * is an `inline def` that elides the by-name `Function0`; Scala 2 keeps the
+   * plain by-name `def`.)
+   *
+   * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
+   * distinction. Callers who want fatal errors to propagate should rethrow them
+   * from their recovery handler.
+   */
+  def attempt[A](body: => A): Async[A] =
+    try Async.succeed(body)
+    catch { case t: Throwable => Async.fail(t) }
+
+  /**
    * Direct-style await block. Inside `body`, callers may write `.await` on any
    * `Async[X]` to extract its value without blocking; the body returns the
    * final `A`, which becomes the resulting `Async[A]`. Exceptions thrown by the

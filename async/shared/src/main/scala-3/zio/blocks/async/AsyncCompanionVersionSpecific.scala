@@ -39,6 +39,26 @@ private[async] trait AsyncCompanionVersionSpecific {
     Async.promiseInternal[A](c => body(using c))
 
   /**
+   * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
+   * [[Async]] (see [[Async.fail]]). The standard way to bridge throw-based code
+   * into `Async` so that `.catchAll` can recover the error.
+   *
+   * `inline` so `body` is spliced directly into the `try` at the call site:
+   * unlike a by-name `body: => A` parameter, no `Function0` thunk is allocated
+   * (the JVM's escape analysis usually scalar-replaces such a thunk on a hot
+   * monomorphic path anyway, but inlining removes it unconditionally — including
+   * on cold, megamorphic, and code-generated call sites such as a no-`await`
+   * `Async.async { ... }`).
+   *
+   * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
+   * distinction. Callers who want fatal errors to propagate should rethrow them
+   * from their recovery handler.
+   */
+  inline def attempt[A](inline body: A): Async[A] =
+    try Async.succeed(body)
+    catch { case t: Throwable => Async.fail(t) }
+
+  /**
    * Direct-style await block. Inside `body`, callers may write `.await` on any
    * `Async[X]` to extract its value without blocking; the body returns the
    * final `A`, which becomes the resulting `Async[A]`. Exceptions thrown by the

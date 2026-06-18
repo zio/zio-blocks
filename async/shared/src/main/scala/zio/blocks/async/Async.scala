@@ -58,18 +58,10 @@ object Async extends AsyncCompanionVersionSpecific {
    */
   def fail(cause: Throwable): Async[Nothing] = new Failure(cause)
 
-  /**
-   * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
-   * [[Async]] (see [[fail]]). The standard way to bridge throw-based code into
-   * `Async` so that `.catchAll` can recover the error.
-   *
-   * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
-   * distinction. Callers who want fatal errors to propagate should rethrow them
-   * from their recovery handler.
-   */
-  def attempt[A](body: => A): Async[A] =
-    try succeed(body)
-    catch { case t: Throwable => fail(t) }
+  // `attempt` lives in `AsyncCompanionVersionSpecific` (mixed in above) so Scala
+  // 3 can make it an `inline def` (the body is spliced at the call site — no
+  // `Function0` thunk for the by-name argument), while Scala 2 keeps the plain
+  // by-name `def`. Single public API name across versions.
 
   // The public `promise` lives in `AsyncCompanionVersionSpecific` (mixed in
   // above) so Scala 3 can offer a `Completer[A] ?=> Unit` context-function
