@@ -806,6 +806,64 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           val result: Pollable[Int] = fa.block
           assertTrue(result eq inner)
         }
+      ),
+      // Category AB — interop output composed as the host's own async type.
+      suite("interop egress composes with the host async combinators")(
+        test("toCompletableFuture result chains via thenApply/thenCompose preserving the value") {
+          ZIO.attemptBlocking {
+            val cf = AsyncInterop
+              .toCompletableFuture(Async.succeed(20).map(_ + 1))
+              .thenApply[Int](_ * 2)
+              .thenCompose[Int](n => CompletableFuture.completedFuture(n + 100))
+            assertTrue(cf.get(2, TimeUnit.SECONDS) == 142)
+          }
+        },
+        test("toCompletableFuture of a failure propagates the cause through thenApply (handler not run)") {
+          ZIO.attemptBlocking {
+            val ran = new AtomicInteger(0)
+            val cf  = AsyncInterop
+              .toCompletableFuture(Async.fail(boom): Async[Int])
+              .thenApply[Int] { n => ran.incrementAndGet(); n + 1 }
+            val thrown = scala.util.Try(cf.get(2, TimeUnit.SECONDS)).failed.toOption
+            assertTrue(
+              ran.get() == 0,
+              thrown.exists {
+                case ce: CompletionException => ce.getCause eq boom
+                case ee: ExecutionException  => ee.getCause eq boom
+                case other                   => other eq boom
+              }
+            )
+          }
+        },
+        test("toFuture of a Running handle delivers the run's value exactly once") {
+          ZIO.attemptBlocking {
+            val ran     = new AtomicInteger(0)
+            val running = Async.succeed(5).map { n => ran.incrementAndGet(); n + 1 }.start
+            val fut     = AsyncInterop.toFuture(running)
+            val v       = Await.result(fut, 2.seconds)
+            // A Running publishes its outcome once through an atomic; routing it
+            // through toFuture must observe that single result, not re-drive.
+            assertTrue(v == 6, ran.get() == 1)
+          }
+        },
+        test("fromFuture(toFuture(x)) round-trips a success value (identity through the bridge)") {
+          ZIO.attemptBlocking {
+            val original              = Async.succeed(123).map(_ + 1)
+            val back: Async[Int]      = AsyncInterop.fromFuture(AsyncInterop.toFuture(original))
+            // Drive the round-tripped value; pending future ingress settles via block.
+            assertTrue(AsyncInterop.toFuture(back).value.map(_.toOption).flatten.contains(124) || back.block == 124)
+          }
+        },
+        test("fromCompletionStage of a stage completed synchronously on the calling thread collapses to a value") {
+          ZIO.attemptBlocking {
+            // The stage is already done at conversion time, on THIS thread — the
+            // synchronous ingress arm (cf.isDone) must collapse to a ready value
+            // with no completer/microtask hop.
+            val stage = CompletableFuture.completedFuture(55)
+            val a     = AsyncInterop.fromCompletionStage(stage)
+            assertTrue(!AsyncTestSupport.isPending(a), a.block == 55)
+          }
+        }
       )
     )
   )
