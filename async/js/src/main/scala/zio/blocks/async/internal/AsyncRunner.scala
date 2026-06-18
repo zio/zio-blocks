@@ -17,7 +17,6 @@
 package zio.blocks.async.internal
 
 import scala.concurrent.ExecutionContext
-import scala.scalajs.js
 
 import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
@@ -59,13 +58,16 @@ private[async] object AsyncRunner {
   def startEval[A](body: => A): Async.Running[A] = {
     val completer = new Completer[A]
     val running   = start(completer.peek)
-    js.Promise
-      .resolve[Unit](())
-      .toFuture
-      .onComplete { _ =>
+    // Evaluate `body` on the next microtask, scheduled directly onto the JS
+    // microtask queue (`execute`, which Scala.js implements as
+    // `Promise.resolve().then(...)`), instead of allocating a
+    // Promise + Future + `Try` bridge per `start`. Same "evaluate on the next
+    // microtask" timing and throw -> `fail` capture.
+    scala.scalajs.concurrent.JSExecutionContext.queue.execute(new Runnable {
+      def run(): Unit =
         try completer.succeed(body)
         catch { case t: Throwable => completer.fail(t) }
-      }(scala.scalajs.concurrent.JSExecutionContext.queue)
+    })
     running
   }
 

@@ -142,6 +142,30 @@ object AsyncJsBench {
     })
   }
 
+  // `Async.start(body)` evaluates `body` on a microtask (the `startEval` path)
+  // and returns a `Running` driven on further microtasks; `toFuture` joins it.
+  // Measures starts/sec across a sequential batch (one in flight at a time).
+  private def measureStart(label: String, warmup: Int, n: Int)(next: () => Unit): Unit = {
+    import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+    def run(count: Int, started: Double, onDone: Double => Unit): Unit = {
+      var completed = 0
+      def one(): Unit =
+        AsyncInterop.toFuture(Async.start(7): Async[Int]).onComplete { _ =>
+          completed += 1
+          if (completed < count) one() else onDone(now() - started)
+        }
+      one()
+    }
+    run(warmup, now(), { _ =>
+      val start = now()
+      run(n, start, { elapsedNs =>
+        val startsPerSec = n.toDouble / (elapsedNs / 1e9)
+        println(f"  $label%-22s ${startsPerSec}%16.0f ${"starts/sec"}%12s")
+        next()
+      })
+    })
+  }
+
   // ---- measurement engine ---------------------------------------------------
 
   private final case class Result(name: String, opsPerSec: Double, bytesPerOp: Double)
@@ -218,10 +242,12 @@ object AsyncJsBench {
     // Print the sink so the optimizer cannot eliminate the work.
     if (sink == Int.MinValue) println(s"sink=$sink")
 
-    // Suspended-path throughput (async; prints after the synchronous block).
-    // Chained so the two runs do not interleave their microtask queues.
+    // Suspended-path + start throughput (async; print after the sync block).
+    // Chained so the runs do not interleave their microtask queues.
     measureSuspended("suspend.hop8", hops = 8, warmup = 20000, n = 100000) { () =>
-      measureSuspended("suspend.hop32", hops = 32, warmup = 10000, n = 50000)(() => ())
+      measureSuspended("suspend.hop32", hops = 32, warmup = 10000, n = 50000) { () =>
+        measureStart("start", warmup = 20000, n = 100000)(() => ())
+      }
     }
   }
 }
