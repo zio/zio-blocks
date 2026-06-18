@@ -4513,7 +4513,7 @@ object JsonReader {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
   )
   private final val zoneOffsets: Array[ZoneOffset]          = new Array(145)
-  private final val zoneIds: ConcurrentHashMap[Key, ZoneId] = new ConcurrentHashMap(256)
+  private final val zoneIds: ConcurrentHashMap[Key, ZoneId] = new ConcurrentHashMap(256, 0.5f)
   private final val hexDigits: Array[Char]                  =
     Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
 
@@ -4571,13 +4571,12 @@ private class Key {
     val off  = from
     val koff = k.fromIndex
     val len  = to - off
-    k.toIndex - koff == len && {
-      val bs  = this.bs
-      val kbs = k.bytes
-      var idx = 0
-      while (idx < len && kbs(koff + idx) == bs(off + idx)) idx += 1
-      idx == len
-    }
+    if (k.toIndex - koff != len) return false
+    val bs  = this.bs
+    val kbs = k.bytes
+    var i   = 0
+    while (i < len && kbs(koff + i) == bs(off + i)) i += 1
+    i == len
   }
 
   @inline
