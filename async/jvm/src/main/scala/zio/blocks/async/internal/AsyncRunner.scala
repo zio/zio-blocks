@@ -16,7 +16,7 @@
 
 package zio.blocks.async.internal
 
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.concurrent.atomic.AtomicReference
 
 import zio.blocks.async.{Async, AsyncEncoding, Completer, Failure, Pollable}
 
@@ -80,12 +80,28 @@ private[async] object AsyncRunner {
    */
   private val NullTerminal: AnyRef = new AnyRef
 
+  /**
+   * Sentinel stored in `terminal` by [[SuspendedRunning.cancel]] to record
+   * cancellation in the SAME slot as the settled outcome — folding what used to
+   * be a separate `cancelled` AtomicBoolean into the `terminal` reference (one
+   * fewer object per `start`). A `terminal` of `Cancelled` means "suppress
+   * publishing": the worker's publish CAS `compareAndSet(null, value)` then
+   * naturally loses against it, and `poll` treats it as still-pending (a
+   * cancelled run never delivers).
+   */
+  private val Cancelled: AnyRef = new AnyRef
+
   private final class SuspendedRunning[A](pa: Pollable[A]) extends Async.Running[A] {
 
-    private val terminal  = new AtomicReference[Any](null)
-    private val cancelled = new AtomicBoolean(false)
+    // null = pending; `Cancelled` = cancelled (suppress); anything else = the
+    // settled outcome (a value, `NullTerminal`, or a `Failure`).
+    private val terminal = new AtomicReference[Any](null)
     private val lock      = new AnyRef
     private var waiters   = List.empty[Runnable]
+
+    // True once `terminal` holds a real settled outcome (not pending, not
+    // cancelled).
+    private def settled(t: Any): Boolean = (t != null) && (t.asInstanceOf[AnyRef] ne Cancelled)
 
     private val worker: Thread = {
       val t = new Thread(new Runnable { def run(): Unit = drive() })
@@ -97,29 +113,34 @@ private[async] object AsyncRunner {
     def kick(): Unit = worker.start()
 
     private def drive(): Unit = {
-      if (cancelled.get()) return
+      if (terminal.get().asInstanceOf[AnyRef] eq Cancelled) return
       val value: Any =
         try {
           val v = AsyncEncoding.liftSuccess(Async.slowPath.awaitSuspended(pa))
           if (v == null) NullTerminal else v // a raw null success must still publish
         } catch { case t: Throwable => new Failure(Failure.unwindCause(t)) }
-      if (!cancelled.get() && terminal.compareAndSet(null, value)) wakeAll()
+      // CAS fails if `cancel` already won the `terminal` slot — so a cancelled
+      // run never publishes or wakes, exactly as before.
+      if (terminal.compareAndSet(null, value)) wakeAll()
     }
 
     def poll(onComplete: Runnable): Async[A] = {
       val t = terminal.get()
-      if (t != null) (if (t.asInstanceOf[AnyRef] eq NullTerminal) null else t).asInstanceOf[Async[A]]
+      if (settled(t)) (if (t.asInstanceOf[AnyRef] eq NullTerminal) null else t).asInstanceOf[Async[A]]
       else {
         registerOnComplete(onComplete)
         this
       }
     }
 
+    // Single-winner CAS against `drive`'s publish: if cancel wins, the worker's
+    // publish loses and is suppressed; if the run already settled, cancel is a
+    // clean no-op (no spurious interrupt).
     def cancel(): Unit =
-      if (cancelled.compareAndSet(false, true)) worker.interrupt()
+      if (terminal.compareAndSet(null, Cancelled)) worker.interrupt()
 
     private def registerOnComplete(w: Runnable): Unit = lock.synchronized {
-      if (terminal.get() != null) runWaker(w)
+      if (settled(terminal.get())) runWaker(w)
       else waiters = w :: waiters
     }
 
