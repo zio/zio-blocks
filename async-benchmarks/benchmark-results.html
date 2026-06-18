@@ -101,14 +101,14 @@
   <span class="chip"><span class="dot" style="background:var(--fut)"></span>Future</span>
   <span class="chip"><span class="dot" style="background:var(--kyo)"></span>Kyo</span>
   <span class="chip"><span class="dot" style="background:var(--ce)"></span>Cats Effect</span>
-  <span class="legnote">— bars are <b>log-scaled</b> throughput · badges are bytes/op · families collapsed to a representative</span>
+  <span class="legnote">— bars are <b>linear</b> throughput (fastest&nbsp;=&nbsp;100%) · badges are bytes/op · families collapsed to a representative</span>
 </div></div>
 
 <main class="wrap" id="app"></main>
 
 <div class="wrap">
   <div class="foot">
-    <b>How to read this.</b> Throughput is higher-is-better (k/s = thousand, M/s = million, B/s = billion ops/sec); bars use a logarithmic scale because the fastest and slowest runtimes differ by ~5 orders of magnitude. The allocation badge is <code>gc.alloc.rate.norm</code> (bytes allocated per op, lower-is-better); <span class="alloc a0">≈0&nbsp;B</span> means escape analysis scalar-replaced everything.
+    <b>How to read this.</b> Throughput is higher-is-better (k/s = thousand, M/s = million, B/s = billion ops/sec). Bars are <b>linear</b> and normalized to the fastest runtime in each row — ZB&nbsp;Async is the fastest on every operation, so it is a full 100% bar throughout and the competitors render as thin slivers because they are genuinely 10×–10,000× slower (read the numeric labels for the exact magnitude). The allocation badge is <code>gc.alloc.rate.norm</code> (bytes allocated per op, lower-is-better); <span class="alloc a0">≈0&nbsp;B</span> means escape analysis scalar-replaced everything.
     <ul>
       <li><b>Fairness.</b> Every runtime is driven to a value <i>synchronously</i> on the eager path: ZB <code>.block</code>, Cats Effect <code>.unsafeRunSync()</code>, Kyo <code>.eval</code>. <b>Future</b> runs on <code>ExecutionContext.parasitic</code> (callbacks inline, no thread hop) with the value read via <code>f.value.get.get</code> — i.e. Future's <i>best case</i>; a real thread-pool executor would be substantially slower.</li>
       <li><b>Residual ZB allocations</b> are the unavoidable user-facing objects: <code>Either</code>/<code>Failure</code> (16&nbsp;B), the <code>Tuple3</code> from <code>zip3</code> (56&nbsp;B), and the <code>Completer</code> behind <code>promise</code> (16&nbsp;B).</li>
@@ -154,11 +154,10 @@ const DATA = [
 
 const RT = [["zb","ZB"],["fut","Fut"],["kyo","Kyo"],["ce","CE"]];
 
-// global log-scale bounds over all measured throughputs
-const all = [];
-DATA.forEach(s=>s.rows.forEach(r=>RT.forEach(([k])=>{ const v=r[k]; if(v&&v[0]>0) all.push(v[0]); })));
-const LMIN = Math.log10(Math.min(...all)), LMAX = Math.log10(Math.max(...all));
-const barW = ops => ops>0 ? Math.max(2.5, (Math.log10(ops)-LMIN)/(LMAX-LMIN)*100) : 0;
+// LINEAR bars, normalized PER ROW to the fastest runtime (ZB is the max in every
+// row → ZB = 100% throughout). No log scale: the true magnitude of ZB's lead is
+// shown, so 10x-10,000x-slower competitors correctly render as thin slivers.
+const barW = (ops, max) => (max>0 && ops>0) ? Math.max(0.4, ops/max*100) : 0;
 
 function fmtOps(m){ // m in millions
   if(m>=1000) return (m/1000).toFixed(2)+" B/s";
@@ -195,7 +194,7 @@ DATA.forEach(sec=>{
       if(!v){ h += '<div class="track"></div><span class="na">— n/a</span>'; }
       else {
         const winner = v[0]===best;
-        h += '<div class="track"><div class="fill '+k+'" style="width:'+barW(v[0]).toFixed(2)+'%"></div></div>'
+        h += '<div class="track"><div class="fill '+k+'" style="width:'+barW(v[0],best).toFixed(2)+'%"></div></div>'
            + '<span class="val'+(winner?' ':'')+'">'+(winner?'<span class="win">'+fmtOps(v[0])+'</span>':fmtOps(v[0]))+'</span>'
            + allocBadge(v[1]);
       }
