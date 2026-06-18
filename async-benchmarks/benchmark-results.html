@@ -101,7 +101,7 @@
   <span class="chip"><span class="dot" style="background:var(--fut)"></span>Future</span>
   <span class="chip"><span class="dot" style="background:var(--kyo)"></span>Kyo</span>
   <span class="chip"><span class="dot" style="background:var(--ce)"></span>Cats Effect</span>
-  <span class="legnote">— bars are <b>log-scaled</b> throughput · badges are bytes/op</span>
+  <span class="legnote">— bars are <b>log-scaled</b> throughput · badges are bytes/op · families collapsed to a representative</span>
 </div></div>
 
 <main class="wrap" id="app"></main>
@@ -113,53 +113,42 @@
       <li><b>Fairness.</b> Every runtime is driven to a value <i>synchronously</i> on the eager path: ZB <code>.block</code>, Cats Effect <code>.unsafeRunSync()</code>, Kyo <code>.eval</code>. <b>Future</b> runs on <code>ExecutionContext.parasitic</code> (callbacks inline, no thread hop) with the value read via <code>f.value.get.get</code> — i.e. Future's <i>best case</i>; a real thread-pool executor would be substantially slower.</li>
       <li><b>Residual ZB allocations</b> are the unavoidable user-facing objects: <code>Either</code>/<code>Failure</code> (16&nbsp;B), the <code>Tuple3</code> from <code>zip3</code> (56&nbsp;B), and the <code>Completer</code> behind <code>promise</code> (16&nbsp;B).</li>
       <li><b>mapError</b> is bounded by the user's <code>new RuntimeException(cause)</code> stack-trace fill-in across all four runtimes — not library overhead.</li>
-      <li>Combinator rows are <code>n</code>-independent and shown at n=100; chain &amp; batch rows show both n=100 and n=1000. Kyo has no apples-to-apples <code>promise</code>/sync-callback analog (—).</li>
+      <li><b>Collapsed rows.</b> Operator families with the same relative profile — and the n=10/100/1000 size variants — are shown as one representative row; the grey suffix lists the members it stands in for (e.g. <code>zipWith · zipLeft · zipRight</code>). Genuine outliers are kept separate: <code>zip3</code> (allocates the user <code>Tuple3</code>) and <code>mapError</code>. Kyo has no apples-to-apples <code>promise</code>/sync-callback analog (—).</li>
     </ul>
   </div>
 </div>
 
 <script>
 // [opsPerSec in MILLIONS, bytesPerOp]   (null = no fair analog)
+// Same-profile operator families (and the n=10/100/1000 size variants) are
+// collapsed to one representative row; the `tag` lists the members it stands in
+// for. Genuinely-different members are kept separate: `zip3` (allocates the user
+// Tuple3) and `mapError` (exception-bound across all runtimes).
 const DATA = [
   { title:"Core", sub:"ready-value hot path", rows:[
     { op:"succeed",   zb:[2746,0], fut:[1831,0],  kyo:[225,0],  ce:[0.116,1036] },
-    { op:"map",       zb:[2750,0], fut:[97.5,64], kyo:[151,0],  ce:[0.115,1072] },
-    { op:"flatMap",   zb:[2747,0], fut:[98.0,64], kyo:[148,0],  ce:[0.116,1065] },
+    { op:"map", tag:"· flatMap", zb:[2750,0], fut:[97.5,64], kyo:[151,0], ce:[0.115,1072] },
   ]},
   { title:"Error handling", sub:"", rows:[
     { op:"attempt", tag:"success", zb:[2745,0], fut:[1492,0], kyo:[254,0], ce:[0.117,1072] },
-    { op:"fail",                    zb:[283,16], fut:[97.3,80], kyo:[61.1,64], ce:[0.113,1444] },
-    { op:"catchAll", tag:"recovers", zb:[2759,0], fut:[99.7,80], kyo:[60.2,64], ce:[0.115,1200] },
-    { op:"catchAll", tag:"passthrough", zb:[2723,0], fut:[311,16], kyo:[84.3,0], ce:[0.116,1084] },
-    { op:"orElse", tag:"recovers",  zb:[2763,0], fut:[91.2,88], kyo:[60.1,64], ce:[0.116,1175] },
-    { op:"foldCause", tag:"success", zb:[2751,0], fut:[94.3,64], kyo:[84.9,0], ce:[0.111,1104] },
-    { op:"foldCause", tag:"failure", zb:[2675,0], fut:[95.6,80], kyo:[60.3,64], ce:[0.114,1192] },
-    { op:"either", tag:"success",   zb:[293,16], fut:[90.6,80], kyo:[77.2,16], ce:[0.116,1072] },
-    { op:"either", tag:"failure",   zb:[285,16], fut:[97.9,80], kyo:[54.6,80], ce:[0.112,1472] },
-    { op:"mapError", note:"dominated by exception stack-trace fill-in (all runtimes)", zb:[1.84,744], fut:[1.31,880], kyo:[1.73,808], ce:[0.073,3193] },
+    { op:"catchAll", tag:"· orElse · foldCause (recover/fold)", zb:[2759,0], fut:[99.7,80], kyo:[60.2,64], ce:[0.115,1200] },
+    { op:"fail", tag:"· either (reify a failure)", zb:[283,16], fut:[97.3,80], kyo:[61.1,64], ce:[0.113,1444] },
+    { op:"mapError", note:"exception stack-trace bound (all runtimes)", zb:[1.84,744], fut:[1.31,880], kyo:[1.73,808], ce:[0.073,3193] },
   ]},
-  { title:"Combinators", sub:"n-independent (n=100)", rows:[
-    { op:"as",       zb:[3639,0], fut:[100,64], kyo:[146,0], ce:[0.114,1076] },
-    { op:"unit",     zb:[2767,0], fut:[102,64], kyo:[148,0], ce:[0.114,1064] },
+  { title:"Combinators", sub:"n-independent", rows:[
+    { op:"as", tag:"· unit", zb:[3639,0], fut:[100,64], kyo:[146,0], ce:[0.114,1076] },
+    { op:"zipWith", tag:"· zipLeft · zipRight", zb:[2727,0], fut:[86.8,104], kyo:[119,0], ce:[0.109,1144] },
+    { op:"zip3", note:"allocates the user Tuple3", zb:[234,56], fut:[22.8,312], kyo:[71.2,24], ce:[0.112,1228] },
     { op:"tap",      zb:[2765,0], fut:[91.6,96], kyo:[151,0], ce:[0.114,1208] },
     { op:"ensuring", zb:[2762,0], fut:[68.8,104], kyo:[152,0], ce:[0.106,1368] },
-    { op:"zipWith",  zb:[2727,0], fut:[86.8,104], kyo:[119,0], ce:[0.109,1144] },
-    { op:"zipLeft",  zb:[2742,0], fut:[87.0,104], kyo:[142,0], ce:[0.113,1144] },
-    { op:"zipRight", zb:[2698,0], fut:[87.8,104], kyo:[142,0], ce:[0.112,1072] },
-    { op:"zip3",     zb:[234,56], fut:[22.8,312], kyo:[71.2,24], ce:[0.112,1228] },
   ]},
   { title:"Chains & batch", sub:"deep sequencing / collection", rows:[
-    { op:"map", tag:"×100",        zb:[14.8,0], fut:[1.11,4832], kyo:[2.82,0], ce:[0.101,4640] },
-    { op:"map", tag:"×1000",       zb:[1.68,0], fut:[0.111,62128], kyo:[0.243,14080], ce:[0.048,48944] },
-    { op:"flatMap", tag:"×100",    zb:[14.5,0], fut:[1.10,4832], kyo:[2.83,0], ce:[0.096,6240] },
-    { op:"flatMap", tag:"×1000",   zb:[1.69,0], fut:[0.112,62128], kyo:[0.244,14080], ce:[0.039,64928] },
-    { op:"collectAll", tag:"n=100", zb:[3.20,0], fut:[0.646,9728], kyo:[1.28,2400], ce:[0.083,12640] },
+    { op:"map · flatMap", tag:"chain ×1000", zb:[1.68,0], fut:[0.111,62128], kyo:[0.243,14080], ce:[0.048,48944] },
     { op:"collectAll", tag:"n=1000", zb:[0.298,0], fut:[0.066,96128], kyo:[0.129,37952], ce:[0.024,128788] },
   ]},
   { title:"Promise & mixed", sub:"", rows:[
     { op:"promise", tag:"sync complete", zb:[415,16], fut:[310,32], kyo:null, ce:[0.105,1376] },
-    { op:"hybrid", tag:"n=10",  zb:[53.2,16], fut:[4.14,1376], kyo:[13.2,0], ce:[0.100,2416] },
-    { op:"hybrid", tag:"n=100", zb:[6.58,16], fut:[0.431,14096], kyo:[1.29,1200], ce:[0.071,13080] },
+    { op:"hybrid", tag:"flatMap+promise, n=100", zb:[6.58,16], fut:[0.431,14096], kyo:[1.29,1200], ce:[0.071,13080] },
   ]},
 ];
 
