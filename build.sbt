@@ -1300,8 +1300,8 @@ lazy val `streams-benchmark` = project
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.5.0",
       // Kyo — algebraic effect streams (Scala 3 only)
-      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC2",
-      "io.getkyo" %% "kyo-core"    % "1.0.0-RC2",
+      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC3",
+      "io.getkyo" %% "kyo-core"    % "1.0.0-RC3",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
       "com.softwaremill.ox" %% "core" % "1.0.5"
     ),
