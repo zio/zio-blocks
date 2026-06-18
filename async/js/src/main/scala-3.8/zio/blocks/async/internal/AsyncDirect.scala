@@ -182,38 +182,41 @@ private[async] object AsyncDirect {
       }
       val rewritten = rewriter.transformTerm(body.asTerm)(Symbol.spliceOwner).asExprOf[A]
       '{
-        var settled = false
-        // `Any`-typed on purpose: a typed `var value: A` would need a default
-        // via `null.asInstanceOf[A]`, which is a CHECKED cast on Scala.js and
-        // explodes eagerly when `A = Nothing` (e.g. a block ending in a failed
-        // await). The cast to `A` below runs only on the success branch.
-        var value: Any         = null
-        var failed             = false
-        var failure: Throwable = null
-        val p                  = scala.scalajs.js.async {
+        // One captured cell instead of four. Every `var` captured by the
+        // `js.async` closure is heap-boxed as a `Ref` on Scala.js, so collapsing
+        // settled/value/failed/failure into a single `outcome` saves three
+        // ref-cell allocations per block. While the body is still running (or
+        // suspended) `outcome` is the shared `Unsettled` sentinel; a settled
+        // success stores the `Box` (already built as the block's value — and the
+        // `Box` disambiguates a success value that is itself a `Throwable` from a
+        // real failure, so no separate `failed` flag is needed); a settled
+        // failure stores the bare `Throwable`.
+        var outcome: Any = AsyncJsRuntime.Unsettled
+        val p = scala.scalajs.js.async {
           try {
-            val v = $rewritten
-            settled = true
-            value = v
-            new AsyncJsRuntime.Box[A](v)
+            val v   = $rewritten
+            val box = new AsyncJsRuntime.Box[A](v)
+            outcome = box
+            box
           } catch {
             case t: Throwable =>
-              settled = true
-              failed = true
-              failure = t
+              outcome = t
               throw t
           }
         }
-        // Read once, synchronously after `js.async` returns: `settled` is true
-        // iff the body ran to completion (or threw) without suspending — late
-        // writes from a resumed body happen after this read and publish via
-        // the promise instead.
-        if (settled) {
-          if (failed) {
-            AsyncJsRuntime.discardRejection(p) // reported via readyFailure instead
-            AsyncJsRuntime.readyFailure[A](failure)
-          } else Async.succeed(value.asInstanceOf[A])
-        } else AsyncJsRuntime.fromBoxedPromise[A](p)
+        // Read once, synchronously after `js.async` returns: still `Unsettled`
+        // iff the body suspended — late writes from a resumed body happen after
+        // this read and publish via the promise instead.
+        val o = outcome
+        if (o.asInstanceOf[AnyRef] eq AsyncJsRuntime.Unsettled) AsyncJsRuntime.fromBoxedPromise[A](p)
+        else
+          o match {
+            case t: Throwable =>
+              AsyncJsRuntime.discardRejection(p) // reported via readyFailure instead
+              AsyncJsRuntime.readyFailure[A](t)
+            case box =>
+              Async.succeed(box.asInstanceOf[AsyncJsRuntime.Box[A]].value)
+          }
       }
     }
   }

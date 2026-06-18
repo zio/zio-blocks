@@ -39,6 +39,15 @@ object AsyncJsRuntime {
   /** Opaque transport wrapper — see the class doc above. */
   final class Box[A](val value: A)
 
+  /**
+   * Sentinel for the single synchronous-outcome cell of a native `js.async`
+   * block ([[AsyncDirect]] readiness wrapper): distinguishes "the body suspended
+   * (still pending)" from a settled success [[Box]] or a settled failure
+   * `Throwable`, so one captured ref replaces the former four. A shared
+   * immutable object — never allocated per block.
+   */
+  val Unsettled: AnyRef = new AnyRef
+
   private implicit def queue: ExecutionContext = scala.scalajs.concurrent.JSExecutionContext.queue
 
   /**
