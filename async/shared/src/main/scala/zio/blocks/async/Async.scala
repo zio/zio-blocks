@@ -440,7 +440,8 @@ object Async extends AsyncCompanionVersionSpecific {
         } else AsyncEncoding.deliverSuccess[A](next)
       }
 
-      loop(pa0)
+      try loop(pa0)
+      finally parker.release() // return a pooled parker to its per-thread slot
     }
 
     /**

@@ -35,4 +35,13 @@ private[async] trait Parker {
   def onComplete: Runnable
   def reset(): Unit
   def park(): Unit
+
+  /**
+   * Return this parker for reuse after `await` finishes. Called exactly once,
+   * from `awaitSuspended`'s `finally`, after the last `park`/`poll`. The default
+   * is a no-op (the parker is simply discarded); the JVM impl uses it to return
+   * a thread-local parker to its per-thread slot so the next non-nested `await`
+   * on the same thread allocates nothing.
+   */
+  def release(): Unit = ()
 }
