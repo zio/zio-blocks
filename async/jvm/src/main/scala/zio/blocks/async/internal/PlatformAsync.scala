@@ -16,60 +16,54 @@
 
 package zio.blocks.async.internal
 
-import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.locks.LockSupport
 
 /**
  * JVM platform helpers for the async runtime.
  *
- * The parker uses [[ReentrantLock]] + `Condition` rather than
+ * The parker uses [[LockSupport]] `park`/`unpark` rather than
  * `Object.synchronized` / `Object.wait` so that virtual threads (Project Loom,
- * JDK 21+) properly unmount their carrier while parked instead of pinning it.
+ * JDK 21+) properly unmount their carrier while parked instead of pinning it —
+ * and, unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no
+ * AQS wait-queue node per park, which is the bulk of the per-async-boundary
+ * garbage on the genuinely-suspended (off-thread completion) path.
  */
 private[async] object PlatformAsync {
 
   def newParker(): Parker = new JvmParker
 
-  // Extends `ReentrantLock` and IS its own waker (`onComplete = this`), so a
-  // single `JvmParker` object carries the lock, condition, parker, and Runnable
-  // — one allocation per `await` instead of three (the standalone lock and the
-  // anonymous Runnable are gone). `JvmParker` is `private final` inside a
-  // `private[async]` object, so inheriting `ReentrantLock`'s public methods
-  // leaks nothing user-facing.
-  private final class JvmParker extends ReentrantLock with Parker with Runnable {
-    private val cond = newCondition()
-    // `@volatile` so `reset` and the `park` fast path can read/write it without
-    // the lock. The lock is still taken for the genuine wait (`cond.await`) and
-    // its matching wake (`signalAll`), which is what makes the wait
-    // interruptible (cancellation) and lost-wakeup-free.
+  // One object that IS the parker AND its own waker (`onComplete = this`). The
+  // waker just flips a flag and unparks the owner; no lock, no condition, no
+  // per-park allocation.
+  private final class JvmParker extends Parker with Runnable {
+    // The awaiting thread. `newParker()` is called from inside `awaitSuspended`
+    // on the very thread that will `park()`, so capturing it here is correct.
+    private val owner           = Thread.currentThread()
     @volatile private var ready = false
 
     def onComplete: Runnable = this
 
     def run(): Unit = {
-      lock()
-      try {
-        ready = true
-        cond.signalAll()
-      } finally unlock()
+      ready = true
+      LockSupport.unpark(owner)
     }
 
-    // Lock-free by design — do NOT re-add the lock. The driver calls
-    // `reset(); poll(onComplete); if (pending) park()` each round, so `reset`
-    // is program-ordered before this round's waker is even registered (inside
-    // `poll`); it can never race a live wakeup for the current round. A stale
-    // wakeup from a prior round only causes a spurious `park` return, which the
-    // driver's re-poll absorbs.
     def reset(): Unit = ready = false
 
-    def park(): Unit = {
-      // Fast path: on the common synchronous-wakeup path `onComplete` fired
-      // inside `poll`, so we never actually block — skip the lock entirely. The
-      // value handoff happens through the leaf's own synchronization on re-poll,
-      // not through `ready`, so a plain volatile read is sufficient here.
-      if (ready) return
-      lock()
-      try while (!ready) cond.await()
-      finally unlock()
-    }
+    def park(): Unit =
+      // `while (!ready)` + unpark-permit semantics are lost-wakeup-free: a
+      // synchronous wakeup sets `ready` so we never block (the old fast path); a
+      // leftover permit from a prior round causes at most one spurious return the
+      // loop absorbs.
+      while (!ready) {
+        LockSupport.park()
+        // A worker cancel interrupts the parked thread (AsyncRunner.cancel ->
+        // worker.interrupt()); `LockSupport.park` returns with the interrupt flag
+        // set, so re-throw `InterruptedException` exactly as the old `cond.await`
+        // did, for `drive` to unwind into a suppressed/cancelled outcome. Checked
+        // before `ready` so a cancel racing a completion still surfaces as
+        // interruption.
+        if (Thread.interrupted()) throw new InterruptedException()
+      }
   }
 }
