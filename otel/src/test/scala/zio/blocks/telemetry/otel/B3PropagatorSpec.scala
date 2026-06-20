@@ -91,10 +91,15 @@ object B3PropagatorSpec extends ZIOSpecDefault {
           result.get.traceIdHex == "0000000000000000a3ce929d0e0e4736"
       )
     },
-    test("parses deny/drop single value '0'") {
+    test("parses deny/drop single value '0' as invalid unsampled context") {
       val headers = Map("b3" -> "0")
       val result  = B3Propagator.single.extract(headers, getter)
-      assertTrue(result.isEmpty)
+      assertTrue(result.isDefined && !result.get.isValid && !result.get.traceFlags.isSampled)
+    },
+    test("parses accept single value '1' as invalid sampled context") {
+      val headers = Map("b3" -> "1")
+      val result  = B3Propagator.single.extract(headers, getter)
+      assertTrue(result.isDefined && !result.get.isValid && result.get.traceFlags.isSampled)
     },
     test("parses debug flag 'd' as sampled") {
       val headers = Map("b3" -> s"$traceIdHex-$spanIdHex-d")
