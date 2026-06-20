@@ -36,6 +36,9 @@ final class LoggerProvider(
 
 object LoggerProvider {
 
+  private[otel] val DefaultContextStorage: ContextStorage[Option[SpanContext]] =
+    ContextStorage.create[Option[SpanContext]](None)
+
   def builder: LoggerProviderBuilder = new LoggerProviderBuilder(
     resource = Resource.default,
     processors = Seq.empty,
@@ -65,7 +68,7 @@ final class LoggerProviderBuilder private[otel] (
   }
 
   def build(): LoggerProvider = {
-    val cs = contextStorage.getOrElse(ContextStorage.create[Option[SpanContext]](None))
+    val cs = contextStorage.getOrElse(LoggerProvider.DefaultContextStorage)
     new LoggerProvider(resource, processors, cs)
   }
 }
