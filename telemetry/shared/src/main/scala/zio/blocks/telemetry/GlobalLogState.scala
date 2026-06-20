@@ -58,7 +58,7 @@ object GlobalLogState {
 
   private lazy val defaultState: LogState = {
     val processor = new ConsoleLogRecordProcessor
-    val cs        = ContextStorage.create[Option[SpanContext]](None)
+    val cs        = LoggerProvider.DefaultContextStorage
     val logger    = new Logger(
       InstrumentationScope(name = "default"),
       Resource.empty,

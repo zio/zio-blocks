@@ -189,6 +189,32 @@ object BranchCoverageSpec extends ZIOSpecDefault {
   }
 
   private val tracerSuite = suite("Tracer branch coverage")(
+    test("ParentBasedSampler preserves traceState for sampled parents") {
+      val parent = SpanContext.create(1L, 2L, SpanId(3L), TraceFlags.sampled, "rojo=1", isRemote = true)
+      val result = ParentBasedSampler(AlwaysOffSampler).shouldSample(
+        parentContext = Some(parent),
+        traceIdHi = 1L,
+        traceIdLo = 2L,
+        name = "child",
+        kind = SpanKind.Internal,
+        attributes = Attributes.empty,
+        links = Nil
+      )
+      assertTrue(result.decision == SamplingDecision.RecordAndSample, result.traceState == "rojo=1")
+    },
+    test("ParentBasedSampler preserves traceState for unsampled parents") {
+      val parent = SpanContext.create(1L, 2L, SpanId(3L), TraceFlags.none, "rojo=0", isRemote = true)
+      val result = ParentBasedSampler(AlwaysOnSampler).shouldSample(
+        parentContext = Some(parent),
+        traceIdHi = 1L,
+        traceIdLo = 2L,
+        name = "child",
+        kind = SpanKind.Internal,
+        attributes = Attributes.empty,
+        links = Nil
+      )
+      assertTrue(result.decision == SamplingDecision.Drop, result.traceState == "rojo=0")
+    },
     test("RecordOnly with all attribute types") {
       val attrs = Attributes.builder
         .put(AttributeKey.string("s"), "v")

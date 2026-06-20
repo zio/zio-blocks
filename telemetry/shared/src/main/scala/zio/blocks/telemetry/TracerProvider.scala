@@ -106,7 +106,7 @@ final class TracerProviderBuilder private[telemetry] (
    * Builds the configured tracer provider.
    */
   def build(): TracerProvider = {
-    val cs = contextStorage.getOrElse(ContextStorage.create[Option[SpanContext]](None))
+    val cs = contextStorage.getOrElse(LoggerProvider.DefaultContextStorage)
     new TracerProvider(resource, sampler, processors, cs)
   }
 }

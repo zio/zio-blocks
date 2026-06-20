@@ -156,12 +156,6 @@ object AlwaysOffSampler extends Sampler {
  */
 final case class ParentBasedSampler(root: Sampler) extends Sampler {
 
-  private val sampledResult: SamplingResult =
-    SamplingResult(SamplingDecision.RecordAndSample, Attributes.empty, "")
-
-  private val droppedResult: SamplingResult =
-    SamplingResult(SamplingDecision.Drop, Attributes.empty, "")
-
   def shouldSample(
     parentContext: Option[SpanContext],
     traceIdHi: Long,
@@ -172,8 +166,16 @@ final case class ParentBasedSampler(root: Sampler) extends Sampler {
     links: Seq[SpanLink]
   ): SamplingResult =
     parentContext match {
-      case None         => root.shouldSample(parentContext, traceIdHi, traceIdLo, name, kind, attributes, links)
-      case Some(parent) => if (parent.isSampled) sampledResult else droppedResult
+      case None =>
+        root.shouldSample(parentContext, traceIdHi, traceIdLo, name, kind, attributes, links)
+      case Some(parent) if parent.isValid =>
+        val ts = parent.traceState
+        if (parent.isSampled)
+          SamplingResult(SamplingDecision.RecordAndSample, Attributes.empty, ts)
+        else
+          SamplingResult(SamplingDecision.Drop, Attributes.empty, ts)
+      case Some(_) =>
+        root.shouldSample(parentContext, traceIdHi, traceIdLo, name, kind, attributes, links)
     }
 
   val description: String = s"ParentBasedSampler(root=${root.description})"
