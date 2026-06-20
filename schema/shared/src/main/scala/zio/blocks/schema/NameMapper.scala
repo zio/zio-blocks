@@ -61,17 +61,14 @@ object NameMapper {
           if (toPascal) toUpperCase(firstChar)
           else toLowerCase(firstChar)
         )
-        var idx = 1
-        if (!toPascal) {
-          idx = 0
-          while (idx < len && isUpperCase(s.charAt(idx))) idx += 1
-          if (idx > 1 && idx < len && isLowerCase(s.charAt(idx))) idx -= 1
-          val limit = Math.max(idx, 1)
-          idx = 1
-          while (idx < limit) {
-            sb.append(toLowerCase(s.charAt(idx)))
-            idx += 1
-          }
+        var idx = 0
+        while (idx < len && isUpperCase(s.charAt(idx))) idx += 1
+        if (idx > 1 && idx < len && isLowerCase(s.charAt(idx))) idx -= 1
+        val limit = Math.max(idx, 1)
+        idx = 1
+        while (idx < limit) {
+          sb.append(toLowerCase(s.charAt(idx)))
+          idx += 1
         }
         while (idx < len) {
           sb.append(s.charAt(idx))
