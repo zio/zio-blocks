@@ -60,25 +60,37 @@ object B3Propagator {
     override val fields: Seq[String] = Seq(B3Header)
 
     override def extract[C](carrier: C, getter: (C, String) => Option[String]): Option[SpanContext] =
-      for {
-        raw     <- getter(carrier, B3Header)
-        value    = raw.trim
-        _       <- if (value.isEmpty || value == "0") None else Some(())
-        parts    = value.split('-')
-        _       <- if (parts.length >= 2) Some(()) else None
-        traceId <- normalizeTraceId(parts(0))
-        _       <- if (traceId.isValid) Some(()) else None
-        spanId  <- SpanId.fromHex(parts(1).toLowerCase)
-        _       <- if (spanId.isValid) Some(()) else None
-      } yield {
-        val flags = if (parts.length >= 3) {
-          parts(2) match {
-            case "1" | "d" => TraceFlags.sampled
-            case "0"       => TraceFlags.none
-            case _         => TraceFlags.none
+      getter(carrier, B3Header).flatMap { raw =>
+        val value = raw.trim
+        if (value.isEmpty) None
+        else {
+          value match {
+            case "0" =>
+              Some(SpanContext.create(TraceId.invalid, SpanId.invalid, TraceFlags.none, traceState = "", isRemote = true))
+            case "1" | "d" =>
+              Some(SpanContext.create(TraceId.invalid, SpanId.invalid, TraceFlags.sampled, traceState = "", isRemote = true))
+            case _ =>
+              val parts = value.split('-')
+              if (parts.length < 2) None
+              else {
+                for {
+                  traceId <- normalizeTraceId(parts(0))
+                  if traceId.isValid
+                  spanId <- SpanId.fromHex(parts(1).toLowerCase)
+                  if spanId.isValid
+                } yield {
+                  val flags = if (parts.length >= 3) {
+                    parts(2) match {
+                      case "1" | "d" => TraceFlags.sampled
+                      case "0"       => TraceFlags.none
+                      case _         => TraceFlags.none
+                    }
+                  } else TraceFlags.none
+                  SpanContext.create(traceId, spanId, flags, traceState = "", isRemote = true)
+                }
+              }
           }
-        } else TraceFlags.none
-        SpanContext.create(traceId, spanId, flags, traceState = "", isRemote = true)
+        }
       }
 
     override def inject[C](spanContext: SpanContext, carrier: C, setter: (C, String, String) => C): C =
