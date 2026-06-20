@@ -23,7 +23,6 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 
 private[otel] final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
@@ -35,7 +34,6 @@ private[otel] final class BatchProcessor[A](
   retryBaseMillis: Long = 1000L
 ) extends AutoCloseable {
   private val queue: ConcurrentLinkedQueue[A] = new ConcurrentLinkedQueue[A]()
-  private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
 
   /**
@@ -55,8 +53,14 @@ private[otel] final class BatchProcessor[A](
   def enqueue(item: A): Unit =
     if (!isShutdown.get()) {
       queue.add(item)
-      queueSize.incrementAndGet()
-      dropOldestIfOverCapacity()
+      if (queue.size() > maxQueueSize) {
+        val removed = queue.poll()
+        if (removed != null) {
+          System.err.println(
+            "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
+          )
+        }
+      }
     }
 
   def forceFlush(): Unit = doFlush()
@@ -101,31 +105,10 @@ private[otel] final class BatchProcessor[A](
         count = max // exit loop
       } else {
         builder += item
-        queueSize.decrementAndGet()
         count += 1
       }
     }
     builder.result()
-  }
-
-  private def dropOldestIfOverCapacity(): Unit = {
-    var done = false
-    while (!done) {
-      if (queueSize.get() <= maxQueueSize) {
-        done = true
-      } else {
-        val removed = queue.poll()
-        if (removed == null) {
-          done = true
-        } else {
-          queueSize.decrementAndGet()
-          System.err.println(
-            "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
-          )
-          done = true
-        }
-      }
-    }
   }
 
   private def exportWithRetry(batch: Seq[A], attempt: Int): Unit =
@@ -146,9 +129,15 @@ private[otel] final class BatchProcessor[A](
           )
         } else {
           val delayMs = math.min(retryBaseMillis * (1L << attempt), 30000L)
-          try Thread.sleep(delayMs)
-          catch { case _: InterruptedException => Thread.currentThread().interrupt() }
-          exportWithRetry(batch, attempt + 1)
+          if (isShutdown.get()) {
+            System.err.println(
+              "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
+            )
+          } else {
+            try Thread.sleep(delayMs)
+            catch { case _: InterruptedException => Thread.currentThread().interrupt() }
+            exportWithRetry(batch, attempt + 1)
+          }
         }
     }
 }
