@@ -17,11 +17,26 @@
 package zio.blocks.config.hocon
 
 import zio.blocks.config.Provenance
+import zio.blocks.maybe.Maybe
 import zio.test._
 
 object HoconConfigSourceSpec extends ZIOSpecDefault {
 
   def spec: Spec[Any, Any] = suite("HoconConfigSourceSpec")(
+    test("ConfigSource.fromHocon parses simple HOCON into ConfigSource") {
+      val hocon  = """
+        db {
+          host = "localhost"
+          port = 5432
+        }
+      """
+      val source = zio.blocks.config.ConfigSource.fromHocon(hocon).toOption.get
+      assertTrue(
+        source.sourceId == "hocon:string",
+        source.get("db.host").get.value == "localhost",
+        source.get("db.port").get.value == "5432"
+      )
+    },
     suite("fromString")(
       test("parses simple HOCON into ConfigSource") {
         val hocon  = """
@@ -42,7 +57,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         val source = HoconConfigSource.fromString(hocon).toOption.get
         val cv     = source.get("name").get
         assertTrue(
-          cv.provenance == Provenance.Resolved("hocon:string", "name", Some("test"))
+          cv.provenance == Provenance.Resolved("hocon:string", "name", Maybe.present("test"))
         )
       },
       test("handles nested objects with dot-separated keys") {
@@ -118,7 +133,7 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         val source = HoconConfigSource.fromStringWithId(hocon, "hocon:app.conf").toOption.get
         assertTrue(
           source.sourceId == "hocon:app.conf",
-          source.get("key").get.provenance == Provenance.Resolved("hocon:app.conf", "key", Some("value"))
+          source.get("key").get.provenance == Provenance.Resolved("hocon:app.conf", "key", Maybe.present("value"))
         )
       }
     ),

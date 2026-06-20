@@ -16,11 +16,20 @@
 
 package zio.blocks.config
 
+/** Supported output formats for source-facing configuration keys. */
 sealed trait KeyFormat
 
 object KeyFormat {
-  case object CamelCase      extends KeyFormat
-  case object SnakeCase      extends KeyFormat
-  case object KebabCase      extends KeyFormat
+
+  /** Lower camelCase keys such as `databaseUrl`. */
+  case object CamelCase extends KeyFormat
+
+  /** Lower snake_case keys such as `database_url`. */
+  case object SnakeCase extends KeyFormat
+
+  /** Lower kebab-case keys such as `database-url`. */
+  case object KebabCase extends KeyFormat
+
+  /** Upper snake case keys such as `DATABASE_URL`. */
   case object UpperSnakeCase extends KeyFormat
 }

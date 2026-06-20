@@ -17,15 +17,22 @@
 package zio.blocks.config.yaml
 
 import zio.blocks.config.ConfigSource
+import zio.blocks.maybe.Maybe
 import zio.test._
 
 object YamlConfigSourceSpec extends ZIOSpecDefault {
   def spec = suite("YamlConfigSource")(
+    test("ConfigSource.fromYaml parses simple scalar values") {
+      val yaml   = "key: value"
+      val result = ConfigSource.fromYaml(yaml)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key").map(_.value) == Maybe.present("value"))
+    },
     test("parses simple scalar values") {
       val yaml   = "key: value"
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("key").map(_.value) == Some("value"))
+      assertTrue(result.toOption.get.get("key").map(_.value) == Maybe.present("value"))
     },
     test("flattens nested mappings with dot notation") {
       val yaml = """
@@ -35,8 +42,8 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("database.host").map(_.value) == Some("localhost")) &&
-      assertTrue(result.toOption.get.get("database.port").map(_.value) == Some("5432"))
+      assertTrue(result.toOption.get.get("database.host").map(_.value) == Maybe.present("localhost")) &&
+      assertTrue(result.toOption.get.get("database.port").map(_.value) == Maybe.present("5432"))
     },
     test("handles sequences with indexed keys") {
       val yaml = """
@@ -47,9 +54,9 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("items.0").map(_.value) == Some("apple")) &&
-      assertTrue(result.toOption.get.get("items.1").map(_.value) == Some("banana")) &&
-      assertTrue(result.toOption.get.get("items.2").map(_.value) == Some("cherry"))
+      assertTrue(result.toOption.get.get("items.0").map(_.value) == Maybe.present("apple")) &&
+      assertTrue(result.toOption.get.get("items.1").map(_.value) == Maybe.present("banana")) &&
+      assertTrue(result.toOption.get.get("items.2").map(_.value) == Maybe.present("cherry"))
     },
     test("handles deeply nested structures") {
       val yaml = """
@@ -61,8 +68,8 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("app.server.http.port").map(_.value) == Some("8080")) &&
-      assertTrue(result.toOption.get.get("app.server.http.host").map(_.value) == Some("0.0.0.0"))
+      assertTrue(result.toOption.get.get("app.server.http.port").map(_.value) == Maybe.present("8080")) &&
+      assertTrue(result.toOption.get.get("app.server.http.host").map(_.value) == Maybe.present("0.0.0.0"))
     },
     test("handles mixed nested mappings and sequences") {
       val yaml = """
@@ -74,10 +81,10 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("servers.0.name").map(_.value) == Some("server1")) &&
-      assertTrue(result.toOption.get.get("servers.0.port").map(_.value) == Some("8080")) &&
-      assertTrue(result.toOption.get.get("servers.1.name").map(_.value) == Some("server2")) &&
-      assertTrue(result.toOption.get.get("servers.1.port").map(_.value) == Some("8081"))
+      assertTrue(result.toOption.get.get("servers.0.name").map(_.value) == Maybe.present("server1")) &&
+      assertTrue(result.toOption.get.get("servers.0.port").map(_.value) == Maybe.present("8080")) &&
+      assertTrue(result.toOption.get.get("servers.1.name").map(_.value) == Maybe.present("server2")) &&
+      assertTrue(result.toOption.get.get("servers.1.port").map(_.value) == Maybe.present("8081"))
     },
     test("skips null values") {
       val yaml = """
@@ -87,9 +94,9 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("key1").map(_.value) == Some("value1")) &&
+      assertTrue(result.toOption.get.get("key1").map(_.value) == Maybe.present("value1")) &&
       assertTrue(result.toOption.get.get("key2").isEmpty) &&
-      assertTrue(result.toOption.get.get("key3").map(_.value) == Some("value3"))
+      assertTrue(result.toOption.get.get("key3").map(_.value) == Maybe.present("value3"))
     },
     test("handles flow sequence value") {
       val yaml   = "key: [a, b, c]"
@@ -100,7 +107,7 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
       val yaml   = "key: value"
       val result = YamlConfigSource.fromString(yaml, "custom:source")
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("key").map(_.provenance.sourceId) == Some("custom:source"))
+      assertTrue(result.toOption.get.get("key").map(_.provenance.sourceId) == Maybe.present("custom:source"))
     },
     test("handles empty YAML") {
       val yaml   = ""
@@ -116,9 +123,9 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("single").map(_.value) == Some("single quoted")) &&
-      assertTrue(result.toOption.get.get("double").map(_.value) == Some("double quoted")) &&
-      assertTrue(result.toOption.get.get("unquoted").map(_.value) == Some("unquoted"))
+      assertTrue(result.toOption.get.get("single").map(_.value) == Maybe.present("single quoted")) &&
+      assertTrue(result.toOption.get.get("double").map(_.value) == Maybe.present("double quoted")) &&
+      assertTrue(result.toOption.get.get("unquoted").map(_.value) == Maybe.present("unquoted"))
     },
     test("getAll returns all keys with matching prefix") {
       val yaml = """
@@ -146,7 +153,7 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("outer.inner.value").map(_.value) == Some("deep"))
+      assertTrue(result.toOption.get.get("outer.inner.value").map(_.value) == Maybe.present("deep"))
     },
     test("tilde null value results in None from get") {
       val yaml   = "missing: ~"
@@ -158,7 +165,7 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
       val yaml   = "count: 42"
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.get("count").map(_.value) == Some("42"))
+      assertTrue(result.toOption.get.get("count").map(_.value) == Maybe.present("42"))
     }
   )
 }

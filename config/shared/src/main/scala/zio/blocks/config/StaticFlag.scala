@@ -16,6 +16,8 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
+
 /**
  * A flag whose value is resolved exactly once at class-load time and never
  * changes.
@@ -78,20 +80,21 @@ object StaticFlag {
     reader: Flag.Reader[A]
   ): (A, Flag.Source, Provenance) =
     FlagSource.Registry.resolve(name) match {
-      case Some(SourceValue(rawValue, provenance)) =>
-        val parsed = parseOrThrow(name, rawValue, reader)
+      case raw if raw.isPresent =>
+        val SourceValue(rawValue, provenance) = raw.get
+        val parsed                            = parseOrThrow(name, rawValue, reader)
         (parsed, Flag.Source.FlagSourceValue(provenance.sourceId), provenance)
 
-      case None =>
+      case _ =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) {
           val parsed = parseOrThrow(name, sysProp, reader)
-          (parsed, Flag.Source.SystemProperty, Provenance.Resolved("sysprop", name, Some(sysProp)))
+          (parsed, Flag.Source.SystemProperty, Provenance.Resolved("sysprop", name, Maybe.present(sysProp)))
         } else {
           val envVal = System.getenv(envName)
           if (envVal != null) {
             val parsed = parseOrThrow(name, envVal, reader)
-            (parsed, Flag.Source.EnvironmentVariable, Provenance.Resolved("env", envName, Some(envVal)))
+            (parsed, Flag.Source.EnvironmentVariable, Provenance.Resolved("env", envName, Maybe.present(envVal)))
           } else {
             (default, Flag.Source.Default, Provenance.Default)
           }

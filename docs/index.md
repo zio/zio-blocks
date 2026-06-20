@@ -33,6 +33,8 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 
 Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
 
+See the [Config reference](reference/config.md) for the full API surface, supported rollout syntax, and format-adapter entry points.
+
 ### Key Features
 
 - **Static flags**: Resolve once at class load with `StaticFlag[A]`
@@ -63,16 +65,13 @@ val size: Int = poolSize()
 
 ### Quick Start: Config.load[A]
 
-> **Scala 3**: The `given` and `object Foo:` syntax below require Scala 3. For Scala 2.13, replace `given Schema[AppConfig] = Schema.derived` with `implicit val schema: Schema[AppConfig] = Schema.derived` and `object AppConfig:` with `object AppConfig {`.
+The snippet below uses Scala 3 syntax.
 
 ```scala
 import zio.blocks.config._
-import zio.blocks.schema.Schema
+import zio.blocks.scope.Unscoped
 
-final case class AppConfig(host: String, port: Int)
-object AppConfig {
-  implicit val schema: Schema[AppConfig] = Schema.derived[AppConfig]
-}
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
 
 val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
 ```
@@ -80,33 +79,39 @@ val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost",
 ### Example: FlagSource Plugin
 
 ```scala
+package myapp
+
 import zio.blocks.config._
 
-val provider = FlagSource.fromMap(Map("myapp.pool.size" -> "20"), "demo")
-FlagSource.Registry.register(provider)
-
 object poolSize extends StaticFlag[Int](10)
+
+FlagSource.Registry.register(
+  FlagSource.fromMap(Map("myapp.poolSize" -> "20"), "demo")
+)
+
 val size = poolSize()
 ```
 
+:::note
+Register a `FlagSource` before the first reference to a `StaticFlag` object. `StaticFlag` resolves during object initialization, so a source registered later will not change a flag that has already been loaded. The lookup key is the flag object's fully qualified name (`myapp.poolSize` in this example).
+:::
+
 ### Example: ConfigSource Composition with Provenance
 
-> **Scala 3**: The `given` and `object Foo:` syntax below require Scala 3. See the note in the Config.load section for Scala 2.13 equivalents.
+The snippet below uses Scala 3 syntax.
 
 ```scala
 import zio.blocks.config._
+import zio.blocks.scope.Unscoped
 
 val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
 val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
-val source   = env.orElse(defaults)
+val source   = env.orElse(defaults).withPrefix("app")
 
-final case class AppConfig(host: String, port: Int)
-object AppConfig {
-  implicit val schema: zio.blocks.schema.Schema[AppConfig] = zio.blocks.schema.Schema.derived[AppConfig]
-}
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
 
 val loaded   = Config.loadWithProvenance[AppConfig](source)
-val hostProv  = loaded.map(_.provenanceOf("host"))
+val hostProv = loaded.map(_.provenanceOf("host"))
 ```
 
 ### Example: Rollout DSL
@@ -117,6 +122,8 @@ import zio.blocks.config._
 val bucket = Rollout.bucketFor("user-123")
 val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
 ```
+
+`prod/50%` applies the choice to the `prod` path and enables it for roughly half of the `prod` buckets. The trailing `false` entry is the catch-all fallback for every non-matching case.
 
 ### File Format Adapters
 
@@ -373,13 +380,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
   Wire(Config("jdbc:postgresql://localhost/mydb"))
 )
 
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val service = allocate(serviceResource)
-
-  $(service)(_.createUser("Alice"))
-}
+serviceResource.use(_.createUser("Alice"))
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
 
@@ -734,7 +735,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling

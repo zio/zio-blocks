@@ -21,6 +21,13 @@ import zio.test._
 
 object JsonConfigSourceSpec extends ZIOSpecDefault {
   def spec = suite("JsonConfigSource")(
+    test("ConfigSource.fromJson parses simple flat JSON object") {
+      val json   = """{"key": "value", "number": 42}"""
+      val result = ConfigSource.fromJson(json)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key").isDefined) &&
+      assertTrue(result.toOption.get.get("key").get.value == "value")
+    },
     test("parses simple flat JSON object") {
       val json   = """{"key": "value", "number": 42}"""
       val result = JsonConfigSource.fromString(json)

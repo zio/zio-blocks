@@ -16,17 +16,38 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
+
+/** Describes where a resolved configuration or flag value came from. */
 sealed trait Provenance {
+
+  /** Stable identifier for the source that produced the value. */
   def sourceId: String
 }
 
 object Provenance {
-  final case class Resolved(sourceId: String, key: String, rawValue: Option[String]) extends Provenance
 
+  /**
+   * Value resolved from an explicit source lookup.
+   *
+   * @param sourceId
+   *   identifier of the source that answered the lookup
+   * @param key
+   *   source-facing key that was resolved
+   * @param rawValue
+   *   original string value when the source exposes it
+   */
+  final case class Resolved(sourceId: String, key: String, rawValue: Maybe[String]) extends Provenance
+
+  /** Value supplied by a schema default rather than an external source. */
   case object Default extends Provenance {
     val sourceId: String = "schema-default"
   }
 
+  /**
+   * Provenance for a composed source that preserves both primary and fallback
+   * origins.
+   */
   final case class Merged(primary: Provenance, fallback: Provenance) extends Provenance {
     def sourceId: String = s"${primary.sourceId}|${fallback.sourceId}"
   }

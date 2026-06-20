@@ -16,6 +16,7 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.Schema
 import zio.test._
 
@@ -45,7 +46,7 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val source = env.orElse(props)
       val result = source.get("db.host")
       assertTrue(
-        result.get.provenance == Provenance.Resolved("env", "db.host", Some("env-host"))
+        result.get.provenance == Provenance.Resolved("env", "db.host", Maybe.present("env-host"))
       )
     },
     test("provenance tracks fallback source when value comes from fallback") {
@@ -54,7 +55,7 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val source = env.orElse(props)
       val result = source.get("db.host")
       assertTrue(
-        result.get.provenance == Provenance.Resolved("sysprop", "db.host", Some("prop-host"))
+        result.get.provenance == Provenance.Resolved("sysprop", "db.host", Maybe.present("prop-host"))
       )
     },
     test("three-level chain attributes to correct source") {
@@ -65,7 +66,7 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val result   = source.get("timeout")
       assertTrue(
         result.get.value == "30",
-        result.get.provenance == Provenance.Resolved("defaults", "timeout", Some("30"))
+        result.get.provenance == Provenance.Resolved("defaults", "timeout", Maybe.present("30"))
       )
     },
     test("three-level chain picks first available source") {
@@ -76,7 +77,7 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val result   = source.get("timeout")
       assertTrue(
         result.get.value == "60",
-        result.get.provenance == Provenance.Resolved("sysprop", "timeout", Some("60"))
+        result.get.provenance == Provenance.Resolved("sysprop", "timeout", Maybe.present("60"))
       )
     },
     test("getAll merges from all sources with correct provenance per key") {
@@ -87,9 +88,9 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val result   = source.getAll("db")
       assertTrue(
         result.size == 3,
-        result("db.host").provenance == Provenance.Resolved("env", "db.host", Some("env-host")),
-        result("db.port").provenance == Provenance.Resolved("sysprop", "db.port", Some("5432")),
-        result("db.name").provenance == Provenance.Resolved("defaults", "db.name", Some("mydb"))
+        result("db.host").provenance == Provenance.Resolved("env", "db.host", Maybe.present("env-host")),
+        result("db.port").provenance == Provenance.Resolved("sysprop", "db.port", Maybe.present("5432")),
+        result("db.name").provenance == Provenance.Resolved("defaults", "db.name", Maybe.present("mydb"))
       )
     }
   )
@@ -121,8 +122,8 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val result   = source.getAll("db")
       assertTrue(
         result.size == 2,
-        result("app.db.host").value == "env-host",
-        result("app.db.port").value == "5432"
+        result("db.host").value == "env-host",
+        result("db.port").value == "5432"
       )
     },
     test("withKeyMapper composes with orElse") {
@@ -132,7 +133,7 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val result   = source.get("databaseUrl")
       assertTrue(
         result.get.value == "env-url",
-        result.get.provenance == Provenance.Resolved("env", "DATABASE_URL", Some("env-url"))
+        result.get.provenance == Provenance.Resolved("env", "DATABASE_URL", Maybe.present("env-url"))
       )
     }
   )
@@ -156,9 +157,9 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
       val pm     = Config.loadWithProvenance[AppConfig](source).toOption.get
       assertTrue(
         pm.value == AppConfig(DbConfig("env-host", 5432), "yaml-app"),
-        pm.provenanceOf("db.host") == Some(Provenance.Resolved("env", "db.host", Some("env-host"))),
-        pm.provenanceOf("db.port") == Some(Provenance.Resolved("yaml", "db.port", Some("5432"))),
-        pm.provenanceOf("name") == Some(Provenance.Resolved("yaml", "name", Some("yaml-app")))
+        pm.provenanceOf("db.host") == Maybe.present(Provenance.Resolved("env", "db.host", Maybe.present("env-host"))),
+        pm.provenanceOf("db.port") == Maybe.present(Provenance.Resolved("yaml", "db.port", Maybe.present("5432"))),
+        pm.provenanceOf("name") == Maybe.present(Provenance.Resolved("yaml", "name", Maybe.present("yaml-app")))
       )
     },
     test("four-level chain with each field from different source") {

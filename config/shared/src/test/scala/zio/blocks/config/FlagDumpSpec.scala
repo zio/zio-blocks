@@ -16,13 +16,14 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.test._
 import zio.test.TestAspect
 
 object FlagDumpSpec extends ConfigBaseSpec {
 
   object PlainFlag  extends StaticFlag[String]("plain-value")
-  object SecretFlag extends StaticFlag[Secret[String]](Secret("hunter2"))
+  object SecretFlag extends StaticFlag[Secret](Secret("hunter2"))
 
   def spec = suite("FlagDumpSpec")(
     suite("Flag.all and Flag.get")(
@@ -30,8 +31,8 @@ object FlagDumpSpec extends ConfigBaseSpec {
         val allBefore = Flag.all
         assertTrue(allBefore.isInstanceOf[List[_]])
       },
-      test("get returns None for unknown flag") {
-        assertTrue(Flag.get("nonexistent.flag.xyz") == None)
+      test("get returns Maybe.absent for unknown flag") {
+        assertTrue(Flag.get("nonexistent.flag.xyz") == Maybe.absent)
       }
     ),
     suite("Flag.dump")(

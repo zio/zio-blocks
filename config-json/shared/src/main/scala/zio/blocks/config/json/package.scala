@@ -16,4 +16,9 @@
 
 package zio.blocks.config
 
-package object json
+package object json {
+  implicit final class ConfigSourceJsonSyntax(private val companion: ConfigSource.type) extends AnyVal {
+    def fromJson(json: String, sourceId: String = "json:string"): Either[ConfigError, ConfigSource] =
+      JsonConfigSource.fromString(json, sourceId)
+  }
+}

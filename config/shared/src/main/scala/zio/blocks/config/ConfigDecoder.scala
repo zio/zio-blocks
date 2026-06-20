@@ -44,6 +44,10 @@ object ConfigDecoder {
   /**
    * Derive a `ConfigDecoder[A]` from a `Schema[A]` using the default
    * `ConfigDecoderDeriver`.
+   *
+   * For one-off loads, calling this at the use site is fine. If you decode the
+   * same type repeatedly, derive once at startup and reuse the returned
+   * decoder.
    */
   def derive[A](implicit schema: Schema[A]): ConfigDecoder[A] =
     schema.deriving(ConfigDecoderDeriver).derive

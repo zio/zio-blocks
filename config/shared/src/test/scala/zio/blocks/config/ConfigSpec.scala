@@ -17,6 +17,7 @@
 package zio.blocks.config
 
 import zio.blocks.context.Context
+import zio.blocks.maybe.Maybe
 import zio.blocks.schema.Schema
 import zio.blocks.scope.{Resource, Scope, Unscoped, Wire}
 import zio.test._
@@ -142,9 +143,11 @@ object ConfigSpec extends ConfigBaseSpec {
           case Right(pm) =>
             assertTrue(
               pm.value == Db("localhost", 5432),
-              pm.provenanceOf("host") == Some(Provenance.Resolved("test-src", "host", Some("localhost"))),
-              pm.provenanceOf("port") == Some(Provenance.Resolved("test-src", "port", Some("5432"))),
-              pm.provenanceOf("missing") == None
+              pm.provenanceOf("host") == Maybe.present(
+                Provenance.Resolved("test-src", "host", Maybe.present("localhost"))
+              ),
+              pm.provenanceOf("port") == Maybe.present(Provenance.Resolved("test-src", "port", Maybe.present("5432"))),
+              pm.provenanceOf("missing") == Maybe.absent
             )
           case Left(_) => assertTrue(false)
         }
@@ -159,6 +162,21 @@ object ConfigSpec extends ConfigBaseSpec {
           dumped.contains("test-src"),
           dumped.contains("\u2502"),
           dumped.contains("\u250c")
+        )
+      },
+      test("dump redacts sensitive values by key name") {
+        val source = ConfigSource.fromMap(
+          Map(
+            "db.host"     -> "localhost",
+            "db.password" -> "super-secret-password"
+          ),
+          "test-src"
+        )
+        val dumped = ProvenanceMap((), source).dump()
+        assertTrue(
+          dumped.contains("db.password"),
+          dumped.contains("<secret>"),
+          !dumped.contains("super-secret-password")
         )
       }
     )

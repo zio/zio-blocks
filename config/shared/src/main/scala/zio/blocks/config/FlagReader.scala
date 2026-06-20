@@ -17,16 +17,12 @@
 package zio.blocks.config
 
 import java.util.concurrent.ConcurrentHashMap
+import zio.blocks.maybe.Maybe
 
 import scala.concurrent.duration.{FiniteDuration, DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS}
 import scala.util.Try
 
-/**
- * Typeclass for parsing flag values from strings.
- *
- * @tparam A
- *   the type to parse into
- */
+/** Global registry and diagnostics helpers for resolved flags. */
 trait Flag {
 
   /**
@@ -42,8 +38,8 @@ trait Flag {
     buf.result()
   }
 
-  def get(name: String): Option[Any] =
-    Option(registry.get(name))
+  def get(name: String): Maybe[Any] =
+    Maybe.fromOption(Option(registry.get(name)))
 
   def dump(): String = {
     import scala.jdk.CollectionConverters._
@@ -211,12 +207,12 @@ trait Flag {
       "String"
     )
 
-    implicit def secretReader[A](implicit reader: Reader[A]): Reader[Secret[A]] =
-      new Reader[Secret[A]] {
-        def parse(flagName: String, raw: String): Either[ConfigError, Secret[A]] =
-          reader.parse(flagName, raw).map(Secret.apply)
+    implicit val secretReader: Reader[Secret] =
+      new Reader[Secret] {
+        def parse(flagName: String, raw: String): Either[ConfigError, Secret] =
+          Right(Secret(raw))
 
-        def typeName: String = s"Secret[${reader.typeName}]"
+        def typeName: String = "Secret"
       }
 
     implicit def seqReader[A](implicit reader: Scalar[A]): Reader[Seq[A]] =

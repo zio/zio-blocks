@@ -17,6 +17,7 @@
 package zio.blocks.config
 
 import scala.scalajs.js
+import zio.blocks.maybe.Maybe
 
 /**
  * Config source backed by environment variables (Scala.js / Node.js). Uses
@@ -27,10 +28,10 @@ import scala.scalajs.js
 object EnvSource extends ConfigSource {
   val sourceId: String = "env"
 
-  def get(key: String): Option[SourceValue[String]] = {
+  def get(key: String): Maybe[SourceValue[String]] = {
     val envKey = toEnvKey(key)
     val raw    = readEnv(envKey)
-    raw.map(v => SourceValue(v, Provenance.Resolved(sourceId, envKey, Some(v))))
+    Maybe.fromOption(raw.map(v => SourceValue(v, Provenance.Resolved(sourceId, envKey, Maybe.present(v)))))
   }
 
   def getAll(prefix: String): Map[String, SourceValue[String]] = {
@@ -38,12 +39,15 @@ object EnvSource extends ConfigSource {
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
     allEnvVars().collect {
       case (k, v) if envPrefix.isEmpty || k == envPrefix || k.startsWith(dotPrefix) =>
-        k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+        fromEnvKey(k) -> SourceValue(v, Provenance.Resolved(sourceId, k, Maybe.present(v)))
     }
   }
 
   private def toEnvKey(key: String): String =
     key.replace('.', '_').toUpperCase
+
+  private def fromEnvKey(key: String): String =
+    key.toLowerCase.replace('_', '.')
 
   private def readEnv(key: String): Option[String] =
     try {
@@ -78,7 +82,7 @@ object EnvSource extends ConfigSource {
 object SysPropSource extends ConfigSource {
   val sourceId: String = "sysprop"
 
-  def get(key: String): Option[SourceValue[String]] = None
+  def get(key: String): Maybe[SourceValue[String]] = Maybe.absent
 
   def getAll(prefix: String): Map[String, SourceValue[String]] = Map.empty
 }

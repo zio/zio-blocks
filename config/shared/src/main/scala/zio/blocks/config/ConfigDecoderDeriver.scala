@@ -46,8 +46,8 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
       new ConfigDecoder[A] {
         def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A] =
           source.get(prefix) match {
-            case Some(cv) => parsePrimitive(primitiveType, cv.value, prefix, source.sourceId)
-            case None     =>
+            case cv if cv.isPresent => parsePrimitive(primitiveType, cv.get.value, prefix, source.sourceId)
+            case _                  =>
               defaultValue match {
                 case Some(v) => new Right(v)
                 case None    => new Left(new ::(ConfigError.MissingKey(prefix, source.sourceId), Nil))
@@ -81,10 +81,10 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
           defaultValue = getDefaultValue(fieldReflect),
           decoder = D.instance(fieldReflect.metadata).force.asInstanceOf[ConfigDecoder[Any]],
           offset = offset,
-          typeTag = Reflect.publicTypeTag(fieldReflect),
+          typeTag = Reflect.typeTag(fieldReflect),
           isOptional = fieldReflect.typeId.isOption
         )
-        offset = RegisterOffset.add(Reflect.publicRegisterOffset(fieldReflect), offset)
+        offset = RegisterOffset.add(Reflect.registerOffset(fieldReflect), offset)
         idx += 1
       }
 
@@ -106,14 +106,14 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
                   if (errs.forall(_.isInstanceOf[ConfigError.MissingKey])) {
                     regs.setObject(fi.offset, None)
                   } else {
-                    errors = errs.toList ::: errors
+                    errors = errors ::: errs.toList
                   }
                 } else {
                   fi.defaultValue match {
                     case Some(v) if errs.forall(_.isInstanceOf[ConfigError.MissingKey]) =>
                       setRegister(regs, fi.offset, fi.typeTag, v)
                     case _ =>
-                      errors = errs.toList ::: errors
+                      errors = errors ::: errs.toList
                   }
                 }
             }
@@ -168,18 +168,19 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
               val dk      = discriminatorKey
               val typeKey = if (prefix.isEmpty) dk else s"$prefix.$dk"
               source.get(typeKey) match {
-                case Some(cv) =>
-                  decoderMap.get(cv.value) match {
+                case cv if cv.isPresent =>
+                  val raw = cv.get.value
+                  decoderMap.get(raw) match {
                     case Some(decoder) => decoder.decode(source, prefix)
                     case None          =>
                       new Left(
                         new ::(
-                          ConfigError.UnknownDiscriminator(typeKey, cv.value, decoderMap.keys.toSeq.sorted),
+                          ConfigError.UnknownDiscriminator(typeKey, raw, decoderMap.keys.toSeq.sorted),
                           Nil
                         )
                       )
                   }
-                case None =>
+                case _ =>
                   new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, dk), Nil))
               }
             }
@@ -214,14 +215,14 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
             var continue = true
             while (continue) {
               val elemKey   = if (prefix.isEmpty) idx.toString else s"$prefix.$idx"
-              val hasKey    = source.get(elemKey).isDefined
+              val hasKey    = source.get(elemKey).isPresent
               val hasSubKey = allKeys.keysIterator.exists { k =>
                 k == elemKey || k.startsWith(elemKey + ".")
               }
               if (hasKey || hasSubKey) {
                 elemDecoder.decode(source, elemKey) match {
                   case Right(v)   => constructor.add(builder, v)
-                  case Left(errs) => errors = errs.toList ::: errors
+                  case Left(errs) => errors = errors ::: errs.toList
                 }
                 idx += 1
               } else {
@@ -230,14 +231,14 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
             }
             if (idx == 0 && errors.isEmpty) {
               source.get(prefix) match {
-                case Some(cv) if cv.value.nonEmpty =>
-                  val parts   = cv.value.split(",").map(_.trim)
+                case cv if cv.isPresent && cv.get.value.nonEmpty =>
+                  val parts   = cv.get.value.split(",").map(_.trim)
                   var partIdx = 0
                   while (partIdx < parts.length) {
                     val partSource = ConfigSource.fromMap(Map(prefix -> parts(partIdx)), source.sourceId)
                     elemDecoder.decode(partSource, prefix) match {
                       case Right(v)   => constructor.add(builder, v)
-                      case Left(errs) => errors = errs.toList ::: errors
+                      case Left(errs) => errors = errors ::: errs.toList
                     }
                     partIdx += 1
                   }
@@ -294,9 +295,9 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
                   val valKey = if (prefix.isEmpty) subKey else s"$prefix.$subKey"
                   valueDecoder.decode(source, valKey) match {
                     case Right(v)   => constructor.addObject(builder, k, v)
-                    case Left(errs) => errors = errs.toList ::: errors
+                    case Left(errs) => errors = errors ::: errs.toList
                   }
-                case Left(errs) => errors = errs.toList ::: errors
+                case Left(errs) => errors = errors ::: errs.toList
               }
             }
             errors match {
@@ -319,9 +320,8 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       new ConfigDecoder[DynamicValue] {
         def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], DynamicValue] =
-          source.get(prefix) match {
-            case Some(cv) => new Right(new DynamicValue.Primitive(new PrimitiveValue.String(cv.value)))
-            case None     => new Right(DynamicValue.Null)
+          source.get(prefix).fold[Either[::[ConfigError], DynamicValue]](new Right(DynamicValue.Null)) { cv =>
+            new Right(new DynamicValue.Primitive(new PrimitiveValue.String(cv.value)))
           }
       }
     }

@@ -16,16 +16,41 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
+
 /**
  * A decoded configuration value paired with the `ConfigSource` that produced
  * it, allowing per-key provenance queries.
  */
 final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
 
+  private val sensitiveKeyMarkers = List(
+    "secret",
+    "password",
+    "passwd",
+    "token",
+    "apikey",
+    "api_key",
+    "accesskey",
+    "access_key",
+    "privatekey",
+    "private_key",
+    "credential",
+    "credentials"
+  )
+
+  private def shouldRedact(path: String): Boolean = {
+    val normalized = path.toLowerCase.replace('-', '_')
+    sensitiveKeyMarkers.exists(normalized.contains)
+  }
+
+  private def displayValue(key: String, rawValue: String): String =
+    if (shouldRedact(key)) "<secret>" else rawValue
+
   /**
    * Look up the provenance of a specific dot-separated key path.
    */
-  def provenanceOf(path: String): Option[Provenance] =
+  def provenanceOf(path: String): Maybe[Provenance] =
     source.get(path).map(_.provenance)
 
   /**
@@ -38,7 +63,7 @@ final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
 
     val rows = entries.toList.sortBy(_._1).map { case (key, cv) =>
       val src = cv.provenance.sourceId
-      (key, cv.value, src)
+      (key, displayValue(key, cv.value), src)
     }
 
     val keyWidth   = math.max("Key".length, rows.map(_._1.length).max)

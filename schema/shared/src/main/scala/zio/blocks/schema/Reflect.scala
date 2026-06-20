@@ -1980,7 +1980,7 @@ object Reflect {
       reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
     } else reflect.asPrimitive.map(_.primitiveType)
 
-  private[schema] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
+  private[blocks] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
     unwrapToPrimitiveTypeOption(reflect) match {
       case Some(primitiveType) =>
         primitiveType match {
@@ -1998,7 +1998,7 @@ object Reflect {
       case _ => RegisterOffset.incrementObjects(0L)
     }
 
-  private[schema] def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
+  private[blocks] def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
     unwrapToPrimitiveTypeOption(reflect) match {
       case Some(primitiveType) =>
         primitiveType match {
@@ -2015,14 +2015,6 @@ object Reflect {
         }
       case _ => 0
     }
-
-  /** Public accessor for the register offset of a Reflect node. */
-  def publicRegisterOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
-    registerOffset(reflect)
-
-  /** Public accessor for the type tag of a Reflect node. */
-  def publicTypeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
-    typeTag(reflect)
 
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1

@@ -26,7 +26,7 @@ object DynamicFlagSpec extends ConfigBaseSpec {
 
   object RolloutFlag extends DynamicFlag[String]("off", "on@beta; off")
 
-  object PercentageFlag extends DynamicFlag[Boolean](false, "true@*100%; false")
+  object PercentageFlag extends DynamicFlag[Boolean](false, "true@*/100%; false")
 
   object ReloadUnchangedFlag extends DynamicFlag[Int](0, "1")
 

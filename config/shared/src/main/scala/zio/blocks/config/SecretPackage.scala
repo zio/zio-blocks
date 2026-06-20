@@ -17,18 +17,18 @@
 package zio.blocks.config
 
 private[config] trait SecretPackageBase {
-  type Secret[+A]
+  type Secret
 
-  protected def secretApply[A](value: A): Secret[A]
-  protected def secretUnwrap[A](secret: Secret[A]): A
+  protected def secretApply(value: String): Secret
+  protected def secretUnwrap(secret: Secret): String
 
-  implicit def secretDisplayable[A]: Displayable[Secret[A]] = Displayable.instance(_ => "<secret>")
+  implicit def secretDisplayable: Displayable[Secret] = Displayable.instance(_ => "<secret>")
 
   object Secret {
-    def apply[A](value: A): Secret[A] = secretApply(value)
+    def apply(value: String): Secret = secretApply(value)
 
-    def unwrap[A](secret: Secret[A]): A = secretUnwrap(secret)
+    def unwrap(secret: Secret): String = secretUnwrap(secret)
 
-    def displayable[A]: Displayable[Secret[A]] = secretDisplayable[A]
+    def displayable: Displayable[Secret] = secretDisplayable
   }
 }

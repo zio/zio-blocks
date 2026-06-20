@@ -16,6 +16,7 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.test._
 
 object RolloutSpec extends ConfigBaseSpec {
@@ -51,19 +52,28 @@ object RolloutSpec extends ConfigBaseSpec {
         assertTrue(result.isRight) &&
         assertTrue(result.toOption.get.entries.size == 2)
       },
-      test("parse percentage selector") {
-        val result   = Rollout.parseChoices("canary@prod50%")
+      test("parse slash-separated percentage selector") {
+        val result   = Rollout.parseChoices("canary@prod/50%")
         val choices  = result.toOption.get
         val targeted = choices.entries.head.asInstanceOf[Rollout.Choice.Targeted]
         assertTrue(targeted.value == "canary") &&
-        assertTrue(targeted.selector.percentage == Some(50))
+        assertTrue(targeted.selector.segments == List(Rollout.Segment.Literal("prod"))) &&
+        assertTrue(targeted.selector.percentage == Maybe.present(50))
       },
       test("reject empty expression") {
         val result = Rollout.parseChoices("")
         assertTrue(result.isLeft)
       },
       test("reject percentage > 100") {
-        val result = Rollout.parseChoices("v2@path150%")
+        val result = Rollout.parseChoices("v2@path/150%")
+        assertTrue(result.isLeft)
+      },
+      test("reject ambiguous percentage selector without slash") {
+        val result = Rollout.parseChoices("canary@prod50%")
+        assertTrue(result.isLeft)
+      },
+      test("reject percentage-only selector") {
+        val result = Rollout.parseChoices("canary@50%")
         assertTrue(result.isLeft)
       },
       test("reject empty value before @") {
@@ -78,113 +88,113 @@ object RolloutSpec extends ConfigBaseSpec {
     suite("evaluateIndex")(
       test("catch-all matches everything") {
         val choices = Rollout.Choices(List(Rollout.Choice.CatchAll("fallback")))
-        assertTrue(Rollout.evaluateIndex(choices, "any/path", 50) == Some("fallback"))
+        assertTrue(Rollout.evaluateIndex(choices, "any/path", 50) == Maybe.present("fallback"))
       },
       test("targeted with exact path match") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "matched",
-              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), Maybe.absent)
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Some("matched"))
+        assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Maybe.present("matched"))
       },
       test("targeted with wildcard match") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "wild",
-              Rollout.Selector(List(Rollout.Segment.Wildcard, Rollout.Segment.Literal("users")), None)
+              Rollout.Selector(List(Rollout.Segment.Wildcard, Rollout.Segment.Literal("users")), Maybe.absent)
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Some("wild"))
+        assertTrue(Rollout.evaluateIndex(choices, "api/users", 0) == Maybe.present("wild"))
       },
-      test("path mismatch returns None") {
+      test("path mismatch returns Maybe.absent") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "miss",
-              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), None)
+              Rollout.Selector(List(Rollout.Segment.Literal("api"), Rollout.Segment.Literal("users")), Maybe.absent)
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "web/pages", 0) == None)
+        assertTrue(Rollout.evaluateIndex(choices, "web/pages", 0) == Maybe.absent)
       },
       test("0% never matches") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "never",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(0))
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.present(0))
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "path", 0) == None)
+        assertTrue(Rollout.evaluateIndex(choices, "path", 0) == Maybe.absent)
       },
       test("100% always matches") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "always",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(100))
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.present(100))
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "path", 99) == Some("always"))
+        assertTrue(Rollout.evaluateIndex(choices, "path", 99) == Maybe.present("always"))
       },
       test("percentage bucketing: bucket below threshold matches") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "partial",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.present(50))
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "path", 25) == Some("partial"))
+        assertTrue(Rollout.evaluateIndex(choices, "path", 25) == Maybe.present("partial"))
       },
       test("percentage bucketing: bucket at threshold does not match") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "partial",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), Some(50))
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.present(50))
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "path", 50) == None)
+        assertTrue(Rollout.evaluateIndex(choices, "path", 50) == Maybe.absent)
       },
       test("first match wins (left to right)") {
         val choices = Rollout.Choices(
           List(
             Rollout.Choice.Targeted(
               "first",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.absent)
             ),
             Rollout.Choice.Targeted(
               "second",
-              Rollout.Selector(List(Rollout.Segment.Literal("path")), None)
+              Rollout.Selector(List(Rollout.Segment.Literal("path")), Maybe.absent)
             )
           )
         )
-        assertTrue(Rollout.evaluateIndex(choices, "path", 0) == Some("first"))
+        assertTrue(Rollout.evaluateIndex(choices, "path", 0) == Maybe.present("first"))
       }
     ),
     suite("select (one-shot)")(
       test("selects from expression string") {
         val result = Rollout.select("canary@api/v2; stable", "api/v2", 0)
-        assertTrue(result == Some("canary"))
+        assertTrue(result == Maybe.present("canary"))
       },
       test("falls through to catch-all") {
         val result = Rollout.select("canary@api/v2; stable", "web/home", 0)
-        assertTrue(result == Some("stable"))
+        assertTrue(result == Maybe.present("stable"))
       },
-      test("returns None on parse error") {
+      test("returns Maybe.absent on parse error") {
         val result = Rollout.select("", "path", 0)
-        assertTrue(result == None)
+        assertTrue(result == Maybe.absent)
       }
     ),
     suite("validate")(
@@ -198,7 +208,7 @@ object RolloutSpec extends ConfigBaseSpec {
         assertTrue(result.toOption.get.exists(_.contains("unreachable")))
       },
       test("warns about cumulative percentage > 100") {
-        val result = Rollout.validate("a@path60%; b@path60%")
+        val result = Rollout.validate("a@path/60%; b@path/60%")
         assertTrue(result.isRight) &&
         assertTrue(result.toOption.get.exists(_.contains("exceeds 100%")))
       },

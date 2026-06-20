@@ -84,6 +84,11 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
     implicit val schema: Schema[WithMap] = Schema.derived[WithMap]
   }
 
+  case class WithDatabaseUrlMap(databaseUrl: Map[String, Int])
+  object WithDatabaseUrlMap {
+    implicit val schema: Schema[WithDatabaseUrlMap] = Schema.derived[WithDatabaseUrlMap]
+  }
+
   def spec = suite("ConfigDecoderSpec")(
     suite("simple case class")(
       test("decode Db from MapSource") {
@@ -182,7 +187,7 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
           case Right(_) => assertTrue(false)
         }
       },
-      test("mixed missing and invalid errors") {
+      test("mixed missing and invalid errors preserve field order") {
         val source  = ConfigSource.fromMap(Map("port" -> "abc"))
         val decoder = ConfigDecoder.derive[Db]
         val result  = decoder.decode(source, "")
@@ -190,10 +195,12 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
           case Left(errors) =>
             errors.head match {
               case c: ConfigError.Composite =>
-                val inner      = c.errors.toList
-                val hasMissing = inner.exists(_.isInstanceOf[ConfigError.MissingKey])
-                val hasInvalid = inner.exists(_.isInstanceOf[ConfigError.InvalidValue])
-                assertTrue(inner.length == 2, hasMissing, hasInvalid)
+                val inner = c.errors.toList.map {
+                  case ConfigError.MissingKey(path, _)            => s"missing:$path"
+                  case ConfigError.InvalidValue(path, _, _, _, _) => s"invalid:$path"
+                  case other                                      => other.getClass.getSimpleName
+                }
+                assertTrue(inner == List("missing:host", "invalid:port"))
               case _ => assertTrue(false)
             }
           case Right(_) => assertTrue(false)
@@ -334,6 +341,33 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
         val decoder = ConfigDecoder.derive[WithMap]
         val result  = decoder.decode(source, "")
         assertTrue(result == Right(WithMap(Map("a" -> 1, "b" -> 2))))
+      },
+      test("decodes dot-keyed source through withPrefix") {
+        val source = ConfigSource
+          .fromMap(Map("app.counts.a" -> "1", "app.counts.b" -> "2"))
+          .withPrefix("app")
+        val decoder = ConfigDecoder.derive[WithMap]
+        val result  = decoder.decode(source, "")
+        assertTrue(result == Right(WithMap(Map("a" -> 1, "b" -> 2))))
+      },
+      test("decodes mapped map keys through withKeyFormat") {
+        val source = Config.withKeyFormat(
+          ConfigSource.fromMap(Map("DATABASE_URL.A" -> "1", "DATABASE_URL.B" -> "2")),
+          KeyFormat.UpperSnakeCase
+        )
+        val decoder = ConfigDecoder.derive[WithDatabaseUrlMap]
+        val result  = decoder.decode(source, "")
+        assertTrue(result == Right(WithDatabaseUrlMap(Map("a" -> 1, "b" -> 2))))
+      }
+    ),
+    suite("List[String] wrapper integration")(
+      test("decodes indexed keys from prefixed source") {
+        val source = ConfigSource
+          .fromMap(Map("app.items.0" -> "a", "app.items.1" -> "b"))
+          .withPrefix("app")
+        val decoder = ConfigDecoder.derive[WithList]
+        val result  = decoder.decode(source, "")
+        assertTrue(result == Right(WithList(List("a", "b"))))
       }
     )
   )

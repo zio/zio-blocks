@@ -16,6 +16,8 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
+
 /**
  * A source of configuration key-value pairs.
  */
@@ -30,7 +32,7 @@ trait ConfigSource extends FlagSource {
    * Look up a single key and return its value with provenance, or None if
    * absent.
    */
-  def get(key: String): Option[SourceValue[String]]
+  def get(key: String): Maybe[SourceValue[String]]
 
   /**
    * Return all key-value pairs whose keys start with the given prefix (using
@@ -46,7 +48,7 @@ trait ConfigSource extends FlagSource {
   final def orElse(fallback: ConfigSource): ConfigSource = new ConfigSource {
     val sourceId: String = s"${ConfigSource.this.sourceId}|${fallback.sourceId}"
 
-    def get(key: String): Option[SourceValue[String]] =
+    def get(key: String): Maybe[SourceValue[String]] =
       ConfigSource.this.get(key).orElse(fallback.get(key))
 
     def getAll(prefix: String): Map[String, SourceValue[String]] = {
@@ -67,11 +69,15 @@ trait ConfigSource extends FlagSource {
   final def withPrefix(prefix: String): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
 
-    def get(key: String): Option[SourceValue[String]] =
-      ConfigSource.this.get(s"$prefix.$key")
+    def get(key: String): Maybe[SourceValue[String]] =
+      ConfigSource.this.get(ConfigSource.composeKey(prefix, key))
 
-    def getAll(pfx: String): Map[String, SourceValue[String]] =
-      ConfigSource.this.getAll(s"$prefix.$pfx")
+    def getAll(pfx: String): Map[String, SourceValue[String]] = {
+      val rawPrefix = ConfigSource.composeKey(prefix, pfx)
+      ConfigSource.this.getAll(rawPrefix).map { case (key, value) =>
+        ConfigSource.stripKeyPrefix(key, prefix) -> value
+      }
+    }
   }
 
   /**
@@ -81,31 +87,45 @@ trait ConfigSource extends FlagSource {
   final def withKeyMapper(mapper: KeyMapper, targetFormat: KeyFormat): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
 
-    def get(key: String): Option[SourceValue[String]] = {
-      val mappedKey = mapper.fromCanonical(mapper.toCanonical(key), targetFormat)
-      ConfigSource.this.get(mappedKey)
-    }
+    private def mapKey(key: String): String =
+      mapper.fromCanonical(mapper.toCanonical(key), targetFormat)
+
+    def get(key: String): Maybe[SourceValue[String]] =
+      ConfigSource.this.get(mapKey(key))
 
     def getAll(prefix: String): Map[String, SourceValue[String]] =
-      ConfigSource.this.getAll(prefix)
+      ConfigSource.this.getAll(mapKey(prefix)).map { case (key, value) =>
+        mapper.toCanonical(key) -> value
+      }
   }
 }
 
 object ConfigSource {
+
+  private[config] def composeKey(prefix: String, key: String): String =
+    if (prefix.isEmpty) key
+    else if (key.isEmpty) prefix
+    else s"$prefix.$key"
+
+  private[config] def stripKeyPrefix(key: String, prefix: String): String =
+    if (prefix.isEmpty) key
+    else if (key == prefix) ""
+    else if (key.startsWith(s"$prefix.")) key.drop(prefix.length + 1)
+    else key
 
   /**
    * A config source backed by an in-memory map.
    */
   final case class MapSource(map: Map[String, String], sourceId: String = "map") extends ConfigSource {
 
-    def get(key: String): Option[SourceValue[String]] =
-      map.get(key).map(v => SourceValue(v, Provenance.Resolved(sourceId, key, Some(v))))
+    def get(key: String): Maybe[SourceValue[String]] =
+      Maybe.fromOption(map.get(key).map(v => SourceValue(v, Provenance.Resolved(sourceId, key, Maybe.present(v)))))
 
     def getAll(prefix: String): Map[String, SourceValue[String]] = {
       val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
       map.collect {
         case (k, v) if prefix.isEmpty || k == prefix || k.startsWith(dotPrefix) =>
-          k -> SourceValue(v, Provenance.Resolved(sourceId, k, Some(v)))
+          k -> SourceValue(v, Provenance.Resolved(sourceId, k, Maybe.present(v)))
       }
     }
   }

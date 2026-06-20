@@ -42,11 +42,36 @@ object Config {
       loadOrThrow[A](ctx.get[ConfigSource].withPrefix(prefix))
     }
 
+  /**
+   * Decode a value of type `A` from `source` using the implicit `Schema[A]`.
+   *
+   * Typical usage in Scala 3 derives both `Schema` and `Unscoped` directly on
+   * the case class and then loads from a `ConfigSource`:
+   * {{{
+   * import zio.blocks.scope.Unscoped
+   *
+   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   *
+   * val result = Config.load[Db](
+   *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"))
+   * )
+   * }}}
+   *
+   * This method derives a fresh [[ConfigDecoder]] for each call. If you load
+   * the same type repeatedly (for example during reloads), derive the decoder
+   * once with `ConfigDecoder.derive[A]` and reuse it directly.
+   *
+   * Returns all accumulated `ConfigError`s instead of failing fast.
+   */
   def load[A](source: ConfigSource)(implicit schema: Schema[A]): Either[::[ConfigError], A] = {
     val decoder = ConfigDecoder.derive[A]
     decoder.decode(source, "")
   }
 
+  /**
+   * Decode a value of type `A` from `source` using an explicit
+   * `ConfigDecoderDeriver` and the implicit `Schema[A]`.
+   */
   def load[A](source: ConfigSource, deriver: ConfigDecoderDeriver)(implicit
     schema: Schema[A]
   ): Either[::[ConfigError], A] = {
@@ -60,6 +85,19 @@ object Config {
   /**
    * Load a value of type `A` from the given source, or throw with a formatted
    * error report.
+   *
+   * Requires an implicit `Schema[A]`:
+   * {{{
+   * import zio.blocks.scope.Unscoped
+   *
+   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   *
+   * val db = Config.loadOrThrow[Db](
+   *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"))
+   * )
+   * }}}
+   *
+   * Throws [[ConfigLoadException]] when decoding fails.
    */
   def loadOrThrow[A](source: ConfigSource)(implicit schema: Schema[A]): A =
     load[A](source) match {
@@ -72,6 +110,19 @@ object Config {
   /**
    * Load a value of type `A` together with provenance information for each
    * resolved key.
+   *
+   * Requires an implicit `Schema[A]` and returns a `ProvenanceMap[A]` so
+   * callers can inspect where each resolved field came from:
+   * {{{
+   * import zio.blocks.scope.Unscoped
+   *
+   * final case class Db(host: String, port: Int) derives Schema, Unscoped
+   *
+   * val loaded = Config.loadWithProvenance[Db](
+   *   ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "5432"), "env")
+   * )
+   * val hostSource = loaded.map(_.provenanceOf("host"))
+   * }}}
    */
   def loadWithProvenance[A](
     source: ConfigSource
@@ -95,6 +146,9 @@ object Config {
 }
 
 /**
- * Exception thrown by `Config.loadOrThrow` when configuration loading fails.
+ * Exception thrown by [[Config.loadOrThrow]] when configuration loading fails.
+ *
+ * Carries both the formatted multi-line report shown to users and the original
+ * non-empty list of accumulated `ConfigError`s for programmatic inspection.
  */
 final class ConfigLoadException(val report: String, val errors: ::[ConfigError]) extends RuntimeException(report)

@@ -29,7 +29,7 @@ import scala.collection.mutable
  *
  * Intended to be extended by Scala `object` definitions:
  * {{{
- *   object MyFeature extends DynamicFlag[Boolean](false, "true@beta/50; false")
+ *   object MyFeature extends DynamicFlag[Boolean](false, "true@beta/50%; false")
  * }}}
  *
  * Resolution order for initial expression: FlagSource → system property → env
@@ -98,9 +98,10 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   def reload(): Flag.ReloadResult = {
     val resolved = FlagSource.Registry.resolve(name)
     resolved match {
-      case None                           => Flag.ReloadResult.NoSource
-      case Some(SourceValue(rawValue, _)) =>
-        val trimmed = rawValue.trim
+      case raw if raw.isAbsent => Flag.ReloadResult.NoSource
+      case raw                 =>
+        val SourceValue(rawValue, _) = raw.get
+        val trimmed                  = rawValue.trim
         if (trimmed == _snapshot.expression) Flag.ReloadResult.Unchanged
         else
           Rollout.parseChoices(trimmed) match {
@@ -155,14 +156,15 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
         sb.toString
       }
     Rollout.evaluateIndex(snap.choices, path, bucket) match {
-      case Some(raw) =>
-        snap.reader.parse(name, raw) match {
+      case raw if raw.isPresent =>
+        val rawValue = raw.get
+        snap.reader.parse(name, rawValue) match {
           case Right(v) => v
           case Left(_)  =>
             _parseErrorCount.increment()
             snap.default
         }
-      case None => snap.default
+      case _ => snap.default
     }
   }
 
@@ -247,8 +249,8 @@ object DynamicFlag {
     defaultExpression: String
   ): String =
     FlagSource.Registry.resolve(name) match {
-      case Some(SourceValue(rawValue, _)) => rawValue
-      case None                           =>
+      case raw if raw.isPresent => raw.get.value
+      case _                    =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) sysProp
         else {

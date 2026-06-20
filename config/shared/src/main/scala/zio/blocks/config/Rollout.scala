@@ -17,6 +17,7 @@
 package zio.blocks.config
 
 import scala.util.hashing.MurmurHash3
+import zio.blocks.maybe.Maybe
 
 /**
  * Rollout DSL for selecting values based on path-matching and percentage
@@ -26,13 +27,14 @@ import scala.util.hashing.MurmurHash3
  * {{{
  *   expression = choice { ";" choice }
  *   choice     = value "@" selector | value
- *   selector   = segment { "/" segment } [ percentage ]
+ *   selector   = path [ "/" percentage ]
+ *   path       = segment { "/" segment }
  *   segment    = "*" | literal
  *   percentage = digits "%"
  * }}}
  *
  * Left-to-right evaluation, first match wins. A bare value (no `@`) is a
- * catch-all.
+ * catch-all and should appear last; later entries are unreachable.
  */
 object Rollout {
 
@@ -45,7 +47,7 @@ object Rollout {
     final case class CatchAll(value: String)                     extends Choice
   }
 
-  final case class Selector(segments: List[Segment], percentage: Option[Int])
+  final case class Selector(segments: List[Segment], percentage: Maybe[Int])
 
   sealed trait Segment
 
@@ -54,10 +56,10 @@ object Rollout {
     final case class Literal(value: String) extends Segment
   }
 
-  def select(expression: String, path: String, bucket: Int): Option[String] =
+  def select(expression: String, path: String, bucket: Int): Maybe[String] =
     parseChoices(expression) match {
       case Right(choices) => evaluateIndex(choices, path, bucket)
-      case Left(_)        => None
+      case Left(_)        => Maybe.absent
     }
 
   def parseChoices(expression: String): Either[ConfigError, Choices] = {
@@ -72,19 +74,20 @@ object Rollout {
     else Right(Choices(parsed.collect { case Right(c) => c }))
   }
 
-  def evaluateIndex(choices: Choices, path: String, bucket: Int): Option[String] = {
+  def evaluateIndex(choices: Choices, path: String, bucket: Int): Maybe[String] = {
     val pathParts = if (path.isEmpty) Array.empty[String] else path.split("/")
     val entries   = choices.entries
     var idx       = 0
     while (idx < entries.size) {
       entries(idx) match {
-        case Choice.CatchAll(value)                                                          => return Some(value)
-        case Choice.Targeted(value, selector) if matches(selector, pathParts.toList, bucket) => return Some(value)
-        case _                                                                               =>
+        case Choice.CatchAll(value)                                                          => return Maybe.present(value)
+        case Choice.Targeted(value, selector) if matches(selector, pathParts.toList, bucket) =>
+          return Maybe.present(value)
+        case _ =>
       }
       idx += 1
     }
-    None
+    Maybe.absent
   }
 
   def bucketFor(key: String): Int =
@@ -101,7 +104,7 @@ object Rollout {
       val targeted  = choices.entries.collect { case t: Choice.Targeted => t }
       val byPattern = targeted.groupBy(t => segmentsToString(t.selector.segments))
       byPattern.foreach { case (pattern, ts) =>
-        val total = ts.flatMap(_.selector.percentage).sum
+        val total = ts.foldLeft(0)((sum, targeted) => sum + targeted.selector.percentage.getOrElse(0))
         if (total > 100)
           warnings += s"Cumulative percentage for pattern '$pattern' is $total% (exceeds 100%)"
       }
@@ -130,19 +133,42 @@ object Rollout {
     }
   }
 
-  private val percentPattern = """^(.+?)(\d+)%$""".r
+  private val percentOnlyPattern = """^\d+%$""".r
 
-  private def parseSelector(raw: String): Either[ConfigError, Selector] =
-    raw match {
-      case percentPattern(pathPart, pctStr) =>
-        val pct = pctStr.toInt
-        if (pct > 100)
-          Left(ConfigError.InvalidValue("rollout", raw, "percentage <= 100", "rollout"))
-        else
-          Right(Selector(parseSegments(pathPart.trim), Some(pct)))
-      case _ =>
-        Right(Selector(parseSegments(raw), None))
-    }
+  private def parseSelector(raw: String): Either[ConfigError, Selector] = {
+    val trimmed = raw.trim
+    if (trimmed.isEmpty)
+      Left(ConfigError.InvalidValue("rollout", raw, "non-empty selector after '@'", "rollout"))
+    else
+      trimmed match {
+        case percentOnlyPattern() =>
+          Left(ConfigError.InvalidValue("rollout", raw, "selector path before /NN%", "rollout"))
+        case _ if trimmed.endsWith("%") =>
+          val slashIdx = trimmed.lastIndexOf('/')
+          if (slashIdx <= 0 || slashIdx == trimmed.length - 1)
+            Left(ConfigError.InvalidValue("rollout", raw, "selector path using /NN% percentage syntax", "rollout"))
+          else {
+            val pathPart = trimmed.substring(0, slashIdx).trim
+            val pctPart  = trimmed.substring(slashIdx + 1).trim
+            if (pathPart.isEmpty || !pctPart.endsWith("%"))
+              Left(ConfigError.InvalidValue("rollout", raw, "selector path using /NN% percentage syntax", "rollout"))
+            else {
+              val digits = pctPart.dropRight(1)
+              if (!digits.nonEmpty || !digits.forall(_.isDigit))
+                Left(ConfigError.InvalidValue("rollout", raw, "selector path using /NN% percentage syntax", "rollout"))
+              else {
+                val pct = digits.toInt
+                if (pct > 100)
+                  Left(ConfigError.InvalidValue("rollout", raw, "percentage <= 100", "rollout"))
+                else
+                  Right(Selector(parseSegments(pathPart), Maybe.present(pct)))
+              }
+            }
+          }
+        case _ =>
+          Right(Selector(parseSegments(trimmed), Maybe.absent))
+      }
+  }
 
   private def parseSegments(pathStr: String): List[Segment] =
     pathStr.split("/").map(_.trim).toList.map {
@@ -155,10 +181,10 @@ object Rollout {
     if (!pathMatch) false
     else
       selector.percentage match {
-        case None      => true
-        case Some(0)   => false
-        case Some(100) => true
-        case Some(pct) => bucket < pct
+        case pct if pct.isAbsent      => true
+        case pct if pct.contains(0)   => false
+        case pct if pct.contains(100) => true
+        case pct                      => bucket < pct.get
       }
   }
 

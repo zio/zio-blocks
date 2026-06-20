@@ -16,6 +16,7 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.test._
 import zio.test.TestAspect
 
@@ -67,8 +68,8 @@ object StaticFlagSpec extends ConfigBaseSpec {
           assertTrue(value == 99) &&
           assertTrue(source == Flag.Source.SystemProperty) &&
           assertTrue(prov match {
-            case Provenance.Resolved("sysprop", _, Some("99")) => true
-            case _                                             => false
+            case Provenance.Resolved("sysprop", _, raw) if raw.contains("99") => true
+            case _                                                            => false
           })
         } finally {
           System.clearProperty(flagName)
@@ -100,9 +101,9 @@ object StaticFlagSpec extends ConfigBaseSpec {
         FlagSource.Registry.register(new FlagSource {
           val sourceId: String = "test-default"
 
-          def get(name: String): Option[SourceValue[String]] =
-            if (name == flagName) Some(SourceValue("from-default-provenance", Provenance.Default))
-            else None
+          def get(name: String): Maybe[SourceValue[String]] =
+            if (name == flagName) Maybe.present(SourceValue("from-default-provenance", Provenance.Default))
+            else Maybe.absent
         })
 
         try {
@@ -120,17 +121,17 @@ object StaticFlagSpec extends ConfigBaseSpec {
         val flagName = "test.provider.merged-provenance.flag"
         val envName  = "TEST_PROVIDER_MERGED_PROVENANCE_FLAG"
         val merged   = Provenance.Merged(
-          Provenance.Resolved("primary", "primary.key", Some("from-primary")),
-          Provenance.Resolved("fallback", "fallback.key", Some("from-fallback"))
+          Provenance.Resolved("primary", "primary.key", Maybe.present("from-primary")),
+          Provenance.Resolved("fallback", "fallback.key", Maybe.present("from-fallback"))
         )
 
         FlagSource.Registry.clear()
         FlagSource.Registry.register(new FlagSource {
           val sourceId: String = "test-merged"
 
-          def get(name: String): Option[SourceValue[String]] =
-            if (name == flagName) Some(SourceValue("from-primary", merged))
-            else None
+          def get(name: String): Maybe[SourceValue[String]] =
+            if (name == flagName) Maybe.present(SourceValue("from-primary", merged))
+            else Maybe.absent
         })
 
         try {

@@ -16,12 +16,29 @@
 
 package zio.blocks.config
 
+/**
+ * Maps source-specific configuration keys to the canonical lower-camel form
+ * used by config decoders and wrapper sources, and back again.
+ *
+ * For example, a mapper may treat `databaseUrl`, `database_url`, and
+ * `database-url` as the same logical key.
+ */
 trait KeyMapper {
+
+  /** Normalize a source-facing key into canonical lower-camel form. */
   def toCanonical(key: String): String
+
+  /** Render a canonical lower-camel key into the requested target format. */
   def fromCanonical(key: String, target: KeyFormat): String
 }
 
 object KeyMapper {
+
+  /**
+   * Default mapper that normalizes snake_case and kebab-case into camelCase,
+   * and renders canonical keys back into camelCase, snake_case, kebab-case, or
+   * UPPER_SNAKE_CASE.
+   */
   val default: KeyMapper = new KeyMapper {
     def toCanonical(key: String): String = {
       val sep = if (key.indexOf('_') >= 0) '_' else if (key.indexOf('-') >= 0) '-' else '\u0000'

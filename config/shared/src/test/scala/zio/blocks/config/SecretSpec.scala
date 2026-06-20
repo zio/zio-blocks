@@ -22,19 +22,19 @@ object SecretSpec extends ZIOSpecDefault {
 
   def spec = suite("SecretSpec")(
     test("Secret.apply and unwrap round-trip") {
-      val secret = Secret(123)
-      assertTrue(Secret.unwrap(secret) == 123)
+      val secret = Secret("123")
+      assertTrue(Secret.unwrap(secret) == "123")
     },
-    test("Secret reader parses underlying values") {
-      val reader = implicitly[Flag.Reader[Secret[Int]]]
-      assertTrue(reader.parse("port", "8080") == Right(Secret(8080)))
+    test("Secret reader wraps the raw string") {
+      val reader = implicitly[Flag.Reader[Secret]]
+      assertTrue(reader.parse("token", "hunter2") == Right(Secret("hunter2")))
     },
     test("Secret reader reports a secret type name") {
-      val reader = implicitly[Flag.Reader[Secret[String]]]
-      assertTrue(reader.typeName == "Secret[String]")
+      val reader = implicitly[Flag.Reader[Secret]]
+      assertTrue(reader.typeName == "Secret")
     },
     test("Secret displayable redacts values") {
-      val displayable = Secret.displayable[String]
+      val displayable = Secret.displayable
       assertTrue(displayable.display(Secret("token")) == "<secret>")
     }
   )

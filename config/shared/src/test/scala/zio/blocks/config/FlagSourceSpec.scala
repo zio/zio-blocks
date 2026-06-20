@@ -16,6 +16,7 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.test._
 
 object FlagSourceSpec extends ConfigBaseSpec {
@@ -26,12 +27,14 @@ object FlagSourceSpec extends ConfigBaseSpec {
         val source = FlagSource.fromMap(Map("my.flag" -> "hello"), id = "source")
         assertTrue(
           source.sourceId == "source",
-          source.get("my.flag") == Some(SourceValue("hello", Provenance.Resolved("source", "my.flag", Some("hello"))))
+          source.get("my.flag") == Maybe.present(
+            SourceValue("hello", Provenance.Resolved("source", "my.flag", Maybe.present("hello")))
+          )
         )
       },
-      test("returns None for missing key") {
+      test("returns Maybe.absent for missing key") {
         val source = FlagSource.fromMap(Map("a" -> "1"))
-        assertTrue(source.get("b") == None)
+        assertTrue(source.get("b") == Maybe.absent)
       }
     ),
     suite("orElse composition")(
@@ -39,13 +42,13 @@ object FlagSourceSpec extends ConfigBaseSpec {
         val p1       = FlagSource.fromMap(Map("k" -> "primary"), id = "p1")
         val p2       = FlagSource.fromMap(Map("k" -> "fallback"), id = "p2")
         val composed = p1.orElse(p2)
-        assertTrue(composed.get("k").map(_.value) == Some("primary"))
+        assertTrue(composed.get("k").map(_.value) == Maybe.present("primary"))
       },
-      test("falls back when primary returns None") {
+      test("falls back when primary returns Maybe.absent") {
         val p1       = FlagSource.fromMap(Map.empty, id = "p1")
         val p2       = FlagSource.fromMap(Map("k" -> "fallback"), id = "p2")
         val composed = p1.orElse(p2)
-        assertTrue(composed.get("k").map(_.value) == Some("fallback"))
+        assertTrue(composed.get("k").map(_.value) == Maybe.present("fallback"))
       },
       test("composed sourceId reflects both") {
         val p1       = FlagSource.fromMap(Map.empty, id = "p1")
@@ -61,7 +64,9 @@ object FlagSourceSpec extends ConfigBaseSpec {
         FlagSource.Registry.register(source)
         val result = FlagSource.Registry.resolve("flag")
         FlagSource.Registry.clear()
-        assertTrue(result == Some(SourceValue("value", Provenance.Resolved("reg-test", "flag", Some("value")))))
+        assertTrue(
+          result == Maybe.present(SourceValue("value", Provenance.Resolved("reg-test", "flag", Maybe.present("value"))))
+        )
       },
       test("unregister removes source") {
         FlagSource.Registry.clear()
@@ -70,7 +75,7 @@ object FlagSourceSpec extends ConfigBaseSpec {
         FlagSource.Registry.unregister("reg-test-2")
         val result = FlagSource.Registry.resolve("flag")
         FlagSource.Registry.clear()
-        assertTrue(result == None)
+        assertTrue(result == Maybe.absent)
       },
       test("all returns registered sources") {
         FlagSource.Registry.clear()
@@ -80,15 +85,15 @@ object FlagSourceSpec extends ConfigBaseSpec {
         FlagSource.Registry.register(p2)
         val ids = FlagSource.Registry.all.map(_.sourceId).toSet
         FlagSource.Registry.clear()
-        assertTrue(ids == Set("all-1", "all-2"))
+        assertTrue(ids.contains("all-1"), ids.contains("all-2"))
       },
-      test("resolve returns None when no source has the flag") {
+      test("resolve returns Maybe.absent when no source has the flag") {
         FlagSource.Registry.clear()
         val source = FlagSource.fromMap(Map("other" -> "value"), id = "miss")
         FlagSource.Registry.register(source)
         val result = FlagSource.Registry.resolve("nonexistent")
         FlagSource.Registry.clear()
-        assertTrue(result == None)
+        assertTrue(result == Maybe.absent)
       }
     )
   ) @@ TestAspect.sequential

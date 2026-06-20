@@ -17,9 +17,9 @@
 package zio.blocks.config
 
 trait SecretPackage extends SecretPackageBase {
-  opaque type Secret[+A] = A
+  opaque type Secret = String
 
-  protected def secretApply[A](value: A): Secret[A] = value
+  protected def secretApply(value: String): Secret = value
 
-  protected def secretUnwrap[A](secret: Secret[A]): A = secret
+  protected def secretUnwrap(secret: Secret): String = secret
 }

@@ -19,7 +19,7 @@ package zio.blocks.config.json
 import zio.blocks.config.{ConfigError, ConfigSource}
 import zio.blocks.schema.json.Json
 
-object JsonConfigSource {
+private[json] object JsonConfigSource {
 
   /**
    * Creates a ConfigSource from a JSON string.

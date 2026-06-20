@@ -16,4 +16,9 @@
 
 package zio.blocks.config
 
-package object yaml
+package object yaml {
+  implicit final class ConfigSourceYamlSyntax(private val companion: ConfigSource.type) extends AnyVal {
+    def fromYaml(yaml: String, sourceId: String = "yaml:string"): Either[ConfigError, ConfigSource] =
+      YamlConfigSource.fromString(yaml, sourceId)
+  }
+}

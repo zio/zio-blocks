@@ -25,6 +25,11 @@ package zio.blocks.config.hocon
  */
 object HoconParser {
 
+  private[hocon] final case class IncludedResource(
+    content: String,
+    includeResolver: String => Option[IncludedResource] = _ => None
+  )
+
   /**
    * Parse a HOCON string and return the resolved AST.
    *
@@ -35,11 +40,17 @@ object HoconParser {
   def parse(
     input: String,
     includeCallback: String => Option[String] = _ => None
+  ): Either[HoconError, HoconValue] =
+    parseWithResolver(input, resource => includeCallback(resource).map(content => IncludedResource(content)))
+
+  private[hocon] def parseWithResolver(
+    input: String,
+    includeResolver: String => Option[IncludedResource]
   ): Either[HoconError, HoconValue] = {
     val normalized = input.replace("\r\n", "\n").replace("\r", "\n")
     val lexer      = new Lexer(normalized)
     try {
-      val raw = lexer.parseRoot(includeCallback)
+      val raw = lexer.parseRoot(includeResolver)
       resolve(raw).left.map { msg =>
         HoconError(msg, 0, 0)
       }
@@ -109,36 +120,36 @@ object HoconParser {
 
     // ── Root parsing ─────────────────────────────────────────────────
 
-    def parseRoot(includeCallback: String => Option[String]): RawValue = {
+    def parseRoot(includeResolver: String => Option[IncludedResource]): RawValue = {
       skipWhitespaceAndComments()
       if (eof) return RawObj(Seq.empty)
-      if (ch == '{') parseObject(includeCallback)
+      if (ch == '{') parseObject(includeResolver)
       else {
         // Root braces optional: treat as object fields
-        val fields = parseObjectFields(includeCallback)
+        val fields = parseObjectFields(includeResolver)
         RawObj(fields)
       }
     }
 
     // ── Object ───────────────────────────────────────────────────────
 
-    private def parseObject(includeCallback: String => Option[String]): RawObj = {
+    private def parseObject(includeResolver: String => Option[IncludedResource]): RawObj = {
       expect('{')
-      val fields = parseObjectFields(includeCallback)
+      val fields = parseObjectFields(includeResolver)
       skipWhitespaceAndComments()
       expect('}')
       RawObj(fields)
     }
 
     private def parseObjectFields(
-      includeCallback: String => Option[String]
+      includeResolver: String => Option[IncludedResource]
     ): Seq[(String, RawValue, Boolean)] = {
       val buf = new scala.collection.mutable.ArrayBuffer[(String, RawValue, Boolean)]()
       while (true) {
         skipWhitespaceAndComments()
         if (eof || ch == '}') return buf.toSeq
         if (isInclude) {
-          handleInclude(includeCallback, buf)
+          handleInclude(includeResolver, buf)
           skipComma()
         } else {
           val key = parseKey()
@@ -147,18 +158,18 @@ object HoconParser {
 
           if (ch == '{') {
             // Key followed by { means nested object without separator
-            val value = parseObject(includeCallback)
+            val value = parseObject(includeResolver)
             buf += ((key, value, false))
           } else if (ch == '+' && pos + 1 < len && input.charAt(pos + 1) == '=') {
             pos += 2 // skip +=
             skipWhitespaceAndComments()
-            val value = parseValue(includeCallback)
+            val value = parseValue(includeResolver)
             buf += ((key, value, true))
           } else {
             if (ch == '=' || ch == ':') pos += 1
             else error(s"Expected '=', ':', or '{' after key '$key', got '${ch}'")
             skipWhitespaceAndComments()
-            val value = parseValue(includeCallback)
+            val value = parseValue(includeResolver)
             buf += ((key, value, false))
           }
           skipComma()
@@ -199,10 +210,10 @@ object HoconParser {
 
     // ── Value parsing ────────────────────────────────────────────────
 
-    private def parseValue(includeCallback: String => Option[String]): RawValue = {
+    private def parseValue(includeResolver: String => Option[IncludedResource]): RawValue = {
       skipWhitespaceAndComments()
       if (eof) error("Unexpected end of input, expected a value")
-      val first = parseSingleValue(includeCallback)
+      val first = parseSingleValue(includeResolver)
       // Value concatenation: if immediately followed by more non-separator content on the same line, concat
       val parts = new scala.collection.mutable.ArrayBuffer[RawValue]()
       parts += first
@@ -210,7 +221,7 @@ object HoconParser {
         skipInlineWhitespace()
         if (eof || isValueTerminator) return if (parts.size == 1) parts(0) else RawConcat(parts.toSeq)
         val before = pos
-        val next   = parseSingleValue(includeCallback)
+        val next   = parseSingleValue(includeResolver)
         if (pos == before) {
           // no progress, break
           return if (parts.size == 1) parts(0) else RawConcat(parts.toSeq)
@@ -226,12 +237,12 @@ object HoconParser {
       (c == '/' && pos + 1 < len && input.charAt(pos + 1) == '/')
     }
 
-    private def parseSingleValue(includeCallback: String => Option[String]): RawValue = {
+    private def parseSingleValue(includeResolver: String => Option[IncludedResource]): RawValue = {
       skipInlineWhitespace()
       if (eof) error("Unexpected end of input, expected a value")
       val c = ch
-      if (c == '{') parseObject(includeCallback)
-      else if (c == '[') parseArray(includeCallback)
+      if (c == '{') parseObject(includeResolver)
+      else if (c == '[') parseArray(includeResolver)
       else if (c == '"') {
         if (pos + 2 < len && input.charAt(pos + 1) == '"' && input.charAt(pos + 2) == '"')
           RawStr(parseTripleQuotedString())
@@ -245,14 +256,14 @@ object HoconParser {
 
     // ── Array ────────────────────────────────────────────────────────
 
-    private def parseArray(includeCallback: String => Option[String]): RawArr = {
+    private def parseArray(includeResolver: String => Option[IncludedResource]): RawArr = {
       expect('[')
       val buf = new scala.collection.mutable.ArrayBuffer[RawValue]()
       while (true) {
         skipWhitespaceAndComments()
         if (eof) error("Unexpected end of input in array")
         if (ch == ']') { pos += 1; return RawArr(buf.toSeq) }
-        buf += parseValue(includeCallback)
+        buf += parseValue(includeResolver)
         skipComma()
       }
       // `while(true)` is intentional here; this return is only present to satisfy
@@ -397,17 +408,17 @@ object HoconParser {
         }
 
     private def handleInclude(
-      includeCallback: String => Option[String],
+      includeResolver: String => Option[IncludedResource],
       buf: scala.collection.mutable.ArrayBuffer[(String, RawValue, Boolean)]
     ): Unit = {
       pos += 7 // skip "include"
       skipInlineWhitespace()
       if (eof || ch != '"') error("Expected quoted string after 'include'")
       val resource = parseQuotedString()
-      includeCallback(resource) match {
-        case Some(content) =>
+      includeResolver(resource) match {
+        case Some(IncludedResource(content, nestedIncludeResolver)) =>
           val parsed = new Lexer(content.replace("\r\n", "\n").replace("\r", "\n"))
-            .parseRoot(includeCallback)
+            .parseRoot(nestedIncludeResolver)
           parsed match {
             case RawObj(fields) => buf ++= fields
             case _              => error(s"Included resource '$resource' must be an object")

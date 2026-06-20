@@ -19,9 +19,9 @@ package zio.blocks.config
 private[config] trait Tag
 
 trait SecretPackage extends SecretPackageBase {
-  type Secret[+A] = A with Tag
+  type Secret = String with Tag
 
-  protected def secretApply[A](value: A): Secret[A] = value.asInstanceOf[Secret[A]]
+  protected def secretApply(value: String): Secret = value.asInstanceOf[Secret]
 
-  protected def secretUnwrap[A](secret: Secret[A]): A = secret.asInstanceOf[A]
+  protected def secretUnwrap(secret: Secret): String = secret.asInstanceOf[String]
 }

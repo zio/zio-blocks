@@ -125,10 +125,11 @@ const sidebars = {
              "reference/resource-management/finalizer",
              "reference/resource-management/finalization",
            ]
-         },
-         "reference/combinators",
-         "reference/docs",
-         "reference/media-type",
+          },
+          "reference/combinators",
+          "reference/docs",
+          "reference/config",
+          "reference/media-type",
          {
            type: "category",
            label: "Code Generation",

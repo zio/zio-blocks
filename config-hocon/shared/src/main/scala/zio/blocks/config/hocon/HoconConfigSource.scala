@@ -21,7 +21,7 @@ import zio.blocks.config.{ConfigError, ConfigSource}
 /**
  * Create a `ConfigSource` from HOCON text using the built-in `HoconParser`.
  */
-object HoconConfigSource {
+private[hocon] object HoconConfigSource {
 
   def fromString(hocon: String): Either[ConfigError, ConfigSource] =
     fromStringWithId(hocon, "hocon:string")
@@ -38,6 +38,16 @@ object HoconConfigSource {
     includeCallback: String => Option[String]
   ): Either[ConfigError, ConfigSource] =
     HoconParser.parse(hocon, includeCallback).left.map(toConfigError(_, sourceId)).map { value =>
+      val flat = HoconValue.flatten(value)
+      ConfigSource.fromMap(flat, sourceId)
+    }
+
+  private[hocon] def fromStringWithResolver(
+    hocon: String,
+    sourceId: String,
+    includeResolver: String => Option[HoconParser.IncludedResource]
+  ): Either[ConfigError, ConfigSource] =
+    HoconParser.parseWithResolver(hocon, includeResolver).left.map(toConfigError(_, sourceId)).map { value =>
       val flat = HoconValue.flatten(value)
       ConfigSource.fromMap(flat, sourceId)
     }

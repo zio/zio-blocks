@@ -19,6 +19,7 @@ package zio.blocks.config
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import scala.jdk.CollectionConverters._
+import zio.blocks.maybe.Maybe
 
 /**
  * A scalar source of flag values.
@@ -33,7 +34,7 @@ trait FlagSource {
   /**
    * Resolve a raw string value by name together with provenance.
    */
-  def get(name: String): Option[SourceValue[String]]
+  def get(name: String): Maybe[SourceValue[String]]
 
   /**
    * Compose this source with a fallback. This source is consulted first; if it
@@ -44,7 +45,7 @@ trait FlagSource {
     new FlagSource {
       val sourceId: String = s"${self.sourceId}|${fallback.sourceId}"
 
-      def get(name: String): Option[SourceValue[String]] =
+      def get(name: String): Maybe[SourceValue[String]] =
         self.get(name).orElse(fallback.get(name))
     }
   }
@@ -77,8 +78,8 @@ object FlagSource {
       if (removed != null) ordered.remove(removed)
     }
 
-    def get(sourceId: String): Option[FlagSource] =
-      Option(byId.get(sourceId))
+    def get(sourceId: String): Maybe[FlagSource] =
+      Maybe.fromOption(Option(byId.get(sourceId)))
 
     def all: Seq[FlagSource] =
       ordered.asScala.toSeq
@@ -87,16 +88,14 @@ object FlagSource {
      * Resolve a flag name across all registered sources in registration order.
      * First Some wins.
      */
-    def resolve(flagName: String): Option[SourceValue[String]] = {
+    def resolve(flagName: String): Maybe[SourceValue[String]] = {
       val iter = ordered.iterator()
       while (iter.hasNext) {
         val source = iter.next()
-        source.get(flagName) match {
-          case some @ Some(_) => return some
-          case None           => ()
-        }
+        val result = source.get(flagName)
+        if (result.isPresent) return result
       }
-      None
+      Maybe.absent
     }
 
     /** Clear all registered sources (for testing). */
@@ -113,7 +112,9 @@ object FlagSource {
     new FlagSource {
       val sourceId: String = id
 
-      def get(name: String): Option[SourceValue[String]] =
-        map.get(name).map(value => SourceValue(value, Provenance.Resolved(sourceId, name, Some(value))))
+      def get(name: String): Maybe[SourceValue[String]] =
+        Maybe.fromOption(
+          map.get(name).map(value => SourceValue(value, Provenance.Resolved(sourceId, name, Maybe.present(value))))
+        )
     }
 }

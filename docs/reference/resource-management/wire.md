@@ -496,11 +496,7 @@ val appResource: Resource[App] = Resource.from[App](
   Wire(AppConfig("jdbc:postgres://localhost/db"))
 )
 
-Scope.global.scoped { scope =>
-  import scope._
-  val app = allocate(appResource)
-  $(app)(_.run())
-}
+appResource.use(_.run())
 ```
 
 When `Resource.from` composes wires, it respects the sharing strategy:

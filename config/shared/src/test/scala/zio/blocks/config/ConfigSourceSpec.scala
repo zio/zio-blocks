@@ -16,6 +16,7 @@
 
 package zio.blocks.config
 
+import zio.blocks.maybe.Maybe
 import zio.test._
 
 object ConfigSourceSpec extends ConfigBaseSpec {
@@ -35,7 +36,15 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result             = source.get("db.host")
       assertTrue(
         source.sourceId == "cfg",
-        result.map(_.value) == Some("localhost")
+        result.map(_.value) == Maybe.present("localhost")
+      )
+    },
+    test("ConfigSource.get is typed as Maybe") {
+      val source = ConfigSource.fromMap(Map("db.host" -> "localhost"), "cfg")
+      val result = source.get("db.host")
+      assertTrue(
+        result.isPresent,
+        result.get.value == "localhost"
       )
     }
   )
@@ -47,7 +56,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       assertTrue(
         result.isDefined,
         result.get.value == "localhost",
-        result.get.provenance == Provenance.Resolved("map", "db.host", Some("localhost"))
+        result.get.provenance == Provenance.Resolved("map", "db.host", Maybe.present("localhost"))
       )
     },
     test("get returns None for missing key") {
@@ -60,13 +69,13 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       assertTrue(
         result.isDefined,
         result.get.value == "",
-        result.get.provenance == Provenance.Resolved("map", "key", Some(""))
+        result.get.provenance == Provenance.Resolved("map", "key", Maybe.present(""))
       )
     },
     test("custom sourceId is used in provenance") {
       val source = ConfigSource.MapSource(Map("k" -> "v"), sourceId = "custom-map")
       val result = source.get("k")
-      assertTrue(result.get.provenance == Provenance.Resolved("custom-map", "k", Some("v")))
+      assertTrue(result.get.provenance == Provenance.Resolved("custom-map", "k", Maybe.present("v")))
     },
     test("getAll returns entries matching prefix") {
       val source = ConfigSource.fromMap(
@@ -104,7 +113,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result   = composed.get("key")
       assertTrue(
         result.get.value == "primary",
-        result.get.provenance == Provenance.Resolved("primary", "key", Some("primary"))
+        result.get.provenance == Provenance.Resolved("primary", "key", Maybe.present("primary"))
       )
     },
     test("returns value from fallback when primary is missing") {
@@ -114,7 +123,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result   = composed.get("key")
       assertTrue(
         result.get.value == "fallback",
-        result.get.provenance == Provenance.Resolved("fallback", "key", Some("fallback"))
+        result.get.provenance == Provenance.Resolved("fallback", "key", Maybe.present("fallback"))
       )
     },
     test("returns None when both sources are missing") {
@@ -137,9 +146,9 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       assertTrue(
         result.size == 2,
         result("db.host").value == "primary-host",
-        result("db.host").provenance == Provenance.Resolved("primary", "db.host", Some("primary-host")),
+        result("db.host").provenance == Provenance.Resolved("primary", "db.host", Maybe.present("primary-host")),
         result("db.port").value == "5432",
-        result("db.port").provenance == Provenance.Resolved("fallback", "db.port", Some("5432"))
+        result("db.port").provenance == Provenance.Resolved("fallback", "db.port", Maybe.present("5432"))
       )
     }
   )
@@ -170,8 +179,22 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result   = prefixed.getAll("db")
       assertTrue(
         result.size == 2,
-        result.contains("app.db.host"),
-        result.contains("app.db.port")
+        result.contains("db.host"),
+        result.contains("db.port"),
+        !result.contains("app.db.host"),
+        !result.contains("app.db.port")
+      )
+    },
+    test("getAll with empty prefix returns keys relative to wrapper root") {
+      val source   = ConfigSource.fromMap(Map("db.host" -> "localhost", "db.port" -> "5432", "other" -> "x"))
+      val prefixed = source.withPrefix("db")
+      val result   = prefixed.getAll("")
+      assertTrue(
+        result.size == 2,
+        result.contains("host"),
+        result.contains("port"),
+        !result.contains("db.host"),
+        !result.contains("db.port")
       )
     }
   )
@@ -208,6 +231,16 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val source = ConfigSource.fromMap(Map.empty, "test-source")
       val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
       assertTrue(mapped.sourceId == "test-source")
+    },
+    test("maps getAll keys back to canonical names") {
+      val source = ConfigSource.fromMap(Map("DATABASE_URL" -> "jdbc:postgres://localhost", "MAX_RETRIES" -> "3"))
+      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val result = mapped.getAll("")
+      assertTrue(
+        result.keySet == Set("databaseUrl", "maxRetries"),
+        result("databaseUrl").value == "jdbc:postgres://localhost",
+        result("maxRetries").value == "3"
+      )
     }
   )
 
@@ -223,6 +256,17 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     test("returns None for non-existent env var") {
       val result = EnvSource.get("zio.blocks.config.test.nonexistent.key.12345")
       assertTrue(result.isEmpty)
+    },
+    test("getAll returns logical keys instead of raw env variable names") {
+      val direct = EnvSource.get("path")
+      if (direct.isDefined) {
+        val result = EnvSource.getAll("path")
+        assertTrue(
+          result.contains("path"),
+          !result.contains("PATH"),
+          result("path").provenance == direct.get.provenance
+        )
+      } else assertTrue(true)
     }
   )
 

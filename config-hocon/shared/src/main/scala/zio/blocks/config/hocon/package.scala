@@ -16,4 +16,4 @@
 
 package zio.blocks.config
 
-package object hocon
+package object hocon extends ConfigSourceHoconSyntax with ConfigSourceHoconPlatformSyntax
