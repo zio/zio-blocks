@@ -195,6 +195,83 @@ object BatchProcessorSpec extends ZIOSpecDefault {
         processor.shutdown()
         pe.shutdown()
       }
+    },
+    test("enqueue after shutdown is silently rejected") {
+      val pe                   = PlatformExecutor.create()
+      val (exportFn, captured) = collectingExporter[String]()
+      val processor            =
+        new BatchProcessor[String](exportFn, executor = pe.executor, flushIntervalMillis = 600000L)
+      processor.enqueue("before")
+      processor.shutdown()
+      processor.enqueue("after")
+      processor.forceFlush()
+      pe.shutdown()
+      val items = captured.get().flatten
+      assertTrue(items.contains("before") && !items.contains("after"))
+    },
+    test("double shutdown is idempotent and does not throw") {
+      val pe                   = PlatformExecutor.create()
+      val (exportFn, captured) = collectingExporter[String]()
+      val processor            =
+        new BatchProcessor[String](exportFn, executor = pe.executor, flushIntervalMillis = 600000L)
+      processor.enqueue("x")
+      processor.shutdown()
+      processor.shutdown()
+      pe.shutdown()
+      val items = captured.get().flatten
+      assertTrue(items.contains("x"))
+    },
+    test("concurrent enqueue and forceFlush delivers all items") {
+      val pe                   = PlatformExecutor.create()
+      val (exportFn, captured) = collectingExporter[Int]()
+      val processor            =
+        new BatchProcessor[Int](exportFn, executor = pe.executor, maxBatchSize = 10, flushIntervalMillis = 600000L)
+      try {
+        val threads = (1 to 4).map { t =>
+          val thread = new Thread {
+            override def run(): Unit =
+              (1 to 250).foreach { i =>
+                processor.enqueue(t * 1000 + i)
+              }
+          }
+          thread.start()
+          thread
+        }
+        threads.foreach(_.join(5000))
+        processor.forceFlush()
+        val items = captured.get().flatten
+        assertTrue(items.size == 1000)
+      } finally {
+        processor.shutdown()
+        pe.shutdown()
+      }
+    },
+    test("shutdown during active retry terminates promptly") {
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        attempts.incrementAndGet()
+        ExportResult.Failure(retryable = true, message = "slow retry")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 50L
+        )
+      processor.enqueue("x")
+      val flushThread = new Thread {
+        override def run(): Unit = processor.forceFlush()
+      }
+      flushThread.start()
+      Thread.sleep(200)
+      processor.shutdown()
+      flushThread.join(5000)
+      pe.shutdown()
+      val totalAttempts = attempts.get()
+      assertTrue(totalAttempts >= 1 && totalAttempts < 100)
     }
   ) @@ TestAspect.sequential
 }

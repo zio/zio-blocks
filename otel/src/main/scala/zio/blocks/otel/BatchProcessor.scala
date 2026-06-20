@@ -21,7 +21,6 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
 
 sealed trait ExportResult
 
@@ -40,7 +39,6 @@ final class BatchProcessor[A](
   retryBaseMillis: Long = 1000L
 ) {
   private val queue: ConcurrentLinkedQueue[A] = new ConcurrentLinkedQueue[A]()
-  private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
 
   private val flushTask: Runnable = new Runnable {
@@ -53,11 +51,9 @@ final class BatchProcessor[A](
   def enqueue(item: A): Unit =
     if (!isShutdown.get()) {
       queue.add(item)
-      val size = queueSize.incrementAndGet()
-      if (size > maxQueueSize) {
+      if (queue.size() > maxQueueSize) {
         val removed = queue.poll()
         if (removed != null) {
-          queueSize.decrementAndGet()
           System.err.println(
             "[zio-blocks-otel] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
           )
@@ -91,7 +87,6 @@ final class BatchProcessor[A](
         count = max // exit loop
       } else {
         builder += item
-        queueSize.decrementAndGet()
         count += 1
       }
     }
@@ -110,11 +105,21 @@ final class BatchProcessor[A](
           System.err.println(
             "[zio-blocks-otel] BatchProcessor export failed after " + (attempt + 1) + " attempts: " + message + ". Dropping " + batch.size + " items."
           )
+        } else if (isShutdown.get()) {
+          System.err.println(
+            "[zio-blocks-otel] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
+          )
         } else {
           val delayMs = math.min(retryBaseMillis * (1L << attempt), 30000L)
-          try Thread.sleep(delayMs)
-          catch { case _: InterruptedException => Thread.currentThread().interrupt() }
-          exportWithRetry(batch, attempt + 1)
+          if (isShutdown.get()) {
+            System.err.println(
+              "[zio-blocks-otel] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
+            )
+          } else {
+            try Thread.sleep(delayMs)
+            catch { case _: InterruptedException => Thread.currentThread().interrupt() }
+            exportWithRetry(batch, attempt + 1)
+          }
         }
     }
 }
