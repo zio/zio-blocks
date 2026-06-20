@@ -57,10 +57,10 @@ object NameMapperSpec extends SchemaBaseSpec {
       assert(mapper("oOoo"))(equalTo("OOoo")) &&
       assert(mapper("oOoo1"))(equalTo("OOoo1")) &&
       assert(mapper("oOoo$"))(equalTo("OOoo$")) &&
-      assert(mapper("OO"))(equalTo("OO")) &&
+      assert(mapper("OO"))(equalTo("Oo")) &&
       assert(mapper("OOoo"))(equalTo("OOoo")) &&
       assert(mapper("OOoo1"))(equalTo("OOoo1")) &&
-      assert(mapper("OOOooo"))(equalTo("OOOooo")) &&
+      assert(mapper("OOOooo"))(equalTo("OoOooo")) &&
       assert(mapper("o-o"))(equalTo("OO")) &&
       assert(mapper("o-ooo"))(equalTo("OOoo")) &&
       assert(mapper("o-ooo-1"))(equalTo("OOoo1")) &&
