@@ -2170,6 +2170,7 @@ final class JsonReader private[json] (
       var hash, bs = 0L
       while (
         (pos + 7 < tail || {
+          bs = 0L
           var b = 0: Byte
           while ({
             if (pos >= tail) {
@@ -4329,6 +4330,7 @@ final class JsonReader private[json] (
         var hash, bs = 0L
         while (
           (pos + 7 < tail || {
+            bs = 0L
             while ({
               if (pos >= tail) {
                 pos = loadMoreOrError(pos)
@@ -4389,13 +4391,12 @@ final class JsonReader private[json] (
 
   private[this] def toZoneId(k: Key): ZoneId =
     try {
-      val zoneId = ZoneId.of(k.toString)
+      val zoneId           = ZoneId.of(k.toString)
+      val normalizedZoneId = zoneId.normalized
       if (
-        !zoneId.isInstanceOf[ZoneOffset] || // check if totalSeconds is divisible by 900
-        (zoneId.asInstanceOf[ZoneOffset].getTotalSeconds * 37283 & 0x1ff8000) == 0
-      ) {
-        zoneIds.put(k.copy, zoneId)
-      }
+        !normalizedZoneId.isInstanceOf[ZoneOffset] || // check if totalSeconds is divisible by 900
+        (normalizedZoneId.asInstanceOf[ZoneOffset].getTotalSeconds * 37283 & 0x1ff8000) == 0
+      ) zoneIds.put(k.copy, zoneId)
       return zoneId
     } catch {
       case _: DateTimeException => timezoneError()
