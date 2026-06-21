@@ -1251,7 +1251,7 @@ lazy val zioGolemSbt = project
     // sbt plugins compile against sbt's Scala (2.12)
     scalaVersion := "2.12.21",
     sbtVersion   := "1.12.0",
-    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.21.0"),
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0"),
     libraryDependencies += "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
     mimaPreviousArtifacts                  := Set()
   )
