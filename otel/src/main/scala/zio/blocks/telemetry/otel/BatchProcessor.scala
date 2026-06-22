@@ -17,12 +17,11 @@
 package zio.blocks.telemetry.otel
 
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 private[otel] final class BatchProcessor[A](
   exportFn: Seq[A] => ExportResult,
@@ -34,14 +33,8 @@ private[otel] final class BatchProcessor[A](
   retryBaseMillis: Long = 1000L
 ) extends AutoCloseable {
   private val queue: ConcurrentLinkedQueue[A] = new ConcurrentLinkedQueue[A]()
+  private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
-
-  /**
-   * Virtual thread executor for export tasks. Retry sleeps won't pin platform
-   * threads.
-   */
-  private val exportExecutor: ExecutorService =
-    Executors.newVirtualThreadPerTaskExecutor()
 
   private val flushTask: Runnable = new Runnable {
     def run(): Unit = doFlush()
@@ -53,9 +46,11 @@ private[otel] final class BatchProcessor[A](
   def enqueue(item: A): Unit =
     if (!isShutdown.get()) {
       queue.add(item)
-      if (queue.size() > maxQueueSize) {
+      val size = queueSize.incrementAndGet()
+      if (size > maxQueueSize) {
         val removed = queue.poll()
         if (removed != null) {
+          queueSize.decrementAndGet()
           System.err.println(
             "[zio-blocks-telemetry] BatchProcessor queue full (" + maxQueueSize + "). Dropping oldest item."
           )
@@ -69,7 +64,6 @@ private[otel] final class BatchProcessor[A](
     if (isShutdown.compareAndSet(false, true)) {
       scheduledFuture.cancel(false)
       doFlush()
-      exportExecutor.shutdown()
     }
 
   override def close(): Unit = shutdown()
@@ -79,20 +73,7 @@ private[otel] final class BatchProcessor[A](
     while (hasMore) {
       val batch = drain(maxBatchSize)
       hasMore = batch.nonEmpty
-      if (hasMore) {
-        val future = exportExecutor.submit(new Runnable {
-          def run(): Unit = exportWithRetry(batch, 0)
-        })
-        try future.get() // wait for export to complete
-        catch {
-          case _: InterruptedException =>
-            Thread.currentThread().interrupt()
-          case e: java.util.concurrent.ExecutionException =>
-            System.err.println(
-              "[zio-blocks-telemetry] BatchProcessor export threw: " + e.getCause.getMessage
-            )
-        }
-      }
+      if (hasMore) exportWithRetry(batch, 0)
     }
   }
 
@@ -105,6 +86,7 @@ private[otel] final class BatchProcessor[A](
         count = max // exit loop
       } else {
         builder += item
+        queueSize.decrementAndGet()
         count += 1
       }
     }
