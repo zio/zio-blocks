@@ -39,14 +39,15 @@ final class Attributes private (
 ) {
 
   private val cachedHash: Int = {
-    var h = 1
+    var h = 0
     var i = 0
     while (i < len) {
-      h = 31 * h + keys(i).hashCode
-      h = 31 * h + types(i)
-      h = 31 * h + java.lang.Long.hashCode(longs(i))
-      if (strings(i) != null) h = 31 * h + strings(i).hashCode
-      if (seqs != null && seqs(i) != null) h = 31 * h + seqs(i).hashCode
+      var entryHash = keys(i).hashCode
+      entryHash = 31 * entryHash + types(i)
+      entryHash = 31 * entryHash + java.lang.Long.hashCode(longs(i))
+      if (strings(i) != null) entryHash = 31 * entryHash + strings(i).hashCode
+      if (seqs != null && seqs(i) != null) entryHash = 31 * entryHash + seqs(i).hashCode
+      h += entryHash
       i += 1
     }
     h

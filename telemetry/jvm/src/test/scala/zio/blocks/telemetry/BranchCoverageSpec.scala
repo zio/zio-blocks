@@ -215,6 +215,57 @@ object BranchCoverageSpec extends ZIOSpecDefault {
       )
       assertTrue(result.decision == SamplingDecision.Drop, result.traceState == "rojo=0")
     },
+    test("dropped spans scope a child current context") {
+      val parent  = SpanContext.create(1L, 2L, SpanId(10L), TraceFlags.sampled, "", isRemote = true)
+      val storage = ContextStorage.create[Option[SpanContext]](Some(parent))
+      val tracer  = TracerProvider.builder.setContextStorage(storage).setSampler(AlwaysOffSampler).build().get("drop")
+
+      var seen: Option[SpanContext] = None
+      tracer.span("child") { _ =>
+        seen = tracer.currentSpan
+      }
+
+      assertTrue(
+        seen.isDefined,
+        seen.get.traceIdHi == parent.traceIdHi,
+        seen.get.traceIdLo == parent.traceIdLo,
+        seen.get.spanId != parent.spanId,
+        !seen.get.isSampled
+      )
+    },
+    test("root span reuses sampler trace id") {
+      val observed = ArrayBuffer.empty[(Long, Long)]
+      val sampler = new Sampler {
+        def shouldSample(
+          parentContext: Option[SpanContext],
+          traceIdHi: Long,
+          traceIdLo: Long,
+          name: String,
+          kind: SpanKind,
+          attributes: Attributes,
+          links: Seq[SpanLink]
+        ): SamplingResult = {
+          observed += ((traceIdHi, traceIdLo))
+          SamplingResult(SamplingDecision.RecordAndSample, Attributes.empty, "")
+        }
+        val description: String = "trace-capture"
+      }
+      val processor = new TestProcessor
+      val tracer = TracerProvider.builder
+        .setSampler(sampler)
+        .addSpanProcessor(processor)
+        .build()
+        .get("root")
+
+      tracer.span("root")(_ => ())
+
+      assertTrue(
+        observed.size == 1,
+        processor.started.nonEmpty,
+        processor.started.head.spanContext.traceIdHi == observed.head._1,
+        processor.started.head.spanContext.traceIdLo == observed.head._2
+      )
+    },
     test("RecordOnly with all attribute types") {
       val attrs = Attributes.builder
         .put(AttributeKey.string("s"), "v")

@@ -77,7 +77,18 @@ final class Tracer private[telemetry] (
 
     result.decision match {
       case SamplingDecision.Drop =>
-        f(Span.NoOp)
+        val droppedContext =
+          SpanContext.create(
+            traceIdHi = traceIdHi,
+            traceIdLo = traceIdLo,
+            spanId = SpanId.random,
+            traceFlags = TraceFlags.none,
+            traceState = result.traceState,
+            isRemote = false
+          )
+        contextStorage.scoped(Some(droppedContext)) {
+          f(Span.NoOp)
+        }
 
       case SamplingDecision.RecordOnly =>
         val recordOnlySpan =
@@ -88,7 +99,9 @@ final class Tracer private[telemetry] (
             attributes = attributes,
             samplingAttributes = result.attributes,
             traceFlags = TraceFlags.none,
-            traceState = result.traceState
+            traceState = result.traceState,
+            traceIdHi = traceIdHi,
+            traceIdLo = traceIdLo
           )
 
         processors.foreach(_.onStart(recordOnlySpan))
@@ -112,7 +125,9 @@ final class Tracer private[telemetry] (
             attributes = attributes,
             samplingAttributes = result.attributes,
             traceFlags = TraceFlags.sampled,
-            traceState = result.traceState
+            traceState = result.traceState,
+            traceIdHi = traceIdHi,
+            traceIdLo = traceIdLo
           )
 
         processors.foreach(_.onStart(finalSpan))
@@ -136,7 +151,9 @@ final class Tracer private[telemetry] (
     attributes: Attributes,
     samplingAttributes: Attributes,
     traceFlags: TraceFlags,
-    traceState: String
+    traceState: String,
+    traceIdHi: Long,
+    traceIdLo: Long
   ): RecordingSpan = {
     val builder =
       SpanBuilder(name).setKind(kind).setResource(resource).setInstrumentationScope(instrumentationScope)
@@ -151,7 +168,7 @@ final class Tracer private[telemetry] (
       putAttribute(builder, k, v)
     }
 
-    val span = builder.startSpan()
+    val span = builder.startSpan(traceIdHi, traceIdLo)
     new RecordingSpan(
       spanContext = span.spanContext.copy(
         traceFlags = traceFlags,

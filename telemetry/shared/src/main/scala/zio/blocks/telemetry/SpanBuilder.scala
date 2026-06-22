@@ -69,10 +69,7 @@ final class SpanBuilder private (
     this
   }
 
-  def startSpan(): Span = {
-    val (traceIdHi, traceIdLo) =
-      if (parentContext.isValid) (parentContext.traceIdHi, parentContext.traceIdLo)
-      else TraceId.random()
+  def startSpan(traceIdHi: Long, traceIdLo: Long): Span = {
 
     val spanId = SpanId.random
 
@@ -104,6 +101,14 @@ final class SpanBuilder private (
       resource = resource,
       instrumentationScope = instrumentationScope
     )
+  }
+
+  def startSpan(): Span = {
+    val (traceIdHi, traceIdLo) =
+      if (parentContext.isValid) (parentContext.traceIdHi, parentContext.traceIdLo)
+      else TraceId.random()
+
+    startSpan(traceIdHi, traceIdLo)
   }
 }
 

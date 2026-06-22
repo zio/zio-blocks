@@ -90,15 +90,15 @@ final class Logger private[telemetry] (
 
   def emit(logRecord: LogRecord): Unit =
     if (logRecord.severity.number >= processorMinLevel) {
-      try {
-        var i = 0
-        while (i < processors.length) {
+      var i = 0
+      while (i < processors.length) {
+        try {
           processors(i).onEmit(logRecord)
-          i += 1
+        } catch {
+          case NonFatal(e) =>
+            System.err.println(s"[zio-blocks-telemetry] logging error: ${e.getMessage}")
         }
-      } catch {
-        case NonFatal(e) =>
-          System.err.println(s"[zio-blocks-telemetry] logging error: ${e.getMessage}")
+        i += 1
       }
     }
 

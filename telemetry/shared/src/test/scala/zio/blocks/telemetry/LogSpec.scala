@@ -219,6 +219,29 @@ object LogSpec extends ZIOSpecDefault {
         )
       }
     ) @@ TestAspect.sequential,
+    test("processor failures do not stop later processors") {
+      val emitted = ArrayBuffer.empty[LogRecord]
+      val failing = new LogRecordProcessor {
+        def onEmit(logRecord: LogRecord): Unit = throw new RuntimeException("boom")
+        def shutdown(): Unit                   = ()
+        def forceFlush(): Unit                 = ()
+      }
+      val collecting = new LogRecordProcessor {
+        def onEmit(logRecord: LogRecord): Unit = emitted += logRecord
+        def shutdown(): Unit                   = ()
+        def forceFlush(): Unit                 = ()
+      }
+
+      val logger = LoggerProvider.builder
+        .addLogRecordProcessor(failing)
+        .addLogRecordProcessor(collecting)
+        .build()
+        .get("test")
+
+      logger.info("survives")
+
+      assertTrue(emitted.size == 1, emitted.head.body.value == "survives")
+    },
     suite("Hierarchical log levels")(
       test("specific prefix overrides general level") {
         val processor = withLogger(Severity.Warn) { _ =>
