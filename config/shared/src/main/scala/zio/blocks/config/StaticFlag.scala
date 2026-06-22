@@ -79,13 +79,10 @@ object StaticFlag {
     default: A,
     reader: Flag.Reader[A]
   ): (A, Flag.Source, Provenance) =
-    FlagSource.Registry.resolve(name) match {
-      case raw if raw.isPresent =>
-        val SourceValue(rawValue, provenance) = raw.get
-        val parsed                            = parseOrThrow(name, rawValue, reader)
-        (parsed, Flag.Source.FlagSourceValue(provenance.sourceId), provenance)
+    FlagSource.Registry
+      .resolve(name)
+      .fold[(A, Flag.Source, Provenance)] {
 
-      case _ =>
         val sysProp = System.getProperty(name)
         if (sysProp != null) {
           val parsed = parseOrThrow(name, sysProp, reader)
@@ -99,7 +96,11 @@ object StaticFlag {
             (default, Flag.Source.Default, Provenance.Default)
           }
         }
-    }
+      } { raw =>
+        val SourceValue(rawValue, provenance) = raw
+        val parsed                            = parseOrThrow(name, rawValue, reader)
+        (parsed, Flag.Source.FlagSourceValue(provenance.sourceId), provenance)
+      }
 
   private def parseOrThrow[A](name: String, rawValue: String, reader: Flag.Reader[A]): A =
     reader.parse(name, rawValue) match {

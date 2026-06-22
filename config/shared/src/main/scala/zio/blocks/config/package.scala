@@ -16,4 +16,6 @@
 
 package zio.blocks
 
-package object config extends SecretPackage
+package object config {
+  implicit def secretDisplayable: Displayable[Secret] = Secret.displayable
+}

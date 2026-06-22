@@ -45,14 +45,14 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
     if (binding.isInstanceOf[Binding[?, ?]]) Lazy {
       new ConfigDecoder[A] {
         def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A] =
-          source.get(prefix) match {
-            case cv if cv.isPresent => parsePrimitive(primitiveType, cv.get.value, prefix, source.sourceId)
-            case _                  =>
+          source
+            .get(prefix)
+            .fold[Either[::[ConfigError], A]] {
               defaultValue match {
                 case Some(v) => new Right(v)
                 case None    => new Left(new ::(ConfigError.MissingKey(prefix, source.sourceId), Nil))
               }
-          }
+            }(cv => parsePrimitive(primitiveType, cv.value, prefix, source.sourceId))
       }
     }
     else binding.asInstanceOf[BindingInstance[TC, ?, A]].instance
@@ -167,9 +167,12 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
             def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], A] = {
               val dk      = discriminatorKey
               val typeKey = if (prefix.isEmpty) dk else s"$prefix.$dk"
-              source.get(typeKey) match {
-                case cv if cv.isPresent =>
-                  val raw = cv.get.value
+              source
+                .get(typeKey)
+                .fold[Either[::[ConfigError], A]] {
+                  new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, dk), Nil))
+                } { cv =>
+                  val raw = cv.value
                   decoderMap.get(raw) match {
                     case Some(decoder) => decoder.decode(source, prefix)
                     case None          =>
@@ -180,9 +183,7 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
                         )
                       )
                   }
-                case _ =>
-                  new Left(new ::(ConfigError.MissingDiscriminatorKey(prefix, dk), Nil))
-              }
+                }
             }
           }
         }
@@ -215,7 +216,7 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
             var continue = true
             while (continue) {
               val elemKey   = if (prefix.isEmpty) idx.toString else s"$prefix.$idx"
-              val hasKey    = source.get(elemKey).isPresent
+              val hasKey    = source.get(elemKey).fold(false)(_ => true)
               val hasSubKey = allKeys.keysIterator.exists { k =>
                 k == elemKey || k.startsWith(elemKey + ".")
               }
@@ -230,9 +231,9 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
               }
             }
             if (idx == 0 && errors.isEmpty) {
-              source.get(prefix) match {
-                case cv if cv.isPresent && cv.get.value.nonEmpty =>
-                  val parts   = cv.get.value.split(",").map(_.trim)
+              source.get(prefix).fold(()) { cv =>
+                if (cv.value.nonEmpty) {
+                  val parts   = cv.value.split(",").map(_.trim)
                   var partIdx = 0
                   while (partIdx < parts.length) {
                     val partSource = ConfigSource.fromMap(Map(prefix -> parts(partIdx)), source.sourceId)
@@ -242,7 +243,7 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
                     }
                     partIdx += 1
                   }
-                case _ => ()
+                }
               }
             }
             errors match {

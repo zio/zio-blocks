@@ -97,22 +97,20 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
 
   def reload(): Flag.ReloadResult = {
     val resolved = FlagSource.Registry.resolve(name)
-    resolved match {
-      case raw if raw.isAbsent => Flag.ReloadResult.NoSource
-      case raw                 =>
-        val SourceValue(rawValue, _) = raw.get
-        val trimmed                  = rawValue.trim
-        if (trimmed == _snapshot.expression) Flag.ReloadResult.Unchanged
-        else
-          Rollout.parseChoices(trimmed) match {
-            case Right(choices) =>
-              val oldExpr = _snapshot.expression
-              _snapshot = DynamicFlag.Snapshot(trimmed, choices, default, reader)
-              recordUpdate(oldExpr, trimmed)
-              Flag.ReloadResult.Updated(oldExpr, trimmed)
-            case Left(err) =>
-              Flag.ReloadResult.Failed(err)
-          }
+    resolved.fold[Flag.ReloadResult](Flag.ReloadResult.NoSource) { raw =>
+      val SourceValue(rawValue, _) = raw
+      val trimmed                  = rawValue.trim
+      if (trimmed == _snapshot.expression) Flag.ReloadResult.Unchanged
+      else
+        Rollout.parseChoices(trimmed) match {
+          case Right(choices) =>
+            val oldExpr = _snapshot.expression
+            _snapshot = DynamicFlag.Snapshot(trimmed, choices, default, reader)
+            recordUpdate(oldExpr, trimmed)
+            Flag.ReloadResult.Updated(oldExpr, trimmed)
+          case Left(err) =>
+            Flag.ReloadResult.Failed(err)
+        }
     }
   }
 
@@ -155,16 +153,13 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
         attributes.foreach { a => sb.append('/'); sb.append(a) }
         sb.toString
       }
-    Rollout.evaluateIndex(snap.choices, path, bucket) match {
-      case raw if raw.isPresent =>
-        val rawValue = raw.get
-        snap.reader.parse(name, rawValue) match {
-          case Right(v) => v
-          case Left(_)  =>
-            _parseErrorCount.increment()
-            snap.default
-        }
-      case _ => snap.default
+    Rollout.evaluateIndex(snap.choices, path, bucket).fold(snap.default) { rawValue =>
+      snap.reader.parse(name, rawValue) match {
+        case Right(v) => v
+        case Left(_)  =>
+          _parseErrorCount.increment()
+          snap.default
+      }
     }
   }
 
@@ -248,9 +243,9 @@ object DynamicFlag {
     envName: String,
     defaultExpression: String
   ): String =
-    FlagSource.Registry.resolve(name) match {
-      case raw if raw.isPresent => raw.get.value
-      case _                    =>
+    FlagSource.Registry
+      .resolve(name)
+      .fold {
         val sysProp = System.getProperty(name)
         if (sysProp != null) sysProp
         else {
@@ -258,7 +253,7 @@ object DynamicFlag {
           if (envVal != null) envVal
           else defaultExpression
         }
-    }
+      }(_.value)
 
   private[config] def initSnapshot[A](
     name: String,

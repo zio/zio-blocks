@@ -89,13 +89,14 @@ object FlagSource {
      * First Some wins.
      */
     def resolve(flagName: String): Maybe[SourceValue[String]] = {
-      val iter = ordered.iterator()
-      while (iter.hasNext) {
+      val iter                                 = ordered.iterator()
+      var resolved: Maybe[SourceValue[String]] = Maybe.absent
+      while (iter.hasNext && resolved.isAbsent) {
         val source = iter.next()
         val result = source.get(flagName)
-        if (result.isPresent) return result
+        resolved = result.fold(resolved)(_ => result)
       }
-      Maybe.absent
+      resolved
     }
 
     /** Clear all registered sources (for testing). */

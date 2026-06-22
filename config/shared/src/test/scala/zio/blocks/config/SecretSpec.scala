@@ -36,6 +36,9 @@ object SecretSpec extends ZIOSpecDefault {
     test("Secret displayable redacts values") {
       val displayable = Secret.displayable
       assertTrue(displayable.display(Secret("token")) == "<secret>")
+    },
+    test("Secret toString redacts values") {
+      assertTrue(Secret("hunter2").toString == "<secret>")
     }
   )
 }

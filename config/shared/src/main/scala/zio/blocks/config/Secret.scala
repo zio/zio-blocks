@@ -16,12 +16,21 @@
 
 package zio.blocks.config
 
-private[config] trait Tag
+final class Secret private (private val value: String) {
+  override def toString: String = "<secret>"
 
-trait SecretPackage extends SecretPackageBase {
-  type Secret = String with Tag
+  override def hashCode: Int = value.hashCode
 
-  protected def secretApply(value: String): Secret = value.asInstanceOf[Secret]
+  override def equals(obj: Any): Boolean = obj match {
+    case other: Secret => value == other.value
+    case _             => false
+  }
+}
 
-  protected def secretUnwrap(secret: Secret): String = secret.asInstanceOf[String]
+object Secret {
+  def apply(value: String): Secret = new Secret(value)
+
+  def unwrap(secret: Secret): String = secret.value
+
+  def displayable: Displayable[Secret] = Displayable.instance(_ => "<secret>")
 }
