@@ -41,7 +41,7 @@ object W3CTraceContextPropagator extends Propagator {
     for {
       raw        <- getter(carrier, TraceparentHeader)
       traceparent = raw.trim
-      _          <- if (traceparent.length == TraceparentLength) Some(()) else None
+      _          <- if (traceparent.length >= TraceparentLength) Some(()) else None
       _          <- if (traceparent.charAt(2) == '-' && traceparent.charAt(35) == '-' && traceparent.charAt(52) == '-') Some(())
            else None
       version         = traceparent.substring(0, 2)

@@ -18,6 +18,8 @@ package zio.blocks.telemetry.otel
 
 private[otel] object OtlpJsonExporter {
 
-  private[otel] def mergeHeaders(config: ExporterConfig): Map[String, String] =
-    config.headers + ("Content-Type" -> "application/json")
+  private[otel] def mergeHeaders(config: ExporterConfig): Map[String, String] = {
+    val filtered = config.headers.filterNot { case (k, _) => k.equalsIgnoreCase("Content-Type") }
+    filtered + ("Content-Type" -> "application/json")
+  }
 }

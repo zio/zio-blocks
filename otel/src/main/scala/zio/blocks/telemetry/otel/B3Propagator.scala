@@ -48,7 +48,7 @@ object B3Propagator {
    * IDs are left-padded with zeros to 32 characters.
    */
   private[otel] def normalizeTraceId(hex: String): Option[(Long, Long)] = {
-    val lower  = hex.toLowerCase
+    val lower  = hex.toLowerCase(java.util.Locale.ROOT)
     val padded =
       if (lower.length == 16) "0000000000000000" + lower
       else if (lower.length == 32) lower
@@ -78,7 +78,7 @@ object B3Propagator {
                 for {
                   (tidHi, tidLo) <- normalizeTraceId(parts(0))
                   if TraceId.isValid(tidHi, tidLo)
-                  spanId <- SpanId.fromHex(parts(1).toLowerCase)
+                  spanId <- SpanId.fromHex(parts(1).toLowerCase(java.util.Locale.ROOT))
                   if spanId.isValid
                 } yield {
                   val flags = if (parts.length >= 3) {
@@ -108,10 +108,9 @@ object B3Propagator {
     private val TraceIdHeader      = "X-B3-TraceId"
     private val SpanIdHeader       = "X-B3-SpanId"
     private val SampledHeader      = "X-B3-Sampled"
-    private val ParentSpanIdHeader = "X-B3-ParentSpanId"
-    private val FlagsHeader        = "X-B3-Flags"
+    private val FlagsHeader = "X-B3-Flags"
 
-    override val fields: Seq[String] = Seq(TraceIdHeader, SpanIdHeader, SampledHeader, ParentSpanIdHeader, FlagsHeader)
+    override val fields: Seq[String] = Seq(TraceIdHeader, SpanIdHeader, SampledHeader)
 
     override def extract[C](carrier: C, getter: (C, String) => Option[String]): Option[SpanContext] =
       for {
@@ -119,7 +118,7 @@ object B3Propagator {
         (tidHi, tidLo) <- normalizeTraceId(traceIdRaw.trim)
         _              <- if (TraceId.isValid(tidHi, tidLo)) Some(()) else None
         spanIdRaw      <- getter(carrier, SpanIdHeader)
-        spanId         <- SpanId.fromHex(spanIdRaw.trim.toLowerCase)
+        spanId         <- SpanId.fromHex(spanIdRaw.trim.toLowerCase(java.util.Locale.ROOT))
         _              <- if (spanId.isValid) Some(()) else None
       } yield {
         val debug   = getter(carrier, FlagsHeader).exists(_.trim == "1")

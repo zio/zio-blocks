@@ -23,8 +23,11 @@ import java.time.Duration
 final case class HttpResponse(
   statusCode: Int,
   body: Array[Byte],
-  headers: Map[String, String]
-)
+  headers: Map[String, Seq[String]]
+) {
+  def firstHeader(name: String): Option[String] =
+    headers.get(name).flatMap(_.headOption)
+}
 
 trait HttpSender {
   def send(url: String, headers: Map[String, String], body: Array[Byte]): HttpResponse
@@ -58,11 +61,14 @@ private[otel] final class JdkHttpSender(
     val request  = builder.build()
     val response = client.send(request, JdkHttpResponse.BodyHandlers.ofByteArray())
 
-    val responseHeaders = scala.collection.mutable.Map[String, String]()
-    response.headers().map().forEach { case (name, values) =>
-      if (!values.isEmpty) {
-        responseHeaders(name) = values.get(0)
-      }
+    val responseHeaders = scala.collection.mutable.Map[String, Seq[String]]()
+    val it = response.headers().map().entrySet().iterator()
+    while (it.hasNext) {
+      val entry = it.next()
+      val values = new scala.collection.mutable.ArrayBuffer[String](entry.getValue.size())
+      val vit = entry.getValue.iterator()
+      while (vit.hasNext) values += vit.next()
+      responseHeaders(entry.getKey) = values.toSeq
     }
 
     HttpResponse(

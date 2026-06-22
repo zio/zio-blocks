@@ -248,9 +248,7 @@ object B3PropagatorSpec extends ZIOSpecDefault {
         B3Propagator.multi.fields == Seq(
           "X-B3-TraceId",
           "X-B3-SpanId",
-          "X-B3-Sampled",
-          "X-B3-ParentSpanId",
-          "X-B3-Flags"
+          "X-B3-Sampled"
         )
       )
     }
