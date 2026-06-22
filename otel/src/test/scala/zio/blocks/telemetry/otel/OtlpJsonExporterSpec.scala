@@ -37,7 +37,7 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           val current = captured.get()
           done = captured.compareAndSet(current, current :+ ((url, headers, body)))
         }
-        HttpResponse(200, Array.empty[Byte], Map.empty)
+        HttpResponse(200, Array.empty[Byte], Map.empty[String, Seq[String]])
       }
       def shutdown(): Unit = ()
     }
@@ -46,7 +46,7 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
 
   private def mockHttpSenderWithStatus(statusCode: Int): HttpSender = new HttpSender {
     def send(url: String, headers: Map[String, String], body: Array[Byte]): HttpResponse =
-      HttpResponse(statusCode, Array.empty[Byte], Map.empty)
+      HttpResponse(statusCode, Array.empty[Byte], Map.empty[String, Seq[String]])
     def shutdown(): Unit = ()
   }
 
@@ -428,53 +428,53 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     ),
     suite("Response mapping")(
       test("200 maps to Success") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(200, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(200, Array.empty, Map.empty[String, Seq[String]]))
         assertTrue(result == ExportResult.Success)
       },
       test("429 maps to retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(429, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(429, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("502 maps to retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(502, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(502, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("503 maps to retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(503, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(503, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("504 maps to retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(504, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(504, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("400 maps to non-retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(400, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(400, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(!retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("500 maps to non-retryable Failure") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(500, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(500, Array.empty, Map.empty[String, Seq[String]]))
         result match {
           case ExportResult.Failure(retryable, _) => assertTrue(!retryable)
           case _                                  => assertTrue(false)
         }
       },
       test("201 maps to Success") {
-        val result = ExportResult.fromHttpResponse(HttpResponse(201, Array.empty, Map.empty))
+        val result = ExportResult.fromHttpResponse(HttpResponse(201, Array.empty, Map.empty[String, Seq[String]]))
         assertTrue(result == ExportResult.Success)
       }
     ),

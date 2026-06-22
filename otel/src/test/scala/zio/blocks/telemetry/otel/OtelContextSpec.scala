@@ -155,7 +155,7 @@ object OtelContextSpec extends ZIOSpecDefault {
     suite("Tracer integration")(
       test("OtelContext.current captures span context set by Tracer") {
         val storage   = ContextStorage.create[Option[SpanContext]](None)
-        val processor = new TestSpanProcessor
+        val processor = SpanProcessor.noop
         val tracer    = makeTracer(processor, storage)
 
         var captured: OtelContext = null
@@ -171,13 +171,6 @@ object OtelContextSpec extends ZIOSpecDefault {
       }
     )
   )
-
-  private class TestSpanProcessor extends SpanProcessor {
-    def onStart(span: Span): Unit       = ()
-    def onEnd(spanData: SpanData): Unit = ()
-    def shutdown(): Unit                = ()
-    def forceFlush(): Unit              = ()
-  }
 
   private def makeSpan(sc: SpanContext): Span = new Span {
     val spanContext: SpanContext = sc

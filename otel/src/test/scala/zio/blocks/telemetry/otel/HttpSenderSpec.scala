@@ -26,19 +26,19 @@ object HttpSenderSpec extends ZIOSpecDefault {
       val response = HttpResponse(
         statusCode = 200,
         body = "test body".getBytes(),
-        headers = Map("content-type" -> "application/json")
+        headers = Map("content-type" -> Seq("application/json"))
       )
       assertTrue(
         response.statusCode == 200 &&
           response.body.sameElements("test body".getBytes()) &&
-          response.headers.get("content-type").contains("application/json")
+          response.firstHeader("content-type").contains("application/json")
       )
     },
     test("HttpResponse case class with empty body") {
       val response = HttpResponse(
         statusCode = 204,
         body = Array.empty[Byte],
-        headers = Map.empty[String, String]
+        headers = Map.empty[String, Seq[String]]
       )
       assertTrue(
         response.statusCode == 204 &&
@@ -51,16 +51,27 @@ object HttpSenderSpec extends ZIOSpecDefault {
         statusCode = 201,
         body = Array.empty[Byte],
         headers = Map(
-          "x-header-1"   -> "value1",
-          "x-header-2"   -> "value2",
-          "content-type" -> "text/plain"
+          "x-header-1"   -> Seq("value1"),
+          "x-header-2"   -> Seq("value2"),
+          "content-type" -> Seq("text/plain")
         )
       )
       assertTrue(
         response.headers.size == 3 &&
-          response.headers.get("x-header-1").contains("value1") &&
-          response.headers.get("x-header-2").contains("value2") &&
-          response.headers.get("content-type").contains("text/plain")
+          response.firstHeader("x-header-1").contains("value1") &&
+          response.firstHeader("x-header-2").contains("value2") &&
+          response.firstHeader("content-type").contains("text/plain")
+      )
+    },
+    test("HttpResponse preserves multi-value headers") {
+      val response = HttpResponse(
+        statusCode = 200,
+        body = Array.empty[Byte],
+        headers = Map("set-cookie" -> Seq("a=1", "b=2"))
+      )
+      assertTrue(
+        response.headers("set-cookie").size == 2 &&
+          response.firstHeader("set-cookie").contains("a=1")
       )
     },
     test("JdkHttpSender construction with default timeout") {
@@ -71,10 +82,10 @@ object HttpSenderSpec extends ZIOSpecDefault {
       val sender = new JdkHttpSender(timeout = Duration.ofSeconds(60))
       assertTrue(sender != null)
     },
-    test("JdkHttpSender shutdown completes without error") {
+    test("JdkHttpSender shutdown is callable") {
       val sender = new JdkHttpSender()
-      val result = sender.shutdown()
-      assertTrue(result == ())
+      sender.shutdown()
+      assertTrue(true)
     }
   )
 }
