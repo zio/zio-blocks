@@ -32,9 +32,9 @@ import zio.blocks.mux._
 
   val mux    = Mux[Int, String, String](100)
   val stream = mux.open(1) match {
-    case s: MuxStream[?, ?, ?] =>
+    case s: MuxStream[Int, String, String] =>
       println("✓ Stream 1 opened")
-      s.asInstanceOf[MuxStream[Int, String, String]]
+      s
     case error: MuxError =>
       println(s"✗ Failed to open stream: $error")
       sys.exit(1)
@@ -46,8 +46,16 @@ import zio.blocks.mux._
 
   // --- Send some messages before closing ---
   println("Sending messages...")
-  stream.send("msg-1")
-  stream.send("msg-2")
+  stream.send("msg-1") match {
+    case ()              => ()
+    case error: MuxError =>
+      println(s"  Failed to send 'msg-1': $error")
+  }
+  stream.send("msg-2") match {
+    case ()              => ()
+    case error: MuxError =>
+      println(s"  Failed to send 'msg-2': $error")
+  }
   println("  Sent 2 messages\n")
 
   // --- Local side signals it's done sending ---
@@ -57,13 +65,30 @@ import zio.blocks.mux._
 
   // After halfClose, we can still receive buffered messages
   println("\nCan still receive buffered messages after halfClose:")
-  stream.offerInbound("buffered-response-1")
-  stream.offerInbound("buffered-response-2")
+  stream.offerInbound("buffered-response-1") match {
+    case ()              => ()
+    case error: MuxError =>
+      println(s"  Failed to offer 'buffered-response-1': $error")
+  }
+  stream.offerInbound("buffered-response-2") match {
+    case ()              => ()
+    case error: MuxError =>
+      println(s"  Failed to offer 'buffered-response-2': $error")
+  }
 
-  val msg1 = stream.receive()
-  val msg2 = stream.receive()
-  println(f"  Received: $msg1")
-  println(f"  Received: $msg2\n")
+  val msg1Result = stream.receive()
+  val msg2Result = stream.receive()
+  msg1Result match {
+    case Some(msg)       => println(f"  Received: $msg")
+    case None            => println("  (no message in queue)")
+    case error: MuxError => println(f"  Error: $error")
+  }
+  msg2Result match {
+    case Some(msg)       => println(f"  Received: $msg")
+    case None            => println("  (no message in queue)")
+    case error: MuxError => println(f"  Error: $error")
+  }
+  println()
 
   // But cannot send new messages
   println("Attempting to send after halfClose:")
@@ -93,9 +118,9 @@ import zio.blocks.mux._
   // --- Explicit close example ---
   println("Example 2: Forcibly closing a stream")
   val stream2 = mux.open(2) match {
-    case s: MuxStream[?, ?, ?] =>
+    case s: MuxStream[Int, String, String] =>
       println(f"  Stream 2 created: isClosed: ${s.isClosed}")
-      s.asInstanceOf[MuxStream[Int, String, String]]
+      s
     case error: MuxError =>
       println(s"  Failed to open stream 2: $error")
       sys.exit(1)

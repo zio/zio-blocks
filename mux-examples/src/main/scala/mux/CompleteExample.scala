@@ -45,15 +45,21 @@ import zio.blocks.mux._
       case 4 => "GET /api/comments"
     }
     mux.open(streamId) match {
-      case s: MuxStream[?, ?, ?] =>
-        Some((streamId, route, s.asInstanceOf[MuxStream[Int, String, String]]))
+      case s: MuxStream[Int, String, String] =>
+        Some((streamId, route, s))
       case error: MuxError =>
         println(s"✗ Failed to open stream $streamId: $error")
         None
     }
   }
 
-  println("Opened 4 streams for concurrent requests:")
+  // Validate that all streams opened successfully
+  if (requests.isEmpty) {
+    println("✗ Failed to open any streams")
+    sys.exit(1)
+  }
+
+  println(s"Opened ${requests.length} streams for concurrent requests:")
   requests.foreach { (id, route, _) =>
     println(f"  Stream $id: $route")
   }
@@ -61,8 +67,12 @@ import zio.blocks.mux._
   // Send requests
   println("\nSending HTTP requests:")
   requests.foreach { (id, route, stream) =>
-    stream.send(route)
-    println(f"  Stream $id: sent '$route'")
+    stream.send(route) match {
+      case () =>
+        println(f"  Stream $id: sent '$route'")
+      case error: MuxError =>
+        println(f"  Stream $id: failed to send '$route': $error")
+    }
   }
 
   // Simulate protocol draining outbound queue and sending responses
@@ -78,12 +88,16 @@ import zio.blocks.mux._
           case 3 => "201 Created: User 4 added"
           case 4 => "200 OK: [comment1, comment2]"
         }
-        stream.offerInbound(response)
-        println(f"  Stream $id: response delivered")
+        stream.offerInbound(response) match {
+          case () =>
+            println(f"  Stream $id: response delivered")
+          case error: MuxError =>
+            println(f"  Stream $id: failed to deliver response: $error")
+        }
       case None =>
         println(f"  Stream $id: no message in queue")
-      case error: MuxError =>
-        println(f"  Stream $id: error taking outbound: $error")
+      case _: MuxError =>
+        println(f"  Stream $id: stream is closed")
     }
   }
 
@@ -102,27 +116,35 @@ import zio.blocks.mux._
 
   // Close some streams to free capacity
   println(f"\nActive streams before cleanup: ${mux.activeCount}")
-  requests.head._3.close() // Close stream 1
-  requests(1)._3.close()   // Close stream 2
-  println("Closed streams 1 and 2")
+  val streamsToClose = requests.take(2)
+  streamsToClose.foreach { case (_, _, stream) =>
+    stream.close()
+  }
+  println(f"Closed ${streamsToClose.length} streams")
   println(f"Active streams after cleanup: ${mux.activeCount}\n")
 
   // Now we can open new requests (because we freed capacity)
   println("Capacity freed - opening new streams:")
   mux.open(5) match {
-    case stream5: MuxStream[?, ?, ?] =>
-      val s = stream5.asInstanceOf[MuxStream[Int, String, String]]
-      s.send("PATCH /api/users/3")
-      println(f"  Opened stream 5: PATCH /api/users/3")
+    case stream5: MuxStream[Int, String, String] =>
+      stream5.send("PATCH /api/users/3") match {
+        case () =>
+          println(f"  Opened stream 5: sent PATCH /api/users/3")
+        case error: MuxError =>
+          println(f"  Opened stream 5 but failed to send: $error")
+      }
     case error: MuxError =>
       println(f"  Failed to open stream 5: $error")
   }
 
   mux.open(6) match {
-    case stream6: MuxStream[?, ?, ?] =>
-      val s = stream6.asInstanceOf[MuxStream[Int, String, String]]
-      s.send("DELETE /api/posts/2")
-      println(f"  Opened stream 6: DELETE /api/posts/2")
+    case stream6: MuxStream[Int, String, String] =>
+      stream6.send("DELETE /api/posts/2") match {
+        case () =>
+          println(f"  Opened stream 6: sent DELETE /api/posts/2")
+        case error: MuxError =>
+          println(f"  Opened stream 6 but failed to send: $error")
+      }
     case error: MuxError =>
       println(f"  Failed to open stream 6: $error")
   }
@@ -142,9 +164,9 @@ import zio.blocks.mux._
   // Simulate backpressure on a single stream
   println("Demonstrating backpressure handling:")
   println("  Filling stream 3's outbound queue with many messages...")
-  val stream3       = requests(2)._3
-  var sendCount     = 0
-  var backpressured = false
+  val (_, _, stream3) = requests(2)
+  var sendCount       = 0
+  var backpressured   = false
   while (!backpressured) {
     stream3.send(f"data-chunk-$sendCount") match {
       case () =>
@@ -157,10 +179,20 @@ import zio.blocks.mux._
 
   // Clear some messages
   println("Draining messages to relieve backpressure:")
+  var drainCount = 0
   (0 until 5).foreach { _ =>
-    stream3.takeOutbound()
+    stream3.takeOutbound() match {
+      case Some(_) =>
+        drainCount += 1
+      case None =>
+        // Queue empty
+        ()
+      case _: MuxError =>
+        // Error during drain
+        ()
+    }
   }
-  println("  Drained 5 messages")
+  println(f"  Drained $drainCount messages")
 
   stream3.send("resumed-sending") match {
     case () =>

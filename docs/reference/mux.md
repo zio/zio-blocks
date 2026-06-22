@@ -57,7 +57,19 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-mux" % "@VERSION@"
 
 Supported Scala versions: 2.13.x and 3.x
 
+:::tip[Getting Started]
+New to Mux? Check out the [Getting Started with Mux](../guides/getting-started-with-mux.md) tutorial for a comprehensive step-by-step guide that teaches you the core concepts, common patterns, and best practices. The tutorial is designed for newcomers and includes runnable examples.
+:::
+
 ## Overview
+
+**IMPORTANT: Error Handling with Union Types and Either**
+
+In Scala 3, methods return union types (e.g., `Option[Out] | MuxError`). In Scala 2, they return `Either[MuxError, Option[Out]]`. You must use pattern matching to safely handle all branches:
+- Success cases: `Some(msg)` or `None` (in Scala 3) / `Right(Some(msg))` or `Right(None)` (in Scala 2)
+- Error cases: `MuxError` (in Scala 3) / `Left(error)` (in Scala 2)
+
+Using higher-order functions like `.forEach()` or `.map()` without pattern matching will silently ignore error conditions and lose error information. Always explicitly pattern-match on all branches to handle both success and failure paths correctly.
 
 The multiplexer has three core concepts:
 
@@ -145,24 +157,83 @@ The architecture shows how application code, mux streams, and protocol layers in
 
 The mux holds multiple streams in a concurrent map. Each stream can be accessed independently:
 
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
 ```scala
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](100)
-val s1 = mux.open(1) match {
-  case s: MuxStream[_, _, _] => s.asInstanceOf[MuxStream[Int, String, String]]
-  case error: MuxError => throw new RuntimeException(s"Failed: $error")
+val s1: Either[MuxError, MuxStream[Int, String, String]] = mux.open(1)
+val stream1 = s1 match {
+  case Right(s) => s
+  case Left(error) => throw new RuntimeException(s"Failed: $error")
 }
-val s2 = mux.open(2) match {
-  case s: MuxStream[_, _, _] => s.asInstanceOf[MuxStream[Int, String, String]]
+
+val s2: Either[MuxError, MuxStream[Int, String, String]] = mux.open(2)
+val stream2 = s2 match {
+  case Right(s) => s
+  case Left(error) => throw new RuntimeException(s"Failed: $error")
+}
+
+stream1.send("hello")
+stream2.send("world")
+mux.get(1).foreach { stream =>
+  stream.receive() match {
+    case Right(Some(msg)) => println(s"Received: $msg")
+    case Right(None) => println("No message yet")
+    case Left(error) => println(s"Error: $error")
+  }
+}
+mux.get(2).foreach { stream =>
+  stream.receive() match {
+    case Right(Some(msg)) => println(s"Received: $msg")
+    case Right(None) => println("No message yet")
+    case Left(error) => println(s"Error: $error")
+  }
+}
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+
+val s1: MuxStream[Int, String, String] | MuxError = mux.open(1)
+val stream1 = s1 match {
+  case s: MuxStream[Int, String, String] => s
   case error: MuxError => throw new RuntimeException(s"Failed: $error")
 }
 
-s1.send("hello")
-s2.send("world")
-mux.get(1).foreach(_.receive())
-mux.get(2).foreach(_.receive())
+val s2: MuxStream[Int, String, String] | MuxError = mux.open(2)
+val stream2 = s2 match {
+  case s: MuxStream[Int, String, String] => s
+  case error: MuxError => throw new RuntimeException(s"Failed: $error")
+}
+
+stream1.send("hello")
+stream2.send("world")
+mux.get(1).foreach { stream =>
+  stream.receive() match {
+    case Some(msg) => println(s"Received: $msg")
+    case None => println("No message yet")
+    case error: MuxError => println(s"Error: $error")
+  }
+}
+mux.get(2).foreach { stream =>
+  stream.receive() match {
+    case Some(msg) => println(s"Received: $msg")
+    case None => println("No message yet")
+    case error: MuxError => println(s"Error: $error")
+  }
+}
 ```
+
+  </TabItem>
+</Tabs>
 
 ## Common Patterns
 
@@ -332,6 +403,23 @@ The capacity must be positive; zero or negative capacity throws `IllegalArgument
 
 Opening a stream with error handling:
 
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+
+mux.open(1) match {
+  case Right(stream) => println(s"Stream ${stream.id} opened")
+  case Left(error) => println(s"Failed: $error")
+}
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
 ```scala
 import zio.blocks.mux._
 
@@ -342,6 +430,9 @@ mux.open(1) match {
   case error: MuxError => println(s"Failed: $error")
 }
 ```
+
+  </TabItem>
+</Tabs>
 
 **`def get(id: Id): Option[MuxStream[Id, In, Out]]`** — Retrieve an existing stream by ID. Returns `Some(stream)` if the stream is open, `None` otherwise. This is a non-blocking lookup and does not modify any state.
 
@@ -456,6 +547,24 @@ Returns `Unit` on success, or an error if:
 
 Sending a message on a stream:
 
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+val stream = mux.open(1) match {
+  case Right(s) => s
+  case Left(_) => sys.error("open failed")
+}
+
+val sendResult = stream.send("hello")
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
+
 ```scala
 import zio.blocks.mux._
 
@@ -468,6 +577,9 @@ val stream = mux.open(1) match {
 val sendResult = stream.send("hello")
 ```
 
+  </TabItem>
+</Tabs>
+
 **`def receive(): Option[Out] | MuxError`** (Scala 3) / **`def receive(): Either[MuxError, Option[Out]]`** (Scala 2) — Receive a message from the inbound queue. This is non-blocking: it returns immediately with whatever is available.
 
 Returns:
@@ -476,6 +588,24 @@ Returns:
 - A `MuxError` if the stream is closed (queue has drained and a terminal error is set)
 
 Use this in a polling loop or with a reactor to wait for messages:
+
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+val stream = mux.open(1) match {
+  case Right(s) => s
+  case Left(_) => sys.error("open failed")
+}
+
+val result = stream.receive()
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
 
 ```scala
 import zio.blocks.mux._
@@ -489,6 +619,9 @@ val stream = mux.open(1) match {
 val result = stream.receive()
 ```
 
+  </TabItem>
+</Tabs>
+
 **`def takeOutbound(): Option[In] | MuxError`** (Scala 3) / **`def takeOutbound(): Either[MuxError, Option[In]]`** (Scala 2) — Take the next message from the outbound queue. Called by the protocol to drain messages sent via `send()` and transmit them over the shared transport. Non-blocking: returns immediately.
 
 Returns:
@@ -497,6 +630,25 @@ Returns:
 - A `MuxError` if the stream is closed
 
 Draining messages from the outbound queue:
+
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+val stream = mux.open(1) match {
+  case Right(s) => s
+  case Left(_) => sys.error("open failed")
+}
+
+stream.send("outgoing")
+val outbound = stream.takeOutbound()
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
 
 ```scala
 import zio.blocks.mux._
@@ -511,6 +663,9 @@ stream.send("outgoing")
 val outbound = stream.takeOutbound()
 ```
 
+  </TabItem>
+</Tabs>
+
 **`def offerInbound(msg: Out): Unit | MuxError`** (Scala 3) / **`def offerInbound(msg: Out): Either[MuxError, Unit]`** (Scala 2) — Deliver a message to this stream's inbound queue. Called by the protocol when a message arrives from the peer.
 
 Returns `Unit` on success, or an error if:
@@ -520,6 +675,25 @@ Returns `Unit` on success, or an error if:
 - Inbound queue is full (returns `QueueFull`)
 
 Delivering a message to the inbound queue:
+
+<Tabs groupId="scala-version" defaultValue="scala3">
+  <TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.mux._
+
+val mux = Mux[Int, String, String](100)
+val stream = mux.open(1) match {
+  case Right(s) => s
+  case Left(_) => sys.error("open failed")
+}
+
+stream.offerInbound("response from peer")
+val received = stream.receive()
+```
+
+  </TabItem>
+  <TabItem value="scala3" label="Scala 3">
 
 ```scala
 import zio.blocks.mux._
@@ -533,6 +707,9 @@ val stream = mux.open(1) match {
 stream.offerInbound("response from peer")
 val received = stream.receive()
 ```
+
+  </TabItem>
+</Tabs>
 
 **Lifecycle Operations**
 
@@ -602,7 +779,7 @@ val inMux = mux.get(1)
 **Thread Safety**
 
 - `send()` and `offerInbound()` are **multi-thread safe**: multiple threads can safely call these concurrently on the same stream.
-- Call `receive()` and `takeOutbound()` from the same thread only. Concurrent calls to the same ring buffer produce data races.
+- Call `receive()` and `takeOutbound()` from the same thread only. Concurrent calls to the same ring buffer produce data races and unpredictable behavior. These are single-consumer operations and must be called from a single thread. Concurrent calls will corrupt the ring buffer state and lead to incorrect results or lost messages.
 - State queries (`id`, `isClosed`, `isHalfClosed`) are always safe to call from any thread.
 
 ## Performance

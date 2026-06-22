@@ -34,18 +34,19 @@ import zio.blocks.mux._
 
   // Open two streams: one for request, one for response
   val requestStream = mux.open(1) match {
-    case s: MuxStream[?, ?, ?] =>
+    case s: MuxStream[Int, String, String] =>
       println("✓ Request stream opened")
-      s.asInstanceOf[MuxStream[Int, String, String]]
+      s
     case error: MuxError =>
       println(s"✗ Failed to open request stream: $error")
       sys.exit(1)
   }
 
+  // Verify first stream opened successfully before opening second
   val responseStream = mux.open(2) match {
-    case s: MuxStream[?, ?, ?] =>
+    case s: MuxStream[Int, String, String] =>
       println("✓ Response stream opened")
-      s.asInstanceOf[MuxStream[Int, String, String]]
+      s
     case error: MuxError =>
       println(s"✗ Failed to open response stream: $error")
       sys.exit(1)
@@ -57,29 +58,57 @@ import zio.blocks.mux._
 
   // Application sends a request on stream 1
   println("1. Application sends: 'GET /api/users'")
-  requestStream.send("GET /api/users")
+  requestStream.send("GET /api/users") match {
+    case ()              => ()
+    case error: MuxError =>
+      println(s"   Error: Failed to send request: $error")
+      sys.exit(1)
+  }
 
   // Protocol would drain the outbound queue
-  val outbound1 = requestStream.takeOutbound()
-  println(s"   Protocol reads from outbound: $outbound1\n")
+  val outbound1Result = requestStream.takeOutbound()
+  outbound1Result match {
+    case Some(msg) =>
+      println(s"   Protocol reads from outbound: Some($msg)")
+    case None =>
+      println(s"   Protocol reads from outbound: None")
+    case error: MuxError =>
+      println(s"   Protocol encountered error: $error")
+  }
 
   // Protocol receives response and delivers it to stream 2
   println("2. Protocol receives response and delivers to stream 2")
-  responseStream.offerInbound("200 OK: [user1, user2, user3]")
-  println("   Inbound queue has 1 message\n")
+  responseStream.offerInbound("200 OK: [user1, user2, user3]") match {
+    case () =>
+      println("   Inbound queue has 1 message\n")
+    case error: MuxError =>
+      println(s"   Error: Failed to deliver response: $error\n")
+      sys.exit(1)
+  }
 
   // Application reads response from stream 2
   println("3. Application reads from stream 2:")
-  val response = responseStream.receive()
-  println(s"   Received: $response\n")
+  val responseResult = responseStream.receive()
+  responseResult match {
+    case Some(msg) =>
+      println(s"   Received: Some($msg)\n")
+    case None =>
+      println(s"   Received: None\n")
+    case error: MuxError =>
+      println(s"   Received error: $error\n")
+  }
 
   // --- Multiple message streaming ---
 
   println("4. Streaming multiple messages:")
   (1 to 3).foreach { i =>
     val msg = s"data-chunk-$i"
-    requestStream.send(msg)
-    println(s"   Sent: $msg")
+    requestStream.send(msg) match {
+      case () =>
+        println(s"   Sent: $msg")
+      case error: MuxError =>
+        println(s"   Error: Failed to send '$msg': $error")
+    }
   }
 
   println("\n   Protocol drains all messages:")
@@ -90,10 +119,12 @@ import zio.blocks.mux._
         println(s"   Drained: $msg")
         count += 1
       case None =>
+        // Queue empty but stream still open - OK to continue
         println("   (no more messages)")
         count = 3
-      case error: MuxError =>
-        println(s"   Error draining: $error")
+      case _: MuxError =>
+        // Actual error (stream closed) - break loop
+        println("   Stream closed, cannot drain more")
         count = 3
     }
   }
@@ -117,7 +148,14 @@ import zio.blocks.mux._
   println(f"\n   Sent $sendCount messages before queue filled")
 
   // Drain one message to free space
-  requestStream.takeOutbound()
+  requestStream.takeOutbound() match {
+    case Some(msg) =>
+      println(s"   Drained: $msg")
+    case None =>
+      println("   (no message in queue)")
+    case error: MuxError =>
+      println(s"   Error draining: $error")
+  }
   println("   After draining one, can send again:")
 
   requestStream.send("recovery-msg") match {
