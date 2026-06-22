@@ -583,55 +583,6 @@ This example demonstrates:
 - Graceful stream closure using halfClose and signalRemoteClose
 - Verifying that streams remain independent
 
-## 8. Running the Examples
-
-All the code examples in this tutorial are part of the `mux-examples` project. To run the complete example:
-
-```bash
-git clone https://github.com/zio/zio-blocks.git
-cd zio-blocks
-sbt "mux-examples/runMain mux.CompleteExample"
-```
-
-You'll see output like:
-
-```
-=== Opening Streams ===
-Opened stream 1
-Opened stream 2
-Opened stream 3
-
-=== Application Sends Messages ===
-Stream 1 sent: Hello from stream 1
-Stream 2 sent: Hello from stream 2
-Stream 3 sent: Hello from stream 3
-
-=== Protocol Extracts Outbound Messages ===
-Protocol will send on stream 1: Hello from stream 1
-Protocol will send on stream 2: Hello from stream 2
-Protocol will send on stream 3: Hello from stream 3
-
-=== Protocol Delivers Inbound Messages ===
-Protocol delivered on stream 1: Response from peer on stream 1
-Protocol delivered on stream 2: Response from peer on stream 2
-Protocol delivered on stream 3: Response from peer on stream 3
-
-=== Application Receives Messages ===
-Stream 1 received: Response from peer on stream 1
-Stream 2 received: Response from peer on stream 2
-Stream 3 received: Response from peer on stream 3
-
-=== Graceful Shutdown ===
-Stream 1: halfClose() called
-Stream 1: signalRemoteClose() called, isClosed = true
-
-=== Verify Independence ===
-Stream 2 is open: true
-Stream 3 is open: true
-
-Example complete!
-```
-
 ## What You've Learned
 
 In this tutorial, you learned:
@@ -647,6 +598,82 @@ In this tutorial, you learned:
 - How to build a complete request-response system using mux
 
 You now have a solid foundation in how mux simplifies multiplexed communication. The next step is to see how to build production-grade protocols using mux as the foundation.
+
+## Running the Examples
+
+All examples in this tutorial have corresponding runnable Scala files in the `mux-examples` module. Run them in order to progressively build your understanding in practice.
+
+### Example 1: Creating and Opening Mux Streams
+
+This example demonstrates the foundational concepts of creating a Mux instance with a specified capacity and opening multiple streams with unique IDs. You'll see how to verify stream properties, retrieve streams by ID, and understand error handling when duplicate IDs or capacity limits are encountered.
+
+<details>
+  <summary>mux-examples/src/main/scala/mux/CreatingAMux.scala</summary>
+
+```scala mdoc:embed:../../../../../scala/zio-blocks/mux-examples/src/main/scala/mux/CreatingAMux.scala:show-line-numbers
+```
+
+</details>
+
+Observe the output showing how `activeCount` changes as you open and close streams:
+
+```bash
+sbt "mux-examples/runMain mux.CreatingAMux"
+```
+
+### Example 2: Managing Concurrent Streams
+
+This example manages three concurrent streams simultaneously, sending messages on each, simulating the protocol layer draining outbound messages and offering inbound responses, and testing stream state transitions. It demonstrates how independent streams never interfere with each other — each has its own queues and state.
+
+<details>
+  <summary>mux-examples/src/main/scala/mux/ConcurrentStreams.scala</summary>
+
+```scala mdoc:embed:../../../../../scala/zio-blocks/mux-examples/src/main/scala/mux/ConcurrentStreams.scala:show-line-numbers
+```
+
+</details>
+
+Observe how messages stay isolated on their streams and how `halfClose()` and `signalRemoteClose()` transition streams through their lifecycle:
+
+```bash
+sbt "mux-examples/runMain mux.ConcurrentStreams"
+```
+
+### Example 3: Error Handling in Mux Operations
+
+This example comprehensively covers six different error scenarios: `CapacityExceeded` when opening streams beyond the mux limit, `QueueFull` backpressure when filling a stream's message queue, `ProtocolError` when attempting to open duplicate stream IDs, `StreamClosed` errors when operating on closed streams, `MuxClosed` when the entire mux is shut down, and proper stream `Cancelled` error handling.
+
+<details>
+  <summary>mux-examples/src/main/scala/mux/ErrorHandling.scala</summary>
+
+```scala mdoc:embed:../../../../../scala/zio-blocks/mux-examples/src/main/scala/mux/ErrorHandling.scala:show-line-numbers
+```
+
+</details>
+
+Observe how each test case correctly rejects invalid operations with the expected error type:
+
+```bash
+sbt "mux-examples/runMain mux.ErrorHandling"
+```
+
+### Example 4: Complete Multiplexed Request-Response System
+
+This comprehensive example simulates an HTTP/2-like multiplexed request-response system across 10 sequential phases: client opens three streams and sends requests, protocol layer drains and processes the requests, server delivers responses, client receives responses, streams transition through state changes, individual streams close with proper cleanup, the mux verifies all streams are removed, and finally the entire mux closes. This demonstrates a production-grade multiplexing pattern.
+
+<details>
+  <summary>mux-examples/src/main/scala/mux/CompleteExample.scala</summary>
+
+```scala mdoc:embed:../../../../../scala/zio-blocks/mux-examples/src/main/scala/mux/CompleteExample.scala:show-line-numbers
+```
+
+</details>
+
+Observe the complete 10-phase flow showing how requests flow from client to protocol to server, responses flow back, and proper cleanup is verified at each step:
+
+```bash
+sbt "mux-examples/runMain mux.CompleteExample"
+```
 
 ## Where to Go Next
 

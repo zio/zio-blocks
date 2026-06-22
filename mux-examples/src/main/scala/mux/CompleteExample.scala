@@ -16,202 +16,227 @@
 
 package mux
 
-import zio.blocks.mux._
+import zio.blocks.mux.*
 
 /**
- * Mux — Complete Example: HTTP/2-like Stream Multiplexer
+ * Title: Complete Mux Example - Multiplexed Request-Response System
  *
- * This realistic example simulates an HTTP/2-like protocol with multiple
- * concurrent streams, capacity limits, request/response patterns, and proper
- * shutdown. Demonstrates how to manage many independent streams over a shared
- * connection.
+ * Description: A comprehensive end-to-end example simulating a multiplexed
+ * request-response system (similar to HTTP/2 multiplexing). Demonstrates
+ * opening streams, sending requests, processing through a protocol layer,
+ * receiving responses, and managing stream lifecycles with proper error
+ * handling.
  *
- * Run with: sbt "mux-examples/runMain mux.CompleteExample"
+ * Run: sbt "mux-examples/runMain mux.CompleteExample"
  */
 @main def CompleteExample(): Unit = {
-  println("=== Mux Complete Example: HTTP/2-like Protocol ===\n")
+  println("╔═══════════════════════════════════════════════╗")
+  println("║     Multiplexed Request-Response System       ║")
+  println("╚═══════════════════════════════════════════════╝")
+  println()
 
-  // Simulate HTTP/2 with limited concurrent streams (e.g., 4)
-  val mux = Mux[Int, String, String](4)
+  // Create a Mux for managing request-response streams
+  val mux = Mux[Int, String, String](capacity = 20)
 
-  println("Protocol initialized with capacity for 4 concurrent streams\n")
+  // Define client requests
+  val clientRequests = Map(
+    1 -> "GET /api/users",
+    2 -> "POST /api/items",
+    3 -> "DELETE /api/cache"
+  )
 
-  // Open 4 requests (some will be for different routes)
-  val requests = (1 to 4).flatMap { streamId =>
-    val route = streamId match {
-      case 1 => "GET /api/users"
-      case 2 => "GET /api/posts"
-      case 3 => "POST /api/users"
-      case 4 => "GET /api/comments"
-    }
-    mux.open(streamId) match {
+  // ===== PHASE 1: Client Opens Streams =====
+  println("PHASE 1: Client Opens Request Streams")
+  println("=" * 45)
+
+  val streams = clientRequests.keys.map { id =>
+    mux.open(id) match {
       case s: MuxStream[Int, String, String] =>
-        Some((streamId, route, s))
+        println(s"  ✓ Stream #$id opened")
+        (id, s)
       case error: MuxError =>
-        println(s"✗ Failed to open stream $streamId: $error")
-        None
+        println(s"  ✗ Failed to open stream $id: $error")
+        sys.exit(1)
     }
   }
 
-  // Validate that all streams opened successfully
-  if (requests.isEmpty) {
-    println("✗ Failed to open any streams")
-    sys.exit(1)
-  }
+  val streamMap = streams.toMap
+  println(s"Total active streams: ${mux.activeCount}")
+  println()
 
-  println(s"Opened ${requests.length} streams for concurrent requests:")
-  requests.foreach { (id, route, _) =>
-    println(f"  Stream $id: $route")
-  }
+  // ===== PHASE 2: Client Sends Requests =====
+  println("PHASE 2: Client Sends Requests on Streams")
+  println("=" * 45)
 
-  // Send requests
-  println("\nSending HTTP requests:")
-  requests.foreach { (id, route, stream) =>
-    stream.send(route) match {
+  clientRequests.foreach { case (id, request) =>
+    val stream = streamMap(id)
+    stream.send(request) match {
       case () =>
-        println(f"  Stream $id: sent '$route'")
+        println(s"  → Stream #$id sends: \"$request\"")
       case error: MuxError =>
-        println(f"  Stream $id: failed to send '$route': $error")
+        println(s"  ✗ Send error on stream $id: $error")
+        sys.exit(1)
     }
   }
+  println()
 
-  // Simulate protocol draining outbound queue and sending responses
-  println("\nProtocol processes outbound and sends responses:")
-  requests.foreach { (id, _, stream) =>
+  // ===== PHASE 3: Protocol Layer Drains Outbound =====
+  println("PHASE 3: Protocol Layer Reads Requests")
+  println("=" * 45)
+
+  clientRequests.keys.foreach { id =>
+    val stream = streamMap(id)
     stream.takeOutbound() match {
-      case Some(request) =>
-        println(f"  Stream $id: transmitting: $request")
-        // Simulate receiving response
-        val response = id match {
-          case 1 => "200 OK: [Alice, Bob, Charlie]"
-          case 2 => "200 OK: [post1, post2, post3]"
-          case 3 => "201 Created: User 4 added"
-          case 4 => "200 OK: [comment1, comment2]"
-        }
-        stream.offerInbound(response) match {
-          case () =>
-            println(f"  Stream $id: response delivered")
-          case error: MuxError =>
-            println(f"  Stream $id: failed to deliver response: $error")
-        }
+      case Some(msg) =>
+        println(s"  ← Protocol reads from stream #$id: \"$msg\"")
       case None =>
-        println(f"  Stream $id: no message in queue")
-      case _: MuxError =>
-        println(f"  Stream $id: stream is closed")
-    }
-  }
-
-  // Application reads responses
-  println("\nApplication receives responses:")
-  requests.foreach { (id, _, stream) =>
-    stream.receive() match {
-      case Some(response) =>
-        println(f"  Stream $id: received: $response")
-      case None =>
-        println(f"  Stream $id: no response yet")
+        println(s"  ✗ No message on stream $id")
       case error: MuxError =>
-        println(f"  Stream $id: error receiving: $error")
+        println(s"  ✗ Error reading stream $id: $error")
     }
   }
+  println()
 
-  // Close some streams to free capacity
-  println(f"\nActive streams before cleanup: ${mux.activeCount}")
-  val streamsToClose = requests.take(2)
-  streamsToClose.foreach { case (_, _, stream) =>
-    stream.close()
+  // ===== PHASE 4: Server Processing (Simulated) =====
+  println("PHASE 4: Server Processes Requests")
+  println("=" * 45)
+
+  val serverResponses = Map(
+    1 -> "HTTP/1.1 200 OK - [user1, user2, user3]",
+    2 -> "HTTP/1.1 201 Created - {id: 42}",
+    3 -> "HTTP/1.1 204 No Content"
+  )
+
+  serverResponses.foreach { case (id, _) =>
+    println(s"  ⚙ Server processes stream #$id")
   }
-  println(f"Closed ${streamsToClose.length} streams")
-  println(f"Active streams after cleanup: ${mux.activeCount}\n")
+  println(s"  ⚙ Processing complete")
+  println()
 
-  // Now we can open new requests (because we freed capacity)
-  println("Capacity freed - opening new streams:")
-  mux.open(5) match {
-    case stream5: MuxStream[Int, String, String] =>
-      stream5.send("PATCH /api/users/3") match {
-        case () =>
-          println(f"  Opened stream 5: sent PATCH /api/users/3")
-        case error: MuxError =>
-          println(f"  Opened stream 5 but failed to send: $error")
-      }
-    case error: MuxError =>
-      println(f"  Failed to open stream 5: $error")
-  }
+  // ===== PHASE 5: Protocol Layer Offers Responses =====
+  println("PHASE 5: Protocol Layer Offers Responses")
+  println("=" * 45)
 
-  mux.open(6) match {
-    case stream6: MuxStream[Int, String, String] =>
-      stream6.send("DELETE /api/posts/2") match {
-        case () =>
-          println(f"  Opened stream 6: sent DELETE /api/posts/2")
-        case error: MuxError =>
-          println(f"  Opened stream 6 but failed to send: $error")
-      }
-    case error: MuxError =>
-      println(f"  Failed to open stream 6: $error")
-  }
-
-  println(f"Active streams: ${mux.activeCount}\n")
-
-  // Attempt to exceed capacity
-  println("Attempting to exceed capacity (4 open -> 5th request):")
-  val overCapacityResult = mux.open(7)
-  overCapacityResult match {
-    case _: MuxStream[_, _, _] =>
-      println("  ✗ Unexpected: opened beyond capacity!")
-    case error: MuxError =>
-      println(f"  ✓ Capacity enforced: $error\n")
-  }
-
-  // Simulate backpressure on a single stream
-  println("Demonstrating backpressure handling:")
-  println("  Filling stream 3's outbound queue with many messages...")
-  val (_, _, stream3) = requests(2)
-  var sendCount       = 0
-  var backpressured   = false
-  while (!backpressured) {
-    stream3.send(f"data-chunk-$sendCount") match {
+  serverResponses.foreach { case (id, response) =>
+    val stream = streamMap(id)
+    stream.offerInbound(response) match {
       case () =>
-        sendCount += 1
-      case _: MuxError =>
-        backpressured = true
-        println(f"  Backpressure: queue full after $sendCount messages\n")
+        println(s"  → Protocol offers to stream #$id: \"$response\"")
+      case error: MuxError =>
+        println(s"  ✗ Offer error on stream $id: $error")
+        sys.exit(1)
     }
   }
+  println()
 
-  // Clear some messages
-  println("Draining messages to relieve backpressure:")
-  var drainCount = 0
-  (0 until 5).foreach { _ =>
-    stream3.takeOutbound() match {
-      case Some(_) =>
-        drainCount += 1
+  // ===== PHASE 6: Client Receives Responses =====
+  println("PHASE 6: Client Receives Responses")
+  println("=" * 45)
+
+  clientRequests.keys.foreach { id =>
+    val stream = streamMap(id)
+    stream.receive() match {
+      case Some(msg) =>
+        println(s"  ← Stream #$id received: \"$msg\"")
       case None =>
-        // Queue empty
-        ()
-      case _: MuxError =>
-        // Error during drain
-        ()
+        println(s"  ✗ No response on stream $id")
+      case error: MuxError =>
+        println(s"  ✗ Receive error on stream $id: $error")
     }
   }
-  println(f"  Drained $drainCount messages")
+  println()
 
-  stream3.send("resumed-sending") match {
+  // ===== PHASE 7: Stream State Management =====
+  println("PHASE 7: Stream State Transitions")
+  println("=" * 45)
+
+  val stream1 = streamMap(1)
+  val stream2 = streamMap(2)
+
+  // Stream 1: Client sends additional request after receiving response
+  stream1.send("GET /api/users/1") match {
     case () =>
-      println("  ✓ Can send again after draining\n")
+      println(s"  → Stream #1: Can send follow-up request after response")
     case error: MuxError =>
-      println(f"  Still blocked: $error\n")
+      println(s"  ✗ Error: $error")
+      sys.exit(1)
   }
 
-  // Graceful shutdown
-  println("Initiating graceful shutdown...")
-  println(f"Active streams before closeAll: ${mux.activeCount}")
+  // Stream 1: Client half-closes (no more sends)
+  stream1.halfClose()
+  println(s"  ⊢ Stream #1: Client signals end of sending")
 
-  mux.closeAll(MuxError.MuxClosed)
-  println("Called closeAll()")
-  println(f"Active streams after closeAll: ${mux.activeCount}")
+  // Stream 2: Server signals end of response
+  stream2.signalRemoteClose()
+  println(s"  ⊣ Stream #2: Server signals end of response")
 
-  // Verify cannot open new streams
-  val afterShutdown = mux.open(99)
-  println(f"Attempting to open stream after closeAll: $afterShutdown")
+  // Attempt to send on stream 2 after remote close (should still work)
+  stream2.send("Additional request") match {
+    case () =>
+      println(s"  → Stream #2: Can still send after remote close")
+    case error: MuxError =>
+      println(s"  ✗ Send error: $error")
+      sys.exit(1)
+  }
+  println()
 
-  println("\n=== Example Complete ===")
+  // ===== PHASE 8: Stream Closure =====
+  println("PHASE 8: Closing Streams")
+  println("=" * 45)
+
+  // Close stream 1 completely
+  stream1.close()
+  println(s"  ✗ Stream #1 fully closed")
+
+  // Cancel stream 2 with error
+  mux.cancel(2, reason = MuxError.Cancelled(2, "Client timeout"))
+  println(s"  ⚠ Stream #2 cancelled (timeout)")
+
+  // Close stream 3 normally
+  val stream3 = streamMap(3)
+  stream3.close()
+  println(s"  ✗ Stream #3 fully closed")
+
+  println(s"  Remaining active streams: ${mux.activeCount}")
+  println()
+
+  // ===== PHASE 9: Verify Cleanup =====
+  println("PHASE 9: Verifying Cleanup")
+  println("=" * 45)
+
+  mux.get(1) match {
+    case Some(_) => println("  ✗ Stream #1 still exists (unexpected)")
+    case None    => println("  ✓ Stream #1 properly cleaned up")
+  }
+
+  mux.get(2) match {
+    case Some(_) => println("  ✗ Stream #2 still exists (unexpected)")
+    case None    => println("  ✓ Stream #2 properly cleaned up")
+  }
+
+  mux.get(3) match {
+    case Some(_) => println("  ✗ Stream #3 still exists (unexpected)")
+    case None    => println("  ✓ Stream #3 properly cleaned up")
+  }
+  println()
+
+  // ===== PHASE 10: Close Mux =====
+  println("PHASE 10: Closing Mux")
+  println("=" * 45)
+
+  mux.closeAll(reason = MuxError.MuxClosed)
+  println(s"  ✗ Mux closed, all streams terminated")
+  println(s"  Final active streams: ${mux.activeCount}")
+  println()
+
+  println("╔═══════════════════════════════════════════════╗")
+  println("║         Example Complete!                     ║")
+  println("║                                               ║")
+  println("║  Key Concepts Demonstrated:                   ║")
+  println("║  • Creating and managing multiple streams      ║")
+  println("║  • Multiplexed message passing                 ║")
+  println("║  • Stream state transitions (half-close)       ║")
+  println("║  • Proper stream lifecycle management          ║")
+  println("║  • Error handling and cleanup                  ║")
+  println("╚═══════════════════════════════════════════════╝")
 }
