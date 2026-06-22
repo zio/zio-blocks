@@ -84,6 +84,9 @@ object GlobalLogState {
   }
 
   def setLevel(prefix: String, severity: Severity): Unit = {
+    if (ref.get() == null) {
+      ref.compareAndSet(null, defaultState)
+    }
     var current = ref.get()
     while (current != null) {
       val updated =
@@ -97,6 +100,9 @@ object GlobalLogState {
   }
 
   def clearLevel(prefix: String): Unit = {
+    if (ref.get() == null) {
+      ref.compareAndSet(null, defaultState)
+    }
     var current = ref.get()
     while (current != null) {
       val updated = LogState(current.logger, current.minSeverity, current.levelOverridesMap - prefix)
@@ -109,6 +115,9 @@ object GlobalLogState {
   }
 
   def clearAllLevels(): Unit = {
+    if (ref.get() == null) {
+      ref.compareAndSet(null, defaultState)
+    }
     var current = ref.get()
     while (current != null) {
       val updated = LogState(current.logger, current.minSeverity, Map.empty)

@@ -112,7 +112,10 @@ private[otel] final class BatchProcessor[A](
   }
 
   private def exportWithRetry(batch: Seq[A], attempt: Int): Unit =
-    exportFn(batch) match {
+    (try exportFn(batch)
+     catch {
+       case t: Throwable => ExportResult.Failure(retryable = true, message = t.getMessage)
+     }) match {
       case ExportResult.Success                     => ()
       case ExportResult.Failure(retryable, message) =>
         if (!retryable) {
@@ -128,7 +131,8 @@ private[otel] final class BatchProcessor[A](
             "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
           )
         } else {
-          val delayMs = math.min(retryBaseMillis * (1L << attempt), 30000L)
+          val shift   = math.min(attempt, 30)
+          val delayMs = math.min(retryBaseMillis * (1L << shift), 30000L)
           if (isShutdown.get()) {
             System.err.println(
               "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
