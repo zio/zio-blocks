@@ -85,15 +85,15 @@ private[telemetry] final class StandardLogEmitter(
         throwable = throwable
       )
       builder.clear()
-      try {
-        var i = 0
-        while (i < processors.length) {
+      var i = 0
+      while (i < processors.length) {
+        try {
           processors(i).onEmit(record)
-          i += 1
+        } catch {
+          case NonFatal(e) =>
+            System.err.println("[zio-blocks-telemetry] logging error: " + e.getMessage)
         }
-      } catch {
-        case NonFatal(e) =>
-          System.err.println("[zio-blocks-telemetry] logging error: " + e.getMessage)
+        i += 1
       }
     } else {
       builder.clear()
