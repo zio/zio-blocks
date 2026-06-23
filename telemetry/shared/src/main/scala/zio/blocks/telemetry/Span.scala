@@ -164,11 +164,14 @@ private[telemetry] final class RecordingSpan(
     while (iter.hasNext) {
       val (k, v) = iter.next()
       v match {
-        case AttributeValue.StringValue(s)  => builder.put(k, s)
-        case AttributeValue.LongValue(l)    => builder.put(k, l)
-        case AttributeValue.DoubleValue(d)  => builder.put(k, d)
-        case AttributeValue.BooleanValue(b) => builder.put(k, b)
-        case _                              => builder.put(AttributeKey.string(k), v.toString)
+        case AttributeValue.StringValue(s)      => builder.put(k, s)
+        case AttributeValue.LongValue(l)        => builder.put(k, l)
+        case AttributeValue.DoubleValue(d)      => builder.put(k, d)
+        case AttributeValue.BooleanValue(b)     => builder.put(k, b)
+        case AttributeValue.StringSeqValue(xs)  => builder.put(AttributeKey.stringSeq(k), xs)
+        case AttributeValue.LongSeqValue(xs)    => builder.put(AttributeKey.longSeq(k), xs)
+        case AttributeValue.DoubleSeqValue(xs)  => builder.put(AttributeKey.doubleSeq(k), xs)
+        case AttributeValue.BooleanSeqValue(xs) => builder.put(AttributeKey.booleanSeq(k), xs)
       }
     }
 
