@@ -21,6 +21,7 @@ import java.nio.{ByteBuffer, CharBuffer}
 import java.nio.channels.FileChannel
 import java.nio.charset.{CharsetEncoder, CoderResult, StandardCharsets}
 import java.nio.file.{Files, Path, Paths}
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Writes log output to a file using FileChannel + ByteBuffer for maximum
@@ -28,9 +29,9 @@ import java.nio.file.{Files, Path, Paths}
  *
  * Uses:
  *   - FileChannel for direct syscalls
- *   - ThreadLocal ByteBuffer (heap) for reuse across writes
+ *   - Shared ByteBuffer (heap) reused across writes under lock
  *   - ASCII fast path for most log lines
- *   - ThreadLocal CharsetEncoder for non-ASCII content
+ *   - Shared CharsetEncoder for non-ASCII content
  *
  * Usage: val writer = FileLogWriter("logs/app.log") val emitter = new
  * FormattedLogEmitter(TextLogFormatter, writer)
@@ -44,17 +45,12 @@ private[telemetry] final class FileLogWriter private (
   private val bufferSize: Int
 ) extends LogWriter {
 
-  private val channelLock = new AnyRef
+  private val lock  = new ReentrantLock()
+  private val state = new FileLogWriter.WriterState(bufferSize)
 
-  // ThreadLocal encoder + buffer — amortized zero allocation (slow path may allocate CharBuffer for non-ASCII / large writes)
-  private val threadState: ThreadLocal[FileLogWriter.WriterState] =
-    new ThreadLocal[FileLogWriter.WriterState] {
-      override def initialValue(): FileLogWriter.WriterState =
-        new FileLogWriter.WriterState(bufferSize)
-    }
-
-  override def write(content: CharSequence): Unit = channelLock.synchronized {
-    val state   = threadState.get()
+  override def write(content: CharSequence): Unit = {
+    lock.lock()
+    try {
     val buf     = state.buffer
     val encoder = state.encoder
 
@@ -122,16 +118,21 @@ private[telemetry] final class FileLogWriter private (
       case e: IOException =>
         System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
     }
+    } finally lock.unlock()
   }
 
-  override def flush(): Unit = channelLock.synchronized {
+  override def flush(): Unit = {
+    lock.lock()
     try channel.force(false)
     catch { case e: IOException => System.err.println("[zio-blocks-telemetry] flush error: " + e.getMessage) }
+    finally lock.unlock()
   }
 
-  override def close(): Unit = channelLock.synchronized {
+  override def close(): Unit = {
+    lock.lock()
     try channel.close()
     catch { case e: IOException => System.err.println("[zio-blocks-telemetry] close error: " + e.getMessage) }
+    finally lock.unlock()
   }
 }
 
