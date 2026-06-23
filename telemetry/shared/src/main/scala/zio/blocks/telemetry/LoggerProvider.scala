@@ -43,9 +43,6 @@ final class LoggerProvider private[telemetry] (
 
 object LoggerProvider {
 
-  private[telemetry] val DefaultContextStorage: ContextStorage[Option[SpanContext]] =
-    ContextStorage.create[Option[SpanContext]](None)
-
   def builder: LoggerProviderBuilder = new LoggerProviderBuilder(
     resource = Resource.default,
     processors = Seq.empty,
@@ -75,7 +72,7 @@ final class LoggerProviderBuilder private[telemetry] (
   }
 
   def build(): LoggerProvider = {
-    val cs = contextStorage.getOrElse(LoggerProvider.DefaultContextStorage)
+    val cs = contextStorage.getOrElse(ContextStorage.defaultSpanContextStorage)
     new LoggerProvider(resource, processors.toArray, cs)
   }
 }

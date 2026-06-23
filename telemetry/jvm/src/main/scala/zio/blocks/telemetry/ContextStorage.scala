@@ -42,6 +42,9 @@ object ContextStorage {
   def create[A](initial: A): ContextStorage[A] =
     new ScopedValueStorage[A](initial)
 
+  private[telemetry] val defaultSpanContextStorage: ContextStorage[Option[SpanContext]] =
+    create[Option[SpanContext]](None)
+
   /**
    * Pure ScopedValue storage for JDK 25+.
    *
