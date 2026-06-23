@@ -96,7 +96,8 @@ private[otel] final class BatchProcessor[A](
   private def exportWithRetry(batch: Seq[A], attempt: Int): Unit =
     (try exportFn(batch)
      catch {
-       case t: Throwable => ExportResult.Failure(retryable = true, message = t.getMessage)
+       case e if scala.util.control.NonFatal(e) =>
+         ExportResult.Failure(retryable = true, message = e.getMessage)
      }) match {
       case ExportResult.Success                     => ()
       case ExportResult.Failure(retryable, message) =>

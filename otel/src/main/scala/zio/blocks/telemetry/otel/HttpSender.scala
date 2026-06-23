@@ -26,7 +26,7 @@ final case class HttpResponse(
   headers: Map[String, Seq[String]]
 ) {
   def firstHeader(name: String): Option[String] =
-    headers.get(name).flatMap(_.headOption)
+    headers.find { case (k, _) => k.equalsIgnoreCase(name) }.flatMap(_._2.headOption)
 }
 
 trait HttpSender {

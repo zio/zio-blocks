@@ -110,7 +110,7 @@ object B3Propagator {
     private val SampledHeader      = "X-B3-Sampled"
     private val FlagsHeader = "X-B3-Flags"
 
-    override val fields: Seq[String] = Seq(TraceIdHeader, SpanIdHeader, SampledHeader)
+    override val fields: Seq[String] = Seq(TraceIdHeader, SpanIdHeader, SampledHeader, FlagsHeader)
 
     override def extract[C](carrier: C, getter: (C, String) => Option[String]): Option[SpanContext] =
       for {
