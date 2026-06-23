@@ -24,9 +24,6 @@ object TraceIdSpec extends ZIOSpecDefault {
     suite("invalid")(
       test("is all zeros") {
         assertTrue(!TraceId.isValid(0L, 0L))
-      },
-      test("isValid returns false") {
-        assertTrue(!TraceId.isValid(0L, 0L))
       }
     ),
     suite("random")(
