@@ -3,10 +3,12 @@ package mux
 import zio.blocks.mux._
 
 /**
- * Title: The Stream Lifecycle Description: Demonstrate state transitions
- * through OPEN → HALF_CLOSED → CLOSED using graceful shutdown, immediate
- * closure, and external cancellation. Run: sbt "mux-examples/runMain
- * mux.example3StreamLifecycle"
+ * Title: The Stream Lifecycle
+ *
+ * Description: Demonstrate state transitions through OPEN → HALF_CLOSED →
+ * CLOSED using graceful shutdown, immediate closure, and external cancellation.
+ *
+ * Run: sbt "mux-examples/runMain mux.example3StreamLifecycle"
  */
 @main def example3StreamLifecycle(): Unit = {
   println("=== Graceful Stream Lifecycle (halfClose + signalRemoteClose) ===\n")

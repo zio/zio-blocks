@@ -5,6 +5,7 @@ title: "Mux"
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+import MuxDataFlow from './MuxDataFlow.jsx';
 
 `zio-blocks-mux` is a **high-performance multiplexer for ID-multiplexed protocols** (HTTP/2, QUIC, WebSockets with multiplexing, and other stream-based transports). It manages multiple concurrent independent streams over a shared transport, each identified by a unique ID, with separate inbound/outbound message queues and automatic state machine lifecycle management.
 
@@ -234,6 +235,18 @@ mux.get(2).foreach { stream =>
 
   </TabItem>
 </Tabs>
+
+## Diagram
+
+To see the mux data flow in action, use this interactive explorer. It shows three concurrent streams sharing the same mux. Select a stream tab, then click actions in either zone to watch messages move through the queues and observe how the state machine responds.
+
+- **Application code** (top) — calls `send()` to enqueue outbound messages and `receive()` to dequeue inbound messages.
+- **MuxStream** (middle) — holds the outbound and inbound ring-buffer queues and tracks stream state (`OPEN`, `HALF_CLOSED_LOCAL`, `HALF_CLOSED_REMOTE`, `CLOSED`).
+- **Protocol layer** (bottom) — calls `takeOutbound()` to drain messages for transmission and `offerInbound()` to deliver messages arriving from the peer.
+
+Use the **Lifecycle** controls to drive the state machine: `halfClose()` signals your side is done sending; `signalRemoteClose()` signals the peer is done; `close()` forces immediate closure. The event log shows the exact return values the API would produce, including `QueueFull` and `StreamClosed` errors.
+
+<MuxDataFlow />
 
 ## Common Patterns
 

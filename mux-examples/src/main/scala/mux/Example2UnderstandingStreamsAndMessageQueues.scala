@@ -3,9 +3,12 @@ package mux
 import zio.blocks.mux._
 
 /**
- * Title: Understanding Streams and Message Queues Description: Demonstrate the
- * two-way communication pattern: application uses send()/receive(), protocol
- * uses takeOutbound()/offerInbound(). Run: sbt "mux-examples/runMain
+ * Title: Understanding Streams and Message Queues
+ *
+ * Description: Demonstrate the two-way communication pattern: application uses
+ * send()/receive(), protocol uses takeOutbound()/offerInbound().
+ *
+ * Run: sbt "mux-examples/runMain
  * mux.example2UnderstandingStreamsAndMessageQueues"
  */
 @main def example2UnderstandingStreamsAndMessageQueues(): Unit = {

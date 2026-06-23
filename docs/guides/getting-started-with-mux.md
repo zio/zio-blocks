@@ -37,7 +37,7 @@ We'll learn these concepts through:
 We recommend reading from top to bottom — each section builds on the previous one.
 
 :::info[Scala 2 and Scala 3]
-The code examples in this tutorial use **Scala 3 syntax**. In Scala 2.13, the API returns `Either[MuxError, T]` instead of union types, and pattern matching uses `case Right(value)` and `case Left(error)` instead of `case value` and `case error`. For complete API signatures with both syntaxes, see the [Mux Reference](../reference/mux.md).
+The code examples in this tutorial use **Scala 3 syntax**. In Scala 2.13, the API returns `Either[MuxError, T]` instead of union types, and pattern matching uses `case Right(value)` and `case Left(error)` instead of `case value` and `case error`. For complete API signatures with both syntaxes, see the [Mux Reference](../reference/mux.mdx).
 
 **Example: Scala 2 equivalent:**
 ```scala
@@ -700,7 +700,7 @@ This example documents which operations are thread-safe (mux-level and send/offe
 <details>
   <summary>mux-examples/src/main/scala/mux/Example6ThreadSafety.scala</summary>
 
-```scala mdoc:embed:mux-examples/src/main/scala/mux/Example6ThreadSafety.scala:show-line-numbers
+```scala mdoc:embed:mux-examples/src/main/scala/mux/Example6ThreadSafety.scala
 ```
 
 </details>
@@ -731,6 +731,6 @@ sbt "mux-examples/runMain mux.completeExample"
 
 ## Where to Go Next
 
-- **Want to dive deeper into the API?** Read the reference page for [`Mux`](../reference/mux.md) for complete method signatures and advanced patterns.
+- **Want to dive deeper into the API?** Read the reference page for [`Mux`](../reference/mux.mdx) for complete method signatures and advanced patterns.
 - **Ready to explore related concepts?** Check out the [Ring Buffer](../reference/ringbuffer/index.mdx) reference for understanding lock-free data structures used internally.
 - **Interested in other concurrency and stream management?** Explore other libraries in ZIO Blocks for managing complex async workflows.
