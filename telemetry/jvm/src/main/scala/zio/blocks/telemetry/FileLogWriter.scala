@@ -46,7 +46,7 @@ private[telemetry] final class FileLogWriter private (
 
   private val channelLock = new AnyRef
 
-  // ThreadLocal encoder + buffer — no allocation per write
+  // ThreadLocal encoder + buffer — amortized zero allocation (slow path may allocate CharBuffer for non-ASCII / large writes)
   private val threadState: ThreadLocal[FileLogWriter.WriterState] =
     new ThreadLocal[FileLogWriter.WriterState] {
       override def initialValue(): FileLogWriter.WriterState =

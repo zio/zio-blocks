@@ -187,10 +187,13 @@ final class Tracer private[telemetry] (
 
   private def putAttribute(builder: SpanBuilder, key: String, value: AttributeValue): Unit =
     value match {
-      case AttributeValue.StringValue(s)  => builder.setAttribute(AttributeKey.string(key), s)
-      case AttributeValue.LongValue(l)    => builder.setAttribute(AttributeKey.long(key), l)
-      case AttributeValue.DoubleValue(d)  => builder.setAttribute(AttributeKey.double(key), d)
-      case AttributeValue.BooleanValue(b) => builder.setAttribute(AttributeKey.boolean(key), b)
-      case _                              => ()
+      case AttributeValue.StringValue(s)      => builder.setAttribute(AttributeKey.string(key), s)
+      case AttributeValue.LongValue(l)        => builder.setAttribute(AttributeKey.long(key), l)
+      case AttributeValue.DoubleValue(d)      => builder.setAttribute(AttributeKey.double(key), d)
+      case AttributeValue.BooleanValue(b)     => builder.setAttribute(AttributeKey.boolean(key), b)
+      case AttributeValue.StringSeqValue(xs)  => builder.setAttribute(AttributeKey.stringSeq(key), xs)
+      case AttributeValue.LongSeqValue(xs)    => builder.setAttribute(AttributeKey.longSeq(key), xs)
+      case AttributeValue.DoubleSeqValue(xs)  => builder.setAttribute(AttributeKey.doubleSeq(key), xs)
+      case AttributeValue.BooleanSeqValue(xs) => builder.setAttribute(AttributeKey.booleanSeq(key), xs)
     }
 }

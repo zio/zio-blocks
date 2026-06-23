@@ -152,7 +152,7 @@ object LogRecord {
 }
 
 /**
- * Mutable builder for constructing LogRecord instances with fluent API.
+ * Immutable builder for constructing LogRecord instances with fluent API.
  *
  * The builder provides sensible defaults for all fields:
  *   - timestamps default to current system time in nanoseconds
