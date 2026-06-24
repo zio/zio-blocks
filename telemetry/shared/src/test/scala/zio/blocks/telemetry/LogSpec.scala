@@ -45,14 +45,14 @@ object LogSpec extends ZIOSpecDefault {
     try f(processor)
     finally {
       log.clearAllOverrides()
-      log.reset()
+      log.removeAll()
     }
     processor
   }
 
   def spec: Spec[Any, Nothing] = suite("log")(
-    test("does nothing when log is not installed") {
-      log.reset()
+    test("does nothing after removeAll") {
+      log.removeAll()
       log.info("should not crash")
       assertTrue(true)
     },

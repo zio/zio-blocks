@@ -25,14 +25,11 @@ import java.util.concurrent.atomic.AtomicReference
  * App code uses this directly. Library code should accept `Meter` via DI.
  */
 object metric {
-  private val ref: AtomicReference[MeterProvider] = new AtomicReference[MeterProvider](null)
+  private val defaultProvider: MeterProvider = MeterProvider.builder.build()
 
-  private lazy val defaultProvider: MeterProvider = MeterProvider.builder.build()
+  private val ref: AtomicReference[MeterProvider] = new AtomicReference[MeterProvider](defaultProvider)
 
-  private def provider: MeterProvider = {
-    val p = ref.get()
-    if (p != null) p else defaultProvider
-  }
+  private def provider: MeterProvider = ref.get()
 
   /** Returns a named Meter for a specific instrumentation scope. */
   def get(name: String): Meter = provider.get(name)
@@ -56,8 +53,8 @@ object metric {
   /** Replaces the default MeterProvider with a user-configured one. */
   def install(provider: MeterProvider): Unit = ref.set(provider)
 
-  /** Reverts to the default MeterProvider. */
-  def reset(): Unit = ref.set(null)
+  /** Remove the installed MeterProvider. After this, metrics use the default provider. */
+  def removeAll(): Unit = ref.set(MeterProvider.builder.build())
 
   /** Returns the MetricReader for the current provider. */
   def reader: MetricReader = provider.reader

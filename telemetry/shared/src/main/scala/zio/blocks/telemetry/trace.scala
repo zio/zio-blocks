@@ -25,41 +25,26 @@ import java.util.concurrent.atomic.AtomicReference
  * App code uses this directly. Library code should accept `Tracer` via DI.
  */
 object trace {
-  private val ref: AtomicReference[TracerProvider] = new AtomicReference[TracerProvider](null)
-  private val spanStore: InMemorySpanProcessor     = new InMemorySpanProcessor()
+  private val spanStore: InMemorySpanProcessor = new InMemorySpanProcessor()
 
-  private lazy val defaultProvider: TracerProvider =
+  private val defaultProvider: TracerProvider =
     TracerProvider.builder
       .addSpanProcessor(spanStore)
       .build()
 
-  private def provider: TracerProvider = {
-    val p = ref.get()
-    if (p != null) p else defaultProvider
-  }
+  private val ref: AtomicReference[TracerProvider] = new AtomicReference[TracerProvider](defaultProvider)
 
-  private lazy val defaultTracer: Tracer = defaultProvider.get("default")
+  private def provider: TracerProvider = ref.get()
 
   /** Creates a span using the default tracer. */
-  def span[A](name: String)(f: Span => A): A = {
-    val t = ref.get()
-    if (t != null) t.get("default").span(name)(f)
-    else defaultTracer.span(name)(f)
-  }
+  def span[A](name: String)(f: Span => A): A = provider.get("default").span(name)(f)
 
   /** Creates a span with explicit kind. */
-  def span[A](name: String, kind: SpanKind)(f: Span => A): A = {
-    val t = ref.get()
-    if (t != null) t.get("default").span(name, kind)(f)
-    else defaultTracer.span(name, kind)(f)
-  }
+  def span[A](name: String, kind: SpanKind)(f: Span => A): A = provider.get("default").span(name, kind)(f)
 
   /** Creates a span with explicit kind and attributes. */
-  def span[A](name: String, kind: SpanKind, attributes: Attributes)(f: Span => A): A = {
-    val t = ref.get()
-    if (t != null) t.get("default").span(name, kind, attributes)(f)
-    else defaultTracer.span(name, kind, attributes)(f)
-  }
+  def span[A](name: String, kind: SpanKind, attributes: Attributes)(f: Span => A): A =
+    provider.get("default").span(name, kind, attributes)(f)
 
   /** Returns a named Tracer for a specific instrumentation scope. */
   def get(name: String): Tracer = provider.get(name)
@@ -67,8 +52,8 @@ object trace {
   /** Replaces the default TracerProvider with a user-configured one. */
   def install(provider: TracerProvider): Unit = ref.set(provider)
 
-  /** Reverts to the default in-memory TracerProvider. */
-  def reset(): Unit = ref.set(null)
+  /** Remove the installed TracerProvider. After this, spans are no-ops until you install a provider. */
+  def removeAll(): Unit = ref.set(TracerProvider.builder.build())
 
   /** Returns spans collected by the default in-memory processor. */
   def collectedSpans: List[SpanData] = spanStore.collectedSpans

@@ -52,11 +52,7 @@ object LogState {
 
 private[telemetry] object GlobalLogState {
 
-  @volatile private[telemetry] var globalMinLevel: Int = 1
-
-  private val ref: AtomicReference[LogState] = new AtomicReference[LogState](null)
-
-  private lazy val defaultState: LogState = {
+  private val defaultState: LogState = {
     val processor = new ConsoleLogRecordProcessor
     val cs        = ContextStorage.defaultSpanContextStorage
     val logger    = new Logger(
@@ -68,10 +64,21 @@ private[telemetry] object GlobalLogState {
     LogState(logger, Severity.Trace.number, Map.empty)
   }
 
-  def get(): LogState = {
-    val state = ref.get()
-    if (state != null) state else defaultState
+  private val silentState: LogState = {
+    val logger = new Logger(
+      InstrumentationScope(name = "default"),
+      Resource.empty,
+      Array.empty[LogRecordProcessor],
+      ContextStorage.defaultSpanContextStorage
+    )
+    LogState(logger, Int.MaxValue, Map.empty)
   }
+
+  @volatile private[telemetry] var globalMinLevel: Int = 1
+
+  private val ref: AtomicReference[LogState] = new AtomicReference[LogState](defaultState)
+
+  def get(): LogState = ref.get()
 
   def set(state: LogState): Unit = {
     ref.set(state)
@@ -84,11 +91,8 @@ private[telemetry] object GlobalLogState {
   }
 
   def setLevel(prefix: String, severity: Severity): Unit = {
-    if (ref.get() == null) {
-      ref.compareAndSet(null, defaultState)
-    }
     var current = ref.get()
-    while (current != null) {
+    while (true) {
       val updated =
         LogState(current.logger, current.minSeverity, current.levelOverridesMap + (prefix -> severity.number))
       if (ref.compareAndSet(current, updated)) {
@@ -100,11 +104,8 @@ private[telemetry] object GlobalLogState {
   }
 
   def clearLevel(prefix: String): Unit = {
-    if (ref.get() == null) {
-      ref.compareAndSet(null, defaultState)
-    }
     var current = ref.get()
-    while (current != null) {
+    while (true) {
       val updated = LogState(current.logger, current.minSeverity, current.levelOverridesMap - prefix)
       if (ref.compareAndSet(current, updated)) {
         updateGlobalMinLevel()
@@ -115,11 +116,8 @@ private[telemetry] object GlobalLogState {
   }
 
   def clearAllLevels(): Unit = {
-    if (ref.get() == null) {
-      ref.compareAndSet(null, defaultState)
-    }
     var current = ref.get()
-    while (current != null) {
+    while (true) {
       val updated = LogState(current.logger, current.minSeverity, Map.empty)
       if (ref.compareAndSet(current, updated)) {
         updateGlobalMinLevel()
@@ -129,14 +127,13 @@ private[telemetry] object GlobalLogState {
     }
   }
 
-  def uninstall(): Unit = {
-    ref.set(null)
-    globalMinLevel = 1
+  def removeAll(): Unit = {
+    ref.set(silentState)
+    globalMinLevel = Int.MaxValue
   }
 
   private def updateGlobalMinLevel(): Unit = {
     val state = ref.get()
-    if (state == null) { globalMinLevel = 1; return }
     var min = state.minSeverity
     var i   = 0
     while (i < state.levelOverrideValues.length) {

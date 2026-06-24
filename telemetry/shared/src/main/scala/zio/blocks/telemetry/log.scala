@@ -45,24 +45,22 @@ object log extends LogVersionSpecific {
   /** Add a log record processor. Additive. */
   def addProcessor(processor: LogRecordProcessor): Unit = synchronized {
     val currentState = GlobalLogState.get()
-    if (currentState != null && currentState.logger != null) {
-      val logger = new Logger(
-        currentState.logger.instrumentationScope,
-        currentState.logger.resource,
-        currentState.logger.baseProcessors :+ processor,
-        currentState.logger.contextStorage
-      )
-      GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
-    }
+    val logger = new Logger(
+      currentState.logger.instrumentationScope,
+      currentState.logger.resource,
+      currentState.logger.baseProcessors :+ processor,
+      currentState.logger.contextStorage
+    )
+    GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
   }
 
   /** Replace the entire logging backend with a custom logger. */
   def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit =
     GlobalLogState.install(logger, minSeverity)
 
-  /** Revert to the default console logger. */
-  def reset(): Unit =
-    GlobalLogState.uninstall()
+  /** Remove all processors and writers. After this, log calls are no-ops until you add a processor or install a logger. */
+  def removeAll(): Unit =
+    GlobalLogState.removeAll()
 
   /** Temporarily lower the filter threshold for the duration of a block. */
   def withMinSeverity[A](severity: Severity)(f: => A): A = {
@@ -96,22 +94,19 @@ object log extends LogVersionSpecific {
 
   private def rebuildState(): Unit = {
     val currentState = GlobalLogState.get()
-    if (currentState != null && currentState.logger != null) {
-      // Create a new logger with updated processors, preserving existing context storage and resource
-      val logger = new Logger(
-        currentState.logger.instrumentationScope,
-        currentState.logger.resource,
-        currentState.logger.baseProcessors ++ _writerProcessors,
-        currentState.logger.contextStorage
-      )
-      GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
-    }
+    val logger = new Logger(
+      currentState.logger.instrumentationScope,
+      currentState.logger.resource,
+      currentState.logger.baseProcessors ++ _writerProcessors,
+      currentState.logger.contextStorage
+    )
+    GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
   }
 
   private[telemetry] def emit(severity: Severity, message: String, location: SourceLocation): Unit =
     if (severity.number >= GlobalLogState.globalMinLevel) {
       val state = GlobalLogState.get()
-      if (state != null && severity.number >= state.effectiveLevel(location.namespace)) {
+      if (severity.number >= state.effectiveLevel(location.namespace)) {
         val now     = EpochClock.epochNanos()
         val builder = AttributeBuilderPool
           .get()
@@ -171,9 +166,7 @@ object log extends LogVersionSpecific {
     val attrs = builder.build
     builder.clear()
     val state    = GlobalLogState.get()
-    val resource =
-      if (state != null && state.logger != null) state.logger.resource
-      else Resource.empty
+    val resource = state.logger.resource
 
     LogRecord(
       timestampNanos = now,
