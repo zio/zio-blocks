@@ -57,7 +57,7 @@ object metric {
   def install(provider: MeterProvider): Unit = ref.set(provider)
 
   /** Reverts to the default MeterProvider. */
-  def uninstall(): Unit = ref.set(null)
+  def reset(): Unit = ref.set(null)
 
   /** Returns the MetricReader for the current provider. */
   def reader: MetricReader = provider.reader

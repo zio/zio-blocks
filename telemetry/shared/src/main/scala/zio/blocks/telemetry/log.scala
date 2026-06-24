@@ -61,7 +61,7 @@ object log extends LogVersionSpecific {
     GlobalLogState.install(logger, minSeverity)
 
   /** Revert to the default console logger. */
-  def uninstall(): Unit =
+  def reset(): Unit =
     GlobalLogState.uninstall()
 
   /** Temporarily lower the filter threshold for the duration of a block. */

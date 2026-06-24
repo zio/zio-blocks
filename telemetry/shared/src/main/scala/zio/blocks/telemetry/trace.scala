@@ -68,7 +68,7 @@ object trace {
   def install(provider: TracerProvider): Unit = ref.set(provider)
 
   /** Reverts to the default in-memory TracerProvider. */
-  def uninstall(): Unit = ref.set(null)
+  def reset(): Unit = ref.set(null)
 
   /** Returns spans collected by the default in-memory processor. */
   def collectedSpans: List[SpanData] = spanStore.collectedSpans
