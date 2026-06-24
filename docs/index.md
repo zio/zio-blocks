@@ -29,6 +29,108 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
 
+## Config
+
+Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
+
+See the [Config reference](reference/config.md) for the full API surface, supported rollout syntax, and format-adapter entry points.
+
+### Key Features
+
+- **Static flags**: Resolve once at class load with `StaticFlag[A]`
+- **Typed config loading**: Decode case classes with `Config.load[A]`
+- **Flag sources**: Register custom flag sources in `FlagSource.Registry`
+- **Source composition**: Combine sources with `orElse` and keep provenance
+- **Rollout DSL**: Select values with path and percentage rules
+- **File adapters**: Parse YAML, JSON, and HOCON into `ConfigSource`
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
+```
+
+### Quick Start: StaticFlag
+
+```scala
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+val size: Int = poolSize()
+```
+
+### Quick Start: Config.load[A]
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
+```
+
+### Example: FlagSource Plugin
+
+```scala
+package myapp
+
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+FlagSource.Registry.register(
+  FlagSource.fromMap(Map("myapp.poolSize" -> "20"), "demo")
+)
+
+val size = poolSize()
+```
+
+:::note
+Register a `FlagSource` before the first reference to a `StaticFlag` object. `StaticFlag` resolves during object initialization, so a source registered later will not change a flag that has already been loaded. The lookup key is the flag object's fully qualified name (`myapp.poolSize` in this example).
+:::
+
+### Example: ConfigSource Composition with Provenance
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
+val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
+val source   = env.orElse(defaults).withPrefix("app")
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val loaded   = Config.loadWithProvenance[AppConfig](source)
+val hostProv = loaded.map(_.provenanceOf("host"))
+```
+
+### Example: Rollout DSL
+
+```scala
+import zio.blocks.config._
+
+val bucket = Rollout.bucketFor("user-123")
+val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
+```
+
+`prod/50%` applies the choice to the `prod` path and enables it for roughly half of the `prod` buckets. The trailing `false` entry is the catch-all fallback for every non-matching case.
+
+### File Format Adapters
+
+- **YAML**: `zio.blocks.config.yaml.YamlConfigSource.fromString`
+- **JSON**: `zio.blocks.config.json.JsonConfigSource.fromString`
+- **HOCON**: `zio.blocks.config.hocon.HoconConfigSource.fromString`
+
 ## Core Principles
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
@@ -278,13 +380,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
   Wire(Config("jdbc:postgresql://localhost/mydb"))
 )
 
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val service = allocate(serviceResource)
-
-  $(service)(_.createUser("Alice"))
-}
+serviceResource.use(_.createUser("Alice"))
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
 
@@ -639,7 +735,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
