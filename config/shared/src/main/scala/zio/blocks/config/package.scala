@@ -17,5 +17,5 @@
 package zio.blocks
 
 package object config {
-  implicit def secretDisplayable: Displayable[Secret] = Secret.displayable
+  implicit val secretDisplayable: Displayable[Secret] = Secret.displayable
 }
