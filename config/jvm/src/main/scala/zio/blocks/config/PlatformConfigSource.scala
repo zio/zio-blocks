@@ -34,7 +34,7 @@ object EnvSource extends ConfigSource {
     else Maybe.present(SourceValue(raw, Provenance.Resolved(sourceId, envKey, Maybe.present(raw))))
   }
 
-  def getAll(prefix: String): Map[String, SourceValue[String]] = {
+  def all(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
     System
@@ -67,7 +67,7 @@ object SysPropSource extends ConfigSource {
     else Maybe.present(SourceValue(raw, Provenance.Resolved(sourceId, key, Maybe.present(raw))))
   }
 
-  def getAll(prefix: String): Map[String, SourceValue[String]] = {
+  def all(prefix: String): Map[String, SourceValue[String]] = {
     val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
     System.getProperties.asScala.collect {
       case (k, v) if prefix.isEmpty || k == prefix || k.startsWith(dotPrefix) =>

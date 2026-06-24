@@ -49,14 +49,6 @@ sealed trait ConfigDerivationError extends ConfigError
 
 object ConfigError {
 
-  case class ConstraintViolation(path: String, constraint: String) extends ConfigValidationError {
-    def message: String = s"Constraint violation for '$path': $constraint"
-  }
-
-  case class RequiredKeyMissing(path: String) extends ConfigValidationError {
-    def message: String = s"Required key '$path' is missing"
-  }
-
   case class UnknownDiscriminator(path: String, found: String, expected: Seq[String]) extends ConfigDerivationError {
     def message: String =
       s"Unknown discriminator value '$found' at '$path'; expected one of: ${expected.mkString(", ")}"
@@ -64,10 +56,6 @@ object ConfigError {
 
   case class MissingDiscriminatorKey(path: String, key: String) extends ConfigDerivationError {
     def message: String = s"Missing discriminator key '$key' at '$path'"
-  }
-
-  case class ToggleUpdateFailed(toggleName: String, cause: Throwable) extends ConfigError {
-    def message: String = s"Failed to update flag '$toggleName': ${cause.getMessage}"
   }
 
   /**

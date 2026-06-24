@@ -80,12 +80,12 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
         result.get.provenance == Provenance.Resolved("sysprop", "timeout", Maybe.present("60"))
       )
     },
-    test("getAll merges from all sources with correct provenance per key") {
+    test("all merges from all sources with correct provenance per key") {
       val env      = ConfigSource.fromMap(Map("db.host" -> "env-host"), "env")
       val props    = ConfigSource.fromMap(Map("db.port" -> "5432"), "sysprop")
       val defaults = ConfigSource.fromMap(Map("db.host" -> "default-host", "db.name" -> "mydb"), "defaults")
       val source   = env.orElse(props).orElse(defaults)
-      val result   = source.getAll("db")
+      val result   = source.all("db")
       assertTrue(
         result.size == 3,
         result("db.host").provenance == Provenance.Resolved("env", "db.host", Maybe.present("env-host")),
@@ -115,21 +115,21 @@ object ConfigSourceCompositionSpec extends ConfigBaseSpec {
   )
 
   private val combinedTransformSuite = suite("combined transforms")(
-    test("withPrefix composes with orElse") {
+    test("prefix composes with orElse") {
       val env      = ConfigSource.fromMap(Map("app.db.host" -> "env-host"), "env")
       val defaults = ConfigSource.fromMap(Map("app.db.host" -> "default-host", "app.db.port" -> "5432"), "defaults")
-      val source   = env.orElse(defaults).withPrefix("app")
-      val result   = source.getAll("db")
+      val source   = env.orElse(defaults).prefix("app")
+      val result   = source.all("db")
       assertTrue(
         result.size == 2,
         result("db.host").value == "env-host",
         result("db.port").value == "5432"
       )
     },
-    test("withKeyMapper composes with orElse") {
+    test("keyMapper composes with orElse") {
       val env      = ConfigSource.fromMap(Map("DATABASE_URL" -> "env-url"), "env")
       val defaults = ConfigSource.fromMap(Map("DATABASE_URL" -> "default-url"), "defaults")
-      val source   = env.orElse(defaults).withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val source   = env.orElse(defaults).keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
       val result   = source.get("databaseUrl")
       assertTrue(
         result.get.value == "env-url",

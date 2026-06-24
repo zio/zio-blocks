@@ -37,7 +37,7 @@ trait FlagSource {
 
 trait ConfigSource extends FlagSource {
   def get(key: String): Maybe[SourceValue[String]]
-  def getAll(prefix: String): Map[String, SourceValue[String]]
+  def all(prefix: String): Map[String, SourceValue[String]]
 }
 ```
 
@@ -58,7 +58,7 @@ val source = ConfigSource.fromMap(
   "example"
 )
 
-val loaded = Config.load[AppConfig](source.withPrefix("app"))
+val loaded = Config.load[AppConfig](source.prefix("app"))
 ```
 
 The main entry points are:
@@ -91,15 +91,15 @@ val defaults = ConfigSource.fromMap(Map("db.host" -> "localhost"), "defaults")
 val env      = ConfigSource.fromMap(Map("db.port" -> "5432"), "env")
 
 val combined = env.orElse(defaults)
-val scoped   = combined.withPrefix("db")
+val scoped   = combined.prefix("db")
 ```
 
 Common adapters:
 
 - `ConfigSource.fromMap(...)`
-- `zio.blocks.config.yaml.YamlConfigSource.fromString(...)`
-- `zio.blocks.config.json.JsonConfigSource.fromString(...)`
-- `zio.blocks.config.hocon.HoconConfigSource.fromString(...)`
+- `ConfigSource.fromYaml(...)`  (requires `config-yaml` dependency)
+- `ConfigSource.fromJson(...)`  (requires `config-json` dependency)
+- `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency)
 
 ## Static and Dynamic Flags
 

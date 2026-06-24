@@ -116,34 +116,6 @@ object StaticFlagSpec extends ConfigBaseSpec {
         } finally {
           FlagSource.Registry.clear()
         }
-      },
-      test("preserves merged provenance from FlagSource") {
-        val flagName = "test.provider.merged-provenance.flag"
-        val envName  = "TEST_PROVIDER_MERGED_PROVENANCE_FLAG"
-        val merged   = Provenance.Merged(
-          Provenance.Resolved("primary", "primary.key", Maybe.present("from-primary")),
-          Provenance.Resolved("fallback", "fallback.key", Maybe.present("from-fallback"))
-        )
-
-        FlagSource.Registry.clear()
-        FlagSource.Registry.register(new FlagSource {
-          val sourceId: String = "test-merged"
-
-          def get(name: String): Maybe[SourceValue[String]] =
-            if (name == flagName) Maybe.present(SourceValue("from-primary", merged))
-            else Maybe.absent
-        })
-
-        try {
-          val (value, source, prov) =
-            StaticFlag.resolve[String](flagName, envName, "fallback", Flag.Reader.stringReader)
-
-          assertTrue(value == "from-primary") &&
-          assertTrue(source == Flag.Source.FlagSourceValue(merged.sourceId)) &&
-          assertTrue(prov == merged)
-        } finally {
-          FlagSource.Registry.clear()
-        }
       }
     ),
     suite("self-registration")(

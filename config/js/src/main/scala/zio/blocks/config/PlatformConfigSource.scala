@@ -34,7 +34,7 @@ object EnvSource extends ConfigSource {
     Maybe.fromOption(raw.map(v => SourceValue(v, Provenance.Resolved(sourceId, envKey, Maybe.present(v)))))
   }
 
-  def getAll(prefix: String): Map[String, SourceValue[String]] = {
+  def all(prefix: String): Map[String, SourceValue[String]] = {
     val envPrefix = toEnvKey(prefix)
     val dotPrefix = if (envPrefix.isEmpty) "" else s"${envPrefix}_"
     allEnvVars().collect {
@@ -84,5 +84,5 @@ object SysPropSource extends ConfigSource {
 
   def get(key: String): Maybe[SourceValue[String]] = Maybe.absent
 
-  def getAll(prefix: String): Map[String, SourceValue[String]] = Map.empty
+  def all(prefix: String): Map[String, SourceValue[String]] = Map.empty
 }

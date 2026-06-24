@@ -39,7 +39,7 @@ object Config {
    */
   def wire[A](prefix: String)(implicit schema: Schema[A]): Wire.Shared[ConfigSource, A] =
     Wire.Shared.fromFunction { (_, ctx) =>
-      loadOrThrow[A](ctx.get[ConfigSource].withPrefix(prefix))
+      loadOrThrow[A](ctx.get[ConfigSource].prefix(prefix))
     }
 
   /**
@@ -78,9 +78,6 @@ object Config {
     val decoder = schema.deriving(deriver).derive
     decoder.decode(source, "")
   }
-
-  def withKeyFormat(source: ConfigSource, format: KeyFormat): ConfigSource =
-    source.withKeyMapper(KeyMapper.default, format)
 
   /**
    * Load a value of type `A` from the given source, or throw with a formatted

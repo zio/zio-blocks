@@ -58,7 +58,7 @@ final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
    * with their values and sources.
    */
   def dump(prefix: String = ""): String = {
-    val entries = source.getAll(prefix)
+    val entries = source.all(prefix)
     if (entries.isEmpty) return "(no keys found)"
 
     val rows = entries.toList.sortBy(_._1).map { case (key, cv) =>

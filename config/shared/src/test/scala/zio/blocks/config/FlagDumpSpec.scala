@@ -16,7 +16,6 @@
 
 package zio.blocks.config
 
-import zio.blocks.maybe.Maybe
 import zio.test._
 import zio.test.TestAspect
 
@@ -26,15 +25,6 @@ object FlagDumpSpec extends ConfigBaseSpec {
   object SecretFlag extends StaticFlag[Secret](Secret("hunter2"))
 
   def spec = suite("FlagDumpSpec")(
-    suite("Flag.all and Flag.get")(
-      test("returns registered flags") {
-        val allBefore = Flag.all
-        assertTrue(allBefore.isInstanceOf[List[_]])
-      },
-      test("get returns Maybe.absent for unknown flag") {
-        assertTrue(Flag.get("nonexistent.flag.xyz") == Maybe.absent)
-      }
-    ),
     suite("Flag.dump")(
       test("returns table or empty message") {
         val dumped = Flag.dump()
@@ -56,12 +46,50 @@ object FlagDumpSpec extends ConfigBaseSpec {
       test("detects case-insensitive match in system properties") {
         val propName = "zio.blocks.config.test.NearMissFlag"
         System.setProperty(propName, "42")
-        val warnings = Flag.nearMissWarnings("zio.blocks.config.test.nearmissflag")
-        System.clearProperty(propName)
-        assertTrue(
-          warnings.length == 1,
-          warnings.head.contains("Near-miss")
+        try {
+          val warnings = Flag.nearMissWarnings("zio.blocks.config.test.nearmissflag")
+          assertTrue(
+            warnings.length == 1,
+            warnings.head.contains("Near-miss")
+          )
+        } finally {
+          System.clearProperty(propName)
+        }
+      },
+      test("detects case-insensitive match in environment variables") {
+        val maybeEnvVar =
+          System.getenv().keySet().toArray(new Array[String](0)).find(name => name != name.toUpperCase)
+
+        maybeEnvVar match {
+          case Some(envVar) =>
+            val flagName = envVar.toLowerCase.replace('_', '.')
+            val warnings = Flag.nearMissWarnings(flagName)
+            assertTrue(
+              warnings.exists(
+                _.contains(s"environment variable '$envVar' looks similar to flag '$flagName'")
+              )
+            )
+          case None =>
+            assertTrue(true)
+        }
+      },
+      test("detects near miss in registered FlagSource") {
+        FlagSource.Registry.clear()
+        FlagSource.Registry.register(
+          FlagSource.fromMap(Map("ZIO_BLOCKS_CONFIG_TEST_SOURCE_FLAG" -> "42"), id = "test-source")
         )
+        try {
+          val warnings = Flag.nearMissWarnings("zio.blocks.config.test.source.flag")
+          assertTrue(
+            warnings.exists(
+              _.contains(
+                "FlagSource 'test-source' contains key 'ZIO_BLOCKS_CONFIG_TEST_SOURCE_FLAG' similar to flag 'zio.blocks.config.test.source.flag'"
+              )
+            )
+          )
+        } finally {
+          FlagSource.Registry.clear()
+        }
       },
       test("returns empty when no near miss") {
         val warnings = Flag.nearMissWarnings("definitely.unique.flag.name.xyz123")

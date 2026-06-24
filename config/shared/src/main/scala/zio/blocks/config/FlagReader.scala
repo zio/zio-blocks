@@ -17,7 +17,6 @@
 package zio.blocks.config
 
 import java.util.concurrent.ConcurrentHashMap
-import zio.blocks.maybe.Maybe
 
 import scala.concurrent.duration.{FiniteDuration, DAYS, HOURS, MINUTES, SECONDS, MILLISECONDS}
 import scala.util.Try
@@ -30,16 +29,6 @@ trait Flag {
    * by flag name.
    */
   val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
-
-  def all: List[Any] = {
-    val buf  = List.newBuilder[Any]
-    val iter = registry.values().iterator()
-    while (iter.hasNext) buf += iter.next()
-    buf.result()
-  }
-
-  def get(name: String): Maybe[Any] =
-    Maybe.fromOption(Option(registry.get(name)))
 
   def dump(): String = {
     import scala.jdk.CollectionConverters._
@@ -122,15 +111,45 @@ trait Flag {
 
   def nearMissWarnings(flagName: String): List[String] = {
     val lowerName = flagName.toLowerCase
-    val props     = System.getProperties
-    val iter      = props.stringPropertyNames().iterator()
-    val buf       = List.newBuilder[String]
-    while (iter.hasNext) {
-      val prop = iter.next()
+    val envName   = flagName.replace('.', '_').toUpperCase
+    val warnings  = scala.collection.mutable.LinkedHashSet.empty[String]
+
+    val props    = System.getProperties
+    val propIter = props.stringPropertyNames().iterator()
+    while (propIter.hasNext) {
+      val prop = propIter.next()
       if (prop.toLowerCase == lowerName && prop != flagName)
-        buf += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
+        warnings += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
     }
-    buf.result()
+
+    val envIter = System.getenv().entrySet().iterator()
+    while (envIter.hasNext) {
+      val envVar = envIter.next().getKey
+      if (envVar.equalsIgnoreCase(envName) && envVar != envName)
+        warnings += s"Near-miss: environment variable '$envVar' looks similar to flag '$flagName' (case mismatch)"
+    }
+
+    val candidates = List(
+      flagName,
+      lowerName,
+      flagName.toUpperCase,
+      flagName.replace('.', '_'),
+      flagName.replace('.', '_').toLowerCase,
+      envName,
+      flagName.replace('_', '.'),
+      flagName.replace('_', '.').toLowerCase,
+      flagName.replace('_', '.').toUpperCase
+    ).distinct
+
+    FlagSource.Registry.all.foreach { source =>
+      candidates.foreach { candidate =>
+        if (candidate != flagName && source.get(candidate).isPresent)
+          warnings +=
+            s"Near-miss: FlagSource '${source.sourceId}' contains key '$candidate' similar to flag '$flagName'"
+      }
+    }
+
+    warnings.toList
   }
 
   trait Reader[A] {

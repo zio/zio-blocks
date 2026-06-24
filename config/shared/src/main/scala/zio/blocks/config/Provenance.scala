@@ -43,12 +43,4 @@ object Provenance {
   case object Default extends Provenance {
     val sourceId: String = "schema-default"
   }
-
-  /**
-   * Provenance for a composed source that preserves both primary and fallback
-   * origins.
-   */
-  final case class Merged(primary: Provenance, fallback: Provenance) extends Provenance {
-    def sourceId: String = s"${primary.sourceId}|${fallback.sourceId}"
-  }
 }

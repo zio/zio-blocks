@@ -31,7 +31,7 @@ object ConfigDecoderDeriver extends ConfigDecoderDeriver("type")
 
 class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Deriver[ConfigDecoder] {
 
-  def withDiscriminatorKey(key: String): ConfigDecoderDeriver = new ConfigDecoderDeriver(key)
+  def discriminator(key: String): ConfigDecoderDeriver = new ConfigDecoderDeriver(key)
 
   override def derivePrimitive[A](
     primitiveType: PrimitiveType[A],
@@ -211,7 +211,7 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
           def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], Col[Elem]] = {
             var errors   = List.empty[ConfigError]
             val builder  = constructor.newBuilder[Elem](8)(elemClassTag)
-            val allKeys  = source.getAll(prefix)
+            val allKeys  = source.all(prefix)
             var idx      = 0
             var continue = true
             while (continue) {
@@ -275,7 +275,7 @@ class ConfigDecoderDeriver(val discriminatorKey: String = "type") extends Derive
           private[this] val valueDecoder = valDec.asInstanceOf[ConfigDecoder[Value]]
 
           def decode(source: ConfigSource, prefix: String): Either[::[ConfigError], Map[Key, Value]] = {
-            val all       = source.getAll(prefix)
+            val all       = source.all(prefix)
             var errors    = List.empty[ConfigError]
             val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
             val subKeys   = all.keys.flatMap { k =>

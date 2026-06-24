@@ -83,14 +83,14 @@ object HoconConfigSourceSpec extends ZIOSpecDefault {
         val result = HoconConfigSource.fromString("{ invalid }")
         assertTrue(result.isLeft)
       },
-      test("getAll returns all keys under prefix") {
+      test("all returns all keys under prefix") {
         val hocon  = """
           db.host = "localhost"
           db.port = 5432
           app.name = "test"
         """
         val source = HoconConfigSource.fromString(hocon).toOption.get
-        val all    = source.getAll("db")
+        val all    = source.all("db")
         assertTrue(
           all.size == 2,
           all.contains("db.host"),

@@ -38,7 +38,7 @@ trait ConfigSource extends FlagSource {
    * Return all key-value pairs whose keys start with the given prefix (using
    * dot-separated paths).
    */
-  def getAll(prefix: String): Map[String, SourceValue[String]]
+  def all(prefix: String): Map[String, SourceValue[String]]
 
   /**
    * Compose this source with a fallback. Keys are looked up in this source
@@ -51,10 +51,10 @@ trait ConfigSource extends FlagSource {
     def get(key: String): Maybe[SourceValue[String]] =
       ConfigSource.this.get(key).orElse(fallback.get(key))
 
-    def getAll(prefix: String): Map[String, SourceValue[String]] = {
+    def all(prefix: String): Map[String, SourceValue[String]] = {
       val builder   = scala.collection.mutable.Map.empty[String, SourceValue[String]]
-      val primary   = ConfigSource.this.getAll(prefix)
-      val secondary = fallback.getAll(prefix)
+      val primary   = ConfigSource.this.all(prefix)
+      val secondary = fallback.all(prefix)
       secondary.foreach { case (k, v) => builder(k) = v }
       primary.foreach { case (k, v) => builder(k) = v }
       builder.toMap
@@ -63,19 +63,23 @@ trait ConfigSource extends FlagSource {
 
   /**
    * Prepend a prefix to all key lookups. For example,
-   * `source.withPrefix("db").get("host")` looks up `"db.host"` in the
-   * underlying source.
+   * `source.prefix("db").get("host")` looks up `"db.host"` in the underlying
+   * source.
    */
-  final def withPrefix(prefix: String): ConfigSource = new ConfigSource {
-    val sourceId: String = ConfigSource.this.sourceId
+  final def prefix(prefix: String): ConfigSource = {
+    val keyPrefix = prefix
 
-    def get(key: String): Maybe[SourceValue[String]] =
-      ConfigSource.this.get(ConfigSource.composeKey(prefix, key))
+    new ConfigSource {
+      val sourceId: String = ConfigSource.this.sourceId
 
-    def getAll(pfx: String): Map[String, SourceValue[String]] = {
-      val rawPrefix = ConfigSource.composeKey(prefix, pfx)
-      ConfigSource.this.getAll(rawPrefix).map { case (key, value) =>
-        ConfigSource.stripKeyPrefix(key, prefix) -> value
+      def get(key: String): Maybe[SourceValue[String]] =
+        ConfigSource.this.get(ConfigSource.composeKey(keyPrefix, key))
+
+      def all(pfx: String): Map[String, SourceValue[String]] = {
+        val rawPrefix = ConfigSource.composeKey(keyPrefix, pfx)
+        ConfigSource.this.all(rawPrefix).map { case (key, value) =>
+          ConfigSource.stripKeyPrefix(key, keyPrefix) -> value
+        }
       }
     }
   }
@@ -84,7 +88,7 @@ trait ConfigSource extends FlagSource {
    * Apply a key transformation before lookup. The mapper transforms the
    * requested key before it is passed to the underlying source.
    */
-  final def withKeyMapper(mapper: KeyMapper, targetFormat: KeyFormat): ConfigSource = new ConfigSource {
+  final def keyMapper(mapper: KeyMapper, targetFormat: KeyFormat): ConfigSource = new ConfigSource {
     val sourceId: String = ConfigSource.this.sourceId
 
     private def mapKey(key: String): String =
@@ -93,11 +97,14 @@ trait ConfigSource extends FlagSource {
     def get(key: String): Maybe[SourceValue[String]] =
       ConfigSource.this.get(mapKey(key))
 
-    def getAll(prefix: String): Map[String, SourceValue[String]] =
-      ConfigSource.this.getAll(mapKey(prefix)).map { case (key, value) =>
+    def all(prefix: String): Map[String, SourceValue[String]] =
+      ConfigSource.this.all(mapKey(prefix)).map { case (key, value) =>
         mapper.toCanonical(key) -> value
       }
   }
+
+  final def keyFormat(format: KeyFormat): ConfigSource =
+    keyMapper(KeyMapper.default, format)
 }
 
 object ConfigSource {
@@ -121,7 +128,7 @@ object ConfigSource {
     def get(key: String): Maybe[SourceValue[String]] =
       Maybe.fromOption(map.get(key).map(v => SourceValue(v, Provenance.Resolved(sourceId, key, Maybe.present(v)))))
 
-    def getAll(prefix: String): Map[String, SourceValue[String]] = {
+    def all(prefix: String): Map[String, SourceValue[String]] = {
       val dotPrefix = if (prefix.isEmpty) "" else s"$prefix."
       map.collect {
         case (k, v) if prefix.isEmpty || k == prefix || k.startsWith(dotPrefix) =>

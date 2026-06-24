@@ -342,19 +342,18 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
         val result  = decoder.decode(source, "")
         assertTrue(result == Right(WithMap(Map("a" -> 1, "b" -> 2))))
       },
-      test("decodes dot-keyed source through withPrefix") {
+      test("decodes dot-keyed source through prefix") {
         val source = ConfigSource
           .fromMap(Map("app.counts.a" -> "1", "app.counts.b" -> "2"))
-          .withPrefix("app")
+          .prefix("app")
         val decoder = ConfigDecoder.derive[WithMap]
         val result  = decoder.decode(source, "")
         assertTrue(result == Right(WithMap(Map("a" -> 1, "b" -> 2))))
       },
-      test("decodes mapped map keys through withKeyFormat") {
-        val source = Config.withKeyFormat(
-          ConfigSource.fromMap(Map("DATABASE_URL.A" -> "1", "DATABASE_URL.B" -> "2")),
-          KeyFormat.UpperSnakeCase
-        )
+      test("decodes mapped map keys through keyFormat") {
+        val source = ConfigSource
+          .fromMap(Map("DATABASE_URL.A" -> "1", "DATABASE_URL.B" -> "2"))
+          .keyFormat(KeyFormat.UpperSnakeCase)
         val decoder = ConfigDecoder.derive[WithDatabaseUrlMap]
         val result  = decoder.decode(source, "")
         assertTrue(result == Right(WithDatabaseUrlMap(Map("a" -> 1, "b" -> 2))))
@@ -364,7 +363,7 @@ object ConfigDecoderSpec extends ConfigBaseSpec {
       test("decodes indexed keys from prefixed source") {
         val source = ConfigSource
           .fromMap(Map("app.items.0" -> "a", "app.items.1" -> "b"))
-          .withPrefix("app")
+          .prefix("app")
         val decoder = ConfigDecoder.derive[WithList]
         val result  = decoder.decode(source, "")
         assertTrue(result == Right(WithList(List("a", "b"))))

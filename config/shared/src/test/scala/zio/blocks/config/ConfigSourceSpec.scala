@@ -24,8 +24,8 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     sourceSuite,
     mapSourceSuite,
     orElseSuite,
-    withPrefixSuite,
-    withKeyMapperSuite,
+    prefixSuite,
+    keyMapperSuite,
     envSourceSuite,
     sysPropSourceSuite
   )
@@ -77,11 +77,11 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result = source.get("k")
       assertTrue(result.get.provenance == Provenance.Resolved("custom-map", "k", Maybe.present("v")))
     },
-    test("getAll returns entries matching prefix") {
+    test("all returns entries matching prefix") {
       val source = ConfigSource.fromMap(
         Map("db.host" -> "localhost", "db.port" -> "5432", "api.key" -> "secret")
       )
-      val result = source.getAll("db")
+      val result = source.all("db")
       assertTrue(
         result.size == 2,
         result.contains("db.host"),
@@ -89,18 +89,18 @@ object ConfigSourceSpec extends ConfigBaseSpec {
         !result.contains("api.key")
       )
     },
-    test("getAll includes exact prefix match") {
+    test("all includes exact prefix match") {
       val source = ConfigSource.fromMap(Map("db" -> "value", "db.host" -> "localhost"))
-      val result = source.getAll("db")
+      val result = source.all("db")
       assertTrue(
         result.size == 2,
         result.contains("db"),
         result.contains("db.host")
       )
     },
-    test("getAll with empty prefix returns all entries") {
+    test("all with empty prefix returns all entries") {
       val source = ConfigSource.fromMap(Map("a" -> "1", "b" -> "2"))
-      val result = source.getAll("")
+      val result = source.all("")
       assertTrue(result.size == 2)
     }
   )
@@ -138,11 +138,11 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val composed = primary.orElse(fallback)
       assertTrue(composed.sourceId == "env|sysprop")
     },
-    test("getAll merges entries with primary taking precedence") {
+    test("all merges entries with primary taking precedence") {
       val primary  = ConfigSource.fromMap(Map("db.host" -> "primary-host"), "primary")
       val fallback = ConfigSource.fromMap(Map("db.host" -> "fallback-host", "db.port" -> "5432"), "fallback")
       val composed = primary.orElse(fallback)
-      val result   = composed.getAll("db")
+      val result   = composed.all("db")
       assertTrue(
         result.size == 2,
         result("db.host").value == "primary-host",
@@ -153,10 +153,10 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     }
   )
 
-  private val withPrefixSuite = suite("withPrefix")(
+  private val prefixSuite = suite("prefix")(
     test("prepends prefix to key on get") {
       val source   = ConfigSource.fromMap(Map("db.host" -> "localhost"))
-      val prefixed = source.withPrefix("db")
+      val prefixed = source.prefix("db")
       val result   = prefixed.get("host")
       assertTrue(
         result.isDefined,
@@ -165,18 +165,18 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     },
     test("preserves original sourceId") {
       val source   = ConfigSource.fromMap(Map("db.host" -> "localhost"), "my-source")
-      val prefixed = source.withPrefix("db")
+      val prefixed = source.prefix("db")
       assertTrue(prefixed.sourceId == "my-source")
     },
     test("returns None when prefixed key is missing") {
       val source   = ConfigSource.fromMap(Map("api.key" -> "secret"))
-      val prefixed = source.withPrefix("db")
+      val prefixed = source.prefix("db")
       assertTrue(prefixed.get("host").isEmpty)
     },
-    test("prepends prefix to getAll") {
+    test("prepends prefix to all") {
       val source   = ConfigSource.fromMap(Map("app.db.host" -> "localhost", "app.db.port" -> "5432", "other" -> "x"))
-      val prefixed = source.withPrefix("app")
-      val result   = prefixed.getAll("db")
+      val prefixed = source.prefix("app")
+      val result   = prefixed.all("db")
       assertTrue(
         result.size == 2,
         result.contains("db.host"),
@@ -185,10 +185,10 @@ object ConfigSourceSpec extends ConfigBaseSpec {
         !result.contains("app.db.port")
       )
     },
-    test("getAll with empty prefix returns keys relative to wrapper root") {
+    test("all with empty prefix returns keys relative to wrapper root") {
       val source   = ConfigSource.fromMap(Map("db.host" -> "localhost", "db.port" -> "5432", "other" -> "x"))
-      val prefixed = source.withPrefix("db")
-      val result   = prefixed.getAll("")
+      val prefixed = source.prefix("db")
+      val result   = prefixed.all("")
       assertTrue(
         result.size == 2,
         result.contains("host"),
@@ -199,10 +199,10 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     }
   )
 
-  private val withKeyMapperSuite = suite("withKeyMapper")(
+  private val keyMapperSuite = suite("keyMapper")(
     test("maps camelCase key to UPPER_SNAKE_CASE for lookup") {
       val source = ConfigSource.fromMap(Map("DATABASE_URL" -> "jdbc:postgres://localhost"))
-      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
       val result = mapped.get("databaseUrl")
       assertTrue(
         result.isDefined,
@@ -211,7 +211,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     },
     test("maps camelCase key to kebab-case for lookup") {
       val source = ConfigSource.fromMap(Map("api-key" -> "secret"))
-      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.KebabCase)
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.KebabCase)
       val result = mapped.get("apiKey")
       assertTrue(
         result.isDefined,
@@ -220,7 +220,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     },
     test("maps camelCase key to snake_case for lookup") {
       val source = ConfigSource.fromMap(Map("max_retries" -> "3"))
-      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.SnakeCase)
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.SnakeCase)
       val result = mapped.get("maxRetries")
       assertTrue(
         result.isDefined,
@@ -229,13 +229,13 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     },
     test("preserves sourceId") {
       val source = ConfigSource.fromMap(Map.empty, "test-source")
-      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
       assertTrue(mapped.sourceId == "test-source")
     },
-    test("maps getAll keys back to canonical names") {
+    test("maps all keys back to canonical names") {
       val source = ConfigSource.fromMap(Map("DATABASE_URL" -> "jdbc:postgres://localhost", "MAX_RETRIES" -> "3"))
-      val mapped = source.withKeyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
-      val result = mapped.getAll("")
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val result = mapped.all("")
       assertTrue(
         result.keySet == Set("databaseUrl", "maxRetries"),
         result("databaseUrl").value == "jdbc:postgres://localhost",
@@ -257,10 +257,10 @@ object ConfigSourceSpec extends ConfigBaseSpec {
       val result = EnvSource.get("zio.blocks.config.test.nonexistent.key.12345")
       assertTrue(result.isEmpty)
     },
-    test("getAll returns logical keys instead of raw env variable names") {
+    test("all returns logical keys instead of raw env variable names") {
       val direct = EnvSource.get("path")
       if (direct.isDefined) {
-        val result = EnvSource.getAll("path")
+        val result = EnvSource.all("path")
         assertTrue(
           result.contains("path"),
           !result.contains("PATH"),

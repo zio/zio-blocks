@@ -59,8 +59,6 @@ abstract class DynamicFlag[A](default: A, defaultExpression: String)(implicit re
   private val _history: mutable.ArrayDeque[DynamicFlag.UpdateRecord] =
     new mutable.ArrayDeque[DynamicFlag.UpdateRecord]()
 
-  val isDynamic: Boolean = true
-
   /**
    * Evaluates the rollout expression for the given key and attributes, tracking
    * evaluation counters.

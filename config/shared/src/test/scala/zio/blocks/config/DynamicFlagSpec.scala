@@ -36,11 +36,6 @@ object DynamicFlagSpec extends ConfigBaseSpec {
         assertTrue(SimpleBoolFlag.name == "zio.blocks.config.DynamicFlagSpec.SimpleBoolFlag")
       }
     ),
-    suite("isDynamic")(
-      test("isDynamic is true") {
-        assertTrue(SimpleBoolFlag.isDynamic)
-      }
-    ),
     suite("basic evaluation")(
       test("catch-all expression returns parsed value") {
         assertTrue(CatchAllIntFlag("any-key") == 42)

@@ -127,7 +127,7 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("double").map(_.value) == Maybe.present("double quoted")) &&
       assertTrue(result.toOption.get.get("unquoted").map(_.value) == Maybe.present("unquoted"))
     },
-    test("getAll returns all keys with matching prefix") {
+    test("all returns all keys with matching prefix") {
       val yaml = """
                    |database:
                    |  host: localhost
@@ -137,9 +137,9 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
                    |""".stripMargin
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.getAll("database").size == 2) &&
-      assertTrue(result.toOption.get.getAll("database").contains("database.host")) &&
-      assertTrue(result.toOption.get.getAll("database").contains("database.port"))
+      assertTrue(result.toOption.get.all("database").size == 2) &&
+      assertTrue(result.toOption.get.all("database").contains("database.host")) &&
+      assertTrue(result.toOption.get.all("database").contains("database.port"))
     },
     test("malformed YAML treated as scalar value") {
       val result = YamlConfigSource.fromString("key: ]]][[[")

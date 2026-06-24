@@ -131,13 +131,13 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("empty_obj").isEmpty) &&
       assertTrue(result.toOption.get.get("empty_arr").isEmpty)
     },
-    test("getAll returns all keys with matching prefix") {
+    test("all returns all keys with matching prefix") {
       val json   = """{"db": {"host": "localhost", "port": 5432}, "app": {"name": "myapp"}}"""
       val result = JsonConfigSource.fromString(json)
       assertTrue(result.isRight) &&
-      assertTrue(result.toOption.get.getAll("db").size == 2) &&
-      assertTrue(result.toOption.get.getAll("db").contains("db.host")) &&
-      assertTrue(result.toOption.get.getAll("db").contains("db.port"))
+      assertTrue(result.toOption.get.all("db").size == 2) &&
+      assertTrue(result.toOption.get.all("db").contains("db.host")) &&
+      assertTrue(result.toOption.get.all("db").contains("db.port"))
     },
     test("handles string values with special characters") {
       val json   = """{"path": "/home/user/file.txt", "url": "https://example.com?key=value"}"""
