@@ -26,6 +26,53 @@ object log extends LogVersionSpecific {
   def annotated[A](annotations: (String, String)*)(f: => A): A =
     LogAnnotations.scoped(annotations.toMap)(f)
 
+  /** Set the global minimum severity floor. */
+  def setMinSeverity(severity: Severity): Unit =
+    GlobalLogState.install(GlobalLogState.get().logger, severity)
+
+  /** Set minimum severity for a specific package prefix. */
+  def setMinSeverity(prefix: String, severity: Severity): Unit =
+    GlobalLogState.setLevel(prefix, severity)
+
+  /** Clear a prefix-specific severity override. */
+  def clearMinSeverity(prefix: String): Unit =
+    GlobalLogState.clearLevel(prefix)
+
+  /** Clear all prefix-specific severity overrides. */
+  def clearAllOverrides(): Unit =
+    GlobalLogState.clearAllLevels()
+
+  /** Add a log record processor. Additive. */
+  def addProcessor(processor: LogRecordProcessor): Unit = synchronized {
+    val currentState = GlobalLogState.get()
+    if (currentState != null && currentState.logger != null) {
+      val logger = new Logger(
+        currentState.logger.instrumentationScope,
+        currentState.logger.resource,
+        currentState.logger.baseProcessors :+ processor,
+        currentState.logger.contextStorage
+      )
+      GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
+    }
+  }
+
+  /** Replace the entire logging backend with a custom logger. */
+  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit =
+    GlobalLogState.install(logger, minSeverity)
+
+  /** Revert to the default console logger. */
+  def uninstall(): Unit =
+    GlobalLogState.uninstall()
+
+  /** Temporarily lower the filter threshold for the duration of a block. */
+  def withMinSeverity[A](severity: Severity)(f: => A): A = {
+    val prev = GlobalLogState.get()
+    val prevMin = prev.minSeverity
+    GlobalLogState.install(prev.logger, severity)
+    try f
+    finally GlobalLogState.install(prev.logger, Severity.fromNumber(prevMin).getOrElse(Severity.Trace))
+  }
+
   @volatile private var _writerProcessors: List[FormattedLogRecordProcessor] = Nil
 
   /** Add a formatted output. Additive — each call adds another output. */

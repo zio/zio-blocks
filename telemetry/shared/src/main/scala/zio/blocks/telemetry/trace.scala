@@ -19,11 +19,12 @@ package zio.blocks.telemetry
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Global tracer that works without any setup ceremony. Stores spans in an
- * in-memory ring buffer by default. Install a real TracerProvider later via
- * `install` to wire production exporters.
+ * Global tracing entry point. Works without setup — stores spans in memory
+ * by default. Call `install` to wire production exporters.
+ *
+ * App code uses this directly. Library code should accept `Tracer` via DI.
  */
-private[telemetry] object GlobalTracer {
+object trace {
   private val ref: AtomicReference[TracerProvider] = new AtomicReference[TracerProvider](null)
   private val spanStore: InMemorySpanProcessor     = new InMemorySpanProcessor()
 
@@ -32,12 +33,36 @@ private[telemetry] object GlobalTracer {
       .addSpanProcessor(spanStore)
       .build()
 
-  /** Returns a Tracer for the given instrumentation scope name. */
-  def get(name: String = "default"): Tracer = {
-    val provider = ref.get()
-    if (provider != null) provider.get(name)
-    else defaultProvider.get(name)
+  private def provider: TracerProvider = {
+    val p = ref.get()
+    if (p != null) p else defaultProvider
   }
+
+  private lazy val defaultTracer: Tracer = defaultProvider.get("default")
+
+  /** Creates a span using the default tracer. */
+  def span[A](name: String)(f: Span => A): A = {
+    val t = ref.get()
+    if (t != null) t.get("default").span(name)(f)
+    else defaultTracer.span(name)(f)
+  }
+
+  /** Creates a span with explicit kind. */
+  def span[A](name: String, kind: SpanKind)(f: Span => A): A = {
+    val t = ref.get()
+    if (t != null) t.get("default").span(name, kind)(f)
+    else defaultTracer.span(name, kind)(f)
+  }
+
+  /** Creates a span with explicit kind and attributes. */
+  def span[A](name: String, kind: SpanKind, attributes: Attributes)(f: Span => A): A = {
+    val t = ref.get()
+    if (t != null) t.get("default").span(name, kind, attributes)(f)
+    else defaultTracer.span(name, kind, attributes)(f)
+  }
+
+  /** Returns a named Tracer for a specific instrumentation scope. */
+  def get(name: String): Tracer = provider.get(name)
 
   /** Replaces the default TracerProvider with a user-configured one. */
   def install(provider: TracerProvider): Unit = ref.set(provider)

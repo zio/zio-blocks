@@ -50,7 +50,7 @@ object LogState {
   }
 }
 
-object GlobalLogState {
+private[telemetry] object GlobalLogState {
 
   @volatile private[telemetry] var globalMinLevel: Int = 1
 

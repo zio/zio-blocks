@@ -41,22 +41,22 @@ object LogSpec extends ZIOSpecDefault {
       .setResource(resource)
       .build()
     val logger = provider.get("test")
-    GlobalLogState.install(logger, minSeverity)
+    log.install(logger, minSeverity)
     try f(processor)
     finally {
-      GlobalLogState.clearAllLevels()
-      GlobalLogState.uninstall()
+      log.clearAllOverrides()
+      log.uninstall()
     }
     processor
   }
 
   def spec: Spec[Any, Nothing] = suite("log")(
-    test("does nothing when GlobalLogState is not installed") {
-      GlobalLogState.uninstall()
+    test("does nothing when log is not installed") {
+      log.uninstall()
       log.info("should not crash")
       assertTrue(true)
     },
-    test("emits when GlobalLogState is installed") {
+    test("emits when log is installed") {
       val processor = withLogger() { _ =>
         log.info("hello")
       }
@@ -245,7 +245,7 @@ object LogSpec extends ZIOSpecDefault {
     suite("Hierarchical log levels")(
       test("specific prefix overrides general level") {
         val processor = withLogger(Severity.Warn) { _ =>
-          GlobalLogState.setLevel("zio.blocks.telemetry", Severity.Debug)
+          log.setMinSeverity("zio.blocks.telemetry", Severity.Debug)
           log.debug("should be emitted")
         }
         assertTrue(
@@ -258,9 +258,9 @@ object LogSpec extends ZIOSpecDefault {
         var noisyLevel = 0
         var otherLevel = 0
         withLogger(Severity.Info) { _ =>
-          GlobalLogState.setLevel("com.example", Severity.Debug)
-          GlobalLogState.setLevel("com.example.noisy", Severity.Warn)
-          val state = GlobalLogState.get()
+        log.setMinSeverity("com.example", Severity.Debug)
+        log.setMinSeverity("com.example.noisy", Severity.Warn)
+        val state = GlobalLogState.get()
           debugLevel = state.effectiveLevel("com.example.Service")
           noisyLevel = state.effectiveLevel("com.example.noisy.Thing")
           otherLevel = state.effectiveLevel("com.other.Foo")
@@ -274,9 +274,9 @@ object LogSpec extends ZIOSpecDefault {
       test("clearLevel removes override") {
         var level = 0
         withLogger(Severity.Info) { _ =>
-          GlobalLogState.setLevel("com.test", Severity.Debug)
-          GlobalLogState.clearLevel("com.test")
-          level = GlobalLogState.get().effectiveLevel("com.test.Foo")
+        log.setMinSeverity("com.test", Severity.Debug)
+        log.clearMinSeverity("com.test")
+        level = GlobalLogState.get().effectiveLevel("com.test.Foo")
         }
         assertTrue(level == Severity.Info.number)
       },
@@ -284,10 +284,10 @@ object LogSpec extends ZIOSpecDefault {
         var aLevel = 0
         var bLevel = 0
         withLogger(Severity.Info) { _ =>
-          GlobalLogState.setLevel("a", Severity.Debug)
-          GlobalLogState.setLevel("b", Severity.Warn)
-          GlobalLogState.clearAllLevels()
-          val state = GlobalLogState.get()
+        log.setMinSeverity("a", Severity.Debug)
+        log.setMinSeverity("b", Severity.Warn)
+        log.clearAllOverrides()
+        val state = GlobalLogState.get()
           aLevel = state.effectiveLevel("a.Foo")
           bLevel = state.effectiveLevel("b.Bar")
         }

@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference
  * directly without MeterProvider wiring. Install a real MeterProvider later via
  * `install` to wire production exporters.
  */
-object GlobalMeter {
+private[telemetry] object GlobalMeter {
   private val ref: AtomicReference[MeterProvider] = new AtomicReference[MeterProvider](null)
 
   private lazy val defaultProvider: MeterProvider = MeterProvider.builder.build()
