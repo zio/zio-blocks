@@ -20,6 +20,11 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse => JdkHttpResponse}
 import java.time.Duration
 
+/**
+ * Response from an HTTP sender. Headers are stored with their original casing;
+ * lookups via `firstHeader` are case-insensitive. The body is the raw response
+ * bytes (may be empty).
+ */
 final case class HttpResponse(
   statusCode: Int,
   body: Array[Byte],
@@ -29,6 +34,12 @@ final case class HttpResponse(
     headers.find { case (k, _) => k.equalsIgnoreCase(name) }.flatMap(_._2.headOption)
 }
 
+/**
+ * SPI for sending OTLP export payloads over HTTP. Implementations must be
+ * synchronous (blocking). Retry and backoff are handled by the caller
+ * (`BatchProcessor`). `shutdown()` should release any held resources
+ * (connections, thread pools).
+ */
 trait HttpSender {
   def send(url: String, headers: Map[String, String], body: Array[Byte]): HttpResponse
   def shutdown(): Unit

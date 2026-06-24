@@ -18,6 +18,16 @@ package zio.blocks.telemetry.otel
 
 import java.time.Duration
 
+/**
+ * Configuration for OTLP JSON exporters.
+ *
+ * @param endpoint           collector base URL (default `http://localhost:4318`)
+ * @param headers            extra HTTP headers sent with every export (e.g. auth tokens); redacted in `toString`
+ * @param timeout            connect and read timeout per HTTP request
+ * @param maxQueueSize       maximum items buffered before oldest are dropped
+ * @param maxBatchSize       maximum items sent in a single export request
+ * @param flushIntervalMillis milliseconds between automatic background flushes
+ */
 final case class ExporterConfig(
   endpoint: String = "http://localhost:4318",
   headers: Map[String, String] = Map.empty,

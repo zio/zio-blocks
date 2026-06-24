@@ -16,6 +16,12 @@
 
 package zio.blocks.telemetry.otel
 
+/**
+ * Outcome of an OTLP export attempt. `Success` means the collector accepted the
+ * payload. `Failure` carries a diagnostic message and a `retryable` flag that
+ * tells `BatchProcessor` whether to retry (e.g. HTTP 429/5xx) or drop the batch
+ * (e.g. HTTP 400).
+ */
 sealed trait ExportResult
 
 object ExportResult {
