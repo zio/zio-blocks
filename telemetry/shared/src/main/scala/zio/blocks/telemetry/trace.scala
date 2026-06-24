@@ -53,7 +53,7 @@ object trace {
   def install(provider: TracerProvider): Unit = ref.set(provider)
 
   /** Remove the installed TracerProvider. After this, spans are no-ops until you install a provider. */
-  def removeAll(): Unit = ref.set(TracerProvider.builder.build())
+  def removeAll(): Unit = ref.set(TracerProvider.builder.setSampler(AlwaysOffSampler).build())
 
   /** Returns spans collected by the default in-memory processor. */
   def collectedSpans: List[SpanData] = spanStore.collectedSpans

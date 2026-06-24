@@ -48,7 +48,7 @@ object log extends LogVersionSpecific {
     val logger = new Logger(
       currentState.logger.instrumentationScope,
       currentState.logger.resource,
-      currentState.logger.baseProcessors :+ processor,
+      currentState.logger.processors :+ processor,
       currentState.logger.contextStorage
     )
     GlobalLogState.set(LogState(logger, currentState.minSeverity, currentState.levelOverridesMap))
@@ -59,16 +59,22 @@ object log extends LogVersionSpecific {
     GlobalLogState.install(logger, minSeverity)
 
   /** Remove all processors and writers. After this, log calls are no-ops until you add a processor or install a logger. */
-  def removeAll(): Unit =
+  def removeAll(): Unit = synchronized {
+    val prev = GlobalLogState.get()
+    prev.logger.processors.foreach { p =>
+      try p.shutdown()
+      catch { case NonFatal(_) => () }
+    }
+    _writerProcessors = Nil
     GlobalLogState.removeAll()
+  }
 
   /** Temporarily lower the filter threshold for the duration of a block. */
   def withMinSeverity[A](severity: Severity)(f: => A): A = {
     val prev = GlobalLogState.get()
-    val prevMin = prev.minSeverity
-    GlobalLogState.install(prev.logger, severity)
+    GlobalLogState.set(LogState(prev.logger, severity.number, prev.levelOverridesMap))
     try f
-    finally GlobalLogState.install(prev.logger, Severity.fromNumber(prevMin).getOrElse(Severity.Trace))
+    finally GlobalLogState.set(LogState(prev.logger, prev.minSeverity, prev.levelOverridesMap))
   }
 
   @volatile private var _writerProcessors: List[FormattedLogRecordProcessor] = Nil
