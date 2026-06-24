@@ -127,9 +127,9 @@ val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
 
 ### File Format Adapters
 
-- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency)
-- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency)
-- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency)
+- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency and `import zio.blocks.config.yaml._`)
+- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency and `import zio.blocks.config.json._`)
+- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency and `import zio.blocks.config.hocon._`)
 
 ## Core Principles
 
