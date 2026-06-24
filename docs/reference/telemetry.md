@@ -7,8 +7,8 @@ title: "Telemetry"
 
 The three main entry points are:
 - `log` — structured logging with macro-generated call sites
-- `GlobalTracer` — distributed tracing with automatic parent propagation
-- `GlobalMeter` — counters, histograms, and gauges
+- `trace` — distributed tracing with automatic parent propagation
+- `metric` — counters, histograms, and gauges
 
 All three work out of the box with no wiring. Replace the default provider at any time via the `install` methods.
 
@@ -112,7 +112,7 @@ log.warn(
 
 When a log call executes:
 
-1. Check `GlobalLogState.globalMinLevel` — one volatile read. If the message severity is below the global floor, stop immediately.
+1. Check `log.globalMinLevel` — one volatile read. If the message severity is below the global floor, stop immediately.
 2. Check per-namespace level overrides — one array scan over the override list (empty by default, O(1) for the common case).
 3. Build attributes into a pooled `AttributeBuilder` — no heap allocation on the hot path.
 4. Merge scoped annotations from `LogAnnotations` (thread-local / ScopedValue on JVM 25+).
@@ -170,21 +170,21 @@ Override the minimum severity for any package prefix. The longest matching prefi
 import zio.blocks.telemetry._
 
 // Suppress DEBUG noise from a chatty library
-GlobalLogState.setLevel("com.thirdparty.noisylibrary", Severity.Warn)
+log.setMinSeverity("com.thirdparty.noisylibrary", Severity.Warn)
 
 // Enable TRACE for your own module during debugging
-GlobalLogState.setLevel("com.myapp.payments", Severity.Trace)
+log.setMinSeverity("com.myapp.payments", Severity.Trace)
 
 // Restore a namespace to the global default
-GlobalLogState.clearLevel("com.thirdparty.noisylibrary")
+log.clearMinSeverity("com.thirdparty.noisylibrary")
 
 // Remove all overrides
-GlobalLogState.clearAllLevels()
+log.clearAllOverrides()
 ```
 
 ### File logging (JVM only)
 
-`FileLogWriter` writes to a file using `FileChannel` with a ThreadLocal byte buffer. ASCII content takes the fast path (no charset encoding step).
+`FileLogWriter` writes to a file using `FileChannel` with a shared byte buffer protected by a `ReentrantLock` (virtual-thread safe). ASCII content takes the fast path (no charset encoding step).
 
 ```scala
 import zio.blocks.telemetry._
@@ -244,12 +244,12 @@ log.info("user action", "traceId" -> UUID.randomUUID())
 
 ### Basic span
 
-Get a `Tracer` from `GlobalTracer` and call `span`. The block receives the active `Span`. The span starts, runs your code, then ends — even if an exception is thrown.
+Get a `Tracer` from `trace` and call `span`. The block receives the active `Span`. The span starts, runs your code, then ends — even if an exception is thrown.
 
 ```scala
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("my-service")
+val tracer = trace.get("my-service")
 
 val result = tracer.span("compute-order") { span =>
   span.setAttribute("order.id", "ord-7890")
@@ -264,7 +264,7 @@ val result = tracer.span("compute-order") { span =>
 ```scala
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("gateway")
+val tracer = trace.get("gateway")
 
 // HTTP server handler
 tracer.span("handle-request", SpanKind.Server) { span =>
@@ -287,7 +287,7 @@ Child spans are created by calling `tracer.span` inside a parent span's block. T
 ```scala
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("checkout-service")
+val tracer = trace.get("checkout-service")
 
 tracer.span("checkout") { _ =>
   // This span becomes the parent automatically
@@ -308,7 +308,7 @@ tracer.span("checkout") { _ =>
 ```scala
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("my-service")
+val tracer = trace.get("my-service")
 
 tracer.span("process-file") { span =>
   // Typed attribute keys
@@ -338,7 +338,7 @@ When you log inside an active span, the logger automatically reads the current `
 ```scala
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("order-service")
+val tracer = trace.get("order-service")
 
 tracer.span("place-order") { _ =>
   log.info("order received", "order_id" -> "ord-5678")
@@ -356,22 +356,22 @@ tracer.span("place-order") { _ =>
 import zio.blocks.telemetry._
 
 // Counter: monotonically increasing
-val requests = GlobalMeter.counter("http.server.requests")
+val requests = metric.counter("http.server.requests")
 requests.add(1, "method" -> "GET", "status" -> "200")
 requests.add(1, "method" -> "POST", "status" -> "201")
 
 // Histogram: records distributions
-val latency = GlobalMeter.histogram("http.server.duration_ms")
+val latency = metric.histogram("http.server.duration_ms")
 latency.record(42.5, "method" -> "GET")
 latency.record(310.0, "method" -> "POST")
 
 // Gauge: last-write-wins, can go up or down
-val poolSize = GlobalMeter.gauge("db.connection_pool.size")
+val poolSize = metric.gauge("db.connection_pool.size")
 poolSize.record(10.0, "pool" -> "primary")
 poolSize.record(5.0, "pool" -> "replica")
 
 // UpDownCounter: like a counter but supports negative deltas
-val queueDepth = GlobalMeter.upDownCounter("jobs.queue.depth")
+val queueDepth = metric.upDownCounter("jobs.queue.depth")
 queueDepth.add(3, "queue" -> "high-priority")
 queueDepth.add(-1, "queue" -> "high-priority")
 ```
@@ -383,7 +383,7 @@ Pre-binding a fixed attribute set avoids the attribute-lookup cost on every reco
 ```scala
 import zio.blocks.telemetry._
 
-val requests = GlobalMeter.counter("http.server.requests")
+val requests = metric.counter("http.server.requests")
 
 // Bind once — typically at startup or first use
 val getOk  = requests.bind(Attributes.builder.put("method", "GET").put("status", "200").build)
@@ -399,9 +399,9 @@ Histograms and gauges have the same `bind` pattern:
 ```scala
 import zio.blocks.telemetry._
 
-val latency      = GlobalMeter.histogram("rpc.duration_ms")
+val latency      = metric.histogram("rpc.duration_ms")
 val getLatency   = latency.bind(Attributes.builder.put("method", "GET").build)
-val poolSize     = GlobalMeter.gauge("db.pool.size")
+val poolSize     = metric.gauge("db.pool.size")
 val primaryPool  = poolSize.bind(Attributes.builder.put("pool", "primary").build)
 
 def recordGet(ms: Double): Unit = getLatency.record(ms)
@@ -448,10 +448,10 @@ val tracerProvider = TracerProvider.builder
   .setResource(resource)
   .build()
 
-GlobalTracer.install(tracerProvider)
+trace.install(tracerProvider)
 
 // Now all spans are exported to the collector
-val tracer = GlobalTracer.get("my-service")
+val tracer = trace.get("my-service")
 tracer.span("my-operation") { _ => doWork() }
 ```
 
@@ -475,7 +475,7 @@ val loggerProvider = LoggerProvider.builder
   .setResource(resource)
   .build()
 
-GlobalLogState.install(loggerProvider.get("my-service"))
+log.install(loggerProvider.get("my-service"))
 
 // Now log.info / log.warn / etc. are batched and exported to the collector
 log.info("application started")
@@ -496,8 +496,8 @@ val scope    = InstrumentationScope("my-service")
 val sender   = HttpSender.jdk()
 
 // Create your instruments first
-val requestCounter = GlobalMeter.counter("http.server.requests")
-val latencyHist    = GlobalMeter.histogram("http.server.duration_ms")
+val requestCounter = metric.counter("http.server.requests")
+val latencyHist    = metric.histogram("http.server.duration_ms")
 
 // Provide a collectFn that harvests each instrument
 val metricExporter = new OtlpJsonMetricExporter(
@@ -525,7 +525,7 @@ import zio.blocks.telemetry._
 import zio.blocks.telemetry.otel._
 
 // Inject into outgoing HTTP headers
-val tracer = GlobalTracer.get("gateway")
+val tracer = trace.get("gateway")
 
 tracer.span("outbound-call") { span =>
   var headers = Map.empty[String, String]
@@ -612,7 +612,7 @@ val loggerProvider = LoggerProvider.builder
   .build()
 
 val logger = loggerProvider.get("checkout-service")
-GlobalLogState.install(logger, minSeverity = Severity.Info)
+log.install(logger, minSeverity = Severity.Info)
 ```
 
 ### Custom TracerProvider
@@ -643,7 +643,7 @@ val tracerProvider = TracerProvider.builder
   .setResource(resource)
   .build()
 
-GlobalTracer.install(tracerProvider)
+trace.install(tracerProvider)
 ```
 
 ## ExporterConfig reference

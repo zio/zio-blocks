@@ -73,7 +73,7 @@ Two separate things must both be cheap: the fast path when a level is disabled, 
 **Disabled level fast path.** The first check in every `log.*` call is:
 
 ```scala
-if (severity.number >= GlobalLogState.globalMinLevel) { ... }
+if (severity.number >= log.globalMinLevel) { ... }
 ```
 
 `globalMinLevel` is a `@volatile Int`. Reading it costs roughly one memory fence. If the level is disabled, the compiler has already eliminated all argument evaluation (the arguments are passed by-name or inlined via macro). No string is built, no object is allocated.
@@ -90,11 +90,11 @@ For metrics, `Counter` uses a `ConcurrentHashMap[Attributes, LongAdder]`. `LongA
 
 ### Global singletons vs explicit provider wiring
 
-The three global singletons (`log`, `GlobalTracer`, `GlobalMeter`) work without any setup. On first use, each creates a sensible default:
+The three global entry points (`log`, `trace`, `metric`) work without any setup. On first use, each creates a sensible default:
 
 - `log` creates a `ConsoleLogRecordProcessor` that writes to stdout
-- `GlobalTracer` creates an `InMemorySpanProcessor` that stores spans in a ring buffer (useful for testing)
-- `GlobalMeter` creates a basic `MeterProvider` with a `MetricReader`
+- `trace` creates an `InMemorySpanProcessor` that stores spans in a ring buffer (useful for testing)
+- `metric` creates a basic `MeterProvider` with a `MetricReader`
 
 For tests and exploratory code, the defaults are exactly right. For production, call `install()` once at startup to replace each default with your configured provider.
 
@@ -160,8 +160,8 @@ Conceptual expansion of:
   log.info("request received", "user_id" -> userId, "attempt" -> 3)
 
 Expands to (pseudocode):
-  if (Severity.Info.number >= GlobalLogState.globalMinLevel) {
-    val state = GlobalLogState.get()
+  if (Severity.Info.number >= log.globalMinLevel) {
+    val state = log.getState()
     if (state != null && Severity.Info.number >= state.effectiveLevel(<current class name>)) {
       val now = EpochClock.epochNanos()
       val builder = AttributeBuilderPool.get()
@@ -324,7 +324,7 @@ val loggerProvider = LoggerProvider.builder
   .addLogRecordProcessor(capturing)
   .build()
 
-GlobalLogState.install(loggerProvider.get("test"))
+log.install(loggerProvider.get("test"))
 
 // Call the code under test
 MyService.processPayment(...)
@@ -339,7 +339,7 @@ assert(warns.exists(_.body.value.contains("payment")))
 Don't forget to restore state between tests:
 
 ```scala
-GlobalLogState.uninstall()  // reverts to default console logger
+log.uninstall()  // reverts to default console logger
 ```
 
 ---
@@ -412,7 +412,7 @@ val tracerProvider = TracerProvider.builder
   .addSpanProcessor(yourExporter)
   .build()
 
-GlobalTracer.install(tracerProvider)
+trace.install(tracerProvider)
 ```
 
 ### SpanContext internals
@@ -456,7 +456,7 @@ val incomingHeaders = Map(
 val parentCtx: Option[SpanContext] =
   W3CTraceContextPropagator.extract(incomingHeaders, (m, k) => m.get(k))
 
-val tracer = GlobalTracer.get("api-service")
+val tracer = trace.get("api-service")
 
 // Wire the extracted context as the parent by scoping it in ContextStorage
 val tracerProvider = TracerProvider.builder
@@ -483,7 +483,7 @@ package zio.blocks.telemetry.otel
 
 import zio.blocks.telemetry._
 
-val tracer = GlobalTracer.get("api-service")
+val tracer = trace.get("api-service")
 
 tracer.span("call-inventory", SpanKind.Client) { span =>
   // Inject the current span's context into outbound headers
@@ -504,16 +504,16 @@ For Zipkin/B3 compatibility, swap `W3CTraceContextPropagator` for `B3Propagator.
 
 ### Testing traces
 
-The default `GlobalTracer` provider stores spans in an in-memory processor:
+The default `trace` provider stores spans in an in-memory processor:
 
 ```scala
 import zio.blocks.telemetry._
 
 // Reset before each test
-GlobalTracer.clearSpans()
+trace.clearSpans()
 
 // Call code under test
-val tracer = GlobalTracer.get("test")
+val tracer = trace.get("test")
 tracer.span("outer") { _ =>
   tracer.span("inner") { span =>
     span.setAttribute("result", "ok")
@@ -521,7 +521,7 @@ tracer.span("outer") { _ =>
 }
 
 // Inspect what was recorded
-val spans = GlobalTracer.collectedSpans
+val spans = trace.collectedSpans
 
 assert(spans.size == 2)
 val inner = spans.find(_.name == "inner").get
@@ -532,7 +532,7 @@ val outer = spans.find(_.name == "outer").get
 assert(inner.parentSpanContext.spanId == outer.spanContext.spanId)
 ```
 
-`GlobalTracer.collectedSpans` returns a `List[SpanData]` in the order spans ended. No setup needed; this works out of the box.
+`trace.collectedSpans` returns a `List[SpanData]` in the order spans ended. No setup needed; this works out of the box.
 
 ### Span-log correlation explained
 
@@ -578,10 +578,10 @@ More specifically:
 ```scala
 import zio.blocks.telemetry._
 
-val requests     = GlobalMeter.counter("http.requests.total")
-val activeConns  = GlobalMeter.upDownCounter("http.connections.active")
-val latency      = GlobalMeter.histogram("http.request.duration_ms")
-val heapUsed     = GlobalMeter.gauge("jvm.heap.used_bytes")
+val requests     = metric.counter("http.requests.total")
+val activeConns  = metric.upDownCounter("http.connections.active")
+val latency      = metric.histogram("http.request.duration_ms")
+val heapUsed     = metric.gauge("jvm.heap.used_bytes")
 
 // Counter: only increases
 requests.add(1, "method" -> "GET", "status" -> "200")
@@ -604,7 +604,7 @@ When you record against the same label combination at high frequency, pre-bindin
 ```scala
 import zio.blocks.telemetry._
 
-val requests = GlobalMeter.counter("http.requests.total")
+val requests = metric.counter("http.requests.total")
 
 // Bind once, typically at initialization
 val getOk   = requests.bind(Attributes.builder.put("method", "GET").put("status", "200").build)
@@ -624,10 +624,10 @@ The same pattern works for histograms and gauges:
 ```scala
 import zio.blocks.telemetry._
 
-val latency    = GlobalMeter.histogram("http.request.duration_ms")
+val latency    = metric.histogram("http.request.duration_ms")
 val getLatency = latency.bind(Attributes.builder.put("method", "GET").build)
 
-val poolSize     = GlobalMeter.gauge("db.pool.size")
+val poolSize     = metric.gauge("db.pool.size")
 val primaryPool  = poolSize.bind(Attributes.builder.put("pool", "primary").build)
 
 // Hot paths
@@ -642,7 +642,7 @@ def updatePrimaryPoolSize(n: Double): Unit = primaryPool.record(n)
 ```scala
 import zio.blocks.telemetry._
 
-val requests = GlobalMeter.counter("http.requests.total")
+val requests = metric.counter("http.requests.total")
 requests.add(42, "method" -> "GET", "status" -> "200")
 requests.add(7,  "method" -> "POST", "status" -> "201")
 
@@ -734,7 +734,7 @@ object Telemetry {
       .setContextStorage(contextStorage)
       .build()
 
-    GlobalTracer.install(tracerProvider)
+    trace.install(tracerProvider)
 
     // --- Logging ---
     val logExporter = new OtlpJsonLogExporter(config, resource, scope, sender, executor)
@@ -745,7 +745,7 @@ object Telemetry {
       .setResource(resource)
       .build()
 
-    GlobalLogState.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
+    log.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
 
     // Optional: also write to a local file as backup
     log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
@@ -755,7 +755,7 @@ object Telemetry {
       .setResource(resource)
       .build()
 
-    GlobalMeter.install(meterProvider)
+    metric.install(meterProvider)
 
     (tracerProvider, loggerProvider, meterProvider, executor)
   }
@@ -907,7 +907,7 @@ val minLevel = sys.env.get("LOG_LEVEL").flatMap {
   case _       => None
 }.getOrElse(Severity.Info)
 
-GlobalLogState.install(logger, minSeverity = minLevel)
+log.install(logger, minSeverity = minLevel)
 ```
 
 ---
@@ -930,7 +930,7 @@ def traceIncoming[Req, Resp](
   handle: Req => Resp
 ): Resp = {
   val parentCtx = W3CTraceContextPropagator.extract(request, getHeader)
-  val tracer    = GlobalTracer.get("http-server")
+  val tracer    = trace.get("http-server")
 
   // Use the provider's contextStorage to scope the remote parent
   // Then start a child span under it
@@ -946,7 +946,7 @@ def traceOutgoing[Resp](
   name: String,
   call: Map[String, String] => Resp
 ): Resp = {
-  val tracer = GlobalTracer.get("http-client")
+  val tracer = trace.get("http-client")
   tracer.span(name, SpanKind.Client) { span =>
     val headers = W3CTraceContextPropagator.inject(
       span.spanContext,
@@ -968,7 +968,7 @@ There's no bridge today, but the shape would be a `SLF4JLogRecordProcessor` that
 
 The core telemetry module (`zio-blocks-telemetry`) compiles for JVM and Scala.js. What works on both:
 
-- `log.*`, `GlobalTracer`, `GlobalMeter`
+- `log.*`, `trace.*`, `metric.*`
 - `TracerProvider`, `LoggerProvider`, `MeterProvider` builders
 - `Sampler`, `SpanContext`, `Attributes`, `MetricData`
 - `TextLogFormatter`, `JsonLogFormatter`
@@ -990,7 +990,7 @@ If you're writing cross-platform code that uses telemetry, keep your call sites 
 
 Two common causes:
 
-1. The global minimum level is filtering it out. Check `GlobalLogState.globalMinLevel`. Default is `Severity.Trace.number` (1), so everything passes. If you called `GlobalLogState.install(logger, minSeverity = Severity.Info)`, then trace and debug calls are suppressed.
+1. The global minimum level is filtering it out. Check `log.globalMinLevel`. Default is `Severity.Trace.number` (1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
    ```scala
@@ -999,7 +999,7 @@ Two common causes:
      .build()
    ```
 
-3. A namespace override is suppressing your package. Check for `GlobalLogState.setLevel(...)` calls.
+3. A namespace override is suppressing your package. Check for `log.setMinSeverity(...)` calls.
 
 **"Why is my log call not compiling?"**
 
@@ -1041,9 +1041,9 @@ To enforce that the only way to construct and wire an `OtlpJsonTraceExporter` is
 
 **"How do I test my logging and tracing?"**
 
-For logging: use a custom `LogRecordProcessor` that stores records (see "Testing with telemetry" in Part 2), install it via `GlobalLogState.install(...)`, run your code, assert on the captured records.
+For logging: use a custom `LogRecordProcessor` that stores records (see "Testing with telemetry" in Part 2), install it via `log.install(...)`, run your code, assert on the captured records.
 
-For tracing: use `GlobalTracer.collectedSpans` and `GlobalTracer.clearSpans()`. The default in-memory processor accumulates spans automatically.
+For tracing: use `trace.collectedSpans` and `trace.clearSpans()`. The default in-memory processor accumulates spans automatically.
 
 **"What happens when the export queue fills up?"**
 
