@@ -236,6 +236,8 @@ final class QueryParamsBuilder private (
   def addAll(params: QueryParams): Unit =
     params.toList.foreach { case (k, v) => add(k, v) }
 
+  def reset(): Unit = len = 0
+
   private def ensureCapacity(): Unit =
     if (len >= keys.length) {
       val newCap  = Math.max(keys.length * 2, 8)
