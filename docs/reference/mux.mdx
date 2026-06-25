@@ -258,11 +258,16 @@ Mux enforces a fixed capacity (e.g., 100 concurrent streams). When the limit is 
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](5)
-(1 to 5).foreach(i => mux.open(i))
-val result = mux.open(6)
+for (i <- 1 to 5) {
+  mux.open(i) match {
+    case _: MuxStream[Int, String, String] => ()
+    case e: MuxError                       => println(s"Failed to open stream $i: $e")
+  }
+}
+val result = mux.open(6) // returns CapacityExceeded — mux is full
 
 mux.cancel(1, MuxError.Cancelled(1, "freed"))
-val newStream = mux.open(6)
+val newStream = mux.open(6) // succeeds now that stream 1 was freed
 ```
 
 **Half-Close Shutdown**

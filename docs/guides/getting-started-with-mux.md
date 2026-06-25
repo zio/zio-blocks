@@ -131,7 +131,7 @@ import zio.blocks.mux._
 val mux = Mux[Int, String, String](100)
 val stream = mux.open(1) match {
   case s: MuxStream[Int, String, String] => s
-  case _ => ???
+  case e: MuxError => sys.error(s"Failed to open stream: $e")
 }
 
 // Application code: send a message
@@ -196,7 +196,7 @@ import zio.blocks.mux._
 val mux = Mux[Int, String, String](100)
 val stream = mux.open(1) match {
   case s: MuxStream[Int, String, String] => s
-  case _ => ???
+  case e: MuxError => sys.error(s"Failed to open stream: $e")
 }
 
 // Stream starts in OPEN state
@@ -227,7 +227,7 @@ import zio.blocks.mux._
 val mux = Mux[Int, String, String](100)
 val stream = mux.open(1) match {
   case s: MuxStream[Int, String, String] => s
-  case _ => ???
+  case e: MuxError => sys.error(s"Failed to open stream: $e")
 }
 
 // Application decides to close immediately (e.g., due to an error)
@@ -263,7 +263,10 @@ Here's how to use `mux.cancel()` to externally cancel a stream:
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+val stream = mux.open(1) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream: $e")
+}
 
 // From any thread, you can cancel a stream by ID
 // This is thread-safe and doesn't require access to the stream object
@@ -300,9 +303,18 @@ import zio.blocks.mux._
 val mux = Mux[Int, String, String](100)
 
 // Open three streams
-val stream1 = mux.open(1) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
-val stream2 = mux.open(2) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
-val stream3 = mux.open(3) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+val stream1 = mux.open(1) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream 1: $e")
+}
+val stream2 = mux.open(2) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream 2: $e")
+}
+val stream3 = mux.open(3) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream 3: $e")
+}
 
 // Send different messages on each stream
 stream1.send("Message for stream 1") match { case () => (); case e: MuxError => println(s"Stream 1 send error: $e") }
@@ -361,7 +373,7 @@ import zio.blocks.mux._
 val mux = Mux[Int, String, String](10)
 val stream = mux.open(1) match {
   case s: MuxStream[Int, String, String] => s
-  case _ => ???
+  case e: MuxError => sys.error(s"Failed to open stream: $e")
 }
 
 // Try to send many messages until the queue fills (per-stream capacity is 256 per direction)
@@ -386,7 +398,10 @@ The standard recovery pattern is to drain messages from the outbound queue (by c
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](10)
-val stream = mux.open(1) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+val stream = mux.open(1) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream: $e")
+}
 
 // Fill the queue
 for (i <- 1 to 5) { stream.send(s"Message $i") }
@@ -441,7 +456,10 @@ Here's a correct usage pattern:
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](100)
-val stream = mux.open(1) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+val stream = mux.open(1) match {
+  case s: MuxStream[Int, String, String] => s
+  case e: MuxError                       => sys.error(s"Failed to open stream: $e")
+}
 
 // Thread A: application code (single thread)
 // Always call send() from the same thread
