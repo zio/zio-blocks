@@ -32,7 +32,10 @@ import zio.blocks.mux._
   println("\n--- Correct usage pattern ---\n")
 
   // Reset
-  val stream2 = mux.open(2) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+  val stream2 = mux.open(2) match {
+    case s: MuxStream[Int, String, String] => s
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 2: $e")
+  }
 
   println("Thread A (Application thread): calls send() consistently")
   stream2.send("Message 1") match {
@@ -90,8 +93,8 @@ import zio.blocks.mux._
   println("\nThread-safe external cancel (from any thread):")
   println("  mux.cancel(id, reason)")
   println("  → Call this when closing from cleanup handler or different thread")
-  mux.cancel(3, MuxError.Cancelled(3, "Example cleanup"))
-  println("  ✓ Cancelled stream 3 from main thread (would work from any thread)")
+  mux.cancel(2, MuxError.Cancelled(2, "Example cleanup"))
+  println("  ✓ Cancelled stream 2 from main thread (would work from any thread)")
 
   println("\n=== Summary ===")
   println("✓ send() and offerInbound() are thread-safe (use lock-free queues)")

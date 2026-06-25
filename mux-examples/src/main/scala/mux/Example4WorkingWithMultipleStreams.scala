@@ -15,9 +15,18 @@ import zio.blocks.mux._
 
   println("--- Opening three streams ---")
   // Open three streams
-  val stream1 = mux.open(1) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
-  val stream2 = mux.open(2) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
-  val stream3 = mux.open(3) match { case s: MuxStream[Int, String, String] => s; case _ => ??? }
+  val stream1 = mux.open(1) match {
+    case s: MuxStream[Int, String, String] => s
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 1: $e")
+  }
+  val stream2 = mux.open(2) match {
+    case s: MuxStream[Int, String, String] => s
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 2: $e")
+  }
+  val stream3 = mux.open(3) match {
+    case s: MuxStream[Int, String, String] => s
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 3: $e")
+  }
   println("✓ Opened streams 1, 2, 3")
 
   println("\n--- Application sends messages on each stream ---")

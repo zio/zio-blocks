@@ -59,7 +59,7 @@ import zio.blocks.mux._
   val mux3    = Mux[Int, String, String](100)
   val stream2 = mux3.open(11) match {
     case s: MuxStream[Int, String, String] => s
-    case _                                 => ???
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 11: $e")
   }
 
   // Fill the queue with a few messages
