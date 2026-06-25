@@ -107,7 +107,7 @@ import zio.blocks.scope.Unscoped
 
 val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
 val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
-val source   = env.orElse(defaults).withPrefix("app")
+val source   = env.orElse(defaults).prefix("app")
 
 final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
 
@@ -128,9 +128,9 @@ val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
 
 ### File Format Adapters
 
-- **YAML**: `zio.blocks.config.yaml.YamlConfigSource.fromString`
-- **JSON**: `zio.blocks.config.json.JsonConfigSource.fromString`
-- **HOCON**: `zio.blocks.config.hocon.HoconConfigSource.fromString`
+- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency and `import zio.blocks.config.yaml._`)
+- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency and `import zio.blocks.config.json._`)
+- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency and `import zio.blocks.config.hocon._`)
 
 ## Core Principles
 
