@@ -78,19 +78,23 @@ import zio.blocks.mux._
     case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 11: $e")
   }
 
-  // Fill the queue with a few messages
-  println("Filling queue with 5 messages:")
-  for (i <- 1 to 5) {
-    stream2.send(s"Message $i")
+  // Fill the queue to capacity (256 messages per direction)
+  println("Filling queue to capacity (256 messages):")
+  for (i <- 1 to 256) {
+    stream2.send(s"Message $i") match {
+      case ()          => if (i == 1 || i == 256) println(s"  ✓ Message $i sent")
+      case e: MuxError => println(s"  ✗ Unexpected failure at $i: $e")
+    }
   }
 
-  // Try to send one more (should succeed, we're well below capacity)
-  stream2.send("Message 6") match {
-    case ()          => println("✓ Message 6 sent (space available)")
-    case e: MuxError => println(s"✗ Message 6 failed: $e")
+  // Queue is now full — the next send returns QueueFull
+  println("\nAttempting send when queue is full:")
+  stream2.send("overflow") match {
+    case ()          => println("  (unexpected: send succeeded)")
+    case e: MuxError => println(s"  ✗ Expected error: $e")
   }
 
-  // Simulate protocol draining one message
+  // Protocol drains one message to free space
   println("\nProtocol drains one message from outbound queue:")
   stream2.takeOutbound() match {
     case Some(msg)   => println(s"  Extracted: '$msg'")
@@ -98,11 +102,11 @@ import zio.blocks.mux._
     case e: MuxError => println(s"  Error: $e")
   }
 
-  // Try to send again after draining (should succeed)
-  println("Sending another message after draining:")
-  stream2.send("Message 7") match {
-    case ()          => println("✓ Message 7 sent (space freed by draining)")
-    case e: MuxError => println(s"✗ Message 7 failed: $e")
+  // Retry after draining — now succeeds
+  println("Retrying send after draining:")
+  stream2.send("overflow") match {
+    case ()          => println("✓ Send succeeded after draining (recovery pattern works)")
+    case e: MuxError => println(s"✗ Still failed: $e")
   }
 
   println("\n=== Summary ===")
