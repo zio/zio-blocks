@@ -727,6 +727,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
 - [Maybe](./reference/maybe.md) - Low-allocation optional values using null
+- [Mux](./reference/mux.mdx) - Thread-safe multiplexer for ID-multiplexed protocols (HTTP/2, QUIC, WebSockets) with lock-free per-stream queues
 - [Scope](./reference/resource-management/scope.md) - Compile-time safe resource management and DI
 - [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](./reference/typeid.md) - Type identity and metadata
@@ -749,6 +750,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 ### Guides
 
+- [Getting Started with Mux](./guides/getting-started-with-mux.md) - Learn how to manage multiplexed bidirectional message streams with capacity limits
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL

@@ -223,11 +223,12 @@ const sidebars = {
       label: "Guides",
       items: [
         "guides/compile-time-resource-safety-with-scope",
-        "guides/zio-schema-migration",
-        "guides/query-dsl-reified-optics",
-        "guides/query-dsl-sql",
+        "guides/getting-started-with-mux",
         "guides/query-dsl-extending",
         "guides/query-dsl-fluent-builder",
+        "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
+        "guides/zio-schema-migration",
       ]
     }
   ]

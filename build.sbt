@@ -272,6 +272,7 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    `mux-examples`,
     smithy,
     `smithy-examples`
   )
@@ -459,6 +460,19 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
+  )
+
+lazy val `mux-examples` = project
+  .in(file("mux-examples"))
+  .settings(stdSettings("zio-blocks-mux-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(mux.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
@@ -1512,7 +1526,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.5.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1540,7 +1554,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.5.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1563,7 +1577,8 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-prelude" % "1.0.0-RC47"
+      "dev.zio" %% "zio-prelude"    % "1.0.0-RC47",
+      "dev.zio" %% "zio-sbt-source" % "0.6.0"
     ),
     // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
     mdocVariables ++= Map(
@@ -1599,7 +1614,8 @@ lazy val docs = project
     html.jvm,
     datastar.jvm,
     smithy,
-    htmx.jvm
+    htmx.jvm,
+    mux.jvm
   )
   .enablePlugins(WebsitePlugin)
   .settings(
