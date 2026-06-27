@@ -310,7 +310,7 @@ val recovered = stream.send("now-ok")
 
 **Graceful Shutdown**
 
-Call `closeAll` to atomically close all streams and prevent new opens. Pending `receive()` calls on closed streams return the terminal error:
+Call `closeAll` to atomically close all streams and prevent new opens. After closure, `receive()` / `takeOutbound()` return the terminal error once their queues are drained:
 
 ```scala
 import zio.blocks.mux._
