@@ -404,7 +404,12 @@ val stream = mux.open(1) match {
 }
 
 // Fill the queue
-for (i <- 1 to 5) { stream.send(s"Message $i") }
+for (i <- 1 to 5) {
+  stream.send(s"Message $i") match {
+    case ()          => ()
+    case e: MuxError => sys.error(s"send failed: $e")
+  }
+}
 
 // Drain one message from the outbound queue
 println(s"Drained: ${stream.takeOutbound()}")
