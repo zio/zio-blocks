@@ -22,6 +22,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.derive._
 import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.AnnotationArg
 
 class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) extends Deriver[DbCodec] {
 
@@ -471,6 +472,18 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     builder.result()
   }
 
+  private def renamedCaseName[F[_, _], A](term: Term[F, A, ?]): Option[String] =
+    term.modifiers.collectFirst { case m: Modifier.rename => m.name }
+      .orElse(term.value.asRecord.flatMap(_.modifiers.collectFirst { case m: Modifier.rename => m.name }))
+      .orElse(
+        term.value.typeId.annotations.collectFirst {
+          case annotation
+              if annotation.fullName == "zio.blocks.schema.Modifier.rename" ||
+                annotation.fullName == "zio.blocks.schema.Modifier$rename" =>
+            annotation.args.collectFirst { case AnnotationArg.Const(name: String) => name }
+        }.flatten
+      )
+
   private def collectConstructors[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     builder: scala.collection.mutable.Builder[(String, Constructor[?]), Map[String, Constructor[?]]]
@@ -488,7 +501,9 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       } else {
         val recordBinding = F.binding(caseReflect.asRecord.get.recordBinding)
         val constructor   = recordBinding.asInstanceOf[Binding.Record[Any]].constructor
-        builder += (case_.name -> constructor)
+        val renamed       = renamedCaseName(case_)
+        val caseName      = renamed.getOrElse(case_.name)
+        builder += (caseName -> constructor)
       }
       idx += 1
     }
@@ -504,7 +519,9 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
         if (caseReflect.isVariant) {
           go(caseReflect.asVariant.get.cases.asInstanceOf[IndexedSeq[Term[F, A, ?]]])
         } else {
-          builder += case_.name
+          val renamed  = renamedCaseName(case_)
+          val caseName = renamed.getOrElse(case_.name)
+          builder += caseName
         }
         idx += 1
       }
@@ -525,7 +542,9 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       val nestedDiscr   = F.binding(nestedVariant.variantBinding).asInstanceOf[Binding.Variant[A]].discriminator
       enumName(nestedDiscr, nestedVariant.cases.asInstanceOf[IndexedSeq[Term[F, A, ?]]], value)
     } else {
-      case_.name
+      val renamed  = renamedCaseName(case_)
+      val caseName = renamed.getOrElse(case_.name)
+      caseName
     }
   }
 

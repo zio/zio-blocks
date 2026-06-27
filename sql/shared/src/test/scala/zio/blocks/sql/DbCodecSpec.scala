@@ -88,6 +88,16 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Status] = Schema.derived
   }
 
+  enum BonusType {
+    @Modifier.rename("CENT")
+    case Cent
+    @Modifier.rename("PCT")
+    case Percentage
+  }
+  object BonusType {
+    implicit val schema: Schema[BonusType] = Schema.derived
+  }
+
   case class WithEnum(id: Int, color: Color)
   object WithEnum {
     implicit val schema: Schema[WithEnum] = Schema.derived
@@ -171,6 +181,55 @@ object DbCodecSpec extends ZIOSpecDefault {
   case class AutoInlineOrder(id: Long, shipping: InlineAddress, billing: InlineAddress)
   object AutoInlineOrder {
     implicit val schema: Schema[AutoInlineOrder] = Schema.derived
+  }
+
+  private final class SingleStringColumnReader(label: String, value: String) extends DbResultReader {
+    private var lastWasNull = false
+
+    private def stringValue: String = {
+      lastWasNull = value == null
+      value
+    }
+
+    private def unsupported[A](method: String): A =
+      throw new UnsupportedOperationException(s"SingleStringColumnReader does not support $method")
+
+    def getInt(index: Int): Int                = unsupported("getInt(index)")
+    def getInt(label: String): Int             = unsupported("getInt(label)")
+    def getLong(index: Int): Long              = unsupported("getLong(index)")
+    def getLong(label: String): Long           = unsupported("getLong(label)")
+    def getDouble(index: Int): Double          = unsupported("getDouble(index)")
+    def getDouble(label: String): Double       = unsupported("getDouble(label)")
+    def getFloat(index: Int): Float            = unsupported("getFloat(index)")
+    def getFloat(label: String): Float         = unsupported("getFloat(label)")
+    def getBoolean(index: Int): Boolean        = unsupported("getBoolean(index)")
+    def getBoolean(label: String): Boolean     = unsupported("getBoolean(label)")
+    def getString(index: Int): String          = if (index == 1) stringValue else unsupported("getString(index)")
+    def getString(columnLabel: String): String =
+      if (columnLabel == label) stringValue else unsupported("getString(label)")
+    def getBigDecimal(index: Int): java.math.BigDecimal          = unsupported("getBigDecimal(index)")
+    def getBigDecimal(label: String): java.math.BigDecimal       = unsupported("getBigDecimal(label)")
+    def getBytes(index: Int): Array[Byte]                        = unsupported("getBytes(index)")
+    def getBytes(label: String): Array[Byte]                     = unsupported("getBytes(label)")
+    def getShort(index: Int): Short                              = unsupported("getShort(index)")
+    def getShort(label: String): Short                           = unsupported("getShort(label)")
+    def getByte(index: Int): Byte                                = unsupported("getByte(index)")
+    def getByte(label: String): Byte                             = unsupported("getByte(label)")
+    def getLocalDate(index: Int): java.time.LocalDate            = unsupported("getLocalDate(index)")
+    def getLocalDate(label: String): java.time.LocalDate         = unsupported("getLocalDate(label)")
+    def getLocalDateTime(index: Int): java.time.LocalDateTime    = unsupported("getLocalDateTime(index)")
+    def getLocalDateTime(label: String): java.time.LocalDateTime = unsupported("getLocalDateTime(label)")
+    def getLocalTime(index: Int): java.time.LocalTime            = unsupported("getLocalTime(index)")
+    def getLocalTime(label: String): java.time.LocalTime         = unsupported("getLocalTime(label)")
+    def getInstant(index: Int): java.time.Instant                = unsupported("getInstant(index)")
+    def getInstant(label: String): java.time.Instant             = unsupported("getInstant(label)")
+    def getDuration(index: Int): java.time.Duration              = unsupported("getDuration(index)")
+    def getDuration(label: String): java.time.Duration           = unsupported("getDuration(label)")
+    def getUUID(index: Int): java.util.UUID                      = unsupported("getUUID(index)")
+    def getUUID(label: String): java.util.UUID                   = unsupported("getUUID(label)")
+    def columnLabel(index: Int): String                          = if (index == 1) label else unsupported("columnLabel")
+    def hasColumn(columnLabel: String): Boolean                  = columnLabel == label
+    def wasNull: Boolean                                         = lastWasNull
   }
 
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
@@ -413,6 +472,20 @@ object DbCodecSpec extends ZIOSpecDefault {
           codec.toDbValues(Status.Active) == IndexedSeq(DbValue.DbString("Active")),
           codec.toDbValues(Status.Inactive) == IndexedSeq(DbValue.DbString("Inactive")),
           codec.toDbValues(Status.Pending) == IndexedSeq(DbValue.DbString("Pending"))
+        )
+      },
+      test("enum with @rename uses custom names in toDbValues") {
+        val codec = deriveCodec[BonusType]
+        assertTrue(
+          codec.toDbValues(BonusType.Cent) == IndexedSeq(DbValue.DbString("CENT")),
+          codec.toDbValues(BonusType.Percentage) == IndexedSeq(DbValue.DbString("PCT"))
+        )
+      },
+      test("enum with @rename reads custom names from DB") {
+        val codec = deriveCodec[BonusType]
+        assertTrue(
+          codec.readValue(new SingleStringColumnReader("value", "CENT"), IndexedSeq("value")) == BonusType.Cent,
+          codec.readValue(new SingleStringColumnReader("value", "PCT"), IndexedSeq("value")) == BonusType.Percentage
         )
       }
     ),
