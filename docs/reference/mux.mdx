@@ -302,7 +302,12 @@ val stream = mux.open(1) match {
   case _: MuxError => sys.error("open failed")
 }
 
-(1 to 256).foreach(i => stream.send(s"msg-$i"))
+for (i <- 1 to 256) {
+  stream.send(s"msg-$i") match {
+    case ()          => ()
+    case e: MuxError => sys.error(s"send failed: $e")
+  }
+}
 val result = stream.send("overflow")
 stream.takeOutbound()
 val recovered = stream.send("now-ok")
@@ -316,7 +321,12 @@ Call `closeAll` to atomically close all streams and prevent new opens. After clo
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](100)
-(1 to 10).foreach(i => mux.open(i))
+for (i <- 1 to 10) {
+  mux.open(i) match {
+    case _: MuxStream[?, ?, ?] => ()
+    case e: MuxError           => sys.error(s"Failed to open stream $i: $e")
+  }
+}
 
 mux.closeAll(MuxError.MuxClosed)
 
@@ -485,7 +495,12 @@ Closing all streams:
 import zio.blocks.mux._
 
 val mux = Mux[Int, String, String](100)
-(1 to 10).foreach(i => mux.open(i))
+for (i <- 1 to 10) {
+  mux.open(i) match {
+    case _: MuxStream[?, ?, ?] => ()
+    case e: MuxError           => sys.error(s"Failed to open stream $i: $e")
+  }
+}
 mux.closeAll(MuxError.MuxClosed)
 val count = mux.activeCount
 ```
