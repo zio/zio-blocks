@@ -45,6 +45,7 @@ const Btn = ({ children, variant, disabled, onClick }) => {
   }[variant];
   return (
     <button
+      type="button"
       disabled={disabled}
       onClick={onClick}
       style={{
@@ -170,7 +171,7 @@ const MuxDataFlow = () => {
       {/* Stream tabs */}
       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
         {streams.map((ss, i) => (
-          <button key={ss.id} onClick={() => setActiveIdx(i)} style={{
+          <button type="button" key={ss.id} onClick={() => setActiveIdx(i)} style={{
             padding: "4px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer",
             border: i === activeIdx ? "none" : "1px solid #ddd",
             background: i === activeIdx ? "#333" : "#fff",
