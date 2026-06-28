@@ -19,6 +19,13 @@ package zio.http.schema
 import zio.blocks.schema.codec.Codec
 import zio.http.{Headers, HeadersBuilder}
 
+/**
+ * A codec for encoding a value of type `A` into [[zio.http.Headers]] and
+ * decoding [[zio.http.Headers]] back into `A`.
+ *
+ * Instances are typically derived via [[HeaderFormat]] using the schema
+ * derivation framework.
+ */
 abstract class HeaderCodec[A] extends Codec[Headers, HeadersBuilder, A] {
   final def encodeToHeaders(value: A): Headers = {
     val builder = HeaderCodec.threadLocalBuilder.get()

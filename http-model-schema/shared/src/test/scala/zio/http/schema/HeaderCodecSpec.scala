@@ -17,7 +17,10 @@
 package zio.http.schema
 
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.SchemaError
+import zio.blocks.typeid.TypeId
 import zio.http.Headers
+import zio.http.HeadersBuilder
 import zio.test._
 
 import java.util.UUID
@@ -100,6 +103,30 @@ object HeaderCodecSpec extends ZIOSpecDefault {
         listCodec.decode(Headers("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
         wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("Value").contains("wrapped"),
         wrapperCodec.decode(Headers("value" -> "wrapped")) == Right(UserId("wrapped"))
+      )
+    },
+    test("respects BindingInstance override for primitive codec") {
+      val customIntCodec = new HeaderCodec[Int] {
+        def encode(value: Int, output: HeadersBuilder): Unit =
+          output.add("Value", s"custom-$value")
+
+        def decode(input: Headers): Either[SchemaError, Int] = {
+          val raw = input.rawGet("Value")
+          raw match {
+            case Some(s) if s.startsWith("custom-") =>
+              Right(s.stripPrefix("custom-").toInt)
+            case other =>
+              Left(SchemaError(s"Expected custom- prefix, got: $other"))
+          }
+        }
+      }
+      val codec = Schema[Int].deriving(HeaderCodecDeriver).instance(TypeId.int, customIntCodec).derive
+
+      val encoded = codec.encodeToHeaders(42)
+
+      assertTrue(
+        encoded.rawGet("Value").contains("custom-42"),
+        codec.decode(encoded) == Right(42)
       )
     },
     test("reports malformed top-level char values") {

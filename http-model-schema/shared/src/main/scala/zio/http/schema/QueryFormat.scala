@@ -18,6 +18,11 @@ package zio.http.schema
 
 import zio.blocks.schema.derive.{Derivable, Deriver}
 
+/**
+ * Base class for query-parameter serialization formats. Pairs a MIME type with
+ * a [[zio.blocks.schema.derive.Deriver]] that can derive [[QueryCodec]]
+ * instances for arbitrary schema-described types.
+ */
 abstract class QueryFormat[TC[A] <: QueryCodec[A]](val mimeType: String, val deriver: Deriver[TC]) {
 
   implicit final def derivable: Derivable[this.type, TC] =
