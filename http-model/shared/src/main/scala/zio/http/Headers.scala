@@ -336,6 +336,8 @@ final class HeadersBuilder private (
     len += 1
   }
 
+  def reset(): Unit = len = 0
+
   private def ensureCapacity(): Unit =
     if (len >= names.length) {
       val newCap       = Math.max(names.length * 2, 8)
