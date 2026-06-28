@@ -376,6 +376,26 @@ object DbCodecSpec extends ZIOSpecDefault {
             DbValue.DbString("hello")
           )
         )
+      },
+      test("record with List field uses JSONB for the list") {
+        val codec = deriveCodec[WithListField]
+        assertTrue(
+          codec.columns == IndexedSeq("id", "tags"),
+          codec.columnCount == 2
+        )
+      },
+      test("record with List field round-trips JSON array through JSONB fallback") {
+        val codec = deriveCodec[List[SimpleRecord]]
+        val value = codec.readValue(
+          new SingleStringColumnReader(
+            "value",
+            """[{"name":"apple","age":1},{"name":"pear","age":2}]"""
+          ),
+          IndexedSeq("value")
+        )
+        assertTrue(
+          value == List(SimpleRecord("apple", 1), SimpleRecord("pear", 2))
+        )
       }
     ),
     suite("option handling")(
