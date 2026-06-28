@@ -336,7 +336,11 @@ final class HeadersBuilder private (
     len += 1
   }
 
-  def reset(): Unit = len = 0
+  def reset(): Unit = {
+    java.util.Arrays.fill(names.asInstanceOf[Array[AnyRef]], 0, len, null)
+    java.util.Arrays.fill(rawValues.asInstanceOf[Array[AnyRef]], 0, len, null)
+    len = 0
+  }
 
   private def ensureCapacity(): Unit =
     if (len >= names.length) {

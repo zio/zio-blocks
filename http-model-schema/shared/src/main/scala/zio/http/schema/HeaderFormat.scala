@@ -18,6 +18,11 @@ package zio.http.schema
 
 import zio.blocks.schema.derive.{Derivable, Deriver}
 
+/**
+ * Base class for HTTP header serialization formats. Pairs a MIME type with a
+ * [[zio.blocks.schema.derive.Deriver]] that can derive [[HeaderCodec]]
+ * instances for arbitrary schema-described types.
+ */
 abstract class HeaderFormat[TC[A] <: HeaderCodec[A]](val mimeType: String, val deriver: Deriver[TC]) {
 
   implicit final def derivable: Derivable[this.type, TC] =

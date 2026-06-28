@@ -18,7 +18,10 @@ package zio.http.schema
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import zio.blocks.schema.SchemaError
+import zio.blocks.typeid.TypeId
 import zio.http.QueryParams
+import zio.http.QueryParamsBuilder
 import zio.test._
 
 import java.util.UUID
@@ -132,6 +135,28 @@ object QueryCodecSpec extends ZIOSpecDefault {
         listCodec.decode(QueryParams("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
         wrapperCodec.encodeToQueryParams(UserId("wrapped")) == QueryParams("value" -> "wrapped"),
         wrapperCodec.decode(QueryParams("value" -> "wrapped")) == Right(UserId("wrapped"))
+      )
+    },
+    test("respects BindingInstance override for primitive codec") {
+      val customIntCodec = new QueryCodec[Int] {
+        def encode(value: Int, output: QueryParamsBuilder): Unit =
+          output.add("value", s"custom-$value")
+
+        def decode(input: QueryParams): Either[SchemaError, Int] =
+          input.getFirst("value") match {
+            case Some(s) if s.startsWith("custom-") =>
+              Right(s.stripPrefix("custom-").toInt)
+            case other =>
+              Left(SchemaError(s"Expected custom- prefix, got: $other"))
+          }
+      }
+      val codec = Schema[Int].deriving(QueryCodecDeriver).instance(TypeId.int, customIntCodec).derive
+
+      val encoded = codec.encodeToQueryParams(42)
+
+      assertTrue(
+        encoded == QueryParams("value" -> "custom-42"),
+        codec.decode(encoded) == Right(42)
       )
     },
     test("reports malformed top-level char values") {

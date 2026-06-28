@@ -40,9 +40,11 @@ object QueryCodecDeriver extends Deriver[QueryCodec] {
     defaultValue: Option[A],
     examples: Seq[A]
   ): Lazy[QueryCodec[A]] =
-    Lazy {
-      buildTopLevelCodec(ParamCodecSupport.SinglePrimitive(primitiveType))
-    }
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      Lazy {
+        buildTopLevelCodec(ParamCodecSupport.SinglePrimitive(primitiveType))
+      }
+    } else binding.asInstanceOf[BindingInstance[QueryCodec, ?, A]].instance
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],

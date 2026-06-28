@@ -39,9 +39,11 @@ object HeaderCodecDeriver extends Deriver[HeaderCodec] {
     defaultValue: Option[A],
     examples: Seq[A]
   ): Lazy[HeaderCodec[A]] =
-    Lazy {
-      buildTopLevelCodec(ParamCodecSupport.SinglePrimitive(primitiveType))
-    }
+    if (binding.isInstanceOf[Binding[?, ?]]) {
+      Lazy {
+        buildTopLevelCodec(ParamCodecSupport.SinglePrimitive(primitiveType))
+      }
+    } else binding.asInstanceOf[BindingInstance[HeaderCodec, ?, A]].instance
 
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],

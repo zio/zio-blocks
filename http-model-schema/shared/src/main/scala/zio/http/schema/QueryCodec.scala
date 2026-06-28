@@ -19,6 +19,13 @@ package zio.http.schema
 import zio.blocks.schema.codec.Codec
 import zio.http.{QueryParams, QueryParamsBuilder}
 
+/**
+ * A codec for encoding a value of type `A` into [[zio.http.QueryParams]] and
+ * decoding [[zio.http.QueryParams]] back into `A`.
+ *
+ * Instances are typically derived via [[QueryFormat]] using the schema
+ * derivation framework.
+ */
 abstract class QueryCodec[A] extends Codec[QueryParams, QueryParamsBuilder, A] {
   final def encodeToQueryParams(value: A): QueryParams = {
     val builder = QueryCodec.threadLocalBuilder.get()
