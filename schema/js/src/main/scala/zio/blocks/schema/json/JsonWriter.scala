@@ -2901,7 +2901,7 @@ final class JsonWriter private[json] (
     var pos    = p
     var posLim = pl
     if (q0 != x) {
-      val q1    = (x * 1e-8).toInt // divide a small positive long by 100000000
+      val q1    = ((x >>> 8) * 2.56e-6).toInt // divide a medium positive long by 100000000
       val r1    = (x - q1 * 100000000L).toInt
       val posm8 = pos - 8
       if (r1 == 0) {
