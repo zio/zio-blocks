@@ -44,6 +44,10 @@ object PgCodec {
     def toDbValue(v: List[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
   }
 
+  given iArrayStringParam: DbParam[IArray[String]] with {
+    def toDbValue(v: IArray[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
+  }
+
   given indexedSeqStringParam: DbParam[IndexedSeq[String]] with {
     def toDbValue(v: IndexedSeq[String]): DbValue = DbValue.DbArray("varchar", v)
   }
