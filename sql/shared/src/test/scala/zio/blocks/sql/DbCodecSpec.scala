@@ -125,6 +125,11 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[WithNestedList] = Schema.derived
   }
 
+  case class WithSimpleRecordList(id: Int, items: List[SimpleRecord])
+  object WithSimpleRecordList {
+    implicit val schema: Schema[WithSimpleRecordList] = Schema.derived
+  }
+
   sealed trait Shape
   object Shape {
     case class Circle(radius: Double)     extends Shape
@@ -230,6 +235,95 @@ object DbCodecSpec extends ZIOSpecDefault {
     def columnLabel(index: Int): String                          = if (index == 1) label else unsupported("columnLabel")
     def hasColumn(columnLabel: String): Boolean                  = columnLabel == label
     def wasNull: Boolean                                         = lastWasNull
+  }
+
+  private final class RecordReader(valuesByLabel: Map[String, Any]) extends DbResultReader {
+    private var lastWasNull = false
+
+    private def valueFor(label: String): Any = {
+      val value = valuesByLabel.getOrElse(
+        label,
+        throw new UnsupportedOperationException(s"RecordReader has no value for $label")
+      )
+      lastWasNull = value == null
+      value
+    }
+
+    private def valueFor(index: Int): Any = valueFor(columnLabel(index))
+
+    private def unsupported[A](method: String): A =
+      throw new UnsupportedOperationException(s"RecordReader does not support $method")
+
+    def getInt(index: Int): Int = valueFor(index).asInstanceOf[Int]
+
+    def getInt(label: String): Int = valueFor(label).asInstanceOf[Int]
+
+    def getLong(index: Int): Long = unsupported("getLong(index)")
+
+    def getLong(label: String): Long = unsupported("getLong(label)")
+
+    def getDouble(index: Int): Double = unsupported("getDouble(index)")
+
+    def getDouble(label: String): Double = unsupported("getDouble(label)")
+
+    def getFloat(index: Int): Float = unsupported("getFloat(index)")
+
+    def getFloat(label: String): Float = unsupported("getFloat(label)")
+
+    def getBoolean(index: Int): Boolean = unsupported("getBoolean(index)")
+
+    def getBoolean(label: String): Boolean = unsupported("getBoolean(label)")
+
+    def getString(index: Int): String = valueFor(index).asInstanceOf[String]
+
+    def getString(columnLabel: String): String = valueFor(columnLabel).asInstanceOf[String]
+
+    def getBigDecimal(index: Int): java.math.BigDecimal = unsupported("getBigDecimal(index)")
+
+    def getBigDecimal(label: String): java.math.BigDecimal = unsupported("getBigDecimal(label)")
+
+    def getBytes(index: Int): Array[Byte] = unsupported("getBytes(index)")
+
+    def getBytes(label: String): Array[Byte] = unsupported("getBytes(label)")
+
+    def getShort(index: Int): Short = unsupported("getShort(index)")
+
+    def getShort(label: String): Short = unsupported("getShort(label)")
+
+    def getByte(index: Int): Byte = unsupported("getByte(index)")
+
+    def getByte(label: String): Byte = unsupported("getByte(label)")
+
+    def getLocalDate(index: Int): java.time.LocalDate = unsupported("getLocalDate(index)")
+
+    def getLocalDate(label: String): java.time.LocalDate = unsupported("getLocalDate(label)")
+
+    def getLocalDateTime(index: Int): java.time.LocalDateTime = unsupported("getLocalDateTime(index)")
+
+    def getLocalDateTime(label: String): java.time.LocalDateTime = unsupported("getLocalDateTime(label)")
+
+    def getLocalTime(index: Int): java.time.LocalTime = unsupported("getLocalTime(index)")
+
+    def getLocalTime(label: String): java.time.LocalTime = unsupported("getLocalTime(label)")
+
+    def getInstant(index: Int): java.time.Instant = unsupported("getInstant(index)")
+
+    def getInstant(label: String): java.time.Instant = unsupported("getInstant(label)")
+
+    def getDuration(index: Int): java.time.Duration = unsupported("getDuration(index)")
+
+    def getDuration(label: String): java.time.Duration = unsupported("getDuration(label)")
+
+    def getUUID(index: Int): java.util.UUID = unsupported("getUUID(index)")
+
+    def getUUID(label: String): java.util.UUID = unsupported("getUUID(label)")
+
+    def columnLabel(index: Int): String =
+      valuesByLabel.keys.toIndexedSeq.lift(index - 1).getOrElse(unsupported("columnLabel"))
+
+    def hasColumn(columnLabel: String): Boolean = valuesByLabel.contains(columnLabel)
+
+    def wasNull: Boolean = lastWasNull
   }
 
   private def deriveCodec[A](implicit s: Schema[A]): DbCodec[A] =
@@ -591,6 +685,25 @@ object DbCodecSpec extends ZIOSpecDefault {
         assertTrue(
           values(0) == DbValue.DbString("test"),
           values(1).isInstanceOf[DbValue.DbString]
+        )
+      },
+      test("record with List[SimpleRecord] field round-trips JSON array through JSONB fallback") {
+        val codec   = deriveCodec[WithSimpleRecordList]
+        val payload = WithSimpleRecordList(1, List(SimpleRecord("apple", 1), SimpleRecord("pear", 2)))
+        val values  = codec.toDbValues(payload)
+        val reader  = new RecordReader(
+          Map(
+            "id"    -> 1,
+            "items" -> values(1).asInstanceOf[DbValue.DbString].value
+          )
+        )
+
+        assertTrue(
+          values == IndexedSeq(
+            DbValue.DbInt(1),
+            DbValue.DbString("""[{"name":"apple","age":1},{"name":"pear","age":2}]""")
+          ),
+          codec.readValue(reader, IndexedSeq("id", "items")) == payload
         )
       },
       test("Map[String,Int] produces single JSONB column") {
