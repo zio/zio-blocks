@@ -272,6 +272,11 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    mux.jvm,
+    mux.js,
+    telemetry.jvm,
+    telemetry.js,
+    otel,
     `mux-examples`,
     smithy,
     `smithy-examples`
