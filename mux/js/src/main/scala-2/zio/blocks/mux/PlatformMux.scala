@@ -26,7 +26,7 @@ private[mux] object PlatformMux {
     new JsMux[Id, In, Out](capacity)
 
   private final class JsMux[Id, In, Out](capacity: Int) extends Mux[Id, In, Out] {
-    private val streams = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
+    private val streams         = mutable.HashMap.empty[Id, JsMuxStream[Id, In, Out]]
     private var closed: Boolean = false
 
     def open(id: Id): Either[MuxError, MuxStream[Id, In, Out]] = {
@@ -70,7 +70,7 @@ private[mux] object PlatformMux {
     streamId: Id,
     mux: JsMux[Id, In, Out]
   ) extends MuxStream[Id, In, Out] {
-    private var state: StreamState                     = StreamState.Open
+    private var state: StreamState                    = StreamState.Open
     private val inboundQueue: mutable.ArrayDeque[Out] = mutable.ArrayDeque.empty
     private val outboundQueue: mutable.ArrayDeque[In] = mutable.ArrayDeque.empty
     private var cancelError: Option[MuxError]         = None

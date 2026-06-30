@@ -19,8 +19,8 @@ package zio.blocks.telemetry
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Global tracing entry point. Works without setup — stores spans in memory
- * by default. Call `install` to wire production exporters.
+ * Global tracing entry point. Works without setup — stores spans in memory by
+ * default. Call `install` to wire production exporters.
  *
  * App code uses this directly. Library code should accept `Tracer` via DI.
  */
@@ -52,7 +52,10 @@ object trace {
   /** Replaces the default TracerProvider with a user-configured one. */
   def install(provider: TracerProvider): Unit = ref.set(provider)
 
-  /** Remove the installed TracerProvider. After this, spans are no-ops until you install a provider. */
+  /**
+   * Remove the installed TracerProvider. After this, spans are no-ops until you
+   * install a provider.
+   */
   def removeAll(): Unit = ref.set(TracerProvider.builder.setSampler(AlwaysOffSampler).build())
 
   /** Returns spans collected by the default in-memory processor. */

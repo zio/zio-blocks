@@ -286,10 +286,10 @@ object TextLogFormatter extends LogFormatter {
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
   private object JsonAttrValue {
-    final case class StringValue(value: String)  extends JsonAttrValue
-    final case class IntValue(value: Long)       extends JsonAttrValue
-    final case class DoubleValue(value: Double)  extends JsonAttrValue
-    final case class BoolValue(value: Boolean)   extends JsonAttrValue
+    final case class StringValue(value: String) extends JsonAttrValue
+    final case class IntValue(value: Long)      extends JsonAttrValue
+    final case class DoubleValue(value: Double) extends JsonAttrValue
+    final case class BoolValue(value: Boolean)  extends JsonAttrValue
   }
 
   override def format(

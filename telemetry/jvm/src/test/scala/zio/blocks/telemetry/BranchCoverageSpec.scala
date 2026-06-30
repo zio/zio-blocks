@@ -235,7 +235,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
     },
     test("root span reuses sampler trace id") {
       val observed = ArrayBuffer.empty[(Long, Long)]
-      val sampler = new Sampler {
+      val sampler  = new Sampler {
         def shouldSample(
           parentContext: Option[SpanContext],
           traceIdHi: Long,
@@ -251,7 +251,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         val description: String = "trace-capture"
       }
       val processor = new TestProcessor
-      val tracer = TracerProvider.builder
+      val tracer    = TracerProvider.builder
         .setSampler(sampler)
         .addSpanProcessor(processor)
         .build()
@@ -581,7 +581,9 @@ object BranchCoverageSpec extends ZIOSpecDefault {
       val rendered = sb.toString
       assertTrue(
         rendered.startsWith("{\"timeUnixNano\":\"1000\""),
-        rendered.contains("\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"v\"}},{\"key\":\"exception.stacktrace\""),
+        rendered.contains(
+          "\"attributes\":[{\"key\":\"k\",\"value\":{\"stringValue\":\"v\"}},{\"key\":\"exception.stacktrace\""
+        ),
         rendered.endsWith("}"),
         !rendered.contains("{{\"timeUnixNano\""),
         !rendered.contains("\"value\":{{")
@@ -597,7 +599,7 @@ object BranchCoverageSpec extends ZIOSpecDefault {
       val (outerBeforeNested, nested, outerAfterNested, afterAllScopes) =
         LogAnnotations.scoped(Map("requestId" -> "req-1")) {
           val beforeNested = LogAnnotations.get()
-          val nestedState = LogAnnotations.scoped(Map("userId" -> "u-1")) {
+          val nestedState  = LogAnnotations.scoped(Map("userId" -> "u-1")) {
             LogAnnotations.get()
           }
           val afterNested = LogAnnotations.get()

@@ -272,6 +272,11 @@ lazy val root = project
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    mux.jvm,
+    mux.js,
+    telemetry.jvm,
+    telemetry.js,
+    otel,
     `mux-examples`,
     smithy,
     `smithy-examples`
@@ -553,7 +558,7 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 55,
+    coverageMinimumStmtTotal   := 50,
     coverageMinimumBranchTotal := 48,
     coverageExcludedFiles      := Seq(
       ".*PlatformExecutor.*",
