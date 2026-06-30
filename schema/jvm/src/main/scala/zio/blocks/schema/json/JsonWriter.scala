@@ -2528,12 +2528,23 @@ final class JsonWriter private[json] (
         val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
         val dotOne          = (hi64 << 58) | (lo64 >>> 6)
         if (compareUnsigned(halfUlpPlusEven, -1 - dotOne) > 0) m10 += 10L
-        else if (m2IEEE != 0) {
-          if (compareUnsigned(halfUlpPlusEven, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
-        } else {
-          val tmp = (dotOne >>> 4) * 10L
-          if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) m10 += (tmp >>> 60).toInt + 1
-          else if (compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
+        else if ({
+          if (m2IEEE != 0) compareUnsigned(halfUlpPlusEven, dotOne) <= 0
+          else {
+            val tmp = (dotOne >>> 4) * 10L
+            if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) {
+              m10 += (tmp >>> 60).toInt + 1
+              false
+            } else compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0
+          }
+        }) {
+          m10 = (hi64 * 10L + unsignedMultiplyHigh2(
+            lo64,
+            10L
+          ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
+            if (dotOne == 0x4000000000000000L) 0x1fL
+            else 0x20L
+          }) >>> 6
         }
       }
       val len = digitCount(m10)
@@ -2588,16 +2599,6 @@ final class JsonWriter private[json] (
   @inline
   private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
     Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
-
-  @inline
-  private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
-    (hi * 10L + unsignedMultiplyHigh2(
-      lo,
-      10L
-    ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-      if (dotOne == 0x4000000000000000L) 0x1fL
-      else 0x20L
-    }) >>> 6
 
   // Adoption of a nice trick from Daniel Lemire's blog that works for numbers up to 10^18:
   // https://lemire.me/blog/2021/06/03/computing-the-number-of-digits-of-an-integer-even-faster/
