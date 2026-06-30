@@ -276,7 +276,10 @@ lazy val root = project
     mux.js,
     `mux-examples`,
     smithy,
-    `smithy-examples`
+    `smithy-examples`,
+    telemetry.jvm,
+    telemetry.js,
+    otel
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -569,7 +572,9 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     mimaSettings(failOnProblem = false),
-    Compile / scalacOptions := {
+    // Tests share GlobalLogState (mutable singleton); parallel specs cause race conditions.
+    Test / parallelExecution := false,
+    Compile / scalacOptions  := {
       val base = (Compile / scalacOptions).value
       base.zipWithIndex.flatMap { case (opt, i) =>
         if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("25")
