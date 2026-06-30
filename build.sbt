@@ -555,8 +555,8 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
       case _ =>
         Seq()
     }),
-    coverageMinimumStmtTotal   := 50,
-    coverageMinimumBranchTotal := 48,
+    coverageMinimumStmtTotal   := 82,
+    coverageMinimumBranchTotal := 72,
     coverageExcludedFiles      := Seq(
       ".*PlatformExecutor.*",
       ".*BuildInfo.*"
