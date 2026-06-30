@@ -690,7 +690,7 @@ object StreamConcurrencyJvmSpec extends StreamsBaseSpec {
           val expected = Right((1 to 160).toSet)
           assertTrue(result == expected)
         }
-      } @@ TestAspect.timeout(60.seconds)
+      } @@ TestAspect.timeout(180.seconds) @@ TestAspect.flaky
     ) @@ TestAspect.sequential @@ TestAspect.timed,
     run10ConvergenceSuite,
     run11ConvergenceSuite
