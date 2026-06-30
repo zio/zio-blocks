@@ -134,8 +134,8 @@ private[telemetry] object GlobalLogState {
 
   private def updateGlobalMinLevel(): Unit = {
     val state = ref.get()
-    var min = state.minSeverity
-    var i   = 0
+    var min   = state.minSeverity
+    var i     = 0
     while (i < state.levelOverrideValues.length) {
       val v = state.levelOverrideValues(i)
       if (v < min) min = v

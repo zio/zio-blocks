@@ -105,10 +105,10 @@ object B3Propagator {
   }
 
   private object B3MultiPropagator extends Propagator {
-    private val TraceIdHeader      = "X-B3-TraceId"
-    private val SpanIdHeader       = "X-B3-SpanId"
-    private val SampledHeader      = "X-B3-Sampled"
-    private val FlagsHeader = "X-B3-Flags"
+    private val TraceIdHeader = "X-B3-TraceId"
+    private val SpanIdHeader  = "X-B3-SpanId"
+    private val SampledHeader = "X-B3-Sampled"
+    private val FlagsHeader   = "X-B3-Flags"
 
     override val fields: Seq[String] = Seq(TraceIdHeader, SpanIdHeader, SampledHeader, FlagsHeader)
 

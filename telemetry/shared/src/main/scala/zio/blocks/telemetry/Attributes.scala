@@ -424,10 +424,10 @@ object Attributes {
       ensureCapacity()
       _keys(_len) = key
       _len += 1
-        _len - 1
-      }
+      _len - 1
+    }
 
-    private def hasActiveSeqs: Boolean = {
+    private def hasActiveSeqs: Boolean =
       if (_seqs == null) false
       else {
         var i = 0
@@ -437,7 +437,6 @@ object Attributes {
         }
         false
       }
-    }
 
     private def ensureCapacity(): Unit =
       if (_len >= _keys.length) {

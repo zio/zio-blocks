@@ -73,11 +73,11 @@ private[otel] final class JdkHttpSender(
     val response = client.send(request, JdkHttpResponse.BodyHandlers.ofByteArray())
 
     val responseHeaders = scala.collection.mutable.Map[String, Seq[String]]()
-    val it = response.headers().map().entrySet().iterator()
+    val it              = response.headers().map().entrySet().iterator()
     while (it.hasNext) {
-      val entry = it.next()
+      val entry  = it.next()
       val values = new scala.collection.mutable.ArrayBuffer[String](entry.getValue.size())
-      val vit = entry.getValue.iterator()
+      val vit    = entry.getValue.iterator()
       while (vit.hasNext) values += vit.next()
       responseHeaders(entry.getKey) = values.toSeq
     }

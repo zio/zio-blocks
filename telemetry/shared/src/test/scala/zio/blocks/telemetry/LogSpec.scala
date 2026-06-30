@@ -258,9 +258,9 @@ object LogSpec extends ZIOSpecDefault {
         var noisyLevel = 0
         var otherLevel = 0
         withLogger(Severity.Info) { _ =>
-        log.setMinSeverity("com.example", Severity.Debug)
-        log.setMinSeverity("com.example.noisy", Severity.Warn)
-        val state = GlobalLogState.get()
+          log.setMinSeverity("com.example", Severity.Debug)
+          log.setMinSeverity("com.example.noisy", Severity.Warn)
+          val state = GlobalLogState.get()
           debugLevel = state.effectiveLevel("com.example.Service")
           noisyLevel = state.effectiveLevel("com.example.noisy.Thing")
           otherLevel = state.effectiveLevel("com.other.Foo")
@@ -274,9 +274,9 @@ object LogSpec extends ZIOSpecDefault {
       test("clearLevel removes override") {
         var level = 0
         withLogger(Severity.Info) { _ =>
-        log.setMinSeverity("com.test", Severity.Debug)
-        log.clearMinSeverity("com.test")
-        level = GlobalLogState.get().effectiveLevel("com.test.Foo")
+          log.setMinSeverity("com.test", Severity.Debug)
+          log.clearMinSeverity("com.test")
+          level = GlobalLogState.get().effectiveLevel("com.test.Foo")
         }
         assertTrue(level == Severity.Info.number)
       },
@@ -284,10 +284,10 @@ object LogSpec extends ZIOSpecDefault {
         var aLevel = 0
         var bLevel = 0
         withLogger(Severity.Info) { _ =>
-        log.setMinSeverity("a", Severity.Debug)
-        log.setMinSeverity("b", Severity.Warn)
-        log.clearAllOverrides()
-        val state = GlobalLogState.get()
+          log.setMinSeverity("a", Severity.Debug)
+          log.setMinSeverity("b", Severity.Warn)
+          log.clearAllOverrides()
+          val state = GlobalLogState.get()
           aLevel = state.effectiveLevel("a.Foo")
           bLevel = state.effectiveLevel("b.Bar")
         }

@@ -53,7 +53,10 @@ object metric {
   /** Replaces the default MeterProvider with a user-configured one. */
   def install(provider: MeterProvider): Unit = ref.set(provider)
 
-  /** Remove the installed MeterProvider. After this, metrics use the default provider. */
+  /**
+   * Remove the installed MeterProvider. After this, metrics use the default
+   * provider.
+   */
   def removeAll(): Unit = ref.set(MeterProvider.builder.build())
 
   /** Returns the MetricReader for the current provider. */

@@ -51,73 +51,73 @@ private[telemetry] final class FileLogWriter private (
   override def write(content: CharSequence): Unit = {
     lock.lock()
     try {
-    val buf     = state.buffer
-    val encoder = state.encoder
+      val buf     = state.buffer
+      val encoder = state.encoder
 
-    buf.clear()
+      buf.clear()
 
-    // Fast path: ASCII content (most log lines are ASCII)
-    val len = content.length
-    if (len <= buf.capacity - 1) { // -1 for newline
-      var i        = 0
-      var allAscii = true
-      while (i < len && allAscii) {
-        val c = content.charAt(i)
-        if (c < 128) {
-          buf.put(c.toByte)
-        } else {
-          allAscii = false
+      // Fast path: ASCII content (most log lines are ASCII)
+      val len = content.length
+      if (len <= buf.capacity - 1) { // -1 for newline
+        var i        = 0
+        var allAscii = true
+        while (i < len && allAscii) {
+          val c = content.charAt(i)
+          if (c < 128) {
+            buf.put(c.toByte)
+          } else {
+            allAscii = false
+          }
+          i += 1
         }
-        i += 1
+
+        if (allAscii) {
+          // All ASCII — fast path complete
+          buf.put('\n'.toByte)
+          buf.flip()
+          try {
+            while (buf.hasRemaining) channel.write(buf)
+          } catch {
+            case e: IOException =>
+              System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
+          }
+          return
+        }
+
+        // Had non-ASCII — fall back to encoder
+        buf.clear()
       }
 
-      if (allAscii) {
-        // All ASCII — fast path complete
+      // Slow path: use CharsetEncoder for non-ASCII or content > buffer
+      val charBuf = CharBuffer.wrap(content)
+      encoder.reset()
+      try {
+        var result = encoder.encode(charBuf, buf, true)
+        while (result == CoderResult.OVERFLOW) {
+          buf.flip()
+          while (buf.hasRemaining) channel.write(buf)
+          buf.clear()
+          result = encoder.encode(charBuf, buf, true)
+        }
+        result = encoder.flush(buf)
+        while (result == CoderResult.OVERFLOW) {
+          buf.flip()
+          while (buf.hasRemaining) channel.write(buf)
+          buf.clear()
+          result = encoder.flush(buf)
+        }
+        if (!buf.hasRemaining) {
+          buf.flip()
+          while (buf.hasRemaining) channel.write(buf)
+          buf.clear()
+        }
         buf.put('\n'.toByte)
         buf.flip()
-        try {
-          while (buf.hasRemaining) channel.write(buf)
-        } catch {
-          case e: IOException =>
-            System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
-        }
-        return
-      }
-
-      // Had non-ASCII — fall back to encoder
-      buf.clear()
-    }
-
-    // Slow path: use CharsetEncoder for non-ASCII or content > buffer
-    val charBuf = CharBuffer.wrap(content)
-    encoder.reset()
-    try {
-      var result = encoder.encode(charBuf, buf, true)
-      while (result == CoderResult.OVERFLOW) {
-        buf.flip()
         while (buf.hasRemaining) channel.write(buf)
-        buf.clear()
-        result = encoder.encode(charBuf, buf, true)
+      } catch {
+        case e: IOException =>
+          System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
       }
-      result = encoder.flush(buf)
-      while (result == CoderResult.OVERFLOW) {
-        buf.flip()
-        while (buf.hasRemaining) channel.write(buf)
-        buf.clear()
-        result = encoder.flush(buf)
-      }
-      if (!buf.hasRemaining) {
-        buf.flip()
-        while (buf.hasRemaining) channel.write(buf)
-        buf.clear()
-      }
-      buf.put('\n'.toByte)
-      buf.flip()
-      while (buf.hasRemaining) channel.write(buf)
-    } catch {
-      case e: IOException =>
-        System.err.println("[zio-blocks-telemetry] file write error: " + e.getMessage)
-    }
     } finally lock.unlock()
   }
 

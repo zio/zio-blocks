@@ -21,6 +21,7 @@ package zio.blocks.telemetry
  * collection cycle.
  */
 trait ObservableCallback {
+
   /**
    * Records an observed value with the supplied attribute set.
    */

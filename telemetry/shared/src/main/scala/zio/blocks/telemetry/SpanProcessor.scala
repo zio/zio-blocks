@@ -22,6 +22,7 @@ package zio.blocks.telemetry
  * Processors can export spans, buffer them, or perform in-memory inspection.
  */
 trait SpanProcessor extends AutoCloseable {
+
   /**
    * Called when a span is started.
    */

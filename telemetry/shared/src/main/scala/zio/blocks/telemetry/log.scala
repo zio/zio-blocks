@@ -45,7 +45,7 @@ object log extends LogVersionSpecific {
   /** Add a log record processor. Additive. */
   def addProcessor(processor: LogRecordProcessor): Unit = synchronized {
     val currentState = GlobalLogState.get()
-    val logger = new Logger(
+    val logger       = new Logger(
       currentState.logger.instrumentationScope,
       currentState.logger.resource,
       currentState.logger.processors :+ processor,
@@ -58,7 +58,10 @@ object log extends LogVersionSpecific {
   def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit =
     GlobalLogState.install(logger, minSeverity)
 
-  /** Remove all processors and writers. After this, log calls are no-ops until you add a processor or install a logger. */
+  /**
+   * Remove all processors and writers. After this, log calls are no-ops until
+   * you add a processor or install a logger.
+   */
   def removeAll(): Unit = synchronized {
     val prev = GlobalLogState.get()
     prev.logger.processors.foreach { p =>
@@ -100,7 +103,7 @@ object log extends LogVersionSpecific {
 
   private def rebuildState(): Unit = {
     val currentState = GlobalLogState.get()
-    val logger = new Logger(
+    val logger       = new Logger(
       currentState.logger.instrumentationScope,
       currentState.logger.resource,
       currentState.logger.baseProcessors ++ _writerProcessors,
