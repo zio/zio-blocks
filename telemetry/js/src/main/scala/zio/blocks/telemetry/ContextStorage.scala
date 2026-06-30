@@ -41,6 +41,9 @@ object ContextStorage {
 
   def create[A](initial: A): ContextStorage[A] = new JsStorage[A](initial)
 
+  private[telemetry] val defaultSpanContextStorage: ContextStorage[Option[SpanContext]] =
+    create[Option[SpanContext]](None)
+
   private final class JsStorage[A](initial: A) extends ContextStorage[A] {
     private var current: A = initial
 
