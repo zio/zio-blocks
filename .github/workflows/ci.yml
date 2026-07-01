@@ -259,6 +259,5 @@ jobs:
         with:
           node-version: 24.12.0
           registry-url: https://registry.npmjs.org
-          cache: 'npm'
       - name: Publish Docs to NPM Registry
         run: sbt docs/publishToNpm
