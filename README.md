@@ -31,6 +31,108 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Streams** | Pull-based streaming primitives | ✅ Available |
 | **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
 
+## Config
+
+Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
+
+See the [Config reference](docs/reference/config.md) for the full API surface, supported rollout syntax, and format-adapter entry points.
+
+### Key Features
+
+- **Static flags**: Resolve once at class load with `StaticFlag[A]`
+- **Typed config loading**: Decode case classes with `Config.load[A]`
+- **Flag sources**: Register custom flag sources in `FlagSource.Registry`
+- **Source composition**: Combine sources with `orElse` and keep provenance
+- **Rollout DSL**: Select values with path and percentage rules
+- **File adapters**: Parse YAML, JSON, and HOCON into `ConfigSource`
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "0.0.41"
+```
+
+### Quick Start: StaticFlag
+
+```scala
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+val size: Int = poolSize()
+```
+
+### Quick Start: Config.load[A]
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
+```
+
+### Example: FlagSource Plugin
+
+```scala
+package myapp
+
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+FlagSource.Registry.register(
+  FlagSource.fromMap(Map("myapp.poolSize" -> "20"), "demo")
+)
+
+val size = poolSize()
+```
+
+:::note
+Register a `FlagSource` before the first reference to a `StaticFlag` object. `StaticFlag` resolves during object initialization, so a source registered later will not change a flag that has already been loaded. The lookup key is the flag object's fully qualified name (`myapp.poolSize` in this example).
+:::
+
+### Example: ConfigSource Composition with Provenance
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
+val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
+val source   = env.orElse(defaults).prefix("app")
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val loaded   = Config.loadWithProvenance[AppConfig](source)
+val hostProv = loaded.map(_.provenanceOf("host"))
+```
+
+### Example: Rollout DSL
+
+```scala
+import zio.blocks.config._
+
+val bucket = Rollout.bucketFor("user-123")
+val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
+```
+
+`prod/50%` applies the choice to the `prod` path and enables it for roughly half of the `prod` buckets. The trailing `false` entry is the catch-all fallback for every non-matching case.
+
+### File Format Adapters
+
+- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency and `import zio.blocks.config.yaml._`)
+- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency and `import zio.blocks.config.json._`)
+- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency and `import zio.blocks.config.hocon._`)
+
 ## Core Principles
 
 - **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
@@ -678,12 +780,12 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](docs/./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](docs/./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](docs/./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](docs/./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](docs/./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](docs/./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
+- [Ring Buffer](docs/./reference/ringbuffer/index.md) - High-performance bounded ring buffers
 - [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results

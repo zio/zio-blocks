@@ -125,10 +125,11 @@ const sidebars = {
              "reference/resource-management/finalizer",
              "reference/resource-management/finalization",
            ]
-         },
-         "reference/combinators",
-         "reference/docs",
-         "reference/media-type",
+          },
+          "reference/combinators",
+          "reference/docs",
+          "reference/config",
+          "reference/media-type",
          {
            type: "category",
            label: "Code Generation",
@@ -212,6 +213,7 @@ const sidebars = {
              "reference/streams/sink",
              "reference/streams/reader",
              "reference/streams/writer",
+             "reference/streams/concurrent-operators",
              "reference/streams/zero-boxing",
            ]
          },
@@ -222,11 +224,12 @@ const sidebars = {
       label: "Guides",
       items: [
         "guides/compile-time-resource-safety-with-scope",
-        "guides/zio-schema-migration",
-        "guides/query-dsl-reified-optics",
-        "guides/query-dsl-sql",
+        "guides/getting-started-with-mux",
         "guides/query-dsl-extending",
         "guides/query-dsl-fluent-builder",
+        "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
+        "guides/zio-schema-migration",
       ]
     }
   ]

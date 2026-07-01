@@ -71,6 +71,7 @@ object Maybe {
     inline def get: A             =
       if (self == null) throw new NoSuchElementException("Maybe.absent.get")
       else self.asInstanceOf[A]
+    inline def getOrNull: A | Null                 = self
     inline def getOrElse[B >: A](default: => B): B =
       if (self == null) default else self.asInstanceOf[A]
     inline def orElse[B >: A](alternative: => Maybe[B]): Maybe[B] =

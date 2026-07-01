@@ -1980,7 +1980,7 @@ object Reflect {
       reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
     } else reflect.asPrimitive.map(_.primitiveType)
 
-  private[schema] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
+  private[blocks] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
     unwrapToPrimitiveTypeOption(reflect) match {
       case Some(primitiveType) =>
         primitiveType match {
@@ -1998,7 +1998,7 @@ object Reflect {
       case _ => RegisterOffset.incrementObjects(0L)
     }
 
-  private[schema] def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
+  private[blocks] def typeTag[F[_, _], A](reflect: Reflect[F, A]): Int =
     unwrapToPrimitiveTypeOption(reflect) match {
       case Some(primitiveType) =>
         primitiveType match {

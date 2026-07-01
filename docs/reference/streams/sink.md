@@ -606,78 +606,56 @@ sbt "streams-examples/runMain sink.SinkScientificComputingExample"
 
 This use case is typical in scientific instrumentation, machine learning data preprocessing, and signal processing pipelines where you need to efficiently batch-process numerical streams into memory-efficient structures for downstream computation.
 
-:::danger[Sentinel Value Limitation]
+:::warning[Sentinel Collisions Throw — Never Silently Truncate]
 
-These typed sinks achieve **zero-boxing performance** by using a special "sentinel" value to signal end-of-stream, rather than allocating wrapper objects or checking for `null`. This design eliminates allocations entirely, keeping the read loop fully unboxed and primitive.
+These typed sinks achieve **zero-boxing performance** by using a special "sentinel" value to signal end-of-stream, rather than allocating wrapper objects or checking for `null`. This design eliminates allocations entirely, keeping the read loop a **single primitive comparison per element**. This loop shape is a deliberate, protected performance choice (see the repository's `AGENTS.md`, "Sentinel performance policy"): no per-element flag checks, rawbits conversions, boxing, or extra branches are permitted in it.
 
-**However, this comes with a cost:** if your stream contains the exact sentinel value, the sink stops reading and silently drops all remaining elements.
+A natural question: what happens if the stream *contains* the sentinel value (e.g. a `Long.MaxValue` element streamed into `NioSinks.fromByteBufferLong`)? The sink **throws `IllegalArgumentException`** — your data is never silently dropped. Detection costs nothing on the hot path: every read records an out-of-band `lastReadWasEOF` flag on the reader, and the sink consults it **once, after the drain loop exits**, to distinguish genuine end-of-stream from a real sentinel-valued element:
 
-**Affected Data Types and Their Sentinels:**
-| Method | Input Type | Sentinel Value | Risk Level | Why? |
-|--------|-----------|---|---|---|
-| `NioSinks.fromByteBuffer` | `Byte` | `-1` (0xFF) | Safe | Sentinel is outside valid byte range [-128, 127] |
-| `NioSinks.fromByteBufferInt` | `Int` | `Long.MinValue` | Safe | Sentinel (-2^63) is far outside valid Int range [-2^31, 2^31-1] |
-| `NioSinks.fromByteBufferLong` | `Long` | `Long.MaxValue` | **RISKY** | Sentinel is a valid Long value; streams can contain Long.MaxValue |
-| `NioSinks.fromByteBufferFloat` | `Float` | `Double.MaxValue` | Safe | Sentinel (≈1.8e+308) is far outside valid Float range (±3.4e+38) |
-| `NioSinks.fromByteBufferDouble` | `Double` | `Double.MaxValue` | **RISKY** | Sentinel is the maximum valid Double value; streams can contain Double.MaxValue |
+```scala
+// fromByteBufferLong - tight loop with primitives only
+val s = Long.MaxValue
+var v = reader.readLong(s)(using unsafeEvidence)
+while (v != s) { // single primitive comparison per element
+  buf.putLong(v)
+  v = reader.readLong(s)(using unsafeEvidence)
+}
+if (!reader.lastReadWasEOF) // consulted once, post-loop: zero hot-path cost
+  throw new IllegalArgumentException("stream contains Long.MaxValue ...")
+```
 
-**Concrete Risk Example:**
-If you stream `[100L, 200L, Long.MaxValue, 300L, 400L]` using `NioSinks.fromByteBufferLong`, only `[100L, 200L]` will be written to the buffer—the sentinel triggers and the stream silently terminates, dropping the last three elements with no error.
+**Sentinels per typed sink:**
+| Method | Input Type | Sentinel Value | Collision behavior |
+|--------|-----------|---|---|
+| `NioSinks.fromByteBuffer` | `Byte` | `-1` (as `Int`) | No collision possible — bytes are widened to [0, 255] |
+| `NioSinks.fromByteBufferInt` | `Int` | `Long.MinValue` | No collision possible — outside Int range |
+| `NioSinks.fromByteBufferLong` | `Long` | `Long.MaxValue` | Throws `IllegalArgumentException` |
+| `NioSinks.fromByteBufferFloat` | `Float` | `Double.MaxValue` | No collision possible — outside Float range |
+| `NioSinks.fromByteBufferDouble` | `Double` | `Double.MaxValue` | Throws `IllegalArgumentException` |
 
-**Safe to Always Use (No Sentinel Risk):**
-- `fromByteBufferByte` — Byte sentinels are impossible
-- `NioSinks.fromByteBufferInt` — Int sentinels are impossible (Long.MinValue is outside Int range)
-- `NioSinks.fromByteBufferFloat` — Float sentinels are impossible (Double.MaxValue is outside Float range)
-
-**Careful With (Sentinel Values Are Possible):**
-- `NioSinks.fromByteBufferLong` — Avoid if your data could contain `Long.MaxValue`:
-  - Unix timestamps in nanoseconds (will reach year 2262 eventually)
-  - Data representing all possible Long values
-  - Positive integers < Long.MaxValue (most sensor/measurement data) — safe
-
-- `NioSinks.fromByteBufferDouble` — Avoid if your data could contain `Double.MaxValue`:
-  - Domain-agnostic scientific computing (could need extreme values)
-  - Mathematical data (infinity, extreme results)
-  - Sensor data (temperatures, pressures, voltages) — safe
-  - Financial data (stock prices, volumes—rarely extreme) — safe
-
-**Safe Alternatives:** If you must support sentinel values, use:
-- `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual buffering without sentinels
+**If your data may contain the sentinel value**, use a generic sink instead — these use an out-of-band object sentinel and handle every value:
+- `Sink.collectAll[A]` — collects into a Chunk
 - `Sink.foreach[A](f: A => Unit)` — processes each element individually
-- `Sink.foldLeft[A, Z](z: Z)(f: (Z, A) => Z)` — accumulates without sentinel constraint
-- `Sink.collectAll[A]` — collects into a Chunk using generic protocol (no sentinel)
+- `Sink.foldLeft[A, Z](z: Z)(f: (Z, A) => Z)` — accumulates
+- `Sink.create[E, A, Z](f: Reader[A] => Z)` — manual control
 
-For a complete demonstration of this limitation in action, see the Sentinel Value Limitation example below:
+For a runnable demonstration of the guard, see the example below:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala")
 ```
 
 
 Run it with:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
+sbt "streams-examples/runMain sink.SinkSentinelGuardExample"
 ```
 :::
 
 You might ask: **Why not use a sentinel object like generic sinks do, instead of primitive values?** The answer reveals a fundamental performance trade-off.
-
-Typed NIO Sinks use primitive sentinels to keep loops fully unboxed:
-
-```scala
-// fromByteBufferLong - tight loop with primitives only
-val s = Long.MaxValue
-def loop(v: Long): Unit =
-  if (v != s) {
-    buf.putLong(v)
-    loop(reader.readLong(s)(using unsafeEvidence))
-  }
-val firstValue = reader.readLong(s)(using unsafeEvidence)
-loop(firstValue)
-```
 
 Generic sinks use object sentinels to signal end-of-stream:
 
@@ -702,9 +680,7 @@ For a stream processing **millions of elements**, the typed sink approach has me
 3. JIT compiler can better optimize tight primitive loops
 4. Zero per-element allocation pressure
 
-**The Cost:**
-- **Typed sinks:** Cannot stream sentinel values (Long.MaxValue, Double.MaxValue)
-- **Generic sinks:** Universal (handle any value), but slightly slower per-element
+Neither approach silently drops data: the generic sinks use a reference-unique object that no stream element can equal, and the typed sinks detect a value/sentinel collision via the out-of-band EOF flag (consulted once, post-loop) and throw rather than truncate.
 
 ### From Channel Sink
 
@@ -792,18 +768,18 @@ Run this example with:
 sbt "streams-examples/runMain sink.SinkTransformationExample"
 ```
 
-### Sentinel Value Limitation (NIO Typed Sinks)
+### Sentinel Guard (NIO Typed Sinks)
 
-This example demonstrates the critical sentinel value limitation of typed NIO sinks (`NioSinks.fromByteBufferInt`, `NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferDouble`, `NioSinks.fromByteBufferFloat`). It shows how streams containing sentinel values (e.g., `Long.MaxValue` for `NioSinks.fromByteBufferLong`) will silently truncate, causing data loss without warning:
+This example demonstrates that the typed NIO sinks (`NioSinks.fromByteBufferLong`, `NioSinks.fromByteBufferDouble`) reject streams containing their sentinel value (e.g., `Long.MaxValue` for `NioSinks.fromByteBufferLong`) with an `IllegalArgumentException` instead of silently truncating — detected at zero hot-path cost via the reader's out-of-band EOF flag, consulted once after the drain loop exits:
 
 ```scala mdoc:passthrough
 import docs.SourceFile
 
-SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelLimitationExample.scala")
+SourceFile.print("streams-examples/src/main/scala/sink/SinkSentinelGuardExample.scala")
 ```
 
 Run it with this command:
 
 ```bash
-sbt "streams-examples/runMain sink.SinkSentinelLimitationExample"
+sbt "streams-examples/runMain sink.SinkSentinelGuardExample"
 ```

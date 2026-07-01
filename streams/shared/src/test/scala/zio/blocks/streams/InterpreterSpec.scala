@@ -70,7 +70,7 @@ object InterpreterSpec extends StreamsBaseSpec {
   private def readDoubleValue(p: Interpreter, sentinel: Double): Double =
     p.asInstanceOf[Reader[Double]].readDouble(sentinel)
 
-  def spec = suite("Interpreter V3")(
+  def spec: Spec[TestEnvironment, Any] = suite("Interpreter")(
     singleMapSuite,
     crossTypeMapSuite,
     chainedMapsSuite,
@@ -99,7 +99,9 @@ object InterpreterSpec extends StreamsBaseSpec {
     specializedReadSuite,
     bridgeHelperSuite,
     largeDataSuite,
-    edgeCaseSuite
+    edgeCaseSuite,
+    coverageSuite,
+    regressionsSuite
   )
 
   // ---- drain helpers ----
@@ -391,7 +393,9 @@ object InterpreterSpec extends StreamsBaseSpec {
     test("laneOf for all JvmType values") {
       assertTrue(
         laneOf(JvmType.Int) == LANE_I &&
-          laneOf(JvmType.Boolean) == LANE_I &&
+          // Boolean is boxed in the ref lane so laneOf matches outLaneOf(Boolean)
+          // == OUT_R; a mismatch read a boxed Boolean from LANE_I -> CCE (ITER-9).
+          laneOf(JvmType.Boolean) == LANE_R &&
           laneOf(JvmType.Long) == LANE_L &&
           laneOf(JvmType.Float) == LANE_F &&
           laneOf(JvmType.Double) == LANE_D &&
@@ -459,7 +463,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromChunk(Chunk(i * 10)).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       assertTrue(result == List(0, 10, 20, 30, 40))
     }
@@ -476,7 +480,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromRange(0 until i).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       // 1 -> [0], 2 -> [0,1], 3 -> [0,1,2]
       assertTrue(result == List(0, 0, 1, 0, 1, 2))
@@ -487,7 +491,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromChunk(Chunk(i * 100, i * 100 + 1, i * 100 + 2)).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       assertTrue(result == List(0, 1, 2, 100, 101, 102, 200, 201, 202))
     }
@@ -506,7 +510,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(outerPushFn)
+      p.addPush[Int](LANE_I, LANE_I)(outerPushFn)
       val result = drainInts(p)
       // outer 0 -> mid [0, 1] -> inner [0], [1] -> emit 0, 1
       // outer 1 -> mid [10, 11] -> inner [10], [11] -> emit 10, 11
@@ -527,7 +531,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapFn: Int => Int = _ + 1
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapFn)
       val result = drainInts(p)
       // 0 -> flatMap -> [0] -> +1 -> [1]
@@ -544,7 +548,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapFn)
       val result = drainInts(p)
       assertTrue(result == List(1, 11, 21))
@@ -558,7 +562,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addFilter[Int](LANE_I)(pred)
       val result = drainInts(p)
       // 0*10=0 (filtered), 1*10=10 (pass), 2*10=20 (pass), 3*10=30 (pass), 4*10=40 (pass)
@@ -577,7 +581,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromRange(0 until i).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       // 0 -> empty, 3 -> [0,1,2], 0 -> empty, 2 -> [0,1]
       assertTrue(result == List(0, 1, 2, 0, 1))
@@ -588,7 +592,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromRange(0 until i).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       assertTrue(result == List())
     }
@@ -648,7 +652,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapFn: Int => Int = _ + 1
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapFn)
 
       val result = drainInts(p)
@@ -669,8 +673,8 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapFn: Int => Int = _ + 1
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(outerPushFn)
-      p.addPush[Int](LANE_I)(innerPushFn)
+      p.addPush[Int](LANE_I, LANE_I)(outerPushFn)
+      p.addPush[Int](LANE_I, LANE_I)(innerPushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapFn)
 
       val result = drainInts(p)
@@ -698,7 +702,7 @@ object InterpreterSpec extends StreamsBaseSpec {
 
       val p = Interpreter(source)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapF)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapH)
 
       val result = drainInts(p)
@@ -727,7 +731,7 @@ object InterpreterSpec extends StreamsBaseSpec {
 
       val p = Interpreter(source)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapF)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addFilter[Int](LANE_I)(pred)
 
       val result = drainInts(p)
@@ -755,7 +759,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val p = Interpreter(source)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapF)
       p.addFilter[Int](LANE_I)(predP)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapH)
       p.addFilter[Int](LANE_I)(predQ)
 
@@ -781,8 +785,8 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushG)
-      p.addPush[Int](LANE_I)(pushH)
+      p.addPush[Int](LANE_I, LANE_I)(pushG)
+      p.addPush[Int](LANE_I, LANE_I)(pushH)
 
       val result = drainInts(p)
       // 0 -> g -> [0,10] -> h -> [0,1], [1000,1001]
@@ -806,9 +810,9 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushG)
+      p.addPush[Int](LANE_I, LANE_I)(pushG)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapF)
-      p.addPush[Int](LANE_I)(pushH)
+      p.addPush[Int](LANE_I, LANE_I)(pushH)
 
       val result = drainInts(p)
       // 0 -> g -> [0,1] -> map*10 -> [0,10]
@@ -831,7 +835,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         }
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       assertTrue(result == List(1, 3, 5))
     },
@@ -843,7 +847,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromChunk(Chunk(i, i + 1)).map((_: Int) + 100).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       // 0 -> inner [0,1] with +100 -> [100,101]
       // 1 -> inner [1,2] with +100 -> [101,102]
@@ -863,7 +867,7 @@ object InterpreterSpec extends StreamsBaseSpec {
 
       val p = Interpreter(source)
       p.addMap[Int, Long](LANE_I, OUT_L)(mapIL)
-      p.addPush[Long](LANE_L)(pushFn)
+      p.addPush[Long](LANE_L, LANE_I)(pushFn)
 
       val result = drainInts(p)
       // 0 -> 100L -> inner [100,101]
@@ -897,7 +901,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val pushFn: Int => AnyRef = (i: Int) => {
         Stream.fromChunk(Chunk(i, i + 1)).asInstanceOf[AnyRef]
       }
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
 
       val result = drainInts(p)
       // 0+100=100 -> [100,101]
@@ -920,7 +924,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapK: Int => Int      = _ * 100
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapH)
       p.addFilter[Int](LANE_I)(predP)
       p.addMap[Int, Int](LANE_I, OUT_I)(mapK)
@@ -1002,7 +1006,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapIL: Int => Long = (i: Int) => i.toLong
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Long](LANE_I, OUT_L)(mapIL)
 
       val result = drainLongs(p)
@@ -1019,7 +1023,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapID: Int => Double = (i: Int) => i.toDouble + 0.5
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Double](LANE_I, OUT_D)(mapID)
 
       val result = drainDoubles(p)
@@ -1033,7 +1037,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapIR: Int => AnyRef = (i: Int) => s"v$i"
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, AnyRef](LANE_I, OUT_R)(mapIR)
 
       val result = drainGeneric(p)
@@ -1049,7 +1053,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
       val p = Interpreter(source)
       p.addMap[Int, Long](LANE_I, OUT_L)(mapIL)
-      p.addPush[Long](LANE_L)(pushFn)
+      p.addPush[Long](LANE_L, LANE_L)(pushFn)
 
       val result = drainLongs(p)
       // 0 -> 0L -> flatMap -> [0L, 1L]
@@ -1089,7 +1093,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val mapIL: Int => Long = (i: Int) => i.toLong
 
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       p.addMap[Int, Long](LANE_I, OUT_L)(mapIL)
 
       // In the flat pipeline, outputLane reflects the final output type (after outgoing ops).
@@ -1174,37 +1178,38 @@ object InterpreterSpec extends StreamsBaseSpec {
       }
     },
     test("below cutoff: all operations are Reader decorations, no Interpreter") {
-      // 5 maps: source -> MappedInt -> MappedInt -> MappedInt -> MappedInt -> MappedInt
+      // 5 consecutive Int=>Int maps fuse into ONE MappedInt whose function is
+      // the flat array composition of the five map functions (ComposedIntArray;
+      // 2 stages stay ComposedIntInt); the leaf is the range reader, never an
+      // Interpreter.
       var s: Stream[Nothing, Int] = Stream.range(0, 5)
       var i                       = 0
       while (i < 5) { s = s.map(_ + 1); i += 1 }
       val reader = s.compile(0)
-      // Top level is MappedInt
+      // Top level is a single fused MappedInt
       assertTrue(reader.isInstanceOf[Reader.MappedInt]) && {
-        // Walk the chain — every layer should be MappedInt, none Interpreter
-        var r: Reader[_] = reader
-        var allMapped    = true
-        var depth        = 0
-        while (r.isInstanceOf[Reader.MappedInt]) {
-          depth += 1
-          r = r.asInstanceOf[Reader.MappedInt].source
+        val m = reader.asInstanceOf[Reader.MappedInt]
+        // The five functions are composed, not stacked as nested readers
+        assertTrue(m.f.isInstanceOf[Reader.ComposedIntArray]) &&
+        assertTrue(!m.source.isInstanceOf[Reader.MappedInt]) &&
+        assertTrue(!m.source.isInstanceOf[Interpreter]) && {
+          // Functional correctness — all 5 maps applied
+          val result = s.runCollect
+          assertTrue(result == Right(Chunk.fromIterable((0 until 5).map(_ + 5))))
         }
-        // After 5 MappedInt wrappers, the leaf should be the range reader (not Interpreter)
-        assertTrue(depth == 5) &&
-        assertTrue(!r.isInstanceOf[Interpreter])
       }
     },
     test("mixed ops below cutoff: map + filter both decorate") {
       val reader = Stream.range(0, 10).map(_ + 1).filter(_ % 2 == 0).map(_ * 3).compile(0)
-      // Outermost is MappedInt (last map), then FilteredInt, then MappedInt, then source
-      assertTrue(reader.isInstanceOf[Reader.MappedInt]) && {
-        val m1 = reader.asInstanceOf[Reader.MappedInt]
-        assertTrue(m1.source.isInstanceOf[Reader.FilteredInt]) && {
-          val f1 = m1.source.asInstanceOf[Reader.FilteredInt]
-          assertTrue(f1.source.isInstanceOf[Reader.MappedInt]) && {
-            val m2 = f1.source.asInstanceOf[Reader.MappedInt]
-            assertTrue(!m2.source.isInstanceOf[Interpreter])
-          }
+      // The trailing `filter(Int).map(Int=>Int)` fuses into a single
+      // `FilteredMappedInt` (perf: avoids a fragile 3-deep wrapper inline). Its
+      // `source` is the first `map(_ + 1)` (a MappedInt), whose source is the
+      // range reader (not an Interpreter, since we are below the depth cutoff).
+      assertTrue(reader.isInstanceOf[Reader.FilteredMappedInt]) && {
+        val fm = reader.asInstanceOf[Reader.FilteredMappedInt]
+        assertTrue(fm.source.isInstanceOf[Reader.MappedInt]) && {
+          val m2 = fm.source.asInstanceOf[Reader.MappedInt]
+          assertTrue(!m2.source.isInstanceOf[Interpreter])
         }
       }
     }
@@ -1823,7 +1828,7 @@ object InterpreterSpec extends StreamsBaseSpec {
       val pushFn: Int => AnyRef = (i: Int) => {
         Stream.fromRange(0 until 10).map((_: Int) + i * 10).asInstanceOf[AnyRef]
       }
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       assertTrue(result.length == 1000) &&
       assertTrue(result.head == 0) &&
@@ -1900,7 +1905,7 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromRange(0 until (i % 3)).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       // 0 % 3 = 0 → empty
       // 1 % 3 = 1 → [0]
@@ -1985,10 +1990,793 @@ object InterpreterSpec extends StreamsBaseSpec {
         Stream.fromRange(0 until 2).map((_: Int) + i * 100).asInstanceOf[AnyRef]
       }
       val p = Interpreter(source)
-      p.addPush[Int](LANE_I)(pushFn)
+      p.addPush[Int](LANE_I, LANE_I)(pushFn)
       val result = drainInts(p)
       // 0 → [0, 1], 1 → [100, 101], 2 → [200, 201]
       assertTrue(result == List(0, 1, 100, 101, 200, 201))
     }
   )
+
+  // =========================================================================
+  //  coverage — moved from InterpreterCoverageSpec
+  // =========================================================================
+
+  val coverageSuite = suite("coverage")(
+    Coverage.allMapCrossingsSuite,
+    Coverage.wrapLastReadSuite,
+    Coverage.appendReadSuite,
+    Coverage.closeSuppressedSuite
+  )
+
+  private object Coverage {
+    import Interpreter._
+
+    private def readIntValue(p: Interpreter, sentinel: Long): Long =
+      p.asInstanceOf[Reader[Int]].readInt(sentinel)
+
+    private def readLongValue(p: Interpreter, sentinel: Long): Long =
+      p.asInstanceOf[Reader[Long]].readLong(sentinel)
+
+    private def readFloatValue(p: Interpreter, sentinel: Double): Double =
+      p.asInstanceOf[Reader[Float]].readFloat(sentinel)
+
+    private def readDoubleValue(p: Interpreter, sentinel: Double): Double =
+      p.asInstanceOf[Reader[Double]].readDouble(sentinel)
+
+    // ---- drain helpers (same as InterpreterSpec) ----
+
+    private def drainInts(p: Interpreter, sentinel: Long = Long.MinValue): List[Int] = {
+      val buf = scala.collection.mutable.ListBuffer[Int]()
+      var v   = readIntValue(p, sentinel)
+      while (v != sentinel) { buf += v.toInt; v = readIntValue(p, sentinel) }
+      buf.toList
+    }
+
+    private def drainLongs(p: Interpreter, sentinel: Long = Long.MaxValue): List[Long] = {
+      val buf = scala.collection.mutable.ListBuffer[Long]()
+      var v   = readLongValue(p, sentinel)
+      while (v != sentinel) { buf += v; v = readLongValue(p, sentinel) }
+      buf.toList
+    }
+
+    private def drainFloats(p: Interpreter, sentinel: Double = Double.MaxValue): List[Float] = {
+      val buf = scala.collection.mutable.ListBuffer[Float]()
+      var v   = readFloatValue(p, sentinel)
+      while (v != sentinel) { buf += v.toFloat; v = readFloatValue(p, sentinel) }
+      buf.toList
+    }
+
+    private def drainDoubles(p: Interpreter, sentinel: Double = Double.MaxValue): List[Double] = {
+      val buf = scala.collection.mutable.ListBuffer[Double]()
+      var v   = readDoubleValue(p, sentinel)
+      while (v != sentinel) { buf += v; v = readDoubleValue(p, sentinel) }
+      buf.toList
+    }
+
+    private def drainGeneric(p: Interpreter): List[Any] = {
+      val sentinel: AnyRef = new AnyRef
+      val buf              = scala.collection.mutable.ListBuffer[Any]()
+      var v                = p.read(sentinel)
+      while (v.asInstanceOf[AnyRef] ne sentinel) { buf += v; v = p.read(sentinel) }
+      buf.toList
+    }
+
+    // =========================================================================
+    //  All 25 addMap lane crossings
+    // =========================================================================
+
+    val allMapCrossingsSuite = suite("All 25 addMap lane crossings")(
+      // ---- Int input (5 outputs) ----
+      test("Int->Int (tag 0)") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        p.addMap[Int, Int](LANE_I, OUT_I)((_: Int) + 10)
+        assertTrue(drainInts(p) == List(10, 11, 12))
+      },
+      test("Int->Long (tag 1)") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        p.addMap[Int, Long](LANE_I, OUT_L)((_: Int).toLong * 100L)
+        assertTrue(drainLongs(p) == List(0L, 100L, 200L))
+      },
+      test("Int->Float (tag 2)") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        p.addMap[Int, Float](LANE_I, OUT_F)((_: Int).toFloat + 0.5f)
+        assertTrue(drainFloats(p) == List(0.5f, 1.5f, 2.5f))
+      },
+      test("Int->Double (tag 3)") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        p.addMap[Int, Double](LANE_I, OUT_D)((_: Int).toDouble + 0.1)
+        assertTrue(drainDoubles(p) == List(0.1, 1.1, 2.1))
+      },
+      test("Int->AnyRef (tag 4)") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        p.addMap[Int, AnyRef](LANE_I, OUT_R)((i: Int) => s"v$i")
+        assertTrue(drainGeneric(p) == List("v0", "v1", "v2"))
+      },
+
+      // ---- Long input (5 outputs) ----
+      test("Long->Int (tag 5)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(10L, 20L, 30L)))
+        p.addMap[Long, Int](LANE_L, OUT_I)((_: Long).toInt)
+        assertTrue(drainInts(p) == List(10, 20, 30))
+      },
+      test("Long->Long (tag 6)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1L, 2L, 3L)))
+        p.addMap[Long, Long](LANE_L, OUT_L)((_: Long) * 5L)
+        assertTrue(drainLongs(p) == List(5L, 10L, 15L))
+      },
+      test("Long->Float (tag 7)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1L, 2L, 3L)))
+        p.addMap[Long, Float](LANE_L, OUT_F)((_: Long).toFloat + 0.5f)
+        assertTrue(drainFloats(p) == List(1.5f, 2.5f, 3.5f))
+      },
+      test("Long->Double (tag 8)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1L, 2L, 3L)))
+        p.addMap[Long, Double](LANE_L, OUT_D)((_: Long).toDouble)
+        assertTrue(drainDoubles(p) == List(1.0, 2.0, 3.0))
+      },
+      test("Long->AnyRef (tag 9)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1L, 2L, 3L)))
+        p.addMap[Long, AnyRef](LANE_L, OUT_R)((l: Long) => s"L$l")
+        assertTrue(drainGeneric(p) == List("L1", "L2", "L3"))
+      },
+
+      // ---- Float input (5 outputs) ----
+      test("Float->Int (tag 10)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.9f, 2.1f, 3.7f)))
+        p.addMap[Float, Int](LANE_F, OUT_I)((_: Float).toInt)
+        assertTrue(drainInts(p) == List(1, 2, 3))
+      },
+      test("Float->Long (tag 11)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.0f, 2.0f, 3.0f)))
+        p.addMap[Float, Long](LANE_F, OUT_L)((_: Float).toLong)
+        assertTrue(drainLongs(p) == List(1L, 2L, 3L))
+      },
+      test("Float->Float (tag 12)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.0f, 2.0f, 3.0f)))
+        p.addMap[Float, Float](LANE_F, OUT_F)((_: Float) * 2.0f)
+        assertTrue(drainFloats(p) == List(2.0f, 4.0f, 6.0f))
+      },
+      test("Float->Double (tag 13)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.5f, 2.5f)))
+        p.addMap[Float, Double](LANE_F, OUT_D)((_: Float).toDouble)
+        assertTrue(drainDoubles(p) == List(1.5f.toDouble, 2.5f.toDouble))
+      },
+      test("Float->AnyRef (tag 14)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.5f, 2.5f)))
+        p.addMap[Float, AnyRef](LANE_F, OUT_R)((f: Float) => s"F$f")
+        assertTrue(drainGeneric(p) == List("F1.5", "F2.5"))
+      },
+
+      // ---- Double input (5 outputs) ----
+      test("Double->Int (tag 15)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.9, 2.1, 3.7)))
+        p.addMap[Double, Int](LANE_D, OUT_I)((_: Double).toInt)
+        assertTrue(drainInts(p) == List(1, 2, 3))
+      },
+      test("Double->Long (tag 16)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.0, 2.0, 3.0)))
+        p.addMap[Double, Long](LANE_D, OUT_L)((_: Double).toLong)
+        assertTrue(drainLongs(p) == List(1L, 2L, 3L))
+      },
+      test("Double->Float (tag 17)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.5, 2.5)))
+        p.addMap[Double, Float](LANE_D, OUT_F)((_: Double).toFloat)
+        assertTrue(drainFloats(p) == List(1.5f, 2.5f))
+      },
+      test("Double->Double (tag 18)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.0, 2.0, 3.0)))
+        p.addMap[Double, Double](LANE_D, OUT_D)((_: Double) * 2.0)
+        assertTrue(drainDoubles(p) == List(2.0, 4.0, 6.0))
+      },
+      test("Double->AnyRef (tag 19)") {
+        val p = Interpreter(Reader.fromChunk(Chunk(1.5, 2.5)))
+        p.addMap[Double, AnyRef](LANE_D, OUT_R)((d: Double) => s"D$d")
+        assertTrue(drainGeneric(p) == List("D1.5", "D2.5"))
+      },
+
+      // ---- AnyRef input (5 outputs) ----
+      test("AnyRef->Int (tag 20)") {
+        val p = Interpreter(Reader.fromIterable(List("hello", "ab", "x")))
+        p.addMap[AnyRef, Int](LANE_R, OUT_I)((s: AnyRef) => s.asInstanceOf[String].length)
+        assertTrue(drainInts(p) == List(5, 2, 1))
+      },
+      test("AnyRef->Long (tag 21)") {
+        val p = Interpreter(Reader.fromIterable(List("hello", "ab")))
+        p.addMap[AnyRef, Long](LANE_R, OUT_L)((s: AnyRef) => s.asInstanceOf[String].length.toLong)
+        assertTrue(drainLongs(p) == List(5L, 2L))
+      },
+      test("AnyRef->Float (tag 22)") {
+        val p = Interpreter(Reader.fromIterable(List("hello", "ab")))
+        p.addMap[AnyRef, Float](LANE_R, OUT_F)((s: AnyRef) => s.asInstanceOf[String].length.toFloat)
+        assertTrue(drainFloats(p) == List(5.0f, 2.0f))
+      },
+      test("AnyRef->Double (tag 23)") {
+        val p = Interpreter(Reader.fromIterable(List("hello", "ab")))
+        p.addMap[AnyRef, Double](LANE_R, OUT_D)((s: AnyRef) => s.asInstanceOf[String].length.toDouble)
+        assertTrue(drainDoubles(p) == List(5.0, 2.0))
+      },
+      test("AnyRef->AnyRef (tag 24)") {
+        val p = Interpreter(Reader.fromIterable(List("hello", "world")))
+        p.addMap[AnyRef, AnyRef](LANE_R, OUT_R)((s: AnyRef) => s.asInstanceOf[String].toUpperCase)
+        assertTrue(drainGeneric(p) == List("HELLO", "WORLD"))
+      }
+    )
+
+    // =========================================================================
+    //  wrapLastRead
+    // =========================================================================
+
+    val wrapLastReadSuite = suite("wrapLastRead")(
+      test("wrapLastRead transforms the source reader") {
+        val p = Interpreter.unsealed(Reader.fromRange(0 until 10))
+        p.addMap[Int, Int](LANE_I, OUT_I)((_: Int) + 1)
+        // Wrap the source reader to limit it to 3 elements
+        p.wrapLastRead((r: Reader[Any]) => Reader.fromRange(0 until 3).asInstanceOf[Reader[Any]])
+        p.seal()
+        val result = drainInts(p)
+        // The wrapped reader produces 0,1,2; then map +1 gives 1,2,3
+        assertTrue(result == List(1, 2, 3))
+      },
+      test("wrapLastRead on pipeline with no ops") {
+        val p = Interpreter.unsealed(Reader.fromRange(0 until 100))
+        p.wrapLastRead((r: Reader[Any]) => Reader.fromRange(0 until 2).asInstanceOf[Reader[Any]])
+        p.seal()
+        val result = drainInts(p)
+        assertTrue(result == List(0, 1))
+      },
+      test("wrapLastRead targets the last Read op in the pipeline") {
+        // Build a pipeline with a source, then wrap it; the wrap should affect the source
+        val p = Interpreter.unsealed(Reader.fromRange(0 until 5))
+        p.addFilter[Int](LANE_I)((_: Int) % 2 == 0)
+        p.wrapLastRead((_: Reader[Any]) => Reader.fromChunk(Chunk(10, 20, 30)).asInstanceOf[Reader[Any]])
+        p.seal()
+        val result = drainInts(p)
+        // New source is [10, 20, 30], filter even -> [10, 20, 30]
+        assertTrue(result == List(10, 20, 30))
+      }
+    )
+
+    // =========================================================================
+    //  close() suppressed exception accumulation
+    // =========================================================================
+
+    /** A Reader that throws the given exception on close. */
+    private def failingCloseReader(ex: Throwable): Reader[Int] = new Reader[Int] {
+      private var _closed                                                  = false
+      override def jvmType: JvmType                                        = JvmType.Int
+      def isClosed: Boolean                                                = _closed
+      def read[A1 >: Int](sentinel: A1): A1                                = { _closed = true; sentinel }
+      override def readInt(sentinel: Long)(implicit ev: Int <:< Int): Long = { _closed = true; sentinel }
+      def close(): Unit                                                    = throw ex
+    }
+
+    val closeSuppressedSuite = suite("close() suppressed exceptions")(
+      test("single reader close exception is thrown") {
+        val ex = new RuntimeException("boom")
+        val p  = Interpreter(failingCloseReader(ex))
+        // drain so it's exhausted
+        drainInts(p)
+        val caught = try { p.close(); null }
+        catch { case t: Throwable => t }
+        assertTrue(caught eq ex) && assertTrue(caught.getSuppressed.isEmpty)
+      },
+      test("multiple reader close exceptions: first thrown, rest suppressed") {
+        val ex1 = new RuntimeException("first")
+        val ex2 = new RuntimeException("second")
+        val ex3 = new RuntimeException("third")
+        // Build pipeline with multiple read slots via unsealed + appendRead
+        val p = Interpreter.unsealed(failingCloseReader(ex1))
+        p.appendRead(failingCloseReader(ex2))
+        p.appendRead(failingCloseReader(ex3))
+        p.seal()
+        val caught = try { p.close(); null }
+        catch { case t: Throwable => t }
+        // The interpreter should throw the first error and suppress the rest
+        assertTrue(caught eq ex1) &&
+        assertTrue(caught.getSuppressed.length == 2) &&
+        assertTrue(caught.getSuppressed()(0) eq ex2) &&
+        assertTrue(caught.getSuppressed()(1) eq ex3)
+      },
+      test("close sets closed = true even when exception is thrown") {
+        val ex = new RuntimeException("fail")
+        val p  = Interpreter(failingCloseReader(ex))
+        drainInts(p)
+        try p.close()
+        catch { case _: Throwable => () }
+        assertTrue(p.isClosed)
+      },
+      test("close with no errors does not throw") {
+        val p = Interpreter(Reader.fromRange(0 until 3))
+        drainInts(p)
+        p.close()
+        assertTrue(p.isClosed)
+      }
+    )
+
+    // =========================================================================
+    //  appendRead on a pipeline with existing ops
+    // =========================================================================
+
+    val appendReadSuite = suite("appendRead")(
+      test("unsealed creates pipeline via appendRead, outputLane is Int") {
+        val p = Interpreter.unsealed(Reader.fromRange(0 until 3))
+        p.seal()
+        assertTrue(p.outputType == JvmType.Int) && {
+          val result = drainInts(p)
+          assertTrue(result == List(0, 1, 2))
+        }
+      },
+      test("unsealed with Long reader sets outputLane to Long") {
+        val p = Interpreter.unsealed(Reader.fromChunk(Chunk(1L, 2L)))
+        p.seal()
+        assertTrue(p.outputType == JvmType.Long) && {
+          val result = drainLongs(p)
+          assertTrue(result == List(1L, 2L))
+        }
+      },
+      test("unsealed with Double reader sets outputLane to Double") {
+        val p = Interpreter.unsealed(Reader.fromChunk(Chunk(1.0, 2.0, 3.0)))
+        p.seal()
+        assertTrue(p.outputType == JvmType.Double) && {
+          val result = drainDoubles(p)
+          assertTrue(result == List(1.0, 2.0, 3.0))
+        }
+      },
+      test("unsealed with Float reader sets outputLane to Float") {
+        val p = Interpreter.unsealed(Reader.fromChunk(Chunk(1.0f, 2.0f)))
+        p.seal()
+        assertTrue(p.outputType == JvmType.Float) && {
+          val result = drainFloats(p)
+          assertTrue(result == List(1.0f, 2.0f))
+        }
+      },
+      test("unsealed with AnyRef reader sets outputLane to AnyRef") {
+        val p = Interpreter.unsealed(Reader.fromIterable(List("a", "b")))
+        p.seal()
+        assertTrue(p.outputType == JvmType.AnyRef) && {
+          val result = drainGeneric(p)
+          assertTrue(result == List("a", "b"))
+        }
+      }
+    )
+  }
+
+  // =========================================================================
+  //  regressions — moved from Adversarial* specs
+  // =========================================================================
+
+  val regressionsSuite = suite("regressions")(
+    RegrCombinator.regrSuite,
+    RegrLaneSentinel.regrSuite,
+    RegrPathConvergence.regrSuite,
+    RegrRefSourceLane.regrSuite,
+    RegrRepeated.regrSuite,
+    RegrFlatMapInnerSeal.regrSuite,
+    RegrMixedConcatLane.regrSuite,
+    RegrReadByteLane.regrSuite
+  )
+
+  // BUG-R6-01: the base `Reader.readByte()` contract extracts the low byte for
+  // EVERY element type — Char uses its code point, Boolean maps to 1/0 — via
+  // `Reader.anyToLowByte`, the BUG-R5-03 fix applied at all 8 ref-lane sites in
+  // Reader.scala. The Interpreter's `readByte` override BYPASSES that helper
+  // with a raw `java.lang.Number` cast (Interpreter.scala readByte), so a
+  // deep (interpreter-compiled) Char or Boolean pipeline crashes with
+  // ClassCastException where the equivalent shallow pipeline (see
+  // ReaderSpec "fromChunk_charElements_readByteExtractsLowByte") returns the
+  // low byte. Differential oracle: shallow vs deep compilation of the same
+  // program must agree; the boxed-path control proves the deep stream itself
+  // is valid and only the readByte lane dispatch is at fault.
+  private object RegrReadByteLane {
+    private def deepChar(s: Stream[Nothing, Char]): Stream[Nothing, Char] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+    private def deepBool(s: Stream[Nothing, Boolean]): Stream[Nothing, Boolean] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+
+    // The reads are captured into Either rather than asserted inline: on the
+    // JVM the bug throws ClassCastException, but on Scala.js the bad cast is an
+    // UndefinedBehaviorError that would otherwise kill the whole test runner.
+    // The Left branch can never make the test pass — it fails the equality with
+    // the throwable rendered in the diff — so the broad catch is safe here.
+    private def capture3(r: io.Reader[?]): Either[String, List[Int]] =
+      try Right(List(r.readByte(), r.readByte(), r.readByte()))
+      catch { case t: Throwable => Left(t.toString) }
+
+    val regrSuite = suite("AdversarialReadByteLaneSpec (interpreter)")(
+      test("interpreter_charElements_readByteExtractsLowByte") {
+        val r = Stream.compileToReader(deepChar(Stream.fromChunk(Chunk('A', 'B'))))
+        assertTrue(capture3(r) == Right(List(0x41, 0x42, -1)))
+      },
+      test("interpreter_booleanElements_readByteExtractsLowBit") {
+        val r = Stream.compileToReader(deepBool(Stream.fromChunk(Chunk(true, false))))
+        assertTrue(capture3(r) == Right(List(1, 0, -1)))
+      },
+      // Differential control (passes): the same deep pipelines deliver their
+      // elements through the generic boxed path, so the stream construction is
+      // valid; only the interpreter's readByte lane dispatch diverges.
+      test("interpreter_charElements_boxedPathDelivers") {
+        assertTrue(deepChar(Stream.fromChunk(Chunk('A', 'B'))).runCollect == Right(Chunk('A', 'B')))
+      }
+    )
+  }
+
+  // BUG-R5-04: `Interpreter.wrapLastRead` rewrites the segment's last READ op
+  // (including its lane TAG) but never refreshes the interpreter's
+  // `outputLane`. A lane-CHANGING wrap — a mixed-lane `++`, whose ConcatReader
+  // advertises the AnyRef lane over an Int-lane head — leaves `outputLane`
+  // stale at Int, so the next fused op's `reconcileLane` inserts a bogus
+  // Int->Ref bridge that overwrites the just-read ref register with the
+  // never-written Int register: every element silently becomes 0.
+  // Differential oracle: shallow vs deep (interpreter) compilation of the
+  // same program must agree.
+  private object RegrMixedConcatLane {
+    private def deepRef(s: Stream[Nothing, Int | String]): Stream[Nothing, Int | String] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(x => x))
+
+    val regrSuite = suite("AdversarialMixedConcatLaneSpec")(
+      test("deep identity maps over a mixed-lane `++` preserve the elements") {
+        val mixed: Stream[Nothing, Int | String] = Stream(1, 2, 3) ++ Stream("a", "b")
+        val shallow                              = mixed.runCollect
+        val deep                                 = deepRef(mixed).runCollect
+        assertTrue(shallow.exists(_.length == 5), deep == shallow)
+      }
+    )
+  }
+
+  private object RegrCombinator {
+    private def deepInt(s: Stream[Nothing, Int]): Stream[Nothing, Int] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+
+    val regrSuite = suite("AdversarialInterpreterCombinatorSpec")(
+      // ---- direction 1: deep -> combinator ----
+      test("deep_then_intersperse [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 4)).intersperse(0)
+        assertTrue(s.runCollect == Right(Chunk(1, 0, 2, 0, 3)))
+      },
+      test("deep_then_intersperse_empty [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.empty: Stream[Nothing, Int]).intersperse(0)
+        assertTrue(s.runCollect == Right(Chunk.empty[Int]))
+      },
+      test("deep_then_chunked [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 7)).chunked(3)
+        assertTrue(s.runCollect == Right(Chunk(Chunk(0, 1, 2), Chunk(3, 4, 5), Chunk(6))))
+      },
+      test("deep_then_grouped_alias [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 4)).grouped(2)
+        assertTrue(s.runCollect == Right(Chunk(Chunk(0, 1), Chunk(2, 3))))
+      },
+      test("deep_then_chunked_one [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 3)).chunked(1)
+        assertTrue(s.runCollect == Right(Chunk(Chunk(0), Chunk(1), Chunk(2))))
+      },
+      test("deep_then_chunked_bigger_than_len [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 3)).chunked(100)
+        assertTrue(s.runCollect == Right(Chunk(Chunk(0, 1, 2))))
+      },
+      test("deep_then_chunked_empty [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.empty: Stream[Nothing, Int]).chunked(3)
+        assertTrue(s.runCollect == Right(Chunk.empty[Chunk[Int]]))
+      },
+      test("deep_then_mapAccum [AdversarialInterpreterCombinatorSpec]") {
+        // running sum threaded as state, emit running total
+        val s = deepInt(Stream.range(1, 5)).mapAccum(0)((acc, x) => (acc + x, acc + x))
+        assertTrue(s.runCollect == Right(Chunk(1, 3, 6, 10)))
+      },
+      test("deep_then_collect [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 10)).collect { case n if n % 3 == 0 => n * 10 }
+        assertTrue(s.runCollect == Right(Chunk(0, 30, 60, 90)))
+      },
+      test("deep_then_distinct [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream(1, 1, 2, 3, 3, 3, 1)).distinct
+        assertTrue(s.runCollect == Right(Chunk(1, 2, 3)))
+      },
+      test("deep_then_scan [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 4)).scan(0)(_ + _)
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 3, 6)))
+      },
+      // ---- direction 2: combinator -> deep (interpreter consumes boxed FromReader) ----
+      test("intersperse_then_deep [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 4).intersperse(0))
+        assertTrue(s.runCollect == Right(Chunk(1, 0, 2, 0, 3)))
+      },
+      test("mapAccum_then_deep [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 5).mapAccum(0)((acc, x) => (acc + x, acc + x)))
+        assertTrue(s.runCollect == Right(Chunk(1, 3, 6, 10)))
+      },
+      test("distinct_then_deep [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream(5, 5, 6, 7, 7).distinct)
+        assertTrue(s.runCollect == Right(Chunk(5, 6, 7)))
+      },
+      test("scan_then_deep [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 4).scan(0)(_ + _))
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 3, 6)))
+      },
+      // ---- combined with early termination ----
+      test("deep_then_intersperse_then_take_midSeparator [AdversarialInterpreterCombinatorSpec]") {
+        // [1,0,2,0,3] take 2 -> [1,0]
+        val s = deepInt(Stream.range(1, 4)).intersperse(0).take(2)
+        assertTrue(s.runCollect == Right(Chunk(1, 0)))
+      },
+      test("deep_then_chunked_then_take [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(0, 10)).chunked(3).take(2)
+        assertTrue(s.runCollect == Right(Chunk(Chunk(0, 1, 2), Chunk(3, 4, 5))))
+      },
+      // ---- repeated over combinator at interpreter depth ----
+      test("deep_then_scan_repeated_take [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 3)).scan(0)(_ + _).repeated.take(7)
+        // one cycle of scan(1,2) over [1,2] = [0,1,3]; repeated
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 3, 0, 1, 3, 0)))
+      },
+      test("deep_then_intersperse_repeated_take [AdversarialInterpreterCombinatorSpec]") {
+        val s = deepInt(Stream.range(1, 3)).intersperse(9).repeated.take(8)
+        // one cycle: [1,9,2]; repeated
+        assertTrue(s.runCollect == Right(Chunk(1, 9, 2, 1, 9, 2, 1, 9)))
+      }
+    )
+  }
+
+  private object RegrLaneSentinel {
+    private val Depth = 160
+
+    private def deepLong(s: Stream[Nothing, Long]): Stream[Nothing, Long] =
+      (0 until Depth).foldLeft(s)((acc, _) => acc.map(x => x))
+    private def deepDouble(s: Stream[Nothing, Double]): Stream[Nothing, Double] =
+      (0 until Depth).foldLeft(s)((acc, _) => acc.map(x => x))
+    private def deepByte(s: Stream[Nothing, Byte]): Stream[Nothing, Byte] =
+      (0 until Depth).foldLeft(s)((acc, _) => acc.map(x => x))
+
+    private def lc(xs: Seq[Long]): Stream[Nothing, Long]     = Stream.fromChunk(Chunk.fromArray(xs.toArray))
+    private def dc(xs: Seq[Double]): Stream[Nothing, Double] = Stream.fromChunk(Chunk.fromArray(xs.toArray))
+    private def bc(xs: Seq[Byte]): Stream[Nothing, Byte]     = Stream.fromChunk(Chunk.fromArray(xs.toArray))
+
+    val regrSuite = suite("AdversarialInterpreterLaneSentinelSpec")(
+      test(
+        "Long lane: deep interpreter chain preserves real Long.MaxValue / Long.MinValue elements [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(1L, Long.MaxValue, -2L, Long.MinValue, Long.MaxValue, 0L)
+        assertTrue(deepLong(lc(data)).runCollect == Right(Chunk.fromArray(data.toArray))) &&
+        assertTrue(deepLong(lc(data)).count == Right(data.length.toLong)) &&
+        assertTrue(deepLong(lc(data)).runFold(0L)((a, _) => a + 1L) == Right(data.length.toLong))
+      },
+      test(
+        "Double lane: deep interpreter chain preserves real Double.MaxValue / NaN / -0.0 elements [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(1.0, Double.MaxValue, Double.NaN, -0.0, Double.MaxValue, 2.0)
+        val got  = deepDouble(dc(data)).runCollect.toOption.get.toList
+        val ok   = got.length == data.length && got.zip(data).forall { case (g, e) =>
+          java.lang.Double.doubleToRawLongBits(g) == java.lang.Double.doubleToRawLongBits(e)
+        }
+        assertTrue(ok) &&
+        assertTrue(deepDouble(dc(data)).count == Right(data.length.toLong))
+      },
+      test(
+        "Byte lane: deep interpreter chain preserves all byte values incl. -1 / MinValue [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(0.toByte, (-1).toByte, Byte.MinValue, Byte.MaxValue, 127.toByte, (-128).toByte)
+        assertTrue(deepByte(bc(data)).runCollect == Right(Chunk.fromArray(data.toArray))) &&
+        assertTrue(deepByte(bc(data)).count == Right(data.length.toLong))
+      },
+      test(
+        "Long-lane interpreter source feeding stateful scan preserves Long.MaxValue [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(10L, Long.MaxValue, 3L)
+        val scn  = deepLong(lc(data)).scan(0L)((_, a) => a).runCollect.toOption.get.toList
+        assertTrue(scn == 0L :: data)
+      },
+      test(
+        "Long-lane interpreter source feeding chunked/sliding preserves Long.MaxValue [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(1L, Long.MaxValue, Long.MaxValue, 4L)
+        val ch   = deepLong(lc(data)).chunked(2).runCollect.toOption.get.map(_.toList).toList
+        val sl   = deepLong(lc(data)).sliding(2).runCollect.toOption.get.map(_.toList).toList
+        assertTrue(ch == data.grouped(2).map(_.toList).toList) &&
+        assertTrue(sl == data.sliding(2).map(_.toList).toList)
+      },
+      test(
+        "Long-lane deep chain + scan + repeated restarts cleanly with sentinel data [AdversarialInterpreterLaneSentinelSpec]"
+      ) {
+        val data = List(1L, Long.MaxValue)
+        val got  = deepLong(lc(data)).scan(0L)((_, a) => a).repeated.take(6).runCollect.toOption.get.toList
+        // one cycle: scan re-emits [0, 1, MaxValue]; repeated
+        assertTrue(got == List(0L, 1L, Long.MaxValue, 0L, 1L, Long.MaxValue))
+      }
+    )
+  }
+
+  private object RegrPathConvergence {
+    // Force the interpreter fallback by chaining > DepthCutoff (100) identity maps.
+    private def deepInt(s: Stream[Nothing, Int]): Stream[Nothing, Int] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+    private def deepLong(s: Stream[Nothing, Long]): Stream[Nothing, Long] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+
+    val regrSuite = suite("AdversarialInterpreterPathConvergenceSpec")(
+      test("interp_take_then_drop [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 10)).take(5).drop(3)
+        assertTrue(s.runCollect == Right(Chunk(3, 4)))
+      },
+      test("interp_drop_then_take [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 10)).drop(3).take(5)
+        assertTrue(s.runCollect == Right(Chunk(3, 4, 5, 6, 7)))
+      },
+      test("interp_filter [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 10)).filter(_ % 2 == 0)
+        assertTrue(s.runCollect == Right(Chunk(0, 2, 4, 6, 8)))
+      },
+      test("interp_long_maxvalue [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepLong(Stream(1L, Long.MaxValue, 3L))
+        assertTrue(s.runCollect == Right(Chunk(1L, Long.MaxValue, 3L)))
+      },
+      test("interp_long_maxvalue_count [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepLong(Stream(1L, Long.MaxValue, Long.MaxValue, 3L))
+        assertTrue(s.count == Right(4L))
+      },
+      test("interp_takeWhile [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 10)).takeWhile(_ < 4)
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 2, 3)))
+      },
+      test("interp_repeated [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 3)).repeated.take(7)
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 2, 0, 1, 2, 0)))
+      },
+      test("interp_then_scan [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(1, 4)).scan(0)(_ + _)
+        assertTrue(s.runCollect == Right(Chunk(0, 1, 3, 6)))
+      },
+      test("interp_double_nan_count [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = (0 until 150).foldLeft(Stream(1.0, Double.NaN, Double.MaxValue))((acc, _) => acc.map(identity))
+        assertTrue(s.count == Right(3L))
+      },
+      test("interp_filter_take_drop_combo [AdversarialInterpreterPathConvergenceSpec]") {
+        val s = deepInt(Stream.range(0, 20)).filter(_ % 2 == 0).drop(2).take(3)
+        assertTrue(s.runCollect == Right(Chunk(4, 6, 8)))
+      }
+    )
+  }
+
+  private object RegrRefSourceLane {
+    // Force the Interpreter path: DepthCutoff is 100, so 101 linear ops compile to
+    // the segmented interpreter rather than the shallow reader-composition path.
+    private val cutoff = 101
+
+    private def deepLong(s: Stream[Nothing, Long]): Stream[Nothing, Long] = {
+      var cur = s; var i = 0
+      while (i < cutoff) { cur = cur.map(_ + 0L); i += 1 }
+      cur
+    }
+
+    private def deepInt(s: Stream[Nothing, Int]): Stream[Nothing, Int] = {
+      var cur = s; var i = 0
+      while (i < cutoff) { cur = cur.map(_ + 0); i += 1 }
+      cur
+    }
+
+    val regrSuite = suite("AdversarialInterpreterRefSourceLaneSpec")(
+      test("interpreter_refSourceLongMap_preservesValues [AdversarialInterpreterRefSourceLaneSpec]") {
+        val input  = List(1L, 2L, 3L)
+        val result = deepLong(Stream.fromIterable(input)).runCollect
+        assertTrue(result.map(_.toList) == Right(input))
+      },
+      test("interpreter_refSourceIntMap_preservesValues [AdversarialInterpreterRefSourceLaneSpec]") {
+        val input  = List(10, 20, 30)
+        val result = deepInt(Stream.fromIterable(input)).runCollect
+        assertTrue(result.map(_.toList) == Right(input))
+      }
+    )
+  }
+
+  private object RegrRepeated {
+    // Force the fused Interpreter compilation path with a long identity-map
+    // prefix (mirrors AdversarialDeepFlatMapSpec), keeping the element lane.
+    private def deepInt(s: Stream[Nothing, Int]): Stream[Nothing, Int] = {
+      var r = s; var i = 0
+      while (i < 150) { r = r.map((x: Int) => x); i += 1 }
+      r
+    }
+    private def deepLong(s: Stream[Nothing, Long]): Stream[Nothing, Long] = {
+      var r = s; var i = 0
+      while (i < 150) { r = r.map((x: Long) => x); i += 1 }
+      r
+    }
+    private def deepDouble(s: Stream[Nothing, Double]): Stream[Nothing, Double] = {
+      var r = s; var i = 0
+      while (i < 150) { r = r.map((x: Double) => x); i += 1 }
+      r
+    }
+    private def deepFloat(s: Stream[Nothing, Float]): Stream[Nothing, Float] = {
+      var r = s; var i = 0
+      while (i < 150) { r = r.map((x: Float) => x); i += 1 }
+      r
+    }
+    private def deepRef(s: Stream[Nothing, String]): Stream[Nothing, String] = {
+      var r = s; var i = 0
+      while (i < 150) { r = r.map((x: String) => x); i += 1 }
+      r
+    }
+
+    val regrSuite = suite("AdversarialRepeatedInterpreterSpec")(
+      test("deep Int stream repeated cycles across boundary (lane I) [AdversarialRepeatedInterpreterSpec]") {
+        assertTrue(deepInt(Stream(1, 2)).repeated.take(5).runCollect == Right(Chunk(1, 2, 1, 2, 1)))
+      },
+      test("deep Long stream repeated cycles across boundary (lane L) [AdversarialRepeatedInterpreterSpec]") {
+        assertTrue(deepLong(Stream(1L, 2L)).repeated.take(5).runCollect == Right(Chunk(1L, 2L, 1L, 2L, 1L)))
+      },
+      test("deep Double stream repeated cycles across boundary (lane D) [AdversarialRepeatedInterpreterSpec]") {
+        assertTrue(deepDouble(Stream(1.0, 2.0)).repeated.take(5).runCollect == Right(Chunk(1.0, 2.0, 1.0, 2.0, 1.0)))
+      },
+      test("deep Float stream repeated cycles across boundary (lane F) [AdversarialRepeatedInterpreterSpec]") {
+        assertTrue(
+          deepFloat(Stream(1.0f, 2.0f)).repeated.take(5).runCollect == Right(Chunk(1.0f, 2.0f, 1.0f, 2.0f, 1.0f))
+        )
+      },
+      test("deep Ref stream repeated cycles across boundary (lane R) — control [AdversarialRepeatedInterpreterSpec]") {
+        assertTrue(deepRef(Stream("a", "b")).repeated.take(5).runCollect == Right(Chunk("a", "b", "a", "b", "a")))
+      }
+    )
+  }
+
+  // BUG: the INLINE interpreter driver (`compileInterpreterStackSafe`, used by
+  // `handlePush` to compile a flatMap INNER stream into the running pipeline)
+  // ignores `isSealBefore`. A seal-before node in the inner spine
+  // (take/drop/takeWhile/concat) is compiled via `wrapLastRead`, which rewrites
+  // only the inner SOURCE read op — re-ordering it BELOW any map/filter ops that
+  // were fused after the read. The segmented driver and the shallow `compile`
+  // path both apply these combinators ABOVE the fused upstream, so the deep
+  // (interpreter) path silently produces different elements than the shallow
+  // path for the same program. Differential oracle: shallow vs deep.
+  private object RegrFlatMapInnerSeal {
+    private def deepInt(s: Stream[Nothing, Int]): Stream[Nothing, Int] =
+      (0 until 150).foldLeft(s)((acc, _) => acc.map(identity))
+
+    val regrSuite = suite("AdversarialFlatMapInnerSealSpec")(
+      test("flatMap inner `map ++ tail`: tail segment must NOT be re-mapped at interpreter depth") {
+        def inner(i: Int): Stream[Nothing, Int] = Stream(1, 2).map(_ * 10) ++ Stream(100)
+        val shallow                             = Stream(0, 1).flatMap(inner).runCollect
+        val deep                                = deepInt(Stream(0, 1)).flatMap(inner).runCollect
+        assertTrue(
+          shallow == Right(Chunk(10, 20, 100, 10, 20, 100)),
+          deep == shallow
+        )
+      },
+      test("flatMap inner `map.takeWhile`: predicate must see POST-map elements at interpreter depth") {
+        def inner(i: Int): Stream[Nothing, Int] = Stream.range(0, 5).map(_ * 10).takeWhile(_ < 30)
+        val shallow                             = Stream(0).flatMap(inner).runCollect
+        val deep                                = deepInt(Stream(0)).flatMap(inner).runCollect
+        assertTrue(
+          shallow == Right(Chunk(0, 10, 20)),
+          deep == shallow
+        )
+      },
+      test("flatMap inner `filter.take`: take must count POST-filter elements at interpreter depth") {
+        def inner(i: Int): Stream[Nothing, Int] = Stream.range(0, 10).filter(_ % 2 == 1).take(2)
+        val shallow                             = Stream(0).flatMap(inner).runCollect
+        val deep                                = deepInt(Stream(0)).flatMap(inner).runCollect
+        assertTrue(
+          shallow == Right(Chunk(1, 3)),
+          deep == shallow
+        )
+      },
+      test("flatMap inner `filter.drop`: drop must discard POST-filter elements at interpreter depth") {
+        def inner(i: Int): Stream[Nothing, Int] = Stream.range(0, 10).filter(_ % 2 == 1).drop(1)
+        val shallow                             = Stream(0).flatMap(inner).runCollect
+        val deep                                = deepInt(Stream(0)).flatMap(inner).runCollect
+        assertTrue(
+          shallow == Right(Chunk(3, 5, 7, 9)),
+          deep == shallow
+        )
+      },
+      // Control: a seal-before node with NOTHING fused above the inner source is
+      // unaffected (wrapLastRead wraps the bare source read) — guards against
+      // over-fixing.
+      test("control: flatMap inner bare `take` agrees between shallow and deep paths") {
+        def inner(i: Int): Stream[Nothing, Int] = Stream.range(0, 10).take(2)
+        val shallow                             = Stream(0, 1).flatMap(inner).runCollect
+        val deep                                = deepInt(Stream(0, 1)).flatMap(inner).runCollect
+        assertTrue(
+          shallow == Right(Chunk(0, 1, 0, 1)),
+          deep == shallow
+        )
+      }
+    )
+  }
 }

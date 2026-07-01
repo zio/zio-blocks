@@ -268,6 +268,47 @@ val filled = rb4.fill(() => { counter.incrementAndGet(); s"item-${counter.get()}
 println(s"Filled $filled items")
 ```
 
+## Primitive variants
+
+The generic `SpscRingBuffer[A]` stores `AnyRef` slots, which boxes Java primitives on the producer side. For SPSC workloads handing off `Int`, `Long`, `Float`, or `Double` values between two threads, four zero-boxing companions are provided:
+
+| Type | Class | Slot encoding |
+|---|---|---|
+| `Int`    | `IntSpscRingBuffer`    | one `Long` per slot: high 32 bits hold an occupancy tag (`0` = empty, `1` = data, `2` = DONE sentinel), low 32 bits hold the `Int` payload. The whole 64-bit word is `0L` when empty, so any tagged value is non-zero regardless of the payload bits. |
+| `Long`   | `LongSpscRingBuffer`   | one `Long` per slot. `Long.MinValue` is reserved as the empty marker and `Long.MinValue + 1L` as the in-band DONE sentinel; offering either value throws `IllegalArgumentException`. All other `Long` values pass through unchanged. |
+| `Float`  | `FloatSpscRingBuffer`  | one `Long` per slot: high 32 bits tag (`0` = empty, `1` = data, `2` = DONE), low 32 bits hold `floatToRawIntBits(value)`. The whole word is `0L` when empty. Every `Float` (including `0.0f`, `NaN`, `±Inf`) is representable. |
+| `Double` | `DoubleSpscRingBuffer` | one `Long` per slot. `doubleToRawLongBits(value)` is stored directly; two reserved non-canonical `NaN` bit patterns mark empty (`0xFFF8_0000_0000_0001L`) and DONE (`0xFFF8_0000_0000_0002L`). Any `NaN` payload is canonicalized to `Double.NaN` on offer so it can never collide with the reserved markers. |
+
+All four use the same FastFlow algorithm as the generic version — single backing `Array[Long]`, padded indices, look-ahead cache — and expose the same core operations (`offer`, `take`, `peek`, `isEmpty`, `isFull`, `size`, `capacity`). The only API difference is that `take` returns a primitive instead of `AnyRef`, so callers should check `peek()` first to know whether the next read will be a real value or just the empty marker. (The generic `drain`/`fill` batch helpers are not provided on the primitive variants; loop `peek`/`take` directly.)
+
+In addition, each primitive variant exposes two methods for **in-band end-of-stream signalling**, used by the concurrent stream operators to propagate "no more data" through a primitive queue without needing a separate side channel:
+
+- `offerDone(): Boolean` — write the DONE sentinel into the next free slot, returning `true` on success or `false` if the queue is full. Once `offerDone()` succeeds the producer should not offer any further values.
+- `pollPacked(): Long` — atomically poll the next slot and return its packed encoding: `EMPTY_PACKED`/`EMPTY` / `EMPTY_BITS` when empty (consumer index NOT advanced), `DONE_PACKED`/`DONE` / `DONE_BITS` for the DONE sentinel (index advanced), or a non-sentinel encoded value otherwise (index advanced). The exact constant names live on each companion object (`IntSpscRingBuffer.DONE_PACKED`, `LongSpscRingBuffer.DONE`, `FloatSpscRingBuffer.DONE_PACKED`, `DoubleSpscRingBuffer.DONE_BITS`).
+
+`pollPacked` is intended for advanced consumers that want a single atomic operation distinguishing empty / data / DONE. Most application code that simply needs primitive throughput is fine using the higher-level concurrent stream operators below.
+
+```scala mdoc:silent:reset
+import zio.blocks.ringbuffer.{IntSpscRingBuffer, LongSpscRingBuffer, DoubleSpscRingBuffer}
+
+val ints = new IntSpscRingBuffer(16)
+ints.offer(42)
+if (ints.peek()) {
+  val v: Int = ints.take()     // 42
+}
+
+val longs = new LongSpscRingBuffer(16)
+longs.offer(Long.MaxValue)
+if (longs.peek()) {
+  val w: Long = longs.take()   // Long.MaxValue
+}
+
+val doubles = new DoubleSpscRingBuffer(16)
+doubles.offer(Double.NaN)      // canonicalized to Double.NaN's bit pattern on offer
+```
+
+These variants underpin the primitive-specialized concurrent stream operators (`mapPar`, `mergeAll`, `flatMapPar`) so primitive streams do not box during cross-thread handoff.
+
 ## Examples
 
 ### SPSC: Producer-Consumer Ping-Pong

@@ -12,6 +12,22 @@ If `sbt --client` is causing trouble, try:
 sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
 ```
 
+## Policies
+
+- [Symbolic Operator Policy](SYMBOLIC_OPS_POLICY.md) — Rules for when symbolic operators are allowed in APIs. Consult before adding or reviewing any symbolic method.
+
+### Sentinel performance policy (streams)
+
+The streams module's primitive lanes (`Long`/`Double`/`Int`/`Float`) signal end-of-stream with in-band primitive sentinels (`Long.MaxValue`, `Double.MaxValue`, …) precisely so that hot drain loops stay a **single primitive comparison per element** with zero boxing and zero allocation. These loops are deliberately optimized; their shape is a feature, not a bug.
+
+**Any change to sentinel handling is disallowed unless it has virtually no impact on performance.** In particular, bug-finding or "correctness" passes (human or agentic) must NOT add per-element work to these loops — no per-element rawbits conversions, extra branches, flag reads on the non-collision path, boxing, or allocation. A sentinel-valued element colliding with EOF is an accepted, documented edge case; the approved remedies are, in order of preference:
+
+1. **Zero-cost lossless disambiguation**: `v == sentinel && reader.lastReadWasEOF` — the short-circuit means the out-of-band EOF flag is consulted only on the rare value/sentinel collision; the hot path is unchanged. (For statically known non-NaN sentinels such as `Double.MaxValue`, use this inline form — `doubleEOF`'s rawbits comparison exists only for NaN sentinels and must not appear per-element in hot loops.)
+2. **Document + throw early**: keep the raw `v != sentinel` loop and, after the loop exits, consult `lastReadWasEOF` once; if the exit was caused by a real sentinel-valued element rather than EOF, throw a clear exception (see `NioSinks.fromByteBufferLong/Double`). Zero per-element cost; silent truncation becomes a loud error.
+3. **Document only**: when neither applies, document the limitation; do not "fix" it.
+
+Validate any sentinel-adjacent change against the streams JMH benchmarks before and after; an unexplained regression means the change is rejected.
+
 ## Mindset
 
 **sbt is slow—minutes per compile/test.** Wasted cycles waste hours.

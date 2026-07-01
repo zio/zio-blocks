@@ -1,0 +1,117 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package mux
+
+import zio.blocks.mux._
+
+/**
+ * Title: Managing Capacity Description: Demonstrate mux-level and per-stream
+ * capacity limits, handling QueueFull errors, and the recovery pattern of
+ * draining outbound messages to free space. Run: sbt "mux-examples/runMain
+ * mux.example5ManagingCapacity"
+ */
+@main def example5ManagingCapacity(): Unit = {
+  println("=== Managing Capacity ===\n")
+
+  println("--- Mux-level capacity (maximum concurrent streams) ---")
+  // Create a tiny mux with a small capacity (for demo)
+  val mux = Mux[Int, String, String](3)
+  println("Created mux with capacity for 3 concurrent streams")
+
+  // Open streams until capacity is exceeded
+  println("\nOpening streams:")
+  for (i <- 1 to 5) {
+    mux.open(i) match {
+      case _: MuxStream[Int, String, String] =>
+        println(s"  ✓ Opened stream $i")
+      case error: MuxError =>
+        println(s"  ✗ Failed to open stream $i: $error")
+    }
+  }
+
+  println("\n--- Per-stream capacity (message queue limits) ---")
+  // Create a fresh mux for this demo
+  val mux2   = Mux[Int, String, String](100)
+  val stream = mux2.open(10) match {
+    case s: MuxStream[Int, String, String] => s
+    case error: MuxError                   =>
+      println(s"Failed to open stream: $error")
+      throw new RuntimeException("Cannot proceed")
+  }
+
+  println("Sending messages until queue fills (per-stream capacity is 256):")
+  var successCount = 0
+  var failureCount = 0
+
+  for (i <- 1 to 300) {
+    val result = stream.send(s"Message $i")
+    result match {
+      case () =>
+        successCount += 1
+        if (i <= 5 || i == 256) println(s"  ✓ Message $i sent")
+      case error: MuxError =>
+        failureCount += 1
+        if (failureCount <= 3) println(s"  ✗ Message $i failed: $error")
+    }
+  }
+  println(s"Summary: $successCount succeeded, $failureCount failed")
+
+  println("\n--- Recovery pattern: draining to free space ---")
+  // Fresh mux for recovery demo
+  val mux3    = Mux[Int, String, String](100)
+  val stream2 = mux3.open(11) match {
+    case s: MuxStream[Int, String, String] => s
+    case e: MuxError                       => throw new RuntimeException(s"Failed to open stream 11: $e")
+  }
+
+  // Fill the queue to capacity (256 messages per direction)
+  println("Filling queue to capacity (256 messages):")
+  for (i <- 1 to 256) {
+    stream2.send(s"Message $i") match {
+      case ()          => if (i == 1 || i == 256) println(s"  ✓ Message $i sent")
+      case e: MuxError => println(s"  ✗ Unexpected failure at $i: $e")
+    }
+  }
+
+  // Queue is now full — the next send returns QueueFull
+  println("\nAttempting send when queue is full:")
+  stream2.send("overflow") match {
+    case ()          => println("  (unexpected: send succeeded)")
+    case e: MuxError => println(s"  ✗ Expected error: $e")
+  }
+
+  // Protocol drains one message to free space
+  println("\nProtocol drains one message from outbound queue:")
+  stream2.takeOutbound() match {
+    case Some(msg)   => println(s"  Extracted: '$msg'")
+    case None        => println("  (queue empty)")
+    case e: MuxError => println(s"  Error: $e")
+  }
+
+  // Retry after draining — now succeeds
+  println("Retrying send after draining:")
+  stream2.send("overflow") match {
+    case ()          => println("✓ Send succeeded after draining (recovery pattern works)")
+    case e: MuxError => println(s"✗ Still failed: $e")
+  }
+
+  println("\n=== Summary ===")
+  println("Capacity limits prevent memory exhaustion:")
+  println("  - Mux-level: controls number of concurrent streams")
+  println("  - Per-stream: limits messages in each queue (256 per direction)")
+  println("Recovery pattern: drain outbound queue to free space")
+}
