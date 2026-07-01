@@ -229,6 +229,15 @@ object BuildHelper {
             "-Xfatal-warnings"
           )
       }),
+      // Align javac --release with scalac -release so Java sources (e.g. ByteArrayAccess.java)
+      // produce bytecode compatible with the same JDK target.
+      javacOptions ++= {
+        val javaRelease = CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, minor)) if minor >= 8 => "17"
+          case _                              => "11"
+        }
+        Seq("--release", javaRelease)
+      },
       versionScheme := Some("early-semver"),
       testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
       Test / parallelExecution := true,
