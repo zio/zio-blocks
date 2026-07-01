@@ -60,10 +60,10 @@ import kyo.{Async => _, *}
  *   - '''fut''' — `scala.concurrent.Future`, run EAGERLY and SYNCHRONOUSLY:
  *     every `map`/`flatMap`/`recover`/`transform`/`zipWith` uses
  *     `ExecutionContext.parasitic` (callbacks run inline on the calling thread,
- *     no thread hop), and the realized value is read via `f.value.get.get`
- *     (the future is already completed under parasitic, so no `Await`
- *     thread-park is needed). This keeps Future apples-to-apples with the
- *     other runtimes' synchronous `.block`/`.unsafeRunSync()`/`.eval`.
+ *     no thread hop), and the realized value is read via `f.value.get.get` (the
+ *     future is already completed under parasitic, so no `Await` thread-park is
+ *     needed). This keeps Future apples-to-apples with the other runtimes'
+ *     synchronous `.block`/`.unsafeRunSync()`/`.eval`.
  *
  * The `ce_*` numbers include the fixed cost of `unsafeRunSync()` per op;
  * [[AsyncChainBench]] amortizes that cost over many ops.
@@ -872,7 +872,7 @@ class AsyncAsyncOpBench {
   // `promiseInternal`). The promise is already completed by the time we read
   // `.future.value`, so no thread-park is needed.
   @Benchmark def fut_asyncSync(): Int = {
-    val p = scala.concurrent.Promise[Int]()
+    val p                 = scala.concurrent.Promise[Int]()
     val cb: (Int => Unit) = v => p.success(v)
     cb(x)
     p.future.value.get.get
@@ -964,7 +964,7 @@ class AsyncHybridBench {
   }
 
   @Benchmark def fut_hybrid(): Int = {
-    val ec             = ExecutionContext.parasitic
+    val ec              = ExecutionContext.parasitic
     var fa: Future[Int] = Future.successful(x)
     var i               = 0
     while (i < n) { fa = fa.flatMap(v => Future.successful(v + 1))(ec); i += 1 }

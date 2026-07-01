@@ -26,7 +26,8 @@ import scala.concurrent.{Await, Future}
 /**
  * A single-file tour of [[zio.blocks.async.Async]]: constructors, direct-style
  * `Async.async` / `.await`, combinators, the `promise` callback bridge, custom
- * [[Pollable]] leaves, cancellable `start` / [[Async.Running]], and JVM `Future` interop.
+ * [[Pollable]] leaves, cancellable `start` / [[Async.Running]], and JVM
+ * `Future` interop.
  *
  * Run with:
  *
@@ -136,7 +137,7 @@ object AsyncShowcaseExample extends App {
     }
   }
 
-  val order9001 = fetchOrder(9001)
+  val order9001                                 = fetchOrder(9001)
   val zipped: (Order, List[(String, Int, Int)]) =
     order9001.zipWith(order9001.flatMap(availability))((o, av) => (o, av)).block
 
@@ -255,15 +256,13 @@ object AsyncShowcaseExample extends App {
     Shipment(orderId, lines, carrier = "zio-blocks-express")
   }
 
-  val report: FulfillmentReport = fulfill(9001)
-    .tap { shipment =>
-      auditLog += s"packed ${shipment.lines.size} line(s)"
-      Async.succeed(())
-    }
-    .ensuring {
-      auditLog += "finalizer: notify warehouse"
-      Async.succeed(())
-    }
+  val report: FulfillmentReport = fulfill(9001).tap { shipment =>
+    auditLog += s"packed ${shipment.lines.size} line(s)"
+    Async.succeed(())
+  }.ensuring {
+    auditLog += "finalizer: notify warehouse"
+    Async.succeed(())
+  }
     .map(shipment => FulfillmentReport(shipment, auditLog.toList))
     .block
 
@@ -282,14 +281,14 @@ object AsyncShowcaseExample extends App {
   // companion `Async.start(body)`, which would treat the `Async` as a by-name
   // body to evaluate and merely wrap (not drive) its result.
   val running: Async.Running[Nothing] =
-    Async.never.tap((_: Nothing) => { callbackFired.set(true); Async.succeed(()) }).start
+    Async.never.tap { (_: Nothing) => callbackFired.set(true); Async.succeed(()) }.start
 
   running.cancel()
   Thread.sleep(50)
   println(s"  callback suppressed after cancel => ${!callbackFired.get()}")
 
   var asyncOut: Either[Throwable, Int] = Right(-1)
-  Async.succeed(99).map(_ + 1).either.tap(res => { asyncOut = res; Async.succeed(()) }).start
+  Async.succeed(99).map(_ + 1).either.tap { res => asyncOut = res; Async.succeed(()) }.start
   Thread.sleep(20)
   println(s"  start result => ${asyncOut.toTry}")
 

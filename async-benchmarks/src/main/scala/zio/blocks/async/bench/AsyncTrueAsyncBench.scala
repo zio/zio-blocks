@@ -136,7 +136,7 @@ class AsyncTrueAsyncBench {
   // ==========================================================================
 
   @Benchmark def zb_asyncChain(): Int = {
-    val v = x
+    val v              = x
     var fa: Async[Int] = {
       val c = new Completer[Int]
       completer.execute(() => c.succeed(v))
@@ -155,7 +155,7 @@ class AsyncTrueAsyncBench {
   }
 
   @Benchmark def fut_asyncChain(): Int = {
-    val v = x
+    val v               = x
     var fa: Future[Int] = {
       val p = Promise[Int]()
       completer.execute(() => p.success(v))
@@ -174,7 +174,7 @@ class AsyncTrueAsyncBench {
   }
 
   @Benchmark def ce_asyncChain(): Int = {
-    val v = x
+    val v  = x
     var io = IO.async_[Int](cb => completer.execute(() => cb(Right(v))))
     var i  = 1
     while (i < n) {
@@ -187,14 +187,14 @@ class AsyncTrueAsyncBench {
   }
 
   @Benchmark def kyo_asyncChain(): Int = {
-    val v = x
+    val v                                                    = x
     def step(prev: Int): Int < (KyoAsync & Abort[Throwable]) = {
       val p = Promise[Int]()
       completer.execute(() => p.success(prev))
       KyoAsync.fromFuture(p.future)
     }
     var effect: Int < (KyoAsync & Abort[Throwable]) = step(v)
-    var i = 1
+    var i                                           = 1
     while (i < n) {
       val prevEffect = effect
       effect = prevEffect.map(acc => step(acc + 1))
@@ -204,14 +204,14 @@ class AsyncTrueAsyncBench {
   }
 
   /**
-   * Drive a Kyo `Int < (Async & Abort[Throwable])` to a blocking `Int`:
-   * reify the `Abort` to a `Result`, block on the `Async` (off-thread Future
+   * Drive a Kyo `Int < (Async & Abort[Throwable])` to a blocking `Int`: reify
+   * the `Abort` to a `Result`, block on the `Async` (off-thread Future
    * completion reschedules the fiber on Kyo's own scheduler), then run the
    * residual `IO` unsafely and surface any failure.
    */
   private def kyoRun(effect: Int < (KyoAsync & Abort[Throwable])): Int = {
-    val reified = Abort.run(effect)                                       // Result[Throwable, Int] < (Async & IO)
-    val blocked = KyoAsync.runAndBlock(kyo.Duration.Infinity)(reified)    // Result[Throwable, Int] < IO
+    val reified = Abort.run(effect)                                    // Result[Throwable, Int] < (Async & IO)
+    val blocked = KyoAsync.runAndBlock(kyo.Duration.Infinity)(reified) // Result[Throwable, Int] < IO
     kyo.IO.Unsafe.evalOrThrow(blocked).getOrThrow
   }
 }

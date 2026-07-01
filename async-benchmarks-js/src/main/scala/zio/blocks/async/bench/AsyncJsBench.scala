@@ -123,7 +123,7 @@ object AsyncJsBench {
   private def measureSuspended(label: String, hops: Int, warmup: Int, n: Int)(next: () => Unit): Unit = {
     import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
     def run(count: Int, started: Double, onDone: Double => Unit): Unit = {
-      var completed = 0
+      var completed   = 0
       def one(): Unit =
         AsyncInterop.toFuture((new HopChain(7, hops)): Async[Int]).onComplete { _ =>
           completed += 1
@@ -132,14 +132,22 @@ object AsyncJsBench {
       one()
     }
     // Warmup batch, then a timed batch; print on completion, then chain `next`.
-    run(warmup, now(), { _ =>
-      val start = now()
-      run(n, start, { elapsedNs =>
-        val hopsPerSec = (n.toDouble * hops) / (elapsedNs / 1e9)
-        println(f"  $label%-22s ${hopsPerSec}%16.0f ${"hops/sec"}%12s")
-        next()
-      })
-    })
+    run(
+      warmup,
+      now(),
+      { _ =>
+        val start = now()
+        run(
+          n,
+          start,
+          { elapsedNs =>
+            val hopsPerSec = (n.toDouble * hops) / (elapsedNs / 1e9)
+            println(f"  $label%-22s ${hopsPerSec}%16.0f ${"hops/sec"}%12s")
+            next()
+          }
+        )
+      }
+    )
   }
 
   // `Async.start(body)` evaluates `body` on a microtask (the `startEval` path)
@@ -148,7 +156,7 @@ object AsyncJsBench {
   private def measureStart(label: String, warmup: Int, n: Int)(next: () => Unit): Unit = {
     import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
     def run(count: Int, started: Double, onDone: Double => Unit): Unit = {
-      var completed = 0
+      var completed   = 0
       def one(): Unit =
         AsyncInterop.toFuture(Async.start(7): Async[Int]).onComplete { _ =>
           completed += 1
@@ -156,14 +164,22 @@ object AsyncJsBench {
         }
       one()
     }
-    run(warmup, now(), { _ =>
-      val start = now()
-      run(n, start, { elapsedNs =>
-        val startsPerSec = n.toDouble / (elapsedNs / 1e9)
-        println(f"  $label%-22s ${startsPerSec}%16.0f ${"starts/sec"}%12s")
-        next()
-      })
-    })
+    run(
+      warmup,
+      now(),
+      { _ =>
+        val start = now()
+        run(
+          n,
+          start,
+          { elapsedNs =>
+            val startsPerSec = n.toDouble / (elapsedNs / 1e9)
+            println(f"  $label%-22s ${startsPerSec}%16.0f ${"starts/sec"}%12s")
+            next()
+          }
+        )
+      }
+    )
   }
 
   // ---- measurement engine ---------------------------------------------------

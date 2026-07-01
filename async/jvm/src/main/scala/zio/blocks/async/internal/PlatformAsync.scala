@@ -24,9 +24,9 @@ import java.util.concurrent.locks.LockSupport
  * The parker uses [[LockSupport]] `park`/`unpark` rather than
  * `Object.synchronized` / `Object.wait` so that virtual threads (Project Loom,
  * JDK 21+) properly unmount their carrier while parked instead of pinning it —
- * and, unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no
- * AQS wait-queue node per park, which is the bulk of the per-async-boundary
- * garbage on the genuinely-suspended (off-thread completion) path.
+ * and, unlike a `ReentrantLock` `Condition`, `LockSupport` allocates no AQS
+ * wait-queue node per park, which is the bulk of the per-async-boundary garbage
+ * on the genuinely-suspended (off-thread completion) path.
  */
 private[async] object PlatformAsync {
 

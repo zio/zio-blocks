@@ -96,7 +96,7 @@ private[async] object AsyncRunner {
     // null = pending; `Cancelled` = cancelled (suppress); anything else = the
     // settled outcome (a value, `NullTerminal`, or a `Failure`).
     private val terminal = new AtomicReference[Any](null)
-    private var waiters   = List.empty[Runnable]
+    private var waiters  = List.empty[Runnable]
     // The waiter-list critical sections (`registerOnComplete` / `wakeAll`)
     // synchronize on `this` rather than a dedicated lock object — one fewer
     // allocation per `start`. They never block while held (only list mutation +

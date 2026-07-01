@@ -512,12 +512,12 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         // Both sides resolve over multiple polls (each re-arms its waker twice
         // before settling), exercising the EnsuringPollable `outcome` memo and
         // the finalizer replacement loop together — not just ready operands.
-        val primaryCause   = new RuntimeException("primary")
-        val finCause       = new RuntimeException("fin")
-        val primaryP       = AsyncTestSupport.failAfter(primaryCause, 2)
-        val finP           = AsyncTestSupport.failAfter(finCause, 2)
-        val a: Async[Int]  = (primaryP: Async[Int]).ensuring(finP)
-        val thrown         = Try(a.block).failed.toOption
+        val primaryCause  = new RuntimeException("primary")
+        val finCause      = new RuntimeException("fin")
+        val primaryP      = AsyncTestSupport.failAfter(primaryCause, 2)
+        val finP          = AsyncTestSupport.failAfter(finCause, 2)
+        val a: Async[Int] = (primaryP: Async[Int]).ensuring(finP)
+        val thrown        = Try(a.block).failed.toOption
         assertTrue(
           thrown.contains(primaryCause),
           thrown.exists(_.getSuppressed.toList.contains(finCause))
@@ -540,8 +540,8 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         val a: Async[Int] = Async.fail(primaryCause).ensuring(Async.fail(finCause))
         AsyncTestSupport.pollOnce(a) // drive to terminal
         AsyncTestSupport.pollOnce(a) // re-poll the settled result
-        val terminal      = AsyncTestSupport.pollOnce(a).asInstanceOf[Any]
-        val cause         = terminal.asInstanceOf[Failure].cause
+        val terminal = AsyncTestSupport.pollOnce(a).asInstanceOf[Any]
+        val cause    = terminal.asInstanceOf[Failure].cause
         assertTrue(
           cause == primaryCause,
           cause.getSuppressed.toList == List(finCause)
@@ -577,7 +577,7 @@ object AsyncErrorSpec extends ZIOSpecDefault {
       },
       test("three failing branches surface the last cause (pending)") {
         val (c, p) = AsyncTestSupport.pending[Int]
-        val a = p
+        val a      = p
           .flatMap(_ => Async.fail(AsyncTestSupport.leftSent))
           .orElse(Async.fail(AsyncTestSupport.midSent))
           .orElse(Async.fail(AsyncTestSupport.rightSent))

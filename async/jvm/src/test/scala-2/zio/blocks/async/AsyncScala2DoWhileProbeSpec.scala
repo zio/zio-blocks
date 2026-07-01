@@ -24,8 +24,8 @@ import zio.test._
  *
  * A `while` loop with `.await` in its body is fully supported (see
  * `AsyncAwaitBlockSpec`), but its sibling `do { ... } while (...)` is not. The
- * macro rejects the `do/while` `LabelDef` shape with a diagnostic that names the
- * construct and points users toward an equivalent supported `while` form.
+ * macro rejects the `do/while` `LabelDef` shape with a diagnostic that names
+ * the construct and points users toward an equivalent supported `while` form.
  *
  * Oracle: a compile diagnostic is part of the API/DX contract; an unsupported
  * shape must fail with a message that identifies the shape and the remedy.

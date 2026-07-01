@@ -282,7 +282,7 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
     test("two positional awaited arguments evaluate left-to-right") {
       val log                    = new scala.collection.mutable.ListBuffer[String]
       def f(a: Int, b: Int): Int = a + b
-      val r = Async.async {
+      val r                      = Async.async {
         f(
           { val v = Async.succeed(1).await; log += "a"; v },
           { val v = Async.succeed(2).await; log += "b"; v }
@@ -293,7 +293,7 @@ object AsyncRewriteSpec extends ZIOSpecDefault {
     test("reordered named awaited arguments evaluate in textual order") {
       val log                    = new scala.collection.mutable.ListBuffer[String]
       def f(a: Int, b: Int): Int = a * 10 + b
-      val r = Async.async {
+      val r                      = Async.async {
         f(
           b = { val v = Async.succeed(2).await; log += "b"; v },
           a = { val v = Async.succeed(1).await; log += "a"; v }

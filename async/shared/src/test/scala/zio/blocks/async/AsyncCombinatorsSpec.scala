@@ -401,7 +401,7 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // pollable-as-value carrier is data — driving it would run the user
         // pollable for effects it never asked to run, diverging from `tap`'s
         // identical treatment of an effect-as-value.
-        var driven           = false
+        var driven            = false
         val p: Pollable[Unit] = new Pollable[Unit] {
           def poll(onComplete: Runnable): Async[Unit] = { driven = true; Async.succeed(()) }
         }
@@ -414,18 +414,18 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // (acquire-without-release) and no double-close.
         def runBracket(use: Async[Int]): (Int, Either[Throwable, Int]) = {
           var closes = 0
-          val a      = use.ensuring(Async.succeed { closes += 1 })
+          val a      = use.ensuring(Async.succeed(closes += 1))
           val out    =
             try Right(a.block)
             catch { case t: Throwable => Left(t) }
           (closes, out)
         }
-        val (cSucc, rSucc)               = runBracket(Async.succeed(1))
-        val (cFail, rFail)               = runBracket(Async.fail(boom))
-        val (cPend, rPend)               = {
+        val (cSucc, rSucc) = runBracket(Async.succeed(1))
+        val (cFail, rFail) = runBracket(Async.fail(boom))
+        val (cPend, rPend) = {
           val (c, p) = AsyncTestSupport.pending[Int]
           var closes = 0
-          val a      = p.ensuring(Async.succeed { closes += 1 })
+          val a      = p.ensuring(Async.succeed(closes += 1))
           c.succeed(7)
           (closes, scala.util.Try(a.block).toEither)
         }
@@ -460,7 +460,7 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // and the original failure is preserved. The finalizer effect fires when
         // the finalizer is DRIVEN (a poll-time effect), not at eager construction,
         // so the recorded order is the genuine unwind order.
-        val order                     = scala.collection.mutable.ArrayBuffer.empty[String]
+        val order                              = scala.collection.mutable.ArrayBuffer.empty[String]
         def closer(label: String): Async[Unit] = new Pollable[Unit] {
           def poll(onComplete: Runnable): Async[Unit] = { order += label; Async.succeed(()) }
         }
@@ -536,9 +536,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         assertTrue(r == List(42))
       },
       test("collectAll over a single-element pending Iterator completes when the element settles") {
-        val (c, p)                   = AsyncTestSupport.pending[Int]
-        val all                      = Async.collectAll(Iterator(p))
-        val pendingAtStart           = AsyncTestSupport.isPending(all)
+        val (c, p)         = AsyncTestSupport.pending[Int]
+        val all            = Async.collectAll(Iterator(p))
+        val pendingAtStart = AsyncTestSupport.isPending(all)
         c.succeed(7)
         assertTrue(pendingAtStart, all.block == List(7))
       },
@@ -546,8 +546,8 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         var nextCalls = 0
         val src       = new IterableOnce[Async[Int]] {
           def iterator: Iterator[Async[Int]] = new Iterator[Async[Int]] {
-            private val backing  = List(Async.succeed(1), Async.succeed(2), Async.succeed(3)).iterator
-            def hasNext: Boolean = backing.hasNext
+            private val backing    = List(Async.succeed(1), Async.succeed(2), Async.succeed(3)).iterator
+            def hasNext: Boolean   = backing.hasNext
             def next(): Async[Int] = { nextCalls += 1; backing.next() }
           }
         }
@@ -728,9 +728,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
       // effect ran exactly once.
       {
         def twoDriverFanOut[A](build: Completer[Int] => Async[A]): (Async[A], Async[A]) = {
-          val c        = new Completer[Int]
-          val fa       = build(c)
-          val pa       = fa.asInstanceOf[Pollable[A]]
+          val c                = new Completer[Int]
+          val fa               = build(c)
+          val pa               = fa.asInstanceOf[Pollable[A]]
           val wakerA: Runnable = () => ()
           val wakerB: Runnable = () => ()
           pa.poll(wakerA) // driver A registers
@@ -743,13 +743,13 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
 
         suite("two consumers driving one settled value run the user effect exactly once")(
           test("map") {
-            var calls    = 0
-            val (a, b)   = twoDriverFanOut(c => c.peek.map(x => { calls += 1; x + 1 }))
+            var calls  = 0
+            val (a, b) = twoDriverFanOut(c => c.peek.map { x => calls += 1; x + 1 })
             assertTrue(calls == 1, a.block == 2, b.block == 2)
           },
           test("flatMap") {
             var calls  = 0
-            val (a, b) = twoDriverFanOut(c => c.peek.flatMap(x => { calls += 1; Async.succeed(x + 1) }))
+            val (a, b) = twoDriverFanOut(c => c.peek.flatMap { x => calls += 1; Async.succeed(x + 1) })
             assertTrue(calls == 1, a.block == 2, b.block == 2)
           },
           test("tap") {
@@ -759,13 +759,13 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
           },
           test("zipWith") {
             var calls  = 0
-            val (a, b) = twoDriverFanOut(c => c.peek.zipWith(Async.succeed(3))((x, y) => { calls += 1; x + y }))
+            val (a, b) = twoDriverFanOut(c => c.peek.zipWith(Async.succeed(3)) { (x, y) => calls += 1; x + y })
             assertTrue(calls == 1, a.block == 4, b.block == 4)
           },
           test("catchAll") {
             var calls  = 0
             val (a, b) = twoDriverFanOut { c =>
-              c.peek.flatMap(_ => Async.fail(boom)).catchAll(_ => { calls += 1; Async.succeed(0) })
+              c.peek.flatMap(_ => Async.fail(boom)).catchAll { _ => calls += 1; Async.succeed(0) }
             }
             assertTrue(calls == 1, a.block == 0, b.block == 0)
           },
@@ -819,9 +819,9 @@ object AsyncCombinatorsSpec extends ZIOSpecDefault {
         // when the batch settles. A second fan-out driver that polls after the
         // batch settles must observe the SAME completed list — not crash on the
         // nulled `cur`, nor re-drain the spent iterator/buffer.
-        val c1   = new Completer[Int]
-        val all  = Async.collectAll(List[Async[Int]](Async.succeed(0), c1.peek, Async.succeed(2)))
-        val pa   = all.asInstanceOf[Pollable[List[Int]]]
+        val c1               = new Completer[Int]
+        val all              = Async.collectAll(List[Async[Int]](Async.succeed(0), c1.peek, Async.succeed(2)))
+        val pa               = all.asInstanceOf[Pollable[List[Int]]]
         val wakerA: Runnable = () => ()
         val wakerB: Runnable = () => ()
         pa.poll(wakerA)

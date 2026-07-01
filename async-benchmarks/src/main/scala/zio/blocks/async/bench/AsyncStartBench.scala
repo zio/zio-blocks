@@ -25,10 +25,10 @@ import java.util.concurrent.TimeUnit
 /**
  * Allocation/throughput profile of `fa.start` for a SUSPENDED input — the path
  * that builds a `Running` handle backed by a background worker (JVM). The leaf
- * settles on its very first poll, so this isolates the per-`start` handle/worker
- * allocation (the `Running` object, its terminal slot, the daemon `Thread`),
- * NOT suspended-poll cost (covered by `AsyncSuspendedPollBench`). A ready input
- * is the trivial `CompletedRunning` path and is not measured here.
+ * settles on its very first poll, so this isolates the per-`start`
+ * handle/worker allocation (the `Running` object, its terminal slot, the daemon
+ * `Thread`), NOT suspended-poll cost (covered by `AsyncSuspendedPollBench`). A
+ * ready input is the trivial `CompletedRunning` path and is not measured here.
  *
  * Run with `-prof gc`; the `Thread` dominates, so this gate guards against
  * regressions in the handle's own object count (e.g. the cancellation-state

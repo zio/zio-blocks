@@ -1168,8 +1168,8 @@ object AsyncSpec extends ZIOSpecDefault {
           // (value untouched), but `tap`'s ready path wraps it in an
           // ObservedPollable and drives it, surfacing the poll-failure as a
           // `Left` — corrupting a successful `tap` into a failure.
-          val driven                        = new RuntimeException("pollable-as-value driven by tap")
-          def pv(): Pollable[Int]           = new Pollable[Int] {
+          val driven              = new RuntimeException("pollable-as-value driven by tap")
+          def pv(): Pollable[Int] = new Pollable[Int] {
             def poll(onComplete: Runnable): Async[Int] = Async.fail(driven)
           }
           val viaMap: Either[Throwable, Pollable[Int]] =
@@ -1466,7 +1466,7 @@ object AsyncSpec extends ZIOSpecDefault {
           def leafPolls(n: Int, k: Int): Int = {
             val counter        = Array(0)
             var fa: Async[Int] = new Pollable[Int] {
-              private var remaining                    = k
+              private var remaining                      = k
               def poll(onComplete: Runnable): Async[Int] = {
                 counter(0) += 1
                 if (remaining <= 0) Async.succeed(0)
@@ -1493,7 +1493,7 @@ object AsyncSpec extends ZIOSpecDefault {
           def leafPolls(n: Int, k: Int): Int = {
             val counter        = Array(0)
             var fa: Async[Int] = new Pollable[Int] {
-              private var remaining                    = k
+              private var remaining                      = k
               def poll(onComplete: Runnable): Async[Int] = {
                 counter(0) += 1
                 if (remaining <= 0) Async.succeed(0)
@@ -1541,8 +1541,8 @@ object AsyncSpec extends ZIOSpecDefault {
           // moderate spine must drive to the correct value (and run every
           // finalizer effect exactly once, in order) rather than truncating,
           // dropping effects, or hanging.
-          val n       = 2000
-          val effects = new java.util.concurrent.atomic.AtomicInteger(0)
+          val n                                                                      = 2000
+          val effects                                                                = new java.util.concurrent.atomic.AtomicInteger(0)
           def driven(build: (Async[Int], Int) => Async[Int]): Either[Throwable, Int] = {
             val (c, p)         = AsyncTestSupport.pending[Int]
             var fa: Async[Int] = p
@@ -1551,8 +1551,8 @@ object AsyncSpec extends ZIOSpecDefault {
             c.succeed(0)
             Try(fa.block).toEither
           }
-          val tapAll      = driven((fa, _) => fa.tap(_ => Async.succeed(effects.incrementAndGet())))
-          val tapEffects  = effects.get()
+          val tapAll     = driven((fa, _) => fa.tap(_ => Async.succeed(effects.incrementAndGet())))
+          val tapEffects = effects.get()
           effects.set(0)
           val ensuringAll = driven((fa, _) => fa.ensuring(Async.succeed(effects.incrementAndGet())))
           val ensEffects  = effects.get()
@@ -1894,7 +1894,7 @@ object AsyncSpec extends ZIOSpecDefault {
       // Category F — never right-zero with pollable recovery.
       suite("never orElse pollable recovery")(
         test("orElse_pendingFail_succeedPollable_deliversPollableIdentity") {
-          val inner        = AsyncTestSupport.pollableSuccessValue
+          val inner = AsyncTestSupport.pollableSuccessValue
           // Both sides are `Async[Pollable[Int]]` so `Concat` is identity-like on
           // every Scala version (Scala 3 would otherwise union and Scala 2 would
           // widen disjoint sides to `Either`); this keeps the test about
@@ -2265,8 +2265,8 @@ object AsyncSpec extends ZIOSpecDefault {
           // suspension model — `map`/`flatMap` behave the same), not when the
           // result is later driven. The differential control below confirms the
           // pollable-as-value path is identical to a plain ready value.
-          val inner = AsyncTestSupport.pollableSuccessValue
-          val fx    = new RuntimeException("tap-throw")
+          val inner      = AsyncTestSupport.pollableSuccessValue
+          val fx         = new RuntimeException("tap-throw")
           val viaPromise =
             Try(Async.promiseInternal[Pollable[Int]](_.succeed(inner)).tap(_ => throw fx)).failed.toOption
           val viaSucceed =

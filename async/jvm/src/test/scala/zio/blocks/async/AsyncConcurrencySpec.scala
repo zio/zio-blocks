@@ -79,8 +79,8 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
       },
       test("collectAll with an off-thread middle failure does not drive a still-pending later element") {
         ZIO.attemptBlocking {
-          val mid    = new RuntimeException("collect-mid")
-          val driven = new AtomicInteger(0)
+          val mid               = new RuntimeException("collect-mid")
+          val driven            = new AtomicInteger(0)
           val later: Async[Int] = new Pollable[Int] {
             def poll(onComplete: Runnable): Async[Int] = { driven.incrementAndGet(); onComplete.run(); this }
           }
@@ -94,11 +94,14 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
       test("ensuring runs an off-thread finalizer after an off-thread primary succeeds") {
         ZIO.attemptBlocking {
           val fin = new AtomicInteger(0)
-          val r   = (realAsync(5, 20): Async[Int]).ensuring((realAsync((), 20): Async[Unit]).map(_ => fin.incrementAndGet()))
+          val r   =
+            (realAsync(5, 20): Async[Int]).ensuring((realAsync((), 20): Async[Unit]).map(_ => fin.incrementAndGet()))
           assertTrue(r.block == 5, fin.get() == 1)
         }
       },
-      test("ensuring over off-thread primary-fail and off-thread finalizer-fail keeps primary with finalizer suppressed") {
+      test(
+        "ensuring over off-thread primary-fail and off-thread finalizer-fail keeps primary with finalizer suppressed"
+      ) {
         ZIO.attemptBlocking {
           val prim = new RuntimeException("ens-primary")
           val fin  = new RuntimeException("ens-finalizer")
@@ -417,7 +420,8 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
             }
             threads.foreach(_.join())
             if (!results.forall(_ == List(0, 1, 2)))
-              anomaly = Some(s"trial $i: shared collectAll handle delivered ${results.toList} (must be two List(0, 1, 2))")
+              anomaly =
+                Some(s"trial $i: shared collectAll handle delivered ${results.toList} (must be two List(0, 1, 2))")
             i += 1
           }
           assertTrue(anomaly.isEmpty)
@@ -462,21 +466,21 @@ object AsyncConcurrencySpec extends ZIOSpecDefault {
         // complete the leaf BEFORE blocking; this one inverts the order so the
         // waiter chain is non-empty at publish time.)
         ZIO.attemptBlocking {
-          val trials  = 400
+          val trials   = 400
           val blockers = 8
-          var anomaly = Option.empty[String]
-          var i       = 0
+          var anomaly  = Option.empty[String]
+          var i        = 0
           while (i < trials && anomaly.isEmpty) {
-            val c        = new Completer[Int]
-            val running  = c.peek.map(_ + 1).start
-            val parked   = new CountDownLatch(blockers)
-            val release  = new CountDownLatch(1)
-            val results  = new Array[Any](blockers)
-            val threads  = (0 until blockers).map { id =>
+            val c       = new Completer[Int]
+            val running = c.peek.map(_ + 1).start
+            val parked  = new CountDownLatch(blockers)
+            val release = new CountDownLatch(1)
+            val results = new Array[Any](blockers)
+            val threads = (0 until blockers).map { id =>
               val t = new Thread(new Runnable {
                 def run(): Unit = {
-                  parked.countDown()  // announce intent to block
-                  release.await()     // all blockers released together
+                  parked.countDown() // announce intent to block
+                  release.await()    // all blockers released together
                   results(id) =
                     try running.block
                     catch { case t: Throwable => t }

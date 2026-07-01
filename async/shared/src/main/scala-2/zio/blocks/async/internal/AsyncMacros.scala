@@ -137,12 +137,12 @@ private[async] object AsyncMacros {
       Set("map", "foreach", "flatMap", "find", "exists", "forall", "filter", "filterNot", "takeWhile", "dropWhile")
 
     /**
-     * Whitelisted HOFs whose semantics are PREFIX-ORDERED: `takeWhile` keeps the
-     * longest leading run satisfying the predicate, `dropWhile` drops it. These
-     * are only meaningful on an ordered (`Seq`-like) receiver — on an unordered
-     * `Set` / `Map` the "prefix" is implementation-defined — so the typed pass
-     * restricts them to `Seq` receivers (`List` / `Vector`), rejecting `Set` /
-     * `Map` / `Option` with a good position.
+     * Whitelisted HOFs whose semantics are PREFIX-ORDERED: `takeWhile` keeps
+     * the longest leading run satisfying the predicate, `dropWhile` drops it.
+     * These are only meaningful on an ordered (`Seq`-like) receiver — on an
+     * unordered `Set` / `Map` the "prefix" is implementation-defined — so the
+     * typed pass restricts them to `Seq` receivers (`List` / `Vector`),
+     * rejecting `Set` / `Map` / `Option` with a good position.
      */
     val prefixOrderedHofMethods: Set[String] = Set("takeWhile", "dropWhile")
 
@@ -199,12 +199,12 @@ private[async] object AsyncMacros {
     /**
      * A `recv.reduce(op)` / `recv.reduceLeft(op)` call whose two-argument `op`
      * body contains a `.await`. Unlike `foldLeft`, `reduce` takes no initial
-     * value — it is seeded by the FIRST element and folds the rest left-to-right
-     * (`reduce` on an ordered/iterable collection is `reduceLeft`), and an empty
-     * receiver throws `UnsupportedOperationException`. The tree is a single
-     * `Apply` (optionally with a `TypeApply` for the `[B >: A]` widening).
-     * Matched only when the OP BODY awaits. Yields `(recv, accParam, elemParam,
-     * opBody)`.
+     * value — it is seeded by the FIRST element and folds the rest
+     * left-to-right (`reduce` on an ordered/iterable collection is
+     * `reduceLeft`), and an empty receiver throws
+     * `UnsupportedOperationException`. The tree is a single `Apply` (optionally
+     * with a `TypeApply` for the `[B >: A]` widening). Matched only when the OP
+     * BODY awaits. Yields `(recv, accParam, elemParam, opBody)`.
      */
     object ReduceAwaitCall {
       def unapply(t: Tree): Option[(Tree, ValDef, ValDef, Tree)] = t match {
@@ -227,11 +227,11 @@ private[async] object AsyncMacros {
      * A `recv.foldRight(z)(op)` call whose two-argument `op` body contains a
      * `.await`. Like `foldLeft` it is curried (`foldRight[B](z: B)(op: (A, B) =>
      * B)`), so the tree is a double `Apply` (optionally with a `TypeApply` for
-     * `[B]`), but it is RIGHT-associative: the op runs right-to-left
-     * (`op(x1, op(x2, ..., op(xn, z)))`), so the rightmost element's await
-     * happens first (empirically confirmed against DCA). The op's FIRST
-     * parameter is the element, the SECOND is the accumulator (opposite of
-     * `foldLeft`). Matched only when the OP BODY awaits. Yields
+     * `[B]`), but it is RIGHT-associative: the op runs right-to-left (`op(x1,
+     * op(x2, ..., op(xn, z)))`), so the rightmost element's await happens first
+     * (empirically confirmed against DCA). The op's FIRST parameter is the
+     * element, the SECOND is the accumulator (opposite of `foldLeft`). Matched
+     * only when the OP BODY awaits. Yields
      * `(recv, z, elemParam, accParam, opBody)`.
      */
     object FoldRightAwaitCall {
@@ -250,13 +250,13 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * A partial-function literal `{ case ... }`. After `untypecheck` (and in the
-     * typed tree) a PF literal is an anonymous `AbstractPartialFunction`
+     * A partial-function literal `{ case ... }`. After `untypecheck` (and in
+     * the typed tree) a PF literal is an anonymous `AbstractPartialFunction`
      * subclass: `Typed(Block(List(ClassDef($anonfun)), New $anonfun()), _)`,
      * whose `applyOrElse` method holds a `Match` over the user `case`s plus one
-     * trailing SYNTHETIC fallthrough (`case defaultCase$ => default.apply(x1)`).
-     * Unwraps to the USER cases (the synthetic default dropped). Yields
-     * `List[CaseDef]`.
+     * trailing SYNTHETIC fallthrough (`case defaultCase$ =>
+     * default.apply(x1)`). Unwraps to the USER cases (the synthetic default
+     * dropped). Yields `List[CaseDef]`.
      */
     object PartialFunctionLiteral {
       def unapply(t: Tree): Option[List[CaseDef]] = {
@@ -300,9 +300,9 @@ private[async] object AsyncMacros {
         // transform pass sees `Array(..).collect(pf)` with NO `ClassTag`, so the
         // single-apply patterns still cover it there.
         case Apply(Apply(TypeApply(Select(recv, m), _), List(pf)), _) => check(recv, m, pf)
-        case Apply(Select(recv, m), List(pf))                        => check(recv, m, pf)
-        case Apply(TypeApply(Select(recv, m), _), List(pf))          => check(recv, m, pf)
-        case _                                                             => None
+        case Apply(Select(recv, m), List(pf))                         => check(recv, m, pf)
+        case Apply(TypeApply(Select(recv, m), _), List(pf))           => check(recv, m, pf)
+        case _                                                        => None
       }
       private def check(recv: Tree, m: Name, pf: Tree): Option[(Tree, List[CaseDef])] =
         if (m.decodedName.toString != "collect") None
@@ -321,7 +321,8 @@ private[async] object AsyncMacros {
 
     /**
      * The erased immutable `Seq[Any]` type, used to restrict the prefix-ordered
-     * HOFs (`takeWhile` / `dropWhile`) to ordered receivers (`List` / `Vector`).
+     * HOFs (`takeWhile` / `dropWhile`) to ordered receivers (`List` /
+     * `Vector`).
      */
     val SeqAnyTpe: Type = typeOf[scala.collection.immutable.Seq[Any]]
 
@@ -346,7 +347,7 @@ private[async] object AsyncMacros {
     // `ClassTag[B]` and rebuild via `scala.Array.newBuilder`, not
     // `iterableFactory`. Classify by symbol (variance-agnostic): the typed
     // `ArrayOps` wrapper OR a raw `Array` static type (defensive).
-    val ArrayOpsSym: Symbol = typeOf[scala.collection.ArrayOps[Any]].typeSymbol
+    val ArrayOpsSym: Symbol   = typeOf[scala.collection.ArrayOps[Any]].typeSymbol
     val ArrayClassSym: Symbol = definitions.ArrayClass
     // `scala.collection.immutable.Set` is INVARIANT, so `Set[Int] <:< Set[Any]`
     // is false; classify it by base-type symbol instead (variance-agnostic).
@@ -407,25 +408,24 @@ private[async] object AsyncMacros {
       else if (t <:< ListAnyTpe) Some("list")
       else if (t <:< OptionAnyTpe) Some("option")
       else if (t.baseType(MapSym) != NoType) Some("map")
-      else if (
-        t <:< VectorAnyTpe || t <:< QueueAnyTpe || t <:< ArraySeqAnyTpe || t.baseType(SetSym) != NoType
-      ) Some("iterable")
+      else if (t <:< VectorAnyTpe || t <:< QueueAnyTpe || t <:< ArraySeqAnyTpe || t.baseType(SetSym) != NoType)
+        Some("iterable")
       else if (t.typeSymbol == ArrayOpsSym || t.typeSymbol == ArrayClassSym) Some("array")
       else None
     }
 
     /**
-     * Whether `t` is the implicit `scala.Option.option2Iterable(opt)` conversion
-     * applied to an `Option`. Scala 2's `Option` has no `find` of its own —
-     * `opt.find(p)` resolves through this conversion, so the typed receiver of
-     * the `find` call is `Iterable[A]`, which [[receiverKind]] (deliberately)
-     * does not whitelist. This recognizes JUST that conversion so `Option.find`
-     * can reach the receiver-kind-agnostic predicate-scan emitter (`.iterator`
-     * over a 0-or-1-element iterable, result `Option[A]`), matching the Scala 3
-     * DCA behavior. It is intentionally method-specific (only consulted for
-     * `find`): a broad `option2Iterable` whitelist would also admit `map` /
-     * `takeWhile` / `collect` through the conversion, whose `Iterable` result
-     * type would mismatch the `Option`-shaped rewrites.
+     * Whether `t` is the implicit `scala.Option.option2Iterable(opt)`
+     * conversion applied to an `Option`. Scala 2's `Option` has no `find` of
+     * its own — `opt.find(p)` resolves through this conversion, so the typed
+     * receiver of the `find` call is `Iterable[A]`, which [[receiverKind]]
+     * (deliberately) does not whitelist. This recognizes JUST that conversion
+     * so `Option.find` can reach the receiver-kind-agnostic predicate-scan
+     * emitter (`.iterator` over a 0-or-1-element iterable, result `Option[A]`),
+     * matching the Scala 3 DCA behavior. It is intentionally method-specific
+     * (only consulted for `find`): a broad `option2Iterable` whitelist would
+     * also admit `map` / `takeWhile` / `collect` through the conversion, whose
+     * `Iterable` result type would mismatch the `Option`-shaped rewrites.
      */
     def isOption2IterableApply(t: Tree): Boolean = t match {
       case Apply(fun, List(arg)) =>
@@ -436,10 +436,11 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Whether `t` is an `Array[_]` static type — used to pick `Array.newBuilder`
-     * (which needs a `ClassTag`) over `iterableFactory.newBuilder` for the
-     * result-building HOFs (`filter` / `takeWhile` / `collect`) whose recorded
-     * RESULT type (not receiver type) is an `Array`.
+     * Whether `t` is an `Array[_]` static type — used to pick
+     * `Array.newBuilder` (which needs a `ClassTag`) over
+     * `iterableFactory.newBuilder` for the result-building HOFs (`filter` /
+     * `takeWhile` / `collect`) whose recorded RESULT type (not receiver type)
+     * is an `Array`.
      */
     def isArrayResult(t: Type): Boolean =
       t != null && t != NoType && t.dealias.typeSymbol == ArrayClassSym
@@ -473,7 +474,7 @@ private[async] object AsyncMacros {
         case Apply(Apply(TypeApply(Select(recv, m), _), List(fn)), _) => check(recv, m, fn)
         case Apply(Select(recv, m), List(fn))                         => check(recv, m, fn)
         case Apply(TypeApply(Select(recv, m), _), List(fn))           => check(recv, m, fn)
-        case _                                                             => None
+        case _                                                        => None
       }
       private def check(recv: Tree, m: Name, fn: Tree): Option[(Tree, String, ValDef, Tree)] = {
         val ms = m.decodedName.toString
@@ -554,7 +555,7 @@ private[async] object AsyncMacros {
           // curried `MethodType`. Must precede the single-apply patterns.
           case Apply(Apply(TypeApply(Select(recv, m), _), List(fn)), _) if isHof(m, fn) =>
             Some((recv, m.decodedName.toString, fn))
-          case Apply(Select(recv, m), List(fn)) if isHof(m, fn) => Some((recv, m.decodedName.toString, fn))
+          case Apply(Select(recv, m), List(fn)) if isHof(m, fn)               => Some((recv, m.decodedName.toString, fn))
           case Apply(TypeApply(Select(recv, m), _), List(fn)) if isHof(m, fn) =>
             Some((recv, m.decodedName.toString, fn))
           case _ => None
@@ -568,12 +569,11 @@ private[async] object AsyncMacros {
       lazy val traverser: Traverser = new Traverser {
         override def traverse(tt: Tree): Unit = tt match {
           case TypedHofMap(recv, m, fn) =>
-            val kind = receiverKind(recv)
-              .orElse {
-                // `Option.find` resolves through `option2Iterable`; admit it as
-                // an `"option"` receiver (find is receiver-kind-agnostic at emit).
-                if (m == "find" && isOption2IterableApply(recv)) Some("option") else None
-              }
+            val kind = receiverKind(recv).orElse {
+              // `Option.find` resolves through `option2Iterable`; admit it as
+              // an `"option"` receiver (find is receiver-kind-agnostic at emit).
+              if (m == "find" && isOption2IterableApply(recv)) Some("option") else None
+            }
               .getOrElse(
                 c.abort(
                   tt.pos,
@@ -704,7 +704,10 @@ private[async] object AsyncMacros {
       q
     }
 
-    /** The recorded result type `B` for the next `reduce` / `reduceLeft` rewrite. */
+    /**
+     * The recorded result type `B` for the next `reduce` / `reduceLeft`
+     * rewrite.
+     */
     def dequeueReduceResult(): Type =
       if (reduceResultTypes.isEmpty)
         c.abort(
@@ -774,8 +777,8 @@ private[async] object AsyncMacros {
     /**
      * The two type args of a `Map[K2, V2]`-typed result, looking through any
      * concrete `Map` subtype via `baseType(MapSym)`. Used to detect a
-     * pair-yielding `Map.collect` (whose result is a `Map`), which is rejected to
-     * stay at parity with Scala 3 (DCA has no Map-specific `collect` shift).
+     * pair-yielding `Map.collect` (whose result is a `Map`), which is rejected
+     * to stay at parity with Scala 3 (DCA has no Map-specific `collect` shift).
      */
     def mapResultArgs(t: Type): Option[List[Type]] =
       if (t == null || t == NoType) None
@@ -812,7 +815,7 @@ private[async] object AsyncMacros {
               )
             collectRecvKinds.enqueue(kind)
             q.enqueue(if (tt.tpe != null) tt.tpe.dealias.widen else NoType)
-            traverse(recv)                       // nested folds/HOFs in the receiver
+            traverse(recv)                         // nested folds/HOFs in the receiver
             cases.foreach(cd => traverse(cd.body)) // nested awaits/HOFs in the case bodies
           case _ => super.traverse(tt)
         }
@@ -1051,15 +1054,16 @@ private[async] object AsyncMacros {
      * keeps the generated code robust.
      *
      * Right-identity elision: when the continuation is the terminal
-     * [[pureReturn]] (`a => Async.succeed(a)`), `fa.flatMap(a => Async.succeed(a))`
-     * is observably `fa` itself (monad right identity — and it holds at every
-     * carrier depth in this encoding: deliver-one-layer then re-`succeed` is the
-     * identity). So an awaiting expression in tail position emits just `fa`
-     * instead of an identity `flatMap` link — no extra closure, no
-     * decode/re-encode round-trip, and no `FlatMapPollable` when `fa` suspends.
-     * Keyed on the stable `pureReturn` `val` identity (`eq`); any other
-     * continuation takes the normal `flatMap` path. The explicit-`tpt`
-     * `Async[Nothing]` concern does not arise here since no lambda is emitted.
+     * [[pureReturn]] (`a => Async.succeed(a)`),
+     * `fa.flatMap(a => Async.succeed(a))` is observably `fa` itself (monad
+     * right identity — and it holds at every carrier depth in this encoding:
+     * deliver-one-layer then re-`succeed` is the identity). So an awaiting
+     * expression in tail position emits just `fa` instead of an identity
+     * `flatMap` link — no extra closure, no decode/re-encode round-trip, and no
+     * `FlatMapPollable` when `fa` suspends. Keyed on the stable `pureReturn`
+     * `val` identity (`eq`); any other continuation takes the normal `flatMap`
+     * path. The explicit-`tpt` `Async[Nothing]` concern does not arise here
+     * since no lambda is emitted.
      */
     def asyncBindT(fa: Tree, tpt: Tree)(k: Tree => Tree): Tree =
       if (k eq pureReturn) safe(fa)
@@ -1256,16 +1260,16 @@ private[async] object AsyncMacros {
      * (receiver and initial value already bound) producing `Async[B]`, then
      * continue with `k`.
      *
-     * `foldRight` is RIGHT-associative — `op(x1, op(x2, ..., op(xn, z)))` — so the
-     * op for the RIGHTMOST element runs first (empirically confirmed against
-     * DCA). To make the await-ordering match and stay sequential, the receiver
-     * is materialized via `.toVector` and drained in REVERSE: starting from the
-     * last index with the accumulator seeded to `z`, each step is `op(buf(i),
-     * acc)` walking down to index `0`. A tight `while` threads the accumulator
-     * in a local `var` while each `op` result is ready (no `flatMap`
-     * allocation); the first suspended (or failed) `op` switches to a recursive
-     * `flatMap` continuation that resumes at the next-lower index. An empty
-     * receiver yields `z` (the op never runs). The recursive drain `def`
+     * `foldRight` is RIGHT-associative — `op(x1, op(x2, ..., op(xn, z)))` — so
+     * the op for the RIGHTMOST element runs first (empirically confirmed
+     * against DCA). To make the await-ordering match and stay sequential, the
+     * receiver is materialized via `.toVector` and drained in REVERSE: starting
+     * from the last index with the accumulator seeded to `z`, each step is
+     * `op(buf(i), acc)` walking down to index `0`. A tight `while` threads the
+     * accumulator in a local `var` while each `op` result is ready (no
+     * `flatMap` allocation); the first suspended (or failed) `op` switches to a
+     * recursive `flatMap` continuation that resumes at the next-lower index. An
+     * empty receiver yields `z` (the op never runs). The recursive drain `def`
      * requires the explicit `Async[B]` return type recovered into
      * `foldRightResultTypes`.
      */
@@ -1279,10 +1283,10 @@ private[async] object AsyncMacros {
     )(k: Tree => Tree): Tree = {
       val drain      = fresh("drainFoldR$")
       val buf        = fresh("buf$")
-      val idx0       = fresh("i$")                 // drain parameter: current (descending) index
-      val acc0       = fresh("acc$")               // drain parameter: incoming accumulator
-      val idxVar     = fresh("iv$")                // mutable index within the while
-      val accVar     = fresh("accv$")              // mutable accumulator within the while
+      val idx0       = fresh("i$")                  // drain parameter: current (descending) index
+      val acc0       = fresh("acc$")                // drain parameter: incoming accumulator
+      val idxVar     = fresh("iv$")                 // mutable index within the while
+      val accVar     = fresh("accv$")               // mutable accumulator within the while
       val r0         = fresh("r$")
       val nv         = fresh("nv$")
       val ni         = fresh("ni$")
@@ -1370,12 +1374,13 @@ private[async] object AsyncMacros {
      * Rewrite `recvVal.map(pname => fbody-with-await)` for an `Array` receiver,
      * producing `Async[Array[B]]`, then continue with `k`.
      *
-     * `Array.map` is EAGER on every Scala 3 backend (DCA's eager array shift and
-     * the JS-native `Array.map(async ...)`), exactly like `List.map` — verified
-     * empirically (a failing await still runs every preceding closure).
+     * `Array.map` is EAGER on every Scala 3 backend (DCA's eager array shift
+     * and the JS-native `Array.map(async ...)`), exactly like `List.map` —
+     * verified empirically (a failing await still runs every preceding
+     * closure).
      *
-     * Strategy (allocation-lean): run the closure for EVERY element first into a
-     * single scratch `Array[Any]` of `Async[B]` results (this preserves the
+     * Strategy (allocation-lean): run the closure for EVERY element first into
+     * a single scratch `Array[Any]` of `Async[B]` results (this preserves the
      * eager observation above), then drain those results sequentially and
      * fail-fast straight into an `Array.newBuilder[B]` (which resolves the same
      * `ClassTag[B]` the user's original `map` required, preserving a primitive
@@ -1394,7 +1399,11 @@ private[async] object AsyncMacros {
         // `collectAll` + `toArray`, which needs no static `B` for the builder.
         val xs      = fresh("xs$")
         val effects =
-          q"""$recvVal.iterator.map(${lamT(pname, TypeTree(), q"$bodyA.asInstanceOf[_root_.zio.blocks.async.Async[_]]")}).toList"""
+          q"""$recvVal.iterator.map(${lamT(
+              pname,
+              TypeTree(),
+              q"$bodyA.asInstanceOf[_root_.zio.blocks.async.Async[_]]"
+            )}).toList"""
         val toArr =
           q"""$OpsObj($AsyncObj.collectAll($effects)).map { ($xs: _root_.scala.collection.immutable.List[_]) => $xs.toArray }"""
         asyncBind(safe(toArr))(k)
@@ -1405,17 +1414,17 @@ private[async] object AsyncMacros {
         // `Array[Any]`, then drain them sequentially (fail-fast) straight into an
         // `Array.newBuilder[B]`. This avoids the two intermediate `List`s that a
         // `collectAll(...).toArray` would materialize.
-        val bTpt    = TypeTree(bTpe)
-        val drain   = fresh("drainArrMap$")
-        val effects = fresh("effects$")
-        val bld     = fresh("bld$")
-        val it      = fresh("it$")
-        val i0      = fresh("i$")
-        val start   = fresh("start$")
-        val j0      = fresh("j$")
-        val r0      = fresh("r$")
-        val b0      = fresh("b$")
-        val cur     = fresh("cur$")
+        val bTpt      = TypeTree(bTpe)
+        val drain     = fresh("drainArrMap$")
+        val effects   = fresh("effects$")
+        val bld       = fresh("bld$")
+        val it        = fresh("it$")
+        val i0        = fresh("i$")
+        val start     = fresh("start$")
+        val j0        = fresh("j$")
+        val r0        = fresh("r$")
+        val b0        = fresh("b$")
+        val cur       = fresh("cur$")
         val whileBody = q"""
           {
             var $j0 = $start
@@ -1881,15 +1890,15 @@ private[async] object AsyncMacros {
     }
 
     /**
-     * Rewrite `recvVal.takeWhile` / `recvVal.dropWhile` (whose predicate awaits)
-     * for an ordered `Seq` receiver (`List` / `Vector`; enforced in the typed
-     * pass), then continue with `k`.
+     * Rewrite `recvVal.takeWhile` / `recvVal.dropWhile` (whose predicate
+     * awaits) for an ordered `Seq` receiver (`List` / `Vector`; enforced in the
+     * typed pass), then continue with `k`.
      *
      * Both keep the receiver's collection family via its own builder
-     * (`iterableFactory.newBuilder[A]` — `takeWhile`/`dropWhile` do not transform
-     * elements, so the result element type equals the source element type
-     * `elemTpt`). The predicate is CPS-transformed; a predicate that awaits
-     * suspends and resumes at the next element, and a failed await
+     * (`iterableFactory.newBuilder[A]` — `takeWhile`/`dropWhile` do not
+     * transform elements, so the result element type equals the source element
+     * type `elemTpt`). The predicate is CPS-transformed; a predicate that
+     * awaits suspends and resumes at the next element, and a failed await
      * short-circuits the whole rewrite (via `flatMap`'s `Failure` path).
      *
      *   - `takeWhile`: drain the iterator, appending each element while the
@@ -2004,10 +2013,10 @@ private[async] object AsyncMacros {
       bTpe: Type,
       resultTpe: Type
     )(k: Tree => Tree): Tree = {
-      val el           = fresh("el$")
-      val r0           = fresh("r$")
-      val bn           = fresh("b$")
-      val skip         = fresh("skip$")
+      val el   = fresh("el$")
+      val r0   = fresh("r$")
+      val bn   = fresh("b$")
+      val skip = fresh("skip$")
       // `Option.collect` returns `Option[B]`; recover `B` from the recorded
       // result type's single type arg (falls back to an inferred tree).
       val bTpt: Tree =
@@ -2069,9 +2078,9 @@ private[async] object AsyncMacros {
       // irrefutable last case) — otherwise the trailing `case _` is unreachable
       // (a fatal warning).
       def irrefutable(pat: Tree): Boolean = pat match {
-        case Ident(termNames.WILDCARD)  => true
-        case Bind(_, inner)             => irrefutable(inner)
-        case _                          => false
+        case Ident(termNames.WILDCARD) => true
+        case Bind(_, inner)            => irrefutable(inner)
+        case _                         => false
       }
       val isTotal     = cases.lastOption.exists(cd => cd.guard.isEmpty && irrefutable(cd.pat))
       val newCases    = cases.map(cd => CaseDef(cd.pat, cd.guard, transform(cd.body)(pureReturn)))
@@ -2373,7 +2382,7 @@ private[async] object AsyncMacros {
           case CollectAwaitCall(recv, cases) =>
             val resultTpe = dequeueCollectResult()
             val kind      = dequeueCollectKind()
-            val bTpe =
+            val bTpe      =
               if (resultTpe != null && resultTpe != NoType) resultTpe.typeArgs.headOption.getOrElse(NoType)
               else NoType
             if (kind == "option")
@@ -2543,8 +2552,8 @@ private[async] object AsyncMacros {
     // putting the ref type in constructor (type) position avoids that term
     // resolution entirely. Equivalent to `create` (which is just `new` + box).
     def refNew(tpe: Type, init: Tree): Tree = {
-      val t            = tpe.dealias.widen
-      val d            = definitions
+      val t               = tpe.dealias.widen
+      val d               = definitions
       def n(name: String) = q"new _root_.scala.runtime.${TypeName(name)}($init)"
       if (t =:= d.IntTpe) n("IntRef")
       else if (t =:= d.LongTpe) n("LongRef")

@@ -84,8 +84,9 @@ private[async] trait AsyncSyntaxVersionSpecific {
      *
      * This is the unsafe escape hatch: ready values return immediately; a
      * pending value blocks the (Loom-friendly) calling thread on the JVM, and
-     * on JS — which cannot block — throws. Inside an `Async.async { ... }` block
-     * use the direct-style [[await]] instead, which runs without blocking.
+     * on JS — which cannot block — throws. Inside an `Async.async { ... }`
+     * block use the direct-style [[await]] instead, which runs without
+     * blocking.
      */
     def block: A = Async.slowPath.block[A](fa)
 
@@ -100,8 +101,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
     /**
      * Combine `fa` with `that` using `f`. The two are sequenced strictly
      * left-to-right: `fa` is driven to a value first, and only then is `that`
-     * driven. A failure in `fa` short-circuits without driving `that`; a failure
-     * in `that` is surfaced only after `fa` has succeeded.
+     * driven. A failure in `fa` short-circuits without driving `that`; a
+     * failure in `that` is surfaced only after `fa` has succeeded.
      */
     def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C] = {
       val ra: Any = fa
@@ -109,12 +110,14 @@ private[async] trait AsyncSyntaxVersionSpecific {
       if (ra.isInstanceOf[Pollable[_]] || rb.isInstanceOf[Pollable[_]])
         Async.slowPath.zipWithAsync[A, B, C](ra, rb, f)
       else
-        Async.succeed(
-          f(
-            AsyncEncoding.deliverSuccess[A](ra),
-            AsyncEncoding.deliverSuccess[B](rb)
+        Async
+          .succeed(
+            f(
+              AsyncEncoding.deliverSuccess[A](ra),
+              AsyncEncoding.deliverSuccess[B](rb)
+            )
           )
-        ).asInstanceOf[Async[C]]
+          .asInstanceOf[Async[C]]
     }
 
     /**
@@ -171,8 +174,8 @@ private[async] trait AsyncSyntaxVersionSpecific {
      * the `combinators` [[Concat]] instance: same type / sub-/supertype / a
      * shared meaningful supertype collapses to that type, and otherwise
      * disjoint sides widen to `Either[A, B]` (the Scala 3 sibling produces the
-     * native union `A | B`). `that` is by-name, so the fallback is built only on
-     * failure.
+     * native union `A | B`). `that` is by-name, so the fallback is built only
+     * on failure.
      *
      * The common case is allocation-free: when `Concat.isIdentityLike` (every
      * derivation except the disjoint `Either` one) both sides are already valid

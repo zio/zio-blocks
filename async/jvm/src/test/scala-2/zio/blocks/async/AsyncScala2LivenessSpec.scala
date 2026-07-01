@@ -19,17 +19,17 @@ package zio.blocks.async
 import zio.test._
 
 /**
- * ADVERSARIAL PROBE (Category AA / J — Scala 2 macro state-machine liveness over
- * binding shapes the ANF transform must thread across await boundaries).
+ * ADVERSARIAL PROBE (Category AA / J — Scala 2 macro state-machine liveness
+ * over binding shapes the ANF transform must thread across await boundaries).
  *
  * Corners not yet exercised by the shape / sweep probes: a `val (a, b) =
- * pair.await` tuple-destructuring binding whose components are BOTH read after a
- * LATER await (the macro must keep both pattern bindings live across the
+ * pair.await` tuple-destructuring binding whose components are BOTH read after
+ * a LATER await (the macro must keep both pattern bindings live across the
  * continuation, not drop one); an await in EACH argument of a `new Foo(_, _)`
- * constructor (two awaits in one application spine, left-to-right); and a nested
- * `Async.async` block inside an outer one, driven via its own `.await`. Each
- * asserts the full runtime value — a silent miscompile (a dropped binding, a
- * reordered await, an eagerly forced inner block) a compile-only check would
+ * constructor (two awaits in one application spine, left-to-right); and a
+ * nested `Async.async` block inside an outer one, driven via its own `.await`.
+ * Each asserts the full runtime value — a silent miscompile (a dropped binding,
+ * a reordered await, an eagerly forced inner block) a compile-only check would
  * miss.
  */
 object AsyncScala2LivenessSpec extends ZIOSpecDefault {
@@ -57,7 +57,7 @@ object AsyncScala2LivenessSpec extends ZIOSpecDefault {
     },
     test("an await in each argument of a constructor evaluates left-to-right") {
       val order = scala.collection.mutable.ListBuffer.empty[String]
-      val r = Async.async {
+      val r     = Async.async {
         val p = new Pair2(
           Async.succeed { order += "a"; 7 }.await,
           Async.succeed { order += "b"; "hi" }.await

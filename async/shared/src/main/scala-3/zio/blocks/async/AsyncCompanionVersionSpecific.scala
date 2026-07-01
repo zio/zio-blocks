@@ -46,9 +46,9 @@ private[async] trait AsyncCompanionVersionSpecific {
    * `inline` so `body` is spliced directly into the `try` at the call site:
    * unlike a by-name `body: => A` parameter, no `Function0` thunk is allocated
    * (the JVM's escape analysis usually scalar-replaces such a thunk on a hot
-   * monomorphic path anyway, but inlining removes it unconditionally — including
-   * on cold, megamorphic, and code-generated call sites such as a no-`await`
-   * `Async.async { ... }`).
+   * monomorphic path anyway, but inlining removes it unconditionally —
+   * including on cold, megamorphic, and code-generated call sites such as a
+   * no-`await` `Async.async { ... }`).
    *
    * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
    * distinction. Callers who want fatal errors to propagate should rethrow them

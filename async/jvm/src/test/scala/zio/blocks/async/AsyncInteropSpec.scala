@@ -433,8 +433,8 @@ object AsyncInteropSpec extends ZIOSpecDefault {
         val inner: Pollable[Int] = new Pollable[Int] {
           def poll(onComplete: Runnable): Async[Int] = Async.fail(boom) // would surface if driven
         }
-        val readyOut = AsyncInterop.fromFuture(Future.successful(inner)).either.block
-        val p        = Promise[Pollable[Int]]()
+        val readyOut     = AsyncInterop.fromFuture(Future.successful(inner)).either.block
+        val p            = Promise[Pollable[Int]]()
         val pendingAsync = AsyncInterop.fromFuture(p.future).either
         p.success(inner)
         val pendingOut = pendingAsync.block
@@ -498,7 +498,9 @@ object AsyncInteropSpec extends ZIOSpecDefault {
           // not double-settle the Async: Completer's one-shot contract makes the
           // first callback win and silently drops the second.
           val cf = new CompletableFuture[Int]() {
-            override def whenComplete(action: java.util.function.BiConsumer[_ >: Int, _ >: Throwable]): CompletableFuture[Int] = {
+            override def whenComplete(
+              action: java.util.function.BiConsumer[_ >: Int, _ >: Throwable]
+            ): CompletableFuture[Int] = {
               action.accept(5, null)
               action.accept(null.asInstanceOf[Integer], boom)
               this
@@ -848,8 +850,8 @@ object AsyncInteropSpec extends ZIOSpecDefault {
         },
         test("fromFuture(toFuture(x)) round-trips a success value (identity through the bridge)") {
           ZIO.attemptBlocking {
-            val original              = Async.succeed(123).map(_ + 1)
-            val back: Async[Int]      = AsyncInterop.fromFuture(AsyncInterop.toFuture(original))
+            val original         = Async.succeed(123).map(_ + 1)
+            val back: Async[Int] = AsyncInterop.fromFuture(AsyncInterop.toFuture(original))
             // Drive the round-tripped value; pending future ingress settles via block.
             assertTrue(AsyncInterop.toFuture(back).value.map(_.toOption).flatten.contains(124) || back.block == 124)
           }

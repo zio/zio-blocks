@@ -55,7 +55,7 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
       // parameter. Probed by direct compilation (this very test) rather than
       // `typeCheck`: `c.typecheck` types macro-expanded trees more strictly
       // than the real compiler and rejects shapes that compile normally.
-      var fin = false
+      var fin           = false
       val a: Async[Int] = Async.async[Int] {
         try Async.fail(AsyncTestSupport.boom).await
         finally fin = true
@@ -85,7 +85,7 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
     test("await in the right operand of && short-circuits (right await is not run when left is false)") {
       // `&&`'s right operand is by-name; the macro must preserve short-circuit
       // evaluation, not hoist the right `.await` before the boolean test.
-      var rightRan      = false
+      var rightRan          = false
       val a: Async[Boolean] = Async.async {
         val left = Async.succeed(false).await
         left && { val v = Async.succeed(true).await; rightRan = true; v }
@@ -93,7 +93,7 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
       assertTrue(a.block == false, !rightRan)
     },
     test("await in the right operand of || short-circuits (right await is not run when left is true)") {
-      var rightRan      = false
+      var rightRan          = false
       val a: Async[Boolean] = Async.async {
         val left = Async.succeed(true).await
         left || { val v = Async.succeed(false).await; rightRan = true; v }
@@ -171,7 +171,7 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
     test("two positional awaited arguments evaluate left-to-right") {
       val log                    = new scala.collection.mutable.ListBuffer[String]
       def f(a: Int, b: Int): Int = a + b
-      val r = Async.async {
+      val r                      = Async.async {
         f(
           { val v = Async.succeed(1).await; log += "a"; v },
           { val v = Async.succeed(2).await; log += "b"; v }
@@ -182,7 +182,7 @@ object AsyncScala2ShapeSweepSpec extends ZIOSpecDefault {
     test("reordered named awaited arguments evaluate in textual order") {
       val log                    = new scala.collection.mutable.ListBuffer[String]
       def f(a: Int, b: Int): Int = a * 10 + b
-      val r = Async.async {
+      val r                      = Async.async {
         f(
           b = { val v = Async.succeed(2).await; log += "b"; v },
           a = { val v = Async.succeed(1).await; log += "a"; v }

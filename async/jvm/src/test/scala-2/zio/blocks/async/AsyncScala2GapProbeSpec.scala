@@ -23,9 +23,9 @@ import zio.test.Assertion._
  * ADVERSARIAL PROBE (Category AA — Scala 2 macro shape gaps). Each snippet is
  * legitimate direct-style code in an application position the macro CLAIMS to
  * support generically (the ANF application-spine transform). We assert the
- * EXPECTED compile outcome. A SHOULD-COMPILE snippet that comes back `Left`
- * (or crashes) is a macro robustness defect; an UNSUPPORTED shape that comes
- * back with a non-specific diagnostic is a DX defect.
+ * EXPECTED compile outcome. A SHOULD-COMPILE snippet that comes back `Left` (or
+ * crashes) is a macro robustness defect; an UNSUPPORTED shape that comes back
+ * with a non-specific diagnostic is a DX defect.
  */
 object AsyncScala2GapProbeSpec extends ZIOSpecDefault {
 

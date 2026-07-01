@@ -192,7 +192,7 @@ private[async] object AsyncDirect {
         // real failure, so no separate `failed` flag is needed); a settled
         // failure stores the bare `Throwable`.
         var outcome: Any = AsyncJsRuntime.Unsettled
-        val p = scala.scalajs.js.async {
+        val p            = scala.scalajs.js.async {
           try {
             val v   = $rewritten
             val box = new AsyncJsRuntime.Box[A](v)

@@ -24,9 +24,9 @@ import zio.test.Assertion._
  * Each snippet is legitimate direct-style code that contains a `.await`
  * somewhere, plus an inner construct (a local def / lazy val / class) that does
  * NOT itself await. The macro only rejects those constructs when they CONTAIN
- * an await (see `AsyncMacros.precheck`), so non-awaiting ones must be supported.
- * We assert `isRight`; a `Left` (or crash) means the macro rejects/crashes on
- * legitimate code.
+ * an await (see `AsyncMacros.precheck`), so non-awaiting ones must be
+ * supported. We assert `isRight`; a `Left` (or crash) means the macro
+ * rejects/crashes on legitimate code.
  *
  * Regression coverage: `AsyncMacros.transformBlock` must keep local member
  * definitions (`def` / `class` / `object` / `type`) and imports verbatim rather

@@ -270,15 +270,15 @@ object AsyncBlockingSpec extends ZIOSpecDefault {
                 else { remaining -= 1; onComplete.run(); this }
               }
             }
-          val logF             = scala.collection.mutable.ArrayBuffer.empty[String]
-          val af: Async[Int]   = leaf("a", logF, 1, 1)
-          val bf: Async[Int]   = leaf("b", logF, 2, 2)
-          val rF               = af.flatMap(x => bf.map(y => x + y)).block
+          val logF           = scala.collection.mutable.ArrayBuffer.empty[String]
+          val af: Async[Int] = leaf("a", logF, 1, 1)
+          val bf: Async[Int] = leaf("b", logF, 2, 2)
+          val rF             = af.flatMap(x => bf.map(y => x + y)).block
 
-          val logA             = scala.collection.mutable.ArrayBuffer.empty[String]
-          val aa: Async[Int]   = leaf("a", logA, 1, 1)
-          val ba: Async[Int]   = leaf("b", logA, 2, 2)
-          val rA               = Async.async {
+          val logA           = scala.collection.mutable.ArrayBuffer.empty[String]
+          val aa: Async[Int] = leaf("a", logA, 1, 1)
+          val ba: Async[Int] = leaf("b", logA, 2, 2)
+          val rA             = Async.async {
             val x = aa.await
             val y = ba.await
             x + y

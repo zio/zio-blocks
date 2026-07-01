@@ -27,16 +27,17 @@ import zio.test.Assertion._
  * of blocking. By-name evaluation is a core language contract — `Some(x)
  * .getOrElse(d)` must NOT evaluate `d` when the `Option` is a `Some`.
  *
- * The Scala 2 `AsyncMacros` ANF/CPS transform ANF-binds every argument
- * (`val tmp = arg`) before the call, which would force a by-name argument
- * EAGERLY — defeating its laziness and running the awaited effect
- * unconditionally. Rather than silently miscompile, the macro now REJECTS
- * `.await` in a by-name argument position at compile time, with a clear
- * diagnostic, mirroring the Scala 3 (dotty-cps-async) backend which also
- * rejects the same source (no `AsyncShift` for `Some.getOrElse`).
+ * The Scala 2 `AsyncMacros` ANF/CPS transform ANF-binds every argument (`val
+ * tmp = arg`) before the call, which would force a by-name argument EAGERLY —
+ * defeating its laziness and running the awaited effect unconditionally. Rather
+ * than silently miscompile, the macro now REJECTS `.await` in a by-name
+ * argument position at compile time, with a clear diagnostic, mirroring the
+ * Scala 3 (dotty-cps-async) backend which also rejects the same source (no
+ * `AsyncShift` for `Some.getOrElse`).
  *
- * Short-circuit `&&` / `||` are exempt: their by-name right operand is rewritten
- * to an `if`, which preserves laziness, so awaiting there remains supported.
+ * Short-circuit `&&` / `||` are exempt: their by-name right operand is
+ * rewritten to an `if`, which preserves laziness, so awaiting there remains
+ * supported.
  *
  * These tests assert the compile-time rejection (parity with Scala 3).
  */

@@ -43,9 +43,9 @@ private[async] trait AsyncCompanionVersionSpecific {
   /**
    * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
    * [[Async]] (see [[Async.fail]]). The standard way to bridge throw-based code
-   * into `Async` so that `.catchAll` can recover the error. (The Scala 3 sibling
-   * is an `inline def` that elides the by-name `Function0`; Scala 2 keeps the
-   * plain by-name `def`.)
+   * into `Async` so that `.catchAll` can recover the error. (The Scala 3
+   * sibling is an `inline def` that elides the by-name `Function0`; Scala 2
+   * keeps the plain by-name `def`.)
    *
    * Note: `attempt` catches every `Throwable`, with no non-fatal/fatal
    * distinction. Callers who want fatal errors to propagate should rethrow them
@@ -72,6 +72,6 @@ private[async] trait AsyncCompanionVersionSpecific {
    * the result is driven (`.block` / `fa.start` / interop), while the Scala.js
    * 3.8+ native `js.async`/`js.await` arm self-resumes it off the event loop.
    * The delivered value is identical everywhere.
-   *   */
+   */
   def async[A](body: A): Async[A] = macro internal.AsyncMacros.asyncImpl[A]
 }

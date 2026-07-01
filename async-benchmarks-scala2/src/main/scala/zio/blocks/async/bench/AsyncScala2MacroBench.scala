@@ -31,8 +31,8 @@ import java.util.concurrent.TimeUnit
  * compare throughput against the Scala 3 cell. Run it with `-prof gc`; the
  * acceptance criterion is allocation behavior:
  *
- *   - ready scalar awaits collapse to the hand-written `flatMap` control (and to
- *     near-zero allocation under escape analysis);
+ *   - ready scalar awaits collapse to the hand-written `flatMap` control (and
+ *     to near-zero allocation under escape analysis);
  *   - a `var` mutated across `.await` inside a `while` allocates a FIXED
  *     (constant-in-`n`) ref-cell cost, not per-link garbage;
  *   - HOF emitters (especially the newest `Array` paths) allocate only the
