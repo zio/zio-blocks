@@ -539,10 +539,13 @@ value is not.
 
 ## Interop
 
-`AsyncInterop` converts between `Async` and the platform's standard async types,
-preserving both success and failure. `scala.concurrent.Future` conversion is
-available on both platforms; the JVM additionally offers Java
-`CompletionStage` / `CompletableFuture`, and Scala.js offers `js.Promise`.
+`Async` converts to and from the platform's standard async types, preserving
+both success and failure. Ingress lives on the `Async` companion
+(`Async.fromFuture`, `Async.fromCompletionStage`, `Async.fromJsPromise`) and
+egress lives on extension methods (`fa.toFuture`, `fa.toCompletableFuture`,
+`fa.toJsPromise`). `scala.concurrent.Future` conversion is available on both
+platforms; the JVM additionally offers Java `CompletionStage` /
+`CompletableFuture`, and Scala.js offers `js.Promise`.
 
 On the JVM:
 
@@ -553,14 +556,15 @@ import java.util.concurrent.CompletableFuture
 
 implicit val ec: ExecutionContext = ExecutionContext.global
 
-val fromFut: Async[Int]          = AsyncInterop.fromFuture(Future.successful(1))
-val toFut: Future[Int]           = AsyncInterop.toFuture(Async.succeed(1))
-val fromStage: Async[Int]        = AsyncInterop.fromCompletionStage(CompletableFuture.completedFuture(1))
-val toStage: CompletableFuture[Int] = AsyncInterop.toCompletableFuture(Async.succeed(1))
+val fromFut: Async[Int]             = Async.fromFuture(Future.successful(1))
+val toFut: Future[Int]              = Async.succeed(1).toFuture
+val fromStage: Async[Int]           = Async.fromCompletionStage(CompletableFuture.completedFuture(1))
+val toStage: CompletableFuture[Int] = Async.succeed(1).toCompletableFuture
 ```
 
-On Scala.js, `AsyncInterop` provides `fromFuture` / `toFuture` plus
-`fromJsPromise` / `toJsPromise` for native `scala.scalajs.js.Promise` interop.
+On Scala.js, the companion provides `Async.fromFuture` / `Async.fromJsPromise`
+and the egress extensions provide `fa.toFuture` / `fa.toJsPromise` for native
+`scala.scalajs.js.Promise` interop.
 
 ## Low-level building blocks: `Pollable`
 
@@ -614,7 +618,7 @@ for speed and accepts the depth bound instead.)
 | `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), native `js.async`/`js.await` for direct-position awaits with DCA fallback for closure/by-name awaits (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`takeWhile`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
 | `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
 | `Async.start` / `Async.Running`       | ✅ | ✅ | ✅        | ✅        | Eager non-blocking runner; worker thread (JVM) / microtask (JS) |
-| `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `AsyncInterop.fromFuture` / `toFuture` on both platforms |
+| `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `Async.fromFuture` / `fa.toFuture` on both platforms |
 | `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
 | `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
 

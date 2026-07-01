@@ -780,12 +780,12 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](docs/./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](docs/./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](docs/./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](docs/./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](docs/./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](docs/./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](docs/./reference/ringbuffer/index.md) - High-performance bounded ring buffers
+- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
 - [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results
