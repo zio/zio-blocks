@@ -116,6 +116,10 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
     if (s == null) null else UUID.fromString(s)
   }
 
+  override def getArray(index: Int): java.sql.Array = underlying.getArray(index)
+
+  override def getArray(label: String): java.sql.Array = underlying.getArray(label)
+
   def columnLabel(index: Int): String = underlying.getMetaData.getColumnLabel(index)
 
   def hasColumn(label: String): Boolean = availableColumns.contains(label)

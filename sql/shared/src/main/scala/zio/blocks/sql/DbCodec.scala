@@ -140,8 +140,8 @@ object DbCodec extends DbCodecOpaquePriority {
 
   /**
    * Derives a `DbCodec[A]` using the default column name mapper.
-   * Self-contained: derives `Schema[A]` internally, so no `Schema` needs to
-   * be in scope. Enables the Scala 3 `derives` clause:
+   * Self-contained: derives `Schema[A]` internally, so no `Schema` needs to be
+   * in scope. Enables the Scala 3 `derives` clause:
    * `case class User(...) derives DbCodec`
    */
   inline given derived[A]: DbCodec[A] =
@@ -357,6 +357,10 @@ trait DbResultReader {
   def getDuration(label: String): java.time.Duration
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
+  def getArray(index: Int): java.sql.Array =
+    throw new UnsupportedOperationException("DbResultReader does not support getArray(index)")
+  def getArray(label: String): java.sql.Array =
+    throw new UnsupportedOperationException("DbResultReader does not support getArray(label)")
   def columnLabel(index: Int): String
   def hasColumn(label: String): Boolean
   def wasNull: Boolean

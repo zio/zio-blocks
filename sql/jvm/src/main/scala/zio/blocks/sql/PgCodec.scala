@@ -36,6 +36,58 @@ package zio.blocks.sql
  */
 object PgCodec {
 
+  private val ValueColumn = IndexedSeq("value")
+
+  private def readStringArray(sqlArray: java.sql.Array): Array[String] =
+    if (sqlArray == null) null
+    else
+      try sqlArray.getArray().asInstanceOf[Array[String]]
+      finally sqlArray.free()
+
+  private val listStringArrayCodec: DbCodec[List[String]] = new DbCodec[List[String]] {
+    val columns: IndexedSeq[String] = ValueColumn
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): List[String] = {
+      val values = readStringArray(reader.getArray(columnLabels.head))
+      if (values == null) null else List.from(values)
+    }
+
+    override def readValue(reader: DbResultReader, startIndex: Int): List[String] = {
+      val values = readStringArray(reader.getArray(startIndex))
+      if (values == null) null else List.from(values)
+    }
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: List[String]): Unit =
+      writer.setArray(startIndex, "varchar", value.toIndexedSeq)
+
+    def toDbValues(value: List[String]): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.DbArray("varchar", value.toIndexedSeq))
+  }
+
+  private val iArrayStringArrayCodec: DbCodec[IArray[String]] = new DbCodec[IArray[String]] {
+    val columns: IndexedSeq[String] = ValueColumn
+
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): IArray[String] = {
+      val values = readStringArray(reader.getArray(columnLabels.head))
+      if (values == null) null.asInstanceOf[IArray[String]] else IArray.from(values)
+    }
+
+    override def readValue(reader: DbResultReader, startIndex: Int): IArray[String] = {
+      val values = readStringArray(reader.getArray(startIndex))
+      if (values == null) null.asInstanceOf[IArray[String]] else IArray.from(values)
+    }
+
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: IArray[String]): Unit =
+      writer.setArray(startIndex, "varchar", value.toIndexedSeq)
+
+    def toDbValues(value: IArray[String]): IndexedSeq[DbValue] =
+      IndexedSeq(DbValue.DbArray("varchar", value.toIndexedSeq))
+  }
+
+  given listStringCodec: DbCodec[List[String]] = listStringArrayCodec
+
+  given iArrayStringCodec: DbCodec[IArray[String]] = iArrayStringArrayCodec
+
   given seqStringParam: DbParam[Seq[String]] with {
     def toDbValue(v: Seq[String]): DbValue = DbValue.DbArray("varchar", v.toIndexedSeq)
   }
