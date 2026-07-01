@@ -2405,15 +2405,15 @@ final class JsonWriter private[json] (
         } else if (e2 == 105) illegalNumberError(x)
         if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
         else e10 = (e2 * 315653) >> 20
-        val h     = (((e10 + 1) * -217707) >> 16) + e2
-        val pow10 = floatPow10s(31 - e10)
-        val hi64  = unsignedMultiplyHigh1(
+        val h               = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10           = floatPow10s(31 - e10)
+        val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
+        val hi64            = unsignedMultiplyHigh1(
           pow10,
           m2.toLong << (h + 37)
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10, m2.toLong << (h + 37))
+        val dotOne = hi64 & 0xfffffffffL
         m10 = (hi64 >>> 36).toInt * 10
-        val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
-        val dotOne          = hi64 & 0xfffffffffL
         if (
           {
             if (m2IEEE == 0) halfUlpPlusEven >>> 1
@@ -2507,33 +2507,35 @@ final class JsonWriter private[json] (
         } else if (e2 == 972) illegalNumberError(x)
         if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
         else e10 = (e2 * 315653) >> 20
-        val h       = (((e10 + 1) * -217707) >> 16) + e2
-        val pow10s  = doublePow10s
-        val i       = 292 - e10 << 1
-        val pow10_1 = pow10s(i)
-        val pow10_2 = pow10s(i + 1)
-        val cb      = m2 << (h + 7)
-        val lo64_1  = unsignedMultiplyHigh2(
+        val h               = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10s          = doublePow10s
+        val i               = 292 - e10 << 1
+        val pow10_1         = pow10s(i)
+        val pow10_2         = pow10s(i + 1)
+        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
+        val cb              = m2 << (h + 7)
+        val lo64_1          = unsignedMultiplyHigh2(
           pow10_2,
           cb
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_2, cb)
         val lo64_2 = pow10_1 * cb
-        var hi64   = unsignedMultiplyHigh2(
+        var hi64   = unsignedMultiplyHigh1(
           pow10_1,
           cb
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_1, cb)
         val lo64 = lo64_1 + lo64_2
         hi64 += compareUnsigned(lo64, lo64_1) >>> 31
-        m10 = (hi64 >>> 6) * 10L
-        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
-        val dotOne          = (hi64 << 58) | (lo64 >>> 6)
-        if (compareUnsigned(halfUlpPlusEven, -1 - dotOne) > 0) m10 += 10L
-        else if ({
-          if (m2IEEE != 0) compareUnsigned(halfUlpPlusEven, dotOne) <= 0
+        val dotOne = (hi64 << 58) | (lo64 >>> 6)
+        var mCorr  = 0
+        if ({
+          if (compareUnsigned(-1 - dotOne, halfUlpPlusEven) < 0) {
+            mCorr = 10
+            false
+          } else if (m2IEEE != 0) compareUnsigned(halfUlpPlusEven, dotOne) <= 0
           else {
             val tmp = (dotOne >>> 4) * 10L
-            if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) {
-              m10 += (tmp >>> 60).toInt + 1
+            if (compareUnsigned(tmp & 0x0fffffffffffffffL, (halfUlpPlusEven >>> 4) * 5L) > 0) {
+              mCorr = (tmp >>> 60).toInt + 1
               false
             } else compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0
           }
@@ -2545,7 +2547,7 @@ final class JsonWriter private[json] (
             if (dotOne == 0x4000000000000000L) 0x1fL
             else 0x20L
           }) >>> 6
-        }
+        } else m10 = (hi64 >>> 6) * 10L + mCorr
       }
       val len = digitCount(m10)
       e10 += len - 1
@@ -3535,15 +3537,15 @@ object JsonWriter {
         } else if (e2 == 105) throw new IllegalArgumentException("Infinity or NaN")
         if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
         else e10 = (e2 * 315653) >> 20
-        val h     = (((e10 + 1) * -217707) >> 16) + e2
-        val pow10 = floatPow10s(31 - e10)
-        val hi64  = unsignedMultiplyHigh1(
+        val h               = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10           = floatPow10s(31 - e10)
+        val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
+        val hi64            = unsignedMultiplyHigh1(
           pow10,
           m2.toLong << (h + 37)
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10, m2.toLong << (h + 37))
+        val dotOne = hi64 & 0xfffffffffL
         m10 = (hi64 >>> 36).toInt * 10
-        val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
-        val dotOne          = hi64 & 0xfffffffffL
         if (
           {
             if (m2IEEE == 0) halfUlpPlusEven >>> 1
@@ -3597,34 +3599,47 @@ object JsonWriter {
         } else if (e2 == 972) throw new IllegalArgumentException("Infinity or NaN")
         if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
         else e10 = (e2 * 315653) >> 20
-        val h       = (((e10 + 1) * -217707) >> 16) + e2
-        val pow10s  = doublePow10s
-        val i       = 292 - e10 << 1
-        val pow10_1 = pow10s(i)
-        val pow10_2 = pow10s(i + 1)
-        val cb      = m2 << (h + 7)
-        val lo64_1  = unsignedMultiplyHigh2(
+        val h               = (((e10 + 1) * -217707) >> 16) + e2
+        val pow10s          = doublePow10s
+        val i               = 292 - e10 << 1
+        val pow10_1         = pow10s(i)
+        val pow10_2         = pow10s(i + 1)
+        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
+        val cb              = m2 << (h + 7)
+        val lo64_1          = unsignedMultiplyHigh2(
           pow10_2,
           cb
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_2, cb)
         val lo64_2 = pow10_1 * cb
-        var hi64   = unsignedMultiplyHigh2(
+        var hi64   = unsignedMultiplyHigh1(
           pow10_1,
           cb
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_1, cb)
         val lo64 = lo64_1 + lo64_2
         hi64 += compareUnsigned(lo64, lo64_1) >>> 31
-        m10 = (hi64 >>> 6) * 10L
-        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
-        val dotOne          = (hi64 << 58) | (lo64 >>> 6)
-        if (compareUnsigned(halfUlpPlusEven, -1 - dotOne) > 0) m10 += 10L
-        else if (m2IEEE != 0) {
-          if (compareUnsigned(halfUlpPlusEven, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
-        } else {
-          val tmp = (dotOne >>> 4) * 10L
-          if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) m10 += (tmp >>> 60).toInt + 1
-          else if (compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
-        }
+        val dotOne = (hi64 << 58) | (lo64 >>> 6)
+        var mCorr  = 0
+        if ({
+          if (compareUnsigned(-1 - dotOne, halfUlpPlusEven) < 0) {
+            mCorr = 10
+            false
+          } else if (m2IEEE != 0) compareUnsigned(halfUlpPlusEven, dotOne) <= 0
+          else {
+            val tmp = (dotOne >>> 4) * 10L
+            if (compareUnsigned(tmp & 0x0fffffffffffffffL, (halfUlpPlusEven >>> 4) * 5L) > 0) {
+              mCorr = (tmp >>> 60).toInt + 1
+              false
+            } else compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0
+          }
+        }) {
+          m10 = (hi64 * 10L + unsignedMultiplyHigh2(
+            lo64,
+            10L
+          ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
+            if (dotOne == 0x4000000000000000L) 0x1fL
+            else 0x20L
+          }) >>> 6
+        } else m10 = (hi64 >>> 6) * 10L + mCorr
       }
       var q1 = 0L
       while (
@@ -3665,14 +3680,4 @@ object JsonWriter {
   @inline
   private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
     Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
-
-  @inline
-  private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
-    (hi * 10L + unsignedMultiplyHigh2(
-      lo,
-      10L
-    ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-      if (dotOne == 0x4000000000000000L) 0x1fL
-      else 0x20L
-    }) >>> 6
 }
