@@ -20,7 +20,7 @@ package zio.blocks
  * ZIO Blocks Async — a lightweight asynchronous effect type.
  *
  * An `Async[A]` is a (possibly suspended) computation that eventually yields an
- * `A` or fails with a [[Throwable]]. Create one with [[async.Async.succeed]],
+ * `A` or fails with a `Throwable`. Create one with [[async.Async.succeed]],
  * [[async.Async.fail]], [[async.Async.attempt]], or [[async.Async.promise]]; a
  * bare `A` is not itself an `Async[A]`. Transform and combine values with the
  * extension methods (`map`, `flatMap`, `catchAll`, `await`, ...) brought into
@@ -43,7 +43,7 @@ package object async extends AsyncSyntaxVersionSpecific with AsyncSyntaxPlatform
 
   /**
    * A possibly-suspended computation that will eventually yield an `A` (or fail
-   * with a [[Throwable]]). A [[async.Pollable]] may be used wherever an
+   * with a `Throwable`). A [[async.Pollable]] may be used wherever an
    * `Async[A]` is expected.
    *
    * `Async` is a restricted monad: `A` must not itself be an `Async` (nor a

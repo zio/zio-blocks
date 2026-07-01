@@ -20,7 +20,7 @@ package zio.blocks.async
  * Failure outcome of an [[Async]]. Constructed via [[Async.fail]] (or by
  * [[Completer.fail]], or captured from thrown code by [[Async.attempt]]);
  * recovered via the `.catchAll` / `.mapError` / `.orElse` extensions or
- * surfaced as a thrown [[Throwable]] by `.block`.
+ * surfaced as a thrown `Throwable` by `.block`.
  *
  * A failure is terminal: once an [[Async]] has failed, it stays failed with the
  * same `cause` unless a handler such as `.catchAll` recovers it.

@@ -90,7 +90,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
    * (`Async.start { ...; throw e }`, `Async.start(???)`) — as a failed run
    * rather than letting it escape at the call site, and lifts the result with
    * the same runtime encoding as every other value received from the user (a
-   * `Pollable` success value is wrapped, a [[AsyncEncoding.WrappedPollable]]
+   * `Pollable` success value is wrapped, a `AsyncEncoding.WrappedPollable`
    * carrier has its depth incremented).
    *
    * To eagerly drive an '''already-built''' `Async` instead — composing with
@@ -113,7 +113,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
   }
 
   /**
-   * Sequentially run `as` and collect their values into a [[List]] in input
+   * Sequentially run `as` and collect their values into a `List` in input
    * order. A failure short-circuits — subsequent inputs are not driven and the
    * failure is propagated.
    */
@@ -248,7 +248,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
     // caller must advance to, exactly as the top-level drivers (`block`,
     // `start`, the interop runners) do. A terminal success is never encoded as
     // a bare `Pollable`: pollable-as-value successes travel as
-    // [[AsyncEncoding.WrappedPollable]] carriers (which do not extend
+    // `AsyncEncoding.WrappedPollable` carriers (which do not extend
     // [[Pollable]]). Combinators that have applied their user function and owe
     // the caller nothing further return their child's pending pollable
     // directly (a replacement), which keeps resume O(1) and collapses
@@ -402,7 +402,7 @@ object Async extends AsyncCompanionVersionSpecific with AsyncCompanionPlatformSp
 
     /**
      * Drive `fa` to its value. Bare [[Pollable]] encodings are suspended
-     * computations; [[AsyncEncoding.WrappedPollable]] drives the stored user
+     * computations; `AsyncEncoding.WrappedPollable` drives the stored user
      * [[Pollable]] for effects but exits with pollable identity.
      */
     def block[A](fa: Any): A =

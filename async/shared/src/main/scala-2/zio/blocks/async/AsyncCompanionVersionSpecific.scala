@@ -41,7 +41,7 @@ private[async] trait AsyncCompanionVersionSpecific {
     Async.promiseInternal(body)
 
   /**
-   * Evaluate `body` eagerly, capturing any thrown [[Throwable]] as a failed
+   * Evaluate `body` eagerly, capturing any thrown `Throwable` as a failed
    * [[Async]] (see [[Async.fail]]). The standard way to bridge throw-based code
    * into `Async` so that `.catchAll` can recover the error. (The Scala 3
    * sibling is an `inline def` that elides the by-name `Function0`; Scala 2

@@ -43,7 +43,7 @@ trait Cancelable extends AutoCloseable {
    */
   def cancel(): Unit
 
-  /** Alias for [[cancel]] so a running handle works as an [[AutoCloseable]]. */
+  /** Alias for [[cancel]] so a running handle works as an `AutoCloseable`. */
   final def close(): Unit = cancel()
 }
 

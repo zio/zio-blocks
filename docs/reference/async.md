@@ -632,5 +632,3 @@ diverges.
 - [Runnable example](#runnable-example) — `async-examples` single-file showcase
 - [Combinators](./combinators.md) — `Async#zip` uses the `Tuples` combiner for
   automatic tuple flattening.
-</content>
-</invoke>
