@@ -1895,8 +1895,13 @@ object AsyncSpec extends ZIOSpecDefault {
       suite("never orElse pollable recovery")(
         test("orElse_pendingFail_succeedPollable_deliversPollableIdentity") {
           val inner        = AsyncTestSupport.pollableSuccessValue
+          // Both sides are `Async[Pollable[Int]]` so `Concat` is identity-like on
+          // every Scala version (Scala 3 would otherwise union and Scala 2 would
+          // widen disjoint sides to `Either`); this keeps the test about
+          // pollable-as-value identity passing through `orElse`, not about the
+          // widening shape.
           val (c, pending) = {
-            val c = new Completer[Int]
+            val c = new Completer[Pollable[Int]]
             (c, c.peek)
           }
           val fa = pending.orElse(Async.succeed(inner))

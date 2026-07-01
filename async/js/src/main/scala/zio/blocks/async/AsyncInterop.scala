@@ -29,8 +29,13 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  * non-blocking, as required on JavaScript. The JVM offers the analogous
  * `Future` conversions plus `CompletionStage` / `CompletableFuture` interop in
  * place of `js.Promise`.
+ *
+ * Internal implementation: the public surface is [[Async.fromFuture]] /
+ * [[Async.fromJsPromise]] on the companion and the `fa.toFuture` /
+ * `fa.toJsPromise` extension methods (see `AsyncSyntaxPlatformSpecific`), which
+ * forward here.
  */
-object AsyncInterop {
+private[async] object AsyncInterop {
 
   /**
    * Construct an [[Async]] that completes with the same value or error as
@@ -115,13 +120,13 @@ object AsyncInterop {
       // would re-poll the completed pollable and re-complete `p`, throwing
       // `IllegalStateException: Promise already completed`. Mirrors the JVM
       // driver, which collapses multiple wakeups and stops polling after a value.
-      var settled                   = false
+      var settled = false
       // Re-arm on the next microtask via a cached `Runnable` scheduled directly
       // onto the JS microtask queue (`ec.execute`, which Scala.js implements as
       // `Promise.resolve().then(...)`), instead of allocating a
       // Promise + Future + `Try` bridge per wakeup. `step` already guards on
       // `settled`, so a redundant resumption stays idempotent.
-      lazy val resume: Runnable      = new Runnable { def run(): Unit = step() }
+      lazy val resume: Runnable     = new Runnable { def run(): Unit = step() }
       lazy val onComplete: Runnable = new Runnable {
         def run(): Unit = ec.execute(resume)
       }

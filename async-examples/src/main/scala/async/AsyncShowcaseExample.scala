@@ -300,7 +300,7 @@ object AsyncShowcaseExample extends App {
   section(10, "Future interop — round-trip without blocking the Async encoding")
 
   val fromFuture: Int =
-    AsyncInterop
+    Async
       .fromFuture(Future {
         Thread.sleep(20)
         42
@@ -308,7 +308,7 @@ object AsyncShowcaseExample extends App {
       .block
 
   val toFuture: Int =
-    Await.result(AsyncInterop.toFuture(Async.succeed(fromFuture).map(_ + 1)), 2.seconds)
+    Await.result(Async.succeed(fromFuture).map(_ + 1).toFuture, 2.seconds)
 
   println(s"  fromFuture => $fromFuture, toFuture => $toFuture")
 

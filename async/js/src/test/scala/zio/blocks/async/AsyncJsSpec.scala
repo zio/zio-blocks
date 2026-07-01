@@ -47,6 +47,20 @@ object AsyncJsSpec extends ZIOSpecDefault {
         val r = Async.succeed(99).block
         assertTrue(r == 99)
       },
+      test("block on a synchronously-evaluable multi-poll pollable works on JS (waker fires synchronously)") {
+        // StepChain fires its waker synchronously on every poll and hands back a
+        // fresh pollable, so the JS parker never actually has to block — the loop
+        // re-polls in the same tick and drives it to completion.
+        val r = (new StepChain(3, 0): Async[Int]).block
+        assertTrue(r == 3)
+      },
+      test("block on a pollable that wakes synchronously then settles works on JS") {
+        // DoubleWake fires its waker (twice) synchronously on poll #1 and is
+        // ready on poll #2: synchronously evaluable, so .block returns rather
+        // than throwing.
+        val r = (new DoubleWake: Async[Int]).block
+        assertTrue(r == 42)
+      },
       // -------- (a) multi-wake across multiple polls --------
       test("toFuture: N>2 wakes across multiple polls — completes once, polled exactly 3x") {
         val p = new MultiWake

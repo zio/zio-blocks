@@ -255,14 +255,14 @@ object AsyncErrorSpec extends ZIOSpecDefault {
         // Recovering a failure INTO `never` must leave the whole thing pending —
         // structural oracle: the result is a non-Failure Pollable and one poll
         // does not settle it. No wall-clock bound.
-        val a: Async[Int] = Async.fail(AsyncTestSupport.boom).orElse(Async.never)
+        val a: Async[Int] = (Async.fail(AsyncTestSupport.boom): Async[Int]).orElse[Int](Async.never)
         assertTrue(
           AsyncTestSupport.isPending(a),
           AsyncTestSupport.isPending(AsyncTestSupport.pollOnce(a))
         )
       },
       test("orElse(never) on a success delivers the value (alternative never consulted)") {
-        val a: Async[Int] = Async.succeed(7).orElse(Async.never)
+        val a: Async[Int] = Async.succeed(7).orElse[Int](Async.never)
         assertTrue(a.block == 7)
       }
     ),

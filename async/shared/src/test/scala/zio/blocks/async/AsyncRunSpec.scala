@@ -237,6 +237,17 @@ object AsyncRunSpec extends ZIOSpecDefault {
           c.succeed(1)
           Live.live(ZIO.sleep(100.millis)).as(assertTrue(!fired.get()))
         },
+        test("close (AutoCloseable) aliases cancel and is idempotent") {
+          // Deterministic: a synchronously-completed run leaves no driver loop,
+          // so close() (= cancel()) is a pure no-op. Driven through the
+          // AutoCloseable supertype to prove the alias dispatches to cancel.
+          var count                    = 0
+          val running                  = AsyncTestSupport.startTap(Async.succeed(1))(_ => count += 1)
+          val closeable: AutoCloseable = running
+          closeable.close()
+          closeable.close()
+          assertTrue(count == 1)
+        },
         test("cancel is idempotent on a genuinely suspended run") {
           // `Async.never` always takes the suspended path on both platforms,
           // so the second `cancel()` exercises the already-settled no-op branch

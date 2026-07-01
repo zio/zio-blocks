@@ -37,7 +37,7 @@ package zio.blocks
  *   val n: Int = a.map(_ + 1).block
  * }}}
  */
-package object async extends AsyncSyntaxVersionSpecific {
+package object async extends AsyncSyntaxVersionSpecific with AsyncSyntaxPlatformSpecific {
 
   private[async] val encoding: AsyncEncoding = AsyncEncoding.Instance
 

@@ -32,8 +32,13 @@ import scala.util.{Failure => SFailure, Success => SSuccess}
  * becomes one that fails with the same error (and vice versa). Scala.js offers
  * the analogous `Future` conversions plus `js.Promise` interop in place of
  * `CompletionStage` / `CompletableFuture`.
+ *
+ * Internal implementation: the public surface is [[Async.fromFuture]] /
+ * [[Async.fromCompletionStage]] on the companion and the `fa.toFuture` /
+ * `fa.toCompletableFuture` extension methods (see
+ * `AsyncSyntaxPlatformSpecific`), which forward here.
  */
-object AsyncInterop {
+private[async] object AsyncInterop {
 
   /**
    * Construct an [[Async]] that completes with the same value or error as

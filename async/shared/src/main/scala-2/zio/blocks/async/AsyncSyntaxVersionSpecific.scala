@@ -16,6 +16,7 @@
 
 package zio.blocks.async
 
+import zio.blocks.combinators.Concat
 import zio.blocks.combinators.Tuples.Tuples
 import zio.blocks.async.internal.AsyncRunner
 import scala.annotation.compileTimeOnly
@@ -165,9 +166,26 @@ private[async] trait AsyncSyntaxVersionSpecific {
       else r.asInstanceOf[Async[A]]
     }
 
-    /** Fall back to `that` if `fa` fails. */
-    def orElse[A1 >: A](that: => Async[A1]): Async[A1] =
-      catchAll((_: Throwable) => that)
+    /**
+     * Fall back to `that` if `fa` fails, widening the two success types through
+     * the `combinators` [[Concat]] instance: same type / sub-/supertype / a
+     * shared meaningful supertype collapses to that type, and otherwise
+     * disjoint sides widen to `Either[A, B]` (the Scala 3 sibling produces the
+     * native union `A | B`). `that` is by-name, so the fallback is built only on
+     * failure.
+     *
+     * The common case is allocation-free: when `Concat.isIdentityLike` (every
+     * derivation except the disjoint `Either` one) both sides are already valid
+     * `Out` values, so we skip the per-value `left`/`right` projections (no
+     * `map` wrappers) and just recover with a cast — for a ready `fa` this
+     * collapses to a no-op. Only the disjoint `Either` widening actually
+     * projects each side through `c.left` / `c.right`.
+     */
+    def orElse[B](that: => Async[B])(implicit c: Concat[A, B]): Async[c.Out] =
+      if (c.isIdentityLike)
+        fa.asInstanceOf[Async[c.Out]].catchAll((_: Throwable) => that.asInstanceOf[Async[c.Out]])
+      else
+        fa.map(c.left).catchAll((_: Throwable) => that.map(c.right))
 
     /**
      * Fold a possibly-failed [[Async]] into a guaranteed-success value by

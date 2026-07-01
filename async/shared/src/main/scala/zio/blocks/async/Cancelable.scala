@@ -28,14 +28,23 @@ package zio.blocks.async
  * suppresses the callback, but does NOT guarantee that an already-running
  * `poll` has returned, nor does it abort an in-flight leaf (socket read, timer,
  * JS promise). Aborting a leaf is the source's responsibility.
+ *
+ * Extends [[java.lang.AutoCloseable]] so a [[Async.Running]] handle can be used
+ * as a managed resource (`scala.util.Using`, Java try-with-resources):
+ * [[close]] simply delegates to [[cancel]]. `cancel` remains the canonical verb
+ * — it names the domain operation (stop an in-flight computation) and, unlike
+ * `AutoCloseable.close`, declares no checked exception.
  */
-trait Cancelable {
+trait Cancelable extends AutoCloseable {
 
   /**
    * Stop the driver loop. Idempotent and synchronous; a no-op after the run has
    * completed. See the trait documentation for the cancellation contract.
    */
   def cancel(): Unit
+
+  /** Alias for [[cancel]] so a running handle works as an [[AutoCloseable]]. */
+  final def close(): Unit = cancel()
 }
 
 /** Companion for [[Cancelable]], providing the no-op handle. */
