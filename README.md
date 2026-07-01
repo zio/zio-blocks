@@ -29,6 +29,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
+| **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
 
 ## Config
 
@@ -660,6 +661,43 @@ import zio.blocks.streams._
 
 ---
 
+## Async
+
+A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
+an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
+the happy path while still suspending on genuinely asynchronous work.
+
+```scala
+import zio.blocks.async._
+
+// Constructors collapse to bare values; transformers inline with no allocation
+val computed: Int =
+  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
+// computed: Int = 42
+```
+
+Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
+at compile time into a non-blocking `flatMap` chain:
+
+```scala
+import zio.blocks.async._
+
+def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
+
+val program: Async[Int] =
+  Async.async {
+    val a = fetch(1).await
+    val b = fetch(2).await
+    (a + b).length
+  }
+```
+
+See the [Async reference](docs/./reference/async.md) for the full API, including
+`zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
+`Future` / `CompletionStage` interop.
+
+---
+
 ## Compatibility
 
 ZIO Blocks works with any Scala stack:
@@ -679,10 +717,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | Async |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
 
 ## Documentation
 
@@ -742,17 +780,18 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](docs/./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](docs/./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](docs/./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](docs/./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](docs/./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](docs/./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](docs/./reference/ringbuffer/index.md) - High-performance bounded ring buffers
+- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
 - [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](docs/./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](docs/./reference/streams/writer.md) - Low-level push-based sinks for streaming
+- [Async](docs/./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 
