@@ -145,28 +145,54 @@ final case class SchemaExpr[A, B](
    * Get the underlying dynamic expression.
    */
   def toDynamic: DynamicSchemaExpr = dynamic
-
-  // Logical combinators
-  def &&[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr(
-      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
-      inputSchema,
-      Schema[Boolean]
-    )
-
-  def ||[B2](
-    that: SchemaExpr[A, B2]
-  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
-    SchemaExpr(
-      DynamicSchemaExpr.Logical(this.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
-      inputSchema,
-      Schema[Boolean]
-    )
 }
 
 object SchemaExpr {
+
+  /**
+   * Logical combinators for boolean SchemaExprs.
+   *
+   * Provided as an implicit class rather than direct methods on SchemaExpr so
+   * that downstream libraries can supply their own implicit class with &&/||
+   * overloads for a different result type (e.g. a DDB-specific or SQL-specific
+   * expression ADT).
+   *
+   * In Scala 2, a direct method found by name suppresses implicit receiver
+   * views even when the argument type does not match (SLS §7.3). Moving &&/||
+   * here lifts that suppression: when a downstream library brings in its own
+   * ops class via an explicit import, that import-scope implicit takes priority
+   * over this companion-scope implicit (Scala 2 implicit priority: local/import
+   * > companion), so the downstream overload wins for `se && downstreamValue`
+   * without ambiguity in that context.
+   *
+   * Note: two companion-scope implicits providing &&/|| would still be
+   * ambiguous for `se && se2`. Downstream libraries should introduce their ops
+   * via explicit import (or a user-facing object) rather than a companion to
+   * avoid that scenario.
+   */
+  implicit final class BooleanOps[A, B](private val self: SchemaExpr[A, B]) extends AnyVal {
+
+    def and(that: SchemaExpr[A, Boolean])(implicit
+      @scala.annotation.unused ev: B <:< Boolean
+    ): SchemaExpr[A, Boolean] =
+      SchemaExpr(
+        DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.And),
+        self.inputSchema,
+        Schema[Boolean]
+      )
+
+    def or(that: SchemaExpr[A, Boolean])(implicit
+      @scala.annotation.unused ev: B <:< Boolean
+    ): SchemaExpr[A, Boolean] =
+      SchemaExpr(
+        DynamicSchemaExpr.Logical(self.dynamic, that.dynamic, DynamicSchemaExpr.LogicalOperator.Or),
+        self.inputSchema,
+        Schema[Boolean]
+      )
+
+    def &&(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = and(that)
+    def ||(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean] = or(that)
+  }
 
   private def outOfRange(value: Any, target: String): Either[Predef.String, DynamicValue] =
     Left(s"Value $value is out of range for $target")

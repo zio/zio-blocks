@@ -317,9 +317,13 @@ val result = nameExpr.evalDynamic(Person("Alice", 30))
 
 Combines two boolean-typed expressions with logical AND. Both operands must produce `Boolean` results.
 
+`&&` and `||` are provided via `SchemaExpr.BooleanOps`, an implicit class in the `SchemaExpr` companion, rather than as direct methods on `SchemaExpr`. This lets downstream libraries supply their own `&&`/`||` overloads (e.g. returning a DDB- or SQL-specific expression type) by bringing in their own implicit class via an explicit import, which takes priority over the companion-scope implicit in Scala 2 and 3.
+
 ```scala
-trait SchemaExprLike[A, B] {
-  def &&[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
+// In SchemaExpr companion:
+implicit final class BooleanOps[A, B](val self: SchemaExpr[A, B]) extends AnyVal {
+  def and(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean]
+  def &&(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean]
 }
 ```
 
@@ -347,8 +351,10 @@ val result = isAdultAlice.eval(Person("Alice", 30))
 Combines two boolean-typed expressions with logical OR.
 
 ```scala
-trait SchemaExprLike[A, B] {
-  def ||[B2](that: SchemaExpr[A, B2])(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean]
+// In SchemaExpr companion:
+implicit final class BooleanOps[A, B](val self: SchemaExpr[A, B]) extends AnyVal {
+  def or(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean]
+  def ||(that: SchemaExpr[A, Boolean])(implicit ev: B <:< Boolean): SchemaExpr[A, Boolean]
 }
 ```
 
