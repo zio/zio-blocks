@@ -189,12 +189,8 @@ final class JsonWriter private[json] (
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeKey()
     writeBytes('"')
-    if (x.isValidLong) {
-      val l = x.longValue
-      val i = l.toInt
-      if (i == l) writeInt(i)
-      else writeLong(l)
-    } else writeBigInteger(x.bigInteger, null)
+    if (x.isValidLong) writeLong(x.longValue)
+    else writeBigInteger(x.bigInteger, null)
     writeParenthesesWithColon()
   }
 
@@ -520,12 +516,8 @@ final class JsonWriter private[json] (
   def writeVal(x: BigInt): Unit = {
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
-    if (x.isValidLong) {
-      val l = x.longValue
-      val i = l.toInt
-      if (i == l) writeInt(i)
-      else writeLong(l)
-    } else writeBigInteger(x.bigInteger, null)
+    if (x.isValidLong) writeLong(x.longValue)
+    else writeBigInteger(x.bigInteger, null)
   }
 
   /**
@@ -888,12 +880,8 @@ final class JsonWriter private[json] (
     if (x eq null) throw new NullPointerException
     writeOptionalCommaAndIndentionBeforeValue()
     writeBytes('"')
-    if (x.isValidLong) {
-      val l = x.longValue
-      val i = l.toInt
-      if (i == l) writeInt(i)
-      else writeLong(l)
-    } else writeBigInteger(x.bigInteger, null)
+    if (x.isValidLong) writeLong(x.longValue)
+    else writeBigInteger(x.bigInteger, null)
     writeBytes('"')
   }
 
@@ -1743,12 +1731,13 @@ final class JsonWriter private[json] (
         pos += 1
         exp = -exp
       }
-      var q = exp.toInt
-      if (exp == q) {
+      var q = 0
+      if ((exp & 0xffffffff80000000L) == 0L) {
+        q = exp.toInt
         pos += digitCount(q)
         count = pos
       } else {
-        q = (exp * 1e-8).toInt // divide a small positive long by 100000000
+        q = (exp * 1.0000000000000005e-8).toInt // divide a small positive long by 100000000
         pos += ((9 - q) >>> 31) + 1
         count = write8Digits((exp - q * 100000000L).toInt, pos, buf, ds)
       }
@@ -1915,9 +1904,7 @@ final class JsonWriter private[json] (
       var hours      = 0L
       var secsOfHour = totalSecs.toInt
       if (totalSecs >= 3600) {
-        hours =
-          if (totalSecs >= 4503599627370496L) totalSecs / 3600
-          else (totalSecs * 2.777777777777778e-4).toLong
+        hours = java.lang.Long.divideUnsigned(totalSecs, 3600L)
         secsOfHour = (totalSecs - (hours << 12) + (hours << 9) - (hours << 4)).toInt // (totalSecs - hours * 3600).toInt
       }
       val minutes = secsOfHour * 17477 >> 20 // divide a small positive int by 60
@@ -1928,13 +1915,14 @@ final class JsonWriter private[json] (
           buf(pos) = '-'
           pos += 1
         }
-        var q       = hours.toInt
         var lastPos = pos
-        if (hours == q) {
+        var q       = 0
+        if ((hours & 0xffffffff80000000L) == 0L) {
+          q = hours.toInt
           lastPos += digitCount(q)
           pos = lastPos
         } else {
-          q = (hours * 1e-8).toInt // divide a small positive long by 100000000
+          q = (hours * 1.0000000000000005e-8).toInt // divide a small positive long by 100000000
           lastPos += digitCount(q)
           pos = write8Digits((hours - q * 100000000L).toInt, lastPos, buf, ds)
         }
@@ -2488,8 +2476,8 @@ final class JsonWriter private[json] (
 
   @inline
   private[this] def write18Digits(x: Long, pos: Int, buf: Array[Byte], ds: Array[Short]): Int = {
-    val q1 = ((x >>> 8) * 2.56e-6).toLong // divide a medium positive long by 100000000
-    val q2 = (q1 * 1e-8).toInt            // divide a small positive long by 100000000
+    val q1 = ((x >>> 8) * 2.56e-6).toLong       // divide a medium positive long by 100000000
+    val q2 = (q1 * 1.0000000000000005e-8).toInt // divide a small positive long by 100000000
     val d  = ds(q2)
     buf(pos) = d.toByte
     buf(pos + 1) = (d >> 8).toByte
@@ -2559,27 +2547,21 @@ final class JsonWriter private[json] (
       q0 = -q0
       buf(pos) = '-'
       pos += 1
-      if (q0 == x) {
-        q0 = 3372036854775808L
-        buf(pos) = '9'
-        buf(pos + 1) = '2'
-        buf(pos + 2) = '2'
-        pos += 3
-      }
     }
-    var q       = q0.toInt
+    var q       = 0
     var lastPos = pos
-    if (q0 == q) {
+    if ((q0 & 0xffffffff80000000L) == 0L) {
+      q = q0.toInt
       lastPos += digitCount(q)
       pos = lastPos
     } else {
-      val q1 = q0 / 100000000L
-      q = q1.toInt
-      if (q1 == q) {
+      val q1 = java.lang.Long.divideUnsigned(q0, 100000000L)
+      if ((q1 & 0xffffffff80000000L) == 0L) {
+        q = q1.toInt
         lastPos += digitCount(q)
         pos = lastPos
       } else {
-        q = (q1 * 1e-8).toInt // divide a small positive long by 100000000
+        q = (q1 * 1.0000000000000005e-8).toInt // divide a small positive long by 100000000
         lastPos += digitCount(q)
         pos = write8Digits((q1 - q * 100000000L).toInt, lastPos, buf, ds)
       }
@@ -2888,20 +2870,20 @@ final class JsonWriter private[json] (
     buf: Array[Byte],
     ds: Array[Short]
   ): Int = {
-    var q0     = x.toInt
     var pos    = p
     var posLim = pl
-    if (q0 != x) {
-      val q1    = ((x >>> 8) * 2.56e-6).toInt // divide a medium positive long by 100000000
-      val r1    = (x - q1 * 100000000L).toInt
-      val posm8 = pos - 8
+    var q0     = 0
+    if ((x & 0xffffffff80000000L) == 0L) q0 = x.toInt
+    else {
+      val q1 = ((x >>> 8) * 2.56e-6).toInt // divide a medium positive long by 100000000
+      val r1 = (x - q1 * 100000000L).toInt
       if (r1 == 0) {
         q0 = q1
-        pos = posm8
+        pos -= 8
       } else {
-        writeFractionDigits(q1, posm8, posLim, buf, ds)
         q0 = r1
-        posLim = posm8
+        writeFractionDigits(q1, pos - 8, posLim, buf, ds)
+        posLim = pos - 8
       }
     }
     writeSignificantFractionDigits(q0, pos, posLim, buf, ds)
