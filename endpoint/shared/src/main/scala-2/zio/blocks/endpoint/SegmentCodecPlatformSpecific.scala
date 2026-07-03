@@ -21,6 +21,12 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
+  // Scala 2.13 has no `scala.Tuple`/`*:`/`EmptyTuple`; `Tuple1`/`Unit` are the nearest concrete
+  // stand-ins, matching this codebase's existing convention (combinators/Tuples.scala) of using
+  // `Unit` as the neutral/empty element.
+  type OnePathVar[X] = Tuple1[X]
+  type NoPathVars     = Unit
+
   private def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
     (suffixBoundary(left), prefixBoundary(right)) match {
       case (Some((leftKind, _)), Some((rightKind, _))) if leftKind == Kind.Trailing || rightKind == Kind.Trailing =>

@@ -23,6 +23,10 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
+  // Scala 3's real generic-tuple types, used directly as the leaf `PathVars` encoding.
+  type OnePathVar[X] = X *: EmptyTuple
+  type NoPathVars    = EmptyTuple
+
   extension [A, P <: BoundaryTag, S <: BoundaryTag](self: WithBoundaries[A, P, S]) {
     inline def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(using
       combiner: Tuples.Tuples.WithOut[A, B, C],

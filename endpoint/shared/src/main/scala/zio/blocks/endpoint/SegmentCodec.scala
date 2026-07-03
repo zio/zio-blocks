@@ -32,6 +32,19 @@ sealed trait SegmentCodec[A] { self =>
   type Prefix <: SegmentCodec.BoundaryTag
   type Suffix <: SegmentCodec.BoundaryTag
 
+  /**
+   * Ordered, purely phantom registry of [[PathVar]] markers contributed by this
+   * segment - one marker per captured segment, zero markers for non-capturing
+   * segments (`Empty`/`Literal`/`Trailing`). This is a separate, parallel type
+   * track: it never affects `A` (the existing runtime-extracted value type) and
+   * has zero runtime footprint. Left unbounded here (rather than `<: Tuple`,
+   * which does not exist as a cross-version supertype on Scala 2.13) so this
+   * single declaration compiles identically under both Scala 2.13 and Scala 3 -
+   * see `SegmentCodecPlatformSpecific.OnePathVar`/`NoPathVars` for the
+   * version-specific concrete tuple encodings used by leaf segments.
+   */
+  type PathVars
+
   def doc: Doc
   def examples: Chunk[(String, A)]
 
@@ -89,11 +102,14 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     case object Trailing                         extends Key
   }
 
-  def bool(name: String): BoolSeg     = BoolSeg(name)
-  def int(name: String): IntSeg       = IntSeg(name)
-  def long(name: String): LongSeg     = LongSeg(name)
-  def string(name: String): StringSeg = StringSeg(name)
-  def uuid(name: String): UUIDSeg     = UUIDSeg(name)
+  // `N <: String with Singleton` preserves the literal singleton type of a literal `name` argument
+  // (instead of widening it to plain `String`) on both Scala 2.13 and Scala 3 - a plain `N <: String`
+  // bound would let the compiler infer the widened `String` type instead.
+  def bool[N <: String with Singleton](name: N): BoolSeg[N]     = BoolSeg(name)
+  def int[N <: String with Singleton](name: N): IntSeg[N]       = IntSeg(name)
+  def long[N <: String with Singleton](name: N): LongSeg[N]     = LongSeg(name)
+  def string[N <: String with Singleton](name: N): StringSeg[N] = StringSeg(name)
+  def uuid[N <: String with Singleton](name: N): UUIDSeg[N]     = UUIDSeg(name)
 
   private[endpoint] def combineValidated[A, B, C](
     left: SegmentCodec[A],
@@ -207,49 +223,59 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   }
 
   case object Empty extends SegmentCodec[Unit] {
-    type Prefix = BoundaryTag.Empty
-    type Suffix = BoundaryTag.Empty
+    type Prefix   = BoundaryTag.Empty
+    type Suffix   = BoundaryTag.Empty
+    type PathVars = NoPathVars
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Unit)] = Chunk.empty
   }
 
   final case class Literal(value: String, doc: Doc = Doc.empty, examples: Chunk[(String, Unit)] = Chunk.empty)
       extends SegmentCodec[Unit] {
-    type Prefix = BoundaryTag.Literal
-    type Suffix = BoundaryTag.Literal
+    type Prefix   = BoundaryTag.Literal
+    type Suffix   = BoundaryTag.Literal
+    type PathVars = NoPathVars
   }
 
-  final case class BoolSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
+  final case class BoolSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Boolean)] = Chunk.empty)
       extends SegmentCodec[Boolean] {
-    type Prefix = BoundaryTag.Bool
-    type Suffix = BoundaryTag.Bool
+    type Prefix   = BoundaryTag.Bool
+    type Suffix   = BoundaryTag.Bool
+    type PathVars = OnePathVar[PathVar[N, Boolean]]
   }
 
-  final case class IntSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
+  final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
       extends SegmentCodec[Int] {
-    type Prefix = BoundaryTag.Int
-    type Suffix = BoundaryTag.Int
+    type Prefix   = BoundaryTag.Int
+    type Suffix   = BoundaryTag.Int
+    type PathVars = OnePathVar[PathVar[N, Int]]
   }
 
-  final case class LongSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
+  final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
       extends SegmentCodec[Long] {
-    type Prefix = BoundaryTag.Long
-    type Suffix = BoundaryTag.Long
+    type Prefix   = BoundaryTag.Long
+    type Suffix   = BoundaryTag.Long
+    type PathVars = OnePathVar[PathVar[N, Long]]
   }
 
-  final case class StringSeg(name: String, doc: Doc = Doc.empty, examples: Chunk[(String, String)] = Chunk.empty)
-      extends SegmentCodec[String] {
-    type Prefix = BoundaryTag.String
-    type Suffix = BoundaryTag.String
+  final case class StringSeg[N <: String](
+    name: N,
+    doc: Doc = Doc.empty,
+    examples: Chunk[(String, String)] = Chunk.empty
+  ) extends SegmentCodec[String] {
+    type Prefix   = BoundaryTag.String
+    type Suffix   = BoundaryTag.String
+    type PathVars = OnePathVar[PathVar[N, String]]
   }
 
-  final case class UUIDSeg(
-    name: String,
+  final case class UUIDSeg[N <: String](
+    name: N,
     doc: Doc = Doc.empty,
     examples: Chunk[(String, java.util.UUID)] = Chunk.empty
   ) extends SegmentCodec[java.util.UUID] {
-    type Prefix = BoundaryTag.UUID
-    type Suffix = BoundaryTag.UUID
+    type Prefix   = BoundaryTag.UUID
+    type Suffix   = BoundaryTag.UUID
+    type PathVars = OnePathVar[PathVar[N, java.util.UUID]]
   }
 
   final case class Combined[A, B, C](
@@ -257,8 +283,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
-    type Prefix = left.Prefix
-    type Suffix = right.Suffix
+    type Prefix   = left.Prefix
+    type Suffix   = right.Suffix
+    type PathVars = NoPathVars
+    // PathVars propagation across `~` composition is Todo 2's ordered-tuple combinator; left
+    // unrefined (opaque) here on purpose - out of this todo's scope.
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }
@@ -268,15 +297,18 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     decode: A => Either[DecodeError, B],
     encode: B => Either[DecodeError, A]
   ) extends SegmentCodec[B] {
-    type Prefix = codec.Prefix
-    type Suffix = codec.Suffix
+    type Prefix   = codec.Prefix
+    type Suffix   = codec.Suffix
+    type PathVars = NoPathVars
+    // PathVars propagation through Transform is Todo 2's scope; left unrefined (opaque) here.
     val doc: Doc                     = codec.doc
     val examples: Chunk[(String, B)] = Chunk.empty
   }
 
   case object Trailing extends SegmentCodec[Path] {
-    type Prefix = BoundaryTag.Trailing
-    type Suffix = BoundaryTag.Trailing
+    type Prefix   = BoundaryTag.Trailing
+    type Suffix   = BoundaryTag.Trailing
+    type PathVars = NoPathVars
     val doc: Doc                        = Doc.empty
     val examples: Chunk[(String, Path)] = Chunk.empty
   }
