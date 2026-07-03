@@ -89,38 +89,51 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
 
   private def isNumeric(kind: Kind): Boolean = kind == Kind.Int || kind == Kind.Long
 
-  implicit final class SegmentCodecOps[A, P <: BoundaryTag, S <: BoundaryTag](
-    private val self: WithBoundaries[A, P, S]
+  implicit final class SegmentCodecOps[A, P <: BoundaryTag, S <: BoundaryTag, PV](
+    private val self: WithBoundaries[A, P, S] { type PathVars = PV }
   ) {
-    def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(implicit
+    def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, PV2, C, PVC](
+      that: WithBoundaries[B, P2, S2] { type PathVars = PV2 }
+    )(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      canCombine: CanCombine[S, P2]
-    ): WithBoundaries[C, P, S2] = {
+      canCombine: CanCombine[S, P2],
+      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+    ): WithBoundaries[C, P, S2] { type PathVars = PVC } = {
+      // `pathVarsCombiner` is a pure compile-time evidence/inference parameter (it drives PVC's
+      // resolution, exactly like `canCombine` drives boundary validation) - never read at
+      // runtime, so it is referenced here only to satisfy `-Ywarn-unused`/`-Xfatal-warnings`.
+      val _ = pathVarsCombiner
       validateCombination(self, that)
-      SegmentCodec.combineValidated(self, that, combiner).asInstanceOf[WithBoundaries[C, P, S2]]
+      SegmentCodec
+        .combineValidated(self, that, combiner)
+        .asInstanceOf[WithBoundaries[C, P, S2] { type PathVars = PVC }]
     }
 
-    def ~[C](that: String)(implicit
+    def ~[C, PVC](that: String)(implicit
       combiner: Tuples.Tuples.WithOut[A, Unit, C],
-      canCombine: CanCombine[S, BoundaryTag.Literal]
-    ): WithBoundaries[C, P, BoundaryTag.Literal] = {
+      canCombine: CanCombine[S, BoundaryTag.Literal],
+      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, NoPathVars, PVC]
+    ): WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC } = {
+      val _     = pathVarsCombiner
       val right = SegmentCodec.literal(that)
       validateCombination(self, right)
       SegmentCodec
         .combineValidated(self, right, combiner)
-        .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal]]
+        .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC }]
     }
 
-    def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] =
+    def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] { type PathVars = PV } =
       SegmentCodec
         .transformValidated[A, B](self, value => Right(decode(value)), value => Right(encode(value)))
-        .asInstanceOf[WithBoundaries[B, P, S]]
+        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
 
     def transformOrFail[B](
       decode: A => Either[DecodeError, B],
       encode: B => Either[DecodeError, A]
-    ): WithBoundaries[B, P, S] =
-      SegmentCodec.transformValidated[A, B](self, decode, encode).asInstanceOf[WithBoundaries[B, P, S]]
+    ): WithBoundaries[B, P, S] { type PathVars = PV } =
+      SegmentCodec
+        .transformValidated[A, B](self, decode, encode)
+        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
   }
 
   def literal(value: String): Literal = {

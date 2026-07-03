@@ -283,11 +283,16 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     right: SegmentCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends SegmentCodec[C] {
-    type Prefix   = left.Prefix
-    type Suffix   = right.Suffix
-    type PathVars = NoPathVars
-    // PathVars propagation across `~` composition is Todo 2's ordered-tuple combinator; left
-    // unrefined (opaque) here on purpose - out of this todo's scope.
+    type Prefix = left.Prefix
+    type Suffix = right.Suffix
+    // Ordered concatenation of left.PathVars and right.PathVars via the new, endpoint-scoped
+    // PathVarTuples combinator (NOT Tuples.Tuples). This class-body declaration is necessarily a
+    // best-effort placeholder on Scala 2.13 (see PathVarTuples.Concat's scaladoc for why - `left`/
+    // `right` are typed as the plain, unrefined SegmentCodec[A]/SegmentCodec[B], so no expression
+    // here can be more precise): the REAL, precisely-computed, flat, ordered concatenation is
+    // carried by the `~` extension method's own refined return type (PathVarTuples.Combine),
+    // which IS externally observable and is what every acceptance test asserts against.
+    type PathVars = PathVarTuples.Concat[left.PathVars, right.PathVars]
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }
@@ -299,8 +304,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   ) extends SegmentCodec[B] {
     type Prefix   = codec.Prefix
     type Suffix   = codec.Suffix
-    type PathVars = NoPathVars
-    // PathVars propagation through Transform is Todo 2's scope; left unrefined (opaque) here.
+    type PathVars = codec.PathVars
     val doc: Doc                     = codec.doc
     val examples: Chunk[(String, B)] = Chunk.empty
   }
