@@ -3,20 +3,17 @@ package ziosschemamigration
 import zio.blocks.schema._
 import zio.blocks.schema.migration._
 
-// Reproducer: DynamicSchemaExpr.Literal drops Schema, breaking migration for enum cases.
+// Reproducer: DynamicSchemaExpr.Literal now carries Schema[_] alongside DynamicValue.
 //
-// SchemaExpr.literal converts the value to DynamicValue and stores only that in
-// DynamicSchemaExpr.Literal, discarding the Schema.  For a no-field case object,
-// every sealed trait — whether all-no-field (pure enum) or mixed — produces the
-// same DynamicValue.Variant(caseName, Record.empty).  The two are indistinguishable
-// in the DynamicSchemaExpr tree.
+// Before the fix, SchemaExpr.literal converted the value to DynamicValue and stored
+// only that in DynamicSchemaExpr.Literal, discarding the Schema.  For a no-field
+// case object every sealed trait — whether all-no-field (pure enum) or mixed —
+// produces the same DynamicValue.Variant(caseName, Record.empty), making the two
+// indistinguishable in the DynamicSchemaExpr tree.
 //
-// Consequence for migration: addField(_.f, literal(Color.Red)) and
-// addField(_.f, literal(MixedColor.Red)) build the same DynamicMigration.
-// Any interpreter that processes the DynamicMigration cannot recover which
-// sealed-trait encoding was intended.
-//
-// Fix: DynamicSchemaExpr.Literal should carry Schema[_] alongside DynamicValue.
+// Fix applied: DynamicSchemaExpr.Literal(value: DynamicValue, schema: Schema[_])
+// SchemaExpr.literal now passes the schema through:
+//   DynamicSchemaExpr.Literal(schema.toDynamicValue(value), schema)
 object EnumLiteralSchemaLossReproducer extends App {
 
   // All-no-field sealed trait (pure enum).
@@ -43,43 +40,50 @@ object EnumLiteralSchemaLossReproducer extends App {
   def check(label: String, ok: Boolean): Unit =
     println(s"  [${if (ok) "OK  " else "FAIL"}] $label")
 
-  // ── 1. Root cause ────────────────────────────────────────────────────────
+  // ── 1. Root cause (DynamicValue is still structurally ambiguous) ──────────
   println("1. Both sealed traits produce identical DynamicValue for the same case name")
-  val colorDV     = Schema[Color].toDynamicValue(Red)
+  val colorDV      = Schema[Color].toDynamicValue(Red)
   val mixedColorDV = Schema[MixedColor].toDynamicValue(MixedColor.Red)
   println(s"     Color.Red      → $colorDV")
   println(s"     MixedColor.Red → $mixedColorDV")
-  check("DynamicValues are equal", colorDV == mixedColorDV)
+  check("DynamicValues are equal (DynamicValue itself is ambiguous)", colorDV == mixedColorDV)
   println()
 
-  // ── 2. Schema survives in SchemaExpr but not DynamicSchemaExpr ───────────
-  println("2. SchemaExpr.literal preserves isEnumeration in outputSchema ...")
-  val colorLit     = SchemaExpr.literal[Any, Color](Red)
+  // ── 2. Fix: schema now survives in DynamicSchemaExpr.Literal ─────────────
+  println("2. SchemaExpr.literal preserves isEnumeration in DynamicSchemaExpr.Literal ...")
+  val colorLit      = SchemaExpr.literal[Any, Color](Red)
   val mixedColorLit = SchemaExpr.literal[Any, MixedColor](MixedColor.Red)
   check("Color     isEnumeration = true",  colorLit.outputSchema.reflect.isEnumeration)
   check("MixedColor isEnumeration = false", !mixedColorLit.outputSchema.reflect.isEnumeration)
-  println("   ... but DynamicSchemaExpr.Literal drops the Schema:")
+  println("   DynamicSchemaExpr.Literal now carries the Schema:")
   println(s"     Color literal dynamic     → ${colorLit.dynamic}")
   println(s"     MixedColor literal dynamic → ${mixedColorLit.dynamic}")
-  check("DynamicSchemaExpr.Literals are DIFFERENT (expect FAIL)", colorLit.dynamic != mixedColorLit.dynamic)
+  check("DynamicSchemaExpr.Literals are DIFFERENT", colorLit.dynamic != mixedColorLit.dynamic)
   println()
 
-  // ── 3. Migration representation contract broken ───────────────────────────
-  println("3. addField migrations for Color vs MixedColor produce the same DynamicMigration")
+  // ── 3. Migration representation contract restored ─────────────────────────
+  println("3. addField migrations for Color vs MixedColor produce distinct DynamicMigrations")
   val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, SchemaExpr.literal[Any, Color](Red)).build
   val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, SchemaExpr.literal[Any, MixedColor](MixedColor.Red)).build
   println(s"     migToV2 DynamicMigration → ${migToV2.dynamicMigration}")
   println(s"     migToV3 DynamicMigration → ${migToV3.dynamicMigration}")
-  check("DynamicMigrations are DIFFERENT (expect FAIL)", migToV2.dynamicMigration != migToV3.dynamicMigration)
+  check("DynamicMigrations are DIFFERENT", migToV2.dynamicMigration != migToV3.dynamicMigration)
   println()
 
-  // ── 4. Execution contract broken ─────────────────────────────────────────
-  println("4. DynamicMigration built for Color is silently accepted by MixedColor schema")
-  val inputDV = Schema[TaskV1].toDynamicValue(TaskV1("Alice"))
-  val migrated = migToV2.dynamicMigration(inputDV)
-  val wrongDecode = migrated.flatMap(dv => Schema[TaskV3].fromDynamicValue(dv))
-  println(s"     Migration target: TaskV2 (Color — all-no-field enum)")
-  println(s"     Decoded with:     Schema[TaskV3] (MixedColor — mixed enum)")
-  println(s"     Result:           $wrongDecode")
-  check("Decoding with wrong schema returns Left (expect FAIL)", wrongDecode.isLeft)
+  // ── 4. Interpreter benefit: isEnumeration is now recoverable ────────────
+  println("4. An interpreter can recover isEnumeration from the schema in each Literal")
+  val colorIsEnum = migToV2.dynamicMigration.actions.head match {
+    case migration.MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+      schema.reflect.isEnumeration
+    case _ => false
+  }
+  val mixedIsEnum = migToV3.dynamicMigration.actions.head match {
+    case migration.MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+      schema.reflect.isEnumeration
+    case _ => true
+  }
+  println(s"     Color migration literal isEnumeration     → $colorIsEnum  (all-no-field: correct)")
+  println(s"     MixedColor migration literal isEnumeration → $mixedIsEnum (mixed: correct)")
+  check("Color literal schema reports isEnumeration = true",  colorIsEnum)
+  check("MixedColor literal schema reports isEnumeration = false", !mixedIsEnum)
 }

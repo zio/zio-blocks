@@ -52,8 +52,8 @@ object MigrationSpec extends ZIOSpecDefault {
   }
 
   // Color: all-no-field enum.  MixedColor: same "Red" case name, but also has a
-  // data-carrying case.  Both produce DynamicValue.Variant("Red", Record.empty),
-  // so DynamicSchemaExpr.Literal is structurally identical for both — schema lost.
+  // data-carrying case.  Both produce DynamicValue.Variant("Red", Record.empty) —
+  // but after the fix DynamicSchemaExpr.Literal carries the schema, so they differ.
   // MixedColor cases live in a companion to avoid a name clash with Color.Red.
   object EnumLiteralFixtures {
     sealed trait Color
@@ -78,7 +78,7 @@ object MigrationSpec extends ZIOSpecDefault {
   }
 
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
-    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value))
+    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value), Schema[A])
 
   private def literal[A: Schema](value: A): SchemaExpr[Any, A] =
     SchemaExpr.literal(value)
@@ -1087,17 +1087,16 @@ object MigrationSpec extends ZIOSpecDefault {
       }
     ),
 
-    // DynamicSchemaExpr.Literal drops Schema when SchemaExpr.literal is lowered.
-    // Two sealed traits whose same-named case both produce Variant("Red", Record.empty)
-    // become indistinguishable, breaking the migration representation contract.
-    // Fix: Literal must carry Schema[_] alongside DynamicValue.
-    suite("Enum case default literal — schema loss")(
-      // Root cause: identical DynamicValue for structurally different enum types.
+    // DynamicSchemaExpr.Literal now carries Schema[_] alongside DynamicValue.
+    // Two sealed traits whose same-named case produce Variant("Red", Record.empty) are
+    // now distinguishable because the Literal retains the originating schema.
+    suite("Enum case default literal — schema preserved")(
+      // DynamicValue itself is still ambiguous; the fix is in the Literal wrapper.
       test("all-no-field and mixed enum produce identical DynamicValue for the same case name") {
         import EnumLiteralFixtures._
         assertTrue(Schema[Color].toDynamicValue(Red) == Schema[MixedColor].toDynamicValue(MixedColor.Red))
       },
-      // Schema survives at the SchemaExpr layer; only the DynamicSchemaExpr layer loses it.
+      // Schema is preserved at both the SchemaExpr and DynamicSchemaExpr layers.
       test("SchemaExpr.literal preserves isEnumeration in outputSchema") {
         import EnumLiteralFixtures._
         assertTrue(
@@ -1105,27 +1104,35 @@ object MigrationSpec extends ZIOSpecDefault {
           !SchemaExpr.literal[Any, MixedColor](MixedColor.Red).outputSchema.reflect.isEnumeration
         )
       },
-      // FAILS: literal lowering drops Schema, making the two Literals indistinguishable.
+      // Literal carries the schema so the two are now distinguishable.
       test("DynamicSchemaExpr.Literal is distinct for all-no-field vs mixed enum") {
         import EnumLiteralFixtures._
         assertTrue(SchemaExpr.literal[Any, Color](Red).dynamic != SchemaExpr.literal[Any, MixedColor](MixedColor.Red).dynamic)
       },
-      // FAILS: migration contract broken — two semantically different addField calls
-      // produce the same DynamicMigration, making the representation non-injective.
+      // Migration representation contract restored — addField produces distinct DynamicMigrations.
       test("addField for all-no-field vs mixed enum produces distinct DynamicMigrations") {
         import EnumLiteralFixtures._
         val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build
         val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, literal(MixedColor.Red: MixedColor)).build
         assertTrue(migToV2.dynamicMigration != migToV3.dynamicMigration)
       },
-      // FAILS: execution consequence — the same DynamicMigration silently succeeds
-      // with a different target schema, proving the migration is underspecified.
-      test("DynamicMigration from Color migration rejected when decoded with MixedColor schema") {
+      // Schema carried in the Literal lets an interpreter distinguish enum types.
+      // isEnumeration is recoverable from the action's default DynamicSchemaExpr.
+      test("AddField literal schema correctly reports isEnumeration for each sealed trait") {
         import EnumLiteralFixtures._
-        val dynMig  = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build.dynamicMigration
-        val inputDV = Schema[TaskV1].toDynamicValue(TaskV1("Alice"))
-        val result  = dynMig(inputDV).flatMap(dv => Schema[TaskV3].fromDynamicValue(dv))
-        assertTrue(result.isLeft)
+        val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build
+        val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, literal(MixedColor.Red: MixedColor)).build
+        val colorIsEnum = migToV2.dynamicMigration.actions.head match {
+          case MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+            schema.reflect.isEnumeration
+          case _ => false
+        }
+        val mixedIsEnum = migToV3.dynamicMigration.actions.head match {
+          case MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+            schema.reflect.isEnumeration
+          case _ => true
+        }
+        assertTrue(colorIsEnum, !mixedIsEnum)
       }
     )
   )

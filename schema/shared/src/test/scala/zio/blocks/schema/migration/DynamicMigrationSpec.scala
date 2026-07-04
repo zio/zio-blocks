@@ -22,7 +22,7 @@ import zio.blocks.schema._
 object DynamicMigrationSpec extends ZIOSpecDefault {
 
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
-    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value))
+    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value), Schema[A])
 
   private val root = DynamicOptic.root
 
@@ -814,8 +814,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.Int(42)))))
       },
       test("Relational operators") {
-        val lit1  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val lit2  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        val lit1  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)), Schema[Int])
+        val lit2  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)), Schema[Int])
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
         import DynamicSchemaExpr.RelationalOperator._
         val results = List(
@@ -829,8 +829,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(results.forall(_.isRight))
       },
       test("Logical operators") {
-        val t     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
-        val f     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))
+        val t     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)), Schema[Boolean])
+        val f     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(false)), Schema[Boolean])
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
         import DynamicSchemaExpr.LogicalOperator._
         val andResult = DynamicSchemaExpr.Logical(t, f, And).eval(dummy)
@@ -839,26 +839,26 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(andResult.isRight && orResult.isRight && notResult.isRight)
       },
       test("StringConcat") {
-        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
-        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" world")))
+        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
+        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String(" world")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringConcat(a, b).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.String("hello world")))))
       },
       test("StringLength") {
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringLength(s).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.Int(5)))))
       },
       test("StringTrim") {
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("  hi  ")))
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("  hi  ")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringTrim(s).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.String("hi")))))
       },
       test("StringToUpperCase and StringToLowerCase") {
-        val s     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("Hello")))
+        val s     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("Hello")), Schema[String])
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val upper = DynamicSchemaExpr.StringToUpperCase(s).eval(dummy)
         val lower = DynamicSchemaExpr.StringToLowerCase(s).eval(dummy)
@@ -868,78 +868,78 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
       },
       test("StringSubstring") {
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")))
-        val start  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)))
-        val end    = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")), Schema[String])
+        val start  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema[Int])
+        val end    = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)), Schema[Int])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringSubstring(s, start, end).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.String("hello")))))
       },
       test("StringSubstring fails for invalid indices") {
-        val s     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")))
+        val s     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")), Schema[String])
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
 
         val negative = DynamicSchemaExpr
           .StringSubstring(
             s,
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(-1))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(-1)), Schema[Int]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)), Schema[Int])
           )
           .eval(dummy)
 
         val reversed = DynamicSchemaExpr
           .StringSubstring(
             s,
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(6))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)))
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(6)), Schema[Int]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(5)), Schema[Int])
           )
           .eval(dummy)
 
         val tooLong = DynamicSchemaExpr
           .StringSubstring(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello"))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(20)))
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema[Int]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(20)), Schema[Int])
           )
           .eval(dummy)
 
         assertTrue(negative.isLeft && reversed.isLeft && tooLong.isLeft)
       },
       test("StringReplace") {
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")))
-        val target = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("world")))
-        val repl   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("there")))
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")), Schema[String])
+        val target = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("world")), Schema[String])
+        val repl   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("there")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringReplace(s, target, repl).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.String("hello there")))))
       },
       test("StringStartsWith and StringEndsWith") {
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
-        val prefix = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("he")))
-        val suffix = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("lo")))
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
+        val prefix = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("he")), Schema[String])
+        val suffix = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("lo")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val starts = DynamicSchemaExpr.StringStartsWith(s, prefix).eval(dummy)
         val ends   = DynamicSchemaExpr.StringEndsWith(s, suffix).eval(dummy)
         assertTrue(starts.isRight && ends.isRight)
       },
       test("StringContains and StringIndexOf") {
-        val s        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")))
-        val sub      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("world")))
+        val s        = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello world")), Schema[String])
+        val sub      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("world")), Schema[String])
         val dummy    = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val contains = DynamicSchemaExpr.StringContains(s, sub).eval(dummy)
         val indexOf  = DynamicSchemaExpr.StringIndexOf(s, sub).eval(dummy)
         assertTrue(contains.isRight && indexOf.isRight)
       },
       test("StringRegexMatch") {
-        val regex  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("h.*o")))
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        val regex  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("h.*o")), Schema[String])
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringRegexMatch(regex, s).eval(dummy)
         assertTrue(result == Right(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
       },
       test("StringRegexMatch fails for invalid regex") {
-        val regex  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("(")))
-        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        val regex  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("(")), Schema[String])
+        val s      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.StringRegexMatch(regex, s).eval(dummy)
         assertTrue(result.isLeft)
@@ -960,22 +960,22 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           ops.forall(op => DynamicSchemaExpr.Arithmetic(a, b, op, tag).eval(dummy).isRight)
         }
 
-        val intA   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)))
-        val intB   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)))
-        val longA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L)))
-        val longB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(3L)))
-        val floatA = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(10.0f)))
-        val floatB = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(3.0f)))
-        val dblA   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(10.0)))
-        val dblB   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.0)))
-        val byteA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(10)))
-        val byteB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(3)))
-        val shortA = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(10)))
-        val shortB = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(3)))
-        val bigIA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10))))
-        val bigIB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(3))))
-        val bigDA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))))
-        val bigDB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3))))
+        val intA   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)), Schema[Int])
+        val intB   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)), Schema[Int])
+        val longA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L)), Schema[Long])
+        val longB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(3L)), Schema[Long])
+        val floatA = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(10.0f)), Schema[Float])
+        val floatB = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(3.0f)), Schema[Float])
+        val dblA   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(10.0)), Schema[Double])
+        val dblB   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(3.0)), Schema[Double])
+        val byteA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(10)), Schema[Byte])
+        val byteB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(3)), Schema[Byte])
+        val shortA = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(10)), Schema[Short])
+        val shortB = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(3)), Schema[Short])
+        val bigIA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10))), Schema[BigInt])
+        val bigIB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(3))), Schema[BigInt])
+        val bigDA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))), Schema[BigDecimal])
+        val bigDB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3))), Schema[BigDecimal])
 
         assertTrue(
           testTag(NumericTypeTag.IntTag, intA, intB) &&
@@ -991,7 +991,7 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("Arithmetic type mismatch errors") {
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
         import DynamicSchemaExpr.{ArithmeticOperator, NumericTypeTag}
-        val wrong   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x")))
+        val wrong   = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x")), Schema[String])
         val results = List(
           DynamicSchemaExpr.Arithmetic(wrong, wrong, ArithmeticOperator.Add, NumericTypeTag.IntTag).eval(dummy),
           DynamicSchemaExpr.Arithmetic(wrong, wrong, ArithmeticOperator.Add, NumericTypeTag.LongTag).eval(dummy),
@@ -1011,48 +1011,48 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val results = List(
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)), Schema[Int]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema[Int]),
               ArithmeticOperator.Divide,
               NumericTypeTag.IntTag
             )
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(10L)), Schema[Long]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0L)), Schema[Long]),
               ArithmeticOperator.Modulo,
               NumericTypeTag.LongTag
             )
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(10.0f))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(0.0f))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(10.0f)), Schema[Float]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Float(0.0f)), Schema[Float]),
               ArithmeticOperator.Divide,
               NumericTypeTag.FloatTag
             )
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(10.0))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(10.0)), Schema[Double]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Double(0.0)), Schema[Double]),
               ArithmeticOperator.Modulo,
               NumericTypeTag.DoubleTag
             )
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10)))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0)))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10))), Schema[BigInt]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(0))), Schema[BigInt]),
               ArithmeticOperator.Divide,
               NumericTypeTag.BigIntTag
             )
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10)))),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0)))),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))), Schema[BigDecimal]),
+              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0))), Schema[BigDecimal]),
               ArithmeticOperator.Modulo,
               NumericTypeTag.BigDecimalTag
             )
@@ -1067,8 +1067,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
         val negativeExponent = DynamicSchemaExpr
           .Arithmetic(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(2)))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(-1)))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(2))), Schema[BigInt]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(-1))), Schema[BigInt]),
             ArithmeticOperator.Pow,
             NumericTypeTag.BigIntTag
           )
@@ -1076,8 +1076,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
         val hugeExponent = DynamicSchemaExpr
           .Arithmetic(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(2)))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10001)))),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(2))), Schema[BigDecimal]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10001))), Schema[BigDecimal]),
             ArithmeticOperator.Pow,
             NumericTypeTag.BigDecimalTag
           )
@@ -1086,8 +1086,8 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         assertTrue(negativeExponent.isLeft && hugeExponent.isLeft)
       },
       test("Bitwise operations") {
-        val a     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0xff)))
-        val b     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0x0f)))
+        val a     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0xff)), Schema[Int])
+        val b     = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0x0f)), Schema[Int])
         val dummy = DynamicValue.Primitive(PrimitiveValue.Int(0))
         import DynamicSchemaExpr.BitwiseOperator._
         val results = List(
@@ -1104,16 +1104,16 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val dummy   = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val results = List(
           DynamicSchemaExpr
-            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(1))))
+            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(1)), Schema[Byte]))
             .eval(dummy),
           DynamicSchemaExpr
-            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(1))))
+            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(1)), Schema[Short]))
             .eval(dummy),
           DynamicSchemaExpr
-            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)), Schema[Int]))
             .eval(dummy),
           DynamicSchemaExpr
-            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L))))
+            .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Schema[Long]))
             .eval(dummy)
         )
         assertTrue(results.forall(_.isRight))
@@ -1121,34 +1121,34 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
       test("BitwiseNot on non-integral fails") {
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr
-          .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x"))))
+          .BitwiseNot(DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x")), Schema[String]))
           .eval(dummy)
         assertTrue(result.isLeft)
       },
       test("Bitwise with Long operands") {
-        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0xffL)))
-        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0x0fL)))
+        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0xffL)), Schema[Long])
+        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(0x0fL)), Schema[Long])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.Bitwise(a, b, DynamicSchemaExpr.BitwiseOperator.And).eval(dummy)
         assertTrue(result.isRight)
       },
       test("Bitwise shift with Long operand") {
-        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L)))
-        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)))
+        val a      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Schema[Long])
+        val b      = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(2)), Schema[Int])
         val dummy  = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result = DynamicSchemaExpr.Bitwise(a, b, DynamicSchemaExpr.BitwiseOperator.LeftShift).eval(dummy)
         assertTrue(result.isRight)
       },
       test("extractIntegral with Byte and Short") {
-        val byteExpr  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(5)))
-        val shortExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(10)))
+        val byteExpr  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Byte(5)), Schema[Byte])
+        val shortExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(10)), Schema[Short])
         val dummy     = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val r1        = DynamicSchemaExpr.Bitwise(byteExpr, shortExpr, DynamicSchemaExpr.BitwiseOperator.And).eval(dummy)
         assertTrue(r1.isRight)
       },
       test("extractIntegral failure on non-integral") {
-        val strExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x")))
-        val intExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        val strExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("x")), Schema[String])
+        val intExpr = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(1)), Schema[Int])
         val dummy   = DynamicValue.Primitive(PrimitiveValue.Int(0))
         val result  = DynamicSchemaExpr.Bitwise(strExpr, intExpr, DynamicSchemaExpr.BitwiseOperator.And).eval(dummy)
         assertTrue(result.isLeft)
