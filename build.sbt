@@ -1438,7 +1438,7 @@ lazy val zioGolemBuildCodegen = project
     organization   := "dev.zio",
     scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.17.0",
+      "org.scalameta" %% "scalameta" % "4.17.1",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
