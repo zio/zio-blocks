@@ -15,7 +15,7 @@ on:
       - published
 concurrency:
   group: ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   buildDocs:
@@ -204,7 +204,10 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     needs: [ci]
     if: ${{ github.event_name != 'pull_request' }}
     steps:
@@ -218,7 +221,11 @@ jobs:
           jvm: temurin:25
           apps: sbt
       - name: Release
-        run: sbt ci-release
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          command: sbt ci-release
         env:
           JAVA_TOOL_OPTIONS: -XX:+UseCompactObjectHeaders
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
@@ -230,6 +237,9 @@ jobs:
     name: Release Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+      group: release-docs-${{ github.ref }}
+      cancel-in-progress: false
     continue-on-error: false
     needs:
       - release
@@ -260,4 +270,8 @@ jobs:
           node-version: 24.12.0
           registry-url: https://registry.npmjs.org
       - name: Publish Docs to NPM Registry
-        run: sbt docs/publishToNpm
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          command: sbt docs/publishToNpm
