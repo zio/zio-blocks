@@ -27,7 +27,7 @@ import scala.reflect.macros.whitebox
  * typeclass. Mirrors the style of `zio.blocks.combinators.Tuples.TuplesMacros` (a Scala 2.13
  * whitebox macro computing a `TupleN` shape from its inputs' shapes).
  */
-private[endpoint] object PathVarTuples {
+object PathVarTuples {
 
   /**
    * Best-effort, non-computing stand-in used ONLY inside `SegmentCodec.Combined`'s abstract
@@ -58,7 +58,7 @@ private[endpoint] object PathVarTuples {
     implicit def concat[L, R]: Combine[L, R] = macro PathVarTuplesMacros.concatImpl[L, R]
   }
 
-  private[endpoint] object PathVarTuplesMacros {
+  object PathVarTuplesMacros {
     def concatImpl[L: c.WeakTypeTag, R: c.WeakTypeTag](c: whitebox.Context): c.Tree = {
       import c.universe._
 
