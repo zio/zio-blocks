@@ -1105,22 +1105,22 @@ object MigrationSpec extends ZIOSpecDefault {
           !SchemaExpr.literal[Any, MixedColor](MixedColor.Red).outputSchema.reflect.isEnumeration
         )
       },
-      // FAILS: literal lowering drops Schema, making the two Literals indistinguishable.
+      // Literal lowering drops Schema, making the two Literals indistinguishable.
       test("DynamicSchemaExpr.Literal is distinct for all-no-field vs mixed enum") {
         import EnumLiteralFixtures._
         assertTrue(
           SchemaExpr.literal[Any, Color](Red).dynamic != SchemaExpr.literal[Any, MixedColor](MixedColor.Red).dynamic
         )
-      },
-      // FAILS: migration contract broken — two semantically different addField calls
+      } @@ TestAspect.failing,
+      // Migration contract broken — two semantically different addField calls
       // produce the same DynamicMigration, making the representation non-injective.
       test("addField for all-no-field vs mixed enum produces distinct DynamicMigrations") {
         import EnumLiteralFixtures._
         val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build
         val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, literal(MixedColor.Red: MixedColor)).build
         assertTrue(migToV2.dynamicMigration != migToV3.dynamicMigration)
-      },
-      // FAILS: execution consequence — the same DynamicMigration silently succeeds
+      } @@ TestAspect.failing,
+      // Execution consequence — the same DynamicMigration silently succeeds
       // with a different target schema, proving the migration is underspecified.
       test("DynamicMigration from Color migration rejected when decoded with MixedColor schema") {
         import EnumLiteralFixtures._
@@ -1128,7 +1128,7 @@ object MigrationSpec extends ZIOSpecDefault {
         val inputDV = Schema[TaskV1].toDynamicValue(TaskV1("Alice"))
         val result  = dynMig(inputDV).flatMap(dv => Schema[TaskV3].fromDynamicValue(dv))
         assertTrue(result.isLeft)
-      }
+      } @@ TestAspect.failing
     )
   )
 }
