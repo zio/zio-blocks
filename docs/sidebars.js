@@ -97,15 +97,16 @@ const sidebars = {
                  "reference/schema/allows",
                ]
              },
-             {
-               type: "category",
-               label: "Schema Evolution",
-               link: { type: "doc", id: "reference/schema/schema-evolution/index" },
-               items: [
-                 "reference/schema/schema-evolution/into",
-                 "reference/schema/schema-evolution/as",
-               ]
-             },
+              {
+                type: "category",
+                label: "Schema Evolution",
+                link: { type: "doc", id: "reference/schema/schema-evolution/index" },
+                items: [
+                  "reference/schema/schema-evolution/into",
+                  "reference/schema/schema-evolution/as",
+                  "reference/schema/migration",
+                ]
+              },
              "reference/schema/syntax",
            ]
          },
@@ -124,10 +125,11 @@ const sidebars = {
              "reference/resource-management/finalizer",
              "reference/resource-management/finalization",
            ]
-         },
-         "reference/combinators",
-         "reference/docs",
-         "reference/media-type",
+          },
+          "reference/combinators",
+          "reference/docs",
+          "reference/config",
+          "reference/media-type",
          {
            type: "category",
            label: "Code Generation",
@@ -170,6 +172,7 @@ const sidebars = {
           "reference/chunk",
           "reference/maybe",
           "reference/mux",
+          "reference/async",
           {
             type: "category",
             label: "RingBuffer",
@@ -210,6 +213,7 @@ const sidebars = {
               "reference/streams/sink",
               "reference/streams/reader",
               "reference/streams/writer",
+              "reference/streams/concurrent-operators",
               "reference/streams/zero-boxing",
             ]
           },
@@ -222,11 +226,12 @@ const sidebars = {
       label: "Guides",
       items: [
         "guides/compile-time-resource-safety-with-scope",
-        "guides/zio-schema-migration",
-        "guides/query-dsl-reified-optics",
-        "guides/query-dsl-sql",
+        "guides/getting-started-with-mux",
         "guides/query-dsl-extending",
         "guides/query-dsl-fluent-builder",
+        "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
+        "guides/zio-schema-migration",
       ]
     }
   ]

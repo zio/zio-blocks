@@ -18,6 +18,7 @@ package zio.blocks.streams.internal
 
 import zio.blocks.streams.JvmType
 import zio.blocks.streams.io.Reader
+import zio.blocks.chunk.{Chunk, ChunkBuilder}
 
 import java.nio.ByteBuffer
 
@@ -29,9 +30,16 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
 
   private val originalLimit: Int    = buffer.limit()
   private val originalPosition: Int = buffer.position()
-  private var limitN: Long          = Long.MaxValue
-  private var skipN: Long           = 0
-  private var done: Boolean         = false
+  // The composed pushdown window, stored as DERIVED buffer positions: each
+  // setSkip/setLimit composes against the live buffer state and snapshots the
+  // result, so reset() restores the same composed window. Storing raw
+  // skip/limit values and recomputing [skip, skip+limit) on reset both leaks
+  // elements outside the window and re-emits dropped ones on replay
+  // (BUG-R8-03). Negative windows clamp to empty like the base setters
+  // (BUG-R8-02).
+  private var windowStart: Int = originalPosition
+  private var windowEnd: Int   = originalLimit
+  private var done: Boolean    = false
 
   def close(): Unit = {
     buffer.position(buffer.limit())
@@ -47,6 +55,31 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
     if (b >= 0) Byte.box(b.toByte).asInstanceOf[A1] else sentinel
   }
 
+  override def readN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining())
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Byte](count)
+    buffer.get(arr, 0, count)
+    if (buffer.remaining() == 0) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Byte](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    // Bound the allocation by what is actually available so a huge `n`
+    // (e.g. Int.MaxValue) over a small buffer cannot pre-allocate a multi-GB
+    // array and OOM — mirroring `readN` here and the bounded sizing used by the
+    // Int/Long/Double/Float ByteBuffer readers and the base `Reader.readUpToN`.
+    val count = math.min(n, buffer.remaining())
+    if (count <= 0) { done = true; return Chunk.empty }
+    val arr  = new Array[Byte](count)
+    val read = readBytes(arr, 0, count)(unsafeEvidence)
+    if (read <= 0) Chunk.empty
+    else if (read == count) Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+    else Chunk.fromArray(java.util.Arrays.copyOf(arr, read)).asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.hasRemaining
 
   override def readByte(): Int =
@@ -54,7 +87,7 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
     else if (buffer.hasRemaining) (buffer.get() & 0xff)
     else { done = true; -1 }
 
-  override def readBytes(buf: Array[Byte], offset: Int, len: Int): Int =
+  override def readBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int =
     if (len == 0) 0
     else if (done) -1
     else {
@@ -69,31 +102,31 @@ private[streams] final class ByteBufferReader(buffer: ByteBuffer) extends Reader
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = math.max(0, if (skipN > Int.MaxValue) Int.MaxValue else skipN.toInt)
-    val startPos    = math.min(originalPosition + clampedSkip, originalLimit)
-    buffer.limit(originalLimit)
-    buffer.position(startPos)
-    if (limitN != Long.MaxValue) {
-      buffer.limit(math.min(originalLimit, startPos + (if (limitN > Int.MaxValue) Int.MaxValue else limitN.toInt)))
-    }
+    buffer.limit(windowEnd)
+    buffer.position(windowStart)
   }
 
   override def setLimit(n: Long): Boolean = {
-    limitN = n
-    val newLimit = math.min(originalLimit, buffer.position() + (if (n > Int.MaxValue) Int.MaxValue else n.toInt))
+    val clamped = math.max(0L, n)
+    // Cap at the CURRENT live limit, not `originalLimit`: window ops compose
+    // over the live window, so a later, larger take must not re-expand an
+    // already-narrowed one (BUG-R9-01; List oracle take(2).take(5) == take(2)).
+    val newLimit = math.min(buffer.limit().toLong, buffer.position().toLong + clamped).toInt
     buffer.limit(newLimit)
+    windowEnd = newLimit
     true
   }
 
   override def setSkip(n: Long): Boolean = {
-    skipN = n
-    val clampedN = math.max(0, if (n > Int.MaxValue) Int.MaxValue else n.toInt)
-    val newPos   = math.min(buffer.position() + clampedN, buffer.limit())
+    val clamped = math.max(0L, n)
+    val newPos  = math.min(buffer.position().toLong + clamped, buffer.limit().toLong).toInt
     buffer.position(newPos)
+    windowStart = newPos
     true
   }
 
   override def skip(n: Long): Unit = {
+    if (n <= 0) return
     val s = math.min(n, buffer.remaining().toLong).toInt
     buffer.position(buffer.position() + s)
   }
@@ -107,9 +140,16 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
 
   private val originalLimit: Int    = buffer.limit()
   private val originalPosition: Int = buffer.position()
-  private var limitN: Long          = Long.MaxValue
-  private var skipN: Long           = 0
-  private var done: Boolean         = false
+  // The composed pushdown window, stored as DERIVED buffer positions: each
+  // setSkip/setLimit composes against the live buffer state and snapshots the
+  // result, so reset() restores the same composed window. Storing raw
+  // skip/limit values and recomputing [skip, skip+limit) on reset both leaks
+  // elements outside the window and re-emits dropped ones on replay
+  // (BUG-R8-03). Negative windows clamp to empty like the base setters
+  // (BUG-R8-02).
+  private var windowStart: Int = originalPosition
+  private var windowEnd: Int   = originalLimit
+  private var done: Boolean    = false
 
   def close(): Unit = { buffer.position(buffer.limit()); done = true }
 
@@ -121,6 +161,34 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
     if (done) sentinel
     else if (buffer.remaining() >= 4) Int.box(buffer.getInt()).asInstanceOf[A1]
     else { done = true; sentinel }
+
+  override def readN[A1 >: Int](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 4)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Int](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getInt()
+      i += 1
+    }
+    if (buffer.remaining() < 4) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Int](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Int(); b.sizeHint(math.min(n, 64))
+    val s = Long.MinValue
+    var v = readInt(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v.toInt); i += 1
+      if (i < n) v = readInt(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
 
   override def readable(): Boolean = !done && buffer.remaining() >= 4
 
@@ -136,34 +204,32 @@ private[streams] final class ByteBufferIntReader(buffer: ByteBuffer) extends Rea
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = math.max(0L, skipN)
-    val bytesSkip   = if (clampedSkip > Int.MaxValue / 4) Int.MaxValue else clampedSkip.toInt * 4
-    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
-    buffer.limit(originalLimit)
-    buffer.position(startPos)
-    if (limitN != Long.MaxValue) {
-      val bytesN = if (limitN > Int.MaxValue / 4) Int.MaxValue else limitN.toInt * 4
-      buffer.limit(math.min(originalLimit, startPos + bytesN))
-    }
+    buffer.limit(windowEnd)
+    buffer.position(windowStart)
   }
 
   override def setLimit(n: Long): Boolean = {
-    limitN = n
-    val bytesN = if (n > Int.MaxValue / 4) Int.MaxValue else n.toInt * 4
-    buffer.limit(math.min(originalLimit, buffer.position() + bytesN))
+    val clamped = math.max(0L, n)
+    val bytesN  = if (clamped > Int.MaxValue / 4) Int.MaxValue.toLong else clamped * 4
+    // Cap at the CURRENT live limit, not `originalLimit` (BUG-R9-01): window
+    // ops compose over the live window.
+    val newLimit = math.min(buffer.limit().toLong, buffer.position().toLong + bytesN).toInt
+    buffer.limit(newLimit)
+    windowEnd = newLimit
     true
   }
 
   override def setSkip(n: Long): Boolean = {
-    skipN = n
     val clamped   = math.max(0L, n)
-    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue else clamped.toInt * 4
-    val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
+    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue.toLong else clamped * 4
+    val newPos    = math.min(buffer.position().toLong + bytesSkip, buffer.limit().toLong).toInt
     buffer.position(newPos)
+    windowStart = newPos
     true
   }
 
   override def skip(n: Long): Unit = {
+    if (n <= 0) return
     val s = math.min(n, (buffer.remaining() / 4).toLong).toInt
     buffer.position(buffer.position() + s * 4)
   }
@@ -177,9 +243,16 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
 
   private val originalLimit: Int    = buffer.limit()
   private val originalPosition: Int = buffer.position()
-  private var limitN: Long          = Long.MaxValue
-  private var skipN: Long           = 0
-  private var done: Boolean         = false
+  // The composed pushdown window, stored as DERIVED buffer positions: each
+  // setSkip/setLimit composes against the live buffer state and snapshots the
+  // result, so reset() restores the same composed window. Storing raw
+  // skip/limit values and recomputing [skip, skip+limit) on reset both leaks
+  // elements outside the window and re-emits dropped ones on replay
+  // (BUG-R8-03). Negative windows clamp to empty like the base setters
+  // (BUG-R8-02).
+  private var windowStart: Int = originalPosition
+  private var windowEnd: Int   = originalLimit
+  private var done: Boolean    = false
 
   def close(): Unit = { buffer.position(buffer.limit()); done = true }
 
@@ -192,6 +265,38 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
     else if (buffer.remaining() >= 8) Long.box(buffer.getLong()).asInstanceOf[A1]
     else { done = true; sentinel }
 
+  override def readN[A1 >: Long](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 8)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Long](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getLong()
+      i += 1
+    }
+    if (buffer.remaining() < 8) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Long](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Long(); b.sizeHint(math.min(n, 64))
+    val s = Long.MaxValue
+    // Sentinel performance policy (AGENTS.md): the hot path stays a single
+    // primitive comparison; the out-of-band EOF flag is consulted only on the
+    // rare value/sentinel collision (short-circuit), keeping a real
+    // Long.MaxValue element lossless at zero cost.
+    var v = readLong(s)(unsafeEvidence)
+    if (v == s && lastReadWasEOF) return Chunk.empty
+    var i = 0
+    while (!(v == s && lastReadWasEOF) && i < n) {
+      b.addOne(v); i += 1
+      if (i < n) v = readLong(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.remaining() >= 8
 
   override def readByte(): Int =
@@ -200,40 +305,38 @@ private[streams] final class ByteBufferLongReader(buffer: ByteBuffer) extends Re
     else { done = true; -1 }
 
   override def readLong(sentinel: Long)(implicit ev: Long <:< Long): Long =
-    if (done) sentinel
-    else if (buffer.remaining() >= 8) buffer.getLong()
-    else { done = true; sentinel }
+    if (done) { markReadEOF(); sentinel }
+    else if (buffer.remaining() >= 8) { markReadValue(); buffer.getLong() }
+    else { done = true; markReadEOF(); sentinel }
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = math.max(0L, skipN)
-    val bytesSkip   = if (clampedSkip > Int.MaxValue / 8) Int.MaxValue else clampedSkip.toInt * 8
-    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
-    buffer.limit(originalLimit)
-    buffer.position(startPos)
-    if (limitN != Long.MaxValue) {
-      val bytesN = if (limitN > Int.MaxValue / 8) Int.MaxValue else limitN.toInt * 8
-      buffer.limit(math.min(originalLimit, startPos + bytesN))
-    }
+    buffer.limit(windowEnd)
+    buffer.position(windowStart)
   }
 
   override def setLimit(n: Long): Boolean = {
-    limitN = n
-    val bytesN = if (n > Int.MaxValue / 8) Int.MaxValue else n.toInt * 8
-    buffer.limit(math.min(originalLimit, buffer.position() + bytesN))
+    val clamped = math.max(0L, n)
+    val bytesN  = if (clamped > Int.MaxValue / 8) Int.MaxValue.toLong else clamped * 8
+    // Cap at the CURRENT live limit, not `originalLimit` (BUG-R9-01): window
+    // ops compose over the live window.
+    val newLimit = math.min(buffer.limit().toLong, buffer.position().toLong + bytesN).toInt
+    buffer.limit(newLimit)
+    windowEnd = newLimit
     true
   }
 
   override def setSkip(n: Long): Boolean = {
-    skipN = n
     val clamped   = math.max(0L, n)
-    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue else clamped.toInt * 8
-    val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
+    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue.toLong else clamped * 8
+    val newPos    = math.min(buffer.position().toLong + bytesSkip, buffer.limit().toLong).toInt
     buffer.position(newPos)
+    windowStart = newPos
     true
   }
 
   override def skip(n: Long): Unit = {
+    if (n <= 0) return
     val s = math.min(n, (buffer.remaining() / 8).toLong).toInt
     buffer.position(buffer.position() + s * 8)
   }
@@ -247,9 +350,16 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
 
   private val originalLimit: Int    = buffer.limit()
   private val originalPosition: Int = buffer.position()
-  private var limitN: Long          = Long.MaxValue
-  private var skipN: Long           = 0
-  private var done: Boolean         = false
+  // The composed pushdown window, stored as DERIVED buffer positions: each
+  // setSkip/setLimit composes against the live buffer state and snapshots the
+  // result, so reset() restores the same composed window. Storing raw
+  // skip/limit values and recomputing [skip, skip+limit) on reset both leaks
+  // elements outside the window and re-emits dropped ones on replay
+  // (BUG-R8-03). Negative windows clamp to empty like the base setters
+  // (BUG-R8-02).
+  private var windowStart: Int = originalPosition
+  private var windowEnd: Int   = originalLimit
+  private var done: Boolean    = false
 
   def close(): Unit = { buffer.position(buffer.limit()); done = true }
 
@@ -262,6 +372,39 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
     else if (buffer.remaining() >= 8) Double.box(buffer.getDouble()).asInstanceOf[A1]
     else { done = true; sentinel }
 
+  override def readN[A1 >: Double](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 8)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Double](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getDouble()
+      i += 1
+    }
+    if (buffer.remaining() < 8) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Double](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Double(); b.sizeHint(math.min(n, 64))
+    val s = Double.MaxValue
+    // Sentinel performance policy (AGENTS.md): the hot path stays a single
+    // primitive comparison; the out-of-band EOF flag is consulted only on the
+    // rare value/sentinel collision (short-circuit). The sentinel here is
+    // statically Double.MaxValue (never NaN), so `doubleEOF`'s per-element
+    // rawbits comparison is unnecessary — do not reintroduce it.
+    var v = readDouble(s)(unsafeEvidence)
+    if (v == s && lastReadWasEOF) return Chunk.empty
+    var i = 0
+    while (!(v == s && lastReadWasEOF) && i < n) {
+      b.addOne(v); i += 1
+      if (i < n) v = readDouble(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
+
   override def readable(): Boolean = !done && buffer.remaining() >= 8
 
   override def readByte(): Int =
@@ -270,40 +413,38 @@ private[streams] final class ByteBufferDoubleReader(buffer: ByteBuffer) extends 
     else { done = true; -1 }
 
   override def readDouble(sentinel: Double)(implicit ev: Double <:< Double): Double =
-    if (done) sentinel
-    else if (buffer.remaining() >= 8) buffer.getDouble()
-    else { done = true; sentinel }
+    if (done) { markReadEOF(); sentinel }
+    else if (buffer.remaining() >= 8) { markReadValue(); buffer.getDouble() }
+    else { done = true; markReadEOF(); sentinel }
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = math.max(0L, skipN)
-    val bytesSkip   = if (clampedSkip > Int.MaxValue / 8) Int.MaxValue else clampedSkip.toInt * 8
-    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
-    buffer.limit(originalLimit)
-    buffer.position(startPos)
-    if (limitN != Long.MaxValue) {
-      val bytesN = if (limitN > Int.MaxValue / 8) Int.MaxValue else limitN.toInt * 8
-      buffer.limit(math.min(originalLimit, startPos + bytesN))
-    }
+    buffer.limit(windowEnd)
+    buffer.position(windowStart)
   }
 
   override def setLimit(n: Long): Boolean = {
-    limitN = n
-    val bytesN = if (n > Int.MaxValue / 8) Int.MaxValue else n.toInt * 8
-    buffer.limit(math.min(originalLimit, buffer.position() + bytesN))
+    val clamped = math.max(0L, n)
+    val bytesN  = if (clamped > Int.MaxValue / 8) Int.MaxValue.toLong else clamped * 8
+    // Cap at the CURRENT live limit, not `originalLimit` (BUG-R9-01): window
+    // ops compose over the live window.
+    val newLimit = math.min(buffer.limit().toLong, buffer.position().toLong + bytesN).toInt
+    buffer.limit(newLimit)
+    windowEnd = newLimit
     true
   }
 
   override def setSkip(n: Long): Boolean = {
-    skipN = n
     val clamped   = math.max(0L, n)
-    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue else clamped.toInt * 8
-    val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
+    val bytesSkip = if (clamped > Int.MaxValue / 8) Int.MaxValue.toLong else clamped * 8
+    val newPos    = math.min(buffer.position().toLong + bytesSkip, buffer.limit().toLong).toInt
     buffer.position(newPos)
+    windowStart = newPos
     true
   }
 
   override def skip(n: Long): Unit = {
+    if (n <= 0) return
     val s = math.min(n, (buffer.remaining() / 8).toLong).toInt
     buffer.position(buffer.position() + s * 8)
   }
@@ -317,9 +458,16 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
 
   private val originalLimit: Int    = buffer.limit()
   private val originalPosition: Int = buffer.position()
-  private var limitN: Long          = Long.MaxValue
-  private var skipN: Long           = 0
-  private var done: Boolean         = false
+  // The composed pushdown window, stored as DERIVED buffer positions: each
+  // setSkip/setLimit composes against the live buffer state and snapshots the
+  // result, so reset() restores the same composed window. Storing raw
+  // skip/limit values and recomputing [skip, skip+limit) on reset both leaks
+  // elements outside the window and re-emits dropped ones on replay
+  // (BUG-R8-03). Negative windows clamp to empty like the base setters
+  // (BUG-R8-02).
+  private var windowStart: Int = originalPosition
+  private var windowEnd: Int   = originalLimit
+  private var done: Boolean    = false
 
   def close(): Unit = { buffer.position(buffer.limit()); done = true }
 
@@ -331,6 +479,34 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
     if (done) sentinel
     else if (buffer.remaining() >= 4) Float.box(buffer.getFloat()).asInstanceOf[A1]
     else { done = true; sentinel }
+
+  override def readN[A1 >: Float](n: Int): Chunk[A1] = {
+    if (n <= 0 || done) return Chunk.empty
+    val count = math.min(n, buffer.remaining() / 4)
+    if (count == 0) { done = true; return Chunk.empty }
+    val arr = new Array[Float](count)
+    var i   = 0
+    while (i < count) {
+      arr(i) = buffer.getFloat()
+      i += 1
+    }
+    if (buffer.remaining() < 4) done = true
+    Chunk.fromArray(arr).asInstanceOf[Chunk[A1]]
+  }
+
+  override def readUpToN[A1 >: Float](n: Int): Chunk[A1] = {
+    if (n <= 0) return Chunk.empty
+    val b = new ChunkBuilder.Float(); b.sizeHint(math.min(n, 64))
+    val s = Double.MaxValue
+    var v = readFloat(s)(unsafeEvidence)
+    if (v == s) return Chunk.empty
+    var i = 0
+    while (v != s && i < n) {
+      b.addOne(v.toFloat); i += 1
+      if (i < n) v = readFloat(s)(unsafeEvidence)
+    }
+    b.result().asInstanceOf[Chunk[A1]]
+  }
 
   override def readable(): Boolean = !done && buffer.remaining() >= 4
 
@@ -346,34 +522,32 @@ private[streams] final class ByteBufferFloatReader(buffer: ByteBuffer) extends R
 
   override def reset(): Unit = {
     done = false
-    val clampedSkip = math.max(0L, skipN)
-    val bytesSkip   = if (clampedSkip > Int.MaxValue / 4) Int.MaxValue else clampedSkip.toInt * 4
-    val startPos    = math.min(originalPosition + bytesSkip, originalLimit)
-    buffer.limit(originalLimit)
-    buffer.position(startPos)
-    if (limitN != Long.MaxValue) {
-      val bytesN = if (limitN > Int.MaxValue / 4) Int.MaxValue else limitN.toInt * 4
-      buffer.limit(math.min(originalLimit, startPos + bytesN))
-    }
+    buffer.limit(windowEnd)
+    buffer.position(windowStart)
   }
 
   override def setLimit(n: Long): Boolean = {
-    limitN = n
-    val bytesN = if (n > Int.MaxValue / 4) Int.MaxValue else n.toInt * 4
-    buffer.limit(math.min(originalLimit, buffer.position() + bytesN))
+    val clamped = math.max(0L, n)
+    val bytesN  = if (clamped > Int.MaxValue / 4) Int.MaxValue.toLong else clamped * 4
+    // Cap at the CURRENT live limit, not `originalLimit` (BUG-R9-01): window
+    // ops compose over the live window.
+    val newLimit = math.min(buffer.limit().toLong, buffer.position().toLong + bytesN).toInt
+    buffer.limit(newLimit)
+    windowEnd = newLimit
     true
   }
 
   override def setSkip(n: Long): Boolean = {
-    skipN = n
     val clamped   = math.max(0L, n)
-    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue else clamped.toInt * 4
-    val newPos    = math.min(buffer.position() + bytesSkip, buffer.limit())
+    val bytesSkip = if (clamped > Int.MaxValue / 4) Int.MaxValue.toLong else clamped * 4
+    val newPos    = math.min(buffer.position().toLong + bytesSkip, buffer.limit().toLong).toInt
     buffer.position(newPos)
+    windowStart = newPos
     true
   }
 
   override def skip(n: Long): Unit = {
+    if (n <= 0) return
     val s = math.min(n, (buffer.remaining() / 4).toLong).toInt
     buffer.position(buffer.position() + s * 4)
   }

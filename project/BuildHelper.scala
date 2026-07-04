@@ -208,7 +208,14 @@ object BuildHelper {
             "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
             "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
             "-Werror"
-          ) ++ (if (minor >= 5) Seq("-experimental") else Seq.empty)
+          ) ++ {
+            if (minor >= 8) {
+              Seq(
+                "-experimental",
+                "-opt"
+              )
+            } else Seq.empty
+          }
         case _ =>
           Seq(
             "-release",
@@ -222,6 +229,15 @@ object BuildHelper {
             "-Xfatal-warnings"
           )
       }),
+      // Align javac --release with scalac -release so Java sources (e.g. ByteArrayAccess.java)
+      // produce bytecode compatible with the same JDK target.
+      javacOptions ++= {
+        val javaRelease = CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, minor)) if minor >= 8 => "17"
+          case _                              => "11"
+        }
+        Seq("--release", javaRelease)
+      },
       versionScheme := Some("early-semver"),
       testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
       Test / parallelExecution := true,

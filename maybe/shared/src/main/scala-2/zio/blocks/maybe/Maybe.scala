@@ -37,6 +37,12 @@ object MaybeValue {
         case Absent         => throw new NoSuchElementException("Maybe.absent.get")
       }
 
+    @inline def getOrNull: Any =
+      self match {
+        case Present(value) => value
+        case Absent         => null
+      }
+
     @inline def getOrElse[B >: A](default: => B): B =
       self match {
         case Present(value) => value

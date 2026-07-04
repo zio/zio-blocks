@@ -2870,6 +2870,281 @@ object JsonSpec extends SchemaBaseSpec {
         val result = json.delete(path)
         assertTrue(result == json)
       }
+    ),
+    suite("additional path operation coverage")(
+      test("modifyOrFail on non-array with Elements returns Left") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.modifyOrFail(DynamicOptic.elements) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail on non-object with MapValues returns Left") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.modifyOrFail(DynamicOptic.mapValues) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail with AtIndex on non-array returns Left") {
+        val json   = Json.String("hello")
+        val result = json.modifyOrFail(DynamicOptic.root.at(0)) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail with AtIndex out of bounds returns Left") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.modifyOrFail(DynamicOptic.root.at(5)) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail propagates error through nested AtIndex") {
+        val json   = Json.Array(Json.Object("x" -> Json.Number(1)))
+        val result = json.modifyOrFail(DynamicOptic.root.at(0).field("missing")) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail with fallthrough node types delegates to non-failing version") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.modifyOrFail(DynamicOptic.root.atIndices(0, 1)) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modifyOrFail with MapKeys falls through to non-failing delegate") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.modifyOrFail(DynamicOptic.mapKeys) { case j => j }
+        assertTrue(result.isLeft)
+      },
+      test("modify with AtIndex on non-array returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.modify(DynamicOptic.root.at(0))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with Elements on non-array returns unchanged") {
+        val json   = Json.String("hello")
+        val result = json.modify(DynamicOptic.elements)(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with MapValues on non-object returns unchanged") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.modify(DynamicOptic.mapValues)(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with AtIndices on non-array returns unchanged") {
+        val json   = Json.String("hello")
+        val result = json.modify(DynamicOptic.root.atIndices(0, 1))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with AtMapKey non-string key returns unchanged") {
+        val json = Json.Object("a" -> Json.Number(1))
+        val path = new DynamicOptic(
+          Chunk.single(DynamicOptic.Node.AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(42))))
+        )
+        val result = json.modify(path)(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with AtMapKey on non-object returns unchanged") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.modify(DynamicOptic.root.atKey("x")(Schema.string))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with AtMapKeys on non-object returns unchanged") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.modify(DynamicOptic.root.atKeys("a")(Schema.string))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with MapKeys returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.modify(DynamicOptic.mapKeys)(_ => Json.String("b"))
+        assertTrue(result == json)
+      },
+      test("modify with Elements where inner modification fails returns elements unchanged") {
+        val json   = Json.Array(Json.Object("x" -> Json.Number(1)), Json.Object("y" -> Json.Number(2)))
+        val result = json.modify(DynamicOptic.elements.field("z"))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with MapValues where inner modification fails returns values unchanged") {
+        val json   = Json.Object("a" -> Json.Object("x" -> Json.Number(1)))
+        val result = json.modify(DynamicOptic.mapValues.field("missing"))(_ => Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("modify with AtIndices where inner modification partially fails") {
+        val json   = Json.Array(Json.Number(1), Json.Object("x" -> Json.Number(2)), Json.Number(3))
+        val result = json.modify(DynamicOptic.root.atIndices(0, 1).field("x"))(_ => Json.Number(99))
+        assertTrue(result.get(1).get("x").as[BigDecimal] == Right(BigDecimal(99)))
+      },
+      test("modify with AtMapKeys where inner modification partially fails") {
+        val json   = Json.Object("a" -> Json.Object("x" -> Json.Number(1)), "b" -> Json.Number(2))
+        val result =
+          json.modify(DynamicOptic.root.atKeys("a", "b")(Schema.string).field("x"))(_ => Json.Number(99))
+        assertTrue(
+          result.get("a").get("x").as[BigDecimal] == Right(BigDecimal(99)),
+          result.get("b").as[BigDecimal] == Right(BigDecimal(2))
+        )
+      },
+      test("delete with AtIndex on non-array returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.delete(DynamicOptic.root.at(0))
+        assertTrue(result == json)
+      },
+      test("delete with AtIndex out of bounds returns unchanged") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.delete(DynamicOptic.root.at(5))
+        assertTrue(result == json)
+      },
+      test("delete with Elements on non-array returns unchanged") {
+        val json   = Json.String("hello")
+        val result = json.delete(DynamicOptic.elements)
+        assertTrue(result == json)
+      },
+      test("delete with Elements non-last applies recursively through elements") {
+        val json = Json.Array(
+          Json.Object("x" -> Json.Number(1), "y" -> Json.Number(2)),
+          Json.Object("x" -> Json.Number(3), "y" -> Json.Number(4))
+        )
+        val result = json.delete(DynamicOptic.elements.field("x"))
+        assertTrue(
+          result.get(0).get("y").as[BigDecimal] == Right(BigDecimal(2)),
+          result.get(0).get("x").isEmpty,
+          result.get(1).get("y").as[BigDecimal] == Right(BigDecimal(4)),
+          result.get(1).get("x").isEmpty
+        )
+      },
+      test("delete with unsupported node type returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.delete(DynamicOptic.mapValues)
+        assertTrue(result == json)
+      },
+      test("delete on root returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.delete(DynamicOptic.root)
+        assertTrue(result == json)
+      },
+      test("deleteOrFail with non-existent nested field") {
+        val json   = Json.Object("a" -> Json.Object("b" -> Json.Number(1)))
+        val result = json.deleteOrFail(DynamicOptic.root.field("a").field("missing"))
+        assertTrue(result.isLeft)
+      },
+      test("deleteOrFail on non-object for field returns Left") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.deleteOrFail(DynamicOptic.root.field("x"))
+        assertTrue(result.isLeft)
+      },
+      test("insert with AtIndex on non-array returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insert(DynamicOptic.root.at(0), Json.Number(1))
+        assertTrue(result == json)
+      },
+      test("insert at negative index returns unchanged") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.insert(DynamicOptic.root.at(-1), Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("insert with unsupported node type returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insert(DynamicOptic.elements, Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("insert at root returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insert(DynamicOptic.root, Json.Number(99))
+        assertTrue(result == json)
+      },
+      test("insert with nested AtIndex navigates into element") {
+        val json   = Json.Array(Json.Object("items" -> Json.Array(Json.Number(1))))
+        val result = json.insert(DynamicOptic.root.at(0).field("items").at(1), Json.Number(2))
+        val items  = result.get(0).get("items")
+        assertTrue(
+          items.get(DynamicOptic.root.at(0)).as[BigDecimal] == Right(BigDecimal(1)),
+          items.get(DynamicOptic.root.at(1)).as[BigDecimal] == Right(BigDecimal(2))
+        )
+      },
+      test("insert nested field where intermediate field doesn't exist returns unchanged") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insert(DynamicOptic.root.field("b").field("c"), Json.Number(42))
+        assertTrue(result == json)
+      },
+      test("insertOrFail at root returns Left") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insertOrFail(DynamicOptic.root, Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail with AtIndex out of bounds returns Left") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.insertOrFail(DynamicOptic.root.at(10), Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail with AtIndex on non-array returns Left") {
+        val json   = Json.String("hello")
+        val result = json.insertOrFail(DynamicOptic.root.at(0), Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail with unsupported node type returns Left") {
+        val json   = Json.Object("a" -> Json.Number(1))
+        val result = json.insertOrFail(DynamicOptic.elements, Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail on non-object for field returns Left") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.insertOrFail(DynamicOptic.root.field("a"), Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail propagates error through nested AtIndex") {
+        val json   = Json.Array(Json.Object("x" -> Json.Number(1)))
+        val result = json.insertOrFail(DynamicOptic.root.at(0).field("x"), Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("insertOrFail with nested AtIndex where parent out of bounds") {
+        val json   = Json.Array(Json.Number(1))
+        val result = json.insertOrFail(DynamicOptic.root.at(5).field("x"), Json.Number(99))
+        assertTrue(result.isLeft)
+      },
+      test("fromKVUnsafe creates nested array with padding") {
+        val result = Json.fromKVUnsafe(
+          Seq(
+            (DynamicOptic.root.at(2), Json.Number(42))
+          )
+        )
+        val isArray      = result.is(JsonType.Array)
+        val firstIsNull  = result.get(0).one == Right(Json.Null)
+        val secondIsNull = result.get(1).one == Right(Json.Null)
+        val thirdIs42    = result.get(2).as[BigDecimal] == Right(BigDecimal(42))
+
+        assertTrue(isArray && firstIsNull && secondIsNull && thirdIs42)
+      },
+      test("fromKVUnsafe with AtIndex into existing array extends with padding") {
+        val result = Json.fromKVUnsafe(
+          Seq(
+            (DynamicOptic.root.at(0), Json.Number(1)),
+            (DynamicOptic.root.at(3), Json.Number(4))
+          )
+        )
+        assertTrue(
+          result.get(0).as[BigDecimal] == Right(BigDecimal(1)),
+          result.get(3).as[BigDecimal] == Right(BigDecimal(4))
+        )
+      },
+      test("fromKVUnsafe with nested field after AtIndex") {
+        val result = Json.fromKVUnsafe(
+          Seq(
+            (DynamicOptic.root.at(0).field("name"), Json.String("Alice"))
+          )
+        )
+        assertTrue(result.get(0).get("name").as[String] == Right("Alice"))
+      },
+      test("fromKVUnsafe with unsupported node type in path") {
+        val result = Json.fromKVUnsafe(
+          Seq(
+            (DynamicOptic.elements, Json.Number(42))
+          )
+        )
+        assertTrue(result == Json.Null)
+      },
+      test("fromKV with overwriting paths succeeds") {
+        val result = Json.fromKV(
+          Seq(
+            (DynamicOptic.root.field("a"), Json.Number(1)),
+            (DynamicOptic.root.field("a").field("nested"), Json.Number(2))
+          )
+        )
+        assertTrue(result.isRight)
+      },
+      test("fromKVUnsafe with single root value") {
+        val result = Json.fromKVUnsafe(Seq((DynamicOptic.root, Json.Number(42))))
+        assertTrue(result == Json.Number(42))
+      }
     )
   )
 

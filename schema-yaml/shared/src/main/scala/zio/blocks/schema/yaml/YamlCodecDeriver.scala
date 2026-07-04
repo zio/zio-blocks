@@ -22,7 +22,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
-import zio.blocks.schema.json.{JsonCodec, NameMapper}
+import zio.blocks.schema.json.JsonCodec
 import zio.blocks.typeid.TypeId
 import scala.annotation.switch
 import scala.reflect.ClassTag

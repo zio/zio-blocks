@@ -1,0 +1,71 @@
+JS-native `Async` benchmark gate — BASELINE
+===========================================
+
+Module : async-benchmarks-js  (Scala.js, ScalaJSPlugin, FullOptStage)
+Main   : zio.blocks.async.bench.AsyncJsBench
+Purpose: JMH is JVM-only, so this is a hand-rolled Node benchmark for the JS
+         hot-path ALLOCATION profile (and order-of-magnitude throughput) of
+         `Async`. It depends on `async.js`, so the Scala version selects the
+         cell under test:
+           - `++3.8.3` -> native `js.async` / `js.await` backend (Scala 3.8+)
+           - `++3.3.7` -> dotty-cps-async (DCA) backend (Scala 3.3.x JS)
+         Scala 2 JS uses the shared def-macro; its allocation shape is already
+         gated on the JVM by `async-benchmarks-scala2` (the emitted flatMap
+         chain is platform-neutral), so it is not re-measured here.
+
+Host   : Apple M3 Ultra, macOS (Darwin 25.3.0, arm64)
+Runtime: Node v26.0.0, run with `--expose-gc` (supplied by the module `jsEnv`)
+Linker : FullOptStage (Closure), ES2017 (required for native js.async/await)
+
+Command:
+  sbt "++3.8.3; async-benchmarks-js/run"      # native cell
+  sbt "++3.3.7; async-benchmarks-js/run"      # DCA cell
+
+Method:
+  Throughput is ops/sec via `System.nanoTime` over 1e6 ops after a 2e5-op
+  warmup; B/op is the Node `process.memoryUsage().heapUsed` delta across a
+  forced `global.gc()`, divided by op count. The harness reports the BEST
+  (highest-throughput / lowest-allocation) of 8 trials. These are NOISIER than
+  JMH: treat B/op as a 0 / ~small / grows-with-n classifier, and throughput as
+  order-of-magnitude only. (`succeed`/`map1`/`flatMap1` return a constant, so
+  Closure largely folds the loop body away — their multi-Gops/s figure means
+  "elided to nothing", which is itself the zero-allocation result we want.)
+
+RESULTS
+-------
+
+  Benchmark             native 3.8.3 (js.await)     DCA 3.3.7
+  ------------------    ------------------------    ------------------------
+                        ops/sec        B/op         ops/sec        B/op
+  succeed               4.0e9          0.0          7.0e8          0.0
+  map1                  4.0e9          0.0          7.3e8          0.0
+  flatMap1              4.0e9          0.0          7.4e8          0.0
+  asyncAwait1           6.7e8          0.0          4.1e8          0.0
+  asyncAwaitSeq3        6.7e8          0.0          4.0e8          0.0
+  asyncAwaitChain10     4.8e6          1.3          4.7e6          3.1
+  asyncAwaitChain100    5.7e5         78.1          4.5e5         60.4
+
+INTERPRETATION
+--------------
+
+1. READY-VALUE HOT PATHS ARE ZERO-ALLOCATION ON JS, both cells. `succeed`,
+   `map1`, and `flatMap1` (and the result of `.block` on an already-resolved
+   value) allocate 0 B/op. This is the JS counterpart of the JVM JMH finding:
+   a ready `Async[A]` IS the `A`, so the hot path carries no wrapper.
+
+2. SCALAR DIRECT-STYLE `.await` IS ZERO-ALLOCATION on both cells. `asyncAwait1`
+   and `asyncAwaitSeq3` (1 and 3 sequential ready awaits) are 0 B/op. The
+   native `js.await` path is ~1.6x the throughput of the DCA path on these,
+   validating Phase 4's bet that native async/await is faster than DCA on JS.
+
+3. THE ONLY ALLOCATING SHAPE is a loop whose `var` state crosses `.await`
+   (`asyncAwaitChain*`): the JS engine (native) / DCA (older) materializes a
+   per-iteration generator/continuation state. Allocation grows with the number
+   of awaited links (≈ per-link), the same inherent CPS cost every effect system
+   pays for mutable loop state across suspension — mirroring the JVM
+   `var`-across-`.await`-in-`while` finding. It is NOT incurred by straight-line
+   `val`-style awaits (note 2).
+
+GATE VERDICT: PASS. The JS performance bet — zero-allocation ready-value and
+straight-line `.await` hot paths, with native `js.await` outperforming DCA — is
+confirmed on the live Node runtime, not merely asserted.

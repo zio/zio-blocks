@@ -361,10 +361,10 @@ abstract class Reader[+Elem] {
 }
 ```
 
-:::danger[Sentinel Collision Risk]
-Unlike `Reader#readInt` which widens to `Long`, `Reader#readLong` has no wider type to safely house the sentinel. Your choice of sentinel is **entirely dependent on your data domain**. If your stream contains the sentinel value you chose, you will incorrectly detect end-of-stream mid-stream. Always choose a sentinel that provably never appears in your actual data—or use `Reader#read[Long](sentinel)` (the generic method) if you need more flexibility.
+:::note[Sentinel Collisions Are Disambiguated]
+Unlike `Reader#readInt` which widens to `Long`, `Reader#readLong` has no wider type to safely house the sentinel — a real `Long.MaxValue` element and end-of-stream both come back as the sentinel value. To disambiguate, every read records an out-of-band flag, exposed as `Reader#lastReadWasEOF`: after a read that returned the sentinel, `lastReadWasEOF` is `true` only for genuine end-of-stream. The library's own drain loops test `v == sentinel && reader.lastReadWasEOF`, so streams containing the sentinel value are processed losslessly; manual pull loops should do the same.
 
-**Performance Tradeoff:** `Reader#readLong` avoids boxing on every read—the long stays unboxed in memory, and retrieval is a simple memory fetch. In contrast, `Reader#read[Long](sentinel)` boxes each long into a generic `Any` reference, forcing allocation and garbage collection pressure in hot loops. For latency-sensitive or high-throughput workloads (millions of elements per second), this difference is measurable. Use `Reader#readLong` when your data domain guarantees no sentinel collisions; switch to `Reader#read[Long]` only if you cannot safely choose a sentinel and the collision risk outweighs the performance cost.
+**Performance Tradeoff:** `Reader#readLong` avoids boxing on every read—the long stays unboxed in memory, and retrieval is a simple memory fetch. In contrast, `Reader#read[Long](sentinel)` boxes each long into a generic `Any` reference, forcing allocation and garbage collection pressure in hot loops. For latency-sensitive or high-throughput workloads (millions of elements per second), this difference is measurable. The `lastReadWasEOF` check costs nothing on the hot path — it only needs consulting on the rare value/sentinel collision.
 :::
 
 `Reader#readFloat` — Sentinel-return `Float` pull. Returns the element widened to `Double`, or `sentinel` when closed:
@@ -848,7 +848,7 @@ For reference types, `null` is the natural sentinel. For primitives, specialized
 | `Double` | `Double.MaxValue` | `readDouble(sentinel: Double)` | `Double`   |
 
 :::note
-The `Long.MaxValue` and `Double.MaxValue` sentinels coincide with valid data values, so streams containing exactly those values may be misinterpreted as end-of-stream in specialized paths. This is a deliberate tradeoff: clarity and simplicity over exotic corner cases.
+The `Long.MaxValue` and `Double.MaxValue` sentinels coincide with valid data values. To keep specialized paths lossless, every read additionally records an out-of-band `Reader#lastReadWasEOF` flag: a sentinel-valued result means end-of-stream only when the flag is set. Streams containing exactly those values are therefore processed without truncation, at zero cost on the hot path.
 :::
 
 ### JVM Type Dispatch

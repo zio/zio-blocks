@@ -29,6 +29,109 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
 | **SQL** | Type-safe JDBC wrapper with schema-derived codecs and CRUD repository | ✅ Available |
+| **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
+
+## Config
+
+Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
+
+See the [Config reference](reference/config.md) for the full API surface, supported rollout syntax, and format-adapter entry points.
+
+### Key Features
+
+- **Static flags**: Resolve once at class load with `StaticFlag[A]`
+- **Typed config loading**: Decode case classes with `Config.load[A]`
+- **Flag sources**: Register custom flag sources in `FlagSource.Registry`
+- **Source composition**: Combine sources with `orElse` and keep provenance
+- **Rollout DSL**: Select values with path and percentage rules
+- **File adapters**: Parse YAML, JSON, and HOCON into `ConfigSource`
+
+### Installation
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
+```
+
+### Quick Start: StaticFlag
+
+```scala
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+val size: Int = poolSize()
+```
+
+### Quick Start: Config.load[A]
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
+```
+
+### Example: FlagSource Plugin
+
+```scala
+package myapp
+
+import zio.blocks.config._
+
+object poolSize extends StaticFlag[Int](10)
+
+FlagSource.Registry.register(
+  FlagSource.fromMap(Map("myapp.poolSize" -> "20"), "demo")
+)
+
+val size = poolSize()
+```
+
+:::note
+Register a `FlagSource` before the first reference to a `StaticFlag` object. `StaticFlag` resolves during object initialization, so a source registered later will not change a flag that has already been loaded. The lookup key is the flag object's fully qualified name (`myapp.poolSize` in this example).
+:::
+
+### Example: ConfigSource Composition with Provenance
+
+The snippet below uses Scala 3 syntax.
+
+```scala
+import zio.blocks.config._
+import zio.blocks.scope.Unscoped
+
+val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
+val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
+val source   = env.orElse(defaults).prefix("app")
+
+final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
+
+val loaded   = Config.loadWithProvenance[AppConfig](source)
+val hostProv = loaded.map(_.provenanceOf("host"))
+```
+
+### Example: Rollout DSL
+
+```scala
+import zio.blocks.config._
+
+val bucket = Rollout.bucketFor("user-123")
+val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
+```
+
+`prod/50%` applies the choice to the `prod` path and enables it for roughly half of the `prod` buckets. The trailing `false` entry is the catch-all fallback for every non-matching case.
+
+### File Format Adapters
+
+- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency and `import zio.blocks.config.yaml._`)
+- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency and `import zio.blocks.config.json._`)
+- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency and `import zio.blocks.config.hocon._`)
 
 ## Core Principles
 
@@ -279,13 +382,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
   Wire(Config("jdbc:postgresql://localhost/mydb"))
 )
 
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val service = allocate(serviceResource)
-
-  $(service)(_.createUser("Alice"))
-}
+serviceResource.use(_.createUser("Alice"))
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
 
@@ -627,6 +724,45 @@ import zio.blocks.streams._
 
 ---
 
+## Async
+
+A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
+an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
+the happy path while still suspending on genuinely asynchronous work.
+
+```scala mdoc
+import zio.blocks.async._
+
+// Constructors collapse to bare values; transformers inline with no allocation
+val computed: Int =
+  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
+```
+
+Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
+at compile time into a non-blocking `flatMap` chain:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
+
+val program: Async[Int] =
+  Async.async {
+    val a = fetch(1).await
+    val b = fetch(2).await
+    (a + b).length
+  }
+```
+
+See the [Async reference](./reference/async.md) for the full API, including
+`zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
+`Future` / `CompletionStage` interop.
+
+**Runnable tour:** the [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
+module is a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`).
+
+---
+
 ## Compatibility
 
 ZIO Blocks works with any Scala stack:
@@ -646,10 +782,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL | Async |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|-------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 
 ## Documentation
 
@@ -701,6 +837,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
 - [Maybe](./reference/maybe.md) - Low-allocation optional values using null
+- [Mux](./reference/mux.mdx) - Thread-safe multiplexer for ID-multiplexed protocols (HTTP/2, QUIC, WebSockets) with lock-free per-stream queues
 - [Scope](./reference/resource-management/scope.md) - Compile-time safe resource management and DI
 - [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](./reference/typeid.md) - Type identity and metadata
@@ -709,7 +846,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
@@ -721,9 +858,11 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
 - [SQL](./reference/sql.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
+- [Async](./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 
+- [Getting Started with Mux](./guides/getting-started-with-mux.md) - Learn how to manage multiplexed bidirectional message streams with capacity limits
 - [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL

@@ -28,7 +28,7 @@ object MuxSpec extends ZIOSpecDefault {
     mux.open(id) match {
       case stream: MuxStream[?, ?, ?] =>
         stream.asInstanceOf[MuxStream[Int, String, String]]
-      case error: MuxError            =>
+      case error: MuxError =>
         throw new RuntimeException(s"Failed to open stream: $error")
     }
 
@@ -65,7 +65,7 @@ object MuxSpec extends ZIOSpecDefault {
       val opened = stream match {
         case stream: MuxStream[?, ?, ?] =>
           stream.asInstanceOf[MuxStream[Int, String, String]]
-        case error: MuxError            =>
+        case error: MuxError =>
           throw new RuntimeException(s"Failed to open stream: $error")
       }
       assertTrue(

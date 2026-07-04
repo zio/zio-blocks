@@ -18,6 +18,7 @@ package zio.blocks.streams.io
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.streams.JvmType
+import zio.blocks.streams.internal.runBoth
 
 import java.io.{IOException, OutputStream, Writer => JWriter}
 
@@ -232,32 +233,39 @@ object Writer {
   /** Writer adapter that writes chars to a `java.io.Writer`. */
   private[streams] final class CharWriter(w: JWriter) extends Writer[Char] {
 
+    // `failed` rejects further writes after an absorbed write IOException;
+    // `closed` records that the underlying writer was finalized. They are
+    // separate so a write failure cannot turn `close()` into a no-op and leak
+    // the underlying writer (it must be flushed/closed by some API path
+    // exactly once).
     private var closed = false
+    private var failed = false
 
-    def isClosed: Boolean = closed
+    def isClosed: Boolean = closed || failed
 
     def write(a: Char): Boolean = writeChar(a)
 
     override def writeChar(value: Char)(implicit ev: Char <:< Char): Boolean = {
-      if (closed) return false
+      if (closed || failed) return false
       try { w.write(value.toInt); true }
-      catch { case _: IOException => closed = true; false }
+      catch { case _: IOException => failed = true; false }
     }
 
     override def writeAll[Elem1 <: Char](chunk: Chunk[Elem1]): Chunk[Elem1] = {
-      if (closed) return chunk
+      if (closed || failed) return chunk
       val arr = new Array[Char](chunk.length)
       var i   = 0
       while (i < arr.length) { arr(i) = chunk(i); i += 1 }
       try { w.write(arr, 0, arr.length); Chunk.empty }
-      catch { case _: IOException => closed = true; chunk }
+      catch { case _: IOException => failed = true; chunk }
     }
 
     def close(): Unit =
       if (!closed) {
         closed = true
-        try { w.flush(); w.close() }
-        catch { case _: IOException => () }
+        // Surface I/O failures from flush/close rather than swallowing them, and
+        // always run `close()` even if `flush()` fails (Principle 4).
+        runBoth(w.flush())(w.close())
       }
   }
 
@@ -277,25 +285,48 @@ object Writer {
     def write(a: Elem): Boolean = {
       if (closed) return false
       if (switched) return current.write(a)
-      val ok =
-        try self.write(a)
-        catch { case t: Throwable => switched = true; throw t }
-      if (!ok && !switched) {
+      // An error from `self.write` propagates immediately; we must NOT mark
+      // `switched` here, otherwise `close()` (which closes both `self` and
+      // `current` when switched, and `current` still aliases `self`) would
+      // finalize `self` twice (double finalization).
+      val ok = self.write(a)
+      if (!ok) {
+        // Obtain `next` BEFORE flipping `switched`/`current`. If the by-name
+        // `next` throws (deferred construction / failing acquire), `switched`
+        // stays `false` and `current` still aliases `self`, so `close()`
+        // finalizes `self` exactly once.
+        val nextWriter = next
         switched = true
-        current = next
+        current = nextWriter
         current.write(a)
       } else ok
     }
 
     def close(): Unit = {
       closed = true
-      try self.close()
-      catch { case _: Throwable => () }
-      if (switched) {
-        try current.close()
-        catch { case _: Throwable => () }
-      }
+      // `current` aliases `self` until a switch occurs; once switched, both must
+      // be closed. If both fail, the second failure is suppressed onto the first
+      // rather than discarded (Principle 4).
+      if (switched) runBoth(self.close())(current.close())
+      else self.close()
     }
+
+    // Without this override `ConcatWith` would inherit the base `Writer.fail`
+    // (= a clean `close()`), silently DOWNGRADING `fail(error)` to a clean close
+    // and never reaching the underlying writer — inconsistent with sibling
+    // wrappers (`Contramapped`, `LimitedWriter`) which forward `fail`. Forward
+    // the error to the active underlying writer(s) instead (ITER-5b /
+    // AdversarialWriterConcatFailSpec).
+    override def fail(error: Throwable): Unit = {
+      closed = true
+      if (switched) runBoth(self.fail(error))(current.fail(error))
+      else self.fail(error)
+    }
+
+    // Forward buffered-state accuracy from the ACTIVE writer (BUG-R8-04). A
+    // non-writeable un-switched `self` still accepts one more write (which
+    // triggers the switch to `next`), so report `true` until switched.
+    override def writeable(): Boolean = !closed && (!switched || current.writeable())
   }
 
   /** Produced by [[Writer.contramap]]. */
@@ -307,6 +338,8 @@ object Writer {
     def write(a: Elem2): Boolean              = self.write(g(a))
     def close(): Unit                         = self.close()
     override def fail(error: Throwable): Unit = self.fail(error)
+    // Forward buffered-state accuracy from the wrapped writer (BUG-R8-04).
+    override def writeable(): Boolean = self.writeable()
   }
 
   /** A writer that accepts at most `n` elements, then auto-closes. */
@@ -324,35 +357,44 @@ object Writer {
     }
     def close(): Unit                         = inner.close()
     override def fail(error: Throwable): Unit = inner.fail(error)
+    // Forward buffered-state accuracy from the wrapped writer (BUG-R8-04).
+    override def writeable(): Boolean = remaining > 0 && inner.writeable()
   }
 
   /** Writer adapter that writes bytes to a `java.io.OutputStream`. */
   private[streams] final class OutputStreamWriter(os: OutputStream) extends Writer[Byte] {
 
+    // `failed` rejects further writes after an absorbed write IOException;
+    // `closed` records that the underlying stream was finalized. They are
+    // separate so a write failure cannot turn `close()` into a no-op and leak
+    // the underlying stream (it must be flushed/closed by some API path
+    // exactly once).
     private var closed = false
+    private var failed = false
 
-    def isClosed: Boolean = closed
+    def isClosed: Boolean = closed || failed
 
     def write(a: Byte): Boolean = writeByte(a)
 
     override def writeByte(b: Byte)(implicit ev: Byte <:< Byte): Boolean = {
-      if (closed) return false
+      if (closed || failed) return false
       try { os.write(b & 0xff); true }
-      catch { case _: IOException => closed = true; false }
+      catch { case _: IOException => failed = true; false }
     }
 
     override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
-      if (closed) return 0
+      if (closed || failed) return 0
       if (len == 0) return 0
       try { os.write(buf, offset, len); len }
-      catch { case _: IOException => closed = true; 0 }
+      catch { case _: IOException => failed = true; 0 }
     }
 
     def close(): Unit =
       if (!closed) {
         closed = true
-        try { os.flush(); os.close() }
-        catch { case _: IOException => () }
+        // Surface I/O failures from flush/close rather than swallowing them, and
+        // always run `close()` even if `flush()` fails (Principle 4).
+        runBoth(os.flush())(os.close())
       }
   }
 

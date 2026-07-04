@@ -239,8 +239,8 @@ object Patch {
       val combinedOps = nestedOps.map { nestedOp =>
         // Build the full path: sequence field -> index -> nested path
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }
@@ -255,8 +255,8 @@ object Patch {
     else {
       val combinedOps = nestedOps.map { nestedOp =>
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }
@@ -271,8 +271,8 @@ object Patch {
     else {
       val combinedOps = nestedOps.map { nestedOp =>
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }
@@ -287,8 +287,8 @@ object Patch {
     else {
       val combinedOps = nestedOps.map { nestedOp =>
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }
@@ -303,8 +303,8 @@ object Patch {
     else {
       val combinedOps = nestedOps.map { nestedOp =>
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtIndex(index)) ++ nestedOp.path.nodes)
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }
@@ -340,8 +340,10 @@ object Patch {
       val combinedOps = nestedOps.map { nestedOp =>
         // Build the full path: map field -> key -> nested path
         val fullPath =
-          new DynamicOptic((optic.toDynamic.nodes :+ DynamicOptic.Node.AtMapKey(dynamicKey)) ++ nestedOp.path.nodes)
-        Patch.DynamicPatchOp(fullPath, nestedOp.operation)
+          new DynamicOptic(
+            optic.toDynamic.nodes.appended(new DynamicOptic.Node.AtMapKey(dynamicKey)) ++ nestedOp.path.nodes
+          )
+        new Patch.DynamicPatchOp(fullPath, nestedOp.operation)
       }
       toDynamicPatch(optic, combinedOps)
     }

@@ -24,7 +24,7 @@ import zio.blocks.chunk.Chunk
  */
 final case class SchemaMetadata[S, G[_]](private val map: Map[Optic[S, ?], IndexedSeq[?]]) {
   def add[A](optic: Optic[S, A], value: G[A]): SchemaMetadata[S, G] =
-    new SchemaMetadata[S, G](map.updated(optic, map.getOrElse(optic, Chunk.empty) :+ value))
+    new SchemaMetadata[S, G](map.updated(optic, map.getOrElse(optic, Chunk.empty).appended(value)))
 
   def fold[Z](z: Z)(fold: SchemaMetadata.Folder[S, G, Z]): Z =
     map.foldLeft(z) { case (z, (optic, values)) =>
@@ -69,7 +69,7 @@ object SchemaMetadata {
 
   def bound[S, G[_]]: SchemaMetadata[S, G] = empty[S, G]
 
-  def empty[S, G[_]]: SchemaMetadata[S, G] = SchemaMetadata[S, G](Map())
+  def empty[S, G[_]]: SchemaMetadata[S, G] = new SchemaMetadata[S, G](Map.empty)
 
   def simple[S]: SchemaMetadata.Simple[S] = empty[S, Id]
 }
