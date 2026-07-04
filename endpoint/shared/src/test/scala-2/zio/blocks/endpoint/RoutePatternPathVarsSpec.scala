@@ -29,7 +29,8 @@ object RoutePatternPathVarsSpec extends ZIOSpecDefault {
       assertCompletes
     },
     test("PathCodec ++ propagates the same ordered PathVars as the RoutePattern chain it backs") {
-      val codec = PathCodec.apply(SegmentCodec.int("userId")) ++ PathCodec.literal("posts") ++ PathCodec.string("postId")
+      val codec =
+        PathCodec.apply(SegmentCodec.int("userId")) ++ PathCodec.literal("posts") ++ PathCodec.string("postId")
       implicitly[codec.PathVars =:= Tuple2[PathVar["userId", Int], PathVar["postId", String]]]
       assertCompletes
     },
@@ -47,6 +48,11 @@ object RoutePatternPathVarsSpec extends ZIOSpecDefault {
       val pattern = Method.GET / SegmentCodec.int("id")
       val nested  = pattern.nest(PathCodec.literal("api"))
       assertTrue(nested.decode(Method.GET, zio.http.Path("/api/42")) == Right(42))
+    },
+    test("Method.GET / int / literal / string.unused produces an ordered tuple with a PathVar.Ignored entry") {
+      val pattern = Method.GET / SegmentCodec.int("userId") / "posts" / SegmentCodec.string("postId").unused
+      implicitly[pattern.PathVars =:= Tuple2[PathVar["userId", Int], PathVar.Ignored["postId", String]]]
+      assertCompletes
     }
   )
 }

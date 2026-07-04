@@ -36,6 +36,21 @@ object PathVarSpec extends ZIOSpecDefault {
           implicitly[seg.PathVars =:= Tuple1[PathVar["wrong", Int]]]
         """)
       )(isLeft)
+    },
+    test("SegmentCodec.int(\"id\").unused.PathVars =:= Tuple1[PathVar.Ignored[\"id\", Int]]") {
+      val seg = SegmentCodec.int("id").unused
+      implicitly[seg.PathVars =:= Tuple1[PathVar.Ignored["id", Int]]]
+      assertCompletes
+    },
+    test("SegmentCodec.int(\"id\").unused.PathVars is NOT Tuple1[PathVar[\"id\", Int]]") {
+      assertZIO(
+        typeCheck("""
+          import zio.blocks.endpoint._
+
+          val seg = SegmentCodec.int("id").unused
+          implicitly[seg.PathVars =:= Tuple1[PathVar["id", Int]]]
+        """)
+      )(isLeft)
     }
   )
 }

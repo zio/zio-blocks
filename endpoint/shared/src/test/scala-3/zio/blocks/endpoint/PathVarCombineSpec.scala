@@ -35,6 +35,31 @@ object PathVarCombineSpec extends ZIOSpecDefault {
       val transformed = SegmentCodec.int("id").transform(identity, identity)
       implicitly[transformed.PathVars =:= (PathVar["id", Int] *: EmptyTuple)]
       assertCompletes
+    },
+    test("int ~ literal ~ string.unused produces an ordered tuple with both PathVar and PathVar.Ignored") {
+      val chain = SegmentCodec.int("userId") ~ SegmentCodec.literal("-") ~ SegmentCodec.string("postId").unused
+      implicitly[chain.PathVars =:= (PathVar["userId", Int] *: PathVar.Ignored["postId", String] *: EmptyTuple)]
+      assertCompletes
+    },
+    test("string.unused ~ literal ~ int preserves order with the Ignored marker first") {
+      val chain = SegmentCodec.string("postId").unused ~ SegmentCodec.literal("-") ~ SegmentCodec.int("userId")
+      implicitly[chain.PathVars =:= (PathVar.Ignored["postId", String] *: PathVar["userId", Int] *: EmptyTuple)]
+      assertCompletes
+    },
+    test("Transform passes an Ignored PathVars entry through unchanged") {
+      val transformed = SegmentCodec.int("id").unused.transform(identity, identity)
+      implicitly[transformed.PathVars =:= (PathVar.Ignored["id", Int] *: EmptyTuple)]
+      assertCompletes
+    },
+    test(".unused is byte-for-byte identical at runtime to its non-.unused counterpart") {
+      val plain   = SegmentCodec.int("id")
+      val ignored = SegmentCodec.int("id").unused
+      assertTrue(
+        SegmentCodec.formatSegment(plain, 42) == SegmentCodec.formatSegment(ignored, 42),
+        SegmentCodec.decodeCombined(plain, "42", 0) == SegmentCodec.decodeCombined(ignored, "42", 0),
+        SegmentCodec.kind(plain) == SegmentCodec.kind(ignored),
+        SegmentCodec.key(plain) == SegmentCodec.key(ignored)
+      )
     }
   )
 }

@@ -242,6 +242,24 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type Prefix   = BoundaryTag.Bool
     type Suffix   = BoundaryTag.Bool
     type PathVars = OnePathVar[PathVar[N, Boolean]]
+
+    /**
+     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
+     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
+     * `PathVar[N, Boolean]` to `PathVar.Ignored[N, Boolean]`, marking this
+     * captured segment as intentionally unused (see [[PathVar.Ignored]] for
+     * what that distinction means to downstream consumers). Zero runtime cost:
+     * implemented as a same-instance type ascription, exactly like every other
+     * phantom-type refinement in this file.
+     */
+    def unused: WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
+      type PathVars = OnePathVar[PathVar.Ignored[N, Boolean]]
+    } =
+      this.asInstanceOf[
+        WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
+          type PathVars = OnePathVar[PathVar.Ignored[N, Boolean]]
+        }
+      ]
   }
 
   final case class IntSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Int)] = Chunk.empty)
@@ -249,6 +267,24 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type Prefix   = BoundaryTag.Int
     type Suffix   = BoundaryTag.Int
     type PathVars = OnePathVar[PathVar[N, Int]]
+
+    /**
+     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
+     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
+     * `PathVar[N, Int]` to `PathVar.Ignored[N, Int]`, marking this captured
+     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
+     * distinction means to downstream consumers). Zero runtime cost:
+     * implemented as a same-instance type ascription, exactly like every other
+     * phantom-type refinement in this file.
+     */
+    def unused: WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
+      type PathVars = OnePathVar[PathVar.Ignored[N, Int]]
+    } =
+      this.asInstanceOf[
+        WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
+          type PathVars = OnePathVar[PathVar.Ignored[N, Int]]
+        }
+      ]
   }
 
   final case class LongSeg[N <: String](name: N, doc: Doc = Doc.empty, examples: Chunk[(String, Long)] = Chunk.empty)
@@ -256,6 +292,24 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type Prefix   = BoundaryTag.Long
     type Suffix   = BoundaryTag.Long
     type PathVars = OnePathVar[PathVar[N, Long]]
+
+    /**
+     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
+     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
+     * `PathVar[N, Long]` to `PathVar.Ignored[N, Long]`, marking this captured
+     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
+     * distinction means to downstream consumers). Zero runtime cost:
+     * implemented as a same-instance type ascription, exactly like every other
+     * phantom-type refinement in this file.
+     */
+    def unused: WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
+      type PathVars = OnePathVar[PathVar.Ignored[N, Long]]
+    } =
+      this.asInstanceOf[
+        WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
+          type PathVars = OnePathVar[PathVar.Ignored[N, Long]]
+        }
+      ]
   }
 
   final case class StringSeg[N <: String](
@@ -266,6 +320,24 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type Prefix   = BoundaryTag.String
     type Suffix   = BoundaryTag.String
     type PathVars = OnePathVar[PathVar[N, String]]
+
+    /**
+     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
+     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
+     * `PathVar[N, String]` to `PathVar.Ignored[N, String]`, marking this
+     * captured segment as intentionally unused (see [[PathVar.Ignored]] for
+     * what that distinction means to downstream consumers). Zero runtime cost:
+     * implemented as a same-instance type ascription, exactly like every other
+     * phantom-type refinement in this file.
+     */
+    def unused: WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
+      type PathVars = OnePathVar[PathVar.Ignored[N, String]]
+    } =
+      this.asInstanceOf[
+        WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
+          type PathVars = OnePathVar[PathVar.Ignored[N, String]]
+        }
+      ]
   }
 
   final case class UUIDSeg[N <: String](
@@ -276,6 +348,24 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type Prefix   = BoundaryTag.UUID
     type Suffix   = BoundaryTag.UUID
     type PathVars = OnePathVar[PathVar[N, java.util.UUID]]
+
+    /**
+     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
+     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
+     * `PathVar[N, UUID]` to `PathVar.Ignored[N, UUID]`, marking this captured
+     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
+     * distinction means to downstream consumers). Zero runtime cost:
+     * implemented as a same-instance type ascription, exactly like every other
+     * phantom-type refinement in this file.
+     */
+    def unused: WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
+      type PathVars = OnePathVar[PathVar.Ignored[N, java.util.UUID]]
+    } =
+      this.asInstanceOf[
+        WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
+          type PathVars = OnePathVar[PathVar.Ignored[N, java.util.UUID]]
+        }
+      ]
   }
 
   final case class Combined[A, B, C](
