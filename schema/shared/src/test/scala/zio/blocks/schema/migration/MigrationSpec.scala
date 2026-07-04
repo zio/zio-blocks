@@ -62,19 +62,19 @@ object MigrationSpec extends ZIOSpecDefault {
 
     sealed trait MixedColor
     object MixedColor {
-      case object Red              extends MixedColor
-      case class  Dark(shade: Int) extends MixedColor
+      case object Red             extends MixedColor
+      case class Dark(shade: Int) extends MixedColor
     }
 
     case class TaskV1(name: String)
     case class TaskV2(name: String, color: Color)
     case class TaskV3(name: String, color: MixedColor)
 
-    implicit val colorSchema:      Schema[Color]      = Schema.derived[Color]
+    implicit val colorSchema: Schema[Color]           = Schema.derived[Color]
     implicit val mixedColorSchema: Schema[MixedColor] = Schema.derived[MixedColor]
-    implicit val taskV1Schema:     Schema[TaskV1]     = Schema.derived[TaskV1]
-    implicit val taskV2Schema:     Schema[TaskV2]     = Schema.derived[TaskV2]
-    implicit val taskV3Schema:     Schema[TaskV3]     = Schema.derived[TaskV3]
+    implicit val taskV1Schema: Schema[TaskV1]         = Schema.derived[TaskV1]
+    implicit val taskV2Schema: Schema[TaskV2]         = Schema.derived[TaskV2]
+    implicit val taskV3Schema: Schema[TaskV3]         = Schema.derived[TaskV3]
   }
 
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
@@ -1108,7 +1108,9 @@ object MigrationSpec extends ZIOSpecDefault {
       // FAILS: literal lowering drops Schema, making the two Literals indistinguishable.
       test("DynamicSchemaExpr.Literal is distinct for all-no-field vs mixed enum") {
         import EnumLiteralFixtures._
-        assertTrue(SchemaExpr.literal[Any, Color](Red).dynamic != SchemaExpr.literal[Any, MixedColor](MixedColor.Red).dynamic)
+        assertTrue(
+          SchemaExpr.literal[Any, Color](Red).dynamic != SchemaExpr.literal[Any, MixedColor](MixedColor.Red).dynamic
+        )
       },
       // FAILS: migration contract broken — two semantically different addField calls
       // produce the same DynamicMigration, making the representation non-injective.

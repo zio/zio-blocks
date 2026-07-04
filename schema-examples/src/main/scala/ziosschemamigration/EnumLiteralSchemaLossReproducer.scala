@@ -28,8 +28,8 @@ object EnumLiteralSchemaLossReproducer extends App {
   // Mixed sealed trait: same "Red" case name, but also has a data-carrying case.
   sealed trait MixedColor
   object MixedColor {
-    case object Red              extends MixedColor
-    case class  Dark(shade: Int) extends MixedColor
+    case object Red             extends MixedColor
+    case class Dark(shade: Int) extends MixedColor
   }
   implicit val mixedColorSchema: Schema[MixedColor] = Schema.derived[MixedColor]
 
@@ -45,7 +45,7 @@ object EnumLiteralSchemaLossReproducer extends App {
 
   // ── 1. Root cause ────────────────────────────────────────────────────────
   println("1. Both sealed traits produce identical DynamicValue for the same case name")
-  val colorDV     = Schema[Color].toDynamicValue(Red)
+  val colorDV      = Schema[Color].toDynamicValue(Red)
   val mixedColorDV = Schema[MixedColor].toDynamicValue(MixedColor.Red)
   println(s"     Color.Red      → $colorDV")
   println(s"     MixedColor.Red → $mixedColorDV")
@@ -54,9 +54,9 @@ object EnumLiteralSchemaLossReproducer extends App {
 
   // ── 2. Schema survives in SchemaExpr but not DynamicSchemaExpr ───────────
   println("2. SchemaExpr.literal preserves isEnumeration in outputSchema ...")
-  val colorLit     = SchemaExpr.literal[Any, Color](Red)
+  val colorLit      = SchemaExpr.literal[Any, Color](Red)
   val mixedColorLit = SchemaExpr.literal[Any, MixedColor](MixedColor.Red)
-  check("Color     isEnumeration = true",  colorLit.outputSchema.reflect.isEnumeration)
+  check("Color     isEnumeration = true", colorLit.outputSchema.reflect.isEnumeration)
   check("MixedColor isEnumeration = false", !mixedColorLit.outputSchema.reflect.isEnumeration)
   println("   ... but DynamicSchemaExpr.Literal drops the Schema:")
   println(s"     Color literal dynamic     → ${colorLit.dynamic}")
@@ -67,7 +67,8 @@ object EnumLiteralSchemaLossReproducer extends App {
   // ── 3. Migration representation contract broken ───────────────────────────
   println("3. addField migrations for Color vs MixedColor produce the same DynamicMigration")
   val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, SchemaExpr.literal[Any, Color](Red)).build
-  val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, SchemaExpr.literal[Any, MixedColor](MixedColor.Red)).build
+  val migToV3 =
+    Migration.newBuilder[TaskV1, TaskV3].addField(_.color, SchemaExpr.literal[Any, MixedColor](MixedColor.Red)).build
   println(s"     migToV2 DynamicMigration → ${migToV2.dynamicMigration}")
   println(s"     migToV3 DynamicMigration → ${migToV3.dynamicMigration}")
   check("DynamicMigrations are DIFFERENT (expect FAIL)", migToV2.dynamicMigration != migToV3.dynamicMigration)
@@ -75,8 +76,8 @@ object EnumLiteralSchemaLossReproducer extends App {
 
   // ── 4. Execution contract broken ─────────────────────────────────────────
   println("4. DynamicMigration built for Color is silently accepted by MixedColor schema")
-  val inputDV = Schema[TaskV1].toDynamicValue(TaskV1("Alice"))
-  val migrated = migToV2.dynamicMigration(inputDV)
+  val inputDV     = Schema[TaskV1].toDynamicValue(TaskV1("Alice"))
+  val migrated    = migToV2.dynamicMigration(inputDV)
   val wrongDecode = migrated.flatMap(dv => Schema[TaskV3].fromDynamicValue(dv))
   println(s"     Migration target: TaskV2 (Color — all-no-field enum)")
   println(s"     Decoded with:     Schema[TaskV3] (MixedColor — mixed enum)")

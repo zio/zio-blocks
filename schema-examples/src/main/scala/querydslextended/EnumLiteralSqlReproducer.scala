@@ -29,9 +29,9 @@ object EnumLiteralSqlReproducer extends App {
 
   case class Product(name: String, price: Double, category: Category)
   object Product extends CompanionOptics[Product] {
-    implicit val schema: Schema[Product] = Schema.derived
-    val name:     Lens[Product, String]   = optic(_.name)
-    val price:    Lens[Product, Double]   = optic(_.price)
+    implicit val schema: Schema[Product]  = Schema.derived
+    val name: Lens[Product, String]       = optic(_.name)
+    val price: Lens[Product, Double]      = optic(_.price)
     val category: Lens[Product, Category] = optic(_.category)
   }
 
@@ -54,7 +54,7 @@ object EnumLiteralSqlReproducer extends App {
   check(
     ".in() produces quoted string literals",
     inSql,
-    "category IN ('Electronics', 'Books')"  // correct SQL
+    "category IN ('Electronics', 'Books')" // correct SQL
   )
   // Actual: category IN (Electronics, Books)  — unquoted, wrong SQL
   println()
@@ -71,7 +71,7 @@ object EnumLiteralSqlReproducer extends App {
   check(
     "=== produces correct SQL for enum literal",
     eqSql,
-    "((price BETWEEN 10.0 AND 500.0) AND (category = 'Electronics'))"  // correct SQL
+    "((price BETWEEN 10.0 AND 500.0) AND (category = 'Electronics'))" // correct SQL
   )
   // Actual: ((price BETWEEN 10.0 AND 500.0) AND (category = {} @ {tag: "Electronics"}))
   println()
@@ -84,7 +84,7 @@ object EnumLiteralSqlReproducer extends App {
   check(
     "Expr.lit produces correct SQL for enum literal",
     litSql,
-    "'Electronics'"  // correct SQL
+    "'Electronics'" // correct SQL
   )
   // Actual: {} @ {tag: "Electronics"}
   println()
