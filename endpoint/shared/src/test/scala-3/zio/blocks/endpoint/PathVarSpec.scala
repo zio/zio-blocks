@@ -51,6 +51,22 @@ object PathVarSpec extends ZIOSpecDefault {
           implicitly[seg.PathVars =:= (PathVar["id", Int] *: EmptyTuple)]
         """)
       )(isLeft)
+    },
+    test("PathCodec.int(\"id\").unused.PathVars =:= PathVar.Ignored[\"id\", Int] *: EmptyTuple") {
+      val path = PathCodec.int("id").unused
+      implicitly[path.PathVars =:= (PathVar.Ignored["id", Int] *: EmptyTuple)]
+      assertCompletes
+    },
+    test("PathCodec.bool/long/string/uuid all expose .unused with the right PathVars marker") {
+      val boolPath   = PathCodec.bool("flag").unused
+      val longPath   = PathCodec.long("count").unused
+      val stringPath = PathCodec.string("slug").unused
+      val uuidPath   = PathCodec.uuid("id").unused
+      implicitly[boolPath.PathVars =:= (PathVar.Ignored["flag", Boolean] *: EmptyTuple)]
+      implicitly[longPath.PathVars =:= (PathVar.Ignored["count", Long] *: EmptyTuple)]
+      implicitly[stringPath.PathVars =:= (PathVar.Ignored["slug", String] *: EmptyTuple)]
+      implicitly[uuidPath.PathVars =:= (PathVar.Ignored["id", java.util.UUID] *: EmptyTuple)]
+      assertCompletes
     }
   )
 }

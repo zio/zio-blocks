@@ -135,6 +135,21 @@ object PathCodec {
       Transform(self, decode, encode).asInstanceOf[PathCodec[B] { type PathVars = PV }]
   }
 
+  implicit final class SinglePathVarPathCodecOps[A, N <: String with Singleton, T](
+    private val self: PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar[N, T]] }
+  ) extends AnyVal {
+
+    /** Same path codec as `self` (identical decoded value type and identical
+      * encode/decode behavior) - a pure type-level relabeling of a single
+      * captured path variable from `PathVar[N, T]` to `PathVar.Ignored[N, T]`.
+      * This mirrors [[SegmentCodec.IntSeg.unused]] and makes the public
+      * `PathCodec.int/string/long/bool/uuid` smart constructors support the
+      * same `.unused` escape hatch directly.
+      */
+    def unused: PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar.Ignored[N, T]] } =
+      self.asInstanceOf[PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar.Ignored[N, T]] }]
+  }
+
   /**
    * Combines `left`/`right` at the VALUE level only (`Tuples.Tuples.WithOut[A,B,C]`), with no
    * `PathVars`-combining implicit requirement. Used internally, where at least one operand's
