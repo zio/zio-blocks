@@ -29,9 +29,9 @@ private[endpoint] object PathCodecRuntime {
     def loop(current: PathCodec[_]): String =
       current match {
         case PathCodec.Segment(segment)       => segment.render(prefix, suffix)
-        case PathCodec.Concat(left, right, _)  => loop(left) + loop(right)
-        case PathCodec.Transform(inner, _, _)  => loop(inner)
-        case PathCodec.Fallback(left, right)   => loop(left) + " | " + loop(right)
+        case PathCodec.Concat(left, right, _) => loop(left) + loop(right)
+        case PathCodec.Transform(inner, _, _) => loop(inner)
+        case PathCodec.Fallback(left, right)  => loop(left) + " | " + loop(right)
       }
 
     val rendered = loop(codec)
@@ -46,8 +46,8 @@ private[endpoint] object PathCodecRuntime {
             case Nil          => result
             case head :: tail =>
               head match {
-                case PathCodec.Segment(SegmentCodec.Empty)           => loop(tail, result)
-                case PathCodec.Fallback(left, right)                 => loop(left :: right :: tail, result)
+                case PathCodec.Segment(SegmentCodec.Empty)            => loop(tail, result)
+                case PathCodec.Fallback(left, right)                  => loop(left :: right :: tail, result)
                 case PathCodec.Segment(SegmentCodec.Literal(_, _, _)) => loop(tail, result :+ head)
                 case other                                            =>
                   throw new IllegalStateException(
@@ -80,7 +80,7 @@ private[endpoint] object PathCodecRuntime {
 
   def decodeCodec(codec: PathCodec[_], segments: Chunk[String], index: Int): List[(Any, Int)] =
     codec match {
-      case PathCodec.Segment(segment) => decodeSegment(segment, segments, index)
+      case PathCodec.Segment(segment)              => decodeSegment(segment, segments, index)
       case PathCodec.Concat(left, right, combiner) =>
         decodeCodec(left, segments, index).flatMap { case (leftValue, next) =>
           decodeCodec(right, segments, next).map { case (rightValue, end) =>
@@ -99,7 +99,7 @@ private[endpoint] object PathCodecRuntime {
 
   private def decodeSegment(codec: SegmentCodec[_], segments: Chunk[String], index: Int): List[(Any, Int)] =
     codec match {
-      case SegmentCodec.Empty               => List(((), index))
+      case SegmentCodec.Empty                => List(((), index))
       case SegmentCodec.Literal(value, _, _) =>
         if (index < segments.length && segments(index) == value) List(((), index + 1)) else Nil
       case SegmentCodec.BoolSeg(_, _, _) =>
@@ -108,14 +108,14 @@ private[endpoint] object PathCodecRuntime {
           segments(index) match {
             case "true"  => List((true, index + 1))
             case "false" => List((false, index + 1))
-            case _        => Nil
+            case _       => Nil
           }
       case SegmentCodec.IntSeg(_, _, _) =>
         segments.lift(index).flatMap(_.toIntOption).map(v => List((v, index + 1))).getOrElse(Nil)
       case SegmentCodec.LongSeg(_, _, _) =>
         segments.lift(index).flatMap(_.toLongOption).map(v => List((v, index + 1))).getOrElse(Nil)
       case SegmentCodec.StringSeg(_, _, _) => segments.lift(index).map(v => List((v, index + 1))).getOrElse(Nil)
-      case SegmentCodec.UUIDSeg(_, _, _) =>
+      case SegmentCodec.UUIDSeg(_, _, _)   =>
         segments
           .lift(index)
           .flatMap { segment =>
@@ -149,7 +149,7 @@ private[endpoint] object PathCodecRuntime {
 
   def formatCodec(codec: PathCodec[_], value: Any): Either[String, Path] =
     codec match {
-      case PathCodec.Segment(segment) => Right(segment.asInstanceOf[SegmentCodec[Any]].format(value))
+      case PathCodec.Segment(segment)              => Right(segment.asInstanceOf[SegmentCodec[Any]].format(value))
       case PathCodec.Concat(left, right, combiner) =>
         val typed                   = combiner.asInstanceOf[AnyCombiner]
         val (leftValue, rightValue) = typed.separate(value)

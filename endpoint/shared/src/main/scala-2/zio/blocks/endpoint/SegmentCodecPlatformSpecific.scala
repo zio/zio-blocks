@@ -25,7 +25,7 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
   // stand-ins, matching this codebase's existing convention (combinators/Tuples.scala) of using
   // `Unit` as the neutral/empty element.
   type OnePathVar[X] = Tuple1[X]
-  type NoPathVars     = Unit
+  type NoPathVars    = Unit
 
   private def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
     (suffixBoundary(left), prefixBoundary(right)) match {

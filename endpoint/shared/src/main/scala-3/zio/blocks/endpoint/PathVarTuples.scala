@@ -17,23 +17,25 @@
 package zio.blocks.endpoint
 
 /**
- * NEW, small, endpoint-scoped combinator that concatenates two `PathVars` encodings in the SAME
- * left-to-right order/element-count that `zio.blocks.combinators.Tuples.Tuples.WithOut[A,B,C]`
- * uses to combine the real runtime value type - deliberately a SEPARATE, parallel implementation
- * living in the `endpoint` module, NOT a modification of (or addition to) that shared, generic
- * typeclass.
+ * NEW, small, endpoint-scoped combinator that concatenates two `PathVars`
+ * encodings in the SAME left-to-right order/element-count that
+ * `zio.blocks.combinators.Tuples.Tuples.WithOut[A,B,C]` uses to combine the
+ * real runtime value type - deliberately a SEPARATE, parallel implementation
+ * living in the `endpoint` module, NOT a modification of (or addition to) that
+ * shared, generic typeclass.
  */
 private[endpoint] object PathVarTuples {
 
   /**
-   * Ordered concatenation of `L` and `R`, structurally mirroring `scala.Tuple.Concat`'s own
-   * recursive match-type definition, but deliberately left UNBOUNDED (no `<: Tuple` constraint
-   * on the type parameters) so it can be applied directly to `SegmentCodec`'s unbounded
-   * `PathVars` abstract type member (e.g. `left.PathVars`/`right.PathVars` inside
-   * `SegmentCodec.Combined`'s class body, where `left`/`right` are typed as the plain
-   * `SegmentCodec[A]`/`SegmentCodec[B]` and so cannot statically be proven `<: Tuple`).
-   * Non-capturing sides (`NoPathVars` = `EmptyTuple`) contribute zero elements, matching the
-   * `EmptyTuple` base case.
+   * Ordered concatenation of `L` and `R`, structurally mirroring
+   * `scala.Tuple.Concat`'s own recursive match-type definition, but
+   * deliberately left UNBOUNDED (no `<: Tuple` constraint on the type
+   * parameters) so it can be applied directly to `SegmentCodec`'s unbounded
+   * `PathVars` abstract type member (e.g. `left.PathVars`/`right.PathVars`
+   * inside `SegmentCodec.Combined`'s class body, where `left`/`right` are typed
+   * as the plain `SegmentCodec[A]`/`SegmentCodec[B]` and so cannot statically
+   * be proven `<: Tuple`). Non-capturing sides (`NoPathVars` = `EmptyTuple`)
+   * contribute zero elements, matching the `EmptyTuple` base case.
    */
   type Concat[L, R] = L match {
     case EmptyTuple => R
@@ -41,10 +43,11 @@ private[endpoint] object PathVarTuples {
   }
 
   /**
-   * Term-level typeclass mirror of [[Concat]], used by the `~` extension method so the composed
-   * value's INFERRED `PathVars` type parameter (`PVC`, a normal method type parameter unified via
-   * `given` resolution, exactly like `Tuples.Tuples.WithOut[A,B,C]` infers `C`) is the ordered
-   * concatenation - this is what is actually externally observable on a `~`-composed value,
+   * Term-level typeclass mirror of [[Concat]], used by the `~` extension method
+   * so the composed value's INFERRED `PathVars` type parameter (`PVC`, a normal
+   * method type parameter unified via `given` resolution, exactly like
+   * `Tuples.Tuples.WithOut[A,B,C]` infers `C`) is the ordered concatenation -
+   * this is what is actually externally observable on a `~`-composed value,
    * independent of what `SegmentCodec.Combined`'s own class body declares.
    */
   trait Combine[L, R] {

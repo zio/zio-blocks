@@ -33,11 +33,13 @@ final case class RoutePattern[A](
 ) {
 
   /**
-   * Ordered, purely phantom registry of [[PathVar]] markers contributed by `pathCodec` - a
-   * pass-through of `pathCodec.PathVars` (see [[PathCodec.PathVars]]). Like `PathCodec`'s own
-   * `Segment`/`Transform` cases, this class-body declaration is a best-effort placeholder: the
-   * REAL, precisely-computed value is carried by [[RoutePattern.RoutePatternOps]]`.`/`'s own
-   * refined return type, which is what every acceptance test asserts against.
+   * Ordered, purely phantom registry of [[PathVar]] markers contributed by
+   * `pathCodec` - a pass-through of `pathCodec.PathVars` (see
+   * [[PathCodec.PathVars]]). Like `PathCodec`'s own `Segment`/`Transform`
+   * cases, this class-body declaration is a best-effort placeholder: the REAL,
+   * precisely-computed value is carried by
+   * [[RoutePattern.RoutePatternOps]]`.`/`'s own refined return type, which is
+   * what every acceptance test asserts against.
    */
   type PathVars = pathCodec.PathVars
 
@@ -112,15 +114,16 @@ object RoutePattern {
   }
 
   /**
-   * Carries the precise, ordered `PathVars` combine through `/` via refinement-typed receiver
-   * capture (the same pattern `PathCodec.PathCodecOps` uses, and the same pattern
-   * `SegmentCodecPlatformSpecific`'s `~` extension uses on Scala 3/2) - `RoutePattern[A]`'s own
-   * class-body `PathVars` (a plain pass-through of `pathCodec.PathVars`) cannot be more precise
-   * on its own, since dependent-type capture requires a refinement on the METHOD RECEIVER, not a
+   * Carries the precise, ordered `PathVars` combine through `/` via
+   * refinement-typed receiver capture (the same pattern
+   * `PathCodec.PathCodecOps` uses, and the same pattern
+   * `SegmentCodecPlatformSpecific`'s `~` extension uses on Scala 3/2) -
+   * `RoutePattern[A]`'s own class-body `PathVars` (a plain pass-through of
+   * `pathCodec.PathVars`) cannot be more precise on its own, since
+   * dependent-type capture requires a refinement on the METHOD RECEIVER, not a
    * case-class-body declaration.
    */
-  implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV })
-      extends AnyVal {
+  implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
       _pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]

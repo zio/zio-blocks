@@ -20,34 +20,42 @@ import scala.language.experimental.macros
 import scala.reflect.macros.whitebox
 
 /**
- * NEW, small, endpoint-scoped combinator that concatenates two `PathVars` encodings in the SAME
- * left-to-right order/element-count that `zio.blocks.combinators.Tuples.Tuples.WithOut[A,B,C]`
- * uses to combine the real runtime value type - deliberately a SEPARATE, parallel implementation
- * living in the `endpoint` module, NOT a modification of (or addition to) that shared, generic
- * typeclass. Mirrors the style of `zio.blocks.combinators.Tuples.TuplesMacros` (a Scala 2.13
- * whitebox macro computing a `TupleN` shape from its inputs' shapes).
+ * NEW, small, endpoint-scoped combinator that concatenates two `PathVars`
+ * encodings in the SAME left-to-right order/element-count that
+ * `zio.blocks.combinators.Tuples.Tuples.WithOut[A,B,C]` uses to combine the
+ * real runtime value type - deliberately a SEPARATE, parallel implementation
+ * living in the `endpoint` module, NOT a modification of (or addition to) that
+ * shared, generic typeclass. Mirrors the style of
+ * `zio.blocks.combinators.Tuples.TuplesMacros` (a Scala 2.13 whitebox macro
+ * computing a `TupleN` shape from its inputs' shapes).
  */
 object PathVarTuples {
 
   /**
-   * Best-effort, non-computing stand-in used ONLY inside `SegmentCodec.Combined`'s abstract
-   * class-body `PathVars` declaration. Scala 2.13 has no match types, so there is no way to do
-   * real conditional type-level computation there without a term-level witness - and, because
-   * `Combined`'s `left`/`right` fields are typed as the plain, unrefined `SegmentCodec[A]`/
-   * `SegmentCodec[B]` (not the richer `WithBoundaries[..]{type PathVars=..}` refinement), no
-   * expression written here can ever be observed as more precise than this placeholder anyway.
-   * The REAL, precisely-computed, flat, ordered concatenation is produced by [[Combine]] below
-   * and consumed by the `~` extension method's implicit parameter - which IS externally
-   * observable on a `~`-composed value and is what the acceptance tests assert against.
+   * Best-effort, non-computing stand-in used ONLY inside
+   * `SegmentCodec.Combined`'s abstract class-body `PathVars` declaration. Scala
+   * 2.13 has no match types, so there is no way to do real conditional
+   * type-level computation there without a term-level witness - and, because
+   * `Combined`'s `left`/`right` fields are typed as the plain, unrefined
+   * `SegmentCodec[A]`/ `SegmentCodec[B]` (not the richer
+   * `WithBoundaries[..]{type PathVars=..}` refinement), no expression written
+   * here can ever be observed as more precise than this placeholder anyway. The
+   * REAL, precisely-computed, flat, ordered concatenation is produced by
+   * [[Combine]] below and consumed by the `~` extension method's implicit
+   * parameter - which IS externally observable on a `~`-composed value and is
+   * what the acceptance tests assert against.
    */
   type Concat[L, R] = (L, R)
 
-  /** Term-level typeclass computing the REAL ordered, flat concatenation of two `PathVars`
-    * encodings - `Unit` (`NoPathVars`) is the identity element on either side; two `TupleN`/
-    * `TupleM` shapes concatenate into a flat `Tuple(N+M)`, mirroring how the real runtime value
-    * type is grown by `Tuples.TuplesMacros.tuplesImpl` (Tuple arity extension), so index `i` in
-    * the resulting `PathVars` always lines up with index `i` in the real combined value tuple.
-    */
+  /**
+   * Term-level typeclass computing the REAL ordered, flat concatenation of two
+   * `PathVars` encodings - `Unit` (`NoPathVars`) is the identity element on
+   * either side; two `TupleN`/ `TupleM` shapes concatenate into a flat
+   * `Tuple(N+M)`, mirroring how the real runtime value type is grown by
+   * `Tuples.TuplesMacros.tuplesImpl` (Tuple arity extension), so index `i` in
+   * the resulting `PathVars` always lines up with index `i` in the real
+   * combined value tuple.
+   */
   trait Combine[L, R] {
     type Out
   }
