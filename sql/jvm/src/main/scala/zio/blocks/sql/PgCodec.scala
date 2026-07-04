@@ -16,6 +16,8 @@
 
 package zio.blocks.sql
 
+import zio.blocks.schema.json.Json
+
 /**
  * PostgreSQL-specific [[DbParam]] instances for collection types.
  *
@@ -35,6 +37,15 @@ package zio.blocks.sql
  * element type.
  */
 object PgCodec {
+
+  /**
+   * `DbCodec` for the blocks-native JSON AST type
+   * ([[zio.blocks.schema.json.Json]]), stored as PostgreSQL `jsonb`. Uses
+   * `Json.print`/`Json.parseUnsafe` directly as the JSON string codec, since
+   * they already are the canonical serialization for this type (no
+   * `JsonSchemaCodec` round-trip needed).
+   */
+  given jsonCodec: DbCodec[Json] = DbCodec.jsonb[Json](_.print, Json.parseUnsafe)
 
   private val ValueColumn = IndexedSeq("value")
 
