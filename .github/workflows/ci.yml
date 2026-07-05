@@ -223,7 +223,7 @@ jobs:
       - name: Release
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 15
+          timeout_minutes: 30
           max_attempts: 3
           command: sbt ci-release
         env:
