@@ -23,9 +23,11 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
-  // Scala 3's real generic-tuple types, used directly as the leaf `PathVars` encoding.
-  type OnePathVar[X] = X *: EmptyTuple
-  type NoPathVars    = EmptyTuple
+  // A single captured segment's `PathVars` is the BARE `PathVar[..]` leaf (no `*: EmptyTuple`
+  // wrapper), structurally identical in shape to the value track's bare leaf (`int` -> `Int`).
+  // `zio.blocks.combinators.Tuples` then grows the PathVars track incrementally to a flat tuple
+  // via exactly the same givens it already uses for real values. `EmptyTuple` is the empty element.
+  type NoPathVars = EmptyTuple
 
   extension [A, P <: BoundaryTag, S <: BoundaryTag, PV](self: WithBoundaries[A, P, S] { type PathVars = PV }) {
     inline def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, PV2, C, PVC](
@@ -33,14 +35,14 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
     )(using
       combiner: Tuples.Tuples.WithOut[A, B, C],
       canCombine: CanCombine[S, P2],
-      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
     ): WithBoundaries[C, P, S2] { type PathVars = PVC } =
       ${ SegmentCodecPlatformSpecificMacros.combineImpl[A, B, C, P, S, P2, S2, PVC]('self, 'that, 'combiner) }
 
     inline def ~[C, PVC](inline that: String)(using
       combiner: Tuples.Tuples.WithOut[A, Unit, C],
       canCombine: CanCombine[S, BoundaryTag.Literal],
-      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, NoPathVars, PVC]
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, NoPathVars, PVC]
     ): WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC } =
       ${ SegmentCodecPlatformSpecificMacros.combineLiteralImpl[A, C, P, S, PVC]('self, 'that, 'combiner) }
 

@@ -22,39 +22,39 @@ import zio.test.Assertion.isLeft
 object PathVarSpec extends ZIOSpecDefault {
 
   def spec: Spec[Any, Nothing] = suite("PathVar (Scala 3)")(
-    test("SegmentCodec.int(\"id\").PathVars =:= PathVar[\"id\", Int] *: EmptyTuple") {
+    test("SegmentCodec.int(\"id\").PathVars =:= PathVar[\"id\", Int]") {
       val seg = SegmentCodec.int("id")
-      implicitly[seg.PathVars =:= (PathVar["id", Int] *: EmptyTuple)]
+      implicitly[seg.PathVars =:= PathVar["id", Int]]
       assertCompletes
     },
-    test("SegmentCodec.int(\"id\").PathVars is NOT PathVar[\"wrong\", Int] *: EmptyTuple") {
+    test("SegmentCodec.int(\"id\").PathVars is NOT PathVar[\"wrong\", Int]") {
       assertZIO(
         typeCheck("""
           import zio.blocks.endpoint._
 
           val seg = SegmentCodec.int("id")
-          implicitly[seg.PathVars =:= (PathVar["wrong", Int] *: EmptyTuple)]
+          implicitly[seg.PathVars =:= PathVar["wrong", Int]]
         """)
       )(isLeft)
     },
-    test("SegmentCodec.int(\"id\").unused.PathVars =:= PathVar.Ignored[\"id\", Int] *: EmptyTuple") {
+    test("SegmentCodec.int(\"id\").unused.PathVars =:= PathVar.Ignored[\"id\", Int]") {
       val seg = SegmentCodec.int("id").unused
-      implicitly[seg.PathVars =:= (PathVar.Ignored["id", Int] *: EmptyTuple)]
+      implicitly[seg.PathVars =:= PathVar.Ignored["id", Int]]
       assertCompletes
     },
-    test("SegmentCodec.int(\"id\").unused.PathVars is NOT PathVar[\"id\", Int] *: EmptyTuple") {
+    test("SegmentCodec.int(\"id\").unused.PathVars is NOT PathVar[\"id\", Int]") {
       assertZIO(
         typeCheck("""
           import zio.blocks.endpoint._
 
           val seg = SegmentCodec.int("id").unused
-          implicitly[seg.PathVars =:= (PathVar["id", Int] *: EmptyTuple)]
+          implicitly[seg.PathVars =:= PathVar["id", Int]]
         """)
       )(isLeft)
     },
-    test("PathCodec.int(\"id\").unused.PathVars =:= PathVar.Ignored[\"id\", Int] *: EmptyTuple") {
+    test("PathCodec.int(\"id\").unused.PathVars =:= PathVar.Ignored[\"id\", Int]") {
       val path = PathCodec.int("id").unused
-      implicitly[path.PathVars =:= (PathVar.Ignored["id", Int] *: EmptyTuple)]
+      implicitly[path.PathVars =:= PathVar.Ignored["id", Int]]
       assertCompletes
     },
     test("PathCodec.bool/long/string/uuid all expose .unused with the right PathVars marker") {
@@ -62,10 +62,10 @@ object PathVarSpec extends ZIOSpecDefault {
       val longPath   = PathCodec.long("count").unused
       val stringPath = PathCodec.string("slug").unused
       val uuidPath   = PathCodec.uuid("id").unused
-      implicitly[boolPath.PathVars =:= (PathVar.Ignored["flag", Boolean] *: EmptyTuple)]
-      implicitly[longPath.PathVars =:= (PathVar.Ignored["count", Long] *: EmptyTuple)]
-      implicitly[stringPath.PathVars =:= (PathVar.Ignored["slug", String] *: EmptyTuple)]
-      implicitly[uuidPath.PathVars =:= (PathVar.Ignored["id", java.util.UUID] *: EmptyTuple)]
+      implicitly[boolPath.PathVars =:= PathVar.Ignored["flag", Boolean]]
+      implicitly[longPath.PathVars =:= PathVar.Ignored["count", Long]]
+      implicitly[stringPath.PathVars =:= PathVar.Ignored["slug", String]]
+      implicitly[uuidPath.PathVars =:= PathVar.Ignored["id", java.util.UUID]]
       assertCompletes
     }
   )

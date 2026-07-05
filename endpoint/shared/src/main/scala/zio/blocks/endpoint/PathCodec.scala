@@ -55,7 +55,7 @@ object PathCodec {
   implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
     def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       combineUnrefined(self, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
@@ -63,7 +63,7 @@ object PathCodec {
 
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       self ++ that
@@ -142,7 +142,7 @@ object PathCodec {
   }
 
   implicit final class SinglePathVarPathCodecOps[A, N <: String with Singleton, T](
-    private val self: PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar[N, T]] }
+    private val self: PathCodec[A] { type PathVars = PathVar[N, T] }
   ) extends AnyVal {
 
     /**
@@ -153,19 +153,19 @@ object PathCodec {
      * `PathCodec.int/string/long/bool/uuid` smart constructors support the same
      * `.unused` escape hatch directly.
      */
-    def unused: PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar.Ignored[N, T]] } =
-      self.asInstanceOf[PathCodec[A] { type PathVars = SegmentCodec.OnePathVar[PathVar.Ignored[N, T]] }]
+    def unused: PathCodec[A] { type PathVars = PathVar.Ignored[N, T] } =
+      self.asInstanceOf[PathCodec[A] { type PathVars = PathVar.Ignored[N, T] }]
   }
 
   /**
    * Combines `left`/`right` at the VALUE level only
    * (`Tuples.Tuples.WithOut[A,B,C]`), with no `PathVars`-combining implicit
    * requirement. Used internally, where at least one operand's `PathVars` is
-   * not statically known to be a concrete `Unit`/`TupleN` shape (e.g. `nest`'s
-   * `prefix: PathCodec[Unit]` parameter, or a fold's running accumulator) - the
-   * Scala 2.13 `PathVarTuples.Combine` whitebox macro can only compute a
-   * concrete `Out` when both sides are `Unit` (identity) or `TupleN` shapes, so
-   * it must never be required for internal plumbing that operates on unrefined
+   * not statically known to be a concrete `Unit`/bare-leaf/`TupleN` shape (e.g.
+   * `nest`'s `prefix: PathCodec[Unit]` parameter, or a fold's running
+   * accumulator) - the Scala 2.13 `Tuples.Tuples` whitebox macro can only
+   * compute a concrete `Out` when the operands are concrete shapes, so it must
+   * never be required for internal plumbing that operates on unrefined
    * `PathCodec` values. Public composition (`PathCodecOps.++`/`/`) is built on
    * top of this helper and adds the real, precise `PathVars` combine on top via
    * a final cast.
@@ -207,14 +207,14 @@ object PathCodec {
     right: PathCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends PathCodec[C] {
-    // Ordered concatenation of left.PathVars and right.PathVars via the endpoint-scoped
-    // PathVarTuples combinator (NOT Tuples.Tuples) - a best-effort placeholder for the same
-    // reason as SegmentCodec.Combined's own PathVars declaration (see that type's scaladoc):
-    // `left`/`right` are typed as the plain, unrefined PathCodec[A]/PathCodec[B], so no
+    // Ordered concatenation of left.PathVars and right.PathVars - a best-effort placeholder for
+    // the same reason as SegmentCodec.Combined's own PathVars declaration (see that type's
+    // scaladoc): `left`/`right` are typed as the plain, unrefined PathCodec[A]/PathCodec[B], so no
     // expression here can be more precise. The REAL, precisely-computed, flat, ordered
-    // concatenation is carried by PathCodecOps.++`/`/`'s own refined return type, which IS
-    // externally observable and is what every acceptance test asserts against.
-    type PathVars = PathVarTuples.Concat[left.PathVars, right.PathVars]
+    // concatenation is carried by PathCodecOps.++`/`/`'s own refined return type (via
+    // `Tuples.Tuples.WithOut`), which IS externally observable and is what every acceptance test
+    // asserts against.
+    type PathVars = (left.PathVars, right.PathVars)
   }
   final case class Transform[A, B](
     codec: PathCodec[A],
@@ -241,30 +241,29 @@ object PathCodec {
   // argument (mirrors SegmentCodec.bool/int/long/string/uuid, PathCodec.scala:105-112) so that
   // every PathCodec built from these smart constructors carries a CONCRETE (never abstract)
   // PathVars all the way through - this is load-bearing for `/`/`++`: the Scala 2.13
-  // `PathVarTuples.Combine` whitebox macro can only compute a concrete `Out` type when both
-  // sides it is asked to combine are concrete (`Unit`/`TupleN`) shapes, so an abstract PathVars
-  // anywhere in an existing call chain (e.g. RouteTreeSpec's `literal(...) / int(...) /
-  // literal(...) / int(...)`) would abort compilation on Scala 2.13 once two abstract operands
-  // meet.
+  // `Tuples.Tuples` whitebox macro can only compute a concrete `Out` type when the operands it is
+  // asked to combine are concrete shapes, so an abstract PathVars anywhere in an existing call
+  // chain (e.g. RouteTreeSpec's `literal(...) / int(...) / literal(...) / int(...)`) would abort
+  // compilation on Scala 2.13 once two abstract operands meet.
   def bool[N <: String with Singleton](name: N): PathCodec[Boolean] {
-    type PathVars = SegmentCodec.OnePathVar[PathVar[N, Boolean]]
+    type PathVars = PathVar[N, Boolean]
   } =
     apply(SegmentCodec.bool(name))
   def int[N <: String with Singleton](name: N): PathCodec[Int] {
-    type PathVars = SegmentCodec.OnePathVar[PathVar[N, Int]]
+    type PathVars = PathVar[N, Int]
   } =
     apply(SegmentCodec.int(name))
   def long[N <: String with Singleton](name: N): PathCodec[Long] {
-    type PathVars = SegmentCodec.OnePathVar[PathVar[N, Long]]
+    type PathVars = PathVar[N, Long]
   } =
     apply(SegmentCodec.long(name))
   def string[N <: String with Singleton](
     name: N
-  ): PathCodec[String] { type PathVars = SegmentCodec.OnePathVar[PathVar[N, String]] } =
+  ): PathCodec[String] { type PathVars = PathVar[N, String] } =
     apply(SegmentCodec.string(name))
   def uuid[N <: String with Singleton](
     name: N
-  ): PathCodec[java.util.UUID] { type PathVars = SegmentCodec.OnePathVar[PathVar[N, java.util.UUID]] } =
+  ): PathCodec[java.util.UUID] { type PathVars = PathVar[N, java.util.UUID] } =
     apply(SegmentCodec.uuid(name))
   val trailing: PathCodec[Path] = Segment(SegmentCodec.Trailing)
 

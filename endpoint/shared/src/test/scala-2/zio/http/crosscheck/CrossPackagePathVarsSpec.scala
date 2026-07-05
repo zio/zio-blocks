@@ -14,19 +14,13 @@
  * limitations under the License.
  */
 
-// Regression test for a cross-package macro-splice visibility bug: `PathVarTuples.Combine.concat`
-// is a Scala 2.13 blackbox macro whose generated tree embeds a literal reference to
-// `_root_.zio.blocks.endpoint.PathVarTuples.Combine` INTO THE CALLER's compilation unit at the
-// macro's expansion site (the call site of `++`/`/`/`~`, not PathVarTuples' own definition site).
-// This file deliberately lives in package `zio.http.crosscheck` - NOT nested under
+// Verifies that `PathCodec`/`RoutePattern` composition - including its `combinators.Tuples`-based
+// ordered `PathVars` combination - works correctly when called from a genuinely external top-level
+// package. This file deliberately lives in package `zio.http.crosscheck` - NOT nested under
 // `zio.blocks.endpoint` or even `zio.blocks` at all - to faithfully reproduce the real-world
 // zio-http caller scenario (zio-http's routing DSL lives in package `zio.http`, a sibling
-// top-level package to `zio.blocks`, not a sub-package of it). A sub-package of
-// `zio.blocks.endpoint` (e.g. `zio.blocks.endpoint.external`) does NOT reproduce this bug -
-// `private[endpoint]` grants access to nested sub-packages - and a sibling package still nested
-// under `zio.blocks` (e.g. `zio.blocks.somethingelse`) is fixed by `private[blocks]` alone; only
-// a genuinely disjoint top-level package like `zio.http` requires `PathVarTuples` to be fully
-// public. Both narrower scopes were verified empirically (see notepad) before landing on this one.
+// top-level package to `zio.blocks`, not a sub-package of it), catching any cross-package
+// resolution regression in the `++`/`/`/`~` combinators' Scala 2.13 whitebox-macro expansion.
 package zio.http.crosscheck
 
 import zio.blocks.endpoint._

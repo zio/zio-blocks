@@ -21,11 +21,12 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
-  // Scala 2.13 has no `scala.Tuple`/`*:`/`EmptyTuple`; `Tuple1`/`Unit` are the nearest concrete
-  // stand-ins, matching this codebase's existing convention (combinators/Tuples.scala) of using
-  // `Unit` as the neutral/empty element.
-  type OnePathVar[X] = Tuple1[X]
-  type NoPathVars    = Unit
+  // A single captured segment's `PathVars` is the BARE `PathVar[..]` leaf (no `Tuple1` wrapper),
+  // structurally identical in shape to the value track's bare leaf (`int` -> `Int`). This lets
+  // `zio.blocks.combinators.Tuples` grow the PathVars track incrementally to `Tuple2`/`Tuple3`/...
+  // via exactly the same mechanism it already uses for real values everywhere. `Unit` is the
+  // neutral/empty element (matching this codebase's convention in combinators/Tuples.scala).
+  type NoPathVars = Unit
 
   private def validateCombination(left: SegmentCodec[_], right: SegmentCodec[_]): Unit =
     (suffixBoundary(left), prefixBoundary(right)) match {
@@ -97,7 +98,7 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
     )(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
       canCombine: CanCombine[S, P2],
-      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
     ): WithBoundaries[C, P, S2] { type PathVars = PVC } = {
       // `pathVarsCombiner` is a pure compile-time evidence/inference parameter (it drives PVC's
       // resolution, exactly like `canCombine` drives boundary validation) - never read at
@@ -112,7 +113,7 @@ private[endpoint] trait SegmentCodecPlatformSpecific {
     def ~[C, PVC](that: String)(implicit
       combiner: Tuples.Tuples.WithOut[A, Unit, C],
       canCombine: CanCombine[S, BoundaryTag.Literal],
-      pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, NoPathVars, PVC]
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, NoPathVars, PVC]
     ): WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC } = {
       val _     = pathVarsCombiner
       val right = SegmentCodec.literal(that)

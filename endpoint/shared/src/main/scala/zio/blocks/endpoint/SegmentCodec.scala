@@ -39,9 +39,10 @@ sealed trait SegmentCodec[A] { self =>
    * track: it never affects `A` (the existing runtime-extracted value type) and
    * has zero runtime footprint. Left unbounded here (rather than `<: Tuple`,
    * which does not exist as a cross-version supertype on Scala 2.13) so this
-   * single declaration compiles identically under both Scala 2.13 and Scala 3 -
-   * see `SegmentCodecPlatformSpecific.OnePathVar`/`NoPathVars` for the
-   * version-specific concrete tuple encodings used by leaf segments.
+   * single declaration compiles identically under both Scala 2.13 and Scala 3.
+   * A single captured segment carries the BARE `PathVar[..]` leaf directly;
+   * multiple captured segments are combined into a flat tuple by
+   * `zio.blocks.combinators.Tuples`, exactly as the value track is combined.
    */
   type PathVars
 
@@ -241,7 +242,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       extends SegmentCodec[Boolean] {
     type Prefix   = BoundaryTag.Bool
     type Suffix   = BoundaryTag.Bool
-    type PathVars = OnePathVar[PathVar[N, Boolean]]
+    type PathVars = PathVar[N, Boolean]
 
     /**
      * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
@@ -253,11 +254,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
      * phantom-type refinement in this file.
      */
     def unused: WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
-      type PathVars = OnePathVar[PathVar.Ignored[N, Boolean]]
+      type PathVars = PathVar.Ignored[N, Boolean]
     } =
       this.asInstanceOf[
         WithBoundaries[Boolean, BoundaryTag.Bool, BoundaryTag.Bool] {
-          type PathVars = OnePathVar[PathVar.Ignored[N, Boolean]]
+          type PathVars = PathVar.Ignored[N, Boolean]
         }
       ]
   }
@@ -266,7 +267,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       extends SegmentCodec[Int] {
     type Prefix   = BoundaryTag.Int
     type Suffix   = BoundaryTag.Int
-    type PathVars = OnePathVar[PathVar[N, Int]]
+    type PathVars = PathVar[N, Int]
 
     /**
      * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
@@ -278,11 +279,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
      * phantom-type refinement in this file.
      */
     def unused: WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
-      type PathVars = OnePathVar[PathVar.Ignored[N, Int]]
+      type PathVars = PathVar.Ignored[N, Int]
     } =
       this.asInstanceOf[
         WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
-          type PathVars = OnePathVar[PathVar.Ignored[N, Int]]
+          type PathVars = PathVar.Ignored[N, Int]
         }
       ]
   }
@@ -291,7 +292,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
       extends SegmentCodec[Long] {
     type Prefix   = BoundaryTag.Long
     type Suffix   = BoundaryTag.Long
-    type PathVars = OnePathVar[PathVar[N, Long]]
+    type PathVars = PathVar[N, Long]
 
     /**
      * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
@@ -303,11 +304,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
      * phantom-type refinement in this file.
      */
     def unused: WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
-      type PathVars = OnePathVar[PathVar.Ignored[N, Long]]
+      type PathVars = PathVar.Ignored[N, Long]
     } =
       this.asInstanceOf[
         WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
-          type PathVars = OnePathVar[PathVar.Ignored[N, Long]]
+          type PathVars = PathVar.Ignored[N, Long]
         }
       ]
   }
@@ -319,7 +320,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   ) extends SegmentCodec[String] {
     type Prefix   = BoundaryTag.String
     type Suffix   = BoundaryTag.String
-    type PathVars = OnePathVar[PathVar[N, String]]
+    type PathVars = PathVar[N, String]
 
     /**
      * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
@@ -331,11 +332,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
      * phantom-type refinement in this file.
      */
     def unused: WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
-      type PathVars = OnePathVar[PathVar.Ignored[N, String]]
+      type PathVars = PathVar.Ignored[N, String]
     } =
       this.asInstanceOf[
         WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
-          type PathVars = OnePathVar[PathVar.Ignored[N, String]]
+          type PathVars = PathVar.Ignored[N, String]
         }
       ]
   }
@@ -347,7 +348,7 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   ) extends SegmentCodec[java.util.UUID] {
     type Prefix   = BoundaryTag.UUID
     type Suffix   = BoundaryTag.UUID
-    type PathVars = OnePathVar[PathVar[N, java.util.UUID]]
+    type PathVars = PathVar[N, java.util.UUID]
 
     /**
      * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
@@ -359,11 +360,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
      * phantom-type refinement in this file.
      */
     def unused: WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
-      type PathVars = OnePathVar[PathVar.Ignored[N, java.util.UUID]]
+      type PathVars = PathVar.Ignored[N, java.util.UUID]
     } =
       this.asInstanceOf[
         WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
-          type PathVars = OnePathVar[PathVar.Ignored[N, java.util.UUID]]
+          type PathVars = PathVar.Ignored[N, java.util.UUID]
         }
       ]
   }
@@ -375,14 +376,14 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   ) extends SegmentCodec[C] {
     type Prefix = left.Prefix
     type Suffix = right.Suffix
-    // Ordered concatenation of left.PathVars and right.PathVars via the new, endpoint-scoped
-    // PathVarTuples combinator (NOT Tuples.Tuples). This class-body declaration is necessarily a
-    // best-effort placeholder on Scala 2.13 (see PathVarTuples.Concat's scaladoc for why - `left`/
-    // `right` are typed as the plain, unrefined SegmentCodec[A]/SegmentCodec[B], so no expression
-    // here can be more precise): the REAL, precisely-computed, flat, ordered concatenation is
-    // carried by the `~` extension method's own refined return type (PathVarTuples.Combine),
-    // which IS externally observable and is what every acceptance test asserts against.
-    type PathVars = PathVarTuples.Concat[left.PathVars, right.PathVars]
+    // Ordered concatenation of left.PathVars and right.PathVars. This class-body declaration is a
+    // best-effort placeholder: `left`/`right` are typed as the plain, unrefined
+    // SegmentCodec[A]/SegmentCodec[B], so no expression here can be more precise, and
+    // `combinators.Tuples` has no class-body-usable concat type alias on Scala 2.13. The REAL,
+    // precisely-computed, flat, ordered concatenation is carried by the `~` extension method's own
+    // refined return type (via `Tuples.Tuples.WithOut`), which IS externally observable and is what
+    // every acceptance test asserts against.
+    type PathVars = (left.PathVars, right.PathVars)
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
   }

@@ -33,7 +33,7 @@ object PathVarCombineSpec extends ZIOSpecDefault {
     },
     test("Transform passes PathVars through unchanged") {
       val transformed = SegmentCodec.int("id").transform[Int](identity, identity)
-      implicitly[transformed.PathVars =:= Tuple1[PathVar["id", Int]]]
+      implicitly[transformed.PathVars =:= PathVar["id", Int]]
       assertCompletes
     },
     test("int ~ literal ~ string.unused produces an ordered tuple with both PathVar and PathVar.Ignored") {
@@ -48,7 +48,7 @@ object PathVarCombineSpec extends ZIOSpecDefault {
     },
     test("Transform passes an Ignored PathVars entry through unchanged") {
       val transformed = SegmentCodec.int("id").unused.transform[Int](identity, identity)
-      implicitly[transformed.PathVars =:= Tuple1[PathVar.Ignored["id", Int]]]
+      implicitly[transformed.PathVars =:= PathVar.Ignored["id", Int]]
       assertCompletes
     },
     test(".unused is byte-for-byte identical at runtime to its non-.unused counterpart") {

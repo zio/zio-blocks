@@ -126,7 +126,7 @@ object RoutePattern {
   implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: PathVarTuples.Combine.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
     ): RoutePattern[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       self

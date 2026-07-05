@@ -36,7 +36,7 @@ object RoutePatternPathVarsSpec extends ZIOSpecDefault {
     },
     test("a single captured segment produces a one-element PathVars tuple end-to-end") {
       val pattern = Method.GET / SegmentCodec.int("id")
-      implicitly[pattern.PathVars =:= (PathVar["id", Int] *: EmptyTuple)]
+      implicitly[pattern.PathVars =:= PathVar["id", Int]]
       assertCompletes
     },
     test("literal-only routes produce an empty PathVars tuple end-to-end") {
