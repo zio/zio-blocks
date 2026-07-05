@@ -82,7 +82,7 @@ Before we build the interpreter, keep the API boundary in mind: application code
 SchemaExpr[A, B]                        -- user-facing, typed API
 └── .dynamic: DynamicSchemaExpr         -- interpreter/runtime boundary
     ├── Select(path: DynamicOptic)      -- field reference
-    ├── Literal(value: DynamicValue)    -- constant value
+    ├── Literal(value: DynamicValue, schema: Schema[_])  -- constant value
     ├── Relational(left, right, op)     -- comparisons
     ├── Logical(left, right, op)        -- boolean operators
     ├── Not(expr)                       -- negation
@@ -237,7 +237,7 @@ The mapping from `DynamicSchemaExpr` to SQL is direct, but that dynamic matching
 | DynamicSchemaExpr Case | SQL Output                           |
 |------------------------|--------------------------------------|
 | `Select(path)`         | Column name from `DynamicOptic`      |
-| `Literal(value)`       | SQL literal (`'text'`, `42`, `TRUE`) |
+| `Literal(value, schema)` | SQL literal (`'text'`, `42`, `TRUE`) |
 | `Relational(_, _, op)` | `=`, `<>`, `<`, `>`, `<=`, `>=`      |
 | `Logical(_, _, op)`    | `AND`, `OR`                          |
 | `Not(expr)`            | `NOT (...)`                          |
