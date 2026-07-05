@@ -59,7 +59,7 @@ package object querydslsql {
 
   private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
     case DynamicSchemaExpr.Select(path)                => columnName(path)
-    case DynamicSchemaExpr.Literal(value, _)            => sqlLiteralDV(value)
+    case DynamicSchemaExpr.Literal(value, _)           => sqlLiteralDV(value)
     case DynamicSchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case DynamicSchemaExpr.RelationalOperator.Equal              => "="
@@ -100,7 +100,7 @@ package object querydslsql {
   def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = toParameterizedDynamic(expr.dynamic)
 
   private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr match {
-    case DynamicSchemaExpr.Select(path)   => SqlQuery(columnName(path), Nil)
+    case DynamicSchemaExpr.Select(path)      => SqlQuery(columnName(path), Nil)
     case DynamicSchemaExpr.Literal(value, _) =>
       val param = value match {
         case DynamicValue.Primitive(pv) =>

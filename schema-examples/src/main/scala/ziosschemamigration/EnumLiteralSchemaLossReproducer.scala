@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package ziosschemamigration
 
 import zio.blocks.schema._
@@ -25,8 +41,8 @@ object EnumLiteralSchemaLossReproducer extends App {
   // Mixed sealed trait: same "Red" case name, but also has a data-carrying case.
   sealed trait MixedColor
   object MixedColor {
-    case object Red              extends MixedColor
-    case class  Dark(shade: Int) extends MixedColor
+    case object Red             extends MixedColor
+    case class Dark(shade: Int) extends MixedColor
   }
   implicit val mixedColorSchema: Schema[MixedColor] = Schema.derived[MixedColor]
 
@@ -53,7 +69,7 @@ object EnumLiteralSchemaLossReproducer extends App {
   println("2. SchemaExpr.literal preserves isEnumeration in DynamicSchemaExpr.Literal ...")
   val colorLit      = SchemaExpr.literal[Any, Color](Red)
   val mixedColorLit = SchemaExpr.literal[Any, MixedColor](MixedColor.Red)
-  check("Color     isEnumeration = true",  colorLit.outputSchema.reflect.isEnumeration)
+  check("Color     isEnumeration = true", colorLit.outputSchema.reflect.isEnumeration)
   check("MixedColor isEnumeration = false", !mixedColorLit.outputSchema.reflect.isEnumeration)
   println("   DynamicSchemaExpr.Literal now carries the Schema:")
   println(s"     Color literal dynamic     → ${colorLit.dynamic}")
@@ -64,7 +80,8 @@ object EnumLiteralSchemaLossReproducer extends App {
   // ── 3. Migration representation contract restored ─────────────────────────
   println("3. addField migrations for Color vs MixedColor produce distinct DynamicMigrations")
   val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, SchemaExpr.literal[Any, Color](Red)).build
-  val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, SchemaExpr.literal[Any, MixedColor](MixedColor.Red)).build
+  val migToV3 =
+    Migration.newBuilder[TaskV1, TaskV3].addField(_.color, SchemaExpr.literal[Any, MixedColor](MixedColor.Red)).build
   println(s"     migToV2 DynamicMigration → ${migToV2.dynamicMigration}")
   println(s"     migToV3 DynamicMigration → ${migToV3.dynamicMigration}")
   check("DynamicMigrations are DIFFERENT", migToV2.dynamicMigration != migToV3.dynamicMigration)
@@ -84,6 +101,6 @@ object EnumLiteralSchemaLossReproducer extends App {
   }
   println(s"     Color migration literal isEnumeration     → $colorIsEnum  (all-no-field: correct)")
   println(s"     MixedColor migration literal isEnumeration → $mixedIsEnum (mixed: correct)")
-  check("Color literal schema reports isEnumeration = true",  colorIsEnum)
+  check("Color literal schema reports isEnumeration = true", colorIsEnum)
   check("MixedColor literal schema reports isEnumeration = false", !mixedIsEnum)
 }

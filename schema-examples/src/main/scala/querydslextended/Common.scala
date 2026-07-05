@@ -111,7 +111,7 @@ object Expr {
   }
 
   private def fromDynamic[S](dse: DynamicSchemaExpr): Expr[S, ?] = dse match {
-    case DynamicSchemaExpr.Select(path)   => Column[S, Any](path)
+    case DynamicSchemaExpr.Select(path)      => Column[S, Any](path)
     case DynamicSchemaExpr.Literal(value, _) => Lit[S, Any](value)
 
     case DynamicSchemaExpr.Relational(l, r, op) =>

@@ -974,8 +974,14 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         val shortB = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Short(3)), Schema[Short])
         val bigIA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(10))), Schema[BigInt])
         val bigIB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(3))), Schema[BigInt])
-        val bigDA  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))), Schema[BigDecimal])
-        val bigDB  = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3))), Schema[BigDecimal])
+        val bigDA  = DynamicSchemaExpr.Literal(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))),
+          Schema[BigDecimal]
+        )
+        val bigDB = DynamicSchemaExpr.Literal(
+          DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(3))),
+          Schema[BigDecimal]
+        )
 
         assertTrue(
           testTag(NumericTypeTag.IntTag, intA, intB) &&
@@ -1051,8 +1057,10 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
             .eval(dummy),
           DynamicSchemaExpr
             .Arithmetic(
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))), Schema[BigDecimal]),
-              DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0))), Schema[BigDecimal]),
+              DynamicSchemaExpr
+                .Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10))), Schema[BigDecimal]),
+              DynamicSchemaExpr
+                .Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(0))), Schema[BigDecimal]),
               ArithmeticOperator.Modulo,
               NumericTypeTag.BigDecimalTag
             )
@@ -1076,8 +1084,10 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
 
         val hugeExponent = DynamicSchemaExpr
           .Arithmetic(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(2))), Schema[BigDecimal]),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10001))), Schema[BigDecimal]),
+            DynamicSchemaExpr
+              .Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(2))), Schema[BigDecimal]),
+            DynamicSchemaExpr
+              .Literal(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(10001))), Schema[BigDecimal]),
             ArithmeticOperator.Pow,
             NumericTypeTag.BigDecimalTag
           )
