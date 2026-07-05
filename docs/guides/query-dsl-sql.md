@@ -179,7 +179,7 @@ private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
     columnName(path)
 
   // Constant value → SQL literal
-  case DynamicSchemaExpr.Literal(value) =>
+  case DynamicSchemaExpr.Literal(value, _) =>
     sqlLiteralDV(value)
 
   // Comparison operators → SQL relational operators
@@ -382,7 +382,7 @@ private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr mat
   case DynamicSchemaExpr.Select(path) =>
     SqlQuery(columnName(path), Nil)
 
-  case DynamicSchemaExpr.Literal(value) =>
+  case DynamicSchemaExpr.Literal(value, _) =>
     val param = value match {
       case DynamicValue.Primitive(pv) => pv match {
         case PrimitiveValue.String(s)     => s
@@ -592,7 +592,7 @@ def toSql[A, B](expr: SchemaExpr[A, B]): String = toSqlDynamic(expr.dynamic)
 
 private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
   case DynamicSchemaExpr.Select(path)              => columnName(path)
-  case DynamicSchemaExpr.Literal(value)            => sqlLiteralDV(value)
+  case DynamicSchemaExpr.Literal(value, _)         => sqlLiteralDV(value)
   case DynamicSchemaExpr.Relational(left, right, op) =>
     val sqlOp = op match {
       case DynamicSchemaExpr.RelationalOperator.Equal              => "="
@@ -632,7 +632,7 @@ def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = toParameterizedDyn
 
 private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr match {
   case DynamicSchemaExpr.Select(path)   => SqlQuery(columnName(path), Nil)
-  case DynamicSchemaExpr.Literal(value) =>
+  case DynamicSchemaExpr.Literal(value, _) =>
     val param = value match {
       case DynamicValue.Primitive(pv) => pv match {
         case PrimitiveValue.String(s)     => s
