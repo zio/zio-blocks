@@ -52,10 +52,58 @@ object PathCodec {
 
   implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
 
+  /**
+   * Compile-time evidence that combines two `PathVars` tracks (`PV` and `PV2`)
+   * into `PVC`, exactly like `Tuples.Tuples.WithOut` and driving `PVC`'s
+   * inference for `PathCodecOps.++`/`/`. It exists as a thin `PathCodec`-owned
+   * wrapper so that this companion object is part of the implicit search scope
+   * for the combiner, letting [[PathVarsCombiner.noPathVarsBoth]] disambiguate
+   * the otherwise-ambiguous `NoPathVars` + `NoPathVars` case on Scala 3 (where
+   * `NoPathVars = EmptyTuple` matches both `leftEmptyTuple` and
+   * `rightEmptyTuple` givens equally).
+   */
+  sealed trait PathVarsCombiner[PV, PV2, PVC]
+
+  object PathVarsCombiner extends PathVarsCombinerLowPriority {
+    // Highest priority: two empty tracks combine to the empty track. Pinning `PVC = NoPathVars`
+    // here resolves the Scala 3 `EmptyTuple` + `EmptyTuple` ambiguity that would otherwise arise
+    // when deferring to `Tuples` (e.g. `PathCodec.literal(..) / PathCodec.trailing`).
+    implicit val noPathVarsBoth
+      : PathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] =
+      new PathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] {}
+  }
+
+  trait PathVarsCombinerLowPriority {
+    // Fallback: defer to `Tuples.Tuples.WithOut` for every non-(empty, empty) shape.
+    implicit def fromTuples[PV, PV2, PVC](implicit
+      combiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+    ): PathVarsCombiner[PV, PV2, PVC] = {
+      val _ = combiner
+      new PathVarsCombiner[PV, PV2, PVC] {}
+    }
+  }
+
+  sealed trait RoutePathVarsCombiner[PV, PV2, PVC]
+
+  object RoutePathVarsCombiner extends RoutePathVarsCombinerLowPriority {
+    implicit val noPathVarsBoth
+      : RoutePathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] =
+      new RoutePathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] {}
+  }
+
+  trait RoutePathVarsCombinerLowPriority {
+    implicit def fromTuples[PV, PV2, PVC](implicit
+      combiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+    ): RoutePathVarsCombiner[PV, PV2, PVC] = {
+      val _ = combiner
+      new RoutePathVarsCombiner[PV, PV2, PVC] {}
+    }
+  }
+
   implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
     def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       combineUnrefined(self, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
@@ -63,17 +111,26 @@ object PathCodec {
 
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: PathVarsCombiner[PV, PV2, PVC]
     ): PathCodec[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       self ++ that
     }
 
-    def orElse(that: PathCodec[Unit])(implicit ev: A =:= Unit): PathCodec[Unit] {
+    // `orElse` only supports literal alternatives (validated at runtime by `expand`), which never
+    // capture path variables. The `ev` evidence enforces that at the type level: `self`'s `PathVars`
+    // (`PV`) and `that`'s `PathVars` must both be `SegmentCodec.NoPathVars`, so a capturing codec
+    // `.transform`-ed to `PathCodec[Unit]` (whose `PathVars` is still a `PathVar[..]`) is rejected at
+    // the call site rather than being silently mislabeled `NoPathVars`.
+    def orElse(that: PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars })(implicit
+      ev: (A, PV) =:= (Unit, SegmentCodec.NoPathVars)
+    ): PathCodec[Unit] {
       type PathVars = SegmentCodec.NoPathVars
-    } =
+    } = {
+      val _ = ev
       Fallback(self.asInstanceOf[PathCodec[Unit]], that)
         .asInstanceOf[PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }]
+    }
 
     def alternatives: List[PathCodec[A]] =
       PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]]
@@ -265,7 +322,9 @@ object PathCodec {
     name: N
   ): PathCodec[java.util.UUID] { type PathVars = PathVar[N, java.util.UUID] } =
     apply(SegmentCodec.uuid(name))
-  val trailing: PathCodec[Path] = Segment(SegmentCodec.Trailing)
+
+  val trailing: PathCodec[Path] { type PathVars = SegmentCodec.NoPathVars } =
+    apply(SegmentCodec.Trailing).asInstanceOf[PathCodec[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
   def render(codec: PathCodec[_], prefix: String = "{", suffix: String = "}"): String =
     PathCodecRuntime.render(codec, prefix, suffix)
