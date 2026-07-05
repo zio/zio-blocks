@@ -23,27 +23,37 @@ import zio.blocks.combinators.Tuples
 private[endpoint] trait SegmentCodecPlatformSpecific {
   import SegmentCodec._
 
-  extension [A, P <: BoundaryTag, S <: BoundaryTag](self: WithBoundaries[A, P, S]) {
-    inline def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, C](that: WithBoundaries[B, P2, S2])(using
+  // A single captured segment's `PathVars` is the BARE `PathVar[..]` leaf (no `*: EmptyTuple`
+  // wrapper), structurally identical in shape to the value track's bare leaf (`int` -> `Int`).
+  // `zio.blocks.combinators.Tuples` then grows the PathVars track incrementally to a flat tuple
+  // via exactly the same givens it already uses for real values. `EmptyTuple` is the empty element.
+  type NoPathVars = EmptyTuple
+
+  extension [A, P <: BoundaryTag, S <: BoundaryTag, PV](self: WithBoundaries[A, P, S] { type PathVars = PV }) {
+    inline def ~[B, P2 <: BoundaryTag, S2 <: BoundaryTag, PV2, C, PVC](
+      that: WithBoundaries[B, P2, S2] { type PathVars = PV2 }
+    )(using
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      canCombine: CanCombine[S, P2]
-    ): WithBoundaries[C, P, S2] =
-      ${ SegmentCodecPlatformSpecificMacros.combineImpl[A, B, C, P, S, P2, S2]('self, 'that, 'combiner) }
+      canCombine: CanCombine[S, P2],
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+    ): WithBoundaries[C, P, S2] { type PathVars = PVC } =
+      ${ SegmentCodecPlatformSpecificMacros.combineImpl[A, B, C, P, S, P2, S2, PVC]('self, 'that, 'combiner) }
 
-    inline def ~[C](inline that: String)(using
+    inline def ~[C, PVC](inline that: String)(using
       combiner: Tuples.Tuples.WithOut[A, Unit, C],
-      canCombine: CanCombine[S, BoundaryTag.Literal]
-    ): WithBoundaries[C, P, BoundaryTag.Literal] =
-      ${ SegmentCodecPlatformSpecificMacros.combineLiteralImpl[A, C, P, S]('self, 'that, 'combiner) }
+      canCombine: CanCombine[S, BoundaryTag.Literal],
+      pathVarsCombiner: Tuples.Tuples.WithOut[PV, NoPathVars, PVC]
+    ): WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC } =
+      ${ SegmentCodecPlatformSpecificMacros.combineLiteralImpl[A, C, P, S, PVC]('self, 'that, 'combiner) }
 
-    inline def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] =
-      ${ SegmentCodecPlatformSpecificMacros.transformImpl[A, B, P, S]('self, 'decode, 'encode) }
+    inline def transform[B](decode: A => B, encode: B => A): WithBoundaries[B, P, S] { type PathVars = PV } =
+      ${ SegmentCodecPlatformSpecificMacros.transformImpl[A, B, P, S, PV]('self, 'decode, 'encode) }
 
     inline def transformOrFail[B](
       decode: A => Either[DecodeError, B],
       encode: B => Either[DecodeError, A]
-    ): WithBoundaries[B, P, S] =
-      ${ SegmentCodecPlatformSpecificMacros.transformOrFailImpl[A, B, P, S]('self, 'decode, 'encode) }
+    ): WithBoundaries[B, P, S] { type PathVars = PV } =
+      ${ SegmentCodecPlatformSpecificMacros.transformOrFailImpl[A, B, P, S, PV]('self, 'decode, 'encode) }
   }
 
   inline def literal(inline value: String): Literal =
@@ -84,12 +94,13 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
     P <: BoundaryTag: Type,
     S <: BoundaryTag: Type,
     P2 <: BoundaryTag: Type,
-    S2 <: BoundaryTag: Type
+    S2 <: BoundaryTag: Type,
+    PVC: Type
   ](
     leftExpr: Expr[WithBoundaries[A, P, S]],
     rightExpr: Expr[WithBoundaries[B, P2, S2]],
     combinerExpr: Expr[Tuples.Tuples.WithOut[A, B, C]]
-  )(using Quotes): Expr[WithBoundaries[C, P, S2]] = {
+  )(using Quotes): Expr[WithBoundaries[C, P, S2] { type PathVars = PVC }] = {
     import quotes.reflect.*
 
     val leftInfo  = boundaryInfo(leftExpr.asTerm)
@@ -99,24 +110,28 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
       case (Some(left), Some(right)) =>
         validateBoundary(left.suffix, right.prefix)
         '{
-          SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr).asInstanceOf[WithBoundaries[C, P, S2]]
+          SegmentCodec
+            .combineValidated($leftExpr, $rightExpr, $combinerExpr)
+            .asInstanceOf[WithBoundaries[C, P, S2] { type PathVars = PVC }]
         }
       case _ =>
         '{
-          SegmentCodec.combineValidated($leftExpr, $rightExpr, $combinerExpr).asInstanceOf[WithBoundaries[C, P, S2]]
+          SegmentCodec
+            .combineValidated($leftExpr, $rightExpr, $combinerExpr)
+            .asInstanceOf[WithBoundaries[C, P, S2] { type PathVars = PVC }]
         }
     }
   }
 
-  def combineLiteralImpl[A: Type, C: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+  def combineLiteralImpl[A: Type, C: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type, PVC: Type](
     leftExpr: Expr[WithBoundaries[A, P, S]],
     rightExpr: Expr[String],
     combinerExpr: Expr[Tuples.Tuples.WithOut[A, Unit, C]]
-  )(using Quotes): Expr[WithBoundaries[C, P, BoundaryTag.Literal]] =
+  )(using Quotes): Expr[WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC }] =
     '{
       SegmentCodec
         .combineValidated($leftExpr, SegmentCodec.literal($rightExpr), $combinerExpr)
-        .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal]]
+        .asInstanceOf[WithBoundaries[C, P, BoundaryTag.Literal] { type PathVars = PVC }]
     }
 
   def canCombineImpl[L <: BoundaryTag: Type, R <: BoundaryTag: Type](using Quotes): Expr[CanCombine[L, R]] = {
@@ -180,11 +195,11 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
         quotes.reflect.report.errorAndAbort("SegmentCodec.literal requires a string literal known at compile time")
     }
 
-  def transformImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+  def transformImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type, PV: Type](
     codecExpr: Expr[WithBoundaries[A, P, S]],
     decodeExpr: Expr[A => B],
     encodeExpr: Expr[B => A]
-  )(using Quotes): Expr[WithBoundaries[B, P, S]] =
+  )(using Quotes): Expr[WithBoundaries[B, P, S] { type PathVars = PV }] =
     '{
       SegmentCodec
         .transformValidated[A, B](
@@ -192,18 +207,18 @@ private[endpoint] object SegmentCodecPlatformSpecificMacros {
           value => Right($decodeExpr(value)),
           value => Right($encodeExpr(value))
         )
-        .asInstanceOf[WithBoundaries[B, P, S]]
+        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
     }
 
-  def transformOrFailImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type](
+  def transformOrFailImpl[A: Type, B: Type, P <: BoundaryTag: Type, S <: BoundaryTag: Type, PV: Type](
     codecExpr: Expr[WithBoundaries[A, P, S]],
     decodeExpr: Expr[A => Either[DecodeError, B]],
     encodeExpr: Expr[B => Either[DecodeError, A]]
-  )(using Quotes): Expr[WithBoundaries[B, P, S]] =
+  )(using Quotes): Expr[WithBoundaries[B, P, S] { type PathVars = PV }] =
     '{
       SegmentCodec
         .transformValidated[A, B]($codecExpr, $decodeExpr, $encodeExpr)
-        .asInstanceOf[WithBoundaries[B, P, S]]
+        .asInstanceOf[WithBoundaries[B, P, S] { type PathVars = PV }]
     }
 
   private def validateBoundary(using Quotes)(left: Option[SegmentInfo], right: Option[SegmentInfo]): Unit = {
