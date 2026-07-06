@@ -44,6 +44,16 @@ object RoutePatternPathVarsSpec extends ZIOSpecDefault {
       implicitly[pattern.PathVars =:= EmptyTuple]
       assertCompletes
     },
+    test("fully-literal multi-segment routes keep EmptyTuple PathVars without Scala 3 ambiguity") {
+      val pattern = Method.GET / "users" / "active"
+      implicitly[pattern.PathVars =:= EmptyTuple]
+      assertCompletes
+    },
+    test("prefixing trailing with a literal route segment keeps EmptyTuple PathVars") {
+      val pattern = Method.GET / "files" / PathCodec.trailing
+      implicitly[pattern.PathVars =:= EmptyTuple]
+      assertCompletes
+    },
     test("nest prepends a literal prefix without disturbing pre-existing decode behavior") {
       val pattern = Method.GET / SegmentCodec.int("id")
       val nested  = pattern.nest(PathCodec.literal("api"))

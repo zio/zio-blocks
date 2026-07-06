@@ -3,14 +3,17 @@ id: segment-codec
 title: "SegmentCodec"
 ---
 
-`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. The core type-level shape is:
+`SegmentCodec[A]` describes a single URL path segment. It supports basic typed segment kinds — `SegmentCodec.bool`, `SegmentCodec.int`, `SegmentCodec.long`, `SegmentCodec.string`, `SegmentCodec.uuid`, and `SegmentCodec.literal` — as well as intra-segment composition via `~`, which combines multiple typed parts within a single path segment (for example, `v42` as a literal prefix followed by an integer). Ambiguous combinations are rejected at compile time by a Scala 3 macro. Alongside the runtime decoded value type `A`, every segment codec also carries phantom metadata describing its boundary behavior and any declared path variable. The core type-level shape is:
 
 ```scala
 sealed trait SegmentCodec[A] {
   type Prefix <: SegmentCodec.BoundaryTag
   type Suffix <: SegmentCodec.BoundaryTag
+  type PathVars
 }
 ```
+
+`PathVars` is purely type-level: it has zero runtime footprint. Capturing segments contribute one marker (for example `PathVar["id", Int]`), while non-capturing segments like `literal` and `Trailing` contribute none.
 
 (The trait also includes additional members for documentation, examples, formatting, and rendering.)
 
@@ -53,6 +56,20 @@ val longSeg: SegmentCodec[Long]           = SegmentCodec.long("id")
 val stringSeg: SegmentCodec[String]       = SegmentCodec.string("slug")
 val uuidSeg: SegmentCodec[java.util.UUID] = SegmentCodec.uuid("id")
 ```
+
+When the name is written as a literal string, that literal is preserved in the phantom `PathVars` marker. For example, `SegmentCodec.int("id")` contributes `PathVar["id", Int]`.
+
+If a route should keep a captured segment for matching/formatting but explicitly mark it as intentionally unused for downstream tooling, the leaf dynamic segment codecs expose `.unused`:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern._
+
+val requiredId: SegmentCodec[Int] = SegmentCodec.int("id")
+val ignoredId: SegmentCodec[Int] = SegmentCodec.int("id").unused
+```
+
+`.unused` keeps decoding, formatting, rendering, and composition identical, but changes the phantom marker from `PathVar[Name, Type]` to `PathVar.Ignored[Name, Type]`.
 
 The ordering of match priority in the routing trie follows the kind: `Literal` matches first, then `Int`, `Long`, `UUID`, `Bool`, `String`, `Combined`, and `Trailing` last.
 
@@ -126,6 +143,8 @@ val userIdSeg: SegmentCodec[UserId] =
 ```
 
 `SegmentCodec#transform` preserves the `BoundaryTag` types of the original codec, so transformed codecs still participate in compile-time `~` boundary validation.
+
+It also preserves the original `PathVars` marker unchanged: transforming a captured `SegmentCodec.int("id")` into a domain type still records that the segment came from the declared `"id"` path variable.
 
 ### `SegmentCodec#transformOrFail`
 

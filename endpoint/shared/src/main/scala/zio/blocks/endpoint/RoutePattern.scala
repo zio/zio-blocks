@@ -74,6 +74,8 @@ final case class RoutePattern[A](
 }
 
 object RoutePattern {
+  implicit val unitUnit: Tuples.Tuples.WithOut[Unit, Unit, Unit] = Tuples.Tuples.leftUnit[Unit]
+
   val CONNECT: RoutePattern[Unit] = fromMethod(Method.CONNECT)
   val DELETE: RoutePattern[Unit]  = fromMethod(Method.DELETE)
   val GET: RoutePattern[Unit]     = fromMethod(Method.GET)
@@ -102,11 +104,13 @@ object RoutePattern {
   def fromMethod(method: Method): RoutePattern[Unit] =
     RoutePattern(method, PathCodec.empty)
 
-  def any: RoutePattern[Path] =
+  def any: RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
     RoutePattern(Method.ANY, PathCodec.trailing)
+      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
-  def any(method: Method): RoutePattern[Path] =
+  def any(method: Method): RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars } =
     RoutePattern(method, PathCodec.trailing)
+      .asInstanceOf[RoutePattern[Path] { type PathVars = SegmentCodec.NoPathVars }]
 
   implicit final class MethodSyntax(private val method: Method) extends AnyVal {
     def /[A, PV](path: PathCodec[A] { type PathVars = PV }): RoutePattern[A] { type PathVars = PV } =
@@ -126,7 +130,7 @@ object RoutePattern {
   implicit final class RoutePatternOps[A, PV](private val self: RoutePattern[A] { type PathVars = PV }) extends AnyVal {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: Tuples.Tuples.WithOut[A, B, C],
-      _pathVarsCombiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
+      _pathVarsCombiner: PathCodec.RoutePathVarsCombiner[PV, PV2, PVC]
     ): RoutePattern[C] { type PathVars = PVC } = {
       val _ = _pathVarsCombiner
       self

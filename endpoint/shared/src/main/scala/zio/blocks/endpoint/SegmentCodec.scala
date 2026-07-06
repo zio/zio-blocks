@@ -105,7 +105,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
 
   // `N <: String with Singleton` preserves the literal singleton type of a literal `name` argument
   // (instead of widening it to plain `String`) on both Scala 2.13 and Scala 3 - a plain `N <: String`
-  // bound would let the compiler infer the widened `String` type instead.
+  // bound would let the compiler infer the widened `String` type instead. Overload resolution picks
+  // this singleton-preserving overload for literal call sites (its parameter type, instantiated at
+  // the literal's singleton type, is a subtype of the fallback's plain `String` parameter type).
   def bool[N <: String with Singleton](name: N): BoolSeg[N]     = BoolSeg(name)
   def int[N <: String with Singleton](name: N): IntSeg[N]       = IntSeg(name)
   def long[N <: String with Singleton](name: N): LongSeg[N]     = LongSeg(name)
