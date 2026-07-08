@@ -17,16 +17,20 @@
 package zio.blocks.telemetry
 
 /**
- * Console log processor — triggers the fast ConsoleLogEmitter in Logger. Uses a
- * format that writes directly from raw values, bypassing LogRecord. Format:
- * "2026-03-31T17:30:00.123Z INFO [MyClass.method:42] message {key=val}"
- */
+  * Console log processor — triggers the fast ConsoleLogEmitter in Logger. Uses a
+  * format that writes directly from raw values, bypassing LogRecord. Format:
+  * "2026-03-31T17:30:00.123Z INFO [MyClass.method:42] message {key=val}"
+  *
+  * When a LogRecord is passed via emit() (e.g. via bridges/adapters), delegates to
+  * StdoutLogRecordProcessor to ensure full formatting with attributes and stacktrace.
+  */
 class ConsoleLogRecordProcessor extends LogRecordProcessor {
 
-  override def onEmit(logRecord: LogRecord): Unit =
-    // Fallback for when used without ConsoleLogEmitter (shouldn't happen in normal use)
-    System.out.println(s"${logRecord.severityText} ${logRecord.body.value}")
+  private val delegate = new StdoutLogRecordProcessor()
 
-  override def shutdown(): Unit   = ()
-  override def forceFlush(): Unit = ()
+  override def onEmit(logRecord: LogRecord): Unit =
+    delegate.onEmit(logRecord)
+
+  override def shutdown(): Unit   = delegate.shutdown()
+  override def forceFlush(): Unit = delegate.forceFlush()
 }

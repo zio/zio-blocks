@@ -217,12 +217,25 @@ object LogProcessorSpec extends ZIOSpecDefault {
   )
 
   private val consoleLogRecordProcessorSuite = suite("ConsoleLogRecordProcessor")(
-    test("onEmit writes severity and body") {
+    test("onEmit renders full log record with source location user attributes and throwable") {
       val processor      = new ConsoleLogRecordProcessor()
-      val (_, rendered0) = captureStdout(processor.onEmit(logRecord()))
+      val failure        = new IllegalStateException("boom")
+      val (_, rendered0) = captureStdout(processor.onEmit(logRecord(throwable = Some(failure))))
       val rendered       = rendered0.trim
 
-      assertTrue(rendered == "INFO test message")
+      assertTrue(
+        rendered.startsWith("2024-07-01T00:10:00.123Z INFO  [MyClass.myMethod:42] test message"),
+        rendered.contains("userId=\"abc\""),
+        rendered.contains("count=5"),
+        rendered.contains("ratio=2.5"),
+        rendered.contains("active=true"),
+        rendered.contains("tags=StringSeqValue(List(alpha, beta))"),
+        !rendered.contains("code.filepath"),
+        !rendered.contains("code.namespace"),
+        !rendered.contains("code.function"),
+        !rendered.contains("code.lineno"),
+        rendered.contains("java.lang.IllegalStateException: boom")
+      )
     },
     test("shutdown and forceFlush are no-ops") {
       val processor = new ConsoleLogRecordProcessor()
