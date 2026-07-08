@@ -112,9 +112,15 @@ object DbCodecOpaqueSpec extends ZIOSpecDefault {
       )
     },
     test("opaque apply validation runs during decode") {
-      val codec  = summon[DbCodec[ProductId]]
-      val result = scala.util.Try(codec.readValue(new StringReader(""), 1))
-      assertTrue(result.failed.toOption.exists(_.isInstanceOf[IllegalArgumentException]))
+      // Must use `derivedOpaque` explicitly: `summon` resolves the higher-priority
+      // Schema-based `derived` given, which dealiases the opaque type and skips `apply`.
+      val codec     = DbCodec.derivedOpaque[ProductId]
+      val result    = scala.util.Try(codec.readValue(new StringReader(""), 1))
+      val throwable = result.failed.toOption
+      assertTrue(
+        throwable.exists(_.isInstanceOf[IllegalArgumentException]),
+        throwable.exists(_.getMessage.contains("ProductId must be non-empty"))
+      )
     }
   )
 }
