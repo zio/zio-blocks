@@ -107,6 +107,20 @@ jobs:
         java: [17, 25]
         platform: ['JVM']
         scala: ['2.13.x', '3.3.x', '3.8.x']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 32886:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v6.0.2
