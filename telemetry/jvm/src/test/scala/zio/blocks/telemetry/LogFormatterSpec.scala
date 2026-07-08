@@ -226,6 +226,29 @@ object LogFormatterSpec extends ZIOSpecDefault {
         val rendered = renderText(timestamp, Severity.Info, "INFO", "dotless", builder)
 
         assertTrue(rendered.startsWith(s"${expectedTimestamp(timestamp)} INFO  [RootService.go:3] dotless"))
+      },
+      test("renders all seq attribute types and an empty seq inline") {
+        val timestamp = 1719792602523000000L
+        val builder   = Attributes.builder
+          .put("code.filepath", "Seqs.scala")
+          .put("code.namespace", "Seqs")
+          .put("code.function", "go")
+          .put("code.lineno", 1L)
+          .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
+          .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
+          .put(AttributeKey.doubleSeq("rates"), Seq(1.5, 2.5))
+          .put(AttributeKey.booleanSeq("flags"), Seq(true, false))
+          .put(AttributeKey.stringSeq("empty"), Seq.empty[String])
+
+        val rendered = renderText(timestamp, Severity.Info, "INFO", "seqs", builder)
+
+        assertTrue(
+          rendered.contains("tags=[\"a\", \"b\"]"),
+          rendered.contains("nums=[1, 2]"),
+          rendered.contains("rates=[1.5, 2.5]"),
+          rendered.contains("flags=[true, false]"),
+          rendered.contains("empty=[]")
+        )
       }
     ),
     suite("TextLogFormatter.formatRecord")(
@@ -373,6 +396,31 @@ object LogFormatterSpec extends ZIOSpecDefault {
         assertTrue(
           rendered ==
             s"{\"timeUnixNano\":\"$timestamp\",\"severityNumber\":17,\"severityText\":\"ERROR\",\"body\":{\"stringValue\":\"minimal\"}}"
+        )
+      },
+      test("renders all seq attribute types as OTLP arrayValue") {
+        val timestamp = 1719792607523000000L
+        val builder   = Attributes.builder
+          .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
+          .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
+          .put(AttributeKey.doubleSeq("rates"), Seq(1.5, 2.5))
+          .put(AttributeKey.booleanSeq("flags"), Seq(true, false))
+
+        val rendered = renderJson(timestamp, Severity.Info, "INFO", "seqs", builder)
+
+        assertTrue(
+          rendered.contains(
+            "{\"key\":\"tags\",\"value\":{\"arrayValue\":{\"values\":[{\"stringValue\":\"a\"},{\"stringValue\":\"b\"}]}}}"
+          ),
+          rendered.contains(
+            "{\"key\":\"nums\",\"value\":{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"}]}}}"
+          ),
+          rendered.contains(
+            "{\"key\":\"rates\",\"value\":{\"arrayValue\":{\"values\":[{\"doubleValue\":1.5},{\"doubleValue\":2.5}]}}}"
+          ),
+          rendered.contains(
+            "{\"key\":\"flags\",\"value\":{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"boolValue\":false}]}}}"
+          )
         )
       }
     ),

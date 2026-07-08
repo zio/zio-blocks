@@ -127,7 +127,12 @@ object LogProcessorSpec extends ZIOSpecDefault {
       builder.put("active", value = true)
     }
 
-    if (includeOtherAttr) builder.put(AttributeKey.stringSeq("tags"), List("alpha", "beta"))
+    if (includeOtherAttr) {
+      builder.put(AttributeKey.stringSeq("tags"), List("alpha", "beta"))
+      builder.put(AttributeKey.longSeq("nums"), List(1L, 2L))
+      builder.put(AttributeKey.doubleSeq("rates"), List(1.5, 2.5))
+      builder.put(AttributeKey.booleanSeq("flags"), List(true, false))
+    }
 
     LogRecord(
       timestampNanos = 1719792600123000000L,
@@ -176,7 +181,10 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
         rendered.contains("active=true"),
-        rendered.contains("tags=StringSeqValue(List(alpha, beta))"),
+        rendered.contains("tags=[\"alpha\", \"beta\"]"),
+        rendered.contains("nums=[1, 2]"),
+        rendered.contains("rates=[1.5, 2.5]"),
+        rendered.contains("flags=[true, false]"),
         !rendered.contains("code.filepath"),
         !rendered.contains("code.namespace"),
         !rendered.contains("code.function"),
@@ -229,7 +237,10 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("count=5"),
         rendered.contains("ratio=2.5"),
         rendered.contains("active=true"),
-        rendered.contains("tags=StringSeqValue(List(alpha, beta))"),
+        rendered.contains("tags=[\"alpha\", \"beta\"]"),
+        rendered.contains("nums=[1, 2]"),
+        rendered.contains("rates=[1.5, 2.5]"),
+        rendered.contains("flags=[true, false]"),
         !rendered.contains("code.filepath"),
         !rendered.contains("code.namespace"),
         !rendered.contains("code.function"),
@@ -281,6 +292,44 @@ object LogProcessorSpec extends ZIOSpecDefault {
         rendered.contains("\"key\":\"count\",\"value\":{\"intValue\":\"5\"}}"),
         rendered.contains("\"key\":\"ratio\",\"value\":{\"doubleValue\":2.5}}"),
         rendered.contains("\"key\":\"active\",\"value\":{\"boolValue\":true}}")
+      )
+    },
+    test("onEmit renders all seq attribute types via TextLogFormatter.formatRecord") {
+      val writer    = new TestLogWriter()
+      val processor = new FormattedLogRecordProcessor(TextLogFormatter, writer)
+
+      processor.onEmit(logRecord())
+
+      val rendered = writer.writes.headOption.getOrElse("")
+      assertTrue(
+        writer.writes.size == 1,
+        rendered.contains("tags=[\"alpha\", \"beta\"]"),
+        rendered.contains("nums=[1, 2]"),
+        rendered.contains("rates=[1.5, 2.5]"),
+        rendered.contains("flags=[true, false]")
+      )
+    },
+    test("onEmit renders all seq attribute types via JsonLogFormatter.formatRecord") {
+      val writer    = new TestLogWriter()
+      val processor = new FormattedLogRecordProcessor(JsonLogFormatter, writer)
+
+      processor.onEmit(logRecord())
+
+      val rendered = writer.writes.headOption.getOrElse("")
+      assertTrue(
+        writer.writes.size == 1,
+        rendered.contains(
+          "\"key\":\"tags\",\"value\":{\"arrayValue\":{\"values\":[{\"stringValue\":\"alpha\"},{\"stringValue\":\"beta\"}]}}}"
+        ),
+        rendered.contains(
+          "\"key\":\"nums\",\"value\":{\"arrayValue\":{\"values\":[{\"intValue\":\"1\"},{\"intValue\":\"2\"}]}}}"
+        ),
+        rendered.contains(
+          "\"key\":\"rates\",\"value\":{\"arrayValue\":{\"values\":[{\"doubleValue\":1.5},{\"doubleValue\":2.5}]}}}"
+        ),
+        rendered.contains(
+          "\"key\":\"flags\",\"value\":{\"arrayValue\":{\"values\":[{\"boolValue\":true},{\"boolValue\":false}]}}}"
+        )
       )
     },
     test("shutdown calls writer close") {

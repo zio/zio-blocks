@@ -115,6 +115,7 @@ object TextLogFormatter extends LogFormatter {
 
     // User attributes (after source location, index 4+)
     val types        = builder.builderTypes
+    val seqs         = builder.builderSeqs
     var hasUserAttrs = false
     i = 4
     while (i < len) {
@@ -122,11 +123,15 @@ object TextLogFormatter extends LogFormatter {
       else sb.append(", ")
       sb.append(keys(i)); sb.append('=')
       (types(i): @scala.annotation.switch) match {
-        case 0 /* STRING */  => sb.append('"'); sb.append(strings(i)); sb.append('"')
-        case 1 /* LONG */    => sb.append(longs(i))
-        case 2 /* DOUBLE */  => sb.append(java.lang.Double.longBitsToDouble(longs(i)))
-        case 3 /* BOOLEAN */ => sb.append(if (longs(i) != 0L) "true" else "false")
-        case _               => sb.append("?")
+        case 0 /* STRING */      => sb.append('"'); sb.append(strings(i)); sb.append('"')
+        case 1 /* LONG */        => sb.append(longs(i))
+        case 2 /* DOUBLE */      => sb.append(java.lang.Double.longBitsToDouble(longs(i)))
+        case 3 /* BOOLEAN */     => sb.append(if (longs(i) != 0L) "true" else "false")
+        case 4 /* STRING_SEQ */  => appendStringSeq(sb, seqValueAt(seqs, i))
+        case 5 /* LONG_SEQ */    => appendScalarSeq(sb, seqValueAt(seqs, i))
+        case 6 /* DOUBLE_SEQ */  => appendScalarSeq(sb, seqValueAt(seqs, i))
+        case 7 /* BOOLEAN_SEQ */ => appendScalarSeq(sb, seqValueAt(seqs, i))
+        case _                   => sb.append("?")
       }
       i += 1
     }
@@ -227,10 +232,37 @@ object TextLogFormatter extends LogFormatter {
           sb.append(key).append('=').append(value)
         }
 
-      override def visitStringSeq(key: String, value: Seq[String]): Unit   = ()
-      override def visitLongSeq(key: String, value: Seq[Long]): Unit       = ()
-      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
-      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
+      override def visitStringSeq(key: String, value: Seq[String]): Unit =
+        if (!key.startsWith("code.")) {
+          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+          else sb.append(", ")
+          sb.append(key).append('=')
+          appendStringSeq(sb, value)
+        }
+
+      override def visitLongSeq(key: String, value: Seq[Long]): Unit =
+        if (!key.startsWith("code.")) {
+          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+          else sb.append(", ")
+          sb.append(key).append('=')
+          appendScalarSeq(sb, value)
+        }
+
+      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit =
+        if (!key.startsWith("code.")) {
+          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+          else sb.append(", ")
+          sb.append(key).append('=')
+          appendScalarSeq(sb, value)
+        }
+
+      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit =
+        if (!key.startsWith("code.")) {
+          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+          else sb.append(", ")
+          sb.append(key).append('=')
+          appendScalarSeq(sb, value)
+        }
     })
     if (hasUserAttrs) sb.append('}')
 
@@ -277,6 +309,37 @@ object TextLogFormatter extends LogFormatter {
     while (i < width) { sb.append('0'); i += 1 }
     sb.append(s)
   }
+
+  /**
+   * Reads a Seq value from the raw side-array, tolerating a null array or slot
+   * (which never occur for a real seq-typed attribute, but keeps the hot path
+   * defensive). Seq attributes are rare, so allocation here is acceptable.
+   */
+  private def seqValueAt(seqs: Array[AnyRef], i: Int): Seq[Any] =
+    if (seqs == null || seqs(i) == null) Seq.empty
+    else seqs(i).asInstanceOf[Seq[Any]]
+
+  /** Renders a String seq as `["a", "b"]` with each element double-quoted. */
+  private def appendStringSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
+    sb.append('[')
+    var first = true
+    value.foreach { v =>
+      if (first) first = false else sb.append(", ")
+      sb.append('"').append(v.toString).append('"')
+    }
+    sb.append(']')
+  }
+
+  /** Renders a scalar (Long/Double/Boolean) seq as `[1, 2, 3]`, unquoted. */
+  private def appendScalarSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
+    sb.append('[')
+    var first = true
+    value.foreach { v =>
+      if (first) first = false else sb.append(", ")
+      sb.append(v.toString)
+    }
+    sb.append(']')
+  }
 }
 
 /**
@@ -286,10 +349,11 @@ object TextLogFormatter extends LogFormatter {
 object JsonLogFormatter extends LogFormatter {
   private sealed trait JsonAttrValue
   private object JsonAttrValue {
-    final case class StringValue(value: String) extends JsonAttrValue
-    final case class IntValue(value: Long)      extends JsonAttrValue
-    final case class DoubleValue(value: Double) extends JsonAttrValue
-    final case class BoolValue(value: Boolean)  extends JsonAttrValue
+    final case class StringValue(value: String)             extends JsonAttrValue
+    final case class IntValue(value: Long)                  extends JsonAttrValue
+    final case class DoubleValue(value: Double)             extends JsonAttrValue
+    final case class BoolValue(value: Boolean)              extends JsonAttrValue
+    final case class ArrayValue(values: Seq[JsonAttrValue]) extends JsonAttrValue
   }
 
   override def format(
@@ -326,6 +390,7 @@ object JsonLogFormatter extends LogFormatter {
     val types   = builder.builderTypes
     val longs   = builder.builderLongs
     val strings = builder.builderStrings
+    val seqs    = builder.builderSeqs
     val len     = builder.builderLen
     if (len > 0) {
       hasAttrs = true
@@ -338,6 +403,10 @@ object JsonLogFormatter extends LogFormatter {
           case 1 => JsonAttrValue.IntValue(longs(i))
           case 2 => JsonAttrValue.DoubleValue(java.lang.Double.longBitsToDouble(longs(i)))
           case 3 => JsonAttrValue.BoolValue(longs(i) != 0L)
+          case 4 => jsonStringSeq(seqValueAt(seqs, i))
+          case 5 => jsonLongSeq(seqValueAt(seqs, i))
+          case 6 => jsonDoubleSeq(seqValueAt(seqs, i))
+          case 7 => jsonBooleanSeq(seqValueAt(seqs, i))
           case _ => JsonAttrValue.StringValue("?")
         }
         appendJsonAttribute(sb, keys(i), value)
@@ -421,10 +490,29 @@ object JsonLogFormatter extends LogFormatter {
           appendJsonAttribute(sb, key, JsonAttrValue.BoolValue(value))
         }
 
-        override def visitStringSeq(key: String, value: Seq[String]): Unit   = ()
-        override def visitLongSeq(key: String, value: Seq[Long]): Unit       = ()
-        override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
-        override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
+        override def visitStringSeq(key: String, value: Seq[String]): Unit = {
+          if (!first) sb.append(',')
+          first = false
+          appendJsonAttribute(sb, key, jsonStringSeq(value))
+        }
+
+        override def visitLongSeq(key: String, value: Seq[Long]): Unit = {
+          if (!first) sb.append(',')
+          first = false
+          appendJsonAttribute(sb, key, jsonLongSeq(value))
+        }
+
+        override def visitDoubleSeq(key: String, value: Seq[Double]): Unit = {
+          if (!first) sb.append(',')
+          first = false
+          appendJsonAttribute(sb, key, jsonDoubleSeq(value))
+        }
+
+        override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = {
+          if (!first) sb.append(',')
+          first = false
+          appendJsonAttribute(sb, key, jsonBooleanSeq(value))
+        }
       })
       sb.append(']')
     }
@@ -478,9 +566,55 @@ object JsonLogFormatter extends LogFormatter {
       case JsonAttrValue.BoolValue(boolValue) =>
         sb.append("\"boolValue\":")
         sb.append(boolValue)
+      case JsonAttrValue.ArrayValue(values) =>
+        sb.append("\"arrayValue\":{\"values\":[")
+        var first = true
+        values.foreach { element =>
+          if (first) first = false else sb.append(',')
+          sb.append('{')
+          appendJsonScalarValue(sb, element)
+          sb.append('}')
+        }
+        sb.append("]}")
     }
     sb.append("}}")
   }
+
+  /** Appends the inner `"kind":value` fragment for a scalar JsonAttrValue. */
+  private def appendJsonScalarValue(sb: StringBuilder, value: JsonAttrValue): Unit =
+    value match {
+      case JsonAttrValue.StringValue(stringValue) =>
+        sb.append("\"stringValue\":\"")
+        writeJsonStringContent(sb, stringValue)
+        sb.append('"')
+      case JsonAttrValue.IntValue(intValue) =>
+        sb.append("\"intValue\":\"")
+        sb.append(intValue)
+        sb.append('"')
+      case JsonAttrValue.DoubleValue(doubleValue) =>
+        sb.append("\"doubleValue\":")
+        sb.append(doubleValue)
+      case JsonAttrValue.BoolValue(boolValue) =>
+        sb.append("\"boolValue\":")
+        sb.append(boolValue)
+      case JsonAttrValue.ArrayValue(_) => ()
+    }
+
+  private def jsonStringSeq(value: Seq[Any]): JsonAttrValue =
+    JsonAttrValue.ArrayValue(value.map(v => JsonAttrValue.StringValue(v.toString)))
+
+  private def jsonLongSeq(value: Seq[Any]): JsonAttrValue =
+    JsonAttrValue.ArrayValue(value.map(v => JsonAttrValue.IntValue(v.asInstanceOf[Long])))
+
+  private def jsonDoubleSeq(value: Seq[Any]): JsonAttrValue =
+    JsonAttrValue.ArrayValue(value.map(v => JsonAttrValue.DoubleValue(v.asInstanceOf[Double])))
+
+  private def jsonBooleanSeq(value: Seq[Any]): JsonAttrValue =
+    JsonAttrValue.ArrayValue(value.map(v => JsonAttrValue.BoolValue(v.asInstanceOf[Boolean])))
+
+  private def seqValueAt(seqs: Array[AnyRef], i: Int): Seq[Any] =
+    if (seqs == null || seqs(i) == null) Seq.empty
+    else seqs(i).asInstanceOf[Seq[Any]]
 
   private[telemetry] def writeJsonStringContent(sb: StringBuilder, s: String): Unit = {
     var i = 0
