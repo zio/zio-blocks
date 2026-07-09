@@ -283,7 +283,7 @@ def schemaExprToSql[S, A](expr: SchemaExpr[S, A]): String =
 
 def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
   case DynamicSchemaExpr.Select(path)   => columnName(path)
-  case DynamicSchemaExpr.Literal(value) => sqlLiteralDV(value)
+  case DynamicSchemaExpr.Literal(value, _) => sqlLiteralDV(value)
   case DynamicSchemaExpr.Relational(left, right, op) =>
     val sqlOp = op match {
       case DynamicSchemaExpr.RelationalOperator.Equal              => "="
@@ -827,7 +827,7 @@ def schemaExprToSql[S, A](expr: SchemaExpr[S, A]): String =
 
 def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
   case DynamicSchemaExpr.Select(path)   => columnName(path)
-  case DynamicSchemaExpr.Literal(value) => sqlLiteralDV(value)
+  case DynamicSchemaExpr.Literal(value, _) => sqlLiteralDV(value)
   case DynamicSchemaExpr.Relational(left, right, op) =>
     val sqlOp = op match {
       case DynamicSchemaExpr.RelationalOperator.Equal              => "="

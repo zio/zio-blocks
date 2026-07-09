@@ -237,7 +237,7 @@ object SchemaExpr {
     schema.getDefaultValue.map { defaultValue =>
       val dynValue = schema.toDynamicValue(defaultValue)
       SchemaExpr(
-        DynamicSchemaExpr.Literal(dynValue),
+        DynamicSchemaExpr.Literal(dynValue, schema),
         schema.asInstanceOf[Schema[Any]],
         schema
       )
@@ -245,7 +245,7 @@ object SchemaExpr {
 
   def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
     SchemaExpr(
-      DynamicSchemaExpr.Literal(schema.toDynamicValue(value)),
+      DynamicSchemaExpr.Literal(schema.toDynamicValue(value), schema),
       Schema[Unit].transform[S](_ => null.asInstanceOf[S], _ => ()),
       schema
     )

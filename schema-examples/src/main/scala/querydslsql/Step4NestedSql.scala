@@ -75,7 +75,7 @@ object Step4NestedSql extends App {
 
   private def toSqlQualifiedDynamic(expr: DynamicSchemaExpr): String = expr match {
     case DynamicSchemaExpr.Select(path)                => qualifiedColumnNameDynamic(path)
-    case DynamicSchemaExpr.Literal(value)              => sqlLiteralDV(value)
+    case DynamicSchemaExpr.Literal(value, _)           => sqlLiteralDV(value)
     case DynamicSchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case DynamicSchemaExpr.RelationalOperator.Equal              => "="

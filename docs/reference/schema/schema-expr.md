@@ -383,7 +383,7 @@ A constant value represented directly as a `DynamicValue`.
 
 ```scala
 object DynamicSchemaExpr {
-  final case class Literal(value: DynamicValue) extends DynamicSchemaExpr
+  final case class Literal(value: DynamicValue, schema: Schema[_]) extends DynamicSchemaExpr
 }
 ```
 

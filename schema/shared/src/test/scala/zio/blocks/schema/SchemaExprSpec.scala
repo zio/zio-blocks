@@ -42,17 +42,17 @@ object SchemaExprSpec extends ZIOSpecDefault {
     suite("Literal")(
       test("creates int literal") {
         val lit      = intLit(42)
-        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(42)), Schema[Int])
         assertTrue(lit.dynamic == expected)
       },
       test("creates string literal") {
         val lit      = stringLit("hello")
-        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")))
+        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String])
         assertTrue(lit.dynamic == expected)
       },
       test("creates boolean literal") {
         val lit      = boolLit(true)
-        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))
+        val expected = DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Boolean(true)), Schema[Boolean])
         assertTrue(lit.dynamic == expected)
       },
       test("evalDynamic returns literal value") {
@@ -138,9 +138,9 @@ object SchemaExprSpec extends ZIOSpecDefault {
       test("evalDynamic reports invalid substring indices as OpticCheck") {
         val expr = SchemaExpr(
           DynamicSchemaExpr.StringSubstring(
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello"))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3))),
-            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)))
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("hello")), Schema[String]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(3)), Schema[Int]),
+            DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(10)), Schema[Int])
           ),
           Schema[Unit],
           Schema[String]
