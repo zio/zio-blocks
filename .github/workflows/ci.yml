@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: '0'
       - name: Install libuv
@@ -85,7 +85,7 @@ jobs:
           sudo apt-get install -y locales
           sudo locale-gen en_US.UTF-8
       - name: Checkout current branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -107,9 +107,23 @@ jobs:
         java: [17, 25]
         platform: ['JVM']
         scala: ['2.13.x', '3.3.x', '3.8.x']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 32886:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Set JVM options for JDK 25+
@@ -151,7 +165,7 @@ jobs:
         scala: ['2.13.x', '3.3.x', '3.8.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -162,7 +176,7 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala JS tests
+      - name: Run Scala JS tests and compile docs
         run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:
@@ -175,7 +189,7 @@ jobs:
         java: [17]
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -212,13 +226,13 @@ jobs:
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
       - name: Setup Action
         uses: coursier/setup-action@v3
         with:
-          jvm: temurin:25
+          jvm: temurin:17
           apps: sbt
       - name: Release
         uses: nick-fields/retry@v3
@@ -227,7 +241,6 @@ jobs:
           max_attempts: 3
           command: sbt ci-release
         env:
-          JAVA_TOOL_OPTIONS: -XX:+UseCompactObjectHeaders
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
@@ -249,7 +262,7 @@ jobs:
       contents: read
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           fetch-depth: '0'
       - name: Install libuv
@@ -269,6 +282,7 @@ jobs:
         with:
           node-version: 24.12.0
           registry-url: https://registry.npmjs.org
+          cache: 'npm'
       - name: Publish Docs to NPM Registry
         uses: nick-fields/retry@v3
         with:
