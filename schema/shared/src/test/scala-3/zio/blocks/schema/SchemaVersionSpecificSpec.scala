@@ -25,6 +25,22 @@ import zio.blocks.typeid.TypeId
 import zio.test.Assertion._
 import zio.test._
 
+// Must stay top-level: nested opaque types get dealiased to a plain Primitive during derivation,
+// which hides the Wrapper-over-primitive register layout under test.
+sealed trait ParamOpaquePhantom
+opaque type ParamOpaqueId[+A] = Int
+object ParamOpaqueId {
+  def apply[A](value: Int): ParamOpaqueId[A]         = value
+  extension [A](id: ParamOpaqueId[A]) def value: Int = id
+  given [A]: Schema[ParamOpaqueId[A]]                =
+    Schema.int.transform[ParamOpaqueId[A]](ParamOpaqueId.apply[A], _.value)
+}
+
+case class ParamOpaqueRecord(
+  id: ParamOpaqueId[ParamOpaquePhantom],
+  ids: Set[ParamOpaqueId[ParamOpaquePhantom]]
+) derives Schema
+
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
 
   private def textDoc(s: String): Doc =
@@ -864,6 +880,26 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema: Schema[IntWrapper] = Schema[Int].transform(to = IntWrapper(_), from = _.value)
         val wrapper                    = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.underlyingPrimitiveType))(isNone)
+      },
+      test("underlyingPrimitiveType returns Some for a parameterized opaque type over a primitive") {
+        val rec   = Schema[ParamOpaqueRecord].reflect.asInstanceOf[Reflect.Record[Binding, ParamOpaqueRecord]]
+        val field = rec.fields.find(_.name == "id").get.value.asWrapperUnknown
+        assert(field.flatMap(_.wrapper.underlyingPrimitiveType))(
+          isSome(equalTo(PrimitiveType.Int(Validation.None)))
+        )
+      },
+      test("Reflect.Record.registers agrees with the derived binding for wrappers over primitives") {
+        // registers must match the derived binding's layout, else field values land in the wrong
+        // register slots (ClassCastException on construct/deconstruct).
+        val rec  = Schema[ParamOpaqueRecord].reflect.asInstanceOf[Reflect.Record[Binding, ParamOpaqueRecord]]
+        val regs = Reflect.Record.registers(rec.fields.map(_.value).toArray)
+
+        val sample = ParamOpaqueRecord(ParamOpaqueId(7), Set(ParamOpaqueId(8)))
+        val out    = Registers(rec.deconstructor.usedRegisters)
+        rec.deconstructor.deconstruct(out, RegisterOffset.Zero, sample)
+
+        assert(regs(0).isInstanceOf[Register.Int])(isTrue) &&
+        assert(regs(0).asInstanceOf[Register.Int].get(out, RegisterOffset.Zero))(equalTo(7))
       }
     )
   )
