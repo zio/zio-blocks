@@ -279,7 +279,14 @@ private[telemetry] object LogMacros {
             case _root_.zio.blocks.telemetry.AttributeValue.LongValue(l)    => builder.put(k, l)
             case _root_.zio.blocks.telemetry.AttributeValue.DoubleValue(d)  => builder.put(k, d)
             case _root_.zio.blocks.telemetry.AttributeValue.BooleanValue(b) => builder.put(k, b)
-            case other                                                 => builder.put(k, other.toString)
+            case _root_.zio.blocks.telemetry.AttributeValue.StringSeqValue(s) =>
+              builder.put(_root_.zio.blocks.telemetry.AttributeKey.stringSeq(k), s)
+            case _root_.zio.blocks.telemetry.AttributeValue.LongSeqValue(s) =>
+              builder.put(_root_.zio.blocks.telemetry.AttributeKey.longSeq(k), s)
+            case _root_.zio.blocks.telemetry.AttributeValue.DoubleSeqValue(s) =>
+              builder.put(_root_.zio.blocks.telemetry.AttributeKey.doubleSeq(k), s)
+            case _root_.zio.blocks.telemetry.AttributeValue.BooleanSeqValue(s) =>
+              builder.put(_root_.zio.blocks.telemetry.AttributeKey.booleanSeq(k), s)
           }
         }""")
       case StringBodyKind(idx) =>

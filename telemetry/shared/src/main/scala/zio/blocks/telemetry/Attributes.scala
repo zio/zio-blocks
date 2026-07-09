@@ -366,7 +366,14 @@ object Attributes {
     private[telemetry] def builderTypes: Array[Byte]     = _types
     private[telemetry] def builderLongs: Array[Long]     = _longs
     private[telemetry] def builderStrings: Array[String] = _strings
-    private[telemetry] def builderLen: Int               = _len
+
+    /**
+     * Raw seq-value side-array for the zero-alloc formatting path. May be
+     * `null` when no Seq-typed attribute has been added; callers must
+     * null-check.
+     */
+    private[telemetry] def builderSeqs: Array[AnyRef] = _seqs
+    private[telemetry] def builderLen: Int            = _len
 
     def clear(): Unit = {
       var i = 0

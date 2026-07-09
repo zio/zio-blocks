@@ -217,6 +217,28 @@ object LogSpec extends ZIOSpecDefault {
           attrs.get(AttributeKey.string("k1")).contains("v1"),
           attrs.get(AttributeKey.long("k2")).contains(42L)
         )
+      },
+      test("Logger.info preserves seq attribute Seq structure and type") {
+        val processor = new TestLogProcessor
+        val logger    = LoggerProvider.builder
+          .addLogRecordProcessor(processor)
+          .build()
+          .get("test")
+        logger.info(
+          "msg",
+          "tags"  -> AttributeValue.StringSeqValue(Seq("a", "b")),
+          "nums"  -> AttributeValue.LongSeqValue(Seq(1L, 2L)),
+          "rates" -> AttributeValue.DoubleSeqValue(Seq(1.5, 2.5)),
+          "flags" -> AttributeValue.BooleanSeqValue(Seq(true, false))
+        )
+        val attrs = processor.emitted.head.attributes
+        assertTrue(
+          processor.emitted.size == 1,
+          attrs.get(AttributeKey.stringSeq("tags")).contains(Seq("a", "b")),
+          attrs.get(AttributeKey.longSeq("nums")).contains(Seq(1L, 2L)),
+          attrs.get(AttributeKey.doubleSeq("rates")).contains(Seq(1.5, 2.5)),
+          attrs.get(AttributeKey.booleanSeq("flags")).contains(Seq(true, false))
+        )
       }
     ) @@ TestAspect.sequential,
     test("processor failures do not stop later processors") {

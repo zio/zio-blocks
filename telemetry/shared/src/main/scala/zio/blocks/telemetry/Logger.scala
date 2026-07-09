@@ -127,11 +127,14 @@ final class Logger private[telemetry] (
     val attrBuilder = Attributes.builder
     attrs.foreach { case (k, v) =>
       v match {
-        case AttributeValue.StringValue(s)  => attrBuilder.put(k, s)
-        case AttributeValue.BooleanValue(b) => attrBuilder.put(k, b)
-        case AttributeValue.LongValue(l)    => attrBuilder.put(k, l)
-        case AttributeValue.DoubleValue(d)  => attrBuilder.put(k, d)
-        case _                              => attrBuilder.put(k, v.toString)
+        case AttributeValue.StringValue(s)     => attrBuilder.put(k, s)
+        case AttributeValue.BooleanValue(b)    => attrBuilder.put(k, b)
+        case AttributeValue.LongValue(l)       => attrBuilder.put(k, l)
+        case AttributeValue.DoubleValue(d)     => attrBuilder.put(k, d)
+        case AttributeValue.StringSeqValue(s)  => attrBuilder.put(AttributeKey.stringSeq(k), s)
+        case AttributeValue.LongSeqValue(s)    => attrBuilder.put(AttributeKey.longSeq(k), s)
+        case AttributeValue.DoubleSeqValue(s)  => attrBuilder.put(AttributeKey.doubleSeq(k), s)
+        case AttributeValue.BooleanSeqValue(s) => attrBuilder.put(AttributeKey.booleanSeq(k), s)
       }
     }
 

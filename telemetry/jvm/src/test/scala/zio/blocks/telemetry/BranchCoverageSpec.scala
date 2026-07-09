@@ -421,14 +421,14 @@ object BranchCoverageSpec extends ZIOSpecDefault {
         .info("m", "d" -> AttributeValue.DoubleValue(3.14))
       assertTrue(p.emitted.head.attributes.toMap("d") == AttributeValue.DoubleValue(3.14))
     },
-    test("log with seq attribute hits catch-all") {
+    test("log preserves seq attribute type fidelity") {
       val p = new TestLogProcessor
       LoggerProvider.builder
         .addLogRecordProcessor(p)
         .build()
         .get("t")
         .info("m", "s" -> AttributeValue.StringSeqValue(Seq("a")))
-      assertTrue(p.emitted.head.attributes.toMap.contains("s"))
+      assertTrue(p.emitted.head.attributes.get(AttributeKey.stringSeq("s")).contains(Seq("a")))
     },
     test("StandardLogEmitter clears builder when severity is below processor threshold") {
       val builder = Attributes.builder.put("k", "v")

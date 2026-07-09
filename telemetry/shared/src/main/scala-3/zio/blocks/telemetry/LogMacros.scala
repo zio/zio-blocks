@@ -262,11 +262,14 @@ private[telemetry] object LogMacros {
                   List('{
                     $expr.foreach { (k, v) =>
                       v match {
-                        case AttributeValue.StringValue(s)  => builder.put(k, s)
-                        case AttributeValue.LongValue(l)    => builder.put(k, l)
-                        case AttributeValue.DoubleValue(d)  => builder.put(k, d)
-                        case AttributeValue.BooleanValue(b) => builder.put(k, b)
-                        case other                          => builder.put(k, other.toString)
+                        case AttributeValue.StringValue(s)     => builder.put(k, s)
+                        case AttributeValue.LongValue(l)       => builder.put(k, l)
+                        case AttributeValue.DoubleValue(d)     => builder.put(k, d)
+                        case AttributeValue.BooleanValue(b)    => builder.put(k, b)
+                        case AttributeValue.StringSeqValue(s)  => builder.put(AttributeKey.stringSeq(k), s)
+                        case AttributeValue.LongSeqValue(s)    => builder.put(AttributeKey.longSeq(k), s)
+                        case AttributeValue.DoubleSeqValue(s)  => builder.put(AttributeKey.doubleSeq(k), s)
+                        case AttributeValue.BooleanSeqValue(s) => builder.put(AttributeKey.booleanSeq(k), s)
                       }
                     }
                   })

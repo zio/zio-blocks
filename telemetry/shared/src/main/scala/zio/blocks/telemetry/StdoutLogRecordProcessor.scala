@@ -85,11 +85,14 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
         sb.append(key)
         sb.append('=')
         value match {
-          case AttributeValue.StringValue(v)  => sb.append('"'); sb.append(v); sb.append('"')
-          case AttributeValue.LongValue(v)    => sb.append(v)
-          case AttributeValue.DoubleValue(v)  => sb.append(v)
-          case AttributeValue.BooleanValue(v) => sb.append(v)
-          case other                          => sb.append(other.toString)
+          case AttributeValue.StringValue(v)      => sb.append('"'); sb.append(v); sb.append('"')
+          case AttributeValue.LongValue(v)        => sb.append(v)
+          case AttributeValue.DoubleValue(v)      => sb.append(v)
+          case AttributeValue.BooleanValue(v)     => sb.append(v)
+          case AttributeValue.StringSeqValue(vs)  => appendStringSeq(sb, vs)
+          case AttributeValue.LongSeqValue(vs)    => appendScalarSeq(sb, vs)
+          case AttributeValue.DoubleSeqValue(vs)  => appendScalarSeq(sb, vs)
+          case AttributeValue.BooleanSeqValue(vs) => appendScalarSeq(sb, vs)
         }
       }
     }
@@ -108,4 +111,24 @@ private[telemetry] class StdoutLogRecordProcessor extends LogRecordProcessor {
 
   override def shutdown(): Unit   = ()
   override def forceFlush(): Unit = ()
+
+  private def appendStringSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
+    sb.append('[')
+    var first = true
+    value.foreach { v =>
+      if (first) first = false else sb.append(", ")
+      sb.append('"').append(v.toString).append('"')
+    }
+    sb.append(']')
+  }
+
+  private def appendScalarSeq(sb: StringBuilder, value: Seq[Any]): Unit = {
+    sb.append('[')
+    var first = true
+    value.foreach { v =>
+      if (first) first = false else sb.append(", ")
+      sb.append(v.toString)
+    }
+    sb.append(']')
+  }
 }
