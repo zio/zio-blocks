@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.maybe.Maybe
 import zio.blocks.schema.{As, Schema}
+import zio.blocks.schema.derive.DerivationBuilder
 import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
 /**
@@ -117,6 +118,22 @@ object DbCodec extends DbCodecOpaquePriority {
       )
 
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A] = codec
+
+  /**
+   * Returns a derivation builder for [[DbCodec]] so callers can attach precise
+   * field/type overrides before deriving the final codec.
+   */
+  inline def builder[A]: DerivationBuilder[DbCodec, A] =
+    Schema.derived[A].deriving(DbCodecDeriver)
+
+  /**
+   * Derives a [[DbCodec]] after applying caller-supplied derivation-builder
+   * overrides such as field-level custom codecs.
+   */
+  inline def derivedWith[A](
+    configure: DerivationBuilder[DbCodec, A] => DerivationBuilder[DbCodec, A]
+  ): DbCodec[A] =
+    configure(builder[A]).derive
 
   def jsonb[A](using jsonCodec: JsonSchemaCodec[A]): DbCodec[A] =
     DbCodec[String].transform[A](decodeJsonb[A])(value => jsonCodec.encodeToString(value))

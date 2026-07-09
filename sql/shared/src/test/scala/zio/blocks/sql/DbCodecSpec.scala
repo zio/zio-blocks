@@ -21,6 +21,7 @@ import zio.blocks.maybe.Maybe
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonCodec
 import zio.blocks.schema.json.JsonCodecDeriver
+import zio.blocks.typeid.TypeId
 
 object DbCodecSpec extends ZIOSpecDefault {
 
@@ -128,6 +129,26 @@ object DbCodecSpec extends ZIOSpecDefault {
   case class WithSimpleRecordList(id: Int, items: List[SimpleRecord])
   object WithSimpleRecordList {
     implicit val schema: Schema[WithSimpleRecordList] = Schema.derived
+  }
+
+  case class Tags(values: List[String])
+  object Tags {
+    implicit val schema: Schema[Tags] = Schema.derived
+  }
+
+  case class WithCustomTags(id: Int, tags: Tags)
+  object WithCustomTags {
+    implicit val schema: Schema[WithCustomTags] = Schema.derived
+  }
+
+  case class CartLine(title: String, quantity: Int)
+  object CartLine {
+    implicit val schema: Schema[CartLine] = Schema.derived
+  }
+
+  case class WithCustomLines(id: Int, lines: List[CartLine])
+  object WithCustomLines {
+    implicit val schema: Schema[WithCustomLines] = Schema.derived
   }
 
   sealed trait Shape
@@ -334,6 +355,26 @@ object DbCodecSpec extends ZIOSpecDefault {
   )(implicit s: Schema[A]): DbCodec[A] =
     s.deriving(DbCodecDeriver.withColumnNameMapper(mapper)).derive
 
+  private val tagsJsonCodec = Tags.schema.deriving(JsonCodecDeriver).derive
+
+  private val tagsStringCodec: DbCodec[Tags] =
+    DbCodec[String].transform(json =>
+      tagsJsonCodec.decode(json) match {
+        case Right(value) => value
+        case Left(err)    => throw new IllegalArgumentException(err.toString)
+      }
+    )(value => tagsJsonCodec.encodeToString(value))
+
+  private val cartLinesJsonCodec = Schema[List[CartLine]].deriving(JsonCodecDeriver).derive
+
+  private val linesStringCodec: DbCodec[List[CartLine]] =
+    DbCodec[String].transform(json =>
+      cartLinesJsonCodec.decode(json) match {
+        case Right(value) => value
+        case Left(err)    => throw new IllegalArgumentException(err.toString)
+      }
+    )(value => cartLinesJsonCodec.encodeToString(value))
+
   def spec: Spec[TestEnvironment, Any] = suite("DbCodecSpec")(
     suite("primitive derivation")(
       test("Int codec has single column") {
@@ -489,6 +530,41 @@ object DbCodecSpec extends ZIOSpecDefault {
         )
         assertTrue(
           value == List(SimpleRecord("apple", 1), SimpleRecord("pear", 2))
+        )
+      },
+      test("derivedWith honors field-level DbCodec override for record-backed JSON column") {
+        val codec = DbCodec.derivedWith[WithCustomTags](_.instance(TypeId.of[WithCustomTags], "tags", tagsStringCodec))
+        val value = codec.readValue(
+          new RecordReader(
+            Map(
+              "id"   -> 1,
+              "tags" -> "{\"values\":[\"Organic\",\"Vegan\"]}"
+            )
+          ),
+          IndexedSeq("id", "tags")
+        )
+        assertTrue(
+          value == WithCustomTags(1, Tags(List("Organic", "Vegan"))),
+          codec.toDbValues(WithCustomTags(2, Tags(List("Regional")))) ==
+            IndexedSeq(DbValue.DbInt(2), DbValue.DbString("{\"values\":[\"Regional\"]}"))
+        )
+      },
+      test("derivedWith honors field-level DbCodec override for sequence-backed JSON column") {
+        val codec =
+          DbCodec.derivedWith[WithCustomLines](_.instance(TypeId.of[WithCustomLines], "lines", linesStringCodec))
+        val value = codec.readValue(
+          new RecordReader(
+            Map(
+              "id"    -> 7,
+              "lines" -> "[{\"title\":\"apple\",\"quantity\":2}]"
+            )
+          ),
+          IndexedSeq("id", "lines")
+        )
+        assertTrue(
+          value == WithCustomLines(7, List(CartLine("apple", 2))),
+          codec.toDbValues(WithCustomLines(8, List(CartLine("pear", 3)))) ==
+            IndexedSeq(DbValue.DbInt(8), DbValue.DbString("[{\"title\":\"pear\",\"quantity\":3}]"))
         )
       }
     ),
