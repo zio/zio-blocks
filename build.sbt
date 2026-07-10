@@ -468,7 +468,7 @@ lazy val `sql-zio` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio"          % "2.1.24",
+      "dev.zio" %% "zio"          % "2.1.26",
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     ),
