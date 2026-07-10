@@ -232,7 +232,7 @@ jobs:
       - name: Setup Action
         uses: coursier/setup-action@v3
         with:
-          jvm: temurin:17
+          jvm: temurin:25
           apps: sbt
       - name: Release
         uses: nick-fields/retry@v4
