@@ -235,7 +235,7 @@ jobs:
           jvm: temurin:17
           apps: sbt
       - name: Release
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 30
           max_attempts: 3
@@ -284,7 +284,7 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: 'npm'
       - name: Publish Docs to NPM Registry
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 15
           max_attempts: 3
