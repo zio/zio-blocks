@@ -457,7 +457,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
-      "org.postgresql" % "postgresql"  % "42.7.5"   % Test
+      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
   )
 
@@ -468,7 +468,7 @@ lazy val `sql-zio` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio"          % "2.1.24",
+      "dev.zio" %% "zio"          % "2.1.26",
       "dev.zio" %% "zio-test"     % "2.1.24" % Test,
       "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
     ),
@@ -1249,7 +1249,7 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.1",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.17",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.39.0",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.9.2",
       "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
@@ -1481,7 +1481,7 @@ lazy val zioGolemBuildCodegen = project
     organization   := "dev.zio",
     scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.17.1",
+      "org.scalameta" %% "scalameta" % "4.17.2",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
