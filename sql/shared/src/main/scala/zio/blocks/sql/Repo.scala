@@ -46,7 +46,7 @@ import zio.blocks.schema.binding.Binding
  * @param getId
  *   Extracts the primary key from an entity value.
  */
-sealed trait Repo[E, ID] {
+abstract class Repo[E, ID] {
   def table: Table[E]
   def idColumn: String
   def idCodec: DbCodec[ID]
@@ -258,10 +258,10 @@ object Repo {
   ): Repo[E, ID] = RepoImpl(table, idColumn, idCodec, getId)
 
   /**
-    * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
-    * and getter. The table name is derived from the schema type name using the
-    * default singular snake_case policy.
-    */
+   * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
+   * and getter. The table name is derived from the schema type name using the
+   * default singular snake_case policy.
+   */
   def derived[E, ID](
     idColumn: String,
     getId: E => ID
@@ -271,9 +271,9 @@ object Repo {
   }
 
   /**
-    * Derives a `Repo` from `E`'s schema with an explicit table name, caller-
-    * supplied ID column name, and getter.
-    */
+   * Derives a `Repo` from `E`'s schema with an explicit table name, caller-
+   * supplied ID column name, and getter.
+   */
   def derived[E, ID](
     tableName: String,
     idColumn: String,
@@ -284,15 +284,21 @@ object Repo {
   }
 
   /**
-   * Fully auto-derives a `Repo` by inspecting `E`'s schema to locate the unique
-   * field whose type matches `ID`. The ID column name respects
-   * `@Modifier.rename` annotations; the table name uses the default naming
-   * policy.
+   * Fully auto-derives a `Repo` by inspecting `E`'s schema to locate the ID
+   * field using a 4-priority rule:
+   *   1. `@Modifier.id` annotation on a field whose type matches `ID`
+   *   2. Unique field whose type matches `ID` (previously the only strategy)
+   *   3. Field literally named `"id"` whose type matches `ID`
+   *   4. Field named `<entity>Id` (e.g. `userId` for entity `User`) whose type
+   *      matches `ID`
+   *
+   * The ID column name respects `@Modifier.rename` annotations; the table name
+   * uses the default naming policy.
    *
    * Fails at runtime with [[IllegalArgumentException]] if:
    *   - `E` is not a record (case class)
-   *   - No field of type `ID` exists
-   *   - Multiple fields of type `ID` exist (use the explicit overload instead)
+   *   - No field can be resolved by any of the four strategies
+   *   - Multiple fields match the same priority (ambiguous `@Modifier.id`)
    */
   def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val record = schema.reflect match {
@@ -304,36 +310,79 @@ object Repo {
     }
 
     val targetTypeId   = idSchema.reflect.typeId
-    val matchingFields = record.fields.zipWithIndex.filter { case (field, _) =>
+    val allFields      = record.fields.zipWithIndex
+    val matchingFields = allFields.filter { case (field, _) =>
       field.value.typeId == targetTypeId
     }
 
-    matchingFields match {
-      case IndexedSeq((field, idx)) =>
-        val idColumn = field.modifiers.collectFirst { case rename: Modifier.rename => rename.name }
-          .getOrElse(SqlNameMapper.SnakeCase(field.name))
-        val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
-        val codec          = schema.deriving(DbCodecDeriver).derive
-        RepoImpl(
-          Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
-          idColumn,
-          idCodec,
-          getId
-        )
+    // Priority 1: @Modifier.id annotation (among type-matching fields)
+    val idAnnotatedMatching = matchingFields.filter { case (field, _) =>
+      field.modifiers.exists(_.isInstanceOf[Modifier.id])
+    }
 
-      case empty if empty.isEmpty =>
+    def buildRepo(field: Term[Binding, ?, ?], idx: Int): Repo[E, ID] = {
+      val idColumn = field.modifiers.collectFirst { case r: Modifier.rename => r.name }
+        .getOrElse(SqlNameMapper.SnakeCase(field.name))
+      val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
+      val codec          = schema.deriving(DbCodecDeriver).derive
+      RepoImpl(
+        Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
+        idColumn,
+        idCodec,
+        getId
+      )
+    }
+
+    idAnnotatedMatching match {
+      case IndexedSeq((field, idx)) =>
+        return buildRepo(field, idx)
+
+      case multiple if multiple.size > 1 =>
+        val names = multiple.map(_._1.name).mkString(", ")
         throw new IllegalArgumentException(
-          s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
+          s"Multiple @Modifier.id-annotated fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
             "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
         )
+
+      case _ =>
+    }
+
+    // Priority 2: Unique type match
+    matchingFields match {
+      case IndexedSeq((field, idx)) =>
+        return buildRepo(field, idx)
+
+      case empty if empty.isEmpty => // No type match → fall through
 
       case multiple =>
         val names = multiple.map(_._1.name).mkString(", ")
         throw new IllegalArgumentException(
           s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
-            "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+            "Use @Modifier.id on the intended field or use Repo.derived(idColumn, getId) to specify explicitly."
         )
     }
+
+    // Priority 3: Literal "id" field
+    allFields.find(_._1.name == "id").filter(_._1.value.typeId == targetTypeId) match {
+      case Some((field, idx)) =>
+        return buildRepo(field, idx)
+      case None =>
+    }
+
+    // Priority 4: <entity>Id convention
+    val simpleName     = schema.reflect.typeId.name.split('.').last
+    val decapitalized  = simpleName.head.toLower.toString + simpleName.tail
+    val conventionName = decapitalized + "Id"
+    allFields.find(_._1.name == conventionName).filter(_._1.value.typeId == targetTypeId) match {
+      case Some((field, idx)) =>
+        return buildRepo(field, idx)
+      case None =>
+    }
+
+    throw new IllegalArgumentException(
+      s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
+        "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+    )
   }
 
   private[sql] def buildInsertFrag(
