@@ -46,12 +46,37 @@ import zio.blocks.schema.binding.Binding
  * @param getId
  *   Extracts the primary key from an entity value.
  */
-class Repo[E, ID](
+sealed trait Repo[E, ID] {
+  def table: Table[E]
+  def idColumn: String
+  def idCodec: DbCodec[ID]
+  def getId: E => ID
+
+  // === Read Operations ===
+
+  def findAll(using con: DbCon): List[E]
+  def findById(id: ID)(using con: DbCon): Option[E]
+  def existsById(id: ID)(using con: DbCon): Boolean
+  def count(using con: DbCon): Long
+
+  // === Write Operations ===
+
+  def insert(entity: E)(using con: DbCon): Int
+  def insertReturning(entity: E)(using con: DbCon): E
+  def insertBatch(entities: Iterable[E])(using con: DbCon): Int
+  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID]
+  def update(entity: E)(using con: DbCon): Int
+  def deleteById(id: ID)(using con: DbCon): Int
+  def delete(entity: E)(using con: DbCon): Int
+  def truncate()(using con: DbCon): Int
+}
+
+final case class RepoImpl[E, ID](
   val table: Table[E],
   val idColumn: String,
   val idCodec: DbCodec[ID],
   val getId: E => ID
-) {
+) extends Repo[E, ID] {
   require(
     idCodec.columnCount == 1,
     s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
@@ -230,32 +255,32 @@ object Repo {
     idColumn: String,
     idCodec: DbCodec[ID],
     getId: E => ID
-  ): Repo[E, ID] = new Repo(table, idColumn, idCodec, getId)
+  ): Repo[E, ID] = RepoImpl(table, idColumn, idCodec, getId)
 
   /**
-   * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
-   * and getter. The table name is derived from the schema type name using the
-   * default singular snake_case policy.
-   */
+    * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
+    * and getter. The table name is derived from the schema type name using the
+    * default singular snake_case policy.
+    */
   def derived[E, ID](
     idColumn: String,
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    RepoImpl(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
   }
 
   /**
-   * Derives a `Repo` from `E`'s schema with an explicit table name, caller-
-   * supplied ID column name, and getter.
-   */
+    * Derives a `Repo` from `E`'s schema with an explicit table name, caller-
+    * supplied ID column name, and getter.
+    */
   def derived[E, ID](
     tableName: String,
     idColumn: String,
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    RepoImpl(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
   }
 
   /**
@@ -289,7 +314,7 @@ object Repo {
           .getOrElse(SqlNameMapper.SnakeCase(field.name))
         val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
         val codec          = schema.deriving(DbCodecDeriver).derive
-        new Repo(
+        RepoImpl(
           Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
           idColumn,
           idCodec,
