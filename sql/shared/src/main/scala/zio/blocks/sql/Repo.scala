@@ -36,41 +36,49 @@ import zio.blocks.schema.binding.Binding
  * `Repo` instances are immutable and safe for concurrent use. Individual
  * operations require a `DbCon` or `DbTx` given context which is not shared
  * across threads unless the caller arranges it.
- *
- * @param table
- *   The [[Table]] this repository operates on.
- * @param idColumn
- *   The name of the primary-key column as it appears in SQL.
- * @param idCodec
- *   The [[DbCodec]] used to read and write the ID type.
- * @param getId
- *   Extracts the primary key from an entity value.
  */
 abstract class Repo[E, ID] {
+  /** The table this repository operates on. */
   def table: Table[E]
+  /** The name of the primary-key column as it appears in SQL. */
   def idColumn: String
+  /** The codec used to read and write the ID type. */
   def idCodec: DbCodec[ID]
+  /** Extracts the primary key from an entity value. */
   def getId: E => ID
 
   // === Read Operations ===
 
+  /** Returns all rows in the table. */
   def findAll(using con: DbCon): List[E]
+  /** Finds a row by its primary key, or `None` if absent. */
   def findById(id: ID)(using con: DbCon): Option[E]
+  /** Returns `true` if a row with the given primary key exists. */
   def existsById(id: ID)(using con: DbCon): Boolean
+  /** Returns the total number of rows in the table. */
   def count(using con: DbCon): Long
 
   // === Write Operations ===
 
+  /** Inserts an entity and returns the affected row count (normally 1). */
   def insert(entity: E)(using con: DbCon): Int
+  /** Inserts an entity and returns the inserted row. */
   def insertReturning(entity: E)(using con: DbCon): E
+  /** Inserts multiple entities using a JDBC batch and returns the total affected row count. */
   def insertBatch(entities: Iterable[E])(using con: DbCon): Int
+  /** Inserts multiple entities using a multi-row INSERT and returns their primary keys in input order. */
   def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID]
+  /** Updates all non-ID columns for the row identified by the entity's primary key. Returns the affected row count. */
   def update(entity: E)(using con: DbCon): Int
+  /** Deletes a row by its primary key. Returns the affected row count. */
   def deleteById(id: ID)(using con: DbCon): Int
+  /** Deletes the row corresponding to the entity's primary key. */
   def delete(entity: E)(using con: DbCon): Int
+  /** Deletes all rows in the table. */
   def truncate()(using con: DbCon): Int
 }
 
+/** The default JDBC-backed implementation of [[Repo]]. */
 final case class RepoImpl[E, ID](
   val table: Table[E],
   val idColumn: String,
@@ -381,6 +389,7 @@ object Repo {
 
     throw new IllegalArgumentException(
       s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
+        "Type-based and name-based fallbacks (\"id\", \"<entity>Id\") all failed. " +
         "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
     )
   }
