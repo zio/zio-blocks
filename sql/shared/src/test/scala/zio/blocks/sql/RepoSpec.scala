@@ -149,7 +149,7 @@ object RepoSpec extends ZIOSpecDefault {
         )
       },
       test("fails for ambiguous ID type") {
-        case class TwoInts(id: Int, otherId: Int, name: String)
+        case class TwoInts(intA: Int, intB: Int, name: String)
         object TwoInts {
           implicit val schema: Schema[TwoInts] = Schema.derived
         }
@@ -163,6 +163,47 @@ object RepoSpec extends ZIOSpecDefault {
         }
         val result = scala.util.Try(Repo.derived[NoLong, Long])
         assertTrue(result.isFailure)
+      },
+      test("selects @Modifier.id-annotated field among multiple same-type fields") {
+        case class MarkedId(@Modifier.id a: Int, b: Int, name: String)
+        object MarkedId {
+          implicit val schema: Schema[MarkedId] = Schema.derived
+        }
+        val repo = Repo.derived[MarkedId, Int]
+        assertTrue(
+          repo.idColumn == "a",
+          repo.getId(MarkedId(42, 7, "test")) == 42
+        )
+      },
+      test("fails for multiple @Modifier.id-annotated fields of same type") {
+        case class TwoMarkedIds(@Modifier.id a: Int, @Modifier.id b: Int, name: String)
+        object TwoMarkedIds {
+          implicit val schema: Schema[TwoMarkedIds] = Schema.derived
+        }
+        val result = scala.util.Try(Repo.derived[TwoMarkedIds, Int])
+        assertTrue(result.isFailure)
+      },
+      test("selects 'id' field by name among multiple same-type fields") {
+        case class LiteralId(id: Int, otherId: Int, name: String)
+        object LiteralId {
+          implicit val schema: Schema[LiteralId] = Schema.derived
+        }
+        val repo = Repo.derived[LiteralId, Int]
+        assertTrue(
+          repo.idColumn == "id",
+          repo.getId(LiteralId(42, 7, "test")) == 42
+        )
+      },
+      test("selects '<entity>Id' field by convention among multiple same-type fields") {
+        case class Widget(a: Int, b: Int, name: String, widgetId: Int)
+        object Widget {
+          implicit val schema: Schema[Widget] = Schema.derived
+        }
+        val repo = Repo.derived[Widget, Int]
+        assertTrue(
+          repo.idColumn == "widget_id",
+          repo.getId(Widget(1, 2, "gadget", 99)) == 99
+        )
       },
       test("update is a no-op when table only contains the ID column") {
         case class IdOnly(id: Int)

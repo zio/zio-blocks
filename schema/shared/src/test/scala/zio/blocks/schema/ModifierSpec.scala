@@ -18,6 +18,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
+import zio.test.Assertion._
 
 object ModifierSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("ModifierSpec")(
@@ -37,6 +38,18 @@ object ModifierSpec extends SchemaBaseSpec {
       test("config roundtrips through JSON as Term") {
         val value = Modifier.config("key1", "value1")
         roundTrip(value: Modifier.Term, """{"config":{"key":"key1","value":"value1"}}""")
+      },
+      test("id roundtrips through JSON") {
+        val value = Modifier.id()
+        roundTrip(value: Modifier.Term, """{"id":{}}""")
+      }
+    ),
+    suite("Modifier.id roundtrips")(
+      test("id roundtrips through DynamicValue") {
+        val value = Modifier.id()
+        assert(Schema[Modifier.id].fromDynamicValue(Schema[Modifier.id].toDynamicValue(value)))(
+          isRight(equalTo(value))
+        )
       }
     ),
     suite("Modifier.Reflect roundtrips")(
@@ -61,6 +74,10 @@ object ModifierSpec extends SchemaBaseSpec {
       test("config roundtrips as Modifier") {
         val value: Modifier = Modifier.config("json.name", "customName")
         roundTrip(value, """{"config":{"key":"json.name","value":"customName"}}""")
+      },
+      test("id roundtrips as Modifier") {
+        val value: Modifier = Modifier.id()
+        roundTrip(value, """{"id":{}}""")
       }
     )
   )

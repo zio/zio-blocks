@@ -33,9 +33,9 @@ import zio.blocks.schema.binding.Binding
  *   - [[Repo.derived]] — macro-derived from a [[zio.blocks.schema.Schema]]
  *
  * ==Thread safety==
- * `Repo` instances are immutable and safe for concurrent use. Individual
- * operations require a `DbCon` or `DbTx` given context which is not shared
- * across threads unless the caller arranges it.
+ * Implementations of `Repo` should be immutable and safe for concurrent use.
+ * Individual operations require a `DbCon` or `DbTx` given context which is not
+ * shared across threads unless the caller arranges it.
  */
 abstract class Repo[E, ID] {
 
@@ -102,7 +102,7 @@ abstract class Repo[E, ID] {
 }
 
 /** The default JDBC-backed implementation of [[Repo]]. */
-final case class RepoImpl[E, ID](
+private[sql] final case class RepoImpl[E, ID](
   val table: Table[E],
   val idColumn: String,
   val idCodec: DbCodec[ID],
@@ -384,7 +384,7 @@ object Repo {
         return buildRepo(field, idx)
 
       case empty if empty.isEmpty =>
-      case multiple               =>
+      case _                      =>
     }
 
     allFields.find(_._1.name == "id").filter(_._1.value.typeId == targetTypeId) match {
