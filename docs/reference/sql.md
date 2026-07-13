@@ -218,18 +218,24 @@ case class User(id: Long, name: String, email: String)
 `Repo[E, ID]` provides a complete set of typed CRUD operations for an entity
 type `E` with primary key type `ID`.
 
+`Repo` can also be extended directly when the schema and ID codec are available:
+
 ```scala
-class Repo[E, ID](
-  val table: Table[E],
-  val idColumn: String,
-  val idCodec: DbCodec[ID],
-  val getId: E => ID
-)
+final class UserRepo extends Repo[User, Long]
 ```
+
+The inherited CRUD operations use the same metadata as `Repo.derived`.
 
 #### Constructing a Repo
 
-**Fully auto-derived** (zero-argument) — finds the unique `ID`-typed field in the schema:
+**Fully auto-derived** (zero-argument) — resolves the ID field in this order:
+
+1. a field marked with `@Modifier.id`
+2. the unique field whose type is `ID`
+3. a field named `id`
+4. a field named `<entity>Id` (for example, `userId`)
+
+It fails if none of these rules identifies exactly one field.
 
 ```scala
 case class User(id: Long, name: String)

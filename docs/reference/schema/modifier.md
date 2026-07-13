@@ -11,7 +11,7 @@ Modifiers are designed to be **pure data** values that can be serialized, making
 sealed trait Modifier extends StaticAnnotation
 object Modifier {
   sealed trait Term    extends Modifier
-  // ... term modifiers (transient, rename, alias, config) ...
+   // ... term modifiers (transient, rename, alias, id, config) ...
   sealed trait Reflect extends Modifier
   // ... reflect modifiers (config) ...
 }
@@ -122,7 +122,8 @@ Modifier
  │    ├── transient()      : exclude from serialization
  │    ├── rename(name)     : change serialized name
  │    ├── alias(name)      : add alternative name
- │    └── config(key, val) : attach key-value metadata
+  │    ├── id()             : mark a primary-key field
+  │    └── config(key, val) : attach key-value metadata
  └── Modifier.Reflect  (annotates reflect values / types)
       └── config(key, val) : attach key-value metadata
 ```
@@ -196,6 +197,23 @@ With this configuration:
 - **Decoding** accepts any of: `"NewName"`, `"OldName"`, or `"LegacyName"`
 
 This pattern is particularly useful when migrating data formats without breaking compatibility with existing data.
+
+### id
+
+The `id` modifier marks a record field as its primary key. It is interpreted by
+`zio-blocks-sql` when deriving a `Repo[E, ID]`, and takes precedence over
+name- and type-based ID discovery.
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class User(
+  email: String,
+  @Modifier.id() externalKey: Long
+)
+```
+
+Mark exactly one field with `@Modifier.id()` for a derived repository.
 
 ### config
 
