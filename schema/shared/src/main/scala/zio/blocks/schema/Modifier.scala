@@ -422,11 +422,11 @@ object Modifier {
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config"),
         encodeTransientSchema.reflect.asTerm("encodeTransient"),
-        idSchema.reflect.asTerm("id"),
         discriminatorSchema.reflect.asTerm("discriminator"),
         noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
         fieldNamingSchema.reflect.asTerm("fieldNaming"),
-        caseNamingSchema.reflect.asTerm("caseNaming")
+        caseNamingSchema.reflect.asTerm("caseNaming"),
+        idSchema.reflect.asTerm("id")
       ),
       typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
@@ -437,11 +437,11 @@ object Modifier {
             case _: alias           => 2
             case _: config          => 3
             case _: encodeTransient => 4
-            case _: id              => 5
-            case _: discriminator   => 6
-            case _: noExtraFields   => 7
-            case _: fieldNaming     => 8
-            case _: caseNaming      => 9
+            case _: discriminator   => 5
+            case _: noExtraFields   => 6
+            case _: fieldNaming     => 7
+            case _: caseNaming      => 8
+            case _: id              => 9
           }
         },
         matchers = Matchers(
@@ -475,12 +475,6 @@ object Modifier {
               case _                  => null.asInstanceOf[encodeTransient]
             }
           },
-          new Matcher[id] {
-            def downcastOrNull(a: Any): id = a match {
-              case x: id => x
-              case _     => null.asInstanceOf[id]
-            }
-          },
           new Matcher[discriminator] {
             def downcastOrNull(a: Any): discriminator = a match {
               case x: discriminator => x
@@ -503,6 +497,12 @@ object Modifier {
             def downcastOrNull(a: Any): caseNaming = a match {
               case x: caseNaming => x
               case _             => null.asInstanceOf[caseNaming]
+            }
+          },
+          new Matcher[id] {
+            def downcastOrNull(a: Any): id = a match {
+              case x: id => x
+              case _     => null.asInstanceOf[id]
             }
           }
         )
