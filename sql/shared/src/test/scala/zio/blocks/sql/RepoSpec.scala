@@ -205,6 +205,20 @@ object RepoSpec extends ZIOSpecDefault {
           repo.getId(Widget(1, 2, "gadget", 99)) == 99
         )
       },
+      test("subclasses inherit derived CRUD metadata") {
+        case class User(userId: Int, name: String)
+        object User {
+          implicit val schema: Schema[User] = Schema.derived
+        }
+
+        final class UserRepo extends Repo[User, Int]
+
+        val repo = new UserRepo
+        assertTrue(
+          repo.idColumn == "user_id",
+          repo.getId(User(42, "Ada")) == 42
+        )
+      },
       test("update is a no-op when table only contains the ID column") {
         case class IdOnly(id: Int)
         object IdOnly {

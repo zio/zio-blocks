@@ -37,68 +37,73 @@ import zio.blocks.schema.binding.Binding
  * Individual operations require a `DbCon` or `DbTx` given context which is not
  * shared across threads unless the caller arranges it.
  */
-abstract class Repo[E, ID] {
+class Repo[E, ID](using schema: Schema[E], idSchema: Schema[ID], derivedIdCodec: DbCodec[ID]) {
+
+  protected lazy val implementation: RepoImpl[E, ID] = {
+    val metadata = Repo.derivedMetadata[E, ID]
+    RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
+  }
 
   /** The table this repository operates on. */
-  def table: Table[E]
+  def table: Table[E] = implementation.table
 
   /** The name of the primary-key column as it appears in SQL. */
-  def idColumn: String
+  def idColumn: String = implementation.idColumn
 
   /** The codec used to read and write the ID type. */
-  def idCodec: DbCodec[ID]
+  def idCodec: DbCodec[ID] = implementation.idCodec
 
   /** Extracts the primary key from an entity value. */
-  def getId: E => ID
+  def getId: E => ID = implementation.getId
 
   // === Read Operations ===
 
   /** Returns all rows in the table. */
-  def findAll(using con: DbCon): List[E]
+  def findAll(using con: DbCon): List[E] = implementation.findAll
 
   /** Finds a row by its primary key, or `None` if absent. */
-  def findById(id: ID)(using con: DbCon): Option[E]
+  def findById(id: ID)(using con: DbCon): Option[E] = implementation.findById(id)
 
   /** Returns `true` if a row with the given primary key exists. */
-  def existsById(id: ID)(using con: DbCon): Boolean
+  def existsById(id: ID)(using con: DbCon): Boolean = implementation.existsById(id)
 
   /** Returns the total number of rows in the table. */
-  def count(using con: DbCon): Long
+  def count(using con: DbCon): Long = implementation.count
 
   // === Write Operations ===
 
   /** Inserts an entity and returns the affected row count (normally 1). */
-  def insert(entity: E)(using con: DbCon): Int
+  def insert(entity: E)(using con: DbCon): Int = implementation.insert(entity)
 
   /** Inserts an entity and returns the inserted row. */
-  def insertReturning(entity: E)(using con: DbCon): E
+  def insertReturning(entity: E)(using con: DbCon): E = implementation.insertReturning(entity)
 
   /**
    * Inserts multiple entities using a JDBC batch and returns the total affected
    * row count.
    */
-  def insertBatch(entities: Iterable[E])(using con: DbCon): Int
+  def insertBatch(entities: Iterable[E])(using con: DbCon): Int = implementation.insertBatch(entities)
 
   /**
    * Inserts multiple entities using a multi-row INSERT and returns their
    * primary keys in input order.
    */
-  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID]
+  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = implementation.insertAll(rows)
 
   /**
    * Updates all non-ID columns for the row identified by the entity's primary
    * key. Returns the affected row count.
    */
-  def update(entity: E)(using con: DbCon): Int
+  def update(entity: E)(using con: DbCon): Int = implementation.update(entity)
 
   /** Deletes a row by its primary key. Returns the affected row count. */
-  def deleteById(id: ID)(using con: DbCon): Int
+  def deleteById(id: ID)(using con: DbCon): Int = implementation.deleteById(id)
 
   /** Deletes the row corresponding to the entity's primary key. */
-  def delete(entity: E)(using con: DbCon): Int
+  def delete(entity: E)(using con: DbCon): Int = implementation.delete(entity)
 
   /** Deletes all rows in the table. */
-  def truncate()(using con: DbCon): Int
+  def truncate()(using con: DbCon): Int = implementation.truncate()
 }
 
 /** The default JDBC-backed implementation of [[Repo]]. */
@@ -107,7 +112,7 @@ private[sql] final case class RepoImpl[E, ID](
   val idColumn: String,
   val idCodec: DbCodec[ID],
   val getId: E => ID
-) extends Repo[E, ID] {
+) {
   require(
     idCodec.columnCount == 1,
     s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
@@ -280,13 +285,32 @@ private[sql] final case class RepoImpl[E, ID](
 
 object Repo {
 
+  private[sql] final case class Metadata[E, ID](
+    table: Table[E],
+    idColumn: String,
+    idCodec: DbCodec[ID],
+    getId: E => ID
+  )
+
+  private def fromMetadata[E, ID](metadata: Metadata[E, ID]): Repo[E, ID] = {
+    val repoImpl = RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
+    new Repo[E, ID](using
+      null.asInstanceOf[Schema[E]],
+      null.asInstanceOf[Schema[ID]],
+      null.asInstanceOf[DbCodec[ID]]
+    ) {
+      override protected lazy val implementation: RepoImpl[E, ID] =
+        repoImpl
+    }
+  }
+
   /** Constructs a `Repo` from explicit components. */
   def apply[E, ID](
     table: Table[E],
     idColumn: String,
     idCodec: DbCodec[ID],
     getId: E => ID
-  ): Repo[E, ID] = RepoImpl(table, idColumn, idCodec, getId)
+  ): Repo[E, ID] = fromMetadata(Metadata(table, idColumn, idCodec, getId))
 
   /**
    * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
@@ -298,7 +322,9 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    RepoImpl(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    fromMetadata(
+      Metadata(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    )
   }
 
   /**
@@ -311,7 +337,7 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    RepoImpl(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    fromMetadata(Metadata(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId))
   }
 
   /**
@@ -331,7 +357,14 @@ object Repo {
    *   - No field can be resolved by any of the four strategies
    *   - Multiple fields match the same priority (ambiguous `@Modifier.id`)
    */
-  def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] = {
+  def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] =
+    fromMetadata(derivedMetadata[E, ID])
+
+  private[sql] def derivedMetadata[E, ID](using
+    schema: Schema[E],
+    idSchema: Schema[ID],
+    idCodec: DbCodec[ID]
+  ): Metadata[E, ID] = {
     val record = schema.reflect match {
       case r: Reflect.Record[_, _] => r.asInstanceOf[Reflect.Record[Binding, E]]
       case _                       =>
@@ -351,12 +384,12 @@ object Repo {
       field.modifiers.exists(_.isInstanceOf[Modifier.id])
     }
 
-    def buildRepo(field: Term[Binding, ?, ?], idx: Int): Repo[E, ID] = {
+    def buildMetadata(field: Term[Binding, ?, ?], idx: Int): Metadata[E, ID] = {
       val idColumn = field.modifiers.collectFirst { case r: Modifier.rename => r.name }
         .getOrElse(SqlNameMapper.SnakeCase(field.name))
       val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
       val codec          = schema.deriving(DbCodecDeriver).derive
-      RepoImpl(
+      Metadata(
         Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
         idColumn,
         idCodec,
@@ -366,7 +399,7 @@ object Repo {
 
     idAnnotatedMatching match {
       case IndexedSeq((field, idx)) =>
-        return buildRepo(field, idx)
+        return buildMetadata(field, idx)
 
       case multiple if multiple.size > 1 =>
         val names = multiple.map(_._1.name).mkString(", ")
@@ -381,7 +414,7 @@ object Repo {
     // Priority 2: Unique type match
     matchingFields match {
       case IndexedSeq((field, idx)) =>
-        return buildRepo(field, idx)
+        return buildMetadata(field, idx)
 
       case empty if empty.isEmpty =>
       case _                      =>
@@ -389,7 +422,7 @@ object Repo {
 
     allFields.find(_._1.name == "id").filter(_._1.value.typeId == targetTypeId) match {
       case Some((field, idx)) =>
-        return buildRepo(field, idx)
+        return buildMetadata(field, idx)
       case None =>
     }
 
@@ -398,7 +431,7 @@ object Repo {
     val conventionName = decapitalized + "Id"
     allFields.find(_._1.name == conventionName).filter(_._1.value.typeId == targetTypeId) match {
       case Some((field, idx)) =>
-        return buildRepo(field, idx)
+        return buildMetadata(field, idx)
       case None =>
     }
 
