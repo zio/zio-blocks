@@ -383,24 +383,16 @@ object Repo {
       case IndexedSeq((field, idx)) =>
         return buildRepo(field, idx)
 
-      case empty if empty.isEmpty => // No type match → fall through
-
-      case multiple =>
-        val names = multiple.map(_._1.name).mkString(", ")
-        throw new IllegalArgumentException(
-          s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
-            "Use @Modifier.id on the intended field or use Repo.derived(idColumn, getId) to specify explicitly."
-        )
+      case empty if empty.isEmpty =>
+      case multiple               =>
     }
 
-    // Priority 3: Literal "id" field
     allFields.find(_._1.name == "id").filter(_._1.value.typeId == targetTypeId) match {
       case Some((field, idx)) =>
         return buildRepo(field, idx)
       case None =>
     }
 
-    // Priority 4: <entity>Id convention
     val simpleName     = schema.reflect.typeId.name.split('.').last
     val decapitalized  = simpleName.head.toLower.toString + simpleName.tail
     val conventionName = decapitalized + "Id"
@@ -410,9 +402,23 @@ object Repo {
       case None =>
     }
 
+    if (matchingFields.size > 1) {
+      val names = matchingFields.map(_._1.name).mkString(", ")
+      throw new IllegalArgumentException(
+        s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
+          "None matched the name-based fallbacks (\"id\" or \"<entity>Id\"). " +
+          "Use @Modifier.id on the intended field or use Repo.derived(idColumn, getId) to specify explicitly."
+      )
+    }
+
     throw new IllegalArgumentException(
       s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
-        "Type-based and name-based fallbacks (\"id\", \"<entity>Id\") all failed. " +
+        "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+    )
+    }
+
+    throw new IllegalArgumentException(
+      s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
         "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
     )
   }
