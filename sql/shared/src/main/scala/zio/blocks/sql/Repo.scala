@@ -415,12 +415,6 @@ object Repo {
       s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
         "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
     )
-    }
-
-    throw new IllegalArgumentException(
-      s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
-        "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
-    )
   }
 
   private[sql] def buildInsertFrag(
