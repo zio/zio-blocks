@@ -284,8 +284,4 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: 'npm'
       - name: Publish Docs to NPM Registry
-        uses: nick-fields/retry@v4
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: sbt docs/publishToNpm
+        run: sbt docs/publishToNpm
