@@ -11,7 +11,7 @@ Modifiers are designed to be **pure data** values that can be serialized, making
 sealed trait Modifier extends StaticAnnotation
 object Modifier {
   sealed trait Term    extends Modifier
-   // ... term modifiers (transient, rename, alias, id, config) ...
+  // ... term modifiers (transient, encodeTransient, rename, alias, id, config) ...
   sealed trait Reflect extends Modifier
   // ... reflect modifiers (config) ...
 }
@@ -119,13 +119,14 @@ Modifiers are organized into two main categories:
 ```
 Modifier
  ├── Modifier.Term     (annotates record fields and variant cases)
- │    ├── transient()      : exclude from serialization
- │    ├── rename(name)     : change serialized name
- │    ├── alias(name)      : add alternative name
-  │    ├── id()             : mark a primary-key field
-  │    └── config(key, val) : attach key-value metadata
+ │    ├── transient()        : exclude from serialization
+ │    ├── encodeTransient()  : exclude from encoding only
+ │    ├── rename(name)       : change serialized name
+ │    ├── alias(name)        : add alternative name
+ │    ├── id()               : mark a primary-key field
+ │    └── config(key, val)   : attach key-value metadata
  └── Modifier.Reflect  (annotates reflect values / types)
-      └── config(key, val) : attach key-value metadata
+      └── config(key, val)   : attach key-value metadata
 ```
 
 As you can see, `config` is the only modifier that extends both `Term` and `Reflect`, allowing it to be used on both fields and types.
