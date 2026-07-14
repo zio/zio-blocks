@@ -28,21 +28,29 @@ import zio.blocks.schema.binding.Binding
  * every call.
  *
  * ==Construction==
- * Prefer the smart constructors in the companion object:
+ * Use the companion constructors, or subclass `Repo` directly:
  *   - [[Repo.apply]] — fully explicit (table, id column, codec, getter)
- *   - [[Repo.derived]] — macro-derived from a [[zio.blocks.schema.Schema]]
+ *   - [[Repo.derived]] — derived from a [[zio.blocks.schema.Schema]]
+ *   - `class UserRepo extends Repo[User, UserId]` — derives from the contextual
+ *     `Schema` and `DbCodec` and inherits all default CRUD operations.
  *
  * ==Thread safety==
- * Implementations of `Repo` should be immutable and safe for concurrent use.
- * Individual operations require a `DbCon` or `DbTx` given context which is not
- * shared across threads unless the caller arranges it.
+ * `Repo` is immutable and safe for concurrent use. Individual operations
+ * require a `DbCon` or `DbTx` given context which is not shared across threads
+ * unless the caller arranges it.
  */
-class Repo[E, ID](using schema: Schema[E], idSchema: Schema[ID], derivedIdCodec: DbCodec[ID]) {
+class Repo[E, ID] protected (protected val implementation: RepoImpl[E, ID]) {
 
-  protected lazy val implementation: RepoImpl[E, ID] = {
-    val metadata = Repo.derivedMetadata[E, ID]
-    RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
-  }
+  /**
+   * Derives a repository directly from the contextual schema and ID codec. This
+   * is the constructor invoked when subclassing `Repo`:
+   *
+   * {{{
+   * final class UserRepo extends Repo[User, UserId]
+   * }}}
+   */
+  def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
+    this(RepoImpl.fromMetadata(Repo.derivedMetadata[E, ID]))
 
   /** The table this repository operates on. */
   def table: Table[E] = implementation.table
@@ -283,6 +291,13 @@ private[sql] final case class RepoImpl[E, ID](
     SqlOps.update(Frag.literal(s"DELETE FROM $tbl"))(using con)
 }
 
+private[sql] object RepoImpl {
+
+  /** Builds a `RepoImpl` from resolved [[Repo.Metadata]]. */
+  def fromMetadata[E, ID](metadata: Repo.Metadata[E, ID]): RepoImpl[E, ID] =
+    RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
+}
+
 object Repo {
 
   private[sql] final case class Metadata[E, ID](
@@ -292,17 +307,8 @@ object Repo {
     getId: E => ID
   )
 
-  private def fromMetadata[E, ID](metadata: Metadata[E, ID]): Repo[E, ID] = {
-    val repoImpl = RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
-    new Repo[E, ID](using
-      null.asInstanceOf[Schema[E]],
-      null.asInstanceOf[Schema[ID]],
-      null.asInstanceOf[DbCodec[ID]]
-    ) {
-      override protected lazy val implementation: RepoImpl[E, ID] =
-        repoImpl
-    }
-  }
+  private def fromMetadata[E, ID](metadata: Metadata[E, ID]): Repo[E, ID] =
+    new Repo[E, ID](RepoImpl.fromMetadata(metadata))
 
   /** Constructs a `Repo` from explicit components. */
   def apply[E, ID](
