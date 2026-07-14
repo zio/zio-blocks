@@ -39,7 +39,7 @@ import zio.blocks.schema.binding.Binding
  * require a `DbCon` or `DbTx` given context which is not shared across threads
  * unless the caller arranges it.
  */
-class Repo[E, ID] protected (protected val implementation: RepoImpl[E, ID]) {
+abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
   /**
    * Derives a repository directly from the contextual schema and ID codec. This
@@ -49,78 +49,21 @@ class Repo[E, ID] protected (protected val implementation: RepoImpl[E, ID]) {
    * final class UserRepo extends Repo[User, UserId]
    * }}}
    */
-  def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
-    this(RepoImpl.fromMetadata(Repo.derivedMetadata[E, ID]))
+  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
+    this(Repo.derivedMetadata[E, ID])
 
   /** The table this repository operates on. */
-  def table: Table[E] = implementation.table
+  val table: Table[E] = metadata.table
 
   /** The name of the primary-key column as it appears in SQL. */
-  def idColumn: String = implementation.idColumn
+  val idColumn: String = metadata.idColumn
 
   /** The codec used to read and write the ID type. */
-  def idCodec: DbCodec[ID] = implementation.idCodec
+  val idCodec: DbCodec[ID] = metadata.idCodec
 
   /** Extracts the primary key from an entity value. */
-  def getId: E => ID = implementation.getId
+  val getId: E => ID = metadata.getId
 
-  // === Read Operations ===
-
-  /** Returns all rows in the table. */
-  def findAll(using con: DbCon): List[E] = implementation.findAll
-
-  /** Finds a row by its primary key, or `None` if absent. */
-  def findById(id: ID)(using con: DbCon): Option[E] = implementation.findById(id)
-
-  /** Returns `true` if a row with the given primary key exists. */
-  def existsById(id: ID)(using con: DbCon): Boolean = implementation.existsById(id)
-
-  /** Returns the total number of rows in the table. */
-  def count(using con: DbCon): Long = implementation.count
-
-  // === Write Operations ===
-
-  /** Inserts an entity and returns the affected row count (normally 1). */
-  def insert(entity: E)(using con: DbCon): Int = implementation.insert(entity)
-
-  /** Inserts an entity and returns the inserted row. */
-  def insertReturning(entity: E)(using con: DbCon): E = implementation.insertReturning(entity)
-
-  /**
-   * Inserts multiple entities using a JDBC batch and returns the total affected
-   * row count.
-   */
-  def insertBatch(entities: Iterable[E])(using con: DbCon): Int = implementation.insertBatch(entities)
-
-  /**
-   * Inserts multiple entities using a multi-row INSERT and returns their
-   * primary keys in input order.
-   */
-  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = implementation.insertAll(rows)
-
-  /**
-   * Updates all non-ID columns for the row identified by the entity's primary
-   * key. Returns the affected row count.
-   */
-  def update(entity: E)(using con: DbCon): Int = implementation.update(entity)
-
-  /** Deletes a row by its primary key. Returns the affected row count. */
-  def deleteById(id: ID)(using con: DbCon): Int = implementation.deleteById(id)
-
-  /** Deletes the row corresponding to the entity's primary key. */
-  def delete(entity: E)(using con: DbCon): Int = implementation.delete(entity)
-
-  /** Deletes all rows in the table. */
-  def truncate()(using con: DbCon): Int = implementation.truncate()
-}
-
-/** The default JDBC-backed implementation of [[Repo]]. */
-private[sql] final case class RepoImpl[E, ID](
-  val table: Table[E],
-  val idColumn: String,
-  val idCodec: DbCodec[ID],
-  val getId: E => ID
-) {
   require(
     idCodec.columnCount == 1,
     s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
@@ -291,13 +234,6 @@ private[sql] final case class RepoImpl[E, ID](
     SqlOps.update(Frag.literal(s"DELETE FROM $tbl"))(using con)
 }
 
-private[sql] object RepoImpl {
-
-  /** Builds a `RepoImpl` from resolved [[Repo.Metadata]]. */
-  def fromMetadata[E, ID](metadata: Repo.Metadata[E, ID]): RepoImpl[E, ID] =
-    RepoImpl(metadata.table, metadata.idColumn, metadata.idCodec, metadata.getId)
-}
-
 object Repo {
 
   private[sql] final case class Metadata[E, ID](
@@ -307,8 +243,11 @@ object Repo {
     getId: E => ID
   )
 
+  /** The default concrete [[Repo]] backed by resolved [[Metadata]]. */
+  private final class DerivedRepo[E, ID](metadata: Metadata[E, ID]) extends Repo[E, ID](metadata)
+
   private def fromMetadata[E, ID](metadata: Metadata[E, ID]): Repo[E, ID] =
-    new Repo[E, ID](RepoImpl.fromMetadata(metadata))
+    new DerivedRepo[E, ID](metadata)
 
   /** Constructs a `Repo` from explicit components. */
   def apply[E, ID](
