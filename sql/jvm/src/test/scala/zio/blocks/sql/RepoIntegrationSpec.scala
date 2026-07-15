@@ -150,11 +150,11 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("RepoIntegrationSpec")(
-    test("insert and findById roundtrip") {
+    test("insert and find roundtrip") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "alice@test.com"))
-          val found = userRepo.findById(1)
+          val found = userRepo.find(1)
           assertTrue(
             found.isDefined,
             found.get.id == 1,
@@ -172,21 +172,21 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
-    test("findById returns None for non-existing") {
+    test("find returns empty Maybe for non-existing") {
       withFreshDb { tx =>
         tx.connect {
-          val found = userRepo.findById(999)
+          val found = userRepo.find(999)
           assertTrue(found.isEmpty)
         }
       }
     },
-    test("findAll returns all inserted rows") {
+    test("all returns all inserted rows") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
           userRepo.insert(User(2, "Bob", "b@test.com"))
           userRepo.insert(User(3, "Charlie", "c@test.com"))
-          val all = userRepo.findAll
+          val all = userRepo.all
           assertTrue(all.size == 3)
         }
       }
@@ -207,13 +207,13 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
-    test("existsById returns true for existing, false for missing") {
+    test("exists returns true for existing, false for missing") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
           assertTrue(
-            userRepo.existsById(1),
-            !userRepo.existsById(999)
+            userRepo.exists(1),
+            !userRepo.exists(999)
           )
         }
       }
@@ -223,7 +223,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         tx.connect {
           userRepo.insert(User(1, "Alice", "old@test.com"))
           userRepo.update(User(1, "Alice Updated", "new@test.com"))
-          val found = userRepo.findById(1)
+          val found = userRepo.find(1)
           assertTrue(
             found.isDefined,
             found.get.name == "Alice Updated",
@@ -242,44 +242,44 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
-    test("deleteById removes the row") {
+    test("delete removes the row") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
-          userRepo.deleteById(1)
-          assertTrue(userRepo.findById(1).isEmpty)
+          userRepo.delete(1)
+          assertTrue(userRepo.find(1).isEmpty)
         }
       }
     },
-    test("deleteById returns 1 for existing, 0 for non-existing") {
+    test("delete returns 1 for existing, 0 for non-existing") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
-          val deleted    = userRepo.deleteById(1)
-          val notDeleted = userRepo.deleteById(999)
+          val deleted    = userRepo.delete(1)
+          val notDeleted = userRepo.delete(999)
           assertTrue(deleted == 1, notDeleted == 0)
         }
       }
     },
-    test("delete removes by entity") {
+    test("delete by entity extracts ID") {
       withFreshDb { tx =>
         tx.connect {
           val user = User(1, "Alice", "a@test.com")
           userRepo.insert(user)
-          userRepo.delete(user)
-          assertTrue(userRepo.findById(1).isEmpty)
+          userRepo.delete(user.id)
+          assertTrue(userRepo.find(1).isEmpty)
         }
       }
     },
-    test("truncate removes all rows") {
+    test("clear removes all rows") {
       withFreshDb { tx =>
         tx.connect {
           userRepo.insert(User(1, "Alice", "a@test.com"))
           userRepo.insert(User(2, "Bob", "b@test.com"))
-          userRepo.truncate()
+          userRepo.clear()
           assertTrue(
             userRepo.count == 0L,
-            userRepo.findAll.isEmpty
+            userRepo.all.isEmpty
           )
         }
       }
@@ -293,30 +293,30 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           assertTrue(userRepo.count == 2L)
 
           // Read
-          val alice = userRepo.findById(1)
+          val alice = userRepo.find(1)
           assertTrue(alice.get.name == "Alice")
 
           // Update
           userRepo.update(User(1, "Alice Smith", "alice.smith@test.com"))
-          val updated = userRepo.findById(1)
+          val updated = userRepo.find(1)
           assertTrue(updated.get.name == "Alice Smith")
 
           // Delete
-          userRepo.deleteById(2)
+          userRepo.delete(2)
           assertTrue(userRepo.count == 1L)
 
-          // Truncate
-          userRepo.truncate()
+          // Clear
+          userRepo.clear()
           assertTrue(userRepo.count == 0L)
         }
       }
     },
     suite("enum integration")(
-      test("insert and findById with enum field") {
+      test("insert and find with enum field") {
         withFreshDb { tx =>
           tx.connect {
             taskRepo.insert(Task(1, "Write tests", Priority.High))
-            val found = taskRepo.findById(1)
+            val found = taskRepo.find(1)
             assertTrue(
               found.isDefined,
               found.get.id == 1,
@@ -333,9 +333,9 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
             taskRepo.insert(Task(2, "Medium task", Priority.Medium))
             taskRepo.insert(Task(3, "High task", Priority.High))
 
-            val t1 = taskRepo.findById(1)
-            val t2 = taskRepo.findById(2)
-            val t3 = taskRepo.findById(3)
+            val t1 = taskRepo.find(1)
+            val t2 = taskRepo.find(2)
+            val t3 = taskRepo.find(3)
 
             assertTrue(
               t1.get.priority == Priority.Low,
@@ -350,17 +350,17 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           tx.connect {
             taskRepo.insert(Task(1, "A task", Priority.Low))
             taskRepo.update(Task(1, "A task", Priority.High))
-            val found = taskRepo.findById(1)
+            val found = taskRepo.find(1)
             assertTrue(found.get.priority == Priority.High)
           }
         }
       },
-      test("findAll with enum fields") {
+      test("all with enum fields") {
         withFreshDb { tx =>
           tx.connect {
             taskRepo.insert(Task(1, "Task 1", Priority.Low))
             taskRepo.insert(Task(2, "Task 2", Priority.High))
-            val all = taskRepo.findAll
+            val all = taskRepo.all
             assertTrue(all.size == 2)
           }
         }
@@ -383,7 +383,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withFreshDb { tx =>
           tx.connect {
             userRepo.insertReturning(User(1, "Bob", "bob@test.com"))
-            val found = userRepo.findById(1)
+            val found = userRepo.find(1)
             assertTrue(
               found.isDefined,
               found.get.name == "Bob"
@@ -457,7 +457,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
                 User(3, "Charlie", "c@test.com")
               )
             )
-            val all = userRepo.findAll
+            val all = userRepo.all
             assertTrue(
               all.size == 3,
               all.map(_.name).toSet == Set("Alice", "Bob", "Charlie")
@@ -483,7 +483,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
       }
     ),
     suite("derived with zero args")(
-      test("insert and findById roundtrip with auto-detected ID") {
+      test("insert and find roundtrip with auto-detected ID") {
         case class Widget(id: Int, label: String)
         object Widget {
           implicit val schema: Schema[Widget] = Schema.derived
@@ -506,7 +506,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           tx.connect {
             Frag.literal("CREATE TABLE IF NOT EXISTS widget (id INTEGER NOT NULL, label TEXT NOT NULL)").update
             widgetRepo.insert(Widget(1, "Sprocket"))
-            val found = widgetRepo.findById(1)
+            val found = widgetRepo.find(1)
             assertTrue(
               found.isDefined,
               found.get.id == 1,
@@ -535,7 +535,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
           tx.connect {
             userRepo.insert(User(1, "Alice", "a@test.com"))
             logger.clear()
-            val _ = userRepo.findAll
+            val _ = userRepo.all
             assertTrue(
               logger.successes.size == 1,
               logger.successes.head.sql.contains("SELECT"),
@@ -591,7 +591,7 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         withFreshDb { tx =>
           tx.connect {
             userRepo.insert(User(1, "Alice", "a@test.com"))
-            val _ = userRepo.findAll
+            val _ = userRepo.all
             assertTrue(true)
           }
         }

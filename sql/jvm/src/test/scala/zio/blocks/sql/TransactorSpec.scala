@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.test.*
 import zio.blocks.schema.*
+import zio.blocks.maybe.Maybe
 import java.sql.DriverManager
 
 object TransactorSpec extends ZIOSpecDefault {
@@ -151,7 +152,7 @@ object TransactorSpec extends ZIOSpecDefault {
         sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("first")})".update
         sql"INSERT INTO query_one_test (id, val) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("second")})".update
         val result = sql"SELECT val FROM query_one_test WHERE id = ${DbValue.DbInt(1)}".queryOne[String]
-        assertTrue(result == Some("first"))
+        assertTrue(result == Maybe("first"))
       }
     },
     test("empty result returns empty List") {
@@ -304,7 +305,7 @@ object TransactorSpec extends ZIOSpecDefault {
           val existing    = sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(1)}".queryOne[Int]
           val nonExisting = sql"SELECT id FROM rt_qone WHERE id = ${DbValue.DbInt(999)}".queryOne[Int]
           assertTrue(
-            existing == Some(1),
+            existing == Maybe(1),
             nonExisting.isEmpty
           )
         }
@@ -445,7 +446,7 @@ object TransactorSpec extends ZIOSpecDefault {
           sql"INSERT INTO ext_qone VALUES (${DbValue.DbInt(42)})".update
           val found    = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(42)}".queryOne[Int]
           val notFound = sql"SELECT id FROM ext_qone WHERE id = ${DbValue.DbInt(999)}".queryOne[Int]
-          assertTrue(found == Some(42), notFound.isEmpty)
+          assertTrue(found == Maybe(42), notFound.isEmpty)
         }
       },
       test("frag.queryLimit returns at most N rows") {

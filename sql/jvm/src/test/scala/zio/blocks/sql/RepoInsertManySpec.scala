@@ -83,7 +83,7 @@ object RepoInsertManySpec extends ZIOSpecDefault {
         }
       }
     },
-    test("findAll returns all 3 entities after insertAll") {
+    test("all returns all 3 entities after insertAll") {
       withFreshDb { tx =>
         tx.connect {
           itemRepo.insertAll(
@@ -93,7 +93,7 @@ object RepoInsertManySpec extends ZIOSpecDefault {
               Item(3L, "Gamma")
             )
           )
-          val all = itemRepo.findAll
+          val all = itemRepo.all
           assertTrue(
             all.size == 3,
             all.map(_.name).toSet == Set("Alpha", "Beta", "Gamma")
