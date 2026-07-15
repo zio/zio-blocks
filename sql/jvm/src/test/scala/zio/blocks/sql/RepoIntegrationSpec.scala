@@ -261,13 +261,50 @@ object RepoIntegrationSpec extends ZIOSpecDefault {
         }
       }
     },
-    test("delete by entity extracts ID") {
+    test("deleteAll removes multiple rows by ID") {
       withFreshDb { tx =>
         tx.connect {
-          val user = User(1, "Alice", "a@test.com")
-          userRepo.insert(user)
-          userRepo.delete(user.id)
-          assertTrue(userRepo.find(1).isEmpty)
+          userRepo.insert(User(1, "Alice", "a@test.com"))
+          userRepo.insert(User(2, "Bob", "b@test.com"))
+          userRepo.insert(User(3, "Charlie", "c@test.com"))
+          val deleted = userRepo.deleteAll(Seq(1, 3))
+          assertTrue(deleted == 2, userRepo.find(1).isEmpty, userRepo.find(2).isDefined, userRepo.find(3).isEmpty)
+        }
+      }
+    },
+    test("deleteAll with empty list returns 0") {
+      withFreshDb { tx =>
+        tx.connect {
+          val deleted = userRepo.deleteAll(Seq.empty)
+          assertTrue(deleted == 0)
+        }
+      }
+    },
+    test("findAll returns matching rows") {
+      withFreshDb { tx =>
+        tx.connect {
+          userRepo.insert(User(1, "Alice", "a@test.com"))
+          userRepo.insert(User(2, "Bob", "b@test.com"))
+          userRepo.insert(User(3, "Charlie", "c@test.com"))
+          val found = userRepo.findAll(Seq(1, 3))
+          assertTrue(found.size == 2, found.exists(_.id == 1), found.exists(_.id == 3))
+        }
+      }
+    },
+    test("findAll with empty list returns empty list") {
+      withFreshDb { tx =>
+        tx.connect {
+          val found = userRepo.findAll(Seq.empty)
+          assertTrue(found.isEmpty)
+        }
+      }
+    },
+    test("findAll with non-existing IDs returns empty list") {
+      withFreshDb { tx =>
+        tx.connect {
+          userRepo.insert(User(1, "Alice", "a@test.com"))
+          val found = userRepo.findAll(Seq(999))
+          assertTrue(found.isEmpty)
         }
       }
     },

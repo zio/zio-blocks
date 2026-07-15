@@ -303,9 +303,6 @@ val updated: Int = repo.update(user.copy(name = "Updated Name"))
 // Delete by ID
 val deleted: Int = repo.delete(42L)
 
-// Delete entity (extracts its ID)
-val deleted: Int = repo.delete(someUser)
-
 // Delete all rows (equivalent to DELETE FROM table)
 val cleared: Int = repo.clear()
 ```
