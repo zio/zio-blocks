@@ -84,12 +84,24 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   // === Read Operations ===
 
   /** Returns all rows in the table. */
-  final def findAll(using con: DbCon): List[E] = {
+  final def all(using con: DbCon): List[E] = {
     val frag = Frag.literal(s"SELECT $allCols FROM $tbl")
     frag.query[E]
   }
 
-  /** Finds the row with the given primary key, or `None` if absent. */
+  /** Returns the rows whose primary keys match the given IDs. */
+  final def findAll(ids: Iterable[ID])(using con: DbCon): List[E] = {
+    val idList = ids.toList
+    if (idList.isEmpty) List.empty
+    else {
+      val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
+      val parts     = IndexedSeq(s"SELECT $allCols FROM $tbl WHERE ($validatedIdColumn) IN (") ++
+        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      Frag(parts, allValues).query[E]
+    }
+  }
+
+  /** Finds the row with the given primary key. */
   final def find(id: ID)(using con: DbCon): Maybe[E] = {
     val frag = Frag(
       IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn = ", ""),
@@ -222,6 +234,21 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
       idCodec.toDbValues(id)
     )
     frag.update
+  }
+
+  /**
+   * Deletes the rows with the given primary keys. Returns the total affected
+   * row count.
+   */
+  final def deleteAll(ids: Iterable[ID])(using con: DbCon): Int = {
+    val idList = ids.toList
+    if (idList.isEmpty) 0
+    else {
+      val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
+      val parts     = IndexedSeq(s"DELETE FROM $tbl WHERE ($validatedIdColumn) IN (") ++
+        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      Frag(parts, allValues).update
+    }
   }
 
   /** Deletes all rows in the table using `DELETE FROM <table>`. */
