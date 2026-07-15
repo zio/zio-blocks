@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.maybe.Maybe
 
 /**
  * A type-safe repository that provides standard CRUD operations for entities of
@@ -78,42 +79,42 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
   private val allCols: String   = table.columns.mkString(", ")
   private val tbl: String       = table.name
-  private val codec: DbCodec[E] = table.codec
+  given codec: DbCodec[E] = table.codec
 
   // === Read Operations ===
 
   /** Returns all rows in the table. */
-  def findAll(using con: DbCon): List[E] = {
+  final def findAll(using con: DbCon): List[E] = {
     val frag = Frag.literal(s"SELECT $allCols FROM $tbl")
-    SqlOps.query[E](frag)(using con, codec)
+    frag.query[E]
   }
 
   /** Finds the row with the given primary key, or `None` if absent. */
-  def findById(id: ID)(using con: DbCon): Option[E] = {
+  final def find(id: ID)(using con: DbCon): Maybe[E] = {
     val frag = Frag(
       IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
-    SqlOps.queryOne[E](frag)(using con, codec)
+    frag.queryOne[E]
   }
 
   /** Returns `true` if a row with `id` exists. */
-  def existsById(id: ID)(using con: DbCon): Boolean =
-    findById(id).isDefined
+  final def exists(id: ID)(using con: DbCon): Boolean =
+    find(id).isDefined
 
   /** Returns the total number of rows in the table. */
-  def count(using con: DbCon): Long = {
+  final def count(using con: DbCon): Long = {
     val frag = Frag.literal(s"SELECT COUNT(*) FROM $tbl")
-    SqlOps.queryOne[Long](frag)(using con, DbCodec.longCodec).getOrElse(0L)
+    frag.queryOne[Long](using con, DbCodec.longCodec).getOrElse(0L)
   }
 
   // === Write Operations ===
 
   /** Inserts `entity` and returns the affected row count (normally 1). */
-  def insert(entity: E)(using con: DbCon): Int = {
+  final def insert(entity: E)(using con: DbCon): Int = {
     val values = codec.toDbValues(entity)
     val frag   = Repo.buildInsertFrag(tbl, allCols, values)
-    SqlOps.update(frag)(using con)
+    frag.update
   }
 
   /**
@@ -123,10 +124,10 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * @throws NoSuchElementException
    *   if the row cannot be found after insert.
    */
-  def insertReturning(entity: E)(using con: DbCon): E = {
+  final def insertReturning(entity: E)(using con: DbCon): E = {
     val frag   = Repo.buildInsertFrag(tbl, allCols, codec.toDbValues(entity))
-    val keys   = SqlOps.updateReturningKeys[ID](frag)(using con, idCodec)
-    val result = keys.headOption.flatMap(findById(_)).orElse(findById(getId(entity)))
+    val keys   = frag.updateReturningKeys[ID](using con, idCodec)
+    val result = Maybe.fromOption(keys.headOption).flatMap(find(_)).orElse(find(getId(entity)))
     result.getOrElse(
       throw new NoSuchElementException(s"Entity not found after insert in table $tbl")
     )
@@ -141,7 +142,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * count. Individual parameter lists are omitted because a batch may contain a
    * large number of rows.
    */
-  def insertBatch(entities: Iterable[E])(using con: DbCon): Int = {
+  final def insertBatch(entities: Iterable[E])(using con: DbCon): Int = {
     if (entities.isEmpty) return 0
     val first  = entities.head
     val values = codec.toDbValues(first)
@@ -152,7 +153,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
       try {
         entities.foreach { entity =>
           val vals = codec.toDbValues(entity)
-          SqlOps.writeParams(ps.paramWriter, vals)
+          Frag.writeParams(ps.paramWriter, vals)
           ps.addBatch()
         }
         val counts = ps.executeBatch()
@@ -186,11 +187,11 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * @throws IllegalArgumentException
    *   if `rows` is empty
    */
-  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = {
+  final def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = {
     require(rows.nonEmpty, "Repo.insertAll: rows must be non-empty")
-    val valuesFrag = Frag.values(rows)(using codec)
+    val valuesFrag = Frag.values(rows)
     val frag       = Frag.literal(s"INSERT INTO $tbl ($allCols) VALUES ") ++ valuesFrag
-    SqlOps.update(frag)(using con)
+    frag.update
     rows.map(getId)
   }
 
@@ -199,7 +200,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * key. Returns the affected row count (0 if no row with that ID exists, 0 if
    * the entity has only an ID column).
    */
-  def update(entity: E)(using con: DbCon): Int = {
+  final def update(entity: E)(using con: DbCon): Int = {
     val entityValues  = codec.toDbValues(entity)
     val idValues      = idCodec.toDbValues(getId(entity))
     val updatePairs   = table.columns.zip(entityValues).filter(_._1 != validatedIdColumn)
@@ -208,30 +209,24 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     if (updateColumns.isEmpty) 0
     else {
       val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, validatedIdColumn, idValues)
-      SqlOps.update(frag)(using con)
+      frag.update
     }
   }
 
   /**
    * Deletes the row with the given primary key. Returns the affected row count.
    */
-  def deleteById(id: ID)(using con: DbCon): Int = {
+  final def delete(id: ID)(using con: DbCon): Int = {
     val frag = Frag(
       IndexedSeq(s"DELETE FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
-    SqlOps.update(frag)(using con)
+    frag.update
   }
 
-  /** Deletes the row corresponding to `entity`'s primary key. */
-  def delete(entity: E)(using con: DbCon): Int =
-    deleteById(getId(entity))
-
-  /**
-   * Deletes all rows in the table using `DELETE FROM <table>` (no `TRUNCATE`).
-   */
-  def truncate()(using con: DbCon): Int =
-    SqlOps.update(Frag.literal(s"DELETE FROM $tbl"))(using con)
+  /** Deletes all rows in the table using `DELETE FROM <table>`. */
+  final def clear()(using con: DbCon): Int =
+    Frag.literal(s"DELETE FROM $tbl").update
 }
 
 object Repo {
