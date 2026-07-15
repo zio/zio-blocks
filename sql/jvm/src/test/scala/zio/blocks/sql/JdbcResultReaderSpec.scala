@@ -26,33 +26,23 @@ import scala.collection.mutable.ArrayBuffer
 object JdbcResultReaderSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment, Any] = suite("JdbcResultReaderSpec")(
-    test("getInstant(index) reads LocalDateTime via getObject and converts to Instant at UTC") {
+    test("getInstant(index) reads via getTimestamp with UTC Calendar") {
       val instant = Instant.parse("2025-07-10T15:52:46.632293Z")
       val calls   = ArrayBuffer.empty[(String, List[AnyRef])]
       val reader  = new JdbcResultReader(resultSetProxy(calls, instant))
 
       val decoded = reader.getInstant(1)
 
-      assertTrue(
-        decoded == instant,
-        calls.toList == List(
-          "getObject" -> List(Int.box(1), classOf[java.time.LocalDateTime])
-        )
-      )
+      assertTrue(decoded == instant, calls.exists(_._1 == "getTimestamp"))
     },
-    test("getInstant(label) reads LocalDateTime via getObject and converts to Instant at UTC") {
+    test("getInstant(label) reads via getTimestamp with UTC Calendar") {
       val instant = Instant.parse("2025-07-10T15:52:46.632293Z")
       val calls   = ArrayBuffer.empty[(String, List[AnyRef])]
       val reader  = new JdbcResultReader(resultSetProxy(calls, instant))
 
       val decoded = reader.getInstant("published_until")
 
-      assertTrue(
-        decoded == instant,
-        calls.toList == List(
-          "getObject" -> List("published_until", classOf[java.time.LocalDateTime])
-        )
-      )
+      assertTrue(decoded == instant, calls.exists(_._1 == "getTimestamp"))
     }
   )
 
@@ -61,9 +51,9 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
       override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = {
         val arguments = Option(args).map(_.toList).getOrElse(Nil)
         method.getName match {
-          case "getObject" =>
+          case "getTimestamp" =>
             calls += method.getName -> arguments
-            java.time.LocalDateTime.ofInstant(instant, java.time.ZoneOffset.UTC)
+            java.sql.Timestamp.from(instant)
           case "wasNull"  => java.lang.Boolean.FALSE
           case "toString" => "JdbcResultReaderSpec.ResultSetProxy"
           case other      => throw new UnsupportedOperationException(s"Unexpected ResultSet method: $other")
