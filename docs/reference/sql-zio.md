@@ -20,6 +20,7 @@ Create a `Transactor` layer from a JDBC `DataSource` and pick the dialect-specif
 ```scala
 import javax.sql.DataSource
 import zio.*
+import zio.blocks.maybe.Maybe
 import zio.blocks.sql.*
 import zio.blocks.sql.zio.*
 

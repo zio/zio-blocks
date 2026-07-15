@@ -21,6 +21,7 @@ import zio.test.*
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
 import java.sql.ResultSet
 import java.time.Instant
+import java.util.Calendar
 import scala.collection.mutable.ArrayBuffer
 
 object JdbcResultReaderSpec extends ZIOSpecDefault {
@@ -33,7 +34,15 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
 
       val decoded = reader.getInstant(1)
 
-      assertTrue(decoded == instant, calls.exists(_._1 == "getTimestamp"))
+      assertTrue(
+        decoded == instant,
+        calls.exists { case (name, args) =>
+          name == "getTimestamp" && args.exists {
+            case cal: Calendar => cal.getTimeZone.getID == "UTC"
+            case _             => false
+          }
+        }
+      )
     },
     test("getInstant(label) reads via getTimestamp with UTC Calendar") {
       val instant = Instant.parse("2025-07-10T15:52:46.632293Z")
@@ -42,7 +51,15 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
 
       val decoded = reader.getInstant("published_until")
 
-      assertTrue(decoded == instant, calls.exists(_._1 == "getTimestamp"))
+      assertTrue(
+        decoded == instant,
+        calls.exists { case (name, args) =>
+          name == "getTimestamp" && args.exists {
+            case cal: Calendar => cal.getTimeZone.getID == "UTC"
+            case _             => false
+          }
+        }
+      )
     }
   )
 

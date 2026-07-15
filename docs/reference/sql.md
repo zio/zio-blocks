@@ -173,6 +173,8 @@ derived `Table` / `Repo` metadata, which validates table and column names.
 Execute a fragment directly via extension methods:
 
 ```scala
+import zio.blocks.maybe.Maybe
+
 // Given an implicit DbCon and DbCodec[User] in scope:
 val users: List[User]   = frag.query[User]
 val user:  Maybe[User] = frag.queryOne[User]
@@ -221,7 +223,8 @@ type `E` with primary key type `ID`.
 `Repo` can also be extended directly when the schema and ID codec are available:
 
 ```scala
-final class UserRepo extends Repo[User, Long]
+// Requires implicit Schema[User], Schema[Long], and DbCodec[Long] in scope
+final class UserRepo(using Schema[User], Schema[Long], DbCodec[Long]) extends Repo[User, Long]
 ```
 
 The inherited CRUD operations use the same metadata as `Repo.derived`.
@@ -267,6 +270,8 @@ val repo = Repo(userTable, "id", DbCodec.longCodec, _.id)
 #### Read Operations
 
 ```scala
+import zio.blocks.maybe.Maybe
+
 // All rows
 val all: List[User] = repo.all
 

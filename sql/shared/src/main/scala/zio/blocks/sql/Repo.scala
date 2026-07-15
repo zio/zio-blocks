@@ -77,9 +77,9 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     s"idColumn '$idColumn' (validated as '$validatedIdColumn') not found in table '${table.name}' columns: ${table.columns.mkString(", ")}"
   )
 
-  private val allCols: String   = table.columns.mkString(", ")
-  private val tbl: String       = table.name
-  given codec: DbCodec[E] = table.codec
+  private val allCols: String = table.columns.mkString(", ")
+  private val tbl: String     = table.name
+  given codec: DbCodec[E]     = table.codec
 
   // === Read Operations ===
 
