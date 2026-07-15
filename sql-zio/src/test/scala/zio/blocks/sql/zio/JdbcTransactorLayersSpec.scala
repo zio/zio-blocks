@@ -17,6 +17,7 @@
 package zio.blocks.sql.zio
 
 import _root_.zio.*
+import _root_.zio.blocks.maybe.Maybe
 import _root_.zio.blocks.sql.*
 import _root_.zio.test.*
 
@@ -146,7 +147,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
 
       program
         .provideLayer(ZLayer.succeed(h2DataSource) >>> JdbcTransactor.sqliteLayer)
-        .map(result => assertTrue(result == Some(1)))
+        .map(result => assertTrue(result == Maybe(1)))
     }
   )
 
