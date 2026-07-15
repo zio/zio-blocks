@@ -59,11 +59,11 @@ val transactor = JdbcTransactor.fromUrl(
 
 // 4. Execute operations
 val users: List[User] = transactor.connect:
-  userRepo.findAll
+  userRepo.all
 
 val saved: User = transactor.transact:
   userRepo.insert(User(0L, "Alice", "alice@example.com"))
-  userRepo.findById(1L).get
+  userRepo.find(1L).get
 ```
 
 ## Core Concepts
@@ -175,7 +175,7 @@ Execute a fragment directly via extension methods:
 ```scala
 // Given an implicit DbCon and DbCodec[User] in scope:
 val users: List[User]   = frag.query[User]
-val user:  Option[User] = frag.queryOne[User]
+val user:  Maybe[User] = frag.queryOne[User]
 val count: Int          = sql"DELETE FROM users WHERE active = ${false}".update
 
 // Limit result materialization
@@ -268,13 +268,13 @@ val repo = Repo(userTable, "id", DbCodec.longCodec, _.id)
 
 ```scala
 // All rows
-val all: List[User] = repo.findAll
+val all: List[User] = repo.all
 
 // By primary key
-val user: Option[User] = repo.findById(42L)
+val user: Maybe[User] = repo.find(42L)
 
 // Existence check
-val exists: Boolean = repo.existsById(42L)
+val exists: Boolean = repo.exists(42L)
 
 // Row count
 val n: Long = repo.count
@@ -296,13 +296,13 @@ val total: Int = repo.insertAll(List(user1, user2, user3))
 val updated: Int = repo.update(user.copy(name = "Updated Name"))
 
 // Delete by ID
-val deleted: Int = repo.deleteById(42L)
+val deleted: Int = repo.delete(42L)
 
 // Delete entity (extracts its ID)
 val deleted: Int = repo.delete(someUser)
 
 // Delete all rows (equivalent to DELETE FROM table)
-val cleared: Int = repo.truncate()
+val cleared: Int = repo.clear()
 ```
 
 ### Transactor
@@ -332,12 +332,12 @@ val transactor: Transactor = JdbcTransactor.fromUrl(
 
 // Read — no transaction needed
 val users: List[User] = transactor.connect:
-  userRepo.findAll
+  userRepo.all
 
 // Write — use a transaction for atomicity
 val result: User = transactor.transact:
   userRepo.insert(newUser)
-  userRepo.findById(newUser.id).get
+  userRepo.find(newUser.id).get
 ```
 
 For production use, prefer `JdbcTransactor.fromDataSource(...)` with a pooled

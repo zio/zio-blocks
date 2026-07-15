@@ -670,7 +670,7 @@ val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
 
 - **Schema-derived codecs**: `DbCodec[A]` is auto-derived from `Schema[A]` — column names, types, and nullability come for free.
 - **Composable fragments**: The `sql"..."` interpolator creates `Frag` values that compose safely with `++`. SQL injection is structurally impossible.
-- **CRUD repository**: `Repo[E, ID]` provides `findAll`, `findById`, `insert`, `insertAll`, `update`, `deleteById`, and `truncate` out of the box.
+- **CRUD repository**: `Repo[E, ID]` provides `all`, `find`, `findAll`, `insert`, `insertAll`, `update`, `delete`, `deleteAll`, and `clear` out of the box.
 - **DDL generation**: `Table.createTable(dialect)` generates type-accurate `CREATE TABLE IF NOT EXISTS` SQL from the schema.
 - **ZIO integration**: `TransactorZIO` lifts blocking JDBC calls into `Task` (or `ZIO`) with proper bracketing and rollback.
 - **Effect-system agnostic core**: The `zio-blocks-sql` module has no ZIO dependency — use it with any effect system or plain Scala.
