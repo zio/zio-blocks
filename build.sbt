@@ -461,6 +461,24 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
     )
   )
 
+lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(sql, schema, maybe)
+  .settings(stdSettings("zio-blocks-data-migration"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.data.migration"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val `sql-zio` = project
   .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(sql.jvm)
