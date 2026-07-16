@@ -79,7 +79,15 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
   private val allCols: String = table.columns.mkString(", ")
   private val tbl: String     = table.name
-  given codec: DbCodec[E]     = table.codec
+
+  /**
+   * The entity codec, exposed for internal Frag operations.
+   *
+   * Note: This is a public `given` to be available for implicit search in
+   * `Frag.values` and `frag.query` calls within `Repo` methods. It is not
+   * intended for direct external use; the public API is the CRUD methods.
+   */
+  given codec: DbCodec[E] = table.codec
 
   // === Read Operations ===
 
@@ -235,6 +243,14 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     )
     frag.update
   }
+
+  /**
+   * Deletes an entity by extracting its ID.
+   *
+   * Note: This method is not provided because it would clash with
+   * `delete(id: ID)` after JVM type erasure when `ID` =:= `E`. Users should
+   * call `repo.delete(repo.getId(entity))` explicitly.
+   */
 
   /**
    * Deletes the rows with the given primary keys. Returns the total affected
