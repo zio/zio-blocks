@@ -32,16 +32,19 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
       val calls   = ArrayBuffer.empty[(String, List[AnyRef])]
       val reader  = new JdbcResultReader(resultSetProxy(calls, instant))
 
-      val decoded = reader.getInstant(1)
+      val decoded1 = reader.getInstant(1)
+      val decoded2 = reader.getInstant(2)
+
+      val utcCals = calls.collect { case ("getTimestamp", args) =>
+        args.collectFirst { case cal: Calendar => cal }
+      }.flatten
 
       assertTrue(
-        decoded == instant,
-        calls.exists { case (name, args) =>
-          name == "getTimestamp" && args.exists {
-            case cal: Calendar => cal.getTimeZone.getID == "UTC"
-            case _             => false
-          }
-        }
+        decoded1 == instant,
+        decoded2 == instant,
+        utcCals.size == 2,
+        utcCals(0) eq utcCals(1), // same calendar instance (cached)
+        utcCals(0).getTimeZone.getID == "UTC"
       )
     },
     test("getInstant(label) reads via getTimestamp with UTC Calendar") {
@@ -49,16 +52,19 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
       val calls   = ArrayBuffer.empty[(String, List[AnyRef])]
       val reader  = new JdbcResultReader(resultSetProxy(calls, instant))
 
-      val decoded = reader.getInstant("published_until")
+      val decoded1 = reader.getInstant("published_until")
+      val decoded2 = reader.getInstant("created_at")
+
+      val utcCals = calls.collect { case ("getTimestamp", args) =>
+        args.collectFirst { case cal: Calendar => cal }
+      }.flatten
 
       assertTrue(
-        decoded == instant,
-        calls.exists { case (name, args) =>
-          name == "getTimestamp" && args.exists {
-            case cal: Calendar => cal.getTimeZone.getID == "UTC"
-            case _             => false
-          }
-        }
+        decoded1 == instant,
+        decoded2 == instant,
+        utcCals.size == 2,
+        utcCals(0) eq utcCals(1), // same calendar instance (cached)
+        utcCals(0).getTimeZone.getID == "UTC"
       )
     }
   )

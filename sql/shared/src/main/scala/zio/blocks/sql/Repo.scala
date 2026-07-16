@@ -50,20 +50,21 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * final class UserRepo extends Repo[User, UserId]
    * }}}
    */
-  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
+  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) = {
     this(Repo.derivedMetadata[E, ID])
+  }
 
   /** The table this repository operates on. */
-  val table: Table[E] = metadata.table
+  final val table: Table[E] = metadata.table
 
   /** The name of the primary-key column as it appears in SQL. */
-  val idColumn: String = metadata.idColumn
+  final val idColumn: String = metadata.idColumn
 
   /** The codec used to read and write the ID type. */
-  val idCodec: DbCodec[ID] = metadata.idCodec
+  final val idCodec: DbCodec[ID] = metadata.idCodec
 
   /** Extracts the primary key from an entity value. */
-  val getId: E => ID = metadata.getId
+  final val getId: E => ID = metadata.getId
 
   require(
     idCodec.columnCount == 1,
@@ -80,14 +81,8 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   private val allCols: String = table.columns.mkString(", ")
   private val tbl: String     = table.name
 
-  /**
-   * The entity codec, exposed for internal Frag operations.
-   *
-   * Note: This is a public `given` to be available for implicit search in
-   * `Frag.values` and `frag.query` calls within `Repo` methods. It is not
-   * intended for direct external use; the public API is the CRUD methods.
-   */
-  given codec: DbCodec[E] = table.codec
+  /** The entity codec, exposed for internal Frag operations. */
+  private given codec: DbCodec[E] = table.codec
 
   // === Read Operations ===
 
@@ -243,14 +238,6 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     )
     frag.update
   }
-
-  /**
-   * Deletes an entity by extracting its ID.
-   *
-   * Note: This method is not provided because it would clash with
-   * `delete(id: ID)` after JVM type erasure when `ID` =:= `E`. Users should
-   * call `repo.delete(repo.getId(entity))` explicitly.
-   */
 
   /**
    * Deletes the rows with the given primary keys. Returns the total affected
