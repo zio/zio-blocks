@@ -59,11 +59,11 @@ val transactor = JdbcTransactor.fromUrl(
 
 // 4. Execute operations
 val users: List[User] = transactor.connect:
-  userRepo.findAll
+  userRepo.all
 
 val saved: User = transactor.transact:
   userRepo.insert(User(0L, "Alice", "alice@example.com"))
-  userRepo.findById(1L).get
+  userRepo.find(1L).get
 ```
 
 ## Core Concepts
@@ -173,9 +173,11 @@ derived `Table` / `Repo` metadata, which validates table and column names.
 Execute a fragment directly via extension methods:
 
 ```scala
+import zio.blocks.maybe.Maybe
+
 // Given an implicit DbCon and DbCodec[User] in scope:
 val users: List[User]   = frag.query[User]
-val user:  Option[User] = frag.queryOne[User]
+val user:  Maybe[User] = frag.queryOne[User]
 val count: Int          = sql"DELETE FROM users WHERE active = ${false}".update
 
 // Limit result materialization
@@ -218,18 +220,25 @@ case class User(id: Long, name: String, email: String)
 `Repo[E, ID]` provides a complete set of typed CRUD operations for an entity
 type `E` with primary key type `ID`.
 
+`Repo` can also be extended directly when the schema and ID codec are available:
+
 ```scala
-class Repo[E, ID](
-  val table: Table[E],
-  val idColumn: String,
-  val idCodec: DbCodec[ID],
-  val getId: E => ID
-)
+// Requires implicit Schema[User], Schema[Long], and DbCodec[Long] in scope
+final class UserRepo(using Schema[User], Schema[Long], DbCodec[Long]) extends Repo[User, Long]
 ```
+
+The inherited CRUD operations use the same metadata as `Repo.derived`.
 
 #### Constructing a Repo
 
-**Fully auto-derived** (zero-argument) — finds the unique `ID`-typed field in the schema:
+**Fully auto-derived** (zero-argument) — resolves the ID field in this order:
+
+1. a field marked with `@Modifier.id`
+2. the unique field whose type is `ID`
+3. a field named `id`
+4. a field named `<entity>Id` (for example, `userId`)
+
+It fails if none of these rules identifies exactly one field.
 
 ```scala
 case class User(id: Long, name: String)
@@ -261,14 +270,16 @@ val repo = Repo(userTable, "id", DbCodec.longCodec, _.id)
 #### Read Operations
 
 ```scala
+import zio.blocks.maybe.Maybe
+
 // All rows
-val all: List[User] = repo.findAll
+val all: List[User] = repo.all
 
 // By primary key
-val user: Option[User] = repo.findById(42L)
+val user: Maybe[User] = repo.find(42L)
 
 // Existence check
-val exists: Boolean = repo.existsById(42L)
+val exists: Boolean = repo.exists(42L)
 
 // Row count
 val n: Long = repo.count
@@ -290,13 +301,10 @@ val total: Int = repo.insertAll(List(user1, user2, user3))
 val updated: Int = repo.update(user.copy(name = "Updated Name"))
 
 // Delete by ID
-val deleted: Int = repo.deleteById(42L)
-
-// Delete entity (extracts its ID)
-val deleted: Int = repo.delete(someUser)
+val deleted: Int = repo.delete(42L)
 
 // Delete all rows (equivalent to DELETE FROM table)
-val cleared: Int = repo.truncate()
+val cleared: Int = repo.clear()
 ```
 
 ### Transactor
@@ -326,12 +334,12 @@ val transactor: Transactor = JdbcTransactor.fromUrl(
 
 // Read — no transaction needed
 val users: List[User] = transactor.connect:
-  userRepo.findAll
+  userRepo.all
 
 // Write — use a transaction for atomicity
 val result: User = transactor.transact:
   userRepo.insert(newUser)
-  userRepo.findById(newUser.id).get
+  userRepo.find(newUser.id).get
 ```
 
 For production use, prefer `JdbcTransactor.fromDataSource(...)` with a pooled

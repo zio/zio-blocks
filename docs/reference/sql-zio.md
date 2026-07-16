@@ -20,6 +20,7 @@ Create a `Transactor` layer from a JDBC `DataSource` and pick the dialect-specif
 ```scala
 import javax.sql.DataSource
 import zio.*
+import zio.blocks.maybe.Maybe
 import zio.blocks.sql.*
 import zio.blocks.sql.zio.*
 
@@ -27,7 +28,7 @@ val dataSource: DataSource = ???
 val transactorLayer: ZLayer[Any, Nothing, Transactor] =
   ZLayer.succeed(dataSource) >>> JdbcTransactor.postgresLayer
 
-val program: ZIO[Transactor, Throwable, Option[Int]] =
+val program: ZIO[Transactor, Throwable, Maybe[Int]] =
   ZIO.serviceWith[Transactor] { transactor =>
     transactor.connect {
       sql"SELECT 1".queryOne[Int]
@@ -70,7 +71,7 @@ return `Task`.
 
 ```scala
 val users: Task[List[User]] = transactor.connect:
-  userRepo.findAll
+  userRepo.all
 
 val result: Task[User] = transactor.transact:
   userRepo.insertReturning(newUser)
@@ -85,7 +86,7 @@ val program: ZIO[Any, Throwable, User] =
   transactor.transactZIO:
     for
       _    <- ZIO.attemptBlocking(userRepo.insert(newUser))
-      user <- ZIO.attemptBlocking(userRepo.findById(newUser.id))
+      user <- ZIO.attemptBlocking(userRepo.find(newUser.id))
     yield user.get
 ```
 

@@ -18,6 +18,7 @@ package zio.blocks.sql
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.maybe.Maybe
 
 /**
  * A type-safe repository that provides standard CRUD operations for entities of
@@ -28,30 +29,42 @@ import zio.blocks.schema.binding.Binding
  * every call.
  *
  * ==Construction==
- * Prefer the smart constructors in the companion object:
+ * Use the companion constructors, or subclass `Repo` directly:
  *   - [[Repo.apply]] — fully explicit (table, id column, codec, getter)
- *   - [[Repo.derived]] — macro-derived from a [[zio.blocks.schema.Schema]]
+ *   - [[Repo.derived]] — derived from a [[zio.blocks.schema.Schema]]
+ *   - `class UserRepo extends Repo[User, UserId]` — derives from the contextual
+ *     `Schema` and `DbCodec` and inherits all default CRUD operations.
  *
  * ==Thread safety==
- * `Repo` instances are immutable and safe for concurrent use. Individual
- * operations require a `DbCon` or `DbTx` given context which is not shared
- * across threads unless the caller arranges it.
- *
- * @param table
- *   The [[Table]] this repository operates on.
- * @param idColumn
- *   The name of the primary-key column as it appears in SQL.
- * @param idCodec
- *   The [[DbCodec]] used to read and write the ID type.
- * @param getId
- *   Extracts the primary key from an entity value.
+ * `Repo` is immutable and safe for concurrent use. Individual operations
+ * require a `DbCon` or `DbTx` given context which is not shared across threads
+ * unless the caller arranges it.
  */
-class Repo[E, ID](
-  val table: Table[E],
-  val idColumn: String,
-  val idCodec: DbCodec[ID],
-  val getId: E => ID
-) {
+abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
+
+  /**
+   * Derives a repository directly from the contextual schema and ID codec. This
+   * is the constructor invoked when subclassing `Repo`:
+   *
+   * {{{
+   * final class UserRepo extends Repo[User, UserId]
+   * }}}
+   */
+  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
+    this(Repo.derivedMetadata[E, ID])
+
+  /** The table this repository operates on. */
+  final val table: Table[E] = metadata.table
+
+  /** The name of the primary-key column as it appears in SQL. */
+  final val idColumn: String = metadata.idColumn
+
+  /** The codec used to read and write the ID type. */
+  final val idCodec: DbCodec[ID] = metadata.idCodec
+
+  /** Extracts the primary key from an entity value. */
+  final val getId: E => ID = metadata.getId
+
   require(
     idCodec.columnCount == 1,
     s"Repo requires a single-column ID, but '$idColumn' has ${idCodec.columnCount} columns"
@@ -64,44 +77,58 @@ class Repo[E, ID](
     s"idColumn '$idColumn' (validated as '$validatedIdColumn') not found in table '${table.name}' columns: ${table.columns.mkString(", ")}"
   )
 
-  private val allCols: String   = table.columns.mkString(", ")
-  private val tbl: String       = table.name
-  private val codec: DbCodec[E] = table.codec
+  private val allCols: String = table.columns.mkString(", ")
+  private val tbl: String     = table.name
+
+  /** The entity codec, exposed for internal Frag operations. */
+  private given codec: DbCodec[E] = table.codec
 
   // === Read Operations ===
 
   /** Returns all rows in the table. */
-  def findAll(using con: DbCon): List[E] = {
+  final def all(using con: DbCon): List[E] = {
     val frag = Frag.literal(s"SELECT $allCols FROM $tbl")
-    SqlOps.query[E](frag)(using con, codec)
+    frag.query[E]
   }
 
-  /** Finds the row with the given primary key, or `None` if absent. */
-  def findById(id: ID)(using con: DbCon): Option[E] = {
+  /** Returns the rows whose primary keys match the given IDs. */
+  final def findAll(ids: Iterable[ID])(using con: DbCon): List[E] = {
+    val idList = ids.toList
+    if (idList.isEmpty) List.empty
+    else {
+      val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
+      val parts     = IndexedSeq(s"SELECT $allCols FROM $tbl WHERE ($validatedIdColumn) IN (") ++
+        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      Frag(parts, allValues).query[E]
+    }
+  }
+
+  /** Finds the row with the given primary key. */
+  final def find(id: ID)(using con: DbCon): Maybe[E] = {
     val frag = Frag(
       IndexedSeq(s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
-    SqlOps.queryOne[E](frag)(using con, codec)
+    frag.queryOne[E]
   }
 
   /** Returns `true` if a row with `id` exists. */
-  def existsById(id: ID)(using con: DbCon): Boolean =
-    findById(id).isDefined
+  final def exists(id: ID)(using con: DbCon): Boolean =
+    find(id).isDefined
 
   /** Returns the total number of rows in the table. */
-  def count(using con: DbCon): Long = {
+  final def count(using con: DbCon): Long = {
     val frag = Frag.literal(s"SELECT COUNT(*) FROM $tbl")
-    SqlOps.queryOne[Long](frag)(using con, DbCodec.longCodec).getOrElse(0L)
+    frag.queryOne[Long](using con, DbCodec.longCodec).getOrElse(0L)
   }
 
   // === Write Operations ===
 
   /** Inserts `entity` and returns the affected row count (normally 1). */
-  def insert(entity: E)(using con: DbCon): Int = {
+  final def insert(entity: E)(using con: DbCon): Int = {
     val values = codec.toDbValues(entity)
     val frag   = Repo.buildInsertFrag(tbl, allCols, values)
-    SqlOps.update(frag)(using con)
+    frag.update
   }
 
   /**
@@ -111,10 +138,10 @@ class Repo[E, ID](
    * @throws NoSuchElementException
    *   if the row cannot be found after insert.
    */
-  def insertReturning(entity: E)(using con: DbCon): E = {
+  final def insertReturning(entity: E)(using con: DbCon): E = {
     val frag   = Repo.buildInsertFrag(tbl, allCols, codec.toDbValues(entity))
-    val keys   = SqlOps.updateReturningKeys[ID](frag)(using con, idCodec)
-    val result = keys.headOption.flatMap(findById(_)).orElse(findById(getId(entity)))
+    val keys   = frag.updateReturningKeys[ID](using con, idCodec)
+    val result = Maybe.fromOption(keys.headOption).flatMap(find(_)).orElse(find(getId(entity)))
     result.getOrElse(
       throw new NoSuchElementException(s"Entity not found after insert in table $tbl")
     )
@@ -129,7 +156,7 @@ class Repo[E, ID](
    * count. Individual parameter lists are omitted because a batch may contain a
    * large number of rows.
    */
-  def insertBatch(entities: Iterable[E])(using con: DbCon): Int = {
+  final def insertBatch(entities: Iterable[E])(using con: DbCon): Int = {
     if (entities.isEmpty) return 0
     val first  = entities.head
     val values = codec.toDbValues(first)
@@ -140,7 +167,7 @@ class Repo[E, ID](
       try {
         entities.foreach { entity =>
           val vals = codec.toDbValues(entity)
-          SqlOps.writeParams(ps.paramWriter, vals)
+          Frag.writeParams(ps.paramWriter, vals)
           ps.addBatch()
         }
         val counts = ps.executeBatch()
@@ -174,11 +201,11 @@ class Repo[E, ID](
    * @throws IllegalArgumentException
    *   if `rows` is empty
    */
-  def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = {
+  final def insertAll(rows: Seq[E])(using con: DbCon): Seq[ID] = {
     require(rows.nonEmpty, "Repo.insertAll: rows must be non-empty")
-    val valuesFrag = Frag.values(rows)(using codec)
+    val valuesFrag = Frag.values(rows)
     val frag       = Frag.literal(s"INSERT INTO $tbl ($allCols) VALUES ") ++ valuesFrag
-    SqlOps.update(frag)(using con)
+    frag.update
     rows.map(getId)
   }
 
@@ -187,7 +214,7 @@ class Repo[E, ID](
    * key. Returns the affected row count (0 if no row with that ID exists, 0 if
    * the entity has only an ID column).
    */
-  def update(entity: E)(using con: DbCon): Int = {
+  final def update(entity: E)(using con: DbCon): Int = {
     val entityValues  = codec.toDbValues(entity)
     val idValues      = idCodec.toDbValues(getId(entity))
     val updatePairs   = table.columns.zip(entityValues).filter(_._1 != validatedIdColumn)
@@ -196,33 +223,55 @@ class Repo[E, ID](
     if (updateColumns.isEmpty) 0
     else {
       val frag = Repo.buildUpdateFrag(tbl, updateColumns, updateValues, validatedIdColumn, idValues)
-      SqlOps.update(frag)(using con)
+      frag.update
     }
   }
 
   /**
    * Deletes the row with the given primary key. Returns the affected row count.
    */
-  def deleteById(id: ID)(using con: DbCon): Int = {
+  final def delete(id: ID)(using con: DbCon): Int = {
     val frag = Frag(
       IndexedSeq(s"DELETE FROM $tbl WHERE $validatedIdColumn = ", ""),
       idCodec.toDbValues(id)
     )
-    SqlOps.update(frag)(using con)
+    frag.update
   }
 
-  /** Deletes the row corresponding to `entity`'s primary key. */
-  def delete(entity: E)(using con: DbCon): Int =
-    deleteById(getId(entity))
-
   /**
-   * Deletes all rows in the table using `DELETE FROM <table>` (no `TRUNCATE`).
+   * Deletes the rows with the given primary keys. Returns the total affected
+   * row count.
    */
-  def truncate()(using con: DbCon): Int =
-    SqlOps.update(Frag.literal(s"DELETE FROM $tbl"))(using con)
+  final def deleteAll(ids: Iterable[ID])(using con: DbCon): Int = {
+    val idList = ids.toList
+    if (idList.isEmpty) 0
+    else {
+      val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
+      val parts     = IndexedSeq(s"DELETE FROM $tbl WHERE ($validatedIdColumn) IN (") ++
+        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      Frag(parts, allValues).update
+    }
+  }
+
+  /** Deletes all rows in the table using `DELETE FROM <table>`. */
+  final def clear()(using con: DbCon): Int =
+    Frag.literal(s"DELETE FROM $tbl").update
 }
 
 object Repo {
+
+  private[sql] final case class Metadata[E, ID](
+    table: Table[E],
+    idColumn: String,
+    idCodec: DbCodec[ID],
+    getId: E => ID
+  )
+
+  /** The default concrete [[Repo]] backed by resolved [[Metadata]]. */
+  private final class DerivedRepo[E, ID](metadata: Metadata[E, ID]) extends Repo[E, ID](metadata)
+
+  private def fromMetadata[E, ID](metadata: Metadata[E, ID]): Repo[E, ID] =
+    new DerivedRepo[E, ID](metadata)
 
   /** Constructs a `Repo` from explicit components. */
   def apply[E, ID](
@@ -230,7 +279,7 @@ object Repo {
     idColumn: String,
     idCodec: DbCodec[ID],
     getId: E => ID
-  ): Repo[E, ID] = new Repo(table, idColumn, idCodec, getId)
+  ): Repo[E, ID] = fromMetadata(Metadata(table, idColumn, idCodec, getId))
 
   /**
    * Derives a `Repo` from `E`'s schema with a caller-supplied ID column name
@@ -242,7 +291,9 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    fromMetadata(
+      Metadata(Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    )
   }
 
   /**
@@ -255,21 +306,34 @@ object Repo {
     getId: E => ID
   )(using schema: Schema[E], idCodec: DbCodec[ID]): Repo[E, ID] = {
     val codec = schema.deriving(DbCodecDeriver).derive
-    new Repo(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId)
+    fromMetadata(Metadata(Table(tableName, codec, TableMetadata.columnsFor(schema)), idColumn, idCodec, getId))
   }
 
   /**
-   * Fully auto-derives a `Repo` by inspecting `E`'s schema to locate the unique
-   * field whose type matches `ID`. The ID column name respects
-   * `@Modifier.rename` annotations; the table name uses the default naming
-   * policy.
+   * Fully auto-derives a `Repo` by inspecting `E`'s schema to locate the ID
+   * field using a 4-priority rule:
+   *   1. `@Modifier.id` annotation on a field whose type matches `ID`
+   *   2. Unique field whose type matches `ID` (previously the only strategy)
+   *   3. Field literally named `"id"` whose type matches `ID`
+   *   4. Field named `<entity>Id` (e.g. `userId` for entity `User`) whose type
+   *      matches `ID`
+   *
+   * The ID column name respects `@Modifier.rename` annotations; the table name
+   * uses the default naming policy.
    *
    * Fails at runtime with [[IllegalArgumentException]] if:
    *   - `E` is not a record (case class)
-   *   - No field of type `ID` exists
-   *   - Multiple fields of type `ID` exist (use the explicit overload instead)
+   *   - No field can be resolved by any of the four strategies
+   *   - Multiple fields match the same priority (ambiguous `@Modifier.id`)
    */
-  def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] = {
+  def derived[E, ID](using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]): Repo[E, ID] =
+    fromMetadata(derivedMetadata[E, ID])
+
+  private[sql] def derivedMetadata[E, ID](using
+    schema: Schema[E],
+    idSchema: Schema[ID],
+    idCodec: DbCodec[ID]
+  ): Metadata[E, ID] = {
     val record = schema.reflect match {
       case r: Reflect.Record[_, _] => r.asInstanceOf[Reflect.Record[Binding, E]]
       case _                       =>
@@ -279,36 +343,80 @@ object Repo {
     }
 
     val targetTypeId   = idSchema.reflect.typeId
-    val matchingFields = record.fields.zipWithIndex.filter { case (field, _) =>
+    val allFields      = record.fields.zipWithIndex
+    val matchingFields = allFields.filter { case (field, _) =>
       field.value.typeId == targetTypeId
     }
 
-    matchingFields match {
+    // Priority 1: @Modifier.id annotation (among type-matching fields)
+    val idAnnotatedMatching = matchingFields.filter { case (field, _) =>
+      field.modifiers.exists(_.isInstanceOf[Modifier.id])
+    }
+
+    def buildMetadata(field: Term[Binding, ?, ?], idx: Int): Metadata[E, ID] = {
+      val idColumn = field.modifiers.collectFirst { case r: Modifier.rename => r.name }
+        .getOrElse(SqlNameMapper.SnakeCase(field.name))
+      val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
+      val codec          = schema.deriving(DbCodecDeriver).derive
+      Metadata(
+        Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
+        idColumn,
+        idCodec,
+        getId
+      )
+    }
+
+    idAnnotatedMatching match {
       case IndexedSeq((field, idx)) =>
-        val idColumn = field.modifiers.collectFirst { case rename: Modifier.rename => rename.name }
-          .getOrElse(SqlNameMapper.SnakeCase(field.name))
-        val getId: E => ID = entity => entity.asInstanceOf[Product].productElement(idx).asInstanceOf[ID]
-        val codec          = schema.deriving(DbCodecDeriver).derive
-        new Repo(
-          Table(Table.deriveTableName(schema), codec, TableMetadata.columnsFor(schema)),
-          idColumn,
-          idCodec,
-          getId
-        )
+        return buildMetadata(field, idx)
 
-      case empty if empty.isEmpty =>
-        throw new IllegalArgumentException(
-          s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
-            "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
-        )
-
-      case multiple =>
+      case multiple if multiple.size > 1 =>
         val names = multiple.map(_._1.name).mkString(", ")
         throw new IllegalArgumentException(
-          s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
+          s"Multiple @Modifier.id-annotated fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
             "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
         )
+
+      case _ =>
     }
+
+    // Priority 2: Unique type match
+    matchingFields match {
+      case IndexedSeq((field, idx)) =>
+        return buildMetadata(field, idx)
+
+      case empty if empty.isEmpty =>
+      case _                      =>
+    }
+
+    allFields.find(_._1.name == "id").filter(_._1.value.typeId == targetTypeId) match {
+      case Some((field, idx)) =>
+        return buildMetadata(field, idx)
+      case None =>
+    }
+
+    val simpleName     = schema.reflect.typeId.name.split('.').last
+    val decapitalized  = simpleName.head.toLower.toString + simpleName.tail
+    val conventionName = decapitalized + "Id"
+    allFields.find(_._1.name == conventionName).filter(_._1.value.typeId == targetTypeId) match {
+      case Some((field, idx)) =>
+        return buildMetadata(field, idx)
+      case None =>
+    }
+
+    if (matchingFields.size > 1) {
+      val names = matchingFields.map(_._1.name).mkString(", ")
+      throw new IllegalArgumentException(
+        s"Multiple fields of type ${targetTypeId} found in ${schema.reflect.typeId}: $names. " +
+          "None matched the name-based fallbacks (\"id\" or \"<entity>Id\"). " +
+          "Use @Modifier.id on the intended field or use Repo.derived(idColumn, getId) to specify explicitly."
+      )
+    }
+
+    throw new IllegalArgumentException(
+      s"No field of type ${targetTypeId} found in ${schema.reflect.typeId}. " +
+        "Use Repo.derived(idColumn, getId) to specify the ID field explicitly."
+    )
   }
 
   private[sql] def buildInsertFrag(
