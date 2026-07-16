@@ -33,10 +33,29 @@ final class LargeMigrator[A, B, ID](
 )(using transactor: Transactor, codecId: DbCodec[ID]) {
 
   @volatile private var _paused: Boolean = false
-  
+   
   def isPaused: Boolean = _paused
   def pause(): Unit = _paused = true
   def resume(): Unit = _paused = false
+
+  private var writeRepo: Repo[B, ID] = repoV2
+
+  def init(): Unit = {
+    transactor.connect { (con: DbCon) ?=> 
+      val resolvedName = TargetStrategyApplier.prepare(repoV2.table, target)
+      if (resolvedName != repoV2.table.name) {
+        import zio.blocks.sql.{Table => SqlTable}
+        val shadowTable = SqlTable(resolvedName, repoV2.table.codec, repoV2.table.columnsMeta)
+        writeRepo = Repo(shadowTable, repoV2.idColumn, repoV2.idCodec, repoV2.getId)
+      }
+    }
+  }
+
+  def complete(): Unit = {
+    transactor.connect { (con: DbCon) ?=> 
+      TargetStrategyApplier.finalize(repoV2.table.name, target)
+    }
+  }
 
   /** Returns queue size estimate (pending items). */
   def pendingCount: Long =
@@ -44,6 +63,7 @@ final class LargeMigrator[A, B, ID](
 
   /** Runs worker loop until queue is empty or paused. Returns total migrated. */
   def run(): Int = {
+    init()
     var total = 0
     var keepGoing = true
     while (keepGoing) {
@@ -60,14 +80,18 @@ final class LargeMigrator[A, B, ID](
             }
           }
           target match {
-            case TargetStrategy.InPlace | TargetStrategy.ShadowTable(_) =>
-              repoV2.insertBatch(entitiesV2)(using tx)
+            case TargetStrategy.InPlace =>
+              entitiesV2.foreach(e => repoV2.update(e)(using tx))
+              entitiesV2.size
+            case TargetStrategy.ShadowTable(_) =>
+              writeRepo.insertBatch(entitiesV2)(using tx)
           }
         }
       }
       total += batch
       if (batch == 0) keepGoing = false
     }
+    complete()
     total
   }
 }

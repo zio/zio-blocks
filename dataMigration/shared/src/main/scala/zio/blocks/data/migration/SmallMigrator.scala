@@ -17,7 +17,7 @@
 package zio.blocks.data.migration
 
 import zio.blocks.schema.migration.Migration
-import zio.blocks.sql.{DbCodec, DbTx, Repo, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbTx, Repo, Transactor}
 
 /**
  * A-Small: queue-based batch migration worker.
@@ -34,6 +34,25 @@ final class SmallMigrator[A, B, ID](
   batchSize: Int,
   target: TargetStrategy
 )(using transactor: Transactor, codecId: DbCodec[ID]) {
+
+  private var writeRepo: Repo[B, ID] = repoV2
+
+  def init(): Unit = {
+    transactor.connect { (con: DbCon) ?=> 
+      val resolvedName = TargetStrategyApplier.prepare(repoV2.table, target)
+      if (resolvedName != repoV2.table.name) {
+        import zio.blocks.sql.{Table => SqlTable}
+        val shadowTable = SqlTable(resolvedName, repoV2.table.codec, repoV2.table.columnsMeta)
+        writeRepo = Repo(shadowTable, repoV2.idColumn, repoV2.idCodec, repoV2.getId)
+      }
+    }
+  }
+
+  def complete(): Unit = {
+    transactor.connect { (con: DbCon) ?=> 
+      TargetStrategyApplier.finalize(repoV2.table.name, target)
+    }
+  }
 
   /** Processes one batch. Returns count of migrated rows. */
   def processBatch(): Int = {
@@ -54,10 +73,12 @@ final class SmallMigrator[A, B, ID](
           }
         }
 
-        // 4. Write to target (in-place or shadow) via repoV2
         target match {
-          case TargetStrategy.InPlace        => repoV2.insertBatch(entitiesV2)(using tx)
-          case TargetStrategy.ShadowTable(_) => repoV2.insertBatch(entitiesV2)(using tx)
+          case TargetStrategy.InPlace =>
+            entitiesV2.foreach(e => repoV2.update(e)(using tx))
+            entitiesV2.size
+          case TargetStrategy.ShadowTable(_) =>
+            writeRepo.insertBatch(entitiesV2)(using tx)
         }
       }
     }

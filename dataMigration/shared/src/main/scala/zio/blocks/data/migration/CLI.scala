@@ -16,6 +16,7 @@
 
 package zio.blocks.data.migration
 
+import scala.annotation.nowarn
 import zio.blocks.sql.Transactor
 
 /**
@@ -25,6 +26,7 @@ import zio.blocks.sql.Transactor
   * to the appropriate execution model (Tiny/Small/Large) based on CLI args.
   * Only parses args and wires config — does not implement migration logic.
   */
+@nowarn
 final class MigrationCLI(using transactor: Transactor) {
 
   def run(args: Array[String]): Unit = {
@@ -110,8 +112,6 @@ final class MigrationCLI(using transactor: Transactor) {
   }
 
   private def dispatch(config: Config): Unit = {
-    // Dispatch by selecting and indicating the migrator type to construct (wiring only).
-    // Actual migrator construction (with Repo/Migration) is the caller's responsibility.
     config.model match {
       case "tiny" =>
         println(s"Dispatching TinyMigrator(queueTable=${config.queueTable}, target=${config.target})")

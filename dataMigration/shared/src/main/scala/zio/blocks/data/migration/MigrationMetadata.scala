@@ -51,13 +51,15 @@ object MigrationMetadata {
   def markDone(aggregateType: String, aggregateId: String, version: DataVersion)(using con: DbCon): Unit = {
     val vstr  = s"${version.epoch}.${version.major}.${version.minor}"
     val now   = System.currentTimeMillis()
-    // parts: 7 segments, 6 params
+    // 7 parts, 6 params = 6 ? placeholders
     val parts = IndexedSeq(
       s"INSERT INTO $TableName (aggregate_type, aggregate_id, data_version, migrated_at) VALUES (",
       ", ",
       ", ",
-      ", ?) ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET data_version = ",
-      ", migrated_at = "
+      ", ",
+      ") ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET data_version = ",
+      ", migrated_at = ",
+      ""
     )
     val params = IndexedSeq(
       DbValue.DbString(aggregateType), DbValue.DbString(aggregateId), DbValue.DbString(vstr), DbValue.DbLong(now),

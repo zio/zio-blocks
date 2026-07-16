@@ -17,7 +17,7 @@
 package zio.blocks.data.migration
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, Schema}
+import zio.blocks.schema.{DynamicOptic, DynamicSchemaExpr, DynamicValue, Reflect, Schema}
 import zio.blocks.schema.migration.{DynamicMigration, Migration, MigrationAction}
 
 /**
@@ -79,7 +79,7 @@ object SchemaDerivation {
     })
     added.foreach { name =>
       val at      = DynamicOptic.root.field(name)
-      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, null.asInstanceOf[Schema[_]]) // sensible null default (schema unused in derivation)
+      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, Schema(fieldsB(name).value.asInstanceOf[Reflect.Bound[Any]]))
       actions = actions :+ MigrationAction.AddField(at, default)
     }
 
@@ -90,7 +90,7 @@ object SchemaDerivation {
     })
     dropped.foreach { name =>
       val at      = DynamicOptic.root.field(name)
-      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, null.asInstanceOf[Schema[_]])
+      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, Schema(fieldsA(name).value.asInstanceOf[Reflect.Bound[Any]]))
       actions = actions :+ MigrationAction.DropField(at, default)
     }
 
