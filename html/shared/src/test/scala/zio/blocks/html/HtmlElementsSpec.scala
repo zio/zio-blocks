@@ -141,7 +141,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("Array as modifier renders children") {
         val items = Array("a", "b", "c")
-        assertTrue(ul(items.map(i => li(i))).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
+        assertTrue(ul(items.map(i => li(i)).toSeq: _*).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
       },
       test("empty iterable renders nothing") {
         assertTrue(div(List.empty[String]).render == "<div></div>")
@@ -310,7 +310,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           rFigcaption == "<figcaption>x</figcaption>",
           rKbd == "<kbd>x</kbd>",
           rMeter == "<meter>x</meter>",
-          optgroup.render == "<optgroup></optgroup>",
+          optgroup().render == "<optgroup></optgroup>",
           rOutput == "<output>x</output>",
           rProgress == "<progress>x</progress>",
           rRuby == "<ruby>x</ruby>",
@@ -363,12 +363,12 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rLegend     = legend("x").render
         val rNav        = nav("x").render
         val rOlLi       = ol(li("x")).render
-        val rOption     = option("x").render
+        val rOption     = opt("x").render
         val rPre        = pre("x").render
         val rQ          = q("x").render
         val rS          = s("x").render
         val rSection    = section("x").render
-        val rSelectOpt  = select(option("x")).render
+        val rSelectOpt  = select(opt("x")).render
         val rSmall      = small("x").render
         val rStrong     = strong("x").render
         val rSub        = sub("x").render
@@ -491,8 +491,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
       },
       test("form and label attribute aliases") {
-        val r1 = input(formAttr := "myform").render
-        val r2 = option(labelAttr := "opt").render
+        val r1 = Dom.Element.Generic("input", Chunk(formAttr := "myform"), Chunk.empty).render
+        val r2 = opt(labelAttr := "opt").render
         assertTrue(
           r1 == """<input form="myform"/>""",
           r2 == """<option label="opt"></option>"""
@@ -536,8 +536,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rTextareaRows    = textarea(rows := "5").render
         val rTextareaWrap    = textarea(wrap := "hard").render
         val rScriptIntegrity = script(integrity := "sha384-xxx").render
-        val rImgReferrer     = img(referrerpolicy := "no-referrer").render
-        val rOlReversed      = ol(reversed).render
+        val rImgReferrer     = Dom.Element.Generic("img", Chunk(referrerpolicy := "no-referrer"), Chunk.empty).render
+        val rOlReversed      = Dom.Element.Generic("ol", Chunk(reversed), Chunk.empty).render
         val rIframeSandbox   = iframe(sandbox := "allow-scripts").render
         val rDivSpellcheck   = div(spellcheck := "true").render
         val rDivTranslate    = div(translate := "yes").render
