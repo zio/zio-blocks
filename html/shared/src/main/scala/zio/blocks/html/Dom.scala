@@ -228,10 +228,14 @@ object Dom {
 
     private[html] def escapeText: Boolean
 
+    protected[html] def checkVoidChildren(): Unit =
+      if (isVoid && children.nonEmpty) throw new IllegalArgumentException(s"Void element <$tag> cannot have children")
+
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
       sb.append('<')
       sb.append(tag)
       renderAttributes(resolveOrPassthrough(attributes), sb)
+      checkVoidChildren()
       if (isVoid) {
         sb.append("/>")
       } else {
@@ -258,6 +262,7 @@ object Dom {
       sb.append('<')
       sb.append(tag)
       renderAttributes(resolveOrPassthrough(attributes), sb)
+      checkVoidChildren()
       if (isVoid) {
         sb.append("/>")
       } else if (children.isEmpty) {

@@ -53,7 +53,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(input.render == "<input/>")
       },
       test("img as void element with attributes") {
-        val result = img(src := "pic.png", alt := "photo").render
+        val result = Dom.Element.Generic("img", Chunk(src := "pic.png", alt := "photo"), Chunk.empty).render
         assertTrue(
           result == """<img src="pic.png" alt="photo"/>"""
         )
@@ -61,19 +61,19 @@ object HtmlElementsSpec extends ZIOSpecDefault {
     ),
     suite("boolean attributes")(
       test("required as boolean attribute via BooleanAttribute") {
-        val result = input(required).render
+        val result = Dom.Element.Generic("input", Chunk(required), Chunk.empty).render
         assertTrue(result == "<input required/>")
       },
       test("disabled as boolean attribute") {
-        val result = input(disabled).render
+        val result = Dom.Element.Generic("input", Chunk(disabled), Chunk.empty).render
         assertTrue(result == "<input disabled/>")
       },
       test("BooleanAttribute enabled=true renders") {
-        val result = input(Dom.boolAttr("required", enabled = true)).render
+        val result = Dom.Element.Generic("input", Chunk(Dom.boolAttr("required", enabled = true)), Chunk.empty).render
         assertTrue(result == "<input required/>")
       },
       test("BooleanAttribute enabled=false omits attribute") {
-        val result = input(Dom.boolAttr("required", enabled = false)).render
+        val result = Dom.Element.Generic("input", Chunk(Dom.boolAttr("required", enabled = false)), Chunk.empty).render
         assertTrue(result == "<input/>")
       }
     ),
@@ -476,7 +476,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       },
       test("cite and span attributes") {
         val r1 = blockquote(citeAttr := "url").render
-        val r2 = col(spanAttr := "2").render
+        val r2 = Dom.Element.Generic("col", Chunk(spanAttr := "2"), Chunk.empty).render
         assertTrue(
           r1 == """<blockquote cite="url"></blockquote>""",
           r2 == """<col span="2"/>"""
@@ -491,7 +491,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
       },
       test("form and label attribute aliases") {
-        val r1 = input(formAttr := "myform").render
+        val r1 = Dom.Element.Generic("input", Chunk(formAttr := "myform"), Chunk.empty).render
         val r2 = option(labelAttr := "opt").render
         assertTrue(
           r1 == """<input form="myform"/>""",
@@ -499,7 +499,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         )
       },
       test("httpEquiv attribute") {
-        val result = meta(httpEquiv := "refresh").render
+        val result = Dom.Element.Generic("meta", Chunk(httpEquiv := "refresh"), Chunk.empty).render
         assertTrue(result == """<meta http-equiv="refresh"/>""")
       },
       test("xmlns attribute") {
@@ -507,7 +507,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(result == """<html xmlns="http://www.w3.org/1999/xhtml"></html>""")
       },
       test("miscellaneous attributes") {
-        val rInputAccept     = input(accept := "image/*").render
+        val rInputAccept     = Dom.Element.Generic("input", Chunk(accept := "image/*"), Chunk.empty).render
         val rDivAccesskey    = div(accesskey := "h").render
         val rScriptAsync     = script(async).render
         val rScriptDefer     = script(defer).render
@@ -515,28 +515,28 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rVideoControls   = video(controls).render
         val rVideoLoop       = video(loop).render
         val rVideoMuted      = video(muted).render
-        val rImgLoading      = img(loading := "lazy").render
-        val rMetaCharset     = meta(charset := "utf-8").render
-        val rMetaContent     = meta(content := "text").render
-        val rImgCrossorigin  = img(crossorigin := "anonymous").render
+        val rImgLoading      = Dom.Element.Generic("img", Chunk(loading := "lazy"), Chunk.empty).render
+        val rMetaCharset     = Dom.Element.Generic("meta", Chunk(charset := "utf-8"), Chunk.empty).render
+        val rMetaContent     = Dom.Element.Generic("meta", Chunk(content := "text"), Chunk.empty).render
+        val rImgCrossorigin  = Dom.Element.Generic("img", Chunk(crossorigin := "anonymous"), Chunk.empty).render
         val rTimeDatetime    = time(datetime := "2024-01-01").render
         val rDetailsOpen     = details(open).render
-        val rInputList       = input(list := "opts").render
+        val rInputList       = Dom.Element.Generic("input", Chunk(list := "opts"), Chunk.empty).render
         val rFormNoValidate  = form(noValidate).render
         val rFormEncType     = form(encType := "multipart").render
         val rBtnFormAction   = button(formAction := "/go").render
         val rBtnFormMethod   = button(formMethod := "post").render
         val rBtnFormNoVal    = button(formNoValidate).render
-        val rImgSrcSet       = img(srcSet := "a.png 1x").render
-        val rImgSizes        = img(sizes := "100vw").render
-        val rInputMinLen     = input(minLength := "3").render
-        val rInputMaxLen     = input(maxLength := "10").render
-        val rInputSize       = input(size := "20").render
+        val rImgSrcSet       = Dom.Element.Generic("img", Chunk(srcSet := "a.png 1x"), Chunk.empty).render
+        val rImgSizes        = Dom.Element.Generic("img", Chunk(sizes := "100vw"), Chunk.empty).render
+        val rInputMinLen     = Dom.Element.Generic("input", Chunk(minLength := "3"), Chunk.empty).render
+        val rInputMaxLen     = Dom.Element.Generic("input", Chunk(maxLength := "10"), Chunk.empty).render
+        val rInputSize       = Dom.Element.Generic("input", Chunk(size := "20"), Chunk.empty).render
         val rTextareaCols    = textarea(cols := "40").render
         val rTextareaRows    = textarea(rows := "5").render
         val rTextareaWrap    = textarea(wrap := "hard").render
         val rScriptIntegrity = script(integrity := "sha384-xxx").render
-        val rImgReferrer     = img(referrerpolicy := "no-referrer").render
+        val rImgReferrer     = Dom.Element.Generic("img", Chunk(referrerpolicy := "no-referrer"), Chunk.empty).render
         val rOlReversed      = ol(reversed).render
         val rIframeSandbox   = iframe(sandbox := "allow-scripts").render
         val rDivSpellcheck   = div(spellcheck := "true").render
@@ -706,11 +706,11 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         assertTrue(s.render == "<style>body { margin: 0 }</style>")
       },
       test("meta charset renders correctly") {
-        val m = meta(charset := "utf-8")
+        val m = Dom.Element.Generic("meta", Chunk(charset := "utf-8"), Chunk.empty)
         assertTrue(m.render == """<meta charset="utf-8"/>""")
       },
       test("link with rel and href") {
-        val l = link(rel := "stylesheet", href := "/style.css")
+        val l = Dom.Element.Generic("link", Chunk(rel := "stylesheet", href := "/style.css"), Chunk.empty)
         assertTrue(
           l.render == """<link rel="stylesheet" href="/style.css"/>"""
         )

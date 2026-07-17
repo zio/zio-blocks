@@ -75,7 +75,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("input with attributes matches DSL") {
         val fromHtml = html"""<input type="text"/>"""
-        val fromDsl  = input(`type` := "text")
+        val fromDsl  = Dom.Element.Generic("input", Chunk(`type` := "text"), Chunk.empty)
         assertTrue(fromHtml == fromDsl)
       },
       test("script element matches DSL") {
@@ -100,7 +100,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("element with boolean attribute matches DSL") {
         val fromHtml = html"<input disabled/>"
-        val fromDsl  = input(disabled)
+        val fromDsl  = Dom.Element.Generic("input", Chunk(disabled), Chunk.empty)
         assertTrue(fromHtml == fromDsl)
       },
       test("mixed text and elements match DSL") {
@@ -110,12 +110,12 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("meta void element matches DSL") {
         val fromHtml = html"""<meta charset="utf-8">"""
-        val fromDsl  = meta(charset := "utf-8")
+        val fromDsl  = Dom.Element.Generic("meta", Chunk(charset := "utf-8"), Chunk.empty)
         assertTrue(fromHtml == fromDsl)
       },
       test("img void element matches DSL") {
         val fromHtml = html"""<img src="photo.jpg" alt="Photo">"""
-        val fromDsl  = img(src := "photo.jpg", alt := "Photo")
+        val fromDsl  = Dom.Element.Generic("img", Chunk(src := "photo.jpg", alt := "Photo"), Chunk.empty)
         assertTrue(fromHtml == fromDsl)
       },
       test("deeply nested matches DSL") {
