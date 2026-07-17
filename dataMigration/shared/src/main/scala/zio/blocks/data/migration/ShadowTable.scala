@@ -30,7 +30,8 @@ object ShadowTable {
    * Uses `CREATE TABLE ... LIKE` (Postgres) or equivalent.
    */
   def create[E](table: SqlTable[E], suffix: String)(using con: DbCon): String = {
-    val shadowName = s"${table.name}_$suffix"
+    val validated  = QueueTable.SqlId.validate("suffix", suffix)
+    val shadowName = s"${table.name}_$validated"
     val ddl        = Frag.literal(s"CREATE TABLE $shadowName (LIKE ${table.name} INCLUDING ALL)")
     ddl.update
     shadowName
@@ -43,12 +44,14 @@ object ShadowTable {
    * Caller is responsible for dropping the old table after verification.
    */
   def swap(tableName: String, suffix: String)(using con: DbCon): (String, String) = {
-    val shadowName = s"${tableName}_$suffix"
-    val oldName    = s"${tableName}_old_$suffix"
+    val tblValid   = QueueTable.SqlId.validate("table", tableName)
+    val sfxValid   = QueueTable.SqlId.validate("suffix", suffix)
+    val shadowName = s"${tblValid}_$sfxValid"
+    val oldName    = s"${tblValid}_old_$sfxValid"
 
     // Rename live → old, shadow → live (within same transaction for atomicity)
-    Frag.literal(s"ALTER TABLE $tableName RENAME TO $oldName").update
-    Frag.literal(s"ALTER TABLE $shadowName RENAME TO $tableName").update
+    Frag.literal(s"ALTER TABLE $tblValid RENAME TO $oldName").update
+    Frag.literal(s"ALTER TABLE $shadowName RENAME TO $tblValid").update
 
     (oldName, tableName)
   }

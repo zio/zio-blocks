@@ -52,7 +52,7 @@ final class LargeMigrator[A, B, ID](
   }
 
   def complete(): Unit = {
-    transactor.connect { (con: DbCon) ?=> 
+    transactor.transact { (tx: DbTx) ?=>
       TargetStrategyApplier.finalize(repoV2.table.name, target)
     }
   }

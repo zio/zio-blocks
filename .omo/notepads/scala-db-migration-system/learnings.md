@@ -73,20 +73,14 @@
 - MigrationPath require guard works as intended (downgrades fail construction).
 - Test uses identity DynamicMigration stub — sufficient for model verification.
 
-# 2026-07-17 — CLI for Execution Models (Todo 8)
+# 2026-07-17 — CLI Removed — Migrations Run from Application Code
 ## Decisions
-- MigrationCLI is a final class (not object or abstract) taking Transactor via `using` (given) parameter — allows programmatic wiring without DB setup inside CLI.
-- Simple hand-written arg parser (while loop + match on flags) — no external libs per MUST NOT.
-- run(args) handles --help, defaults, errors with clear messages to stderr + usage; dispatch prints chosen migrator type (Tiny/Small/Large) + config (wiring only, no logic).
-- --target supports "shadow:<name>" parsing to TargetStrategy.ShadowTable; --model validated to tiny|small|large.
-- Tests follow existing FakeTransactor + ZIOSpecDefault + assertTrue pattern exactly (no stdout capture needed for CLI behavior verification).
-- No @main in shared/ (cross JS/JVM); run() is the entry point for programmatic use.
-
-## Risks Mitigated
-- Parsing errors never crash (graceful IllegalArg catch); defaults always applied when flags omitted.
-- No changes to Tiny/Small/Large or core types; CLI only consumes them.
-- jj workspace discipline followed: prior Derivation commit + new change for CLI only.
+- `MigrationCLI` and `CLISpec` were removed — string-matching arg parser was an anti-pattern for a typed FP library.
+- Migrations run from application code using typed programmatic API (TinyMigrator, SmallMigrator, LargeMigrator).
+- A `Migrated` token (`final class Migrated private[migration] ()`) was added to `core.scala`.
+- Services declare `(using Migrated)` in their constructor; the `Resource`/`Scope` wiring guarantees migration completes before the service starts.
+- Mill/sbt 2 CLI integration is deferred — the library focuses on the typed API.
+- SQL identifier validation (`SqlId.validate`) extracted as `private[migration]` and shared between `QueueTable` and `ShadowTable`.
 
 ## Verification Approach
-- `sbt "++3.8.3; dataMigrationJVM/test"` (would exercise new CLISpec + all prior).
-- Appended this section to learnings.md as required.
+- `sbt "++3.8.3; dataMigrationJVM/test"` runs all migration module tests.

@@ -16,7 +16,7 @@
 
 package zio.blocks.data.migration
 
-import zio.blocks.sql.{DbCodec, DbCon, Frag, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbTx, Frag, Transactor}
 import zio.blocks.sql.Frag.*
 
 /**
@@ -27,7 +27,7 @@ import zio.blocks.sql.Frag.*
  */
 object QueueTable {
 
-  private object SqlId {
+  private[migration] object SqlId {
     private val Identifier = raw"[A-Za-z_][A-Za-z0-9_]*".r
     def validate(kind: String, value: String): String =
       value match {
@@ -48,9 +48,10 @@ object QueueTable {
    *   Transactor for executing DDL
    */
   def create[ID](tableName: String, transactor: Transactor)(using codec: DbCodec[ID]): Unit = {
+    require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    val ddl       = Frag.literal(s"CREATE TABLE IF NOT EXISTS $validated (\n  $colName TEXT NOT NULL\n)")
+    val ddl       = Frag.literal(s"CREATE TABLE IF NOT EXISTS $validated (\n  $colName TEXT NOT NULL PRIMARY KEY\n)")
     transactor.connect { (con: DbCon) ?=> ddl.update(using con) }
   }
 
@@ -69,20 +70,16 @@ object QueueTable {
   /**
    * Dequeues up to `batchSize` IDs using SKIP LOCKED.
    */
-  def dequeue[ID](tableName: String, batchSize: Int)(using con: DbCon, codec: DbCodec[ID]): List[ID] = {
+  def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID]): List[ID] = {
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    val frag      = Frag.literal(s"SELECT $colName FROM $validated ORDER BY $colName FOR UPDATE SKIP LOCKED LIMIT $batchSize")
+    val frag      = Frag.literal(s"SELECT $colName FROM $validated ORDER BY $colName LIMIT $batchSize FOR UPDATE SKIP LOCKED")
     val rows      = frag.query[ID]
     // Delete dequeued rows (parameterized)
     if (rows.nonEmpty) {
-      val rowFrags = rows.map { r =>
-        val params = codec.toDbValues(r)
-        val parts  = IndexedSeq("(") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
-        Frag(parts, params)
-      }
-      val inFrag = rowFrags.reduceLeft((a, b) => a ++ Frag.literal(", ") ++ b)
-      (Frag.literal(s"DELETE FROM $validated WHERE $colName IN ") ++ inFrag).update
+      val params = rows.flatMap(r => codec.toDbValues(r)).toIndexedSeq
+      val parts  = IndexedSeq(s"DELETE FROM $validated WHERE $colName IN (") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
+      Frag(parts, params).update
     }
     rows
   }

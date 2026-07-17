@@ -27,7 +27,7 @@ object TargetStrategyApplier {
   def resolveTableName[E](table: Table[E], strategy: TargetStrategy): String =
     strategy match {
       case TargetStrategy.InPlace        => table.name
-      case TargetStrategy.ShadowTable(n) => n
+      case TargetStrategy.ShadowTable(n) => table.name + "_" + n
     }
 
   /**

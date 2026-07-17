@@ -76,6 +76,7 @@ object SmallMigratorSpec extends ZIOSpecDefault {
       )(using stubTx, summon[DbCodec[Int]])
 
       // We only care that transact was invoked; ignore the internal NPE from the null connection
+      migrator.init() // required before processBatch (InPlace is a no-op here)
       try { migrator.processBatch() } catch { case _: NullPointerException => () }
       assertTrue(stubTx.transactCalled == 1)
     },
@@ -88,6 +89,7 @@ object SmallMigratorSpec extends ZIOSpecDefault {
         repoV1, repoV2, dummyMigration, "q", 0, TargetStrategy.InPlace
       )(using stubTx, summon[DbCodec[Int]])
 
+      migrator.init() // required before processBatch (InPlace is a no-op here)
       val result = migrator.processBatch()
       assertTrue(result == 0)
     }

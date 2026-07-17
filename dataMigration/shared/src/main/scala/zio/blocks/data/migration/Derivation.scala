@@ -79,7 +79,7 @@ object SchemaDerivation {
     })
     added.foreach { name =>
       val at      = DynamicOptic.root.field(name)
-      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, Schema(fieldsB(name).value.asInstanceOf[Reflect.Bound[Any]]))
+      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, new Schema(fieldsB(name).value.asInstanceOf[Reflect.Bound[Any]]))
       actions = actions :+ MigrationAction.AddField(at, default)
     }
 
@@ -90,7 +90,7 @@ object SchemaDerivation {
     })
     dropped.foreach { name =>
       val at      = DynamicOptic.root.field(name)
-      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, Schema(fieldsA(name).value.asInstanceOf[Reflect.Bound[Any]]))
+      val default = DynamicSchemaExpr.Literal(DynamicValue.Null, new Schema(fieldsA(name).value.asInstanceOf[Reflect.Bound[Any]]))
       actions = actions :+ MigrationAction.DropField(at, default)
     }
 

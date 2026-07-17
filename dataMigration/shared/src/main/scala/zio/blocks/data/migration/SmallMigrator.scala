@@ -36,6 +36,7 @@ final class SmallMigrator[A, B, ID](
 )(using transactor: Transactor, codecId: DbCodec[ID]) {
 
   private var writeRepo: Repo[B, ID] = repoV2
+  private var initialized: Boolean = false
 
   def init(): Unit = {
     transactor.connect { (con: DbCon) ?=> 
@@ -46,16 +47,18 @@ final class SmallMigrator[A, B, ID](
         writeRepo = Repo(shadowTable, repoV2.idColumn, repoV2.idCodec, repoV2.getId)
       }
     }
+    initialized = true
   }
 
   def complete(): Unit = {
-    transactor.connect { (con: DbCon) ?=> 
+    transactor.transact { (tx: DbTx) ?=>
       TargetStrategyApplier.finalize(repoV2.table.name, target)
     }
   }
 
   /** Processes one batch. Returns count of migrated rows. */
   def processBatch(): Int = {
+    require(initialized, "init() must be called before processBatch()")
     if (batchSize <= 0) return 0
     transactor.transact { (tx: DbTx) ?=> 
       // 1. Dequeue up to batchSize IDs from queue table

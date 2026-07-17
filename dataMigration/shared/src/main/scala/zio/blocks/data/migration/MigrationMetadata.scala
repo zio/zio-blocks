@@ -85,7 +85,11 @@ object MigrationMetadata {
   }
 
   private def parseVersion(s: String): Option[DataVersion] = s.split('.').toList match {
-    case e :: m :: n :: Nil => Some(DataVersion(e.toInt, m.toInt, n.toInt))
-    case _                  => None
+    case e :: m :: n :: Nil =>
+      (e.toIntOption, m.toIntOption, n.toIntOption) match {
+        case (Some(epoch), Some(major), Some(minor)) => Some(DataVersion(epoch, major, minor))
+        case _                                       => None
+      }
+    case _ => None
   }
 }

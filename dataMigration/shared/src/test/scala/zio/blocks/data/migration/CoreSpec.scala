@@ -48,9 +48,11 @@ object CoreSpec extends ZIOSpecDefault {
       assertTrue(v2.compare(v1) >= 0)
     },
     test("MigrationPath rejects downgrade (from >= to)") {
-      val bad = MigrationPath(v2, v1, migV1toV2)
-      assertTrue(bad.from.compare(bad.to) >= 0) // construction should have failed via require
-    } @@ TestAspect.failing, // expect failure due to require
+      assertTrue {
+        try { MigrationPath(v2, v1, migV1toV2); false }
+        catch { case _: IllegalArgumentException => true }
+      }
+    },
     test("MigrationPath accepts valid upgrade path") {
       val ok = MigrationPath(v1, v2, migV1toV2)
       assertTrue(ok.from.compare(ok.to) < 0)
