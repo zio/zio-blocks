@@ -179,10 +179,11 @@ sealed trait Dom extends Product with Serializable {
    *   true if this node produces no output when rendered
    */
   def isEmpty: Boolean = this match {
-    case Dom.Empty      => true
-    case Dom.Text(c)    => c.isEmpty
-    case _: Dom.Element => false
-    case _: Dom.Doctype => false
+    case Dom.Empty          => true
+    case Dom.Text(c)        => c.isEmpty
+    case _: Dom.Element     => false
+    case _: Dom.Element.Void => false
+    case _: Dom.Doctype     => false
   }
 }
 
@@ -376,6 +377,54 @@ object Dom {
 
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))
+    }
+
+    /**
+     * A void HTML element.
+     *
+     * Void elements cannot have children per the HTML spec (e.g., `<br>`,
+     * `<img>`, `<input>`). This sealed trait extends `Dom` directly rather than
+     * `Element` to prevent children from being added at compile time.
+     *
+     * Use [[VoidGeneric]] for programmatic construction. Use the
+     * `apply(attribute, attributes*)` method to add attributes fluently.
+     */
+    sealed trait Void extends Dom with CssSelectable {
+      def tag: String
+      def attributes: Chunk[Attribute]
+      val selector: CssSelector = CssSelector.Element(tag)
+
+      def apply(attribute: Dom.Attribute, attributes: Dom.Attribute*): Void = {
+        val merged = this.attributes ++ (attribute +: attributes)
+        Dom.Element.VoidGeneric(tag, merged)
+      }
+    }
+
+    /**
+     * A generic void HTML element.
+     *
+     * Represents any void HTML tag (e.g., "br", "img", "input"). Always renders
+     * as self-closing (`<tag attrs/>`). Children are structurally impossible
+     * because this extends [[Void]] (which extends `Dom` directly, not
+     * `Element`).
+     *
+     * @param tag
+     *   the element tag name
+     * @param attributes
+     *   attribute key-value pairs
+     */
+    final case class VoidGeneric(
+      tag: String,
+      attributes: Chunk[Attribute]
+    ) extends Void {
+      private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
+        sb.append('<')
+        sb.append(tag)
+        renderAttributes(resolveOrPassthrough(attributes), sb)
+        sb.append("/>")
+      }
+      private[html] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit = renderTo(sb)
+      private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = renderTo(sb)
     }
   }
 

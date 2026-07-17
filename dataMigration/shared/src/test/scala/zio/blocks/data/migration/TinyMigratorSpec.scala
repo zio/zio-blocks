@@ -25,22 +25,25 @@ object TinyMigratorSpec extends ZIOSpecDefault {
   final class RecordingTransactor extends Transactor {
     var transactCalled: Boolean = false
 
-    override def connect[A](f: DbCon ?=> A): A = {
+    override def connect[A](f: DbCon ?=> A): A =
       // Not used by TinyMigrator; provide a dummy implementation
-      f(using new DbCon {
-        def connection: DbConnection = ???
-        def dialect: SqlDialect      = ???
-        def logger: SqlLogger        = ???
-      })
-    }
+      f(using
+        new DbCon {
+          def connection: DbConnection = ???
+          def dialect: SqlDialect      = ???
+          def logger: SqlLogger        = ???
+        }
+      )
 
     override def transact[A](f: DbTx ?=> A): A = {
       transactCalled = true
-      f(using new DbTx {
-        def connection: DbConnection = ???
-        def dialect: SqlDialect      = ???
-        def logger: SqlLogger        = ???
-      })
+      f(using
+        new DbTx {
+          def connection: DbConnection = ???
+          def dialect: SqlDialect      = ???
+          def logger: SqlLogger        = ???
+        }
+      )
     }
   }
 
@@ -71,13 +74,15 @@ object TinyMigratorSpec extends ZIOSpecDefault {
         val migr = new TinyMigrator(tx) {
           override def run()(using tx: DbTx): Unit = {
             // DDL operations must type-check with DbTx (subtype of DbCon)
-            val _ = Ddl.createTable(
-              "test_table",
-              IndexedSeq(
-                ColumnDef("id", "BIGSERIAL", nullable = false),
-                ColumnDef("name", "TEXT", nullable = true)
+            val _ = Ddl
+              .createTable(
+                "test_table",
+                IndexedSeq(
+                  ColumnDef("id", "BIGSERIAL", nullable = false),
+                  ColumnDef("name", "TEXT", nullable = true)
+                )
               )
-            ).update
+              .update
           }
         }
         // Just ensure instantiation succeeds; execution tested in integration

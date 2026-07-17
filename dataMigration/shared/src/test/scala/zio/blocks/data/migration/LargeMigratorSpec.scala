@@ -38,26 +38,28 @@ object LargeMigratorSpec extends ZIOSpecDefault {
 
   val fakeTransactor: Transactor = new FakeTransactor {}
 
+  private given dialect: Dialect = Dialect.Postgres
+
   // Compile test: LargeMigrator construction
-  val _compileTest: LargeMigrator[Int, String, Long] = new LargeMigrator[Int, String, Long](
+  val _compileTest: LargeMigrator[Int, String, Long, Long] = new LargeMigrator[Int, String, Long, Long](
     repoV1 = null.asInstanceOf[Repo[Int, Long]],
     repoV2 = null.asInstanceOf[Repo[String, Long]],
     migration = fakeMigration,
     queueTable = "q",
     batchSize = 10,
     target = TargetStrategy.InPlace
-  )(using fakeTransactor, null.asInstanceOf[DbCodec[Long]])
+  )(using fakeTransactor, DbCodec.longCodec)
 
   def spec = suite("LargeMigrator")(
     test("pause/resume/isPaused work") {
-      val m = new LargeMigrator[Int, String, Long](
+      val m = new LargeMigrator[Int, String, Long, Long](
         repoV1 = null.asInstanceOf[Repo[Int, Long]],
         repoV2 = null.asInstanceOf[Repo[String, Long]],
         migration = fakeMigration,
         queueTable = "q",
         batchSize = 10,
         target = TargetStrategy.InPlace
-      )(using fakeTransactor, null.asInstanceOf[DbCodec[Long]])
+      )(using fakeTransactor, DbCodec.longCodec)
       assertTrue(!m.isPaused)
       m.pause()
       assertTrue(m.isPaused)
@@ -65,25 +67,25 @@ object LargeMigratorSpec extends ZIOSpecDefault {
       assertTrue(!m.isPaused)
     },
     test("run returns 0 on empty queue") {
-      val m = new LargeMigrator[Int, String, Long](
+      val m = new LargeMigrator[Int, String, Long, Long](
         repoV1 = null.asInstanceOf[Repo[Int, Long]],
         repoV2 = null.asInstanceOf[Repo[String, Long]],
         migration = fakeMigration,
         queueTable = "q",
         batchSize = 10,
         target = TargetStrategy.InPlace
-      )(using fakeTransactor, null.asInstanceOf[DbCodec[Long]])
+      )(using fakeTransactor, DbCodec.longCodec)
       assertTrue(m.run() == 0)
     },
     test("pendingCount compiles") {
-      val m = new LargeMigrator[Int, String, Long](
+      val m = new LargeMigrator[Int, String, Long, Long](
         repoV1 = null.asInstanceOf[Repo[Int, Long]],
         repoV2 = null.asInstanceOf[Repo[String, Long]],
         migration = fakeMigration,
         queueTable = "q",
         batchSize = 10,
         target = TargetStrategy.InPlace
-      )(using fakeTransactor, null.asInstanceOf[DbCodec[Long]])
+      )(using fakeTransactor, DbCodec.longCodec)
       val _ = m.pendingCount
       assertTrue(true)
     }

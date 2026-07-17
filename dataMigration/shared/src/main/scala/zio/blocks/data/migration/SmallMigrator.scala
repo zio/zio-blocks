@@ -17,30 +17,31 @@
 package zio.blocks.data.migration
 
 import zio.blocks.schema.migration.Migration
-import zio.blocks.sql.{DbCodec, DbCon, DbTx, Repo, Transactor}
+import zio.blocks.sql.{DbCodec, DbTx, Dialect, Repo, Transactor}
 
 /**
  * A-Small: queue-based batch migration worker.
  *
- * Dequeues IDs from a queue table, reads entities via Repo.findAll,
- * applies Migration[A,B], writes via Repo.insertBatch.
- * One transaction per batch. Supports both in-place and shadow targets.
+ * Dequeues IDs from a queue table, reads entities via Repo.findAll, applies
+ * Migration[A,B], writes via Repo.insertBatch. One transaction per batch.
+ * Supports both in-place and shadow targets.
  */
-final class SmallMigrator[A, B, ID](
-  repoV1: Repo[A, ID],
-  repoV2: Repo[B, ID],
+final class SmallMigrator[A, B, ID1, ID2](
+  repoV1: Repo[A, ID1],
+  repoV2: Repo[B, ID2],
   migration: Migration[A, B],
   queueTable: String,
   batchSize: Int,
   target: TargetStrategy
-)(using transactor: Transactor, codecId: DbCodec[ID]) {
+)(using transactor: Transactor, codecId: DbCodec[ID1], dialect: Dialect) {
 
-  private var writeRepo: Repo[B, ID] = repoV2
-  private var initialized: Boolean = false
+  private var writeRepo: Repo[B, ID2] = repoV2
+  private var initialized: Boolean    = false
 
   def init(): Unit = {
-    transactor.connect { (con: DbCon) ?=> 
-      val resolvedName = TargetStrategyApplier.prepare(repoV2.table, target)
+    if (initialized) return
+    transactor.transact { (tx: DbTx) ?=>
+      val resolvedName = TargetStrategyApplier.prepare(repoV2.table, target)(using tx, dialect)
       if (resolvedName != repoV2.table.name) {
         import zio.blocks.sql.{Table => SqlTable}
         val shadowTable = SqlTable(resolvedName, repoV2.table.codec, repoV2.table.columnsMeta)
@@ -51,6 +52,7 @@ final class SmallMigrator[A, B, ID](
   }
 
   def complete(): Unit = {
+    require(initialized, "init() must be called before complete()")
     transactor.transact { (tx: DbTx) ?=>
       TargetStrategyApplier.finalize(repoV2.table.name, target)
     }
@@ -60,9 +62,9 @@ final class SmallMigrator[A, B, ID](
   def processBatch(): Int = {
     require(initialized, "init() must be called before processBatch()")
     if (batchSize <= 0) return 0
-    transactor.transact { (tx: DbTx) ?=> 
+    transactor.transact { (tx: DbTx) ?=>
       // 1. Dequeue up to batchSize IDs from queue table
-      val ids = QueueTable.dequeue[ID](queueTable, batchSize)(using tx, summon[DbCodec[ID]])
+      val ids = QueueTable.dequeue[ID1](queueTable, batchSize)(using tx, codecId, dialect)
       if (ids.isEmpty) 0
       else {
         // 2. Find entities by ID using Repo.findAll
@@ -78,10 +80,16 @@ final class SmallMigrator[A, B, ID](
 
         target match {
           case TargetStrategy.InPlace =>
-            entitiesV2.foreach(e => repoV2.update(e)(using tx))
-            entitiesV2.size
+            entitiesV2.foldLeft(0) { (count, e) =>
+              count + repoV2.update(e)(using tx)
+            }
           case TargetStrategy.ShadowTable(_) =>
-            writeRepo.insertBatch(entitiesV2)(using tx)
+            val migrated   = writeRepo.insertBatch(entitiesV2)(using tx)
+            val foundIds   = entitiesV1.map(repoV1.getId).toSet
+            val deletedIds = ids.filterNot(foundIds.contains)
+            val deleted    =
+              if (deletedIds.nonEmpty) writeRepo.deleteAll(deletedIds.asInstanceOf[List[ID2]])(using tx) else 0
+            migrated + deleted
         }
       }
     }

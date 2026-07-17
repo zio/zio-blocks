@@ -28,8 +28,8 @@ object CoreSpec extends ZIOSpecDefault {
   final case class V1(name: String)
   final case class V2(name: String, age: Int)
 
-  implicit val schemaV1: Schema[V1] = Schema.derived
-  implicit val schemaV2: Schema[V2] = Schema.derived
+  given schemaV1: Schema[V1] = Schema.derived
+  given schemaV2: Schema[V2] = Schema.derived
 
   // Identity dynamic migration (for test construction only)
   val identityDyn: DynamicMigration = DynamicMigration.empty
@@ -69,8 +69,8 @@ object CoreSpec extends ZIOSpecDefault {
     },
     test("TargetStrategy sealed trait exhaustiveness") {
       def classify(ts: TargetStrategy): String = ts match {
-        case TargetStrategy.InPlace          => "inplace"
-        case TargetStrategy.ShadowTable(n)   => s"shadow:$n"
+        case TargetStrategy.InPlace        => "inplace"
+        case TargetStrategy.ShadowTable(n) => s"shadow:$n"
       }
       assertTrue(classify(TargetStrategy.InPlace) == "inplace") &&
       assertTrue(classify(TargetStrategy.ShadowTable("tmp")) == "shadow:tmp")

@@ -34,10 +34,11 @@ import zio.blocks.sql.*
  * }}}
  */
 abstract class TinyMigrator(transactor: Transactor) {
+
   /** Override to define DDL operations. Runs inside transactor.transact. */
   def run()(using tx: DbTx): Unit
 
   /** Executes the migration at startup. Wraps run() in transactor.transact. */
   final def migrate(): Unit =
-    transactor.transact { (tx: DbTx) ?=> run()(using tx) }
+    transactor.transact((tx: DbTx) ?=> run()(using tx))
 }

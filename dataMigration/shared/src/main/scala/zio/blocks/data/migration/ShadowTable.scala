@@ -16,7 +16,7 @@
 
 package zio.blocks.data.migration
 
-import zio.blocks.sql.{DbCon, Frag, Table as SqlTable}
+import zio.blocks.sql.{DbCon, Dialect, Frag, Table as SqlTable}
 
 /**
  * Helpers for creating and swapping shadow tables during large migrations.
@@ -26,13 +26,15 @@ import zio.blocks.sql.{DbCon, Frag, Table as SqlTable}
 object ShadowTable {
 
   /**
-   * Creates a shadow table by copying structure from the source table.
-   * Uses `CREATE TABLE ... LIKE` (Postgres) or equivalent.
+   * Creates a shadow table by copying structure from the source table. Uses the
+   * dialect from `DbCon.dialect` to generate database-appropriate DDL —
+   * `CREATE TABLE ... (LIKE ... INCLUDING ALL)` on PostgreSQL, or raises an
+   * error on SQLite (which requires manual DDL).
    */
-  def create[E](table: SqlTable[E], suffix: String)(using con: DbCon): String = {
+  def create[E](table: SqlTable[E], suffix: String)(using con: DbCon, dialect: Dialect): String = {
     val validated  = QueueTable.SqlId.validate("suffix", suffix)
     val shadowName = s"${table.name}_$validated"
-    val ddl        = Frag.literal(s"CREATE TABLE $shadowName (LIKE ${table.name} INCLUDING ALL)")
+    val ddl        = Frag.literal(dialect.createShadowTableDDL(shadowName, table.name))
     ddl.update
     shadowName
   }
@@ -40,8 +42,8 @@ object ShadowTable {
   /**
    * Atomically swaps the live table with the shadow table.
    *
-   * Postgres: renames live → live_old_suffix, shadow → live.
-   * Caller is responsible for dropping the old table after verification.
+   * Postgres: renames live → live_old_suffix, shadow → live. Caller is
+   * responsible for dropping the old table after verification.
    */
   def swap(tableName: String, suffix: String)(using con: DbCon): (String, String) = {
     val tblValid   = QueueTable.SqlId.validate("table", tableName)

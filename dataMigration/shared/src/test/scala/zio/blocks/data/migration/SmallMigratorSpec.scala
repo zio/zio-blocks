@@ -17,7 +17,7 @@
 package zio.blocks.data.migration
 
 import zio.blocks.schema.migration.Migration
-import zio.blocks.sql.{DbCodec, DbCon, DbTx, Repo, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Repo, Transactor}
 import zio.blocks.schema.Schema
 import zio.test.*
 
@@ -36,15 +36,14 @@ object SmallMigratorSpec extends ZIOSpecDefault {
     }
   }
 
-
-
   // Dummy schema + migration for compile test
   case class V1(x: Int)
   case class V2(x: Int, y: String = "")
 
-  given Schema[V1] = Schema.derived[V1]
-  given Schema[V2] = Schema.derived[V2]
-  given DbCodec[Int] = DbCodec.intCodec
+  given Schema[V1]               = Schema.derived[V1]
+  given Schema[V2]               = Schema.derived[V2]
+  given DbCodec[Int]             = DbCodec.intCodec
+  private given dialect: Dialect = Dialect.Postgres
 
   val dummyMigration: Migration[V1, V2] = Migration(
     summon[Schema[V1]],
@@ -54,39 +53,55 @@ object SmallMigratorSpec extends ZIOSpecDefault {
 
   def spec = suite("SmallMigrator")(
     test("signature compiles") {
-      val stubTx   = new StubTransactor()
+      val stubTx = new StubTransactor()
       // Use a minimal concrete Repo via derived constructor (requires schema + codec in scope)
-      val repoV1   = new Repo[V1, Int]() {}
-      val repoV2   = new Repo[V2, Int]() {}
+      val repoV1 = new Repo[V1, Int]() {}
+      val repoV2 = new Repo[V2, Int]() {}
       // This line must compile:
-      val migrator = new SmallMigrator[V1, V2, Int](
-        repoV1, repoV2, dummyMigration, "q", 10, TargetStrategy.InPlace
+      val migrator = new SmallMigrator[V1, V2, Int, Int](
+        repoV1,
+        repoV2,
+        dummyMigration,
+        "q",
+        10,
+        TargetStrategy.InPlace
       )(using stubTx, summon[DbCodec[Int]])
       assertTrue(true)
     },
 
     test("processBatch calls transactor.transact") {
-      val stubTx   = new StubTransactor()
-      val repoV1   = new Repo[V1, Int]() {}
-      val repoV2   = new Repo[V2, Int]() {}
+      val stubTx = new StubTransactor()
+      val repoV1 = new Repo[V1, Int]() {}
+      val repoV2 = new Repo[V2, Int]() {}
       // batchSize=1 exercises the transact path; the stub does not provide a real connection
       // so the test only asserts that transact was entered (the NPE inside is acceptable for this unit test)
-      val migrator = new SmallMigrator[V1, V2, Int](
-        repoV1, repoV2, dummyMigration, "q", 1, TargetStrategy.InPlace
+      val migrator = new SmallMigrator[V1, V2, Int, Int](
+        repoV1,
+        repoV2,
+        dummyMigration,
+        "q",
+        1,
+        TargetStrategy.InPlace
       )(using stubTx, summon[DbCodec[Int]])
 
       // We only care that transact was invoked; ignore the internal NPE from the null connection
       migrator.init() // required before processBatch (InPlace is a no-op here)
-      try { migrator.processBatch() } catch { case _: NullPointerException => () }
-      assertTrue(stubTx.transactCalled == 1)
+      try { migrator.processBatch() }
+      catch { case _: NullPointerException => () }
+      assertTrue(stubTx.transactCalled == 2) // init() + processBatch() each call transact
     },
 
     test("empty queue returns 0") {
       val stubTx   = new StubTransactor()
       val repoV1   = new Repo[V1, Int]() {}
       val repoV2   = new Repo[V2, Int]() {}
-      val migrator = new SmallMigrator[V1, V2, Int](
-        repoV1, repoV2, dummyMigration, "q", 0, TargetStrategy.InPlace
+      val migrator = new SmallMigrator[V1, V2, Int, Int](
+        repoV1,
+        repoV2,
+        dummyMigration,
+        "q",
+        0,
+        TargetStrategy.InPlace
       )(using stubTx, summon[DbCodec[Int]])
 
       migrator.init() // required before processBatch (InPlace is a no-op here)

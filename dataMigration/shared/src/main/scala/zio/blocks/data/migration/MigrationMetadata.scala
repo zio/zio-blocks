@@ -22,8 +22,8 @@ import zio.blocks.sql.Frag.*
 /**
  * Helpers for the optional `data_migrations` metadata table.
  *
- * Stores provenance for migrated aggregates when resume/re-processing
- * or audit trails are required. Not required for simple in-place migrations.
+ * Stores provenance for migrated aggregates when resume/re-processing or audit
+ * trails are required. Not required for simple in-place migrations.
  */
 object MigrationMetadata {
 
@@ -42,15 +42,15 @@ object MigrationMetadata {
          |  PRIMARY KEY (aggregate_type, aggregate_id)
          |)""".stripMargin
     )
-    transactor.connect { (con: DbCon) ?=> ddl.update(using con) }
+    transactor.connect((con: DbCon) ?=> ddl.update(using con))
   }
 
   /**
    * Marks an aggregate as successfully migrated to a given version.
    */
   def markDone(aggregateType: String, aggregateId: String, version: DataVersion)(using con: DbCon): Unit = {
-    val vstr  = s"${version.epoch}.${version.major}.${version.minor}"
-    val now   = System.currentTimeMillis()
+    val vstr = s"${version.epoch}.${version.major}.${version.minor}"
+    val now  = System.currentTimeMillis()
     // 7 parts, 6 params = 6 ? placeholders
     val parts = IndexedSeq(
       s"INSERT INTO $TableName (aggregate_type, aggregate_id, data_version, migrated_at) VALUES (",
@@ -62,8 +62,12 @@ object MigrationMetadata {
       ""
     )
     val params = IndexedSeq(
-      DbValue.DbString(aggregateType), DbValue.DbString(aggregateId), DbValue.DbString(vstr), DbValue.DbLong(now),
-      DbValue.DbString(vstr), DbValue.DbLong(now)
+      DbValue.DbString(aggregateType),
+      DbValue.DbString(aggregateId),
+      DbValue.DbString(vstr),
+      DbValue.DbLong(now),
+      DbValue.DbString(vstr),
+      DbValue.DbLong(now)
     )
     Frag(parts, params).update
   }
@@ -72,16 +76,22 @@ object MigrationMetadata {
    * Returns the current data version for an aggregate, if recorded.
    */
   def getVersion(aggregateType: String, aggregateId: String)(using con: DbCon): Option[DataVersion] = {
-    val sql = s"SELECT data_version FROM $TableName WHERE aggregate_type = ? AND aggregate_id = ?"
-    Frag(IndexedSeq(sql), IndexedSeq(DbValue.DbString(aggregateType), DbValue.DbString(aggregateId))).queryOne[String].toOption.flatMap(parseVersion)
+    val parts = IndexedSeq(
+      s"SELECT data_version FROM $TableName WHERE aggregate_type = ",
+      " AND aggregate_id = ",
+      ""
+    )
+    val params = IndexedSeq(DbValue.DbString(aggregateType), DbValue.DbString(aggregateId))
+    Frag(parts, params).queryOne[String].toOption.flatMap(parseVersion)
   }
 
   /**
-    * Returns count of migrated aggregates recorded in the metadata table.
-    */
+   * Returns count of migrated aggregates recorded in the metadata table.
+   */
   def migratedCount(aggregateType: String)(using con: DbCon): Long = {
-    val sql = s"SELECT COUNT(*) FROM $TableName WHERE aggregate_type = ?"
-    Frag(IndexedSeq(sql), IndexedSeq(DbValue.DbString(aggregateType))).queryOne[Long].getOrElse(0L)
+    val parts  = IndexedSeq(s"SELECT COUNT(*) FROM $TableName WHERE aggregate_type = ", "")
+    val params = IndexedSeq(DbValue.DbString(aggregateType))
+    Frag(parts, params).queryOne[Long].getOrElse(0L)
   }
 
   private def parseVersion(s: String): Option[DataVersion] = s.split('.').toList match {

@@ -73,9 +73,9 @@ final case class MigrationPath[A, B](
 /**
  * Execution model for migration strategies.
  *
- * - Tiny: in-memory, single-transaction, minimal overhead
- * - Small: batch-oriented, moderate resource use
- * - Large: streaming/out-of-core, resumable, high resource tolerance
+ *   - Tiny: in-memory, single-transaction, minimal overhead
+ *   - Small: batch-oriented, moderate resource use
+ *   - Large: streaming/out-of-core, resumable, high resource tolerance
  */
 sealed trait ExecutionModel
 object ExecutionModel {
@@ -87,32 +87,11 @@ object ExecutionModel {
 /**
  * Target write strategy (orthogonal to ExecutionModel).
  *
- * - InPlace: mutate existing table/storage
- * - ShadowTable: suffix appended to the base table name, then swap/rename
+ *   - InPlace: mutate existing table/storage
+ *   - ShadowTable: suffix appended to the base table name, then swap/rename
  */
 sealed trait TargetStrategy
 object TargetStrategy {
-  case object InPlace                           extends TargetStrategy
-  final case class ShadowTable(name: String)    extends TargetStrategy
+  case object InPlace                          extends TargetStrategy
+  final case class ShadowTable(suffix: String) extends TargetStrategy
 }
-
-/**
- * Token proving that database migration has completed successfully.
- *
- * Services that must not start until migration is done declare this as a
- * `using` parameter in their constructor. The only way to obtain a
- * `Migrated` instance is by running a migrator — which happens during
- * `Resource` acquisition in the blocks injection / Scope wiring.
- *
- * @example
- * {{{
- * class MyService(repo: Repo[User, UUID])(using Migrated)
- *
- * // Wiring — migrator returns Migrated token, then MyService:
- * val app = for
- *   migrated <- Resource { myMigrator.migrate() }
- *   svc      <- Resource { MyService(userRepo)(using migrated) }
- * yield svc
- * }}}
- */
-final class Migrated private[migration] ()

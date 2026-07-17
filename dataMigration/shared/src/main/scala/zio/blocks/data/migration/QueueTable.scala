@@ -16,7 +16,7 @@
 
 package zio.blocks.data.migration
 
-import zio.blocks.sql.{DbCodec, DbCon, DbTx, Frag, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Frag, Transactor}
 import zio.blocks.sql.Frag.*
 
 /**
@@ -28,7 +28,7 @@ import zio.blocks.sql.Frag.*
 object QueueTable {
 
   private[migration] object SqlId {
-    private val Identifier = raw"[A-Za-z_][A-Za-z0-9_]*".r
+    private val Identifier                            = raw"[A-Za-z_][A-Za-z0-9_]*".r
     def validate(kind: String, value: String): String =
       value match {
         case Identifier() => value
@@ -40,19 +40,25 @@ object QueueTable {
   }
 
   /**
-   * Creates a queue table with a single ID column.
+   * Creates a queue table (id, op, payload) and installs capture triggers on the source table.
+   * Uses the dialect from `DbCon.dialect` to generate database-appropriate DDL.
    *
    * @param tableName
    *   Name of the queue table (validated as SQL identifier)
+   * @param sourceTable
+   *   Name of the source table to attach triggers to
+   * @param sourceIdColumn
+   *   Name of the ID column in the source table
    * @param transactor
    *   Transactor for executing DDL
    */
-  def create[ID](tableName: String, transactor: Transactor)(using codec: DbCodec[ID]): Unit = {
+  def create[ID](tableName: String, transactor: Transactor)(using codec: DbCodec[ID], dialect: Dialect): Unit = {
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    val ddl       = Frag.literal(s"CREATE TABLE IF NOT EXISTS $validated (\n  $colName TEXT NOT NULL PRIMARY KEY\n)")
-    transactor.connect { (con: DbCon) ?=> ddl.update(using con) }
+    transactor.connect { (con: DbCon) ?=>
+      Frag.literal(dialect.createQueueTableDDL(validated, colName)).update
+    }
   }
 
   /**
@@ -60,25 +66,32 @@ object QueueTable {
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return
-    val validated = SqlId.validate("table", tableName)
-    val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
+    val validated  = SqlId.validate("table", tableName)
+    val colName    = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
     val valuesFrag = Frag.values(ids)
-    val frag       = Frag.literal(s"INSERT INTO $validated ($colName) VALUES ") ++ valuesFrag ++ Frag.literal(" ON CONFLICT DO NOTHING")
+    val frag       = Frag.literal(s"INSERT INTO $validated ($colName) VALUES ") ++ valuesFrag ++ Frag.literal(
+      " ON CONFLICT DO NOTHING"
+    )
     frag.update
   }
 
   /**
-   * Dequeues up to `batchSize` IDs using SKIP LOCKED.
+   * Dequeues up to `batchSize` IDs. Uses the dialect from `tx.dialect` to
+   * generate database-appropriate locking — `FOR UPDATE SKIP LOCKED` on
+   * PostgreSQL, plain `LIMIT` on SQLite (which serializes writes via BEGIN
+   * IMMEDIATE).
    */
-  def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID]): List[ID] = {
+  def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
+    require(batchSize > 0, "batchSize must be positive")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    val frag      = Frag.literal(s"SELECT $colName FROM $validated ORDER BY $colName LIMIT $batchSize FOR UPDATE SKIP LOCKED")
+    val frag      = Frag.literal(dialect.dequeueSQL(validated, colName, batchSize))
     val rows      = frag.query[ID]
     // Delete dequeued rows (parameterized)
     if (rows.nonEmpty) {
       val params = rows.flatMap(r => codec.toDbValues(r)).toIndexedSeq
-      val parts  = IndexedSeq(s"DELETE FROM $validated WHERE $colName IN (") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
+      val parts  =
+        IndexedSeq(s"DELETE FROM $validated WHERE $colName IN (") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
       Frag(parts, params).update
     }
     rows

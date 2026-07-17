@@ -469,6 +469,13 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.data.migration"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(crossScalaVersions := Seq("3.8.3", "3.3.7"))
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+    )
+  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
