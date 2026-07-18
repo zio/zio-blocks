@@ -256,7 +256,6 @@ import zio.blocks.html._
 import zio.http.htmx._
 
 ul(
-  id := "items",
   li(
     button(
       hxPost := "/add-item",
@@ -266,7 +265,7 @@ ul(
     )
   ),
   li("Item 1")
-)
+)(id := "items")
 ```
 
 ### Target the Next Row in a Table
