@@ -94,11 +94,11 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<input readonly/>")
       },
       test("selected is usable via ToModifier (BooleanAttribute)") {
-        val result = opt(selected)
+        val result = option(selected)
         assertTrue(result.render == "<option selected></option>")
       },
       test("multiple is usable via ToModifier (BooleanAttribute)") {
-        val result = Dom.Element.Generic("select", Chunk(multiple), Chunk.empty)
+        val result = select().when(true)(multiple)
         assertTrue(result.render == "<select multiple></select>")
       },
       test("autofocus is usable via ToModifier (BooleanAttribute)") {
@@ -110,7 +110,7 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<details open></details>")
       },
       test("reversed is usable via ToModifier (BooleanAttribute)") {
-        val result = Dom.Element.Generic("ol", Chunk(reversed), Chunk.empty)
+        val result = ol().when(true)(reversed)
         assertTrue(result.render == "<ol reversed></ol>")
       },
       test("defer is usable via ToModifier (BooleanAttribute)") {

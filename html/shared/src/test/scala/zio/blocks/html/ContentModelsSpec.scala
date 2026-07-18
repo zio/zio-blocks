@@ -59,19 +59,19 @@ object ContentModelsSpec extends ZIOSpecDefault {
     // --- Select content model ---
     suite("select elements")(
       test("select with options") {
-        val result = select(opt("1"), opt("2")).render
+        val result = select(option("1"), option("2")).render
         assertTrue(result == "<select><option>1</option><option>2</option></select>")
       },
       test("select with optgroup") {
-        val result = select(optgroup(opt("a"), opt("b"))).render
+        val result = select(optgroup(option("a"), option("b"))).render
         assertTrue(result == "<select><optgroup><option>a</option><option>b</option></optgroup></select>")
       },
       test("opt with attributes") {
-        val result = opt(value := "1", "One").render
+        val result = option(value := "1", "One").render
         assertTrue(result == """<option value="1">One</option>""")
       },
       test("select with mixed opt and optgroup") {
-        val result = select(opt("default"), optgroup(opt("a"), opt("b"))).render
+        val result = select(option("default"), optgroup(option("a"), option("b"))).render
         assertTrue(
           result == "<select><option>default</option><optgroup><option>a</option><option>b</option></optgroup></select>"
         )
