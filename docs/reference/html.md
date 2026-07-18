@@ -619,8 +619,8 @@ Pseudo-classes match elements by their state, and pseudo-elements create dynamic
 import zio.blocks.html._
 
 val hoverSel = a.hover              // a:hover
-val firstChild = li().firstChild      // li:first-child
-val nthChild = tr().nthChild(2)       // tr:nth-child(2)
+val firstChild = div.firstChild      // :first-child (example using div)
+val nthChild = div.nthChild(2)       // :nth-child(2)
 val before = div.before             // div::before
 val after = span.after              // span::after
 ```

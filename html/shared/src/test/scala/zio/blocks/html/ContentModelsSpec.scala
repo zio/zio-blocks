@@ -72,7 +72,9 @@ object ContentModelsSpec extends ZIOSpecDefault {
       },
       test("select with mixed opt and optgroup") {
         val result = select(opt("default"), optgroup(opt("a"), opt("b"))).render
-        assertTrue(result == "<select><option>default</option><optgroup><option>a</option><option>b</option></optgroup></select>")
+        assertTrue(
+          result == "<select><option>default</option><optgroup><option>a</option><option>b</option></optgroup></select>"
+        )
       }
     ),
 
