@@ -65,18 +65,15 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("void element matches DSL") {
         val fromHtml = html"<br/>"
-        val fromDsl  = br
-        assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == "<br/>")
       },
       test("void element without slash matches DSL") {
         val fromHtml = html"<br>"
-        val fromDsl  = br
-        assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == "<br/>")
       },
       test("input with attributes matches DSL") {
         val fromHtml = html"""<input type="text"/>"""
-        val fromDsl  = Dom.Element.Generic("input", Chunk(`type` := "text"), Chunk.empty)
-        assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == """<input type="text"/>""")
       },
       test("script element matches DSL") {
         val fromHtml = html"<script>alert('hi')</script>"
@@ -100,8 +97,8 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("element with boolean attribute matches DSL") {
         val fromHtml = html"<input disabled/>"
-        val fromDsl  = Dom.Element.Generic("input", Chunk(disabled), Chunk.empty)
-        assertTrue(fromHtml == fromDsl)
+        val fromDsl  = input(disabled)
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("mixed text and elements match DSL") {
         val fromHtml = html"<p>hello <strong>world</strong></p>"
@@ -110,13 +107,13 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
       },
       test("meta void element matches DSL") {
         val fromHtml = html"""<meta charset="utf-8">"""
-        val fromDsl  = Dom.Element.Generic("meta", Chunk(charset := "utf-8"), Chunk.empty)
-        assertTrue(fromHtml == fromDsl)
+        val fromDsl  = meta(charset := "utf-8")
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("img void element matches DSL") {
         val fromHtml = html"""<img src="photo.jpg" alt="Photo">"""
-        val fromDsl  = Dom.Element.Generic("img", Chunk(src := "photo.jpg", alt := "Photo"), Chunk.empty)
-        assertTrue(fromHtml == fromDsl)
+        val fromDsl  = img(src := "photo.jpg", alt := "Photo")
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("deeply nested matches DSL") {
         val fromHtml = html"<div><ul><li>item</li></ul></div>"
