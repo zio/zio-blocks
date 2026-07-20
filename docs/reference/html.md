@@ -136,7 +136,7 @@ The `Dom` sealed trait is the core data model. Everything in the module works wi
 
 ### The Five Node Types
 
-A `Dom` tree is composed of four node types:
+A `Dom` tree is composed of five node types:
 
 #### Dom.Text
 
