@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+// Must be in sql package because SingleConnectionTransactor accesses private[sql] JdbcConnection
 package zio.blocks.sql
 
 import zio.test._

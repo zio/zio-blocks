@@ -32,20 +32,30 @@ final class LargeMigrator[A, B, ID1, ID2](
   target: TargetStrategy
 )(using transactor: Transactor, codecId: DbCodec[ID1], dialect: Dialect) {
 
-  enum State derives CanEqual {
+  private enum State derives CanEqual {
     case Initialized, Fenced, Drained, Completed
   }
 
   @volatile private var _paused: Boolean = false
 
+  /** Whether the migrator is currently paused (checked inside run()). */
   def isPaused: Boolean = _paused
-  def pause(): Unit     = _paused = true
-  def resume(): Unit    = _paused = false
+
+  /** Pause the migrator loop. In-flight batches complete before exit. */
+  def pause(): Unit = _paused = true
+
+  /** Resume processing after a pause. */
+  def resume(): Unit = _paused = false
 
   private var writeRepo: Repo[B, ID2] = repoV2
   private var initialized: Boolean    = false
   private var state: State            = State.Initialized
 
+  /**
+   * Prepare the target table. For ShadowTable strategy, creates the shadow
+   * table via `TargetStrategyApplier.prepare`. Safe to call multiple times
+   * (idempotent after first success).
+   */
   def init(): Unit = {
     if (initialized) return
     transactor.transact { (tx: DbTx) ?=>

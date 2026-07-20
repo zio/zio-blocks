@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package zio.blocks.sql
+package zio.blocks.data.migration
 
 import zio.test._
 import zio.blocks.schema._

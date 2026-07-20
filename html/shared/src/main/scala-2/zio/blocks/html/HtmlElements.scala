@@ -186,7 +186,7 @@ trait HtmlElements {
   val select: Dom.Element                                                = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
   val slot: Dom.Element                                                  = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
   val small: Dom.Element                                                 = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
-  val source: Dom.Element.Void = Dom.Element.VoidGeneric("source", Chunk.empty)
+  val source: Dom.Element.Void                                           = Dom.Element.VoidGeneric("source", Chunk.empty)
   val strong: Dom.Element                                                = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
 
   /** Creates an empty `style` element. */
@@ -217,13 +217,13 @@ trait HtmlElements {
   val thead: Dom.Element                                             = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
   val time: Dom.Element                                              = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
   val tr: Dom.Element                                                = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
-  val track: Dom.Element.Void = Dom.Element.VoidGeneric("track", Chunk.empty)
+  val track: Dom.Element.Void                                        = Dom.Element.VoidGeneric("track", Chunk.empty)
   val u: Dom.Element                                                 = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
   val ul: Dom.Element                                                = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
   val `var`: Dom.Element                                             = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val varTag: Dom.Element                                            = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val video: Dom.Element                                             = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
-  val wbr: Dom.Element.Void   = Dom.Element.VoidGeneric("wbr", Chunk.empty)
+  val wbr: Dom.Element.Void                                          = Dom.Element.VoidGeneric("wbr", Chunk.empty)
   def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
   // --- Attribute helpers ---

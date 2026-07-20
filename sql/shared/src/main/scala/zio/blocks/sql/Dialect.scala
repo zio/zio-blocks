@@ -39,7 +39,7 @@ object Dialect {
   object Postgres extends Dialect {
     val supportsSkipLocked = true
 
-    def quoteIdentifier(id: String): String = "\"" + id + "\""
+    def quoteIdentifier(id: String): String = "\"" + id.replace("\"", "\"\"") + "\""
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
@@ -75,7 +75,7 @@ object Dialect {
   object SQLite extends Dialect {
     val supportsSkipLocked = false
 
-    def quoteIdentifier(id: String): String = "\"" + id + "\""
+    def quoteIdentifier(id: String): String = "\"" + id.replace("\"", "\"\"") + "\""
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
@@ -84,7 +84,7 @@ object Dialect {
       s"SELECT $col FROM $table ORDER BY $col LIMIT $batchSize"
 
     def createShadowTableDDL(shadowName: String, sourceTable: String): String =
-      throw UnsupportedOperationException(
+      throw new UnsupportedOperationException(
         s"SQLite does not support CREATE TABLE ... LIKE. " +
           s"Create shadow table '$shadowName' manually with matching column definitions."
       )

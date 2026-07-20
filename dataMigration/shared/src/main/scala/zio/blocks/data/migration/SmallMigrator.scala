@@ -38,6 +38,11 @@ final class SmallMigrator[A, B, ID1, ID2](
   private var writeRepo: Repo[B, ID2] = repoV2
   private var initialized: Boolean    = false
 
+  /**
+   * Prepare the target table. For ShadowTable strategy, creates the shadow
+   * table via `TargetStrategyApplier.prepare`. Safe to call multiple times
+   * (idempotent after first success).
+   */
   def init(): Unit = {
     if (initialized) return
     transactor.transact { (tx: DbTx) ?=>
@@ -51,6 +56,10 @@ final class SmallMigrator[A, B, ID1, ID2](
     initialized = true
   }
 
+  /**
+   * Finalize the migration. For ShadowTable strategy, performs the atomic
+   * swap (shadow table replaces the live table). Requires init() first.
+   */
   def complete(): Unit = {
     require(initialized, "init() must be called before complete()")
     transactor.transact { (tx: DbTx) ?=>
