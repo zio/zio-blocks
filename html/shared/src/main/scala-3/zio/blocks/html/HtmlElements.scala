@@ -189,121 +189,82 @@ trait HtmlElements {
   val wbr: Dom.Element                  = Dom.Element.Generic("wbr", Chunk.empty, Chunk.empty)
   def element(tag: String): Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
-  /**
-   * Opaque type for `<li>` elements, enforcing list-item content model at
-   * compile time.
-   */
-  opaque type Li = Dom.Element
-  object Li {
-    def apply(effects: DomModifier*): Li = {
-      val base = Dom.Element.Generic("li", Chunk.empty, Chunk.empty)
-      if effects.isEmpty then base
-      else base(effects.head, effects.tail: _*)
-    }
-    extension (li: Li) {
-      def render: String = li.render
-      def tag: String    = li.tag
-    }
+  /** Creates a `<li>` element with optional attributes and children. */
+  def li(effects: DomModifier*): Dom.Element.Li = {
+    val base = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
+    if effects.isEmpty then base
+    else base(effects.head, effects.tail: _*)
   }
 
-  /** Creates a `<li>` element with optional attributes and children. */
-  def li(effects: DomModifier*): Li = Li(effects: _*)
-
   /** Creates a `<ul>` element containing the given list items. */
-  def ul(lis: Li*): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+  def ul(lis: Dom.Element.Li*): Dom.Element =
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates a `<ul>` element from an iterable of list items. */
-  def ul(lis: Iterable[Li]): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+  def ul(lis: Iterable[Dom.Element.Li]): Dom.Element =
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates a `<ul>` element with attributes and list items. */
-  def ul(mod: DomModifier, mods: DomModifier*)(lis: Li*): Dom.Element = {
-    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+  def ul(mod: DomModifier, mods: DomModifier*)(lis: Dom.Element.Li*): Dom.Element = {
+    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
   /**
    * Creates a `<ul>` element with attributes and list items from an iterable.
    */
-  def ul(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Li]): Dom.Element = {
-    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+  def ul(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Dom.Element.Li]): Dom.Element = {
+    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
   /** Creates an `<ol>` element containing the given list items. */
-  def ol(lis: Li*): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+  def ol(lis: Dom.Element.Li*): Dom.Element =
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates an `<ol>` element from an iterable of list items. */
-  def ol(lis: Iterable[Li]): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+  def ol(lis: Iterable[Dom.Element.Li]): Dom.Element =
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates an `<ol>` element with attributes and list items. */
-  def ol(mod: DomModifier, mods: DomModifier*)(lis: Li*): Dom.Element = {
-    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+  def ol(mod: DomModifier, mods: DomModifier*)(lis: Dom.Element.Li*): Dom.Element = {
+    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
   /**
    * Creates an `<ol>` element with attributes and list items from an iterable.
    */
-  def ol(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Li]): Dom.Element = {
-    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+  def ol(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Dom.Element.Li]): Dom.Element = {
+    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
-  /**
-   * Opaque type for `<th>` elements, enforcing table-header content model at
-   * compile time.
-   */
-  opaque type Th = Dom.Element
-  object Th {
-    def apply(effects: DomModifier*): Th = {
-      val base = Dom.Element.Generic("th", Chunk.empty, Chunk.empty)
-      if effects.isEmpty then base
-      else base(effects.head, effects.tail: _*)
-    }
-    extension (th: Th) {
-      def render: String = th.render
-      def tag: String    = th.tag
-    }
-  }
-
-  /**
-   * Opaque type for `<td>` elements, enforcing table-data content model at
-   * compile time.
-   */
-  opaque type Td = Dom.Element
-  object Td {
-    def apply(effects: DomModifier*): Td = {
-      val base = Dom.Element.Generic("td", Chunk.empty, Chunk.empty)
-      if effects.isEmpty then base
-      else base(effects.head, effects.tail: _*)
-    }
-    extension (td: Td) {
-      def render: String = td.render
-      def tag: String    = td.tag
-    }
-  }
-
   /** Creates a `<th>` element with optional attributes and children. */
-  def th(effects: DomModifier*): Th = Th(effects: _*)
+  def th(effects: DomModifier*): Dom.Element.Th = {
+    val base = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
+    if effects.isEmpty then base
+    else base(effects.head, effects.tail: _*)
+  }
 
   /** Creates a `<td>` element with optional attributes and children. */
-  def td(effects: DomModifier*): Td = Td(effects: _*)
+  def td(effects: DomModifier*): Dom.Element.Td = {
+    val base = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
+    if effects.isEmpty then base
+    else base(effects.head, effects.tail: _*)
+  }
 
   /** Creates a `<tr>` element containing the given header and/or data cells. */
-  def tr(cells: (Th | Td)*): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+  def tr(cells: Dom.Element.Cell*): Dom.Element =
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates a `<tr>` element from an iterable of header/data cells. */
-  def tr(cells: Iterable[Th | Td]): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+  def tr(cells: Iterable[Dom.Element.Cell]): Dom.Element =
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
 
   /** Creates a `<tr>` element with attributes and header/data cells. */
-  def tr(mod: DomModifier, mods: DomModifier*)(cells: (Th | Td)*): Dom.Element = {
-    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+  def tr(mod: DomModifier, mods: DomModifier*)(cells: Dom.Element.Cell*): Dom.Element = {
+    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
@@ -311,8 +272,8 @@ trait HtmlElements {
    * Creates a `<tr>` element with attributes and header/data cells from an
    * iterable.
    */
-  def tr(mod: DomModifier, mods: DomModifier*)(cells: Iterable[Th | Td]): Dom.Element = {
-    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+  def tr(mod: DomModifier, mods: DomModifier*)(cells: Iterable[Dom.Element.Cell]): Dom.Element = {
+    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
@@ -326,114 +287,47 @@ trait HtmlElements {
     else base(parts.head, parts.tail: _*)
   }
 
-  /**
-   * Opaque type for `<option>` elements, enforcing `<select>` content model at
-   * compile time.
-   */
-  opaque type Opt = Dom.Element
-  object Opt {
-    def apply(effects: DomModifier*): Opt = {
-      val base = Dom.Element.Generic("option", Chunk.empty, Chunk.empty)
-      if effects.isEmpty then base
-      else base(effects.head, effects.tail: _*)
-    }
-    extension (opt: Opt) {
-      def render: String = opt.render
-      def tag: String    = opt.tag
-    }
-  }
-
-  /**
-   * Opaque type for `<optgroup>` elements, enforcing `<select>` content model
-   * at compile time.
-   */
-  opaque type Optgroup = Dom.Element
-  object Optgroup {
-    def apply(children: Opt*): Optgroup =
-      Dom.Element.Generic("optgroup", Chunk.empty, Chunk.from(children))
-    extension (optgroup: Optgroup) {
-      def render: String = optgroup.render
-      def tag: String    = optgroup.tag
-    }
-  }
-
-  /** CssSelectable forwarding for opaque element types. */
-  extension (e: Li | Th | Td | Opt | Optgroup) {
-    private def css: CssSelectable                                        = e
-    def selector: CssSelector                                             = css.selector
-    def >(child: CssSelectable): CssSelector                              = css > child
-    def >>(descendant: CssSelectable): CssSelector                        = css >> descendant
-    def +(adjacent: CssSelectable): CssSelector                           = css + adjacent
-    def &(other: CssSelectable): CssSelector                              = css & other
-    def ~(sibling: CssSelectable): CssSelector                            = css ~ sibling
-    def |(other: CssSelectable): CssSelector                              = css | other
-    def active: CssSelector                                               = css.active
-    def adjacentSibling(sel: CssSelectable): CssSelector                  = css.adjacentSibling(sel)
-    def after: CssSelector                                                = css.after
-    def and(sel: CssSelectable): CssSelector                              = css.and(sel)
-    def before: CssSelector                                               = css.before
-    def child(sel: CssSelectable): CssSelector                            = css.child(sel)
-    def descendant(sel: CssSelectable): CssSelector                       = css.descendant(sel)
-    def firstChild: CssSelector                                           = css.firstChild
-    def firstLetter: CssSelector                                          = css.firstLetter
-    def firstLine: CssSelector                                            = css.firstLine
-    def focus: CssSelector                                                = css.focus
-    def generalSibling(sel: CssSelectable): CssSelector                   = css.generalSibling(sel)
-    def host: CssSelector                                                 = css.host
-    def hostContext(sel: CssSelectable): CssSelector                      = css.hostContext(sel)
-    def hover: CssSelector                                                = css.hover
-    def lastChild: CssSelector                                            = css.lastChild
-    def not(sel: CssSelectable): CssSelector                              = css.not(sel)
-    def nthChild(n: Int): CssSelector                                     = css.nthChild(n)
-    def nthChild(formula: String): CssSelector                            = css.nthChild(formula)
-    def or(sel: CssSelectable): CssSelector                               = css.or(sel)
-    def part(name: String): CssSelector                                   = css.part(name)
-    def slotted: CssSelector                                              = css.slotted
-    def slotted(sel: CssSelectable): CssSelector                          = css.slotted(sel)
-    def visited: CssSelector                                              = css.visited
-    def withAttribute(attr: String): CssSelector                          = css.withAttribute(attr)
-    def withAttribute(attr: String, value: String): CssSelector           = css.withAttribute(attr, value)
-    def withAttributeContaining(attr: String, value: String): CssSelector = css.withAttributeContaining(attr, value)
-    def withAttributeEnding(attr: String, value: String): CssSelector     = css.withAttributeEnding(attr, value)
-    def withAttributePrefix(attr: String, value: String): CssSelector     = css.withAttributePrefix(attr, value)
-    def withAttributeStarting(attr: String, value: String): CssSelector   = css.withAttributeStarting(attr, value)
-    def withAttributeWord(attr: String, value: String): CssSelector       = css.withAttributeWord(attr, value)
-  }
-
   /** Creates an `<option>` element with optional attributes and children. */
-  def opt(effects: DomModifier*): Opt = Opt(effects: _*)
+  def opt(effects: DomModifier*): Dom.Element.Opt = {
+    val base = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+    if effects.isEmpty then base
+    else base(effects.head, effects.tail: _*)
+  }
 
   /** Alias for [[opt]]. */
-  def option(effects: DomModifier*): Opt = Opt(effects: _*)
+  def option(effects: DomModifier*): Dom.Element.Opt = opt(effects: _*)
 
   /** Creates an `<optgroup>` element containing the given options. */
-  def optgroup(children: Opt*): Optgroup =
-    Dom.Element.Generic("optgroup", Chunk.empty, Chunk.from(children))
+  def optgroup(children: Dom.Element.Opt*): Dom.Element.Optgroup = {
+    val kids = if (children.isEmpty) Chunk.empty else Chunk.from(children.map(_.asInstanceOf[Dom.Element]))
+    Dom.Element.OptgroupElement(Chunk.empty, kids)
+  }
 
   /** Creates an `<optgroup>` element with attributes and options. */
-  def optgroup(mod: DomModifier, mods: DomModifier*)(children: Opt*): Optgroup = {
-    val base = Dom.Element.Generic("optgroup", Chunk.empty, Chunk.from(children))
-    base(mod, mods: _*)
+  def optgroup(mod: DomModifier, mods: DomModifier*)(children: Dom.Element.Opt*): Dom.Element.Optgroup = {
+    val kids = if (children.isEmpty) Chunk.empty else Chunk.from(children.map(_.asInstanceOf[Dom.Element]))
+    val base = Dom.Element.OptgroupElement(Chunk.empty, kids)
+    if (mod == null && mods.isEmpty) base else base(mod, mods: _*).asInstanceOf[Dom.Element.Optgroup]
   }
 
   /**
    * Creates a `<select>` element containing the given `<option>` and/or
    * `<optgroup>` children.
    */
-  def select(children: (Opt | Optgroup)*): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+  def select(children: Dom.Element.SelectChild*): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
 
   /**
    * Creates a `<select>` element from an iterable of option/optgroup children.
    */
-  def select(children: Iterable[Opt | Optgroup]): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+  def select(children: Iterable[Dom.Element.SelectChild]): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
 
   /**
    * Creates a `<select>` element with attributes and option/optgroup children.
    */
-  def select(mod: DomModifier, mods: DomModifier*)(children: (Opt | Optgroup)*): Dom.Element = {
-    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+  def select(mod: DomModifier, mods: DomModifier*)(children: Dom.Element.SelectChild*): Dom.Element = {
+    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
@@ -441,8 +335,8 @@ trait HtmlElements {
    * Creates a `<select>` element with attributes and option/optgroup children
    * from an iterable.
    */
-  def select(mod: DomModifier, mods: DomModifier*)(children: Iterable[Opt | Optgroup]): Dom.Element = {
-    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+  def select(mod: DomModifier, mods: DomModifier*)(children: Iterable[Dom.Element.SelectChild]): Dom.Element = {
+    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
     base(mod, mods: _*)
   }
 
