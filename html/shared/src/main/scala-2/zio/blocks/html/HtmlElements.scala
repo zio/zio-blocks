@@ -223,21 +223,17 @@ trait HtmlElements {
     else base(effects.head, effects.tail: _*)
   }
 
-  /** Creates a `<ul>` element containing the given list items. */
-  def ul(lis: Dom.Element.Li*): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+  /** Creates a `<ul>` element with optional attributes and children. */
+  def ul(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
 
-  /** Creates a `<ul>` element from an iterable of list items. */
-  def ul(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
-
-  /** Creates an `<ol>` element containing the given list items. */
-  def ol(lis: Dom.Element.Li*): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
-
-  /** Creates an `<ol>` element from an iterable of list items. */
-  def ol(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+  /** Creates an `<ol>` element with optional attributes and children. */
+  def ol(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
 
   /** Creates a `<th>` element with optional attributes and children. */
   def th(effects: DomModifier*): Dom.Element.Th = {
@@ -253,13 +249,11 @@ trait HtmlElements {
     else base(effects.head, effects.tail: _*)
   }
 
-  /** Creates a `<tr>` element containing the given header and/or data cells. */
-  def tr(cells: Dom.Element.Cell*): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
-
-  /** Creates a `<tr>` element from an iterable of header/data cells. */
-  def tr(cells: Iterable[Dom.Element.Cell]): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
+  /** Creates a `<tr>` element with optional attributes and children. */
+  def tr(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
 
   /**
    * Creates a `<table>` element with optional attributes and children (caption,

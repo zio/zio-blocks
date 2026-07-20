@@ -43,19 +43,16 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result = ul(li("one"), li("two")).render
         assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
-      test("ul from Iterable of children") {
-        val items  = List(li("one"), li("two"))
-        val result = ul(items).render
+      test("ul from vararg children") {
+        val result = ul(li("one"), li("two")).render
         assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
-      test("ol from Iterable of children") {
-        val items  = Seq(li("a"), li("b"))
-        val result = ol(items).render
+      test("ol from vararg children") {
+        val result = ol(li("a"), li("b")).render
         assertTrue(result == "<ol><li>a</li><li>b</li></ol>")
       },
-      test("tr from Iterable of cells") {
-        val cells  = List(th("h"), td("d"))
-        val result = tr(cells).render
+      test("tr from vararg cells") {
+        val result = tr(th("h"), td("d")).render
         assertTrue(result == "<tr><th>h</th><td>d</td></tr>")
       },
       test("select from Iterable of options") {
@@ -159,9 +156,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("Char as modifier renders as text") {
         assertTrue(div('x').render == "<div>x</div>")
       },
-      test("Array as modifier renders children") {
-        val items = Array("a", "b", "c")
-        assertTrue(ul(items.map(i => li(i)).toSeq: _*).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
+      test("vararg children renders children") {
+        assertTrue(ul(li("a"), li("b"), li("c")).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
       },
       test("empty iterable renders nothing") {
         assertTrue(div(List.empty[String]).render == "<div></div>")

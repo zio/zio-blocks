@@ -428,10 +428,12 @@ import zio.blocks.html._
 import zio.http.htmx._
 
 ul(
+  hxPost := "/item-selected",
+  hxTrigger := HxTrigger.click.target("li"),
   li("Item 1"),
   li("Item 2"),
   li("Item 3")
-)(hxPost := "/item-selected", hxTrigger := HxTrigger.click.target("li"))
+)
 ```
 
 ## Integration with Other Module Types
