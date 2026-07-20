@@ -43,6 +43,26 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result = ul(li("one"), li("two")).render
         assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
+      test("ul from Iterable of children") {
+        val items  = List(li("one"), li("two"))
+        val result = ul(items).render
+        assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
+      },
+      test("ol from Iterable of children") {
+        val items  = Seq(li("a"), li("b"))
+        val result = ol(items).render
+        assertTrue(result == "<ol><li>a</li><li>b</li></ol>")
+      },
+      test("tr from Iterable of cells") {
+        val cells  = List(th("h"), td("d"))
+        val result = tr(cells).render
+        assertTrue(result == "<tr><th>h</th><td>d</td></tr>")
+      },
+      test("select from Iterable of options") {
+        val opts   = List(option("x"), option("y"))
+        val result = select(opts).render
+        assertTrue(result == "<select><option>x</option><option>y</option></select>")
+      },
       test("void elements self-close") {
         assertTrue(
           br.render == "<br/>",

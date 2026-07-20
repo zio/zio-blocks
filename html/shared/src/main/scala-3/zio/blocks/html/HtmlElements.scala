@@ -213,8 +213,20 @@ trait HtmlElements {
   def ul(lis: Li*): Dom.Element =
     Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
 
+  /** Creates a `<ul>` element from an iterable of list items. */
+  def ul(lis: Iterable[Li]): Dom.Element =
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+
   /** Creates a `<ul>` element with attributes and list items. */
   def ul(mod: DomModifier, mods: DomModifier*)(lis: Li*): Dom.Element = {
+    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+    base(mod, mods: _*)
+  }
+
+  /**
+   * Creates a `<ul>` element with attributes and list items from an iterable.
+   */
+  def ul(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Li]): Dom.Element = {
     val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
     base(mod, mods: _*)
   }
@@ -223,8 +235,20 @@ trait HtmlElements {
   def ol(lis: Li*): Dom.Element =
     Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
 
+  /** Creates an `<ol>` element from an iterable of list items. */
+  def ol(lis: Iterable[Li]): Dom.Element =
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+
   /** Creates an `<ol>` element with attributes and list items. */
   def ol(mod: DomModifier, mods: DomModifier*)(lis: Li*): Dom.Element = {
+    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+    base(mod, mods: _*)
+  }
+
+  /**
+   * Creates an `<ol>` element with attributes and list items from an iterable.
+   */
+  def ol(mod: DomModifier, mods: DomModifier*)(lis: Iterable[Li]): Dom.Element = {
     val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
     base(mod, mods: _*)
   }
@@ -273,8 +297,21 @@ trait HtmlElements {
   def tr(cells: (Th | Td)*): Dom.Element =
     Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
 
+  /** Creates a `<tr>` element from an iterable of header/data cells. */
+  def tr(cells: Iterable[Th | Td]): Dom.Element =
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+
   /** Creates a `<tr>` element with attributes and header/data cells. */
   def tr(mod: DomModifier, mods: DomModifier*)(cells: (Th | Td)*): Dom.Element = {
+    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+    base(mod, mods: _*)
+  }
+
+  /**
+   * Creates a `<tr>` element with attributes and header/data cells from an
+   * iterable.
+   */
+  def tr(mod: DomModifier, mods: DomModifier*)(cells: Iterable[Th | Td]): Dom.Element = {
     val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
     base(mod, mods: _*)
   }
@@ -387,9 +424,24 @@ trait HtmlElements {
     Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
 
   /**
+   * Creates a `<select>` element from an iterable of option/optgroup children.
+   */
+  def select(children: Iterable[Opt | Optgroup]): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+
+  /**
    * Creates a `<select>` element with attributes and option/optgroup children.
    */
   def select(mod: DomModifier, mods: DomModifier*)(children: (Opt | Optgroup)*): Dom.Element = {
+    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+    base(mod, mods: _*)
+  }
+
+  /**
+   * Creates a `<select>` element with attributes and option/optgroup children
+   * from an iterable.
+   */
+  def select(mod: DomModifier, mods: DomModifier*)(children: Iterable[Opt | Optgroup]): Dom.Element = {
     val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
     base(mod, mods: _*)
   }

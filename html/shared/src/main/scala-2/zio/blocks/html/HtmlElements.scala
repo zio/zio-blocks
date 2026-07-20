@@ -227,8 +227,16 @@ trait HtmlElements {
   def ul(lis: Dom.Element*): Dom.Element =
     Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
 
+  /** Creates a `<ul>` element from an iterable of list items. */
+  def ul(lis: Iterable[Dom.Element]): Dom.Element =
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+
   /** Creates an `<ol>` element containing the given list items. */
   def ol(lis: Dom.Element*): Dom.Element =
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+
+  /** Creates an `<ol>` element from an iterable of list items. */
+  def ol(lis: Iterable[Dom.Element]): Dom.Element =
     Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
 
   /** Creates a `<th>` element with optional attributes and children. */
@@ -247,6 +255,10 @@ trait HtmlElements {
 
   /** Creates a `<tr>` element containing the given header and/or data cells. */
   def tr(cells: Dom.Element*): Dom.Element =
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+
+  /** Creates a `<tr>` element from an iterable of header/data cells. */
+  def tr(cells: Iterable[Dom.Element]): Dom.Element =
     Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
 
   /**
@@ -278,6 +290,12 @@ trait HtmlElements {
    * `<optgroup>` children.
    */
   def select(children: Dom.Element*): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+
+  /**
+   * Creates a `<select>` element from an iterable of option/optgroup children.
+   */
+  def select(children: Iterable[Dom.Element]): Dom.Element =
     Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
 
   // --- Attribute helpers ---
