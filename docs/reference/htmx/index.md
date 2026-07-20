@@ -210,7 +210,7 @@ import zio.http.htmx._
 input(
   hxPost := "/search",
   hxTrigger := HxTrigger.input.filter(Js("event.target.value.length > 2")),
-  "Only POST if search has 3+ characters"
+  placeholder := "Only POST if search has 3+ characters"
 )
 ```
 

@@ -20,6 +20,8 @@ sealed trait Dom.Element extends Dom
 case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+sealed trait Dom.Element.Void extends Dom // void elements (self-closing, no children)
+case class Dom.Element.VoidGeneric(tag: String, attributes: Chunk[Dom.Attribute]) extends Dom.Element.Void
 
 // Attribute variants
 sealed trait Dom.Attribute
@@ -88,7 +90,7 @@ The module is organized around five core subsystems that compose together:
 ┌─────────────────────────────────────────────────────┐
 │  DSL Functions (div, p, span, ...)                  │
 │  + Attribute Builders (id :=, className +=)         │
-│  └─> Produces: Dom.Element.Generic                  │
+│  └─> Produces: Dom.Element (Generic, Void, ...)     │
 │                                                      │
 ├─────────────────────────────────────────────────────┤
 │  String Interpolators (html"", css"", js"")          │
@@ -101,6 +103,7 @@ The module is organized around five core subsystems that compose together:
 │  Dom ADT (sealed trait Dom)                          │
 │  ├─> Dom.Text (HTML-escaped text content)            │
 │  ├─> Dom.Element (Generic, Script, Style)            │
+│  ├─> Dom.Element.Void (void/self-closing elements)   │
 │  ├─> Dom.Doctype (<!DOCTYPE html>)                   │
 │  └─> Dom.Empty (renders to nothing)                  │
 │                                                      │
@@ -131,7 +134,7 @@ The module is organized around five core subsystems that compose together:
 
 The `Dom` sealed trait is the core data model. Everything in the module works with or produces `Dom` nodes.
 
-### The Four Node Types
+### The Five Node Types
 
 A `Dom` tree is composed of four node types:
 
@@ -444,9 +447,28 @@ val card = div(
 ))
 ```
 
-### Void Elements
+### Dom.Element.Void
 
-Void elements (self-closing tags) automatically render with the correct syntax:
+Void HTML elements (`br`, `hr`, `img`, `input`, `meta`, `link`, `area`, `base`, `col`, `embed`, `param`, `source`, `track`, `wbr`) are a **separate type** from `Dom.Element` — they extend `Dom.Element.Void` which extends `Dom` directly (not `Dom.Element`). This means they **structurally cannot have children** — passing a modifier like a string or another element to a void element factory is a **compile-time error**:
+
+```scala mdoc:fail
+import zio.blocks.html._
+
+img("oops")             // ❌ does not compile — Void elements don't accept children
+input(div("child"))     // ❌ does not compile — Void elements don't accept children
+```
+
+Void elements only accept `Dom.Attribute` arguments:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val image = img(src := "photo.jpg", alt := "A photo")   // ✅ compiles — only attributes
+val lineBreak = br                                        // ✅ compiles — no args
+val textField = input(`type` := "text", placeholder := "Enter text")  // ✅ compiles
+```
+
+Void elements render as self-closing tags:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
