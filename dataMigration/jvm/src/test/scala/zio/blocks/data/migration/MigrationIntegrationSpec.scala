@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import zio.test._
 import zio.blocks.schema._
-import zio.blocks.schema.migration.Migration
+import zio.blocks.schema.migration.{DynamicMigration, Migration, MigrationAction}
 import zio.blocks.sql.{JdbcTransactor, SqlDialect, DbCon, DbTx, Transactor, Table, Repo, Frag, DbCodec, DbCodecDeriver}
 import zio.blocks.data.migration._
 import zio.blocks.sql.Dialect
@@ -101,7 +101,15 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
     } finally conn.close()
   }
 
-  private val identityMigration: Migration[V1, V2] = null.asInstanceOf[Migration[V1, V2]]
+  private val identityMigration: Migration[V1, V2] = {
+    val addAge = DynamicMigration(
+      MigrationAction.AddField(
+        DynamicOptic.root.field("age"),
+        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema[Int])
+      )
+    )
+    Migration.fromDynamic(addAge)(using V1.schema, V2.schema)
+  }
 
   def spec = suite("MigrationIntegration")(
     test("queue primitives: create/enqueue/pending (SQLite: no SKIP LOCKED)") {

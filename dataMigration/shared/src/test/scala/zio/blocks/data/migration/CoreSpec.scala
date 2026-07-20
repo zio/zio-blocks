@@ -17,24 +17,9 @@
 package zio.blocks.data.migration
 
 import zio._
-import zio.blocks.schema.Schema
-import zio.blocks.schema.migration.{DynamicMigration, Migration}
 import zio.test._
-import zio.test.Assertion._
 
 object CoreSpec extends ZIOSpecDefault {
-
-  // Minimal schemas for testing MigrationPath
-  final case class V1(name: String)
-  final case class V2(name: String, age: Int)
-
-  given schemaV1: Schema[V1] = Schema.derived
-  given schemaV2: Schema[V2] = Schema.derived
-
-  // Identity dynamic migration (for test construction only)
-  val identityDyn: DynamicMigration = DynamicMigration.empty
-
-  val migV1toV2: Migration[V1, V2] = Migration(schemaV1, schemaV2, identityDyn)
 
   val v0 = DataVersion(0, 0, 0)
   val v1 = DataVersion(0, 1, 0)
@@ -46,16 +31,6 @@ object CoreSpec extends ZIOSpecDefault {
       assertTrue(v1.compare(v2) < 0) &&
       assertTrue(v0.compare(v1) <= 0) &&
       assertTrue(v2.compare(v1) >= 0)
-    },
-    test("MigrationPath rejects downgrade (from >= to)") {
-      assertTrue {
-        try { MigrationPath(v2, v1, migV1toV2); false }
-        catch { case _: IllegalArgumentException => true }
-      }
-    },
-    test("MigrationPath accepts valid upgrade path") {
-      val ok = MigrationPath(v1, v2, migV1toV2)
-      assertTrue(ok.from.compare(ok.to) < 0)
     },
     test("ExecutionModel sealed trait exhaustiveness (pattern match covers all)") {
       def classify(em: ExecutionModel): String = em match {

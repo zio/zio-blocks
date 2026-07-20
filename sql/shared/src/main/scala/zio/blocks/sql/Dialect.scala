@@ -52,20 +52,22 @@ object Dialect {
 
     def createTriggerDDL(queueTable: String, sourceTable: String, idColumn: String): List[String] = {
       val funcName = s"${queueTable}_notify"
-      val func = s"""CREATE OR REPLACE FUNCTION $funcName()
-                    |RETURNS TRIGGER AS $$
-                    |BEGIN
-                    |  IF TG_OP = 'DELETE' THEN
-                    |    INSERT INTO $queueTable ($idColumn, op, payload) VALUES (OLD.$idColumn, 'D', row_to_json(OLD.*)::text) ON CONFLICT ($idColumn) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
-                    |  ELSIF TG_OP = 'INSERT' THEN
-                    |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'I') ON CONFLICT ($idColumn) DO NOTHING;
-                    |  ELSIF TG_OP = 'UPDATE' THEN
-                    |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'U') ON CONFLICT ($idColumn) DO NOTHING;
-                    |  END IF;
-                    |  RETURN NULL;
-                    |END;
-                    |$$ LANGUAGE plpgsql;""".stripMargin
-      val trigger = s"CREATE TRIGGER trg_${queueTable}_mod AFTER INSERT OR UPDATE OR DELETE ON $sourceTable FOR EACH ROW EXECUTE FUNCTION $funcName();"
+      val func     =
+        s"""CREATE OR REPLACE FUNCTION $funcName()
+           |RETURNS TRIGGER AS $$
+           |BEGIN
+           |  IF TG_OP = 'DELETE' THEN
+           |    INSERT INTO $queueTable ($idColumn, op, payload) VALUES (OLD.$idColumn, 'D', row_to_json(OLD.*)::text) ON CONFLICT ($idColumn) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
+           |  ELSIF TG_OP = 'INSERT' THEN
+           |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'I') ON CONFLICT ($idColumn) DO NOTHING;
+           |  ELSIF TG_OP = 'UPDATE' THEN
+           |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'U') ON CONFLICT ($idColumn) DO NOTHING;
+           |  END IF;
+           |  RETURN NULL;
+           |END;
+           |$$ LANGUAGE plpgsql;""".stripMargin
+      val trigger =
+        s"CREATE TRIGGER trg_${queueTable}_mod AFTER INSERT OR UPDATE OR DELETE ON $sourceTable FOR EACH ROW EXECUTE FUNCTION $funcName();"
       List(func, trigger)
     }
   }

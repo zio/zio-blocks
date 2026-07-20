@@ -179,11 +179,11 @@ sealed trait Dom extends Product with Serializable {
    *   true if this node produces no output when rendered
    */
   def isEmpty: Boolean = this match {
-    case Dom.Empty          => true
-    case Dom.Text(c)        => c.isEmpty
-    case _: Dom.Element     => false
+    case Dom.Empty           => true
+    case Dom.Text(c)         => c.isEmpty
+    case _: Dom.Element      => false
     case _: Dom.Element.Void => false
-    case _: Dom.Doctype     => false
+    case _: Dom.Doctype      => false
   }
 }
 
@@ -423,7 +423,7 @@ object Dom {
         renderAttributes(resolveOrPassthrough(attributes), sb)
         sb.append("/>")
       }
-      private[html] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit = renderTo(sb)
+      private[html] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit                        = renderTo(sb)
       private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = renderTo(sb)
     }
   }

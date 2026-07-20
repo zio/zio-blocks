@@ -56,19 +56,28 @@ object QueueTable {
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    transactor.connect { (con: DbCon) ?=>
+    transactor.transact { (tx: DbTx) ?=>
       Frag.literal(dialect.createQueueTableDDL(validated, colName)).update
     }
   }
 
   /**
    * Enqueues IDs into the queue table.
+   *
+   * The queue table stores IDs in a TEXT column for portability across ID types.
+   * On PostgreSQL, numeric ID parameters are wrapped in `CAST(... AS TEXT)` so
+   * that they work against the TEXT column without an implicit-cast error.
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return
-    val validated  = SqlId.validate("table", tableName)
-    val colName    = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
-    val valuesFrag = Frag.values(ids)
+    val validated = SqlId.validate("table", tableName)
+    val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
+    val rowFrags = ids.map { id =>
+      val params = codec.toDbValues(id)
+      val parts  = IndexedSeq("(CAST(") ++ IndexedSeq.fill(params.size - 1)(" AS TEXT), CAST(") :+ " AS TEXT))"
+      Frag(parts, params)
+    }
+    val valuesFrag = rowFrags.reduceLeft((a, b) => a ++ Frag.literal(", ") ++ b)
     val frag       = Frag.literal(s"INSERT INTO $validated ($colName) VALUES ") ++ valuesFrag ++ Frag.literal(
       " ON CONFLICT DO NOTHING"
     )
@@ -87,11 +96,11 @@ object QueueTable {
     val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
     val frag      = Frag.literal(dialect.dequeueSQL(validated, colName, batchSize))
     val rows      = frag.query[ID]
-    // Delete dequeued rows (parameterized)
+    // Delete dequeued rows with CAST(... AS TEXT) for numeric-ID/PG compatibility
     if (rows.nonEmpty) {
       val params = rows.flatMap(r => codec.toDbValues(r)).toIndexedSeq
-      val parts  =
-        IndexedSeq(s"DELETE FROM $validated WHERE $colName IN (") ++ IndexedSeq.fill(params.size - 1)(", ") :+ ")"
+      val parts  = IndexedSeq(s"DELETE FROM $validated WHERE $colName IN (CAST(") ++
+        IndexedSeq.fill(params.size - 1)(" AS TEXT), CAST(") :+ " AS TEXT))"
       Frag(parts, params).update
     }
     rows

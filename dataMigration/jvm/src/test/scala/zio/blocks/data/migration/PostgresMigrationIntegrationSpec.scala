@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import zio.test._
 import zio.blocks.schema._
-import zio.blocks.schema.migration.Migration
+import zio.blocks.schema.migration.{DynamicMigration, Migration, MigrationAction}
 import zio.blocks.sql.{
   DbCodec,
   DbCodecDeriver,
@@ -67,13 +67,15 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
 
   private val pgConnStr = s"jdbc:postgresql://$pgHost:$pgPort/$pgDb"
 
+  /**
+   * Creates a transactor whose connections default to auto-commit=true.
+   * Read-only queries (`connect`) auto-commit each statement. Write operations
+   * that need a transaction (`transact`) explicitly disable auto-commit and
+   * commit after success.
+   */
   private def pgTx(): JdbcTransactor =
     new JdbcTransactor(
-      () => {
-        val conn = DriverManager.getConnection(pgConnStr, pgUser, pgPassword)
-        conn.setAutoCommit(false)
-        conn
-      },
+      () => DriverManager.getConnection(pgConnStr, pgUser, pgPassword),
       SqlDialect.PostgreSQL
     )
 
@@ -96,29 +98,36 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
   private val v1Repo  = Repo(v1Table, "id", summon[DbCodec[Int]], (_: V1).id)
   private val v2Repo  = Repo(v2Table, "id", summon[DbCodec[Int]], (_: V2).id)
 
-  private val identityMigration: Migration[V1, V2] = null.asInstanceOf[Migration[V1, V2]]
+  private val identityMigration: Migration[V1, V2] = {
+    val addAge = DynamicMigration(
+      MigrationAction.AddField(
+        DynamicOptic.root.field("age"),
+        DynamicSchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema[Int])
+      )
+    )
+    Migration.fromDynamic(addAge)(using V1.schema, V2.schema)
+  }
 
   private def withPgDb[A](f: JdbcTransactor => A): A = {
     val tx = pgTx()
+    // Drop tables from any previous run in a dedicated transaction
     try {
-      tx.connect { (c: DbCon) ?=>
-        Frag
-          .literal("""
-          CREATE TABLE IF NOT EXISTS v1 (id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id))
-        """)
-          .update
-        Frag
-          .literal("""
-          CREATE TABLE IF NOT EXISTS v2 (id INTEGER NOT NULL, name TEXT NOT NULL, age INTEGER NOT NULL, PRIMARY KEY (id))
-        """)
-          .update
+      tx.transact { (c: DbTx) ?=>
+        Frag.literal("DROP TABLE IF EXISTS v1 CASCADE").update
+        Frag.literal("DROP TABLE IF EXISTS v2 CASCADE").update
+      }
+    } catch { case _: Throwable => () }
+    try {
+      tx.transact { (c: DbTx) ?=>
+        Frag.literal("CREATE TABLE IF NOT EXISTS v1 (id INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY (id))").update
+        Frag.literal("CREATE TABLE IF NOT EXISTS v2 (id INTEGER NOT NULL, name TEXT NOT NULL, age INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (id))").update
       }
       f(tx)
     } finally {
       try
-        tx.connect { (c: DbCon) ?=>
-          Frag.literal("DROP TABLE IF EXISTS v1").update
-          Frag.literal("DROP TABLE IF EXISTS v2").update
+        tx.transact { (c: DbTx) ?=>
+          Frag.literal("DROP TABLE IF EXISTS v1 CASCADE").update
+          Frag.literal("DROP TABLE IF EXISTS v2 CASCADE").update
         }
       catch { case _: Throwable => () }
     }
@@ -136,21 +145,26 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
         test("queue primitives: enqueue/dequeue with SKIP LOCKED") {
           withPgDb { tx =>
             given dialect: Dialect = Dialect.Postgres
-            val qname              = "pg_queue_skip"
+            val qname              = "q_prim_01"
             QueueTable.create[Int](qname, tx)
-            tx.connect(QueueTable.enqueue(qname, List(10, 20, 30)))
-            val before = tx.connect(QueueTable.pending(qname))
+            tx.transact(QueueTable.enqueue(qname, List(10, 20, 30)))
+            val before = tx.transact(QueueTable.pending(qname))
             val ids    = tx.transact(QueueTable.dequeue[Int](qname, 2))
-            val after  = tx.connect(QueueTable.pending(qname))
+            val after  = tx.transact(QueueTable.pending(qname))
             assertTrue(before == 3 && ids.size == 2 && after == 1)
           }
         },
         test("LargeMigrator basic lifecycle with SKIP LOCKED") {
           withPgDb { tx =>
             given dialect: Dialect = Dialect.Postgres
-            val qname              = "pg_large_basic"
+            val qname              = "q_large_01"
             QueueTable.create[Int](qname, tx)
-            tx.connect(QueueTable.enqueue(qname, List(100)))
+            tx.transact(QueueTable.enqueue(qname, List(100)))
+            // Insert matching V1/V2 records so processBatch finds and updates data
+            tx.transact { (c2: DbTx) ?=>
+              Frag.literal("INSERT INTO v1 (id, name) VALUES (100, 'test') ON CONFLICT (id) DO NOTHING").update
+              Frag.literal("INSERT INTO v2 (id, name, age) VALUES (100, 'test', 0) ON CONFLICT (id) DO NOTHING").update
+            }
             val migrator = LargeMigrator[V1, V2, Int, Int](
               repoV1 = v1Repo,
               repoV2 = v2Repo,
@@ -160,15 +174,19 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
               target = TargetStrategy.InPlace
             )(using tx, summon[DbCodec[Int]])
             val ran = migrator.run()
-            assertTrue(ran >= 0)
+            assertTrue(ran == 1)
           }
         },
         test("LargeMigrator fence/drain/complete protocol") {
           withPgDb { tx =>
             given dialect: Dialect = Dialect.Postgres
-            val qname              = "pg_fence_drain"
+            val qname              = "q_fence_01"
             QueueTable.create[Int](qname, tx)
-            tx.connect(QueueTable.enqueue(qname, List(1, 2, 3)))
+            tx.transact(QueueTable.enqueue(qname, List(1, 2, 3)))
+            tx.transact { (c2: DbTx) ?=>
+              Frag.literal("INSERT INTO v1 (id, name) VALUES (1, 'a'), (2, 'b'), (3, 'c') ON CONFLICT (id) DO NOTHING").update
+              Frag.literal("INSERT INTO v2 (id, name, age) VALUES (1, 'a', 0), (2, 'b', 0), (3, 'c', 0) ON CONFLICT (id) DO NOTHING").update
+            }
             val migrator = LargeMigrator[V1, V2, Int, Int](
               repoV1 = v1Repo,
               repoV2 = v2Repo,
@@ -187,9 +205,9 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
         test("SmallMigrator with ShadowTable init") {
           withPgDb { tx =>
             given dialect: Dialect = Dialect.Postgres
-            val qname              = "pg_shadow"
+            val qname              = "q_shadow_01"
             QueueTable.create[Int](qname, tx)
-            tx.connect(QueueTable.enqueue(qname, List(1)))
+            tx.transact(QueueTable.enqueue(qname, List(1)))
             val migrator = SmallMigrator[V1, V2, Int, Int](
               repoV1 = v1Repo,
               repoV2 = v2Repo,
@@ -202,5 +220,5 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
             assertTrue(true)
           }
         }
-      )
+      ) @@ TestAspect.sequential
 }

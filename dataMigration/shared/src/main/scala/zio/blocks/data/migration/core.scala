@@ -16,8 +16,6 @@
 
 package zio.blocks.data.migration
 
-import zio.blocks.schema.migration.Migration
-
 /**
  * Semantic version for data schemas.
  *
@@ -50,24 +48,6 @@ final case class DataVersion(
   def <=(that: DataVersion): Boolean = compare(that) <= 0
   def >(that: DataVersion): Boolean  = compare(that) > 0
   def >=(that: DataVersion): Boolean = compare(that) >= 0
-}
-
-/**
- * Typed migration path from version A to version B.
- *
- * @param from
- *   Source data version
- * @param to
- *   Target data version
- * @param migration
- *   The typed Migration[A, B] transformation
- */
-final case class MigrationPath[A, B](
-  from: DataVersion,
-  to: DataVersion,
-  migration: Migration[A, B]
-) {
-  require(from < to, "MigrationPath requires from < to (no downgrades)")
 }
 
 /**

@@ -151,18 +151,31 @@ The queue table stores V1 IDs (`ID1`). The `ID1` type must have a `DbCodec` inst
 
 ## Queue Primitives
 
-`QueueTable` is the dirty-key tracking mechanism shared by `SmallMigrator` and `LargeMigrator`. Queue entries are coalesced `(migration_id, primary_key)` pairs. They contain neither JSON payloads nor operation types. The source table remains authoritative, and the source row is reread at processing time.
+`QueueTable` is the dirty-key tracking mechanism shared by `SmallMigrator` and `LargeMigrator`. The queue table has three columns:
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | `TEXT NOT NULL PRIMARY KEY` | The primary key of the affected source row |
+| `op` | `TEXT NOT NULL DEFAULT 'I'` | The operation type: `'I'` (insert), `'U'` (update), or `'D'` (delete) |
+| `payload` | `TEXT` | JSON-serialized V1 row data, captured only for `'D'` operations on PostgreSQL |
+
+Queue entries are coalesced by primary key. When a source row is inserted, updated, or deleted, capture triggers upsert the affected key into the queue table in the same transaction. For `INSERT` and `UPDATE`, only the key and operation type are stored. For `DELETE`, PostgreSQL captures the full row as JSON via `row_to_json(OLD.*)::text` so the worker can recover the V1 data even though the source row is gone. SQLite does not support `row_to_json`, so the payload is `None` for delete entries on that dialect.
 
 | Operation | Description |
 |---|---|
-| `QueueTable.create` | Creates the queue table and capture triggers |
-| `enqueue` | Upserts a dirty key into the queue (called by source triggers) |
-| `dequeue` | Claims a batch of dirty keys for processing |
+| `QueueTable.create` | Creates the queue table and installs capture triggers on the source table |
+| `enqueue` | Inserts the ID into the queue (the trigger fills `op` and `payload` automatically) |
+| `dequeue` | Claims a batch of entries, returning `(id, op, payload)` tuples |
 | `pending` | Returns the number of unprocessed keys |
 
 PostgreSQL uses `FOR UPDATE SKIP LOCKED` for concurrent worker claims. SQLite uses a single consumer with `BEGIN IMMEDIATE` and a busy timeout.
 
-A worker claims the dirty key and, in one transaction, rereads the source row without taking a source-row lock, applies the target mutation, and removes the key. If the source row is missing at processing time, the worker deletes the target row. If the source row exists, the worker migrates and upserts it.
+A worker claims the dirty key and, in one transaction, processes the entry based on its operation type. For `'I'` and `'U'` entries, the worker rereads the source row without taking a source-row lock, applies the `Migration[A, B]`, and upserts the result into the target. For `'D'` entries, the worker deserializes the stored payload JSON via `migration.sourceSchema.jsonCodec` to recover the V1 entity, applies the migration to produce the V2 identity, and then handles the delete according to the target strategy:
+
+- **`TargetStrategy.InPlace`**: The source row is already gone, so the delete is a no-op.
+- **`TargetStrategy.ShadowTable`**: The worker deletes the corresponding V2 row from the shadow table using the recovered identity.
+
+If the source row is missing at processing time for an `'I'` or `'U'` entry (deleted between enqueue and dequeue), the entry is silently skipped since `findAll` returns only the rows that still exist.
 
 ## Database Support
 

@@ -88,10 +88,15 @@ final class SmallMigrator[A, B, ID1, ID2](
             val foundIds   = entitiesV1.map(repoV1.getId).toSet
             val deletedIds = ids.filterNot(foundIds.contains)
             val deleted    =
-              if (deletedIds.nonEmpty) writeRepo.deleteAll(deletedIds.asInstanceOf[List[ID2]])(using tx) else 0
+              if (deletedIds.nonEmpty) writeRepo.deleteAll(sameIds(deletedIds))(using tx) else 0
             migrated + deleted
         }
       }
     }
   }
+
+  /** IDs dequeued from the queue (ID1) are the same logical identifiers used in
+    * the target table (ID2) — migration does not change the ID type. */
+  private def sameIds(ids: List[ID1]): List[ID2] =
+    ids.asInstanceOf[List[ID2]]
 }
