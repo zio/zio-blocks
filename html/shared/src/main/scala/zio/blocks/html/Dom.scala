@@ -179,8 +179,8 @@ sealed trait Dom extends Product with Serializable {
    *   true if this node produces no output when rendered
    */
   def isEmpty: Boolean = this match {
-    case Dom.Empty      => true
-    case Dom.Text(c)    => c.isEmpty
+    case Dom.Empty           => true
+    case Dom.Text(c)         => c.isEmpty
     case _: Dom.Element      => false
     case _: Dom.Element.Void => false
     case _: Dom.Doctype      => false
@@ -382,12 +382,12 @@ object Dom {
     /**
      * A sealed trait for void HTML elements that cannot have children.
      *
-     * Void elements accept attributes but reject children at compile time.
-     * They self-close when rendered (e.g., `<br/>`, `<img src="..."/>`).
+     * Void elements accept attributes but reject children at compile time. They
+     * self-close when rendered (e.g., `<br/>`, `<img src="..."/>`).
      *
-     * Unlike [[Element]], this trait does not extend [[Dom.Element]] so
-     * it does not inherit `apply(DomModifier*)` — only attributes can be
-     * applied via `apply(Attribute, Attribute*)`.
+     * Unlike [[Element]], this trait does not extend [[Dom.Element]] so it does
+     * not inherit `apply(DomModifier*)` — only attributes can be applied via
+     * `apply(Attribute, Attribute*)`.
      *
      * Subtypes include:
      *   - [[Dom.Element.VoidGeneric]] — generic void elements

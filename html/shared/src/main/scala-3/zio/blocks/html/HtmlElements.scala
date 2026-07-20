@@ -153,13 +153,13 @@ trait HtmlElements {
   def script(effect: Dom.Attribute | Js, effects: (Dom.Attribute | Js)*): Dom.Element.Script = elScript(
     effect +: effects
   )
-  val search: Dom.Element  = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
-  val section: Dom.Element = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
-  val select: Dom.Element  = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
-  val slot: Dom.Element    = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
-  val small: Dom.Element   = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
+  val search: Dom.Element      = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
+  val section: Dom.Element     = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
+  val select: Dom.Element      = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
+  val slot: Dom.Element        = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
+  val small: Dom.Element       = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
   val source: Dom.Element.Void = Dom.Element.VoidGeneric("source", Chunk.empty)
-  val strong: Dom.Element  = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
+  val strong: Dom.Element      = Dom.Element.Generic("strong", Chunk.empty, Chunk.empty)
 
   /** Creates an empty `style` element. */
   def style(): Dom.Element.Style = elStyle(Seq.empty)
