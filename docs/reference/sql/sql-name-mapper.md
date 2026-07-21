@@ -29,30 +29,30 @@ object SqlNameMapper {
 
 Call a mapper like a function:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.SqlNameMapper
 
-SqlNameMapper.SnakeCase("firstName")  // "first_name"
-SqlNameMapper.SnakeCase("userID")     // "user_id"
-SqlNameMapper.Identity("firstName")   // "firstName"
+SqlNameMapper.SnakeCase("firstName")
+SqlNameMapper.SnakeCase("userID")
+SqlNameMapper.Identity("firstName")
 
 val upper = SqlNameMapper.Custom(_.toUpperCase)
-upper("firstName")  // "FIRSTNAME"
+upper("firstName")
 ```
 
 Use a custom mapper when deriving codecs:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 import zio.blocks.schema.Schema
 
 case class Order(orderId: Int, totalAmount: BigDecimal)
-object Order { given Schema[Order] = Schema.derived }
+object Order { given schema: Schema[Order] = Schema.derived }
 
 // Use UPPERCASE column names instead of snake_case
 val upperDeriver = DbCodecDeriver.withColumnNameMapper(SqlNameMapper.Custom(_.toUpperCase))
 val codec: DbCodec[Order] = Order.schema.deriving(upperDeriver).derive
-codec.columns  // IndexedSeq("ORDERID", "TOTALAMOUNT")
+codec.columns
 ```
 
 ## Key Points
