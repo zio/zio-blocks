@@ -38,47 +38,42 @@ object TableNamingPolicy {
 
 Derive column metadata from a schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{TableMetadata, SqlDialect}
 import zio.blocks.schema.Schema
 
 case class Product(id: Int, name: String, price: Option[BigDecimal])
-object Product { given Schema[Product] = Schema.derived }
+object Product { given schema: Schema[Product] = Schema.derived }
 
 val cols = TableMetadata.columnsFor(Product.schema)
-// IndexedSeq(
-//   ColumnMeta("id", DbValue.DbInt(0), nullable = false),
-//   ColumnMeta("name", DbValue.DbString(""), nullable = false),
-//   ColumnMeta("price", DbValue.DbBigDecimal(BigDecimal(0)), nullable = true)
-// )
+cols
 
-cols.map(_.name)     // IndexedSeq("id", "name", "price")
-cols.map(_.nullable) // IndexedSeq(false, false, true)
+cols.map(_.name)
+cols.map(_.nullable)
 ```
 
 Use the column metadata to get DDL types:
 
-```scala
+```scala mdoc
 cols.map(col => SqlDialect.PostgreSQL.typeName(col.dbValue))
-// IndexedSeq("INTEGER", "TEXT", "NUMERIC")
 ```
 
 Control table naming when deriving a Table:
 
-```scala
+```scala mdoc
 import zio.blocks.sql.{Table, TableNamingPolicy}
 
 // Singular table name (default)
 val table1 = Table.derived[Product]
-// table name: "product"
+table1.name
 
 // Plural table name
 val table2 = Table.derived[Product](TableNamingPolicy.Plural)
-// table name: "products"
+table2.name
 
 // Custom naming
 val table3 = Table.derived[Product](TableNamingPolicy.Custom("t_" + _))
-// table name: "t_product"
+table3.name
 ```
 
 ## Key Points
