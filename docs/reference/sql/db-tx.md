@@ -39,7 +39,7 @@ trait DbCon {
 
 The following example opens a transaction via `Transactor#transact`, accesses all three context members, and combines a `Repo` CRUD operation with a hand-written `Frag` query — both of which accept `DbTx` transparently in place of `DbCon`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -51,21 +51,23 @@ object User {
 val repo = Repo.derived[User, Int]("id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.transact { given ctx: DbTx =>
-  // All three context members are accessible on ctx
-  val conn: DbConnection = ctx.connection   // managed JDBC connection — do not close manually
-  val d:    SqlDialect   = ctx.dialect      // e.g. SqlDialect.SQLite
-  val log:  SqlLogger    = ctx.logger       // e.g. SqlLogger.noop
+// On normal return: transaction commits and connection closes.
+// On any exception: transaction rolls back, then the exception propagates.
+tx.transact {
+  // All three context members are accessible via summon[DbTx]
+  val conn: DbConnection = summon[DbTx].connection // managed JDBC connection — do not close manually
+  val d:    SqlDialect   = summon[DbTx].dialect
+  val log:  SqlLogger    = summon[DbTx].logger
 
   // Repo and Frag operations accept DbTx because DbTx extends DbCon
-  repo.table.createTable(ctx.dialect).update
+  repo.table.createTable(summon[DbTx].dialect).update
   repo.insert(User(1, "Alice", "alice@example.com"))
   repo.insert(User(2, "Bob",   "bob@example.com"))
 
   val all:    List[User] = repo.findAll
   val custom: List[User] =
     sql"SELECT id, name, email FROM user WHERE name LIKE ${"A%"}".query[User]
+
+  (all, custom)
 }
-// On normal return: transaction commits and connection closes.
-// On any exception: transaction rolls back, then the exception propagates.
 ```
