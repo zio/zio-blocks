@@ -33,23 +33,23 @@ object DbCodecDeriver extends DbCodecDeriver(SqlNameMapper.SnakeCase) {
 }
 ```
 
-## Quick Showcase
+## Usage
 
 The following example shows the three most common ways to reach `DbCodecDeriver`: through the `derives` clause on a case class, through `DbCodec.derived` (equivalent), and through `DbCodecDeriver.withColumnNameMapper` when a non-default naming strategy is needed.
 
-```scala
+```scala mdoc
 import zio.blocks.sql.{DbCodec, DbCodecDeriver, SqlNameMapper}
 import zio.blocks.schema.Schema
 
 // 1. Derives clause — most concise
 case class User(userId: Int, fullName: String) derives DbCodec
-DbCodec[User].columns // IndexedSeq("user_id", "full_name")
+DbCodec[User].columns
 
 // 2. DbCodec.derived — equivalent, explicit
 case class Event(eventId: Long, eventType: String)
 object Event { implicit val schema: Schema[Event] = Schema.derived }
 val eventCodec = DbCodec.derived[Event]
-eventCodec.columns // IndexedSeq("event_id", "event_type")
+eventCodec.columns
 
 // 3. withColumnNameMapper — use Identity when your DB already uses camelCase
 case class Widget(widgetId: Int, widgetName: String)
@@ -57,7 +57,7 @@ object Widget { implicit val schema: Schema[Widget] = Schema.derived }
 
 val identityDeriver = DbCodecDeriver.withColumnNameMapper(SqlNameMapper.Identity)
 val widgetCodec     = Widget.schema.deriving(identityDeriver).derive
-widgetCodec.columns // IndexedSeq("widgetId", "widgetName")
+widgetCodec.columns
 ```
 
 ## See Also
