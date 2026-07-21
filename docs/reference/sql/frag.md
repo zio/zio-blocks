@@ -43,13 +43,19 @@ object Frag {
 
 Build fragments with the `sql"..."` interpolator and execute them inside a `Transactor` block:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 val userId  = 42
 val active  = true
 
-tx.connect { given DbCon =>
+tx.connect {
   // Query — returns all matching rows
   val users: List[User] = 
     sql"SELECT id, name FROM user WHERE id > $userId AND active = $active".query[User]
@@ -72,40 +78,55 @@ tx.connect { given DbCon =>
 
 **`sql"..."` interpolator** — The primary way to build fragments. Compile-time checked: every interpolated value must have a `DbParam` instance (provided for all common Scala and Java types).
 
-```scala
+```scala mdoc:reset
+import zio.blocks.sql._
+
 val userId = 42
 val frag = sql"SELECT * FROM user WHERE id = $userId"
-// frag.params == IndexedSeq(DbValue.DbInt(42))
+frag.params
 ```
 
 **`Frag.literal`** — Wrap static SQL text (no parameters):
 
-```scala
+```scala mdoc
 val query = sql"SELECT * FROM user" ++ Frag.literal(" ORDER BY name")
+query.sql(SqlDialect.SQLite)
 ```
 
 **`Frag.values`** — Build a multi-row INSERT VALUES clause:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.sql._
+
+case class Product(name: String, price: BigDecimal) derives DbCodec
+
 val products = List(Product("Widget", BigDecimal("9.99")), Product("Gadget", BigDecimal("24.99")))
 val insert = Frag.literal("INSERT INTO product (name, price) VALUES ") ++ Frag.values(products)
-// renders: "INSERT INTO product (name, price) VALUES (?, ?), (?, ?)"
+insert.sql(SqlDialect.SQLite)
 ```
 
 **`Frag.empty`** — The identity fragment for composition. Useful for optional clauses:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.sql._
+
+val hasFilter = true
 val where = if (hasFilter) sql" WHERE active = ${true}" else Frag.empty
 val query = sql"SELECT * FROM user" ++ where
+query.sql(SqlDialect.SQLite)
 ```
 
 **`Frag.sequence`** — Concatenate multiple fragments with no separator:
 
-```scala
+```scala mdoc:reset
+import zio.blocks.sql._
+
+val status = "active"
 val base   = sql"SELECT * FROM user"
 val where  = sql" WHERE status = $status"
 val order  = Frag.literal(" ORDER BY name")
 val full   = Frag.sequence(base, where, order)
+full.sql(SqlDialect.SQLite)
 ```
 
 ## Execution Methods
@@ -114,30 +135,62 @@ All execution methods require an implicit `DbCon` (provided by `Transactor#conne
 
 **`query[A]`** — Execute SELECT and return all rows:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
 val users: List[User] = sql"SELECT id, name FROM user".query[User]
 ```
 
 **`queryOne[A]`** — Execute SELECT and return at most one row:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
 val user: Option[User] = sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
 ```
 
 **`queryLimit[A](n)`** — Execute SELECT and return up to n rows (fetched from Scala side):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
 val page: List[User] = sql"SELECT id, name FROM user ORDER BY name".queryLimit[User](10)
 ```
 
 **`update`** — Execute INSERT, UPDATE, or DELETE and return affected row count:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+given DbCon = ???
+
 val deleted: Int = sql"DELETE FROM user WHERE inactive = ${true}".update
 ```
 
 **`updateReturningKeys[A]`** — Execute INSERT and return auto-generated primary key(s):
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+given DbCon = ???
+
 val keys: List[Long] = sql"INSERT INTO user (name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```
