@@ -32,7 +32,7 @@ object Table {
 
 The following example illustrates the core workflow: derive a table from a schema-equipped case class, inspect its column names, generate `CREATE TABLE` DDL, and finally generate `DROP TABLE` DDL:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -43,15 +43,12 @@ object User {
 
 // Derive the table binding — name and columns come from the schema
 val table = Table.derived[User]
-table.name    // "user"
-table.columns // IndexedSeq("id", "name", "email")
+table.name
+table.columns
 
 // Emit dialect-aware DDL as Frag values
 val createSql = table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
-// "CREATE TABLE IF NOT EXISTS user (\n  id INTEGER NOT NULL,\n  name TEXT NOT NULL,\n  email TEXT NOT NULL\n)"
-
-val dropSql = table.dropTable.sql(SqlDialect.PostgreSQL)
-// "DROP TABLE IF EXISTS user"
+val dropSql    = table.dropTable.sql(SqlDialect.PostgreSQL)
 ```
 
 ## Construction / Creating Instances
@@ -70,7 +67,7 @@ object Table {
 
 The following example derives a table for a two-field case class and checks the resulting name and column list:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -80,8 +77,8 @@ object BlogPost {
 }
 
 val table = Table.derived[BlogPost]
-table.name    // "blog_post"
-table.columns // IndexedSeq("title", "body")
+table.name
+table.columns
 ```
 
 ### `Table.derived` (with explicit table name) — Bypass naming policy and annotations
@@ -96,7 +93,7 @@ object Table {
 
 The following example maps `UserProfile` to a table called `profiles` rather than the default `user_profile`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -106,8 +103,8 @@ object UserProfile {
 }
 
 val table = Table.derived[UserProfile]("profiles")
-table.name    // "profiles"
-table.columns // IndexedSeq("first_name", "last_name")
+table.name
+table.columns
 ```
 
 :::caution
@@ -126,7 +123,7 @@ object Table {
 
 The following example uses `TableNamingPolicy.Plural` so that `Category` maps to the table `categories`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -136,13 +133,13 @@ object Category {
 }
 
 val singular = Table.derived[Category](TableNamingPolicy.Singular)
-singular.name // "category"
+singular.name
 
 val plural = Table.derived[Category](TableNamingPolicy.Plural)
-plural.name   // "categories"
+plural.name
 
 val custom = Table.derived[Category](TableNamingPolicy.Custom(n => s"tbl_$n"))
-custom.name   // "tbl_category"
+custom.name
 ```
 
 ### `Table.apply` — Construct directly from codec and column metadata
@@ -155,7 +152,7 @@ final case class Table[A](name: String, codec: DbCodec[A], columnsMeta: IndexedS
 
 The following example builds a `Table` manually, supplying a pre-existing `DbCodec` and explicit column metadata:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 val meta   = IndexedSeq(
@@ -163,8 +160,8 @@ val meta   = IndexedSeq(
   ColumnMeta("label", DbValue.DbString(""), nullable = true)
 )
 val table  = Table[Int]("tag", DbCodec.intCodec, meta)
-table.name    // "tag"
-table.columns // IndexedSeq("id", "label")
+table.name
+table.columns
 ```
 
 :::note
@@ -189,7 +186,7 @@ final case class Table[A](...) {
 
 The following example shows `columns` reflecting the snake_case field names derived from the schema:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -199,7 +196,7 @@ object OrderLine {
 }
 
 val table = Table.derived[OrderLine]
-table.columns // IndexedSeq("product_id", "quantity", "unit_price")
+table.columns
 ```
 
 ### DDL Generation
@@ -218,7 +215,7 @@ final case class Table[A](...) {
 
 The following example demonstrates the DDL generated for a record with a mix of column types and an optional field:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -229,10 +226,7 @@ object Product {
 
 val table    = Table.derived[Product]
 val createPg = table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
-// "CREATE TABLE IF NOT EXISTS product (\n  sku TEXT NOT NULL,\n  price NUMERIC NOT NULL,\n  stock INTEGER\n)"
-
 val createSq = table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite)
-// "CREATE TABLE IF NOT EXISTS product (\n  sku TEXT NOT NULL,\n  price TEXT NOT NULL,\n  stock INTEGER\n)"
 ```
 
 :::caution
@@ -251,7 +245,7 @@ final case class Table[A](...) {
 
 The following example shows the drop statement for a table derived from a simple case class:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -261,8 +255,8 @@ object Session {
 }
 
 val table = Table.derived[Session]
-table.dropTable.sql(SqlDialect.PostgreSQL) // "DROP TABLE IF EXISTS session"
-table.dropTable.sql(SqlDialect.SQLite)     // "DROP TABLE IF EXISTS session"
+table.dropTable.sql(SqlDialect.PostgreSQL)
+table.dropTable.sql(SqlDialect.SQLite)
 ```
 
 ## Supporting Types
