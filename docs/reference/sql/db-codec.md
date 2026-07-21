@@ -70,7 +70,7 @@ Codecs for JSON/JSONB columns, type conversions, and specialized encoding strate
 
 The following example shows the core lifecycle of a `DbCodec`: deriving one automatically, inspecting its column metadata, encoding a value, handling nullable columns, and adapting the codec to a newtype:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -79,23 +79,21 @@ case class User(id: Int, name: String, email: Option[String]) derives DbCodec
 
 val codec = DbCodec[User]
 
-codec.columns     // IndexedSeq("id", "name", "email")
-codec.columnCount // 3
+codec.columns
+codec.columnCount
 
 // Encode a value for use as SQL parameters
 val params = codec.toDbValues(User(1, "Alice", Some("alice@example.com")))
-// IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Alice"), DbValue.DbString("alice@example.com"))
 
 // None encodes as SQL NULL
 val nullParams = codec.toDbValues(User(2, "Bob", None))
-// IndexedSeq(DbValue.DbInt(2), DbValue.DbString("Bob"), DbValue.DbNull)
 
 // Adapt any codec to a newtype with transform — no full Schema needed
 case class UserId(value: Int)
 val userIdCodec: DbCodec[UserId] = DbCodec[Int].transform(UserId(_))(_.value)
 
-userIdCodec.columns               // IndexedSeq("value")
-userIdCodec.toDbValues(UserId(42)) // IndexedSeq(DbValue.DbInt(42))
+userIdCodec.columns
+userIdCodec.toDbValues(UserId(42))
 ```
 
 ## Construction / Creating Instances
@@ -114,7 +112,7 @@ object DbCodec {
 
 The two most common spellings are the `derives` clause on the case class and explicit summoning:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 // Option 1: derives clause
@@ -149,7 +147,7 @@ object DbCodec {
 
 The configure function receives a `DerivationBuilder[DbCodec, A]` and returns a modified one. We call `DerivationBuilder#instance` to attach a custom `DbCodec` for a specific field, identified by the enclosing type's `TypeId` and the field name:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.typeid.TypeId
@@ -169,8 +167,8 @@ val productCodec: DbCodec[Product] =
     _.instance(TypeId.of[Product], "tags", tagsCodec)
   )
 
-productCodec.columns     // IndexedSeq("id", "tags")
-productCodec.columnCount // 2
+productCodec.columns
+productCodec.columnCount
 ```
 
 ### `DbCodec.jsonb` — JSONB column codec
@@ -186,7 +184,7 @@ object DbCodec {
 
 The first overload requires a `JsonSchemaCodec[A]` (aliased from `zio.blocks.schema.json.JsonCodec`) in implicit scope:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec, JsonCodecDeriver}
@@ -200,14 +198,13 @@ object Address {
 // Address is stored as a JSON string in a single TEXT/JSONB column
 val codec: DbCodec[Address] = DbCodec.jsonb[Address]
 
-codec.columns // IndexedSeq("value")
+codec.columns
 codec.toDbValues(Address("Main St", "NYC"))
-// IndexedSeq(DbValue.DbString("{\"street\":\"Main St\",\"city\":\"NYC\"}"))
 ```
 
 Use the two-argument overload when you supply custom encode/decode logic instead of relying on `JsonSchemaCodec`:
 
-```scala
+```scala mdoc
 import zio.blocks.sql._
 
 case class Point(x: Double, y: Double)
@@ -218,7 +215,7 @@ val pointCodec: DbCodec[Point] = DbCodec.jsonb[Point](
   s => { val parts = s.split(","); Point(parts(0).toDouble, parts(1).toDouble) }
 )
 
-pointCodec.toDbValues(Point(1.0, 2.0)) // IndexedSeq(DbValue.DbString("1.0,2.0"))
+pointCodec.toDbValues(Point(1.0, 2.0))
 ```
 
 ### `DbCodec.jsonbOption` — Nullable JSONB column codec
@@ -234,7 +231,7 @@ object DbCodec {
 
 The codec delegates to `DbCodec[Option[String]]` and applies the JSON encode/decode on the inner `String`, so `NULL` detection uses the underlying `Option[String]` codec's standard null handling:
 
-```scala
+```scala mdoc
 import zio.blocks.sql._
 import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
@@ -242,10 +239,8 @@ import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 val nullableCodec: DbCodec[Option[Address]] = DbCodec.jsonbOption[Address]
 
 nullableCodec.toDbValues(Some(Address("Elm St", "LA")))
-// IndexedSeq(DbValue.DbString("{\"street\":\"Elm St\",\"city\":\"LA\"}"))
 
 nullableCodec.toDbValues(None)
-// IndexedSeq(DbValue.DbNull)
 ```
 
 ### `DbCodec.derivedOpaque` — Opaque type derivation
@@ -260,7 +255,7 @@ object DbCodec {
 
 For the decode direction the opaque type's companion `apply` is called. For the encode direction, if the opaque type is declared as a subtype of its underlying type (`opaque type T <: U = U`), the value is used directly; otherwise the companion must expose an `unwrap` method:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 opaque type ProductId <: String = String
@@ -270,7 +265,7 @@ object ProductId {
 
 // DbCodec[ProductId] is resolved automatically — no explicit given needed
 val codec = DbCodec[ProductId]
-codec.columns // IndexedSeq("value")
+codec.columns
 ```
 
 :::caution
@@ -289,7 +284,7 @@ object DbCodec {
 
 `As[A, B]` (from `zio.blocks.schema`) represents a validated conversion from `A` to `B` and from `B` back to `A`. The derived codec applies `As#into` on decode and `As#from` on encode; if either conversion returns a `Left`, an `IllegalStateException` is thrown at runtime:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.As
 
@@ -312,14 +307,14 @@ object DbCodec {
 
 We use `DbCodec.apply` whenever we need a codec value without knowing its derivation path:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 case class Order(id: Long, status: String) derives DbCodec
 
 // Summon the derived codec
 val codec: DbCodec[Order] = DbCodec[Order]
-codec.columns // IndexedSeq("id", "status")
+codec.columns
 ```
 
 ### `DbCodec.builder` — Derivation builder
@@ -334,7 +329,7 @@ object DbCodec {
 
 `DerivationBuilder` exposes `instance` to attach custom codecs for individual fields and `derive` to produce the final codec. `DbCodec.derivedWith` is a one-liner wrapper around `builder`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.typeid.TypeId
 
@@ -389,7 +384,7 @@ trait DbCodec[A] {
 
 For a case class codec produced by `DbCodec.derived`, each field maps to one column name after the `SqlNameMapper` (default: `SnakeCase`). Annotating a field with `@Modifier.rename("custom_name")` overrides the mapped name:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
 
@@ -398,7 +393,7 @@ case class BlogPost(
   authorName: String
 ) derives DbCodec
 
-DbCodec[BlogPost].columns // IndexedSeq("post_id", "author_name")
+DbCodec[BlogPost].columns
 ```
 
 #### `columnCount` — Number of columns
@@ -413,13 +408,13 @@ trait DbCodec[A] {
 
 We use `columnCount` to validate multi-column usage and to calculate offsets when composing codecs. For all primitive codecs, `columnCount` is `1`. For a case class, it equals the number of non-transient fields (fields annotated with `@Modifier.transient()` are excluded):
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
 
 case class Event(name: String, @Modifier.transient() internalFlag: Boolean = false) derives DbCodec
 
-DbCodec[Event].columnCount // 1  ("internalFlag" is excluded)
+DbCodec[Event].columnCount // "internalFlag" is excluded
 ```
 
 ### Reading / Decoding
@@ -438,7 +433,7 @@ trait DbCodec[A] {
 
 The default implementation converts positional access to label-based access automatically, so implementing only the label-based overload is sufficient when writing a custom `DbCodec`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 // For illustration: a custom single-column String codec
@@ -472,7 +467,7 @@ trait DbCodec[A] {
 
 The caller must supply exactly `columnCount` labels in the logical order matching the codec's `columns` sequence. In practice, `Frag` constructs this sequence automatically from the query result metadata:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 case class User(id: Int, name: String) derives DbCodec
@@ -499,7 +494,7 @@ trait DbCodec[A] {
 
 `Frag` and `Repo` call this method to bind parameters when executing `INSERT` and `UPDATE` statements. For `None` / `Maybe.absent`, the codec calls `DbParamWriter#setNull` with `java.sql.Types.NULL`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 case class Point(x: Double, y: Double) derives DbCodec
@@ -525,7 +520,7 @@ trait DbCodec[A] {
 
 `toDbValues` is used by `Frag` and `Repo` to inspect or log parameters before binding, and in tests to assert encoding behavior without a real database connection:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 case class Item(id: Int, name: String, price: Option[BigDecimal]) derives DbCodec
@@ -533,10 +528,8 @@ case class Item(id: Int, name: String, price: Option[BigDecimal]) derives DbCode
 val codec = DbCodec[Item]
 
 codec.toDbValues(Item(1, "Widget", Some(BigDecimal("9.99"))))
-// IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Widget"), DbValue.DbBigDecimal(9.99))
 
 codec.toDbValues(Item(2, "Gadget", None))
-// IndexedSeq(DbValue.DbInt(2), DbValue.DbString("Gadget"), DbValue.DbNull)
 ```
 
 ### Transformations
@@ -553,7 +546,7 @@ trait DbCodec[A] {
 
 Both `read` and `write` must be total functions; any exception they throw propagates to the caller. The transformed codec delegates all column metadata and read/write operations to the inner codec after applying the conversions:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 case class ProductId(value: String)
@@ -562,8 +555,8 @@ case class ProductId(value: String)
 val productIdCodec: DbCodec[ProductId] =
   DbCodec[String].transform(ProductId(_))(_.value)
 
-productIdCodec.columns                        // IndexedSeq("value")
-productIdCodec.toDbValues(ProductId("abc-1")) // IndexedSeq(DbValue.DbString("abc-1"))
+productIdCodec.columns
+productIdCodec.toDbValues(ProductId("abc-1"))
 ```
 
 `DbCodec#transform` is also the engine behind `DbCodec.jsonb`, `DbCodec.jsonbOption`, and `DbCodec.dbCodecFromAs` — each of those constructors builds on top of an existing primitive or composite codec and applies `transform` to attach custom encode/decode logic.
