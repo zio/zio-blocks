@@ -51,7 +51,7 @@ object SqlLogger {
 
 The following example creates a simple in-memory `SqlLogger` that accumulates log lines and shows how each field of `SuccessEvent` can be inspected:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{SqlLogger, DbValue}
 import java.time.Duration
 import scala.collection.mutable
@@ -84,7 +84,6 @@ collectingLogger.onSuccess(
 )
 
 logLines.head
-// "[3ms rows=1] SELECT id, name FROM users WHERE id = ? -- [42]"
 ```
 
 ## Construction / Creating Instances
@@ -95,7 +94,7 @@ logLines.head
 
 `SqlLogger.noop` is a pre-built instance whose `onSuccess` and `onError` implementations return `()` immediately. It is the default logger passed to `JdbcTransactor` when no custom logger is provided:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql.SqlLogger
 
 // noop discards all events
@@ -110,7 +109,7 @@ val noLogging: SqlLogger = SqlLogger.noop
 
 Implement both methods to integrate with any logging framework. Keep implementations fast: the methods run synchronously on the JDBC thread. For high-throughput workloads, prefer appending to a lock-free queue and draining it on a background thread rather than writing to a file or a remote sink inline.
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{SqlLogger, DbValue}
 
 val printingLogger: SqlLogger = new SqlLogger {
@@ -133,7 +132,7 @@ val printingLogger: SqlLogger = new SqlLogger {
 - `duration: java.time.Duration` — the wall-clock time from statement preparation to JDBC return.
 - `rowCount: Int` — the number of rows affected (for `UPDATE`/`INSERT`/`DELETE`) or returned (for `SELECT`).
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{SqlLogger, DbValue}
 import java.time.Duration
 
@@ -144,16 +143,16 @@ val event = SqlLogger.SuccessEvent(
   rowCount = 1
 )
 
-event.sql      // "INSERT INTO orders (user_id, amount) VALUES (?, ?)"
-event.rowCount // 1
-event.params   // IndexedSeq(DbValue.DbInt(7), DbValue.DbBigDecimal(19.99))
+event.sql
+event.rowCount
+event.params
 ```
 
 ### `onError` — Handle a failed statement
 
 `onError(event: SqlLogger.ErrorEvent): Unit` is called after every statement that throws an exception. The `ErrorEvent` shares the `sql`, `params`, and `duration` fields with `SuccessEvent` and adds `error: Throwable` — the exception that caused the failure. The module does not swallow the exception; it calls `onError` and then re-throws so the caller's error handling is not bypassed.
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.{SqlLogger, DbValue}
 import java.time.Duration
 
@@ -164,8 +163,8 @@ val event = SqlLogger.ErrorEvent(
   error    = new RuntimeException("Table 'missing_table' doesn't exist")
 )
 
-event.error.getMessage // "Table 'missing_table' doesn't exist"
-event.sql              // "SELECT * FROM missing_table WHERE id = ?"
+event.error.getMessage
+event.sql
 ```
 
 ## Integration
