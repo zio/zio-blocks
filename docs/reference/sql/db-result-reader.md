@@ -72,8 +72,10 @@ trait DbResultReader {
 
 You access `DbResultReader` through `DbResultSet.reader` after calling `executeQuery` on a prepared statement:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 transactor.connect {
   val con = summon[DbCon].connection
@@ -96,8 +98,10 @@ transactor.connect {
 
 Numeric and boolean getters return zero-like defaults (`0`, `0L`, `false`) for SQL `NULL`. String, decimal, and temporal getters return `null`. After any `get*` call, check `wasNull` to detect `NULL`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 transactor.connect {
   val con = summon[DbCon].connection
@@ -124,13 +128,19 @@ When you use high-level operations like `Frag.query` or `Repo.findById`, `DbCode
 
 Label-based access (preferred) lets you ignore column order:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val reader: DbResultReader = ???
 val name = reader.getString("name")  // Works regardless of SELECT order
 ```
 
 Index-based access (1-based per JDBC) is faster but requires stable column order:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val reader: DbResultReader = ???
 val name = reader.getString(2)  // Assumes name is the 2nd column
 ```
 
