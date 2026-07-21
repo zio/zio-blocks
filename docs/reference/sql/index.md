@@ -12,9 +12,6 @@ keywords:
   - "ZIO Integration"
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-
 The `zio-blocks-sql` module provides type-safe, schema-driven SQL query building and execution on relational databases. Its core types — `DbCodec`, `Frag`, `Table`, `Repo`, `Transactor`, `DbCon`, and `DbTx` — form a layered system: codecs map Scala types to database columns, fragments carry parameterized SQL built via string interpolation, repositories expose CRUD operations derived at compile time from a schema, and a transactor manages the connection lifecycle with automatic commit and rollback.
 
 ## Motivation
@@ -134,10 +131,7 @@ The `sql"..."` interpolator is defined as an extension on `StringContext`. At co
 
 A complete end-to-end example showing schema definition, table setup, repository construction, and mixed repository/fragment queries follows:
 
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -151,9 +145,9 @@ val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 val repo = Repo.derived[User, Int]("id", _.id)
 
 // 2. Set up schema and run a transactional workflow
-tx.transact { implicit tx: DbTx =>
+tx.transact {
   // Create table using derived DDL
-  repo.table.createTable(tx.dialect).update
+  repo.table.createTable(summon[DbTx].dialect).update
 
   // Insert via repository (uses pre-built INSERT fragment)
   repo.insert(User(1, "Alice", "alice@example.com"))
@@ -169,49 +163,10 @@ tx.transact { implicit tx: DbTx =>
   // Update and delete
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
   repo.deleteById(2)
+
+  (alice, aUsers)
 }
 ```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
-```scala
-import zio.blocks.sql._
-import zio.blocks.schema.Schema
-
-case class User(id: Int, name: String, email: String)
-object User {
-  implicit val schema: Schema[User] = Schema.derived
-}
-
-// 1. Create transactor and repository
-val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
-val repo = Repo.derived[User, Int]("id", _.id)
-
-// 2. Set up schema and run a transactional workflow
-tx.transact { given tx: DbTx =>
-  // Create table using derived DDL
-  repo.table.createTable(tx.dialect).update
-
-  // Insert via repository (uses pre-built INSERT fragment)
-  repo.insert(User(1, "Alice", "alice@example.com"))
-  repo.insert(User(2, "Bob", "bob@example.com"))
-
-  // Read via repository
-  val alice: Option[User] = repo.findById(1)
-
-  // Read via raw SQL fragment — composes freely with repo operations
-  val aUsers: List[User] =
-    sql"SELECT id, name, email FROM user WHERE name LIKE ${"A%"}".query[User]
-
-  // Update and delete
-  repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
-  repo.deleteById(2)
-}
-```
-
-  </TabItem>
-</Tabs>
 
 Inside `transact`, auto-commit is disabled. If any call throws, the entire block rolls back and the exception propagates. On normal return, the transaction commits and the connection closes.
 
@@ -223,52 +178,29 @@ The module is designed around a small set of patterns that appear throughout mos
 
 `DbCodec`, `Table`, and `Repo` all derive from a single `Schema[A]`. Derivation respects `@Modifier` annotations — `@Modifier.rename` overrides a column name, `@Modifier.transient` excludes a field from the codec, and `@Modifier.config("sql.table_name", "my_table")` overrides the table name. This means your Scala type definition is the single source of truth for column names, types, and nullability:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.{Schema, Modifier}
 
 case class BlogPost(
   @Modifier.rename("post_id") id: Int,
   title: String,
-  @Modifier.transient authorHandle: String  // excluded from SQL
+  @Modifier.transient authorHandle: String = ""  // excluded from SQL
 )
 object BlogPost {
   implicit val schema: Schema[BlogPost] = Schema.derived
 }
 
 val repo = Repo.derived[BlogPost, Int]("post_id", _.id)
-// Table name: "blog_post"  (snake_case of "BlogPost")
-// Columns: "post_id", "title"  ("author_handle" is transient)
+repo.table.name
+repo.table.codec.columns
 ```
 
 ### Implicit Context Threading
 
-Every SQL operation — `Frag` execution and `Repo` CRUD — requires an implicit `DbCon` (or `DbTx`) in scope. The context carries the connection, dialect, and logger, but you never pass it explicitly. Calling code inside `Transactor#connect` or `Transactor#transact` automatically has the context available, and helper methods can propagate it with an implicit parameter:
+Every SQL operation — `Frag` execution and `Repo` CRUD — requires an implicit `DbCon` (or `DbTx`) in scope. The context carries the connection, dialect, and logger, but you never pass it explicitly. Calling code inside `Transactor#connect` or `Transactor#transact` automatically has the context available, and helper methods can propagate it with a `using` parameter:
 
-<Tabs groupId="scala-version" defaultValue="scala2">
-  <TabItem value="scala2" label="Scala 2">
-
-```scala
-import zio.blocks.sql._
-import zio.blocks.schema.Schema
-
-case class Product(id: Int, name: String, price: BigDecimal)
-object Product { implicit val schema: Schema[Product] = Schema.derived }
-
-def cheapProducts(maxPrice: BigDecimal)(implicit con: DbCon): List[Product] =
-  sql"SELECT id, name, price FROM product WHERE price < $maxPrice".query[Product]
-
-val tx = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
-tx.connect { implicit con: DbCon =>
-  // `cheapProducts` picks up `con` automatically
-  val items = cheapProducts(BigDecimal("9.99"))
-}
-```
-
-  </TabItem>
-  <TabItem value="scala3" label="Scala 3">
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -279,20 +211,17 @@ def cheapProducts(maxPrice: BigDecimal)(using DbCon): List[Product] =
   sql"SELECT id, name, price FROM product WHERE price < $maxPrice".query[Product]
 
 val tx = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
-tx.connect { given con: DbCon =>
-  // `cheapProducts` picks up `con` automatically
+tx.connect {
+  // `cheapProducts` picks up the DbCon automatically
   val items = cheapProducts(BigDecimal("9.99"))
 }
 ```
-
-  </TabItem>
-</Tabs>
 
 ### Multi-Column Codecs
 
 A single `DbCodec[A]` can span multiple database columns. When you use a multi-column type directly in an `sql"..."` expression, the `fromDbCodec` `DbParam` instance throws at runtime because it cannot collapse multiple values into a single `?` placeholder. Instead, use `Frag.values` for multi-row inserts or write the columns explicitly in the fragment:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -302,14 +231,14 @@ object Point { implicit val schema: Schema[Point] = Schema.derived }
 // Multi-row insert using Frag.values — one (?, ?) tuple per row
 val points = List(Point(1.0, 2.0), Point(3.0, 4.0))
 val frag   = Frag.literal("INSERT INTO point (x, y) VALUES ") ++ Frag.values(points)
-// Renders: INSERT INTO point (x, y) VALUES (?, ?), (?, ?)
+frag.sql(SqlDialect.SQLite)
 ```
 
 ### Type-Safe SQL Parameterization
 
 The `sql"..."` interpolator accepts any Scala value for which a `DbParam[A]` exists. The macro checks this at compile time and binds the value to a `?` placeholder, preventing SQL injection regardless of the value's content. All standard scalar types have built-in instances, `Option[A]` binds to `NULL` or the inner value, and custom types with a `DbCodec[A]` automatically gain a `DbParam[A]`:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 val userId: Int             = 42
@@ -319,31 +248,29 @@ val active: Option[Boolean] = Some(true)
 // All three are compile-time safe — no string concatenation
 val frag =
   sql"SELECT * FROM user WHERE id = $userId AND name LIKE $namePattern AND active = $active"
-// Renders: SELECT * FROM user WHERE id = ? AND name LIKE ? AND active = ?
-// Params:  DbInt(42), DbString("%alice%"), DbBoolean(true)
+frag.sql(SqlDialect.SQLite)
+frag.params
 ```
 
 ### JSONB Serialization for Complex Types
 
 When a field's type is not directly representable as a single column — such as `List[A]`, `Map[K, V]`, or a sealed trait with multiple variants — `DbCodecDeriver` automatically uses `DbCodec.jsonb[A]` to store and retrieve the value as a JSON-encoded `TEXT` or `JSONB` column. This keeps complex nested data in a single column without requiring a separate table:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
-import zio.blocks.schema.Schema
 
-case class Order(id: Int, tags: List[String], metadata: Map[String, String])
-object Order { implicit val schema: Schema[Order] = Schema.derived }
+case class Order(id: Int, tags: List[String], metadata: Map[String, String]) derives DbCodec
 
-// `tags` and `metadata` are stored as JSON-encoded TEXT columns
-val table = Table.derived[Order]
-// DDL columns: "id" INTEGER NOT NULL, "tags" TEXT NOT NULL, "metadata" TEXT NOT NULL
+// `tags` and `metadata` are encoded via DbCodec.jsonb when read/written through Frag/Repo
+val codec = DbCodec[Order]
+codec.columns
 ```
 
 ### Optional and Nullable Handling
 
 `Option[A]` and `Maybe[A]` map to a single nullable column. Reading a `NULL` from the database produces `None` or `Maybe.absent`; writing `None` or `Maybe.absent` binds `NULL` to the parameter. For non-optional types, encountering an unexpected `NULL` throws `IllegalStateException` at read time, surfacing schema mismatches immediately rather than silently coercing `NULL` to a default:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -352,7 +279,10 @@ object Profile { implicit val schema: Schema[Profile] = Schema.derived }
 
 // bio and avatar_url become nullable TEXT columns in the generated DDL
 val repo = Repo.derived[Profile, Int]("user_id", _.userId)
+
+given DbCon = ???
 // repo.insert(Profile(1, None, None)) binds NULL for both optional columns
+repo.insert(Profile(1, None, None))
 ```
 
 ## Integration Points
