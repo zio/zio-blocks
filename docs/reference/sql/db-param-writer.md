@@ -52,8 +52,10 @@ trait DbParamWriter {
 
 You access `DbParamWriter` through `DbPreparedStatement.paramWriter` when using raw prepared statements in a `connect` block:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 transactor.connect {
   val con  = summon[DbCon].connection
