@@ -1,16 +1,15 @@
 ---
-
 id: db-codec
 title: "DbCodec"
 description: "Reference for DbCodec[A], the foundational bidirectional codec between Scala values and database columns in the sql module."
 keywords:
-  - "DbCodec schema derivation"
-  - "bidirectional column codec"
-  - "JDBC row mapping"
+  - "DbCodec Schema derivation"
+  - "Bidirectional Column Codec"
+  - "JDBC Row Mapping"
   - "DbResultReader DbParamWriter"
-  - "JSONB column encoding"
-  - "opaque type codec"
-  - "sql module codec"
+  - "JSONB Column Encoding"
+  - "Opaque Type Codec"
+  - "SQL Module Codec"
 ---
 
 `DbCodec[A]` is a bidirectional codec between a Scala value of type `A` and one or more database columns. Every read-side operation — fetching rows from a result set — and every write-side operation — binding parameters to a prepared statement — flows through a `DbCodec`. It is the foundational type in the `sql` module: [`Frag`](./frag.md) uses it to decode query results, [`Table`](./table.md) carries it as column metadata, and [`Repo`](./repo.md) relies on it to map entity rows to and from the database.
@@ -624,67 +623,6 @@ trait DbParamWriter {
 
 Like `DbResultReader`, `DbParamWriter` is not used directly in application code. `Frag#update` and `Repo` CRUD methods create a `JdbcParamWriter` wrapping a `java.sql.PreparedStatement` and pass it to `DbCodec#writeValue` internally.
 
-## Comparisons
-
-### `DbCodec` vs `Schema`
-
-`Schema[A]` (from `zio.blocks.schema`) is a compile-time structural description of type `A` — it carries field names, types, variance, annotations, and the reflect tree that drives all codec derivation in the zio-blocks ecosystem. `DbCodec[A]` is a runtime bidirectional codec for a specific encoding target: database columns.
-
-| Aspect              | `Schema[A]`                                                              | `DbCodec[A]`                                                        |
-|---------------------|--------------------------------------------------------------------------|---------------------------------------------------------------------|
-| **Purpose**         | Structural type description, shared across all codecs                    | Runtime encode/decode for database columns specifically              |
-| **Derivation**      | Derived once; drives JSON, Avro, Thrift, and DB codecs                  | Derived from `Schema[A]` via `DbCodecDeriver`                       |
-| **Column names**    | Not aware of SQL column names                                            | Owns `columns: IndexedSeq[String]` mapped by `SqlNameMapper`         |
-| **Null handling**   | Structural; `Option[A]` fields are known structurally                    | `Option[A]` and `Maybe[A]` map to nullable SQL columns at runtime   |
-| **JSONB**           | Not directly involved                                                    | Falls back to JSONB for complex types that have no direct column form |
-| **Runtime cost**    | Evaluated once at derivation time                                        | Codec methods run on every row read and every parameter write        |
-
-`DbCodecDeriver` bridges the two: it walks a `Schema[A]`'s reflect tree and produces a `DbCodec[A]`. The `sql` module's annotations (`@Modifier.rename`, `@Modifier.transient`, `@Modifier.config("sql.inline", "true")`) attach SQL-specific configuration to fields in the `Schema` without coupling the domain model to the `sql` module.
-
-### `DbCodec` vs `java.sql.ResultSet` / `PreparedStatement`
-
-Raw JDBC requires manual column mapping in every method that reads or writes data: type-unsafe `getObject`, 1-indexed position arithmetic, and explicit null checks. `DbCodec` replaces this pattern with a single composable type:
-
-| Aspect                    | Raw JDBC                                         | `DbCodec[A]`                                                    |
-|---------------------------|--------------------------------------------------|-----------------------------------------------------------------|
-| **Type safety**           | `getObject` returns `Any`; cast at runtime       | All reads and writes are statically typed                       |
-| **Null handling**         | `wasNull()` checked by hand after each read      | `Option[A]` and `Maybe[A]` codecs call `wasNull` automatically  |
-| **Column ordering**       | Positional index arithmetic; fragile on `SELECT *` | Label-based read; order-independent by default                 |
-| **Composability**         | Mapping logic scattered per-query                 | `DbCodec[A]` is a reusable, composable value                   |
-| **Testability**           | Requires a live `ResultSet`                      | `toDbValues` and mock `DbResultReader` work without a database  |
-| **Multi-column types**    | Manual offset arithmetic                         | Handled by `columnCount` and `startIndex` conventions           |
-
-## Advanced Usage
-
-`DbCodec` composes into the higher-level types that form the `sql` module's public API. Understanding these compositions clarifies what each type contributes:
-
-**`Table[A]`** wraps a `DbCodec[A]` together with the table name and per-column metadata (`IndexedSeq[ColumnMeta]`). It uses `DbCodec#columns` to build DDL `Frag` values (`CREATE TABLE`, `DROP TABLE`) and passes its codec to `Repo` for all row mapping.
-
-**`Repo[E, ID]`** uses its `Table[E]`'s codec in every CRUD operation. `Repo#insert` calls `DbCodec#writeValue` to bind entity fields as prepared-statement parameters; `Repo#findAll` and `Repo#findById` call `DbCodec#readValue` to decode every returned row. Because the SQL is pre-built at `Repo.derived` call time, there is no per-call string assembly.
-
-**`Frag`** uses `DbCodec[A]` indirectly: the `sql"..."` interpolator converts each interpolated expression to a `DbValue` via `DbParam[A]` (which delegates to `DbCodec#toDbValues` for single-column codecs), and the `Frag#query[A]` extension method decodes each result row by calling `DbCodec[A].readValue` with the column labels from the result set metadata.
-
-The inline field flattening feature — enabled by `@Modifier.config("sql.inline", "true")` on a field or `@Modifier.config("sql.inline_fields", "true")` on a type — lets `DbCodecDeriver` expand a nested case class into its parent's column list. The derived `DbCodec` for the outer type then spans all the inner fields as prefixed columns, as shown here:
-
-```scala
-import zio.blocks.sql._
-import zio.blocks.schema.{Schema, Modifier}
-
-case class Address(street: String, city: String)
-object Address { implicit val schema: Schema[Address] = Schema.derived }
-
-case class Person(
-  name: String,
-  @Modifier.config("sql.inline", "true") address: Address
-)
-object Person { implicit val schema: Schema[Person] = Schema.derived }
-
-val codec = DbCodec.derived[Person]
-codec.columns // IndexedSeq("name", "address_street", "address_city")
-```
-
-Without the `sql.inline` config, `address` would be serialized as a single JSONB-encoded `TEXT` column named `"address"`.
-
 ## Integration
 
 `DbCodec` sits at the center of the `sql` module's layered architecture. The diagram below shows how it connects to its neighbours:
@@ -710,12 +648,3 @@ DbCodec[A] ◄──────────────────────
   DbResultReader   DbParamWriter ────────────┘
   (readValue)      (writeValue)
 ```
-
-Within the module, the key integration points are:
-
-- **`DbCodecDeriver`** is the schema-driven engine that produces `DbCodec` instances. It walks the `Reflect` tree of a `Schema[A]` and emits one codec per node. `DbCodec.derived`, `DbCodec.builder`, and `DbCodec.derivedWith` all invoke `DbCodecDeriver` internally.
-- **`DbCon` and `DbTx`** provide the execution context inside `Transactor#connect` and `Transactor#transact`. They carry the `DbConnection`, `SqlDialect`, and `SqlLogger`, but `DbCodec` itself is connection-agnostic — its `readValue` and `writeValue` methods depend only on `DbResultReader` and `DbParamWriter`, which `Frag` constructs from the active connection.
-- **`DbValue`** is the sealed ADT of typed database values (`DbInt`, `DbString`, `DbNull`, etc.). `DbCodec#toDbValues` returns an `IndexedSeq[DbValue]`, and `Frag` stores its parameters as `IndexedSeq[DbValue]`. This makes the parameter representation inspectable and testable without a live connection.
-- **`As[A, B]`** (from `zio.blocks.schema`) drives `DbCodec.dbCodecFromAs`, giving any type with an `As` instance a free `DbCodec` derived from its underlying type's codec. This is particularly useful for validated newtypes where the `As` conversion enforces invariants at decode time.
-
-For the ZIO integration layer, `TransactorZIO` (from `zio-blocks-sql-zio`) wraps `JdbcTransactor` with ZIO effects but does not change how `DbCodec` is used — the same codecs work unchanged whether the execution context is synchronous `DbCon` or ZIO-wrapped `TransactorZIO`.
