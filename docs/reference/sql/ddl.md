@@ -30,8 +30,10 @@ final case class ColumnDef(name: String, sqlType: String, nullable: Boolean)
 
 Create a `ColumnDef` for each column, then pass them to `Ddl.createTable`:
 
-```scala
-import zio.blocks.sql.{Ddl, ColumnDef}
+```scala mdoc:reset
+import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 val columns = IndexedSeq(
   ColumnDef("id",         "INTEGER", nullable = false),
@@ -44,9 +46,9 @@ val dropFrag   = Ddl.dropTable("users")
 
 // Execute the fragments
 transactor.transact {
-  createFrag.update.run
+  createFrag.update
   // ... do work ...
-  dropFrag.update.run
+  dropFrag.update
 }
 ```
 
