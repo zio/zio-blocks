@@ -1685,7 +1685,9 @@ lazy val docs = project
     smithy,
     htmx.jvm,
     mux.jvm,
-    async.jvm
+    async.jvm,
+    sql.jvm,
+    `sql-zio`
   )
   .enablePlugins(WebsitePlugin)
   .settings(
