@@ -857,7 +857,16 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
-- [SQL](./reference/sql.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
+- [SQL](./reference/sql/index.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
+  - [DbCodec](./reference/sql/db-codec.md) - Bidirectional codec between Scala values and database columns
+  - [Frag](./reference/sql/frag.md) - Immutable SQL fragment with safe parameterization via `sql"..."` interpolator
+  - [Table](./reference/sql/table.md) - Schema-derived table metadata binding Scala types to database tables
+  - [Repo](./reference/sql/repo.md) - Type-safe CRUD repository with pre-built SQL operations
+  - [Transactor](./reference/sql/transactor.md) - Connection lifecycle and transaction management
+  - [DbCon](./reference/sql/db-con.md) - Implicit context carrying connection, dialect, and logger
+  - [DbTx](./reference/sql/db-tx.md) - Transactional scope marker extending `DbCon`
+  - [SqlDialect](./reference/sql/sql-dialect.md) - Database-specific SQL rendering (PostgreSQL, SQLite)
+  - [TransactorZIO](./reference/sql/transactor-zio.md) - ZIO integration with `ZIO.attemptBlocking` and `ZLayer`
 - [Async](./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
