@@ -57,8 +57,10 @@ Never call `con.close()` inside a `connect` or `transact` block. The `Transactor
 
 `prepareStatement(sql: String): DbPreparedStatement` asks the JDBC driver to compile and cache the SQL string and returns a `DbPreparedStatement` that can have parameters bound to it before execution. The `sql` string must use `?` placeholders for parameters.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Inside a connect block:
 transactor.connect {
@@ -75,8 +77,10 @@ transactor.connect {
 
 `prepareStatementReturningKeys(sql: String): DbPreparedStatement` prepares a statement with the JDBC `RETURN_GENERATED_KEYS` hint, enabling `executeUpdateReturningKeys` to return an auto-generated primary key. Use this for `INSERT` statements on tables with a database-generated `SERIAL` or `AUTOINCREMENT` primary key.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Inside a connect block:
 transactor.connect {
@@ -99,8 +103,10 @@ transactor.connect {
 
 `Transactor#transact` calls `setAutoCommit(false)` before the block and calls `commit()` on success or `rollback()` on exception — so within a `transact` block, you should not call these methods yourself. Use them directly only in a `connect` block where you need fine-grained control over transaction boundaries.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Manual transaction management inside a connect block (uncommon)
 transactor.connect {
@@ -123,17 +129,19 @@ transactor.connect {
 
 `isClosed: Boolean` returns `true` if the connection has already been closed. Inside a `connect` or `transact` block the connection is always open; this method is primarily useful in test code that verifies the `Transactor` closes connections correctly.
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
+
+val transactor: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 var capturedCon: DbConnection = null
 
 transactor.connect {
   capturedCon = summon[DbCon].connection
-  capturedCon.isClosed // false — still open inside the block
+  capturedCon.isClosed // still open inside the block
 }
 
-capturedCon.isClosed // true — closed after the block returned
+capturedCon.isClosed // closed after the block returned
 ```
 
 ### `close` — Close the connection
