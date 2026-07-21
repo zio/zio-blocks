@@ -29,22 +29,28 @@ object SqlDialect {
 
 You can specify the dialect when creating your `Transactor`:
 
-```scala
-val tx = JdbcTransactor.fromUrl("jdbc:postgresql://...", SqlDialect.PostgreSQL)
-val tx = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val txPostgres = JdbcTransactor.fromUrl("jdbc:postgresql://...", SqlDialect.PostgreSQL)
+val txSqlite   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 ```
 
 The dialect is available through `DbCon#dialect` inside a transaction:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
-tx.connect { given con: DbCon =>
-  val dialect = con.dialect
-  
-  dialect.typeName(DbValue.DbInt(0))  // "INTEGER"
-  dialect.typeName(DbValue.DbUUID(...))  // "UUID" (PostgreSQL) or "TEXT" (SQLite)
-  dialect.paramPlaceholder(0)  // "?"
+val tx = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+
+tx.connect {
+  val dialect = summon[DbCon].dialect
+
+  (
+    dialect.typeName(DbValue.DbInt(0)),
+    dialect.typeName(DbValue.DbUUID(new java.util.UUID(0L, 0L))),
+    dialect.paramPlaceholder(0)
+  )
 }
 ```
 
