@@ -36,7 +36,7 @@ Key properties:
 
 The following example shows how `DbCon` is obtained from a `Transactor`, how the context is propagated into helper methods, and how the three members can be accessed when needed:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -48,18 +48,14 @@ object User {
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // DbCon is supplied automatically by connect — no explicit argument needed
-tx.connect { given DbCon =>
-
+tx.connect {
   // Frag execution picks up the given DbCon implicitly
   Frag.literal("CREATE TABLE user (id INTEGER NOT NULL, name TEXT NOT NULL)").update
   sql"INSERT INTO user (id, name) VALUES (${1}, ${"Alice"})".update
-
   val users: List[User] = sql"SELECT id, name FROM user".query[User]
-  // List(User(1, "Alice"))
-
   // Access the context members directly when needed
   val dialectName: String = summon[DbCon].dialect.toString
-  // "SQLite"
+  (users, dialectName)
 }
 ```
 
@@ -81,13 +77,13 @@ trait Transactor {
 
 The following example shows a non-transactional read that uses the supplied `DbCon` to execute a query:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-// The `given DbCon` binding is supplied by `connect` — no manual construction
-val names: List[String] = tx.connect { given DbCon =>
+// The `DbCon` binding is supplied by `connect` — no manual construction
+val names: List[String] = tx.connect {
   sql"SELECT name FROM user ORDER BY name".query[String]
 }
 ```
@@ -110,12 +106,12 @@ trait Transactor {
 
 The following example shows a transactional write that inserts two rows atomically — if the second insert throws, the first is rolled back:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.transact { given DbTx =>
+tx.transact {
   // Both inserts commit together; an exception rolls back both
   sql"INSERT INTO user (id, name) VALUES (${1}, ${"Alice"})".update
   sql"INSERT INTO user (id, name) VALUES (${2}, ${"Bob"})".update
@@ -142,12 +138,12 @@ trait DbCon {
 
 The following example shows how to retrieve the `DbConnection` and use it to execute a raw prepared statement — useful for operations that the `Frag` API does not cover directly:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.connect { given DbCon =>
+tx.connect {
   val conn: DbConnection = summon[DbCon].connection
   val ps = conn.prepareStatement("SELECT COUNT(*) FROM user")
   try {
@@ -174,15 +170,14 @@ trait DbCon {
 
 The following example shows reading the dialect from a context to render a `Frag` explicitly — for instance, to log the SQL before execution:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.connect { given DbCon =>
+tx.connect {
   val frag = sql"SELECT id FROM user WHERE id = ${42}"
-  val sql: String = frag.sql(summon[DbCon].dialect)
-  // "SELECT id FROM user WHERE id = ?"
+  frag.sql(summon[DbCon].dialect)
 }
 ```
 
@@ -198,14 +193,14 @@ trait DbCon {
 
 The following example shows passing a logging `SqlLogger` to `JdbcTransactor` so that every query executed inside `connect` or `transact` is recorded:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 val loggingLogger: SqlLogger = new SqlLogger {
-  def onSuccess(sql: String, params: IndexedSeq[DbValue], durationMs: Long, rowCount: Int): Unit =
-    println(s"OK [$durationMs ms, $rowCount rows]: $sql")
-  def onError(sql: String, params: IndexedSeq[DbValue], durationMs: Long, error: Throwable): Unit =
-    println(s"ERR [$durationMs ms]: $sql — ${error.getMessage}")
+  def onSuccess(event: SqlLogger.SuccessEvent): Unit =
+    println(s"OK [${event.duration.toMillis} ms, ${event.rowCount} rows]: ${event.sql}")
+  def onError(event: SqlLogger.ErrorEvent): Unit =
+    println(s"ERR [${event.duration.toMillis} ms]: ${event.sql} — ${event.error.getMessage}")
 }
 
 val tx: Transactor =
@@ -215,7 +210,7 @@ val tx: Transactor =
     loggingLogger
   )
 
-tx.connect { given DbCon =>
+tx.connect {
   // Every Frag execution notifies loggingLogger automatically
   Frag.literal("SELECT 1").query[Int]
 }
@@ -233,7 +228,7 @@ Because `DbTx` has no additional members, it exists purely to make the transacti
 
 The following example illustrates how to write a helper method that is restricted to transactional scope:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 // This helper compiles only inside a `transact` block, never inside `connect`
@@ -244,18 +239,18 @@ def insertUser(id: Int, name: String)(using DbTx): Unit = {
 
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.transact { given DbTx =>
+tx.transact {
   insertUser(1, "Alice") // OK — DbTx satisfies the `using DbTx` requirement
 }
 
-// tx.connect { given DbCon =>
+// tx.connect {
 //   insertUser(1, "Alice") // Compile error — DbCon does not satisfy `using DbTx`
 // }
 ```
 
 When a helper only reads data and should work in both contexts, declare it with `using DbCon`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 // Usable inside both `connect` and `transact` blocks
