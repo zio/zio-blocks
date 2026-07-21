@@ -31,11 +31,11 @@ object DbParam {
 }
 ```
 
-## Quick Showcase
+## Usage
 
 The following example shows the three common entry points for `DbParam`: the `sql"..."` interpolator (which calls `toDbValue` behind the scenes), direct instance summoning for inspection:
 
-```scala
+```scala mdoc
 import zio.blocks.sql._
 import java.time.Instant
 import java.util.UUID
@@ -44,12 +44,12 @@ import java.util.UUID
 val userId  = 42
 val active  = true
 val query   = sql"SELECT * FROM users WHERE id = $userId AND active = $active"
-query.params // IndexedSeq(DbValue.DbInt(42), DbValue.DbBoolean(true))
+query.params
 
 // 2. Summon an instance explicitly with DbParam.apply to inspect conversion
 val instant = Instant.parse("2024-01-15T10:00:00Z")
-DbParam[Instant].toDbValue(instant) // DbValue.DbInstant(2024-01-15T10:00:00Z)
+DbParam[Instant].toDbValue(instant)
 
-DbParam[Option[Int]].toDbValue(Some(7))  // DbValue.DbInt(7)
-DbParam[Option[Int]].toDbValue(None)     // DbValue.DbNull
+DbParam[Option[Int]].toDbValue(Some(7))
+DbParam[Option[Int]].toDbValue(None)
 ```
