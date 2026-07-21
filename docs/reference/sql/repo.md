@@ -37,7 +37,7 @@ When the standard operations — select-all, select-by-id, insert, update, delet
 
 The example below shows the full lifecycle: deriving a repository from a `Schema`, setting up the table, writing and reading entities, and performing both bulk and single-entity operations — all inside one `transact` block:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -50,15 +50,15 @@ object User {
 val repo = Repo.derived[User, Int]("id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-tx.transact { given tx: DbTx =>
-  repo.table.createTable(tx.dialect).update       // CREATE TABLE IF NOT EXISTS user …
+tx.transact {
+  repo.table.createTable(summon[DbTx].dialect).update // CREATE TABLE IF NOT EXISTS user …
 
   repo.insert(User(1, "Alice", "alice@example.com"))
   repo.insert(User(2, "Bob",   "bob@example.com"))
 
   val all: List[User]   = repo.findAll         // SELECT id, name, email FROM user
   val one: Option[User] = repo.findById(1)     // SELECT … WHERE id = ?
-  val exists: Boolean   = repo.existsById(99)  // SELECT … WHERE id = ?  →  None  →  false
+  val exists: Boolean   = repo.existsById(99)  // SELECT … WHERE id = ?
   val total: Long       = repo.count           // SELECT COUNT(*) FROM user
 
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
@@ -69,6 +69,8 @@ tx.transact { given tx: DbTx =>
 
   // JDBC addBatch/executeBatch; returns total row count
   val n: Int = repo.insertBatch(List(User(4, "Dave", "dave@example.com")))
+
+  (all, one, exists, total, ids, n)
 }
 ```
 
@@ -90,7 +92,7 @@ object Repo {
 
 A `DbCodec[ID]` instance is resolved automatically for all primitive ID types (`Int`, `Long`, `String`, `UUID`, and others) without any additional imports. The typical usage looks like this:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -99,8 +101,9 @@ object Article {
   implicit val schema: Schema[Article] = Schema.derived
 }
 
-// Table name: "article", columns: "id", "title", "body"
 val repo = Repo.derived[Article, Int]("id", _.id)
+repo.table.name
+repo.table.codec.columns
 ```
 
 :::caution
@@ -119,7 +122,7 @@ object Repo {
 
 The supplied `tableName` is used verbatim (after SQL identifier validation) in all generated statements:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -130,6 +133,7 @@ object OrderLine {
 
 // Overrides the default "order_line" table name with the legacy one
 val repo = Repo.derived[OrderLine, Int]("tbl_order_lines", "line_id", _.lineId)
+repo.table.name
 ```
 
 ### `Repo.derived` — Fully automatic derivation
@@ -144,7 +148,7 @@ object Repo {
 
 This is the most concise form when the entity type has exactly one field of the `ID` type:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -155,6 +159,7 @@ object Tag {
 
 // Inspects Tag's Schema, finds the unique Long field "id", maps it to column "id"
 val repo = Repo.derived[Tag, Long]
+repo.idColumn
 ```
 
 :::caution
@@ -173,7 +178,7 @@ object Repo {
 
 Combining `Table.derived` with `Repo.apply` gives access to DDL generation via `createTable` and `dropTable` while also enabling full CRUD:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -185,8 +190,10 @@ object Category {
 val table = Table.derived[Category]
 val repo  = Repo(table, "category_id", DbCodec[Int], _.categoryId)
 
-// repo.table.createTable(dialect).update  — DDL from Table
-// repo.findAll                            — pre-built SELECT from Repo
+given DbCon = ???
+
+repo.table.createTable(summon[DbCon].dialect).update  // DDL from Table
+repo.findAll                                          // pre-built SELECT from Repo
 ```
 
 ## Core Operations
@@ -209,8 +216,15 @@ class Repo[E, ID] {
 
 Inside a `connect` or `transact` block, the call requires no arguments:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 // Inside a Transactor#connect or #transact block:
 val users: List[User] = repo.findAll
@@ -232,8 +246,15 @@ class Repo[E, ID] {
 
 The ID value is bound as a parameterized `?` — no string formatting or concatenation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val alice: Option[User] = repo.findById(1)
 ```
@@ -250,8 +271,15 @@ class Repo[E, ID] {
 
 Use `existsById` when you only need to confirm presence without loading the full entity:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val exists: Boolean = repo.existsById(99)
 ```
@@ -268,8 +296,15 @@ class Repo[E, ID] {
 
 The `Long` result avoids boxing and handles tables with more than `Int.MaxValue` rows correctly:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val total: Long = repo.count
 ```
@@ -290,8 +325,15 @@ class Repo[E, ID] {
 
 Each call uses the pre-built SQL string and binds fresh parameter values from the entity:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val rowsAffected: Int = repo.insert(User(1, "Alice", "alice@example.com"))
 ```
@@ -308,8 +350,15 @@ class Repo[E, ID] {
 
 This method is most useful when the database assigns the primary key — for example, via an auto-increment or sequence column — and the caller needs to read the assigned value back:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 // Pass a placeholder ID; the returned entity carries the database-assigned key.
 val inserted: User = repo.insertReturning(User(0, "Bob", "bob@example.com"))
@@ -331,8 +380,15 @@ class Repo[E, ID] {
 
 The method returns 0 immediately when the input is empty, without opening a prepared statement:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val users = List(
   User(1, "Alice", "alice@example.com"),
@@ -356,15 +412,22 @@ class Repo[E, ID] {
 
 Because the generated SQL grows with the number of rows, `insertAll` is best suited for moderate-sized batches where the caller controls the primary keys:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val newUsers = Seq(
   User(10, "Dave", "dave@example.com"),
   User(11, "Eve",  "eve@example.com")
 )
+// Returns Seq(10, 11) — the IDs extracted from the input entities via getId
 val ids: Seq[Int] = repo.insertAll(newUsers)
-// ids == Seq(10, 11) — the IDs extracted from the input entities via getId
 ```
 
 :::caution
@@ -383,8 +446,15 @@ class Repo[E, ID] {
 
 Only non-ID columns appear in the `SET` clause; the ID column appears only in the `WHERE` clause, so it is never overwritten:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val rowsAffected: Int = repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
 ```
@@ -405,8 +475,15 @@ class Repo[E, ID] {
 
 The ID value is bound as a parameterized `?`, not interpolated into the SQL string:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val rowsAffected: Int = repo.deleteById(42)
 ```
@@ -423,8 +500,15 @@ class Repo[E, ID] {
 
 Calling `repo.delete(user)` is semantically identical to `repo.deleteById(repo.getId(user))`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val user: User        = repo.findById(1).get
 val rowsAffected: Int = repo.delete(user)
@@ -442,8 +526,15 @@ class Repo[E, ID] {
 
 Despite its name, this method issues a `DELETE FROM` statement rather than a SQL `TRUNCATE`, so the operation participates in transactions and the returned row count is exact:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
 
 val rowsDeleted: Int = repo.truncate()
 ```
