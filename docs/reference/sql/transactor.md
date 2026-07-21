@@ -50,7 +50,7 @@ object JdbcTransactor {
 
 The following block demonstrates the complete workflow: create a transactor, open a transactional scope, and execute both `Repo` operations and raw `sql"..."` fragments inside it:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -95,7 +95,7 @@ object JdbcTransactor {
 
 Pass the `DataSource` and the `SqlDialect` constant that matches your database. The following shows a typical setup where the data source is provided externally:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val dataSource: javax.sql.DataSource = ???
@@ -116,7 +116,7 @@ object JdbcTransactor {
 
 Use the credential-free overload for databases that embed authentication in the URL (for example, SQLite in-memory) or when the JDBC driver handles authentication separately:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 
 // Without credentials — useful for SQLite or URL-embedded auth
@@ -126,7 +126,7 @@ val sqlite: JdbcTransactor =
 
 Use the three-argument overload when the database requires a username and password supplied separately:
 
-```scala
+```scala mdoc
 import zio.blocks.sql._
 
 // With credentials — typical for PostgreSQL or MySQL
@@ -155,7 +155,7 @@ object JdbcTransactor {
 
 The factory fixes the dialect to `SqlDialect.PostgreSQL` so DDL type names, parameter placeholders, and dialect-specific SQL all render correctly for PostgreSQL:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val pgDataSource: javax.sql.DataSource = ???
@@ -174,7 +174,7 @@ object JdbcTransactor {
 
 This factory is useful when you wire the `DataSource` through a dependency-injection layer and want to keep dialect selection close to the data source definition rather than at each call site:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 
 val sqDataSource: javax.sql.DataSource = ???
@@ -199,7 +199,7 @@ trait Transactor {
 
 Because `DbTx extends DbCon`, a block that compiles under `connect` will also compile under `transact` — so we can promote non-transactional code to transactional scope without changing the body. The following example runs a read query inside `connect` without incurring transaction overhead:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -235,7 +235,7 @@ trait Transactor {
 
 Because `DbTx extends DbCon`, the `DbTx` given satisfies any `DbCon ?=>` requirement inside the block. We can mix `Repo` CRUD calls with raw `sql"..."` fragments freely:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -253,6 +253,7 @@ transactor.transact {
 
   // If this throws, the INSERT above is rolled back
   val existing: Option[User] = repo.findById(1)
+  existing
 }
 ```
 
@@ -303,7 +304,7 @@ Choose `JdbcTransactor` when the codebase is synchronous or when ZIO is not on t
 
 `DbCon` carries three members — `connection`, `dialect`, and `logger` — and is passed implicitly through every SQL operation. This means application-level helper methods can declare `(using DbCon)` and they are automatically satisfied anywhere inside `connect` or `transact` with no explicit argument passing. The same pattern composes across multiple layers:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
 
@@ -328,6 +329,7 @@ transactor.transact {
   repo.table.createTable(summon[DbTx].dialect).update
   upsertUser(User(1, "Alice", "alice@example.com"))
   upsertUser(User(1, "Alice Smith", "alice.smith@example.com"))
+  repo.findById(1)
 }
 ```
 
