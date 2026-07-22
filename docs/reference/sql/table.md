@@ -155,11 +155,14 @@ The following example builds a `Table` manually, supplying a pre-existing `DbCod
 ```scala mdoc:reset
 import zio.blocks.sql._
 
-val meta   = IndexedSeq(
+case class Tag(id: Int, label: String) derives DbCodec
+
+// columnsMeta must describe the same columns, in the same order, as the codec
+val meta  = IndexedSeq(
   ColumnMeta("id",    DbValue.DbInt(0),    nullable = false),
   ColumnMeta("label", DbValue.DbString(""), nullable = true)
 )
-val table  = Table[Int]("tag", DbCodec.intCodec, meta)
+val table = Table[Tag]("tag", DbCodec[Tag], meta)
 table.name
 table.columns
 ```

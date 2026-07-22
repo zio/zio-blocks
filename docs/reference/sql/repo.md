@@ -139,7 +139,14 @@ repo.table.name
 
 ### `Repo.derived` — Fully automatic derivation
 
-When called without any term arguments, `Repo.derived` requires an additional implicit `Schema[ID]` and uses it to locate the unique field in `E` whose type matches `ID`. It derives the ID column name from that field's `@Modifier.rename` annotation if present, or by applying `SqlNameMapper.SnakeCase` to the field name.
+When called without any term arguments, `Repo.derived` requires an additional implicit `Schema[ID]` and locates the ID field in `E` using a four-priority rule, trying each in order until one matches:
+
+1. A field annotated `@Modifier.id` whose type matches `ID`.
+2. The unique field (among all fields) whose type matches `ID`, if there is exactly one.
+3. A field literally named `"id"` whose type matches `ID`.
+4. A field named `<entity>Id` (for example, `userId` for entity `User`) whose type matches `ID`.
+
+The ID column name respects that field's `@Modifier.rename` annotation if present, or applies `SqlNameMapper.SnakeCase` to the field name otherwise. The table name uses the default naming policy.
 
 ```scala
 object Repo {
@@ -164,7 +171,7 @@ repo.idColumn
 ```
 
 :::caution
-`Repo.derived` (fully auto) throws `IllegalArgumentException` at runtime if `E` is not a case class, if no field of type `ID` exists, or if multiple fields of type `ID` exist. When any ambiguity is possible, prefer the explicit overload that names the ID column and getter directly.
+`Repo.derived` (fully auto) throws `IllegalArgumentException` at runtime if `E` is not a case class, if no field matches any of the four priorities, or if a priority level itself is ambiguous — multiple `@Modifier.id`-annotated fields of type `ID`, or multiple type-matching fields when none of them is named `"id"` or `<entity>Id`. When any ambiguity is possible, annotate the intended field with `@Modifier.id`, or prefer the explicit overload that names the ID column and getter directly.
 :::
 
 ### `Repo.apply` — Construct from an explicit Table
