@@ -1726,6 +1726,69 @@ object Reflect {
       F.fromBinding(Binding.Variant.option)
     )
 
+  private[this] def left[F[_, _], A, B](
+    left: Reflect[F, A],
+    right: Reflect[F, B]
+  )(implicit F: FromBinding[F]): Record[F, Left[A, B]] = {
+    val typeId = TypeId.applied[Left[A, B]](
+      TypeId.nominal[Left[?, ?]](
+        "Left",
+        Owner.fromPackagePath("scala.util"),
+        List(TypeParam.covariant("A", 0), TypeParam.covariant("B", 1))
+      ),
+      TypeRepr.Ref(left.typeId),
+      TypeRepr.Ref(right.typeId)
+    )
+    val register = Record.registers(Array[Reflect[F, ?]](left)).head.asInstanceOf[Register[A]]
+    new Record(Chunk.single(new Term("value", left)), typeId, F.fromBinding(Binding.Record.left(register)))
+  }
+
+  private[this] def right[F[_, _], A, B](
+    left: Reflect[F, A],
+    right: Reflect[F, B]
+  )(implicit F: FromBinding[F]): Record[F, Right[A, B]] = {
+    val typeId = TypeId.applied[Right[A, B]](
+      TypeId.nominal[Right[?, ?]](
+        "Right",
+        Owner.fromPackagePath("scala.util"),
+        List(TypeParam.covariant("A", 0), TypeParam.covariant("B", 1))
+      ),
+      TypeRepr.Ref(left.typeId),
+      TypeRepr.Ref(right.typeId)
+    )
+    val register = Record.registers(Array[Reflect[F, ?]](right)).head.asInstanceOf[Register[B]]
+    new Record(Chunk.single(new Term("value", right)), typeId, F.fromBinding(Binding.Record.right(register)))
+  }
+
+  /**
+   * Creates an `Either[A, B]` variant using the layouts described by the two
+   * child reflects.
+   *
+   * @param left
+   *   the reflect for left values
+   * @param right
+   *   the reflect for right values
+   * @param F
+   *   the conversion from runtime bindings to metadata
+   * @tparam F
+   *   the metadata type constructor
+   * @tparam A
+   *   the left value type
+   * @tparam B
+   *   the right value type
+   * @return
+   *   a variant reflect whose cases are ordered as `Left`, then `Right`
+   */
+  def either[F[_, _], A, B](
+    left: Reflect[F, A],
+    right: Reflect[F, B]
+  )(implicit F: FromBinding[F]): Variant[F, Either[A, B]] =
+    new Variant(
+      Chunk(new Term("Left", this.left(left, right)), new Term("Right", this.right(left, right))),
+      TypeId.applied[Either[A, B]](TypeId.either, TypeRepr.Ref(left.typeId), TypeRepr.Ref(right.typeId)),
+      F.fromBinding(Binding.Variant.either)
+    )
+
   private[this] val maybeTypeId: TypeId[Any] =
     TypeId
       .nominal[Any]("Maybe", Owner.fromPackagePath("zio.blocks.maybe"), List(TypeParam("A", 0, Variance.Covariant)))
