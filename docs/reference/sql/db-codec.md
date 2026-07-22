@@ -66,7 +66,7 @@ object DbCodec {
 
 Codecs for JSON/JSONB columns, type conversions, and specialized encoding strategies are also available through additional companion object methods and instances.
 
-## Quick Showcase
+## Usage
 
 The following example shows the core lifecycle of a `DbCodec`: deriving one automatically, inspecting its column metadata, encoding a value, handling nullable columns, and adapting the codec to a newtype:
 

@@ -35,7 +35,7 @@ trait DbCon {
 }
 ```
 
-## Quick Showcase
+## Usage
 
 The following example opens a transaction via `Transactor#transact`, accesses all three context members, and combines a `Repo` CRUD operation with a hand-written `Frag` query — both of which accept `DbTx` transparently in place of `DbCon`:
 

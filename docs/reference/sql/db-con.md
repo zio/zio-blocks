@@ -32,7 +32,7 @@ Key properties:
 - **Extended by `DbTx`** — `DbTx` is a subtype of `DbCon` that marks transactional scope; any method that accepts `DbCon` also accepts `DbTx`.
 - **Lifetime managed by `Transactor`** — the connection is closed when the enclosing `connect` or `transact` block returns, whether it succeeds or throws.
 
-## Quick Showcase
+## Usage
 
 The following example shows how `DbCon` is obtained from a `Transactor`, how the context is propagated into helper methods, and how the three members can be accessed when needed:
 
@@ -59,7 +59,7 @@ tx.connect {
 }
 ```
 
-## Usage
+## Entry Points
 
 `DbCon` is never instantiated by application code. A `Transactor` creates and supplies the instance automatically. There are two entry points depending on whether transactional behaviour is needed.
 
