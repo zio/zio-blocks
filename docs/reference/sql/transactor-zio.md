@@ -66,7 +66,7 @@ val readAll: Task[List[User]] = tx.connect {
 }
 
 // Atomic write — commits on success, rolls back on any failure
-val insertUser: Task[Unit] = tx.transact {
+val insertUser: Task[Int] = tx.transact {
   repo.insert(User(1, "Alice", "alice@example.com"))
 }
 
