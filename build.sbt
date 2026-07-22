@@ -1646,9 +1646,9 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio"    %% "zio-prelude"    % "1.0.0-RC47",
-      "dev.zio"    %% "zio-sbt-source" % "0.6.0",
-      "org.xerial"  % "sqlite-jdbc"    % "3.53.2.0"
+      "dev.zio"   %% "zio-prelude"    % "1.0.0-RC47",
+      "dev.zio"   %% "zio-sbt-source" % "0.6.0",
+      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
     mdocVariables ++= Map(
