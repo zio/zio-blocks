@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
+import Header._
 
 object CookieHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("CookieHeaders")(

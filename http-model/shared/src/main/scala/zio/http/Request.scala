@@ -29,22 +29,55 @@ final case class Request(
   body: Body,
   version: Version
 ) {
-  def header[H <: Header](headerType: Header.Typed[H]): Option[H] = headers.get(headerType)
 
-  def contentType: Option[ContentType] = header(zio.http.headers.ContentType).map(_.value)
+  /**
+   * Decodes the first request header matching the supplied codec.
+   */
+  def header[A](headerCodec: Header.Codec[A]): Option[A] = headers.get(headerCodec)
+
+  /**
+   * Returns this request's content type.
+   *
+   * The typed `Content-Type` header is preferred when present and parseable. If
+   * the header is absent or cannot be parsed as a typed `Content-Type` header,
+   * this method falls back to the body's content type.
+   */
+  def contentType: Option[ContentType] =
+    header(Header.ContentType).map(_.value).orElse(Some(body.contentType))
 
   def path: Path = url.path
 
   def queryParams: QueryParams = url.queryParams
 
+  def cookies: zio.blocks.chunk.Chunk[RequestCookie] =
+    header(Header.CookieHeader).map(header => Cookie.parseRequest(header.value)).getOrElse(zio.blocks.chunk.Chunk.empty)
+
   def addHeader(name: String, value: String): Request = copy(headers = headers.add(name, value))
+  def addHeader(header: Header): Request              = copy(headers = headers.add(header))
   def addHeaders(other: Headers): Request             = copy(headers = headers ++ other)
+  def addCookie(cookie: RequestCookie): Request       = {
+    val updatedCookies = cookies :+ cookie
+    setHeader(Header.CookieHeader(Cookie.renderRequest(updatedCookies)))
+  }
   def removeHeader(name: String): Request             = copy(headers = headers.remove(name))
   def setHeader(name: String, value: String): Request = copy(headers = headers.set(name, value))
+  def setHeader(header: Header): Request              = copy(headers = headers.set(header))
 
-  def body(body: Body): Request          = copy(body = body)
-  def url(url: URL): Request             = copy(url = url)
-  def method(method: Method): Request    = copy(method = method)
+  /**
+   * Returns a copy with the supplied body and a synchronized `Content-Type`
+   * header.
+   *
+   * This overwrites any existing `Content-Type` header with
+   * `body.contentType.render` so the headers remain aligned with the body.
+   */
+  def body(body: Body): Request       = copy(body = body, headers = headers.set("content-type", body.contentType.render))
+  def url(url: URL): Request          = copy(url = url)
+  def method(method: Method): Request = copy(method = method)
+
+  /**
+   * Returns a copy with the URL path replaced, preserving the other URL parts.
+   */
+  def path(path: Path): Request          = updateUrl(_.path(path))
   def version(version: Version): Request = copy(version = version)
 
   def updateHeaders(f: Headers => Headers): Request = copy(headers = f(headers))

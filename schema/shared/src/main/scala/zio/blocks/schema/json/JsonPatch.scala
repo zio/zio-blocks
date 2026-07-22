@@ -365,9 +365,7 @@ object JsonPatch {
               case _ => json
             }
         }
-      } else {
-        json
-      }
+      } else json
     }
     if (globalError ne null) new Left(globalError)
     else if (!found && mode == PatchMode.Strict) {
@@ -401,8 +399,8 @@ object JsonPatch {
     case ae: Op.ArrayEdit =>
       value match {
         case arr: Json.Array =>
-          val len    = ae.ops.length
           var result = arr.value
+          val len    = ae.ops.length
           var idx    = 0
           while (idx < len) {
             applyArrayOp(result, ae.ops(idx), mode, trace) match {
@@ -417,8 +415,7 @@ object JsonPatch {
     case oe: Op.ObjectEdit =>
       value match {
         case obj: Json.Object =>
-          val fields = obj.value
-          var result = fields
+          var result = obj.value
           val len    = oe.ops.length
           var idx    = 0
           while (idx < len) {
@@ -529,7 +526,7 @@ object JsonPatch {
       if (existingIdx >= 0) {
         if (mode eq PatchMode.Clobber) new Right(fields.updated(existingIdx, (key, value)))
         else new Left(SchemaError.expectationMismatch(trace, s"Key '$key' already exists in object"))
-      } else new Right(fields :+ (key, value))
+      } else new Right(fields.appended((key, value)))
     case r: ObjectOp.Remove =>
       val key         = r.key
       val existingIdx = fields.indexWhere(_._1 == key)
@@ -865,8 +862,8 @@ object JsonPatch {
   }
 
   private[this] def sequenceAll[A](results: Chunk[Either[SchemaError, A]]): Either[SchemaError, Chunk[A]] = {
-    val builder = ChunkBuilder.make[A]()
     val len     = results.length
+    val builder = ChunkBuilder.make[A](len)
     var idx     = 0
     while (idx < len) {
       results(idx) match {

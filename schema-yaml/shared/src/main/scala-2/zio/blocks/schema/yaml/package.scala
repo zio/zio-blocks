@@ -39,74 +39,51 @@ private object YamlInterpolatorMacros {
         }
       case _ => c.abort(c.enclosingPosition, "Expected StringContext")
     }
-
     val contexts = YamlContextDetector.detectContexts(parts) match {
       case Left(error)     => c.abort(c.enclosingPosition, s"Invalid YAML structure: $error")
       case Right(contexts) => contexts
     }
-
-    val processedArgs: Seq[Tree] = if (args.size == contexts.size) {
-      contexts.zip(args).map { case (ctx, argExpr) =>
-        val argType = argExpr.actualType.widen
-        ctx match {
-          case YamlInterpolationContext.Key =>
-            val keyableTc       = typeOf[YamlKeyable[_]].typeConstructor
-            val keyableType     = appliedType(keyableTc, argType)
-            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
-            if (keyableInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"Type $argType cannot be used as YAML key. " +
-                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
-              )
-            }
-            q"$keyableInstance.asKey(${argExpr.tree})"
-
-          case YamlInterpolationContext.Value =>
-            val encoderTc       = typeOf[YamlEncoder[_]].typeConstructor
-            val encoderType     = appliedType(encoderTc, argType)
-            val encoderInstance = c.inferImplicitValue(encoderType, silent = true)
-            if (encoderInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"No YamlEncoder found for type $argType. " +
-                  "Add a Schema[T] or explicit YamlEncoder[T] instance."
-              )
-            }
-            val v = c.freshName(TermName("v"))
-            q"""{
-              val $v = ${argExpr.tree}
-              if ($v.asInstanceOf[AnyRef] == null) _root_.zio.blocks.schema.yaml.Yaml.NullValue
-              else $encoderInstance.encode($v)
-            }"""
-
-          case YamlInterpolationContext.InString =>
-            val keyableTc       = typeOf[YamlKeyable[_]].typeConstructor
-            val keyableType     = appliedType(keyableTc, argType)
-            val keyableInstance = c.inferImplicitValue(keyableType, silent = true)
-            if (keyableInstance == EmptyTree) {
-              c.abort(
-                argExpr.tree.pos,
-                s"Type $argType cannot be used inside a YAML string literal. " +
-                  "Only keyable types (primitives, UUID, dates, etc.) are allowed."
-              )
-            }
-            q"$keyableInstance.asKey(${argExpr.tree})"
-        }
-      }
-    } else {
+    if (args.size != contexts.size) {
       c.abort(
         c.enclosingPosition,
         s"Internal error: context count mismatch (${contexts.size} contexts for ${args.size} args)"
       )
     }
-
+    val processedArgs: Seq[Tree] = contexts.zip(args).map { case (ctx, argExpr) =>
+      val argType = argExpr.actualType.widen
+      if (argType <:< typeOf[Yaml]) {
+        ctx match {
+          case YamlInterpolationContext.Value =>
+            val v = c.freshName(TermName("v"))
+            q"""{
+              val $v = ${argExpr.tree}
+              if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.yaml.Yaml.NullValue
+              else $v
+            }"""
+          case _ => q"${argExpr.tree}.print"
+        }
+      } else {
+        val schemaType     = appliedType(typeOf[Schema[_]].typeConstructor, argType)
+        val schemaInstance = c.inferImplicitValue(schemaType, silent = true)
+        if (schemaInstance == EmptyTree) c.abort(argExpr.tree.pos, s"No Schema found for type $argType.")
+        ctx match {
+          case YamlInterpolationContext.Value =>
+            val v = c.freshName(TermName("v"))
+            q"""{
+              val $v = ${argExpr.tree}
+              if ($v.asInstanceOf[AnyRef] eq null) _root_.zio.blocks.schema.yaml.Yaml.NullValue
+              else $schemaInstance.getInstance(_root_.zio.blocks.schema.yaml.YamlFormat).encodeValue($v)
+            }"""
+          case _ =>
+            q"$schemaInstance.getInstance(_root_.zio.blocks.schema.yaml.YamlFormat).encodeKey(${argExpr.tree})"
+        }
+      }
+    }
     val contextsExpr = contexts.map {
       case YamlInterpolationContext.Key      => q"_root_.zio.blocks.schema.yaml.YamlInterpolationContext.Key"
       case YamlInterpolationContext.Value    => q"_root_.zio.blocks.schema.yaml.YamlInterpolationContext.Value"
       case YamlInterpolationContext.InString => q"_root_.zio.blocks.schema.yaml.YamlInterpolationContext.InString"
     }
-
     try {
       YamlInterpolatorRuntime.validateYamlLiteral(new StringContext(parts: _*), contexts)
       val scExpr     = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)

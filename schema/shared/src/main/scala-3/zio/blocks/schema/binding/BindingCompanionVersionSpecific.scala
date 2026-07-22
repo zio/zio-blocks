@@ -1557,12 +1557,13 @@ private class BindingCompanionVersionSpecificImpl(using Quotes) {
         if (obj == null) false
         else {
           val cls = obj.getClass
-          var i   = 0
           var ok  = true
-          while (ok && i < names.length) {
-            try { cls.getMethod(names(i)) }
+          val len = names.length
+          var idx = 0
+          while (ok && idx < len) {
+            try { cls.getMethod(names(idx)) }
             catch { case _: NoSuchMethodException => ok = false }
-            i += 1
+            idx += 1
           }
           ok
         }

@@ -34,6 +34,35 @@ sealed trait PrimitiveType[A] {
   def validation: Validation[A]
 }
 
+/**
+ * Sub-trait of PrimitiveType for numeric types that support arithmetic
+ * operations. Provides access to the Scala Numeric type class for the
+ * underlying type.
+ *
+ * This trait is sealed within the PrimitiveType hierarchy - all implementations
+ * are the numeric case classes (Byte, Short, Int, Long, Float, Double, BigInt,
+ * BigDecimal).
+ */
+sealed trait NumericPrimitiveType[A] extends PrimitiveType[A] {
+  def numeric: Numeric[A]
+
+  /**
+   * Returns a Schema for this numeric primitive type.
+   */
+  def schema: Schema[A] = new Schema(
+    new Reflect.Primitive(
+      this,
+      typeId,
+      binding
+    )
+  )
+
+  /**
+   * Convert to NumericTypeTag for DynamicSchemaExpr.
+   */
+  def toTag: DynamicSchemaExpr.NumericTypeTag
+}
+
 object PrimitiveType {
   case object Unit extends PrimitiveType[scala.Unit] {
     def validation: Validation[scala.Unit] = Validation.None
@@ -68,10 +97,14 @@ object PrimitiveType {
       }
   }
 
-  case class Byte(validation: Validation[scala.Byte]) extends PrimitiveType[scala.Byte] {
+  case class Byte(validation: Validation[scala.Byte]) extends NumericPrimitiveType[scala.Byte] {
+    def numeric: Numeric[scala.Byte] = implicitly[Numeric[scala.Byte]]
+
     def toDynamicValue(value: scala.Byte): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Byte(value))
 
     def typeId: TypeId[scala.Byte] = TypeId.byte
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.ByteTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -101,10 +134,14 @@ object PrimitiveType {
     }
   }
 
-  case class Short(validation: Validation[scala.Short]) extends PrimitiveType[scala.Short] {
+  case class Short(validation: Validation[scala.Short]) extends NumericPrimitiveType[scala.Short] {
+    def numeric: Numeric[scala.Short] = implicitly[Numeric[scala.Short]]
+
     def toDynamicValue(value: scala.Short): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Short(value))
 
     def typeId: TypeId[scala.Short] = TypeId.short
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.ShortTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -134,10 +171,14 @@ object PrimitiveType {
     }
   }
 
-  case class Int(validation: Validation[scala.Int]) extends PrimitiveType[scala.Int] {
+  case class Int(validation: Validation[scala.Int]) extends NumericPrimitiveType[scala.Int] {
+    def numeric: Numeric[scala.Int] = implicitly[Numeric[scala.Int]]
+
     def toDynamicValue(value: scala.Int): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Int(value))
 
     def typeId: TypeId[scala.Int] = TypeId.int
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.IntTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -167,10 +208,14 @@ object PrimitiveType {
     }
   }
 
-  case class Long(validation: Validation[scala.Long]) extends PrimitiveType[scala.Long] {
+  case class Long(validation: Validation[scala.Long]) extends NumericPrimitiveType[scala.Long] {
+    def numeric: Numeric[scala.Long] = implicitly[Numeric[scala.Long]]
+
     def toDynamicValue(value: scala.Long): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Long(value))
 
     def typeId: TypeId[scala.Long] = TypeId.long
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.LongTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -200,10 +245,14 @@ object PrimitiveType {
     }
   }
 
-  case class Float(validation: Validation[scala.Float]) extends PrimitiveType[scala.Float] {
+  case class Float(validation: Validation[scala.Float]) extends NumericPrimitiveType[scala.Float] {
+    def numeric: Numeric[scala.Float] = implicitly[Numeric[scala.Float]]
+
     def toDynamicValue(value: scala.Float): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Float(value))
 
     def typeId: TypeId[scala.Float] = TypeId.float
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.FloatTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -233,10 +282,14 @@ object PrimitiveType {
     }
   }
 
-  case class Double(validation: Validation[scala.Double]) extends PrimitiveType[scala.Double] {
+  case class Double(validation: Validation[scala.Double]) extends NumericPrimitiveType[scala.Double] {
+    def numeric: Numeric[scala.Double] = implicitly[Numeric[scala.Double]]
+
     def toDynamicValue(value: scala.Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(value))
 
     def typeId: TypeId[scala.Double] = TypeId.double
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.DoubleTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -315,10 +368,14 @@ object PrimitiveType {
       }
   }
 
-  case class BigInt(validation: Validation[scala.BigInt]) extends PrimitiveType[scala.BigInt] {
+  case class BigInt(validation: Validation[scala.BigInt]) extends NumericPrimitiveType[scala.BigInt] {
+    def numeric: Numeric[scala.BigInt] = implicitly[Numeric[scala.BigInt]]
+
     def toDynamicValue(value: scala.BigInt): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.BigInt(value))
 
     def typeId: TypeId[scala.BigInt] = TypeId.bigInt
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.BigIntTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -354,11 +411,15 @@ object PrimitiveType {
     }
   }
 
-  case class BigDecimal(validation: Validation[scala.BigDecimal]) extends PrimitiveType[scala.BigDecimal] {
+  case class BigDecimal(validation: Validation[scala.BigDecimal]) extends NumericPrimitiveType[scala.BigDecimal] {
+    def numeric: Numeric[scala.BigDecimal] = implicitly[Numeric[scala.BigDecimal]]
+
     def toDynamicValue(value: scala.BigDecimal): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(value))
 
     def typeId: TypeId[scala.BigDecimal] = TypeId.bigDecimal
+
+    def toTag: DynamicSchemaExpr.NumericTypeTag = DynamicSchemaExpr.NumericTypeTag.BigDecimalTag
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -685,45 +746,47 @@ object PrimitiveType {
       else if (typeId.isAlias) typeId.aliasedTo
       else None
 
-    underlyingRepr.flatMap { repr =>
-      typeReprToPrimitiveType(repr).asInstanceOf[Option[PrimitiveType[A]]]
-    }
+    underlyingRepr
+      .flatMap(typeReprToPrimitiveType)
+      .orElse(primitiveTypeByFullName(typeId.fullName)) // typeId may itself be a primitive
+      .asInstanceOf[Option[PrimitiveType[A]]]
   }
 
   private[this] def typeReprToPrimitiveType(repr: TypeRepr): Option[PrimitiveType[?]] = repr match {
-    case TypeRepr.Ref(id) =>
-      val fullName = id.fullName
-      if (fullName == "scala.Unit") Some(PrimitiveType.Unit)
-      else if (fullName == "scala.Boolean") Some(PrimitiveType.Boolean(Validation.None))
-      else if (fullName == "scala.Byte") Some(PrimitiveType.Byte(Validation.None))
-      else if (fullName == "scala.Short") Some(PrimitiveType.Short(Validation.None))
-      else if (fullName == "scala.Int") Some(PrimitiveType.Int(Validation.None))
-      else if (fullName == "scala.Long") Some(PrimitiveType.Long(Validation.None))
-      else if (fullName == "scala.Float") Some(PrimitiveType.Float(Validation.None))
-      else if (fullName == "scala.Double") Some(PrimitiveType.Double(Validation.None))
-      else if (fullName == "scala.Char") Some(PrimitiveType.Char(Validation.None))
-      else if (fullName == "java.lang.String") Some(PrimitiveType.String(Validation.None))
-      else if (fullName == "scala.BigInt") Some(PrimitiveType.BigInt(Validation.None))
-      else if (fullName == "scala.BigDecimal") Some(PrimitiveType.BigDecimal(Validation.None))
-      else if (fullName == "java.util.UUID") Some(PrimitiveType.UUID(Validation.None))
-      else if (fullName == "java.util.Currency") Some(PrimitiveType.Currency(Validation.None))
-      else if (fullName == "java.time.DayOfWeek") Some(PrimitiveType.DayOfWeek(Validation.None))
-      else if (fullName == "java.time.Duration") Some(PrimitiveType.Duration(Validation.None))
-      else if (fullName == "java.time.Instant") Some(PrimitiveType.Instant(Validation.None))
-      else if (fullName == "java.time.LocalDate") Some(PrimitiveType.LocalDate(Validation.None))
-      else if (fullName == "java.time.LocalDateTime") Some(PrimitiveType.LocalDateTime(Validation.None))
-      else if (fullName == "java.time.LocalTime") Some(PrimitiveType.LocalTime(Validation.None))
-      else if (fullName == "java.time.Month") Some(PrimitiveType.Month(Validation.None))
-      else if (fullName == "java.time.MonthDay") Some(PrimitiveType.MonthDay(Validation.None))
-      else if (fullName == "java.time.OffsetDateTime") Some(PrimitiveType.OffsetDateTime(Validation.None))
-      else if (fullName == "java.time.OffsetTime") Some(PrimitiveType.OffsetTime(Validation.None))
-      else if (fullName == "java.time.Period") Some(PrimitiveType.Period(Validation.None))
-      else if (fullName == "java.time.Year") Some(PrimitiveType.Year(Validation.None))
-      else if (fullName == "java.time.YearMonth") Some(PrimitiveType.YearMonth(Validation.None))
-      else if (fullName == "java.time.ZoneId") Some(PrimitiveType.ZoneId(Validation.None))
-      else if (fullName == "java.time.ZoneOffset") Some(PrimitiveType.ZoneOffset(Validation.None))
-      else if (fullName == "java.time.ZonedDateTime") Some(PrimitiveType.ZonedDateTime(Validation.None))
-      else None
-    case _ => None
+    case TypeRepr.Ref(id) => primitiveTypeByFullName(id.fullName)
+    case _                => None
   }
+
+  private[this] def primitiveTypeByFullName(fullName: Predef.String): Option[PrimitiveType[?]] =
+    if (fullName == "scala.Unit") Some(PrimitiveType.Unit)
+    else if (fullName == "scala.Boolean") Some(PrimitiveType.Boolean(Validation.None))
+    else if (fullName == "scala.Byte") Some(PrimitiveType.Byte(Validation.None))
+    else if (fullName == "scala.Short") Some(PrimitiveType.Short(Validation.None))
+    else if (fullName == "scala.Int") Some(PrimitiveType.Int(Validation.None))
+    else if (fullName == "scala.Long") Some(PrimitiveType.Long(Validation.None))
+    else if (fullName == "scala.Float") Some(PrimitiveType.Float(Validation.None))
+    else if (fullName == "scala.Double") Some(PrimitiveType.Double(Validation.None))
+    else if (fullName == "scala.Char") Some(PrimitiveType.Char(Validation.None))
+    else if (fullName == "java.lang.String") Some(PrimitiveType.String(Validation.None))
+    else if (fullName == "scala.BigInt") Some(PrimitiveType.BigInt(Validation.None))
+    else if (fullName == "scala.BigDecimal") Some(PrimitiveType.BigDecimal(Validation.None))
+    else if (fullName == "java.util.UUID") Some(PrimitiveType.UUID(Validation.None))
+    else if (fullName == "java.util.Currency") Some(PrimitiveType.Currency(Validation.None))
+    else if (fullName == "java.time.DayOfWeek") Some(PrimitiveType.DayOfWeek(Validation.None))
+    else if (fullName == "java.time.Duration") Some(PrimitiveType.Duration(Validation.None))
+    else if (fullName == "java.time.Instant") Some(PrimitiveType.Instant(Validation.None))
+    else if (fullName == "java.time.LocalDate") Some(PrimitiveType.LocalDate(Validation.None))
+    else if (fullName == "java.time.LocalDateTime") Some(PrimitiveType.LocalDateTime(Validation.None))
+    else if (fullName == "java.time.LocalTime") Some(PrimitiveType.LocalTime(Validation.None))
+    else if (fullName == "java.time.Month") Some(PrimitiveType.Month(Validation.None))
+    else if (fullName == "java.time.MonthDay") Some(PrimitiveType.MonthDay(Validation.None))
+    else if (fullName == "java.time.OffsetDateTime") Some(PrimitiveType.OffsetDateTime(Validation.None))
+    else if (fullName == "java.time.OffsetTime") Some(PrimitiveType.OffsetTime(Validation.None))
+    else if (fullName == "java.time.Period") Some(PrimitiveType.Period(Validation.None))
+    else if (fullName == "java.time.Year") Some(PrimitiveType.Year(Validation.None))
+    else if (fullName == "java.time.YearMonth") Some(PrimitiveType.YearMonth(Validation.None))
+    else if (fullName == "java.time.ZoneId") Some(PrimitiveType.ZoneId(Validation.None))
+    else if (fullName == "java.time.ZoneOffset") Some(PrimitiveType.ZoneOffset(Validation.None))
+    else if (fullName == "java.time.ZonedDateTime") Some(PrimitiveType.ZonedDateTime(Validation.None))
+    else None
 }

@@ -641,24 +641,24 @@ case class CacheService(db: Database)
 case class AuthService(db: Database)
 case class AppService(cache: CacheService, auth: AuthService)
 
-Scope.global.scoped { scope =>
-  import scope._
+// Wire.shared means all dependents get the same instance
+val configWire = Wire(DbConfig("localhost"))
+val dbWire = Wire.shared[Database]
+val cacheWire = Wire.shared[CacheService]
+val authWire = Wire.shared[AuthService]
+val appWire = Wire.shared[AppService]
 
-  // Wire.shared means all dependents get the same instance
-  val configWire = Wire(DbConfig("localhost"))
-  val dbWire = Wire.shared[Database]
-  val cacheWire = Wire.shared[CacheService]
-  val authWire = Wire.shared[AuthService]
-  val appWire = Wire.shared[AppService]
+// Resource.from resolves all wires and returns the root app service
+val appResource = Resource.from[AppService](
+  configWire,
+  dbWire,
+  cacheWire,
+  authWire,
+  appWire
+)
 
-  // Resource.from resolves all wires and returns the root app service
-  val app = allocate(Resource.from[AppService](
-    configWire, dbWire, cacheWire, authWire, appWire
-  ))
-
-  $(app) { a =>
-    println("App service created: " + a.toString())
-  }
+appResource.use { app =>
+  println("App service created: " + app.toString())
 }
 ```
 
@@ -994,4 +994,3 @@ You now understand Scope's core concepts:
 - **Thread ownership** — JVM enforcement of structured concurrency.
 
 For complete API documentation, see the [Scope Reference](../reference/resource-management/scope.md).
-

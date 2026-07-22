@@ -32,15 +32,18 @@ private[streams] final class ByteBufferWriter(buffer: ByteBuffer) extends Writer
 
   def isClosed: Boolean = closed
 
+  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
+  override def writeable(): Boolean = !closed && buffer.hasRemaining
+
   def write(a: Byte): Boolean = writeByte(a)
 
-  override def writeByte(b: Byte)(using Byte <:< Byte): Boolean = {
+  override def writeByte(b: Byte)(implicit ev: Byte <:< Byte): Boolean = {
     if (closed) return false
     if (buffer.hasRemaining) { buffer.put(b); true }
     else { closed = true; false }
   }
 
-  override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(using Byte <:< Byte): Int = {
+  override def writeBytes(buf: Array[Byte], offset: Int, len: Int)(implicit ev: Byte <:< Byte): Int = {
     if (closed) return 0
     if (len == 0) return 0
     val rem = buffer.remaining()
@@ -63,11 +66,14 @@ private[streams] final class ByteBufferIntWriter(buffer: ByteBuffer) extends Wri
 
   def isClosed: Boolean = closed
 
+  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
+  override def writeable(): Boolean = !closed && buffer.remaining() >= 4
+
   override def jvmType: JvmType = JvmType.Int
 
   def write(a: Int): Boolean = writeInt(a)
 
-  override def writeInt(value: Int)(using Int <:< Int): Boolean = {
+  override def writeInt(value: Int)(implicit ev: Int <:< Int): Boolean = {
     if (closed) return false
     if (buffer.remaining() >= 4) { buffer.putInt(value); true }
     else { closed = true; false }
@@ -86,11 +92,14 @@ private[streams] final class ByteBufferLongWriter(buffer: ByteBuffer) extends Wr
 
   def isClosed: Boolean = closed
 
+  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
+  override def writeable(): Boolean = !closed && buffer.remaining() >= 8
+
   override def jvmType: JvmType = JvmType.Long
 
   def write(a: Long): Boolean = writeLong(a)
 
-  override def writeLong(value: Long)(using Long <:< Long): Boolean = {
+  override def writeLong(value: Long)(implicit ev: Long <:< Long): Boolean = {
     if (closed) return false
     if (buffer.remaining() >= 8) { buffer.putLong(value); true }
     else { closed = true; false }
@@ -109,11 +118,14 @@ private[streams] final class ByteBufferDoubleWriter(buffer: ByteBuffer) extends 
 
   def isClosed: Boolean = closed
 
+  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
+  override def writeable(): Boolean = !closed && buffer.remaining() >= 8
+
   override def jvmType: JvmType = JvmType.Double
 
   def write(a: Double): Boolean = writeDouble(a)
 
-  override def writeDouble(value: Double)(using Double <:< Double): Boolean = {
+  override def writeDouble(value: Double)(implicit ev: Double <:< Double): Boolean = {
     if (closed) return false
     if (buffer.remaining() >= 8) { buffer.putDouble(value); true }
     else { closed = true; false }
@@ -132,11 +144,14 @@ private[streams] final class ByteBufferFloatWriter(buffer: ByteBuffer) extends W
 
   def isClosed: Boolean = closed
 
+  // Bounded-buffer accuracy per the Writer.writeable contract (BUG-R8-04).
+  override def writeable(): Boolean = !closed && buffer.remaining() >= 4
+
   override def jvmType: JvmType = JvmType.Float
 
   def write(a: Float): Boolean = writeFloat(a)
 
-  override def writeFloat(value: Float)(using Float <:< Float): Boolean = {
+  override def writeFloat(value: Float)(implicit ev: Float <:< Float): Boolean = {
     if (closed) return false
     if (buffer.remaining() >= 4) { buffer.putFloat(value); true }
     else { closed = true; false }

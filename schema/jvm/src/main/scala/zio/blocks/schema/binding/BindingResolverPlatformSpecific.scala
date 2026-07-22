@@ -49,23 +49,25 @@ private[binding] trait BindingResolverPlatformSpecific {
       else RegisterOffset(objects = 1)
 
     private def computeTotalRegisters(paramTypes: Array[Class[_]]): RegisterOffset.RegisterOffset = {
-      var total: RegisterOffset.RegisterOffset = RegisterOffset.Zero
-      var i                                    = 0
-      while (i < paramTypes.length) {
-        total = RegisterOffset.add(total, registerIncrement(paramTypes(i)))
-        i += 1
+      var total: RegisterOffset.RegisterOffset = 0L
+      val len                                  = paramTypes.length
+      var idx                                  = 0
+      while (idx < len) {
+        total = RegisterOffset.add(total, registerIncrement(paramTypes(idx)))
+        idx += 1
       }
       total
     }
 
     private def computeFieldOffsets(paramTypes: Array[Class[_]]): Array[RegisterOffset.RegisterOffset] = {
       val offsets                                      = new Array[RegisterOffset.RegisterOffset](paramTypes.length)
-      var currentOffset: RegisterOffset.RegisterOffset = RegisterOffset.Zero
-      var i                                            = 0
-      while (i < paramTypes.length) {
-        offsets(i) = currentOffset
-        currentOffset = RegisterOffset.add(currentOffset, registerIncrement(paramTypes(i)))
-        i += 1
+      var currentOffset: RegisterOffset.RegisterOffset = 0L
+      val len                                          = paramTypes.length
+      var idx                                          = 0
+      while (idx < len) {
+        offsets(idx) = currentOffset
+        currentOffset = RegisterOffset.add(currentOffset, registerIncrement(paramTypes(idx)))
+        idx += 1
       }
       offsets
     }
@@ -104,42 +106,30 @@ private[binding] trait BindingResolverPlatformSpecific {
               val primaryCtor = constructors.head
               val paramTypes  = primaryCtor.getParameterTypes
               val paramCount  = paramTypes.length
-
-              val fields = clazz.getDeclaredFields.take(paramCount)
+              val fields      = clazz.getDeclaredFields.take(paramCount)
               fields.foreach(_.setAccessible(true))
-
               val totalRegs    = computeTotalRegisters(paramTypes)
               val fieldOffsets = computeFieldOffsets(paramTypes)
-
-              val constructor = new Constructor[Any] {
+              val constructor  = new Constructor[Any] {
                 def usedRegisters: RegisterOffset.RegisterOffset = totalRegs
 
                 def construct(in: Registers, baseOffset: RegisterOffset.RegisterOffset): Any = {
                   val args = new Array[AnyRef](paramCount)
-                  var i    = 0
-                  while (i < paramCount) {
-                    val paramType = paramTypes(i)
-                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(i))
-                    if (paramType == BooleanType) {
-                      args(i) = java.lang.Boolean.valueOf(in.getBoolean(offset))
-                    } else if (paramType == ByteType) {
-                      args(i) = java.lang.Byte.valueOf(in.getByte(offset))
-                    } else if (paramType == CharType) {
-                      args(i) = java.lang.Character.valueOf(in.getChar(offset))
-                    } else if (paramType == ShortType) {
-                      args(i) = java.lang.Short.valueOf(in.getShort(offset))
-                    } else if (paramType == IntType) {
-                      args(i) = java.lang.Integer.valueOf(in.getInt(offset))
-                    } else if (paramType == LongType) {
-                      args(i) = java.lang.Long.valueOf(in.getLong(offset))
-                    } else if (paramType == FloatType) {
-                      args(i) = java.lang.Float.valueOf(in.getFloat(offset))
-                    } else if (paramType == DoubleType) {
-                      args(i) = java.lang.Double.valueOf(in.getDouble(offset))
-                    } else {
-                      args(i) = in.getObject(offset)
-                    }
-                    i += 1
+                  var idx  = 0
+                  while (idx < paramCount) {
+                    val paramType = paramTypes(idx)
+                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(idx))
+                    args(idx) =
+                      if (paramType == BooleanType) java.lang.Boolean.valueOf(in.getBoolean(offset))
+                      else if (paramType == ByteType) java.lang.Byte.valueOf(in.getByte(offset))
+                      else if (paramType == CharType) java.lang.Character.valueOf(in.getChar(offset))
+                      else if (paramType == ShortType) java.lang.Short.valueOf(in.getShort(offset))
+                      else if (paramType == IntType) java.lang.Integer.valueOf(in.getInt(offset))
+                      else if (paramType == LongType) java.lang.Long.valueOf(in.getLong(offset))
+                      else if (paramType == FloatType) java.lang.Float.valueOf(in.getFloat(offset))
+                      else if (paramType == DoubleType) java.lang.Double.valueOf(in.getDouble(offset))
+                      else in.getObject(offset)
+                    idx += 1
                   }
                   primaryCtor.newInstance(args: _*)
                 }
@@ -149,36 +139,26 @@ private[binding] trait BindingResolverPlatformSpecific {
                 def usedRegisters: RegisterOffset.RegisterOffset = totalRegs
 
                 def deconstruct(out: Registers, baseOffset: RegisterOffset.RegisterOffset, in: Any): Unit = {
-                  var i = 0
-                  while (i < paramCount) {
-                    val field     = fields(i)
-                    val paramType = paramTypes(i)
-                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(i))
-                    if (paramType == BooleanType) {
-                      out.setBoolean(offset, field.getBoolean(in))
-                    } else if (paramType == ByteType) {
-                      out.setByte(offset, field.getByte(in))
-                    } else if (paramType == CharType) {
-                      out.setChar(offset, field.getChar(in))
-                    } else if (paramType == ShortType) {
-                      out.setShort(offset, field.getShort(in))
-                    } else if (paramType == IntType) {
-                      out.setInt(offset, field.getInt(in))
-                    } else if (paramType == LongType) {
-                      out.setLong(offset, field.getLong(in))
-                    } else if (paramType == FloatType) {
-                      out.setFloat(offset, field.getFloat(in))
-                    } else if (paramType == DoubleType) {
-                      out.setDouble(offset, field.getDouble(in))
-                    } else {
-                      out.setObject(offset, field.get(in).asInstanceOf[AnyRef])
-                    }
-                    i += 1
+                  var idx = 0
+                  while (idx < paramCount) {
+                    val field     = fields(idx)
+                    val paramType = paramTypes(idx)
+                    val offset    = RegisterOffset.add(baseOffset, fieldOffsets(idx))
+                    if (paramType == BooleanType) out.setBoolean(offset, field.getBoolean(in))
+                    else if (paramType == ByteType) out.setByte(offset, field.getByte(in))
+                    else if (paramType == CharType) out.setChar(offset, field.getChar(in))
+                    else if (paramType == ShortType) out.setShort(offset, field.getShort(in))
+                    else if (paramType == IntType) out.setInt(offset, field.getInt(in))
+                    else if (paramType == LongType) out.setLong(offset, field.getLong(in))
+                    else if (paramType == FloatType) out.setFloat(offset, field.getFloat(in))
+                    else if (paramType == DoubleType) out.setDouble(offset, field.getDouble(in))
+                    else out.setObject(offset, field.get(in).asInstanceOf[AnyRef])
+                    idx += 1
                   }
                 }
               }
 
-              Some(Binding.Record(constructor, deconstructor))
+              new Some(new Binding.Record(constructor, deconstructor))
             }
           }.toOption.flatten
         }

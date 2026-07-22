@@ -17,10 +17,11 @@
 package zio.blocks.schema.yaml
 
 import zio.blocks.chunk.Chunk
-
+import zio.blocks.schema.SchemaBaseSpec
 import zio.test._
+import scala.util.Try
 
-object YamlWriterSpec extends YamlBaseSpec {
+object YamlWriterSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("YamlWriter")(
     suite("block mapping output")(
@@ -35,7 +36,7 @@ object YamlWriterSpec extends YamlBaseSpec {
           "age"  -> Yaml.Scalar("30", tag = Some(YamlTag.Int))
         )
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("name: Alice") && result.contains("age: 30"))
+        assertTrue(result == "name: Alice\nage: 30")
       },
       test("empty mapping renders as {}") {
         val yaml   = Yaml.Mapping.empty
@@ -47,31 +48,31 @@ object YamlWriterSpec extends YamlBaseSpec {
           "outer" -> Yaml.Mapping.fromStringKeys("inner" -> Yaml.Scalar("value"))
         )
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("outer:") && result.contains("inner: value"))
+        assertTrue(result == "outer:\n  inner: value")
       },
       test("mapping with sequence value") {
         val yaml = Yaml.Mapping.fromStringKeys(
           "items" -> Yaml.Sequence(Chunk(Yaml.Scalar("a"), Yaml.Scalar("b")))
         )
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("items:") && result.contains("- a") && result.contains("- b"))
+        assertTrue(result == "items:\n  - a\n  - b")
       },
       test("mapping with null value") {
         val yaml   = Yaml.Mapping.fromStringKeys("key" -> Yaml.NullValue)
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("key: null"))
+        assertTrue(result == "key: null")
       },
       test("mapping with non-scalar key writes null for key") {
         val yaml   = Yaml.Mapping(Chunk((Yaml.Sequence(Chunk(Yaml.Scalar("a"))), Yaml.Scalar("v"))))
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("null: v"))
+        assertTrue(result == "null: v")
       }
     ),
     suite("block sequence output")(
       test("simple sequence") {
         val yaml   = Yaml.Sequence(Chunk(Yaml.Scalar("a"), Yaml.Scalar("b")))
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("- a") && result.contains("- b"))
+        assertTrue(result == "- a\n- b")
       },
       test("empty sequence renders as []") {
         val yaml   = Yaml.Sequence.empty
@@ -86,47 +87,29 @@ object YamlWriterSpec extends YamlBaseSpec {
           )
         )
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("- name: A") && result.contains("- name: B"))
+        assertTrue(result == "- name: A\n- name: B")
       },
       test("sequence with nested mapping having sub-mapping") {
         val yaml = Yaml.Sequence(
-          Chunk(
-            Yaml.Mapping.fromStringKeys(
-              "outer" -> Yaml.Mapping.fromStringKeys("inner" -> Yaml.Scalar("v"))
-            )
-          )
+          Chunk(Yaml.Mapping.fromStringKeys("outer" -> Yaml.Mapping.fromStringKeys("inner" -> Yaml.Scalar("v"))))
         )
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("- outer:") && result.contains("inner: v"))
+        assertTrue(result == "- outer:\n    inner: v")
       },
       test("sequence with nested mapping having sub-sequence") {
-        val yaml = Yaml.Sequence(
-          Chunk(
-            Yaml.Mapping.fromStringKeys(
-              "items" -> Yaml.Sequence(Chunk(Yaml.Scalar("x")))
-            )
-          )
-        )
+        val yaml   = Yaml.Sequence(Chunk(Yaml.Mapping.fromStringKeys("items" -> Yaml.Sequence(Chunk(Yaml.Scalar("x"))))))
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("- items:") && result.contains("- x"))
+        assertTrue(result == "- items:\n    - x")
       },
       test("sequence with empty mapping renders mapping entry as {}") {
-        val yaml = Yaml.Sequence(
-          Chunk(
-            Yaml.Mapping.fromStringKeys("key" -> Yaml.Mapping.empty)
-          )
-        )
+        val yaml   = Yaml.Sequence(Chunk(Yaml.Mapping.fromStringKeys("key" -> Yaml.Mapping.empty)))
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("key: {}"))
+        assertTrue(result == "- key: {}")
       },
       test("sequence with empty sequence renders as []") {
-        val yaml = Yaml.Sequence(
-          Chunk(
-            Yaml.Mapping.fromStringKeys("key" -> Yaml.Sequence.empty)
-          )
-        )
+        val yaml   = Yaml.Sequence(Chunk(Yaml.Mapping.fromStringKeys("key" -> Yaml.Sequence.empty)))
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("key: []"))
+        assertTrue(result == "- key: []")
       }
     ),
     suite("flow style output")(
@@ -302,27 +285,27 @@ object YamlWriterSpec extends YamlBaseSpec {
       test("string with newline is quoted") {
         val yaml   = Yaml.Scalar("line1\nline2")
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("\\n"))
+        assertTrue(result == "\"line1\\nline2\"")
       },
       test("string with tab is quoted") {
         val yaml   = Yaml.Scalar("a\tb")
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("\\t") || result.contains("\t"))
+        assertTrue(result == "a	b")
       },
       test("string with carriage return is quoted") {
         val yaml   = Yaml.Scalar("a\rb")
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("\\r"))
+        assertTrue(result == "\"a\\rb\"")
       },
       test("string with control char is quoted with \\u escape") {
         val yaml   = Yaml.Scalar("a\u0001b")
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("\\u0001"))
+        assertTrue(result == "\"a\\u0001b\"")
       },
       test("string with backspace is quoted") {
         val yaml   = Yaml.Scalar("a\bb")
         val result = YamlWriter.write(yaml)
-        assertTrue(result.contains("\\b"))
+        assertTrue(result == "\"a\\bb\"")
       },
       test("normal string is not quoted") {
         val yaml   = Yaml.Scalar("hello")
@@ -373,7 +356,7 @@ object YamlWriterSpec extends YamlBaseSpec {
         val yaml    = Yaml.Mapping.fromStringKeys("key" -> Yaml.Scalar("value"))
         val written = YamlWriter.write(yaml)
         val read    = YamlReader.read(written)
-        assertTrue(read == Right(yaml))
+        assertTrue(read == yaml)
       },
       test("nested structure round-trips") {
         val yaml = Yaml.Mapping.fromStringKeys(
@@ -383,7 +366,7 @@ object YamlWriterSpec extends YamlBaseSpec {
           )
         )
         val written = YamlWriter.write(yaml)
-        val parsed  = YamlReader.read(written)
+        val parsed  = Try(YamlReader.read(written)).toEither
         assertTrue(parsed.isRight)
       }
     ),
@@ -415,7 +398,7 @@ object YamlWriterSpec extends YamlBaseSpec {
           "outer" -> Yaml.Mapping.fromStringKeys("inner" -> Yaml.Scalar("v"))
         )
         val result = YamlWriter.write(yaml, YamlOptions(indentStep = 4))
-        assertTrue(result.contains("    inner: v"))
+        assertTrue(result == "outer:\n    inner: v")
       }
     )
   )

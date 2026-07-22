@@ -16,6 +16,7 @@
 
 package zio.blocks.schema
 
+import zio.blocks.chunk.ChunkBuilder
 import scala.util.control.NonFatal
 
 sealed trait Lazy[+A] {
@@ -111,7 +112,7 @@ object Lazy {
 
   def collectAll[A](values: IndexedSeq[Lazy[A]]): Lazy[IndexedSeq[A]] =
     values
-      .foldLeft(Lazy(IndexedSeq.newBuilder[A]))((lazyResult, lazyValue) =>
+      .foldLeft(Lazy(ChunkBuilder.make[A]()))((lazyResult, lazyValue) =>
         lazyValue.flatMap(value => lazyResult.map(_.addOne(value)))
       )
       .map(_.result())

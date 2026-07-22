@@ -93,7 +93,7 @@ object SchemaType {
         case _       => new Left(s"Unknown type: ${s.value}")
       }
     case a: Json.Array =>
-      val types  = ChunkBuilder.make[JsonSchemaType]()
+      val types  = ChunkBuilder.make[JsonSchemaType](a.value.length)
       val errors = new java.lang.StringBuilder
       a.value.foreach {
         case s: Json.String =>

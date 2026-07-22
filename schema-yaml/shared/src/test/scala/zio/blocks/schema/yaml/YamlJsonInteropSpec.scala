@@ -17,11 +17,11 @@
 package zio.blocks.schema.yaml
 
 import zio.blocks.chunk.Chunk
-
+import zio.blocks.schema.SchemaBaseSpec
 import zio.blocks.schema.json.Json
 import zio.test._
 
-object YamlJsonInteropSpec extends YamlBaseSpec {
+object YamlJsonInteropSpec extends SchemaBaseSpec {
 
   def spec: Spec[TestEnvironment, Any] = suite("YamlJsonInterop")(
     suite("yamlToJson")(

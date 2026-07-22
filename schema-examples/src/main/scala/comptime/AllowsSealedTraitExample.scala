@@ -19,7 +19,7 @@ package comptime
 import zio.blocks.schema._
 import zio.blocks.schema.comptime.Allows
 import Allows.{Primitive, Record}
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // ---------------------------------------------------------------------------
 // Sealed trait auto-unwrap example

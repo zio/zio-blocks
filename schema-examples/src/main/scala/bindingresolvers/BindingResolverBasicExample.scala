@@ -18,7 +18,7 @@ package bindingresolvers
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Builds a registry manually and resolves bindings from it.
 object BindingResolverBasicExample extends App {

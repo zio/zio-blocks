@@ -555,7 +555,8 @@ object TypeIdMacros {
       fullName.startsWith("scala.annotation.internal.") ||
       fullName.startsWith("scala.annotation.unchecked.") ||
       fullName == "scala.annotation.nowarn" ||
-      fullName == "scala.annotation.targetName"
+      fullName == "scala.annotation.targetName" ||
+      fullName == "scala.annotation.experimental"
     }
 
     annotations.flatMap(annot => analyzeAnnotation(annot))

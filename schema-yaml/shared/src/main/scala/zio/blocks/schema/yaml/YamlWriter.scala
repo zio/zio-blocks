@@ -16,6 +16,7 @@
 
 package zio.blocks.schema.yaml
 
+import zio.blocks.chunk.Chunk
 import java.nio.charset.StandardCharsets.UTF_8
 
 /**
@@ -24,9 +25,8 @@ import java.nio.charset.StandardCharsets.UTF_8
  * [[YamlOptions]].
  */
 object YamlWriter {
-
   def write(yaml: Yaml, options: YamlOptions = YamlOptions.default): String = {
-    val sb = new StringBuilder
+    val sb = new java.lang.StringBuilder
     if (options.documentMarkers) sb.append("---\n")
     writeNode(sb, yaml, 0, options, isTopLevel = true)
     sb.toString
@@ -35,8 +35,8 @@ object YamlWriter {
   def writeToBytes(yaml: Yaml, options: YamlOptions = YamlOptions.default): Array[Byte] =
     write(yaml, options).getBytes(UTF_8)
 
-  private def writeNode(
-    sb: StringBuilder,
+  private[this] def writeNode(
+    sb: java.lang.StringBuilder,
     yaml: Yaml,
     indent: Int,
     options: YamlOptions,
@@ -54,9 +54,9 @@ object YamlWriter {
       sb.append("null")
   }
 
-  private def writeBlockMapping(
-    sb: StringBuilder,
-    entries: zio.blocks.chunk.Chunk[(Yaml, Yaml)],
+  private[this] def writeBlockMapping(
+    sb: java.lang.StringBuilder,
+    entries: Chunk[(Yaml, Yaml)],
     indent: Int,
     options: YamlOptions,
     isTopLevel: Boolean
@@ -75,7 +75,6 @@ object YamlWriter {
       }
       writeScalarKey(sb, key)
       sb.append(':')
-
       value match {
         case Yaml.Mapping(subEntries) if subEntries.nonEmpty =>
           writeBlockMapping(sb, subEntries, indent + options.indentStep, options, isTopLevel = false)
@@ -89,9 +88,9 @@ object YamlWriter {
     }
   }
 
-  private def writeBlockSequence(
-    sb: StringBuilder,
-    elements: zio.blocks.chunk.Chunk[Yaml],
+  private[this] def writeBlockSequence(
+    sb: java.lang.StringBuilder,
+    elements: Chunk[Yaml],
     indent: Int,
     options: YamlOptions,
     isTopLevel: Boolean
@@ -139,9 +138,9 @@ object YamlWriter {
     }
   }
 
-  private def writeFlowMapping(
-    sb: StringBuilder,
-    entries: zio.blocks.chunk.Chunk[(Yaml, Yaml)],
+  private[this] def writeFlowMapping(
+    sb: java.lang.StringBuilder,
+    entries: Chunk[(Yaml, Yaml)],
     options: YamlOptions
   ): Unit = {
     sb.append('{')
@@ -158,9 +157,9 @@ object YamlWriter {
     sb.append('}')
   }
 
-  private def writeFlowSequence(
-    sb: StringBuilder,
-    elements: zio.blocks.chunk.Chunk[Yaml],
+  private[this] def writeFlowSequence(
+    sb: java.lang.StringBuilder,
+    elements: Chunk[Yaml],
     options: YamlOptions
   ): Unit = {
     sb.append('[')
@@ -174,17 +173,17 @@ object YamlWriter {
     sb.append(']')
   }
 
-  private def writeScalarKey(sb: StringBuilder, key: Yaml): Unit = key match {
+  private[this] def writeScalarKey(sb: java.lang.StringBuilder, key: Yaml): Unit = key match {
     case Yaml.Scalar(value, tag) => writeScalar(sb, value, tag)
     case _                       => sb.append("null")
   }
 
-  private def writeScalar(sb: StringBuilder, value: String, tag: Option[YamlTag]): Unit =
+  private[this] def writeScalar(sb: java.lang.StringBuilder, value: String, tag: Option[YamlTag]): Unit =
     if (needsQuoting(value, tag)) {
       sb.append('"')
-      var i = 0
-      while (i < value.length) {
-        value.charAt(i) match {
+      var idx = 0
+      while (idx < value.length) {
+        value.charAt(idx) match {
           case '"'           => sb.append("\\\"")
           case '\\'          => sb.append("\\\\")
           case '\n'          => sb.append("\\n")
@@ -196,43 +195,38 @@ object YamlWriter {
             sb.append(String.format("%04x", Int.box(c.toInt)))
           case c => sb.append(c)
         }
-        i += 1
+        idx += 1
       }
       sb.append('"')
     } else sb.append(value)
 
-  private def needsQuoting(value: String, tag: Option[YamlTag]): Boolean = {
+  private[this] def needsQuoting(value: String, tag: Option[YamlTag]): Boolean = {
     if (value.isEmpty) return true
-
     tag match {
       case Some(YamlTag.Bool) | Some(YamlTag.Int) | Some(YamlTag.Float) | Some(YamlTag.Null) =>
         return false
       case _ => ()
     }
-
     if (isSpecialValue(value)) return true
-
     val c0 = value.charAt(0)
     if (
       c0 == '\'' || c0 == '"' || c0 == '{' || c0 == '[' || c0 == '|' || c0 == '>' ||
       c0 == '%' || c0 == '@' || c0 == '`' || c0 == '&' || c0 == '*' || c0 == '!' || c0 == '?'
     ) return true
-
     if (looksNumeric(value)) return true
-
-    var i = 0
-    while (i < value.length) {
-      val c = value.charAt(i)
+    var idx = 0
+    while (idx < value.length) {
+      val c = value.charAt(idx)
       if (c < 0x20 && c != '\t') return true
       if (c == '\n' || c == '\r') return true
-      if (c == ':' && i + 1 < value.length && value.charAt(i + 1) == ' ') return true
-      if (c == '#' && i > 0 && value.charAt(i - 1) == ' ') return true
-      i += 1
+      if (c == ':' && idx + 1 < value.length && value.charAt(idx + 1) == ' ') return true
+      if (c == '#' && idx > 0 && value.charAt(idx - 1) == ' ') return true
+      idx += 1
     }
     false
   }
 
-  private def isSpecialValue(value: String): Boolean = value match {
+  private[this] def isSpecialValue(value: String): Boolean = value match {
     case "null" | "~" | "Null" | "NULL"                         => true
     case "true" | "false" | "True" | "False" | "TRUE" | "FALSE" => true
     case "yes" | "no" | "Yes" | "No" | "YES" | "NO"             => true
@@ -242,7 +236,7 @@ object YamlWriter {
     case _                                                      => false
   }
 
-  private def looksNumeric(value: String): Boolean = {
+  private[this] def looksNumeric(value: String): Boolean = {
     val c0 = value.charAt(0)
     if (c0 >= '0' && c0 <= '9') return true
     if ((c0 == '+' || c0 == '-') && value.length > 1) {
@@ -257,11 +251,11 @@ object YamlWriter {
     false
   }
 
-  private def appendIndent(sb: StringBuilder, indent: Int): Unit = {
-    var i = 0
-    while (i < indent) {
+  private[this] def appendIndent(sb: java.lang.StringBuilder, indent: Int): Unit = {
+    var idx = 0
+    while (idx < indent) {
       sb.append(' ')
-      i += 1
+      idx += 1
     }
   }
 }

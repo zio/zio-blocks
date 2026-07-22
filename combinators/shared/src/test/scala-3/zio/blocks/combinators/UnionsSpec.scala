@@ -17,7 +17,6 @@
 package zio.blocks.combinators
 
 import zio.test._
-import scala.compiletime.testing.typeCheckErrors
 
 object UnionsSpec extends ZIOSpecDefault {
 
@@ -129,7 +128,7 @@ object UnionsSpec extends ZIOSpecDefault {
     ),
     suite("Compile-time uniqueness check")(
       test("Unions[Int, Int] fails with uniqueness error") {
-        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[Int, Int, Int | Int]]")
+        val errors   = scala.compiletime.testing.typeCheckErrors("summon[Unions.Unions.WithOut[Int, Int, Int | Int]]")
         val expected =
           "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -138,7 +137,9 @@ object UnionsSpec extends ZIOSpecDefault {
         )
       },
       test("Unions[String | Int, String | Int, String] with duplicate types fails with uniqueness error") {
-        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]")
+        val errors = scala.compiletime.testing.typeCheckErrors(
+          "summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]"
+        )
         val expected =
           "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -148,11 +149,15 @@ object UnionsSpec extends ZIOSpecDefault {
       },
       test("Unions with three unique types compiles successfully") {
         val errors =
-          typeCheckErrors("summon[Unions.Unions.WithOut[Int | String, Boolean, Int | String | Boolean]]")
+          scala.compiletime.testing.typeCheckErrors(
+            "summon[Unions.Unions.WithOut[Int | String, Boolean, Int | String | Boolean]]"
+          )
         assertTrue(errors.isEmpty)
       },
       test("Unions[String | Int, String] fails when R is contained in L") {
-        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]")
+        val errors = scala.compiletime.testing.typeCheckErrors(
+          "summon[Unions.Unions.WithOut[String | Int, String, String | Int | String]]"
+        )
         val expected =
           "Union types must contain unique types. Found overlapping types: String. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -161,7 +166,9 @@ object UnionsSpec extends ZIOSpecDefault {
         )
       },
       test("Unions[Int, String | Int] fails when L is contained in R") {
-        val errors   = typeCheckErrors("summon[Unions.Unions.WithOut[Int, String | Int, Int | String | Int]]")
+        val errors = scala.compiletime.testing.typeCheckErrors(
+          "summon[Unions.Unions.WithOut[Int, String | Int, Int | String | Int]]"
+        )
         val expected =
           "Union types must contain unique types. Found overlapping types: Int. Use Either, a wrapper type, opaque type, or newtype to distinguish values of the same underlying type."
         assertTrue(
@@ -170,7 +177,7 @@ object UnionsSpec extends ZIOSpecDefault {
         )
       },
       test("Unions with partial overlap fails (Int|String|Boolean vs Int|String|Char)") {
-        val errors = typeCheckErrors(
+        val errors = scala.compiletime.testing.typeCheckErrors(
           "summon[Unions.Unions.WithOut[Int | String | Boolean, Int | String | Char, Int | String | Boolean | Int | String | Char]]"
         )
         val expected =
@@ -182,7 +189,7 @@ object UnionsSpec extends ZIOSpecDefault {
       },
       test("Unions rejects R that is a union type for disjoint unions") {
         val errors =
-          typeCheckErrors(
+          scala.compiletime.testing.typeCheckErrors(
             "summon[Unions.Unions.WithOut[Int | String, Boolean | Char, Int | String | Boolean | Char]]"
           )
         val expected =
@@ -194,7 +201,9 @@ object UnionsSpec extends ZIOSpecDefault {
       },
       test("Unions rejects R that is a union type") {
         val errors =
-          typeCheckErrors("summon[Unions.Unions.WithOut[Int, String | Boolean, Int | String | Boolean]]")
+          scala.compiletime.testing.typeCheckErrors(
+            "summon[Unions.Unions.WithOut[Int, String | Boolean, Int | String | Boolean]]"
+          )
         val expected =
           "The right type of a Unions.Unions must not be a union type. Use a simple (non-union) type for R to ensure the separator peels exactly one type."
         assertTrue(

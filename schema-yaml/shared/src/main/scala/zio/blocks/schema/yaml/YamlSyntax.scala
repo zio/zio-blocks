@@ -16,26 +16,20 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.SchemaError
+import zio.blocks.schema.{Schema, SchemaError}
 
 object YamlSyntax {
   implicit class YamlEncoderOps[A](private val value: A) extends AnyVal {
-    def toYaml(implicit encoder: YamlEncoder[A]): Yaml         = encoder.encode(value)
-    def toYamlString(implicit encoder: YamlEncoder[A]): String =
-      YamlWriter.write(encoder.encode(value))
-    def toYamlBytes(implicit encoder: YamlEncoder[A]): Array[Byte] =
-      YamlWriter.writeToBytes(encoder.encode(value))
+    def toYaml(implicit schema: Schema[A]): Yaml = schema.getInstance(YamlFormat).encodeValue(value)
+
+    def toYamlString(implicit schema: Schema[A]): String =
+      YamlWriter.write(schema.getInstance(YamlFormat).encodeValue(value))
+
+    def toYamlBytes(implicit schema: Schema[A]): Array[Byte] =
+      YamlWriter.writeToBytes(schema.getInstance(YamlFormat).encodeValue(value))
   }
 
   implicit class YamlStringOps(private val s: String) extends AnyVal {
-    def fromYaml[A](implicit decoder: YamlDecoder[A]): Either[SchemaError, A] =
-      YamlReader.read(s) match {
-        case Left(err)   => Left(SchemaError(err.getMessage))
-        case Right(yaml) =>
-          decoder.decode(yaml) match {
-            case Left(err) => Left(SchemaError(err.getMessage))
-            case Right(v)  => Right(v)
-          }
-      }
+    def fromYaml[A](implicit schema: Schema[A]): Either[SchemaError, A] = schema.getInstance(YamlFormat).decode(s)
   }
 }

@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
 import zio.blocks.mediatype.MediaTypes
+import Header._
 
 object ContentHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ContentHeaders")(
@@ -172,6 +173,16 @@ object ContentHeadersSpec extends ZIOSpecDefault {
       },
       test("parse invalid form-data returns Left") {
         assertTrue(ContentDisposition.parse("form-data; invalid").isLeft)
+      },
+      test("smart constructors mirror explicit variants") {
+        assertTrue(
+          ContentDisposition.inline == ContentDisposition.Inline(None),
+          ContentDisposition.attachment == ContentDisposition.Attachment(None),
+          ContentDisposition.inline("image.png") == ContentDisposition.Inline(Some("image.png")),
+          ContentDisposition.attachment("file.txt") == ContentDisposition.Attachment(Some("file.txt")),
+          ContentDisposition.formData("field") == ContentDisposition.FormData("field", None),
+          ContentDisposition.formData("field", "doc.pdf") == ContentDisposition.FormData("field", Some("doc.pdf"))
+        )
       }
     ),
     suite("ContentLanguage")(

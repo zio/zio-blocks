@@ -51,7 +51,7 @@ final case class DerivationBuilder[TC[_], A](
    * specific location.
    */
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
-    copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance)))
+    copy(instanceOverrides = instanceOverrides.appended(new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance))))
 
   /**
    * Overrides the type class instance for every occurrence of the type
@@ -59,7 +59,7 @@ final case class DerivationBuilder[TC[_], A](
    * This is the least precise override.
    */
   def instance[B](typeId: TypeId[B], instance: => TC[B]): DerivationBuilder[TC, A] =
-    copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeId, Lazy(instance)))
+    copy(instanceOverrides = instanceOverrides.appended(new InstanceOverrideByType(typeId, Lazy(instance))))
 
   /**
    * Overrides the type class instance for a term (record field or variant case)
@@ -74,7 +74,7 @@ final case class DerivationBuilder[TC[_], A](
    */
   def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides =
-      instanceOverrides :+ new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance))
+      instanceOverrides.appended(new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance)))
     )
 
   /**
@@ -82,7 +82,7 @@ final case class DerivationBuilder[TC[_], A](
    * by `typeId`.
    */
   def modifier[B](typeId: TypeId[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
-    copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeId, modifier))
+    copy(modifierOverrides = modifierOverrides.appended(new ModifierReflectOverrideByType(typeId, modifier)))
 
   /**
    * Adds a modifier at an exact path in the schema tree identified by `optic`.
@@ -92,7 +92,7 @@ final case class DerivationBuilder[TC[_], A](
    */
   def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = modifier match {
     case mr: Modifier.Reflect =>
-      copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByOptic(optic.toDynamic, mr))
+      copy(modifierOverrides = modifierOverrides.appended(new ModifierReflectOverrideByOptic(optic.toDynamic, mr)))
     case mt: Modifier.Term =>
       val nodes = optic.toDynamic.nodes
       if (nodes.isEmpty) this
@@ -119,9 +119,9 @@ final case class DerivationBuilder[TC[_], A](
    * modifier is silently ignored.
    */
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
-    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByType(typeId, termName, modifier))
+    copy(modifierOverrides = modifierOverrides.appended(new ModifierTermOverrideByType(typeId, termName, modifier)))
 
-  lazy val derive: TC[A] = {
+  lazy val derive: TC[A] = Reflect.withTransformCache {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
     val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
     val instanceByOpticMap   =

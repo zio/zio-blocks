@@ -21,7 +21,7 @@ import zio.blocks.chunk.ChunkMap
 trait MapConstructor[M[_, _]] {
   type ObjectBuilder[_, _]
 
-  def newObjectBuilder[K, V](sizeHint: Int = -1): ObjectBuilder[K, V]
+  def newObjectBuilder[K, V](sizeHint: Int = 4): ObjectBuilder[K, V]
 
   def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit
 
@@ -38,7 +38,7 @@ object MapConstructor {
   implicit val chunkMap: MapConstructor[ChunkMap] = new MapConstructor[ChunkMap] {
     type ObjectBuilder[K, V] = ChunkMap.ChunkMapBuilder[K, V]
 
-    def newObjectBuilder[K, V](sizeHint: Int): ObjectBuilder[K, V] = new ChunkMap.ChunkMapBuilder
+    def newObjectBuilder[K, V](sizeHint: Int): ObjectBuilder[K, V] = new ChunkMap.ChunkMapBuilder(sizeHint)
 
     def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder.add(k, v)
 

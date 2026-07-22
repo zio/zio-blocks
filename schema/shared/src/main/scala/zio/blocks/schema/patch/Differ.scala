@@ -222,7 +222,7 @@ private[schema] object Differ {
             fieldPatch.ops.foreach(op =>
               ops.addOne(
                 new Patch.DynamicPatchOp(
-                  new DynamicOptic(new DynamicOptic.Node.Field(fieldName) +: op.path.nodes),
+                  new DynamicOptic(op.path.nodes.prepended(new DynamicOptic.Node.Field(fieldName))),
                   op.operation
                 )
               )
@@ -259,7 +259,10 @@ private[schema] object Differ {
       if (innerPatch.isEmpty) DynamicPatch.empty
       else {
         new DynamicPatch(innerPatch.ops.map { op =>
-          new Patch.DynamicPatchOp(new DynamicOptic(new DynamicOptic.Node.Case(oldCase) +: op.path.nodes), op.operation)
+          new Patch.DynamicPatchOp(
+            new DynamicOptic(op.path.nodes.prepended(new DynamicOptic.Node.Case(oldCase))),
+            op.operation
+          )
         })
       }
     }

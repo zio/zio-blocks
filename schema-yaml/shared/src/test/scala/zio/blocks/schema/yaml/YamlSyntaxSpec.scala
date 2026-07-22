@@ -16,10 +16,10 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaBaseSpec}
 import zio.test._
 
-object YamlSyntaxSpec extends YamlBaseSpec {
+object YamlSyntaxSpec extends SchemaBaseSpec {
 
   import YamlSyntax._
 
@@ -45,7 +45,7 @@ object YamlSyntaxSpec extends YamlBaseSpec {
       test("converts case class to YAML string") {
         val s   = Simple("test")
         val str = s.toYamlString
-        assertTrue(str.contains("value:") && str.contains("test"))
+        assertTrue(str == "value: test")
       }
     ),
     suite("toYamlBytes")(

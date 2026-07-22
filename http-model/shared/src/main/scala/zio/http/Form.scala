@@ -54,9 +54,9 @@ final case class Form(entries: Chunk[(String, String)]) {
     while (i < entries.length) {
       if (i > 0) sb.append('&')
       val entry = entries(i)
-      sb.append(PercentEncoder.encode(entry._1, PercentEncoder.ComponentType.QueryKey))
+      sb.append(Form.encodeKey(entry._1))
       sb.append('=')
-      sb.append(PercentEncoder.encode(entry._2, PercentEncoder.ComponentType.QueryValue))
+      sb.append(Form.encodeValue(entry._2))
       i += 1
     }
     sb.toString
@@ -78,14 +78,23 @@ object Form {
       val part  = parts(i)
       val eqIdx = part.indexOf('=')
       if (eqIdx >= 0) {
-        val key   = PercentEncoder.decode(part.substring(0, eqIdx))
-        val value = PercentEncoder.decode(part.substring(eqIdx + 1))
+        val key   = decodeComponent(part.substring(0, eqIdx))
+        val value = decodeComponent(part.substring(eqIdx + 1))
         builder += (key -> value)
       } else {
-        builder += (PercentEncoder.decode(part) -> "")
+        builder += (decodeComponent(part) -> "")
       }
       i += 1
     }
     Form(builder.result())
   }
+
+  private def encodeKey(value: String): String =
+    PercentEncoder.encode(value, PercentEncoder.ComponentType.QueryKey).replace("+", "%2B").replace("%20", "+")
+
+  private def encodeValue(value: String): String =
+    PercentEncoder.encode(value, PercentEncoder.ComponentType.QueryValue).replace("+", "%2B").replace("%20", "+")
+
+  private def decodeComponent(value: String): String =
+    PercentEncoder.decode(value.replace('+', ' '))
 }

@@ -177,12 +177,12 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
   /** Returns a copy of this schema with the specified default value. */
   def defaultValue(value: DynamicValue): DynamicSchema = {
     val updatedReflect = reflect match {
-      case r: Reflect.Record[NoBinding, _]                 => r.copy(storedDefaultValue = Some(value))
-      case v: Reflect.Variant[NoBinding, _]                => v.copy(storedDefaultValue = Some(value))
-      case s: Reflect.Sequence[NoBinding, _, _] @unchecked => s.copy(storedDefaultValue = Some(value))
-      case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedDefaultValue = Some(value))
-      case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedDefaultValue = Some(value))
-      case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedDefaultValue = Some(value))
+      case r: Reflect.Record[NoBinding, _]                 => r.copy(storedDefaultValue = new Some(value))
+      case v: Reflect.Variant[NoBinding, _]                => v.copy(storedDefaultValue = new Some(value))
+      case s: Reflect.Sequence[NoBinding, _, _] @unchecked => s.copy(storedDefaultValue = new Some(value))
+      case m: Reflect.Map[NoBinding, _, _, _] @unchecked   => m.copy(storedDefaultValue = new Some(value))
+      case p: Reflect.Primitive[NoBinding, _]              => p.copy(storedDefaultValue = new Some(value))
+      case w: Reflect.Wrapper[NoBinding, _, _]             => w.copy(storedDefaultValue = new Some(value))
       case d: Reflect.Deferred[NoBinding, _]               =>
         val inner = DynamicSchema(d.value).defaultValue(value).reflect
         d.copy(
@@ -196,7 +196,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
 
   /** Returns a copy of this schema with the specified example values. */
   def examples(value: DynamicValue, values: DynamicValue*): DynamicSchema = {
-    val allExamples    = value +: values
+    val allExamples    = values.prepended(value)
     val updatedReflect = reflect match {
       case r: Reflect.Record[NoBinding, _]                 => r.copy(storedExamples = allExamples)
       case v: Reflect.Variant[NoBinding, _]                => v.copy(storedExamples = allExamples)
@@ -261,7 +261,7 @@ final case class DynamicSchema(reflect: Reflect.Unbound[_]) {
    *   }}}
    */
   def rebind[A](resolver: BindingResolver): Schema[A] = {
-    val bound = reflect.transform(DynamicOptic.root, new RebindTransformer(resolver)).force
+    val bound = Reflect.withTransformCache(reflect.transform(DynamicOptic.root, new RebindTransformer(resolver)).force)
     new Schema(bound.asInstanceOf[Reflect.Bound[A]])
   }
 }
@@ -1413,6 +1413,28 @@ object DynamicSchema extends TypeIdSchemas {
     def docToDV(doc: Doc): DynamicValue = Schema.schemaDoc.toDynamicValue(doc)
 
     def modifierToDV(m: Modifier.Reflect): DynamicValue = m match {
+      case d: Modifier.discriminator =>
+        new DynamicValue.Variant(
+          "discriminator",
+          new DynamicValue.Record(
+            Chunk.single("name" -> new DynamicValue.Primitive(new PrimitiveValue.String(d.name)))
+          )
+        )
+      case _: Modifier.noExtraFields => new DynamicValue.Variant("noExtraFields", emptyDynamicRecord)
+      case n: Modifier.fieldNaming   =>
+        new DynamicValue.Variant(
+          "fieldNaming",
+          new DynamicValue.Record(
+            Chunk.single("strategy" -> new DynamicValue.Primitive(new PrimitiveValue.String(n.strategy)))
+          )
+        )
+      case n: Modifier.caseNaming =>
+        new DynamicValue.Variant(
+          "caseNaming",
+          new DynamicValue.Record(
+            Chunk.single("strategy" -> new DynamicValue.Primitive(new PrimitiveValue.String(n.strategy)))
+          )
+        )
       case c: Modifier.config =>
         new DynamicValue.Variant(
           "config",
@@ -1508,8 +1530,9 @@ object DynamicSchema extends TypeIdSchemas {
         "value"     -> reflectToDynamicValue(term.value),
         "doc"       -> docToDV(term.doc),
         "modifiers" -> new DynamicValue.Sequence(Chunk.from(term.modifiers).map {
-          case _: Modifier.transient => new DynamicValue.Variant("transient", emptyDynamicRecord)
-          case r: Modifier.rename    =>
+          case _: Modifier.transient       => new DynamicValue.Variant("transient", emptyDynamicRecord)
+          case _: Modifier.encodeTransient => new DynamicValue.Variant("encodeTransient", emptyDynamicRecord)
+          case r: Modifier.rename          =>
             new DynamicValue.Variant(
               "rename",
               new DynamicValue.Record(
@@ -1533,6 +1556,8 @@ object DynamicSchema extends TypeIdSchemas {
                 )
               )
             )
+          case _: Modifier.id =>
+            new DynamicValue.Variant("id", emptyDynamicRecord)
         })
       )
     )
@@ -1640,6 +1665,19 @@ object DynamicSchema extends TypeIdSchemas {
     def dvToModifiers(dv: DynamicValue): Seq[Modifier.Reflect] = dv match {
       case DynamicValue.Sequence(elems) =>
         elems.flatMap {
+          case DynamicValue.Variant("discriminator", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.discriminator(s)
+            }
+          case DynamicValue.Variant("noExtraFields", _)                         => new Some(Modifier.noExtraFields())
+          case DynamicValue.Variant("fieldNaming", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "strategy").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.fieldNaming(s)
+            }
+          case DynamicValue.Variant("caseNaming", DynamicValue.Record(fields)) =>
+            getFieldValue(fields, "strategy").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
+              Modifier.caseNaming(s)
+            }
           case DynamicValue.Variant("config", DynamicValue.Record(fields)) =>
             for {
               key   <- getFieldValue(fields, "key").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) => s }
@@ -1656,6 +1694,7 @@ object DynamicSchema extends TypeIdSchemas {
       case DynamicValue.Sequence(elems) =>
         elems.flatMap {
           case DynamicValue.Variant("transient", _)                        => new Some(Modifier.transient())
+          case DynamicValue.Variant("encodeTransient", _)                  => new Some(Modifier.encodeTransient())
           case DynamicValue.Variant("rename", DynamicValue.Record(fields)) =>
             getFieldValue(fields, "name").collect { case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
               new Modifier.rename(s)
@@ -1671,7 +1710,8 @@ object DynamicSchema extends TypeIdSchemas {
                          s
                        }
             } yield new Modifier.config(key, value)
-          case _ => scala.None
+          case DynamicValue.Variant("id", _) => new Some(Modifier.id())
+          case _                             => scala.None
         }
       case _ => Nil
     }

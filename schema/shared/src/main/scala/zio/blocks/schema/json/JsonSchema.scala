@@ -558,10 +558,11 @@ sealed trait JsonSchema extends Product with Serializable {
     case s: JsonSchema.Object =>
       s.copy(
         properties = new Some({
+          val v = JsonSchema.constOf(new Json.String(value))
           s.properties match {
             case Some(m: ChunkMap[String @unchecked, JsonSchema @unchecked]) =>
-              ChunkMap.fromChunks(name +: m.keysChunk, JsonSchema.constOf(new Json.String(value)) +: m.valuesChunk)
-            case _ => ChunkMap.fromChunks(Chunk.single(name), Chunk.single(JsonSchema.constOf(new Json.String(value))))
+              ChunkMap.fromChunks(m.keysChunk.prepended(name), m.valuesChunk.prepended(v))
+            case _ => ChunkMap.fromChunks(Chunk.single(name), Chunk.single(v))
           }
         }),
         required = new Some({
@@ -781,8 +782,9 @@ object JsonSchema {
         case _       =>
       }
       $vocabulary match {
-        case Some(v) => fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, _.toString, Json.Boolean.apply)))
-        case _       =>
+        case Some(v) =>
+          fields.addOne(("$vocabulary", toJsonObject[URI, Boolean](v, x => String.valueOf(x), Json.Boolean.apply)))
+        case _ =>
       }
       $defs match {
         case Some(d) => fields.addOne(("$defs", toJsonObject[String, JsonSchema](d, identity, _.toJson)))
@@ -1019,16 +1021,16 @@ object JsonSchema {
       checkWithEvaluation(toJson, json, options, Nil).toSchemaError
 
     private[this] def toJsonObject[K, V](m: ChunkMap[K, V], f: K => String, g: V => Json): Json.Object = {
-      val keys    = m.keysChunk
-      val values  = m.valuesChunk
-      val len     = keys.length
-      val builder = ChunkBuilder.make[(String, Json)](len)
-      var idx     = 0
+      val keys   = m.keysChunk
+      val values = m.valuesChunk
+      val len    = keys.length
+      val result = new Array[(String, Json)](len)
+      var idx    = 0
       while (idx < len) {
-        builder.addOne((f(keys(idx)), g(values(idx))))
+        result(idx) = (f(keys(idx)), g(values(idx)))
         idx += 1
       }
-      new Json.Object(builder.result())
+      new Json.Object(Chunk.fromArray(result))
     }
 
     /**
@@ -1684,7 +1686,7 @@ object JsonSchema {
 
     def getSchemaList(key: String): Either[SchemaError, Option[NonEmptyChunk[JsonSchema]]] = fieldMap.get(key) match {
       case arr: Json.Array =>
-        val schemas            = ChunkBuilder.make[JsonSchema]()
+        val schemas            = ChunkBuilder.make[JsonSchema](arr.value.length)
         var error: SchemaError = null
         arr.value.foreach { json =>
           fromJson(json) match {

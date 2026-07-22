@@ -17,7 +17,7 @@
 package typeid
 
 import zio.blocks.typeid._
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 /**
  * TypeId Subtyping Example

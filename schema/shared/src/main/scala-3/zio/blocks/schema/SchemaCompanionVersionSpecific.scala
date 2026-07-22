@@ -50,36 +50,37 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
   import zio.blocks.schema.SchemaCompanionVersionSpecificImpl.fullTermNameOrdering
 
-  private val intTpe                = defn.IntClass.typeRef
-  private val floatTpe              = defn.FloatClass.typeRef
-  private val longTpe               = defn.LongClass.typeRef
-  private val doubleTpe             = defn.DoubleClass.typeRef
-  private val booleanTpe            = defn.BooleanClass.typeRef
-  private val byteTpe               = defn.ByteClass.typeRef
-  private val charTpe               = defn.CharClass.typeRef
-  private val shortTpe              = defn.ShortClass.typeRef
-  private val unitTpe               = defn.UnitClass.typeRef
-  private val anyRefTpe             = defn.AnyRefClass.typeRef
-  private val anyTpe                = defn.AnyClass.typeRef
-  private val stringTpe             = defn.StringClass.typeRef
-  private val schemaTpe             = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
-  private val tupleTpe              = Symbol.requiredClass("scala.Tuple").typeRef
-  private val arrayClass            = defn.ArrayClass
-  private val arrayOfAnyTpe         = arrayClass.typeRef.appliedTo(anyTpe)
-  private val newArray              = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor)
-  private val newArrayOfAny         = newArray.appliedToType(anyTpe)
-  private val wildcard              = TypeBounds(defn.NothingClass.typeRef, anyTpe)
-  private val arrayOfWildcardTpe    = arrayClass.typeRef.appliedTo(wildcard)
-  private val iterableOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterable").typeRef.appliedTo(wildcard)
-  private val iteratorOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
-  private val modifierReflectTpe    = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
-  private val modifierTermTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
-  private val modifierTransientTpe  = Symbol.requiredClass("zio.blocks.schema.Modifier.transient").typeRef
-  private val iArrayOfAnyRefTpe     = TypeRepr.of[IArray[AnyRef]]
-  private val fromIArrayMethod      = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
-  private val asInstanceOfMethod    = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
-  private val productElementMethod  = tupleTpe.typeSymbol.methodMember("productElement").head
-  private lazy val toTupleMethod    = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+  private val intTpe                     = defn.IntClass.typeRef
+  private val floatTpe                   = defn.FloatClass.typeRef
+  private val longTpe                    = defn.LongClass.typeRef
+  private val doubleTpe                  = defn.DoubleClass.typeRef
+  private val booleanTpe                 = defn.BooleanClass.typeRef
+  private val byteTpe                    = defn.ByteClass.typeRef
+  private val charTpe                    = defn.CharClass.typeRef
+  private val shortTpe                   = defn.ShortClass.typeRef
+  private val unitTpe                    = defn.UnitClass.typeRef
+  private val anyRefTpe                  = defn.AnyRefClass.typeRef
+  private val anyTpe                     = defn.AnyClass.typeRef
+  private val stringTpe                  = defn.StringClass.typeRef
+  private val schemaTpe                  = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
+  private val tupleTpe                   = Symbol.requiredClass("scala.Tuple").typeRef
+  private val arrayClass                 = defn.ArrayClass
+  private val arrayOfAnyTpe              = arrayClass.typeRef.appliedTo(anyTpe)
+  private val newArray                   = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor)
+  private val newArrayOfAny              = newArray.appliedToType(anyTpe)
+  private val wildcard                   = TypeBounds(defn.NothingClass.typeRef, anyTpe)
+  private val arrayOfWildcardTpe         = arrayClass.typeRef.appliedTo(wildcard)
+  private val iterableOfWildcardTpe      = Symbol.requiredClass("scala.collection.Iterable").typeRef.appliedTo(wildcard)
+  private val iteratorOfWildcardTpe      = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
+  private val modifierReflectTpe         = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
+  private val modifierTermTpe            = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
+  private val modifierTransientTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.transient").typeRef
+  private val modifierEncodeTransientTpe = Symbol.requiredClass("zio.blocks.schema.Modifier.encodeTransient").typeRef
+  private val iArrayOfAnyRefTpe          = TypeRepr.of[IArray[AnyRef]]
+  private val fromIArrayMethod           = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
+  private val asInstanceOfMethod         = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
+  private val productElementMethod       = tupleTpe.typeSymbol.methodMember("productElement").head
+  private lazy val toTupleMethod         = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
@@ -467,15 +468,16 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     private val tpeClassSymbol     = tpe.classSymbol.get
     private val primaryConstructor = tpeClassSymbol.primaryConstructor
     // caching of expensive calls of field and method member gathering
-    private var fieldMembers: List[Symbol]                                       = null
-    private var methodMembers: List[Symbol]                                      = null
-    private var companionRefAndClass: (Ref, Symbol)                              = null
-    val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
-    val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
-      val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+    private var fieldMembers: List[Symbol]                                   = null
+    private var methodMembers: List[Symbol]                                  = null
+    private var companionRefAndClass: (Ref, Symbol)                          = null
+    val tpeTypeArgs: List[TypeRepr]                                          = typeArgs(tpe)
+    private val (tpeTypeParams: List[Symbol], tpeParams: List[List[Symbol]]) =
+      primaryConstructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
         case ps                                     => (Nil, ps)
       }
+    val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
       val caseFields    = tpeClassSymbol.caseFields
       var usedRegisters = RegisterOffset.Zero
       var idx           = 0
@@ -520,8 +522,12 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                 }
             })
           } else {
-            if (modifiers.exists(_.tpe <:< modifierTransientTpe) && !isOption(fTpe) && !isCollection(fTpe)) {
-              fail(s"Missing default value for transient field '$name' in '${tpe.show}'")
+            if (
+              modifiers.exists(m => m.tpe <:< modifierTransientTpe || m.tpe <:< modifierEncodeTransientTpe) &&
+              !isOption(fTpe) &&
+              !isCollection(fTpe)
+            ) {
+              fail(s"Missing default value for transient or encodeTransient field '$name' in '${tpe.show}'")
             }
             None
           }
@@ -575,8 +581,18 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     }
 
     def constructor(in: Expr[Registers], offset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
-      val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
-      val argss       = fieldInfos.map(_.map(fieldConstructor(in, offset, _)))
+      val constructor    = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
+      val constructorTpe = tpe.memberType(primaryConstructor).widen
+      val argss          = fieldInfos.zip(tpeParams).map { case (fis, params) =>
+        fis.zip(params).map { case (fi, paramSym) =>
+          val arg = fieldConstructor(in, offset, fi)
+          constructorTpe.memberType(paramSym) match {
+            case AnnotatedType(_, annot) if annot.tpe.typeSymbol == defn.RepeatedAnnot =>
+              Typed(arg, Inferred(defn.RepeatedParamClass.typeRef.appliedTo(fi.tpe.typeArgs.head)))
+            case _ => arg
+          }
+        }
+      }
       argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExpr.asInstanceOf[Expr[T]]
     }
 
@@ -727,37 +743,39 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[Array] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): Array[B] = {
+                      def result[A](builder: Builder[A]): Array[A] = {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): Array[B] = Array.empty[et].asInstanceOf[Array[B]]
+                      def empty[A](implicit ct: ClassTag[A]): Array[A] = Array.empty[et].asInstanceOf[Array[A]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -786,38 +804,40 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[IArray] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): IArray[B] = IArray.unsafeFromArray {
+                      def result[A](builder: Builder[A]): IArray[A] = IArray.unsafeFromArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): IArray[B] =
-                        IArray.unsafeFromArray(Array.empty[et]).asInstanceOf[IArray[B]]
+                      def empty[A](implicit ct: ClassTag[A]): IArray[A] =
+                        IArray.unsafeFromArray(Array.empty[et]).asInstanceOf[IArray[A]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -846,37 +866,39 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   typeId = seqTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor[ArraySeq] {
-                      class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                      type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                      type Builder[A] = ArrayBuilder[A]
+                      def newBuilder[A](sizeHint: Int)(implicit ct: ClassTag[A]): Builder[A] =
+                        new SeqConstructor.ArrayBuilder(
+                          new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[A]],
+                          0,
+                          ct
+                        )
 
-                      def newBuilder[B](sizeHint: Int)(implicit ct: ClassTag[B]): Builder[B] =
-                        new ArrayBuilder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                      def add[B](builder: Builder[B], a: B): Unit = {
+                      def add[A](builder: Builder[A], a: A): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
                           val newLen = idx << 1
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[A]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
                         builder.size = idx + 1
                       }
 
-                      def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                      def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
                         val buf  = builder.buffer
                         val size = builder.size
                         if (buf.length == size) buf
                         else {
                           val xs = buf.asInstanceOf[Array[et]]
-                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
+                          ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[A]]
                         }
                       }
 
-                      def empty[B](implicit ct: ClassTag[B]): ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
+                      def empty[A](implicit ct: ClassTag[A]): ArraySeq[A] = ArraySeq.empty[et].asInstanceOf[ArraySeq[A]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )

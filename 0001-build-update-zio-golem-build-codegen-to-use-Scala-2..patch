@@ -1,0 +1,41 @@
+From 156fa66179a2020874e50ac691d00dc4e1cfde55 Mon Sep 17 00:00:00 2001
+From: Milad Khajavi <khajavi@gmail.com>
+Date: Mon, 13 Apr 2026 23:02:53 +0330
+Subject: [PATCH] build: update zio-golem-build-codegen to use Scala 2.12.21
+
+---
+ build.sbt | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/build.sbt b/build.sbt
+index 6c12f07a..c79a18b3 100644
+--- a/build.sbt
++++ b/build.sbt
+@@ -1031,11 +1031,10 @@ lazy val zioGolemIntegrationTests = project
+ lazy val zioGolemBuildCodegen = project
+   .in(file("golem/codegen"))
+   .settings(
+-    publish / skip     := true,
+-    name               := "zio-golem-build-codegen",
+-    organization       := "dev.zio",
+-    crossScalaVersions := Seq("2.12.21", BuildHelper.Scala33),
+-    scalaVersion       := BuildHelper.Scala33,
++    publish / skip          := true,
++    name                    := "zio-golem-build-codegen",
++    organization            := "dev.zio",
++    scalaVersion            := "2.12.21",
+     libraryDependencies ++= Seq(
+       "org.scalameta" %% "scalameta" % "4.16.0",
+       "com.lihaoyi"   %% "ujson"     % "3.1.0",
+@@ -1203,7 +1202,7 @@ lazy val docs = project
+         "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
+           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
+-      )
++        )
+     ),
+     mdocOut := (ThisBuild / baseDirectory).value / "website" / "docs"
+   )
+-- 
+2.52.0
+

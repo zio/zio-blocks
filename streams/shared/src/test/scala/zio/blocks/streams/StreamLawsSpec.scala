@@ -23,6 +23,8 @@ import zio.test._
 import zio.test.Assertion._
 import StreamsGen._
 
+import java.util.concurrent.atomic.AtomicInteger
+
 /**
  * Property-based tests for [[Stream]] algebraic laws and constructor coverage.
  *
@@ -44,6 +46,13 @@ object StreamLawsSpec extends StreamsBaseSpec {
 
   private def collect[A](s: Stream[Nothing, A]): Chunk[A] =
     s.runCollect.fold(_ => Chunk.empty, identity)
+
+  private def managed(opens: AtomicInteger, closes: AtomicInteger, elems: Int*): Stream[Nothing, Int] =
+    Stream.fromAcquireRelease({ opens.incrementAndGet(); () }, (_: Unit) => { closes.incrementAndGet(); () })(_ =>
+      Stream(elems: _*)
+    )
+
+  final case class Err(tag: Int)
 
   def spec: Spec[TestEnvironment, Any] = suite("Stream laws")(
     // ---- Functor ------------------------------------------------------------
@@ -161,7 +170,34 @@ object StreamLawsSpec extends StreamsBaseSpec {
         val e1 = Stream.fail(1).mapError(_ + 1).mapError(_ * 2)
         val e2 = Stream.fail(1).mapError(x => (x + 1) * 2)
         assert(e1.run(Sink.drain))(equalTo(e2.run(Sink.drain)))
-      }
+      },
+      suite("regressions")(
+        test("typed error preserved losslessly through map/filter/take/scan [AdversarialFusionLawConvergenceSpec]") {
+          val e: Err              = Err(42)
+          val s: Stream[Err, Int] = Stream.fail(e)
+          assertTrue(s.map(_ + 1).runCollect == Left(e)) &&
+          assertTrue(s.filter(_ => true).runCollect == Left(e)) &&
+          assertTrue(s.take(3).runCollect == Left(e)) &&
+          assertTrue(s.scan(0)(_ + _).runCollect == Left(e))
+        },
+        test(
+          "concat: first error wins and short-circuits; mapError composes; catchAll recovers [AdversarialFusionLawConvergenceSpec]"
+        ) {
+          val ran                     = new java.util.concurrent.atomic.AtomicBoolean(false)
+          val sc: Stream[String, Int] =
+            (Stream.fail("first"): Stream[String, Int])
+              .concat(Stream.defer(ran.set(true)).asInstanceOf[Stream[String, Int]])
+          val sm: Stream[Int, Nothing] = Stream.fail(1)
+          assertTrue(sc.runCollect == Left("first")) &&
+          assertTrue(!ran.get()) &&
+          assertTrue(Stream(1, 2, 3).concat(Stream.fail("boom")).runCollect == Left("boom")) &&
+          assertTrue(sm.mapError(_ + 1).mapError(_ * 10).runCollect == sm.mapError(x => (x + 1) * 10).runCollect) &&
+          assertTrue(
+            (Stream.fail("e"): Stream[String, Int]).catchAll((msg: String) => Stream(msg.length)).runCollect ==
+              Right(Chunk(1))
+          )
+        }
+      )
     ),
 
     // ---- take / drop --------------------------------------------------------
@@ -214,7 +250,33 @@ object StreamLawsSpec extends StreamsBaseSpec {
           val data = collect(s)
           assert(collect(Stream.fromChunk(data).filter(pred)))(equalTo(data.filter(pred)))
         }
-      }
+      },
+      suite("regressions")(
+        test("take_take_minSemantics_smallerSecond [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 10).take(5).take(3)
+          assertTrue(s.runCollect == Right(Chunk(0, 1, 2)))
+        },
+        test("take_take_minSemantics_smallerFirst [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 10).take(3).take(5)
+          assertTrue(s.runCollect == Right(Chunk(0, 1, 2)))
+        },
+        test("drop_beyondLength_thenTake_isEmpty [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 3).drop(5).take(2)
+          assertTrue(s.runCollect == Right(Chunk.empty[Int]))
+        },
+        test("drop_zero_isIdentity [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 4).drop(0)
+          assertTrue(s.runCollect == Right(Chunk(0, 1, 2, 3)))
+        },
+        test("takeWhile_allFalse_isEmpty [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 5).takeWhile(_ => false)
+          assertTrue(s.runCollect == Right(Chunk.empty[Int]))
+        },
+        test("takeWhile_allTrue_isAll [AdversarialValueLawsSpec]") {
+          val s = Stream.range(0, 5).takeWhile(_ => true)
+          assertTrue(s.runCollect == Right(Chunk(0, 1, 2, 3, 4)))
+        }
+      )
     ),
 
     // ---- Constructors -------------------------------------------------------
@@ -349,13 +411,12 @@ object StreamLawsSpec extends StreamsBaseSpec {
       test("start returns a scoped reader that produces all elements") {
         import zio.blocks.scope._
         val result = Scope.global.scoped { scope =>
-          import scope._
-          val reader: $[Reader[Int]] = Stream.range(0, 5).start
+          implicit val implicitScope = scope
+          val reader                 = Stream.range(0, 5).start
           val buf                    = scala.collection.mutable.ListBuffer.empty[Int]
-          $(reader) { r =>
-            var v = r.read[Any](null)
-            while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
-          }
+          val r                      = implicitScope.leak(reader)
+          var v                      = r.read[Any](null)
+          while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList
         }
         assert(result)(equalTo(List(0, 1, 2, 3, 4)))
@@ -364,26 +425,208 @@ object StreamLawsSpec extends StreamsBaseSpec {
         import zio.blocks.scope._
         var readerClosed = false
         Scope.global.scoped { scope =>
-          import scope._
-          val s                       = Stream.range(0, 5).ensuring { readerClosed = true }
-          val _reader: $[Reader[Int]] = s.start
+          implicit val implicitScope = scope
+          val s                      = Stream.range(0, 5).ensuring { readerClosed = true }
+          val _reader                = s.start
         }
         assertTrue(readerClosed)
       },
       test("start with mapped stream") {
         import zio.blocks.scope._
         val result = Scope.global.scoped { scope =>
-          import scope._
-          val reader: $[Reader[Int]] = Stream.range(0, 3).map(_ * 10).start
+          implicit val implicitScope = scope
+          val reader                 = Stream.range(0, 3).map(_ * 10).start
           val buf                    = scala.collection.mutable.ListBuffer.empty[Int]
-          $(reader) { r =>
-            var v = r.read[Any](null)
-            while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
-          }
+          val r                      = implicitScope.leak(reader)
+          var v                      = r.read[Any](null)
+          while (v != null) { buf += v.asInstanceOf[Int]; v = r.read[Any](null) }
           buf.toList
         }
         assert(result)(equalTo(List(0, 10, 20)))
       }
+    ),
+
+    // ---- Fusion -------------------------------------------------------------
+
+    suite("Fusion")(
+      suite("regressions")(
+        test("filter/map/take/drop fusion order matches List across a matrix [AdversarialFusionLawConvergenceSpec]") {
+          // Accumulate mismatches into a plain list and assert once: a deep
+          // `&&`-ed BoolAlgebra over the whole matrix stack-overflows the JS runtime.
+          val in                                                                     = (0 until 12).toList
+          def S                                                                      = Stream.fromIterable(in)
+          val bad                                                                    = scala.collection.mutable.ListBuffer.empty[String]
+          def chk(label: String, got: Either[Any, Chunk[Int]], exp: List[Int]): Unit =
+            if (got != Right(Chunk.fromIterable(exp))) bad += label
+          for (a <- 0 to 6; b <- 0 to 6) {
+            chk(
+              s"filter.take($a).drop($b)",
+              S.filter(_ % 2 == 0).take(a.toLong).drop(b.toLong).runCollect,
+              in.filter(_ % 2 == 0).take(a).drop(b)
+            )
+            chk(
+              s"take($a).filter.drop($b)",
+              S.take(a.toLong).filter(_ % 2 == 0).drop(b.toLong).runCollect,
+              in.take(a).filter(_ % 2 == 0).drop(b)
+            )
+            chk(
+              s"drop($a).take($b).filter",
+              S.drop(a.toLong).take(b.toLong).filter(_ % 3 == 0).runCollect,
+              in.drop(a).take(b).filter(_ % 3 == 0)
+            )
+            chk(
+              s"map.take($a).drop($b)",
+              S.map(_ + 100).take(a.toLong).drop(b.toLong).runCollect,
+              in.map(_ + 100).take(a).drop(b)
+            )
+            chk(
+              s"take($a).map.take($b)",
+              S.take(a.toLong).map(_ * 2).take(b.toLong).runCollect,
+              in.take(a).map(_ * 2).take(b)
+            )
+            chk(s"drop($a).drop($b)", S.drop(a.toLong).drop(b.toLong).runCollect, in.drop(a).drop(b))
+            chk(s"take($a).take($b)", S.take(a.toLong).take(b.toLong).runCollect, in.take(a).take(b))
+          }
+          assertTrue(bad.toList == Nil)
+        },
+        test("collect fused with take/drop matches List.collect [AdversarialFusionLawConvergenceSpec]") {
+          val in                            = (0 until 12).toList
+          val pf: PartialFunction[Int, Int] = { case x if x % 2 == 0 => x * 10 }
+          val bad                           = scala.collection.mutable.ListBuffer.empty[String]
+          for (a <- 0 to 6; b <- 0 to 6)
+            if (
+              Stream.fromIterable(in).collect(pf).take(a.toLong).drop(b.toLong).runCollect !=
+                Right(Chunk.fromIterable(in.collect(pf).take(a).drop(b)))
+            ) bad += s"collect.take($a).drop($b)"
+          assertTrue(bad.toList == Nil)
+        },
+        test(
+          "algebraic laws: map fusion, filter fusion, concat assoc, take(min), distinct idempotent [AdversarialFusionLawConvergenceSpec]"
+        ) {
+          val in      = (0 until 30).toList
+          val f       = (x: Int) => x + 1
+          val g       = (x: Int) => x * 3
+          val takeBad = scala.collection.mutable.ListBuffer.empty[String]
+          for (n <- 0 to 6; m <- 0 to 6)
+            if (
+              Stream.fromIterable(in).take(n.toLong).take(m.toLong).runCollect !=
+                Stream.fromIterable(in).take(math.min(n, m).toLong).runCollect
+            ) takeBad += s"take($n).take($m)"
+          assertTrue(
+            Stream.fromIterable(in).map(f).map(g).runCollect == Stream.fromIterable(in).map(f andThen g).runCollect
+          ) &&
+          assertTrue(
+            Stream.fromIterable(in).filter(_ % 2 == 0).filter(_ % 3 == 0).runCollect ==
+              Stream.fromIterable(in).filter(x => x % 2 == 0 && x % 3 == 0).runCollect
+          ) &&
+          assertTrue(
+            Stream(1, 2).concat(Stream(3)).concat(Stream(4, 5)).runCollect ==
+              Stream(1, 2).concat(Stream(3).concat(Stream(4, 5))).runCollect
+          ) &&
+          assertTrue(
+            Stream.fromIterable(List(1, 2, 2, 3, 1, 4)).distinct.runCollect ==
+              Stream.fromIterable(List(1, 2, 2, 3, 1, 4)).distinct.distinct.runCollect
+          ) &&
+          assertTrue(takeBad.toList == Nil)
+        },
+        test("take(0) does not pull the source [AdversarialFusionLawConvergenceSpec]") {
+          val reads = new java.util.concurrent.atomic.AtomicInteger(0)
+          val s     = Stream.fromIterator(List(1, 2, 3).iterator.map { x => reads.incrementAndGet(); x })
+          assertTrue(s.take(0).runCollect == Right(Chunk.empty[Int])) && assertTrue(reads.get() == 0)
+        }
+      )
+    ),
+
+    // ---- Stateful combinators -----------------------------------------------
+
+    suite("Stateful combinators")(
+      suite("regressions")(
+        test("scan_onEmpty_emitsInit [AdversarialValueLawsSpec]") {
+          // differential vs List.scanLeft: List[Int]().scanLeft(5)(_+_) == List(5)
+          val s = (Stream.empty: Stream[Nothing, Int]).scan(5)(_ + _)
+          assertTrue(s.runCollect == Right(Chunk(5)))
+        },
+        test("mapAccum_onEmpty_emitsEmpty [AdversarialValueLawsSpec]") {
+          val s = (Stream.empty: Stream[Nothing, Int]).mapAccum(0)((acc, x) => (acc + x, x))
+          assertTrue(s.runCollect == Right(Chunk.empty[Int]))
+        },
+        test("intersperse_onEmpty_isEmpty [AdversarialValueLawsSpec]") {
+          val s = (Stream.empty: Stream[Nothing, Int]).intersperse(0)
+          assertTrue(s.runCollect == Right(Chunk.empty[Int]))
+        },
+        test("intersperse_onSingleton_noSeparator [AdversarialValueLawsSpec]") {
+          val s = Stream(1).intersperse(0)
+          assertTrue(s.runCollect == Right(Chunk(1)))
+        },
+        test(
+          "scan/mapAccum/intersperse/distinct/chunked restart cleanly under repeated.take [AdversarialFusionLawConvergenceSpec]"
+        ) {
+          assertTrue(Stream(1, 2).scan(0)(_ + _).repeated.take(6).runCollect == Right(Chunk(0, 1, 3, 0, 1, 3))) &&
+          assertTrue(
+            Stream(1, 2)
+              .mapAccum(0) { (s, a) =>
+                val s2 = s + a; (s2, s2)
+              }
+              .repeated
+              .take(4)
+              .runCollect ==
+              Right(Chunk(1, 3, 1, 3))
+          ) &&
+          assertTrue(Stream(1, 2).intersperse(0).repeated.take(6).runCollect == Right(Chunk(1, 0, 2, 1, 0, 2))) &&
+          assertTrue(Stream(1, 1, 2).distinct.repeated.take(4).runCollect == Right(Chunk(1, 2, 1, 2))) &&
+          assertTrue(
+            Stream(1, 2, 3).chunked(2).repeated.take(4).runCollect ==
+              Right(Chunk(Chunk(1, 2), Chunk(3), Chunk(1, 2), Chunk(3)))
+          )
+        },
+        test("scan on empty stream emits init only [AdversarialFusionLawConvergenceSpec]") {
+          val s: Stream[Nothing, Int] = Stream.empty
+          assertTrue(s.scan(99)(_ + _).runCollect == Right(Chunk(99)))
+        }
+      )
+    ),
+
+    // ---- Zip ----------------------------------------------------------------
+
+    suite("Zip")(
+      suite("regressions")(
+        test("zip_emptyRight_closesManagedLeftOnce [AdversarialValueLawsSpec]") {
+          val opens  = new AtomicInteger(0)
+          val closes = new AtomicInteger(0)
+          val z      = managed(opens, closes, 1, 2, 3) && (Stream.empty: Stream[Nothing, Int])
+          val r      = z.runCollect
+          assertTrue(r == Right(Chunk.empty[(Int, Int)])) &&
+          assertTrue(opens.get() == 1) &&
+          assertTrue(closes.get() == 1)
+        },
+        test("zip_emptyLeft_closesManagedRightOnce [AdversarialValueLawsSpec]") {
+          val opens  = new AtomicInteger(0)
+          val closes = new AtomicInteger(0)
+          val z      = (Stream.empty: Stream[Nothing, Int]) && managed(opens, closes, 1, 2, 3)
+          val r      = z.runCollect
+          assertTrue(r == Right(Chunk.empty[(Int, Int)])) &&
+          assertTrue(opens.get() == 1) &&
+          assertTrue(closes.get() == 1)
+        }
+      )
+    ),
+
+    // ---- Resource management ------------------------------------------------
+
+    suite("Resource management")(
+      suite("regressions")(
+        test("managed_repeated_take_acquiresAndReleasesOnce [AdversarialValueLawsSpec]") {
+          // acquireRelease acquires once at compile; repeated replays via reset
+          // without re-acquiring, so it must release exactly once at the end.
+          val opens  = new AtomicInteger(0)
+          val closes = new AtomicInteger(0)
+          val s      = managed(opens, closes, 1, 2).repeated.take(5)
+          val r      = s.runCollect
+          assertTrue(r == Right(Chunk(1, 2, 1, 2, 1))) &&
+          assertTrue(opens.get() == 1) &&
+          assertTrue(closes.get() == 1)
+        }
+      )
     )
   )
 }

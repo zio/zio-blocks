@@ -339,7 +339,8 @@ private object SchemaCompanionVersionSpecific {
       val defaultValue: Option[Tree],
       val getter: MethodSymbol,
       val usedRegisters: RegisterOffset,
-      val modifiers: List[Tree]
+      val modifiers: List[Tree],
+      val repeated: Boolean
     )
 
     class ClassInfo(tpe: Type) {
@@ -367,9 +368,11 @@ private object SchemaCompanionVersionSpecific {
         (
           primaryConstructor(tpe).paramLists.map(_.map { param =>
             idx += 1
-            val symbol = param.asTerm
-            val name   = NameTransformer.decode(symbol.name.toString)
-            var fTpe   = symbol.typeSignature.dealias
+            val symbol   = param.asTerm
+            val name     = NameTransformer.decode(symbol.name.toString)
+            var fTpe     = symbol.typeSignature.dealias
+            val repeated = fTpe.typeSymbol == definitions.RepeatedParamClass
+            if (repeated) fTpe = appliedType(typeOf[Seq[Any]].typeConstructor, fTpe.typeArgs)
             if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
             val getter = getters.getOrElse(
               name,
@@ -379,8 +382,13 @@ private object SchemaCompanionVersionSpecific {
             val defaultValue =
               if (symbol.isParamWithDefault) new Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else {
-                if (modifiers.exists(_.tpe <:< typeOf[Modifier.transient]) && !isOption(fTpe) && !isCollection(fTpe)) {
-                  fail(s"Missing default value for transient field '$name' in '$tpe'")
+                if (
+                  modifiers
+                    .exists(m => m.tpe <:< typeOf[Modifier.transient] || m.tpe <:< typeOf[Modifier.encodeTransient]) &&
+                  !isOption(fTpe) &&
+                  !isCollection(fTpe)
+                ) {
+                  fail(s"Missing default value for transient or encodeTransient field '$name' in '$tpe'")
                 }
                 None
               }
@@ -396,7 +404,7 @@ private object SchemaCompanionVersionSpecific {
               else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else RegisterOffset(objects = 1)
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers, repeated)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
@@ -430,28 +438,30 @@ private object SchemaCompanionVersionSpecific {
         val argss = fieldInfos.map(_.map { fieldInfo =>
           val fTpe          = fieldInfo.tpe
           val usedRegisters = fieldInfo.usedRegisters
-          if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.CharTpe) q"in.getChar(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(offset + $usedRegisters)"
-          else if (fTpe =:= definitions.UnitTpe) q"()"
-          else {
-            val sTpe = dealiasOnDemand(fTpe)
-            if (sTpe <:< definitions.IntTpe) q"in.getInt(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.LongTpe) q"in.getLong(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.CharTpe) q"in.getChar(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(offset + $usedRegisters).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-            else q"in.getObject(offset + $usedRegisters).asInstanceOf[$fTpe]"
-          }
+          val arg           =
+            if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.CharTpe) q"in.getChar(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(offset + $usedRegisters)"
+            else if (fTpe =:= definitions.UnitTpe) q"()"
+            else {
+              val sTpe = dealiasOnDemand(fTpe)
+              if (sTpe <:< definitions.IntTpe) q"in.getInt(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.LongTpe) q"in.getLong(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ByteTpe) q"in.getByte(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.CharTpe) q"in.getChar(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ShortTpe) q"in.getShort(offset + $usedRegisters).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+              else q"in.getObject(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            }
+          if (fieldInfo.repeated) q"$arg : _*" else arg
         })
         q"new $tpe(...$argss)"
       }
@@ -516,32 +526,30 @@ private object SchemaCompanionVersionSpecific {
                    typeId = seqTypeId,
                    seqBinding = new Binding.Seq(
                      constructor = new SeqConstructor[Array] {
-                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                       type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                       type Builder[A] = ArrayBuilder[A]
+                       def newBuilder[A](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[A]): Builder[A] =
+                         new SeqConstructor.ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0, ct)
 
-                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                       def add[B](builder: Builder[B], a: B): Unit = {
+                       def add[A](builder: Builder[A], a: A): Unit = {
                          var buf = builder.buffer
                          val idx = builder.size
                          if (buf.length == idx) {
-                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[A]]
                            builder.buffer = buf
                          }
                          buf(idx) = a
                          builder.size = idx + 1
                        }
 
-                       def result[B](builder: Builder[B]): Array[B] = {
+                       def result[A](builder: Builder[A]): Array[A] = {
                          val buf  = builder.buffer
                          val size = builder.size
                          if (buf.length == size) buf
-                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[A]]
                        }
 
-                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
+                       def empty[A](implicit ct: scala.reflect.ClassTag[A]): Array[A] = Array.empty[$elementTpe].asInstanceOf[Array[A]]
                      },
                      deconstructor = SeqDeconstructor.arrayDeconstructor
                    )
@@ -566,32 +574,30 @@ private object SchemaCompanionVersionSpecific {
                    typeId = seqTypeId,
                    seqBinding = new Binding.Seq(
                      constructor = new SeqConstructor[ArraySeq] {
-                       case class ArrayBuilder[A](var buffer: Array[A], var size: Int)
+                       type Builder[A] = SeqConstructor.ArrayBuilder[A]
 
-                       type Builder[A] = ArrayBuilder[A]
+                       def newBuilder[A](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[A]): Builder[A] =
+                         new SeqConstructor.ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0, ct)
 
-                       def newBuilder[B](sizeHint: Int)(implicit ct: scala.reflect.ClassTag[B]): Builder[B] =
-                         new ArrayBuilder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
-
-                       def add[B](builder: Builder[B], a: B): Unit = {
+                       def add[A](builder: Builder[A], a: A): Unit = {
                          var buf = builder.buffer
                          val idx = builder.size
                          if (buf.length == idx) {
-                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                           buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[A]]
                            builder.buffer = buf
                          }
                          buf(idx) = a
                          builder.size = idx + 1
                        }
 
-                       def result[B](builder: Builder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                       def result[A](builder: Builder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
                          val buf  = builder.buffer
                          val size = builder.size
                          if (buf.length == size) buf
-                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                         else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[A]]
                        }
 
-                       def empty[B](implicit ct: scala.reflect.ClassTag[B]): ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
+                       def empty[A](implicit ct: scala.reflect.ClassTag[A]): ArraySeq[A] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[A]]
                      },
                      deconstructor = SeqDeconstructor.arraySeqDeconstructor
                    )

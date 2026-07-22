@@ -16,6 +16,8 @@
 
 package zio.blocks.streams
 
+import zio.blocks.chunk.Chunk
+import zio.blocks.streams.internal.cleanupWithPrimary
 import zio.blocks.streams.io.Reader
 
 /**
@@ -82,6 +84,18 @@ object Pipeline {
   /** A pipeline that passes through at most the first `n` elements. */
   def take[A](n: Long): Pipeline[A, A] = new TakePipeline(n)
 
+  /** A pipeline that buffers up to `n` elements from the upstream. */
+  def buffer[A](n: Int): Pipeline[A, A] = {
+    require(n >= 1, s"buffer requires n >= 1, got n=$n")
+    new BufferPipeline(n)
+  }
+
+  /** A pipeline that groups elements into fixed-size [[Chunk]]s. */
+  def chunked[A](n: Int): Pipeline[A, Chunk[A]] = {
+    require(n >= 1, s"chunked requires n >= 1, got n=$n")
+    new ChunkedPipeline(n)
+  }
+
   private[streams] def runViaSink[A, B, E, Z](
     pipe: Pipeline[A, B],
     sink: Sink[E, B, Z]
@@ -123,6 +137,22 @@ object Pipeline {
       Pipeline.runViaSink[A, A, E, Z](this, sink)
   }
 
+  /** Pipeline that buffers up to `n` elements. */
+  private[streams] final class BufferPipeline[A](n: Int) extends Pipeline[A, A] {
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
+      new Stream.Buffered(stream, n)
+    def applyToSink[E, Z](sink: Sink[E, A, Z]): Sink[E, A, Z] =
+      Pipeline.runViaSink[A, A, E, Z](this, sink)
+  }
+
+  /** Pipeline that groups elements into fixed-size chunks. */
+  private[streams] final class ChunkedPipeline[A](n: Int) extends Pipeline[A, Chunk[A]] {
+    def applyToStream[E](stream: Stream[E, A]): Stream[E, Chunk[A]] =
+      stream.chunked(n)
+    def applyToSink[E, Z](sink: Sink[E, Chunk[A], Z]): Sink[E, A, Z] =
+      Pipeline.runViaSink[A, Chunk[A], E, Z](this, sink)
+  }
+
   /** Pipeline that emits only elements satisfying `pred`. */
   private[streams] final class FilterPipeline[A](pred: A => Boolean, jtA: JvmType.Infer[A]) extends Pipeline[A, A] {
     def applyToStream[E](stream: Stream[E, A]): Stream[E, A] =
@@ -148,12 +178,43 @@ object Pipeline {
     pipe: Pipeline[A, B],
     sink: Sink[E, B, Z]
   ) extends Sink[E, A, Z] {
-    private[streams] def drain(reader: Reader[?]): Z = {
-      val synthStream         = Stream.fromReader[E, A](reader.asInstanceOf[Reader[A]])
+    private[streams] def drain(reader: Reader[_]): Z = {
+      // The incoming `reader` is borrowed: its owner (`Stream.run`) closes it.
+      // The pipe builds a transforming reader chain whose leaf is this reader
+      // and whose `close()` would propagate down to it; shielding the borrowed
+      // reader with a no-op close keeps it from being finalized twice (double
+      // finalization). The shield delegates every other operation unchanged.
+      val borrowed            = new RunViaSink.NonClosing[A](reader.asInstanceOf[Reader[A]])
+      val synthStream         = Stream.fromReader[E, A](borrowed)
       val piped: Stream[E, B] = pipe.applyToStream[E](synthStream)
       val pipedReader         = Stream.compileToReader(piped)
-      try sink.drain(pipedReader)
-      finally pipedReader.close()
+      // try-with-resources suppression: a `close()` failure never discards an
+      // in-flight `drain` failure, and is surfaced when nothing else is in
+      // flight (Principle 4).
+      var primary: Throwable = null
+      val z                  =
+        try sink.drain(pipedReader)
+        catch {
+          case t: Throwable =>
+            primary = t
+            null.asInstanceOf[Z]
+        }
+      val toThrow = cleanupWithPrimary(primary)(pipedReader.close())
+      if (toThrow ne null) throw toThrow
+      z
+    }
+  }
+
+  private[streams] object RunViaSink {
+
+    /**
+     * A borrowing view of a reader whose `close()` is a no-op: the underlying
+     * reader is owned and closed by `Stream.run`, so the pipe must not close it
+     * (doing so would finalize the source twice). Every other operation
+     * delegates unchanged.
+     */
+    private[streams] final class NonClosing[A](inner: Reader[A]) extends Reader.DelegatingReader[A](inner) {
+      override def close(): Unit = ()
     }
   }
 

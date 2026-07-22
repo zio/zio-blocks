@@ -16,9 +16,17 @@
 
 package zio.http
 
-import zio.test._
+import _root_.zio.test._
+import zio.blocks.chunk.Chunk
 
 object ResponseSpec extends HttpModelBaseSpec {
+  private object TraceIdHeader extends Header.Codec[String] {
+    def name: String                                 = "x-trace-id"
+    def parse(value: String): Either[String, String] =
+      if (value.startsWith("trace-")) Right(value) else Left("trace id must start with trace-")
+    def render(value: String): String = value
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("Response")(
     suite("construction")(
       test("can be constructed with all fields") {
@@ -84,14 +92,18 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("returns typed header from headers") {
         val headers  = Headers("content-length" -> "42")
         val response = Response(Status.Ok, headers, Body.empty, Version.`HTTP/1.1`)
-        val cl       = response.header(zio.http.headers.ContentLength)
+        val cl       = response.header(Header.ContentLength)
         assertTrue(
           cl.isDefined,
           cl.get.length == 42L
         )
       },
       test("returns None for missing header") {
-        assertTrue(Response.ok.header(zio.http.headers.ContentLength).isEmpty)
+        assertTrue(Response.ok.header(Header.ContentLength).isEmpty)
+      },
+      test("returns custom typed header without Header subtype") {
+        val response = Response(Status.Ok, Headers("X-Trace-Id" -> "trace-123"), Body.empty, Version.`HTTP/1.1`)
+        assertTrue(response.header(TraceIdHeader) == Some("trace-123"))
       }
     ),
     suite("contentType")(
@@ -104,8 +116,8 @@ object ResponseSpec extends HttpModelBaseSpec {
           ct.get == ContentType.`text/plain`
         )
       },
-      test("returns None when no content-type header") {
-        assertTrue(Response.ok.contentType.isEmpty)
+      test("falls back to body content type when no content-type header is present") {
+        assertTrue(Response.ok.contentType == Some(ContentType.`application/octet-stream`))
       }
     ),
     suite("Response.badRequest")(
@@ -138,8 +150,14 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.text("hello world")
         assertTrue(
           response.status == Status.Ok,
-          response.body == Body.fromString("hello world")
+          response.body == Body.fromString("hello world"),
+          response.headers.rawGet("content-type") == Some("text/plain; charset=UTF-8"),
+          response.contentType == Some(response.body.contentType)
         )
+      },
+      test("accepts explicit status") {
+        val response = Response.text(Status.BadRequest, "hello world")
+        assertTrue(response.status == Status.BadRequest)
       }
     ),
     suite("Response.json")(
@@ -147,7 +165,23 @@ object ResponseSpec extends HttpModelBaseSpec {
         val response = Response.json("{\"key\": \"value\"}")
         assertTrue(
           response.status == Status.Ok,
-          response.headers.rawGet("content-type") == Some("application/json")
+          response.headers.rawGet("content-type") == Some("application/json"),
+          response.contentType == Some(ContentType.`application/json`)
+        )
+      },
+      test("accepts explicit status") {
+        val response = Response.json(Status.BadRequest, "{\"key\": \"value\"}")
+        assertTrue(response.status == Status.BadRequest)
+      }
+    ),
+    suite("Response.ok(body)")(
+      test("creates ok response with synced content-type header") {
+        val body     = Body.fromString("hello")
+        val response = Response.ok(body)
+        assertTrue(
+          response.status == Status.Ok,
+          response.body == body,
+          response.headers.rawGet("content-type") == Some(body.contentType.render)
         )
       }
     ),
@@ -180,6 +214,10 @@ object ResponseSpec extends HttpModelBaseSpec {
       test("adds a header") {
         val response = Response.ok.addHeader("X-Custom", "value")
         assertTrue(response.headers.rawGet("x-custom") == Some("value"))
+      },
+      test("adds a typed header") {
+        val response = Response.ok.addHeader(Header.ContentLength(42L))
+        assertTrue(response.header(Header.ContentLength) == Some(Header.ContentLength(42L)))
       }
     ),
     suite("Response addHeaders")(
@@ -204,13 +242,22 @@ object ResponseSpec extends HttpModelBaseSpec {
           .addHeader("X-Custom", "old")
           .setHeader("X-Custom", "new")
         assertTrue(response.headers.rawGet("x-custom") == Some("new"))
+      },
+      test("sets a typed header replacing existing") {
+        val response = Response.ok
+          .addHeader(Header.ContentLength(1L))
+          .setHeader(Header.ContentLength(42L))
+        assertTrue(response.header(Header.ContentLength) == Some(Header.ContentLength(42L)))
       }
     ),
     suite("Response body (setter)")(
       test("replaces body") {
         val newBody  = Body.fromString("new body")
         val response = Response.ok.body(newBody)
-        assertTrue(response.body == newBody)
+        assertTrue(
+          response.body == newBody,
+          response.headers.rawGet("content-type") == Some(newBody.contentType.render)
+        )
       }
     ),
     suite("Response status (setter)")(
@@ -241,6 +288,20 @@ object ResponseSpec extends HttpModelBaseSpec {
         val cookie   = ResponseCookie("session", "abc123")
         val response = Response.ok.addCookie(cookie)
         assertTrue(response.headers.has("set-cookie"))
+      }
+    ),
+    suite("Response cookies")(
+      test("parses all response cookies from Set-Cookie headers") {
+        val response = Response.ok
+          .addCookie(ResponseCookie("session", "abc123"))
+          .addCookie(ResponseCookie("theme", "dark"))
+        assertTrue(
+          response.cookies == Chunk(ResponseCookie("session", "abc123"), ResponseCookie("theme", "dark"))
+        )
+      },
+      test("skips invalid Set-Cookie headers") {
+        val response = Response.ok.addHeader("set-cookie", "invalid")
+        assertTrue(response.cookies == Chunk.empty)
       }
     )
   )

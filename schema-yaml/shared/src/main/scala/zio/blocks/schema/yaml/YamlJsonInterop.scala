@@ -16,44 +16,42 @@
 
 package zio.blocks.schema.yaml
 
-import zio.blocks.schema.json.Json
+import zio.blocks.schema.json.{Json, JsonCodec}
+
+import scala.util.control.NonFatal
 
 object YamlJsonInterop {
-
   def yamlToJson(yaml: Yaml): Json = yaml match {
     case Yaml.Mapping(entries) =>
-      val fields = entries.map {
+      new Json.Object(entries.map {
         case (Yaml.Scalar(key, _), value) => (key, yamlToJson(value))
         case (key, value)                 => (key.print, yamlToJson(value))
-      }
-      new Json.Object(fields)
-    case Yaml.Sequence(elements) =>
-      new Json.Array(elements.map(yamlToJson))
-    case Yaml.Scalar(value, _) =>
+      })
+    case Yaml.Sequence(elements) => new Json.Array(elements.map(yamlToJson))
+    case Yaml.Scalar(value, _)   =>
       value match {
-        case "true" | "True" | "TRUE"       => Json.True
-        case "false" | "False" | "FALSE"    => Json.False
-        case "null" | "~" | "Null" | "NULL" => Json.Null
-        case _                              =>
-          try Json.Number(BigDecimal(value))
-          catch { case _: NumberFormatException => new Json.String(value) }
+        case "true" | "True" | "TRUE"                                                  => Json.True
+        case "false" | "False" | "FALSE"                                               => Json.False
+        case "null" | "~" | "Null" | "NULL"                                            => Json.Null
+        case s if s.nonEmpty && (Character.isDigit(s.charAt(0)) || s.charAt(0) == '-') =>
+          try Json.Number(JsonCodec.bigDecimalCodec.decodeUnsafe(value))
+          catch {
+            case err if NonFatal(err) => new Json.String(value)
+          }
+        case _ => new Json.String(value)
       }
-    case _: Yaml.NullValue.type => Json.Null
+    case _ => Json.Null
   }
 
   def jsonToYaml(json: Json): Yaml = json match {
-    case obj: Json.Object =>
-      Yaml.Mapping(obj.value.map { case (key, value) => (Yaml.Scalar(key): Yaml, jsonToYaml(value)) })
-    case arr: Json.Array =>
-      Yaml.Sequence(arr.value.map(jsonToYaml))
-    case str: Json.String =>
-      Yaml.Scalar(str.value)
+    case obj: Json.Object => new Yaml.Mapping(obj.value.map { case (k, v) => (Yaml.Scalar(k), jsonToYaml(v)) })
+    case arr: Json.Array  => new Yaml.Sequence(arr.value.map(jsonToYaml))
+    case str: Json.String => new Yaml.Scalar(str.value)
     case num: Json.Number =>
-      val tag = if (num.value.isWhole) Some(YamlTag.Int) else Some(YamlTag.Float)
-      Yaml.Scalar(num.value.toString, tag = tag)
-    case bool: Json.Boolean =>
-      Yaml.Scalar(bool.value.toString, tag = Some(YamlTag.Bool))
-    case _: Json.Null.type =>
-      Yaml.NullValue
+      if (num.value.isWhole) {
+        new Yaml.Scalar(JsonCodec.bigIntCodec.encodeToString(num.value.toBigInt), tag = new Some(YamlTag.Int))
+      } else new Yaml.Scalar(JsonCodec.bigDecimalCodec.encodeToString(num.value), tag = new Some(YamlTag.Float))
+    case bool: Json.Boolean => new Yaml.Scalar(bool.value.toString, tag = Some(YamlTag.Bool))
+    case _                  => Yaml.NullValue
   }
 }

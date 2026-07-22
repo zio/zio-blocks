@@ -1,8 +1,10 @@
 name: CI
 
 env:
-  JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
-  JVM_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE # for Java 8 only (sadly, it is not modern enough for JDK_JAVA_OPTIONS)
+  # Do NOT use JDK_JAVA_OPTIONS here — it causes `java -version` to print a NOTE containing commas,
+  # which breaks cache key validation in setup-sbt, coursier/cache-action, and similar actions.
+  # Instead, pass JVM flags through SBT_OPTS (read by sbt, invisible to `java -version`).
+  SBT_OPTS: -XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE
 
 on:
   pull_request:
@@ -13,7 +15,7 @@ on:
       - published
 concurrency:
   group: ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   buildDocs:
@@ -22,7 +24,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: '0'
       - name: Install libuv
@@ -37,8 +39,41 @@ jobs:
         uses: sbt/setup-sbt@v1
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24.12.0'
+      - name: Install yarn
+        run: npm install -g yarn
+      - name: Install website dependencies
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn install --cwd website
+      - name: Generate documentation with mdoc
+        if: hashFiles('website/yarn.lock') != ''
+        run: sbt docs/mdoc
       - name: Check website build process
-        run: sbt docs/clean docs/buildWebsite
+        if: hashFiles('website/yarn.lock') != ''
+        run: yarn --cwd website build
+      - name: Upload website build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-artifact
+          path: ./website/build
+          overwrite: true
+          retention-days: 30
+        if: hashFiles('website/yarn.lock') != '' && github.event_name == 'pull_request'
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-metadata
+          path: pr-number.txt
+          overwrite: true
+      - name: Print All Generated Files
+        run: find ./website/build -print
 
   lint:
     runs-on: ubuntu-latest
@@ -50,7 +85,7 @@ jobs:
           sudo apt-get install -y locales
           sudo locale-gen en_US.UTF-8
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -61,7 +96,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
       - name: Lint code
-        run: sbt "++2.13; check; headerCheckAll; ++3.7; check; headerCheckAll"
+        run: sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"
 
   testJVM:
     runs-on: ubuntu-latest
@@ -71,10 +106,24 @@ jobs:
       matrix:
         java: [17, 25]
         platform: ['JVM']
-        scala: ['2.13.x', '3.3.x', '3.7.x']
+        scala: ['2.13.x', '3.3.x', '3.8.x']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 32886:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Set JVM options for JDK 25+
@@ -92,32 +141,31 @@ jobs:
       - name: Run Scala 2 tests and compile Scala 2 docs
         if: ${{ startsWith(matrix.scala, '2.') }}
         run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
-      - name: Run Scala 3 tests with test coverage and docs (JDK 17)
+      - name: Run Scala 3 tests and docs (JDK 17)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java == 17 }}
-        run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport doc${{ matrix.platform }}
+        run: sbt ++${{ matrix.scala }} test${{ matrix.platform }} doc${{ matrix.platform }}
       - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
         if: ${{ startsWith(matrix.scala, '3.') && matrix.java >= 25 }}
         run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
       - name: Run Scala Next tests
-        if: ${{ matrix.scala == '3.7.x' }}
-        run: sbt ++3.7.4 scalaNextTests${{ matrix.platform }}/test benchmarks/test
+        if: ${{ matrix.scala == '3.8.x' }}
+        run: sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test
       - name: Compile example project
-        if: ${{ matrix.scala == '3.7.x' }}
+        if: ${{ matrix.scala == '3.8.x' }}
         run: sbt ++${{ matrix.scala }} schema-examples/compile
 
   testJS:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
         java: [17]
         platform: ['JS']
-        # Note: 3.7.x excluded due to Scala.js compiler bug (URISyntaxException in genSJSIR)
-        scala: ['2.13.x', '3.3.x']
+        scala: ['2.13.x', '3.3.x', '3.8.x']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -128,18 +176,8 @@ jobs:
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v8
-      - name: Run Scala 2 JS tests (batch 1)
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt "++${{ matrix.scala }}; testJS1; docJS1"
-      - name: Run Scala 2 JS tests (batch 2)
-        if: ${{ startsWith(matrix.scala, '2.') }}
-        run: sbt "++${{ matrix.scala }}; testJS2; docJS2"
-      - name: Run Scala 3 JS tests (batch 1)
-        if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt "++${{ matrix.scala }}; testJS1"
-      - name: Run Scala 3 JS tests (batch 2)
-        if: ${{ startsWith(matrix.scala, '3.') }}
-        run: sbt "++${{ matrix.scala }}; testJS2"
+      - name: Run Scala JS tests and compile docs
+        run: sbt ++${{ matrix.scala }} testJS docJS
 
   testGolem:
     name: Test Golem (Scala 3.8.x / 2.13.x)
@@ -151,7 +189,7 @@ jobs:
         java: [17]
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -180,21 +218,28 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     needs: [ci]
     if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Setup Action
         uses: coursier/setup-action@v3
         with:
-          jvm: temurin:17
+          jvm: temurin:25
           apps: sbt
       - name: Release
-        run: sbt ci-release
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          command: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
@@ -205,6 +250,9 @@ jobs:
     name: Release Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+      group: release-docs-${{ github.ref }}
+      cancel-in-progress: false
     continue-on-error: false
     needs:
       - release
@@ -214,7 +262,7 @@ jobs:
       contents: read
     steps:
       - name: Git Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: '0'
       - name: Install libuv
@@ -230,9 +278,10 @@ jobs:
       - name: Cache Dependencies
         uses: coursier/cache-action@v8
       - name: Setup NodeJs
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: 24.12.0
           registry-url: https://registry.npmjs.org
+          cache: 'npm'
       - name: Publish Docs to NPM Registry
         run: sbt docs/publishToNpm

@@ -18,7 +18,7 @@ package zio.blocks.schema.toon
 
 import zio.blocks.chunk.Chunk
 import zio.blocks.schema.toon.ToonTestUtils._
-import zio.blocks.schema.toon.NameMapper._
+import zio.blocks.schema.NameMapper._
 import zio.blocks.schema._
 import zio.test._
 import java.time._
@@ -831,8 +831,8 @@ object ToonCodecDeriverSpec extends SchemaBaseSpec {
             |kebab_case: 4
             |camel1: 5
             |pascal1: 6
-            |snake_1: 7
-            |kebab_1: 8""".stripMargin,
+            |snake1: 7
+            |kebab1: 8""".stripMargin,
           deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(SnakeCase))
         ) &&
         roundTrip(
@@ -843,8 +843,8 @@ object ToonCodecDeriverSpec extends SchemaBaseSpec {
             |"kebab-case": 4
             |camel1: 5
             |pascal1: 6
-            |"snake-1": 7
-            |"kebab-1": 8""".stripMargin,
+            |snake1: 7
+            |kebab1: 8""".stripMargin,
           deriveCodec[CamelPascalSnakeKebabCases](_.withFieldNameMapper(KebabCase))
         ) &&
         roundTrip(

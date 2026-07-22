@@ -12,6 +12,22 @@ If `sbt --client` is causing trouble, try:
 sbt --client shutdown 2>/dev/null; pkill -f sbt 2>/dev/null; rm -rf .bsp project/target/active.json project/target/.sbt-server-connection.json
 ```
 
+## Policies
+
+- [Symbolic Operator Policy](SYMBOLIC_OPS_POLICY.md) — Rules for when symbolic operators are allowed in APIs. Consult before adding or reviewing any symbolic method.
+
+### Sentinel performance policy (streams)
+
+The streams module's primitive lanes (`Long`/`Double`/`Int`/`Float`) signal end-of-stream with in-band primitive sentinels (`Long.MaxValue`, `Double.MaxValue`, …) precisely so that hot drain loops stay a **single primitive comparison per element** with zero boxing and zero allocation. These loops are deliberately optimized; their shape is a feature, not a bug.
+
+**Any change to sentinel handling is disallowed unless it has virtually no impact on performance.** In particular, bug-finding or "correctness" passes (human or agentic) must NOT add per-element work to these loops — no per-element rawbits conversions, extra branches, flag reads on the non-collision path, boxing, or allocation. A sentinel-valued element colliding with EOF is an accepted, documented edge case; the approved remedies are, in order of preference:
+
+1. **Zero-cost lossless disambiguation**: `v == sentinel && reader.lastReadWasEOF` — the short-circuit means the out-of-band EOF flag is consulted only on the rare value/sentinel collision; the hot path is unchanged. (For statically known non-NaN sentinels such as `Double.MaxValue`, use this inline form — `doubleEOF`'s rawbits comparison exists only for NaN sentinels and must not appear per-element in hot loops.)
+2. **Document + throw early**: keep the raw `v != sentinel` loop and, after the loop exits, consult `lastReadWasEOF` once; if the exit was caused by a real sentinel-valued element rather than EOF, throw a clear exception (see `NioSinks.fromByteBufferLong/Double`). Zero per-element cost; silent truncation becomes a loud error.
+3. **Document only**: when neither applies, document the limitation; do not "fix" it.
+
+Validate any sentinel-adjacent change against the streams JMH benchmarks before and after; an unexplained regression means the change is rejected.
+
 ## Mindset
 
 **sbt is slow—minutes per compile/test.** Wasted cycles waste hours.
@@ -34,13 +50,13 @@ sbt --client -Dsbt.color=false <command> >"$LOG" 2>&1; echo "Exit: $? | Log: $LO
 # Query: tail -50 "$LOG" or grep -i error "$LOG"
 
 # <command> examples:
-#   "++3.7.4; <project>/test"                             — fast loop, Scala 3
+#   "++3.8.3; <project>/test"                             — fast loop, Scala 3
 #   "++<scala2>; <project>/test"                          — fast loop, Scala 2
-#   "++3.7.4; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
+#   "++3.8.3; project <project>; coverage; test; coverageReport"   — coverage, Scala 3
 #   "++<scala2>; project <project>; coverage; test; coverageReport"  — coverage, Scala 2
-#   "++3.7.4; <project>/test; ++<scala2>; <project>/test" — cross-Scala
-#   "++3.7.4; fmtDirty"                                  — format main sources
-#   "++3.7.4; project <project>; fmtDirty"               — format sources in specific project
+#   "++3.8.3; <project>/test; ++<scala2>; <project>/test" — cross-Scala
+#   "++3.8.3; fmtDirty"                                  — format main sources
+#   "++3.8.3; project <project>; fmtDirty"               — format sources in specific project
 #   scalafmtSbt                                           — format build files
 #
 # IMPORTANT: --client mode preserves Scala version across invocations.
@@ -83,9 +99,23 @@ Run once after verify passes.
 
 For version-specific code: ONE shared `package.scala` extending a trait with per-version implementations in `scala-2/` and `scala-3/`. See `markdown/` module (`MdInterpolator`). Never separate package objects per version.
 
+**Streams exception:** `Stream`, `Sink`, `Reader`, `Writer`, `Pipeline`, and `Interpreter` are fully split across `scala-2/` and `scala-3/`. Keep both in sync.
+
 ## Testing
 
 ZIO Test framework. Search codebase for `SchemaBaseSpec` for patterns.
+
+### Render Assertions
+
+Always assert the **full rendered string** with `==`. Never use `.contains()`:
+
+```scala
+// ✅ Correct — catches all regressions (attribute order, whitespace, closing tags)
+assertTrue(result.render == """<div class="main">content</div>""")
+
+// ❌ Wrong — misses attribute order, extra whitespace, missing tags
+assertTrue(result.render.contains("main"))
+```
 
 ## Git & CI (Prefer `gh` CLI)
 
@@ -102,8 +132,10 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Follow workflow phases in order
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
+- In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
 - Document new data types in `docs/`; update existing docs when behavior changes
-- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client generateReadme` to regenerate `README.md`.
+- **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client docs/generateReadme` to regenerate `README.md`. (The `generateReadme` task is provided by `WebsitePlugin` on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
+  - **Caveat — manually-maintained sections.** `generateReadme` runs mdoc and only emits sections whose code can compile against the `docs` project's `dependsOn` classpath. Modules **not** in `docs`' `dependsOn` (e.g. `config` and its adapters) cannot be mdoc-generated, so their README section is maintained by hand (raw-pasted into README, see the Config section added in #1426). A fresh `generateReadme` will silently **drop** such sections. After regenerating, diff against `origin/main` and re-insert any manually-maintained section (currently only `## Config`, which sits between `## The Blocks` and `## Core Principles`) so you don't regress it.
 
 ### Ask First
 - Adding dependencies (even test-only)

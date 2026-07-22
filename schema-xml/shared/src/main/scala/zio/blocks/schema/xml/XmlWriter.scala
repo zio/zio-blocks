@@ -158,7 +158,7 @@ object XmlWriter {
   private[this] def escapeAttribute(attr: String): String =
     if (needsAttributeEscaping(attr)) {
       val len = attr.length
-      val sb  = new StringBuilder(len + 16)
+      val sb  = new java.lang.StringBuilder(len + 16)
       var idx = 0
       while (idx < len) {
         attr.charAt(idx) match {

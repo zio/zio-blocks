@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package zio.http.headers
+package zio.http
 
-import zio.test._
+import _root_.zio.test._
 import zio.blocks.chunk.Chunk
+import Header._
 
 object SecurityHeadersSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SecurityHeaders")(
@@ -80,6 +81,9 @@ object SecurityHeadersSpec extends ZIOSpecDefault {
       },
       test("header name") {
         assertTrue(DNT.TrackingAllowed.headerName == "dnt")
+      },
+      test("NotSpecified convenience value aliases unset") {
+        assertTrue(DNT.NotSpecified == DNT.Unset)
       }
     ),
     suite("UpgradeInsecureRequests")(

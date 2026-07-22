@@ -850,7 +850,7 @@ object DynamicValue {
     var idx                          = 0
     val len                          = nodes.length
     while (idx < len && current.nonEmpty) {
-      val builder = Chunk.newBuilder[DynamicValue]
+      val builder = ChunkBuilder.make[DynamicValue]()
       nodes(idx) match {
         case DynamicOptic.Node.Field(name) =>
           current.foreach {
@@ -1609,7 +1609,7 @@ object DynamicValue {
           case r: Record =>
             if (isLast) {
               if (r.fields.exists(_._1 == name)) None
-              else new Some(new Record(r.fields :+ (name, value)))
+              else new Some(new Record(r.fields.appended((name, value))))
             } else {
               var found     = false
               val newFields = r.fields.map { kv =>
@@ -1645,7 +1645,7 @@ object DynamicValue {
             val elements = s.elements
             if (isLast) {
               if (i >= 0 && i <= elements.length) {
-                new Some(new Sequence(elements.take(i) ++ (value +: elements.drop(i))))
+                new Some(new Sequence(elements.take(i) ++ (elements.drop(i).prepended(value))))
               } else None
             } else if (i >= 0 && i < elements.length) {
               insertAtPath(elements(i), nodes, index + 1, value) match {
@@ -1660,7 +1660,7 @@ object DynamicValue {
           case m: Map =>
             if (isLast) {
               if (m.entries.exists(_._1 == key)) None
-              else new Some(new Map(m.entries :+ (key, value)))
+              else new Some(new Map(m.entries.appended((key, value))))
             } else {
               var found      = false
               val newEntries = m.entries.map { kv =>
@@ -2375,11 +2375,13 @@ object DynamicValue {
                   )
                 )
               } else {
-                r.fields :+ (
-                  name, {
-                    if (isLast) value
-                    else go(createContainer(nodes(idx + 1)), idx + 1)
-                  }
+                r.fields.appended(
+                  (
+                    name, {
+                      if (isLast) value
+                      else go(createContainer(nodes(idx + 1)), idx + 1)
+                    }
+                  )
                 )
               }
             case _ =>
@@ -2403,19 +2405,19 @@ object DynamicValue {
                   else go(s.elements(index), idx + 1)
                 )
               } else if (index == s.elements.length) {
-                s.elements :+ {
+                s.elements.appended {
                   if (isLast) value
                   else go(createContainer(nodes(idx + 1)), idx + 1)
                 }
               } else {
-                s.elements ++ Chunk.fill(index - s.elements.length)(Null: DynamicValue) :+ {
+                s.elements ++ Chunk.fill(index - s.elements.length)(Null: DynamicValue).appended {
                   if (isLast) value
                   else go(createContainer(nodes(idx + 1)), idx + 1)
                 }
               }
             case _ =>
               val padding = Chunk.fill(index)(Null: DynamicValue)
-              padding :+ {
+              padding.appended {
                 if (isLast) value
                 else go(createContainer(nodes(idx + 1)), idx + 1)
               }
@@ -2437,11 +2439,13 @@ object DynamicValue {
                   )
                 )
               } else {
-                m.entries :+ (
-                  key, {
-                    if (isLast) value
-                    else go(createContainer(nodes(idx + 1)), idx + 1)
-                  }
+                m.entries.appended(
+                  (
+                    key, {
+                      if (isLast) value
+                      else go(createContainer(nodes(idx + 1)), idx + 1)
+                    }
+                  )
                 )
               }
             case _ =>

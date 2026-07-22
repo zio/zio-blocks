@@ -17,7 +17,7 @@
 package into
 
 import zio.blocks.schema.Into
-import util.ShowExpr.show
+import zio.sbt.ExprEval.show
 
 // Demonstrates migrating a product type across API versions.
 // The macro handles: Int → Long widening, and a new Option field
