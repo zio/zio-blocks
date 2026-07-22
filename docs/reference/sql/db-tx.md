@@ -1,18 +1,18 @@
 ---
 id: db-tx
 title: "DbTx"
-description: "Reference for DbTx, the sql module's transactional scope marker that extends DbCon with commit-on-success and rollback-on-failure semantics."
+description: "Reference for DbTx, the SQL module's transactional scope marker that extends DbCon with commit-on-success and rollback-on-failure semantics."
 keywords:
-  - "DbTx transaction scope"
-  - "Transactor transact context"
-  - "DbCon subtype marker"
-  - "auto-commit disabled transaction"
-  - "commit rollback semantics"
-  - "sql module connection context"
-  - "JDBC transaction lifecycle"
+  - "DbTx Transaction Scope"
+  - "Transactor Transact Context"
+  - "DbCon Subtype Marker"
+  - "Auto-Commit Disabled Transaction"
+  - "Commit Rollback Semantics"
+  - "SQL Module Connection Context"
+  - "JDBC Transaction Lifecycle"
 ---
 
-`DbTx` is a marker trait in the `sql` module that extends `DbCon` to signal a transactional execution scope. It declares no members of its own — its distinct type is what instructs `Transactor#transact` to disable auto-commit, commit the connection on success, and roll back on any thrown exception. You never construct a `DbTx` directly; the `Transactor` creates one and supplies it as a given context to the block passed to `transact`. The connection is always closed when the block exits, whether it commits, rolls back, or throws.
+`DbTx` is a marker trait in the `zio-blocks-sql` module that extends `DbCon` to signal a transactional execution scope. It declares no members of its own — its distinct type is what instructs `Transactor#transact` to disable auto-commit, commit the connection on success, and roll back on any thrown exception. You never construct a `DbTx` directly; the `Transactor` creates one and supplies it as a given context to the block passed to `transact`. The connection is always closed when the block exits, whether it commits, rolls back, or throws.
 
 Key properties:
 - **Transactional context marker** — A `DbTx` value in scope guarantees the underlying JDBC connection has auto-commit disabled.
