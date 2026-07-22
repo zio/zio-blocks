@@ -59,8 +59,8 @@ object DbCodec {
   def apply[A](implicit codec: DbCodec[A]): DbCodec[A]
 
   // Built-in instances
-  given instances for: Int, Long, String, Boolean, Double, Float, Short, Byte,
-                       BigDecimal, Instant, UUID, ...
+  // given instances for: Int, Long, String, Boolean, Double, Float, Short, Byte,
+  //                      BigDecimal, Instant, UUID, ...
 }
 ```
 
