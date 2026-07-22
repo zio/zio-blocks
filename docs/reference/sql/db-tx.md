@@ -48,7 +48,7 @@ object User {
   implicit val schema: Schema[User] = Schema.derived
 }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // On normal return: transaction commits and connection closes.
@@ -66,7 +66,7 @@ tx.transact {
 
   val all:    List[User] = repo.all
   val custom: List[User] =
-    sql"SELECT id, name, email FROM user WHERE name LIKE ${"A%"}".query[User]
+    sql"SELECT id, name, email FROM users WHERE name LIKE ${"A%"}".query[User]
 
   (all, custom)
 }

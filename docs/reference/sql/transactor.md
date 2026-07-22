@@ -59,7 +59,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("id", _.id)
+val repo       = Repo.derived[User, Int]("users", "id", _.id)
 val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // transact: auto-commit disabled; commits on success, rolls back on exception
@@ -70,7 +70,7 @@ transactor.transact {
 
   // Raw fragment composes freely with Repo operations inside the same scope
   val active: List[User] =
-    sql"SELECT id, name, email FROM user WHERE id > ${0}".query[User]
+    sql"SELECT id, name, email FROM users WHERE id > ${0}".query[User]
 }
 
 // connect: auto-commit unchanged; no transaction overhead for pure reads
@@ -208,7 +208,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("id", _.id)
+val repo       = Repo.derived[User, Int]("users", "id", _.id)
 val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // The body receives DbCon as a given — no explicit passing required
@@ -245,7 +245,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("id", _.id)
+val repo       = Repo.derived[User, Int]("users", "id", _.id)
 val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 transactor.transact {
@@ -314,7 +314,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo       = Repo.derived[User, Int]("id", _.id)
+val repo       = Repo.derived[User, Int]("users", "id", _.id)
 val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Helper that composes two Repo calls — requires only DbCon, not Transactor

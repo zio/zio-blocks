@@ -144,7 +144,7 @@ object User {
 
 // 1. Create transactor and repository
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 
 // 2. Set up schema and run a transactional workflow
 tx.transact {
@@ -160,7 +160,7 @@ tx.transact {
 
   // Read via raw SQL fragment — composes freely with repo operations
   val aUsers: List[User] =
-    sql"SELECT id, name, email FROM user WHERE name LIKE ${"A%"}".query[User]
+    sql"SELECT id, name, email FROM users WHERE name LIKE ${"A%"}".query[User]
 
   // Update and delete
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
@@ -249,7 +249,7 @@ val active: Option[Boolean] = Some(true)
 
 // All three are compile-time safe — no string concatenation
 val frag =
-  sql"SELECT * FROM user WHERE id = $userId AND name LIKE $namePattern AND active = $active"
+  sql"SELECT * FROM users WHERE id = $userId AND name LIKE $namePattern AND active = $active"
 frag.sql(SqlDialect.SQLite)
 frag.params
 ```

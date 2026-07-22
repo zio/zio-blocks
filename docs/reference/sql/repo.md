@@ -48,19 +48,19 @@ object User {
 }
 
 // All SQL is generated here, once, from User's Schema.
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 val tx   = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 tx.transact {
-  repo.table.createTable(summon[DbTx].dialect).update // CREATE TABLE IF NOT EXISTS user …
+  repo.table.createTable(summon[DbTx].dialect).update // CREATE TABLE IF NOT EXISTS users …
 
   repo.insert(User(1, "Alice", "alice@example.com"))
   repo.insert(User(2, "Bob",   "bob@example.com"))
 
-  val allUsers: List[User] = repo.all          // SELECT id, name, email FROM user
+  val allUsers: List[User] = repo.all          // SELECT id, name, email FROM users
   val one: Maybe[User]     = repo.find(1)      // SELECT … WHERE id = ?
   val exists: Boolean      = repo.exists(99)   // SELECT … WHERE id = ?
-  val total: Long          = repo.count        // SELECT COUNT(*) FROM user
+  val total: Long          = repo.count        // SELECT COUNT(*) FROM users
 
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
   repo.delete(2)
@@ -231,7 +231,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 // Inside a Transactor#connect or #transact block:
@@ -261,7 +261,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val users: List[User] = repo.findAll(List(1, 2, 3))
@@ -287,7 +287,7 @@ import zio.blocks.maybe.Maybe
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val alice: Maybe[User] = repo.find(1)
@@ -312,7 +312,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val exists: Boolean = repo.exists(99)
@@ -337,7 +337,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val total: Long = repo.count
@@ -366,7 +366,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val rowsAffected: Int = repo.insert(User(1, "Alice", "alice@example.com"))
@@ -391,7 +391,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 // Pass a placeholder ID; the returned entity carries the database-assigned key.
@@ -421,7 +421,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val users = List(
@@ -453,7 +453,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val newUsers = Seq(
@@ -487,7 +487,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val rowsAffected: Int = repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
@@ -516,7 +516,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val rowsAffected: Int = repo.delete(42)
@@ -543,7 +543,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val rowsAffected: Int = repo.deleteAll(List(1, 2, 3))
@@ -568,7 +568,7 @@ import zio.blocks.schema.Schema
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 given DbCon = ???
 
 val rowsDeleted: Int = repo.clear()

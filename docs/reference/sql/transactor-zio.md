@@ -57,7 +57,7 @@ case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo = Repo.derived[User, Int]("id", _.id)
+val repo = Repo.derived[User, Int]("users", "id", _.id)
 val tx   = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Synchronous read — runs on blocking thread pool, no transaction overhead
@@ -235,7 +235,7 @@ case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
+val repo: Repo[User, Int] = Repo.derived[User, Int]("users", "id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // DbCon is synthesized by connect and threaded into all automatically
@@ -275,7 +275,7 @@ case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
+val repo: Repo[User, Int] = Repo.derived[User, Int]("users", "id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Both statements run in one transaction; failure in either rolls back the whole block
@@ -311,7 +311,7 @@ case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
+val repo: Repo[User, Int] = Repo.derived[User, Int]("users", "id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // The body returns a ZIO; the connection remains open for the full duration of the effect
@@ -352,7 +352,7 @@ case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
 
-val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
+val repo: Repo[User, Int] = Repo.derived[User, Int]("users", "id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // The ZIO for-comprehension runs within a single JDBC transaction

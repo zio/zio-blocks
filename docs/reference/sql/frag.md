@@ -59,19 +59,19 @@ val active  = true
 tx.connect {
   // Query — returns all matching rows
   val users: List[User] = 
-    sql"SELECT id, name, email FROM user WHERE id > $userId AND active = $active".query[User]
+    sql"SELECT id, name, email FROM users WHERE id > $userId AND active = $active".query[User]
   
   // QueryOne — returns at most one row
   val one: Maybe[User] = 
-    sql"SELECT id, name, email FROM user WHERE id = ${1}".queryOne[User]
+    sql"SELECT id, name, email FROM users WHERE id = ${1}".queryOne[User]
   
   // Update — returns affected row count
   val deleted: Int = 
-    sql"DELETE FROM user WHERE active = ${false}".update
+    sql"DELETE FROM users WHERE active = ${false}".update
   
   // UpdateReturningKeys — returns generated keys after INSERT
   val keys: List[Long] = 
-    sql"INSERT INTO user (name, email) VALUES (${"Alice"}, ${"alice@example.com"})".updateReturningKeys[Long]
+    sql"INSERT INTO users (name, email) VALUES (${"Alice"}, ${"alice@example.com"})".updateReturningKeys[Long]
 }
 ```
 
@@ -83,14 +83,14 @@ tx.connect {
 import zio.blocks.sql._
 
 val userId = 42
-val frag = sql"SELECT * FROM user WHERE id = $userId"
+val frag = sql"SELECT * FROM users WHERE id = $userId"
 frag.params
 ```
 
 **`Frag.literal`** — Wrap static SQL text (no parameters):
 
 ```scala mdoc
-val query = sql"SELECT * FROM user" ++ Frag.literal(" ORDER BY name")
+val query = sql"SELECT * FROM users" ++ Frag.literal(" ORDER BY name")
 query.sql(SqlDialect.SQLite)
 ```
 
@@ -113,7 +113,7 @@ import zio.blocks.sql._
 
 val hasFilter = true
 val where = if (hasFilter) sql" WHERE active = ${true}" else Frag.empty
-val query = sql"SELECT * FROM user" ++ where
+val query = sql"SELECT * FROM users" ++ where
 query.sql(SqlDialect.SQLite)
 ```
 
@@ -123,7 +123,7 @@ query.sql(SqlDialect.SQLite)
 import zio.blocks.sql._
 
 val status = "active"
-val base   = sql"SELECT * FROM user"
+val base   = sql"SELECT * FROM users"
 val where  = sql" WHERE status = $status"
 val order  = Frag.literal(" ORDER BY name")
 val full   = Frag.sequence(base, where, order)
@@ -145,7 +145,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 given DbCon = ???
 
-val users: List[User] = sql"SELECT id, name FROM user".query[User]
+val users: List[User] = sql"SELECT id, name FROM users".query[User]
 ```
 
 **`queryOne[A]`** — Execute SELECT and return at most one row:
@@ -160,7 +160,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 given DbCon = ???
 
-val user: Maybe[User] = sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
+val user: Maybe[User] = sql"SELECT id, name FROM users WHERE id = ${1}".queryOne[User]
 ```
 
 **`queryLimit[A](n)`** — Execute SELECT and return up to n rows (fetched from Scala side):
@@ -174,7 +174,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 
 given DbCon = ???
 
-val page: List[User] = sql"SELECT id, name FROM user ORDER BY name".queryLimit[User](10)
+val page: List[User] = sql"SELECT id, name FROM users ORDER BY name".queryLimit[User](10)
 ```
 
 **`update`** — Execute INSERT, UPDATE, or DELETE and return affected row count:
@@ -184,7 +184,7 @@ import zio.blocks.sql._
 
 given DbCon = ???
 
-val deleted: Int = sql"DELETE FROM user WHERE inactive = ${true}".update
+val deleted: Int = sql"DELETE FROM users WHERE inactive = ${true}".update
 ```
 
 **`updateReturningKeys[A]`** — Execute INSERT and return auto-generated primary key(s):
@@ -194,5 +194,5 @@ import zio.blocks.sql._
 
 given DbCon = ???
 
-val keys: List[Long] = sql"INSERT INTO user (name) VALUES (${"Alice"})".updateReturningKeys[Long]
+val keys: List[Long] = sql"INSERT INTO users (name) VALUES (${"Alice"})".updateReturningKeys[Long]
 ```

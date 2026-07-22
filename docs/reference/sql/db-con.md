@@ -50,9 +50,9 @@ val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.S
 // DbCon is supplied automatically by connect — no explicit argument needed
 tx.connect {
   // Frag execution picks up the given DbCon implicitly
-  Frag.literal("CREATE TABLE user (id INTEGER NOT NULL, name TEXT NOT NULL)").update
-  sql"INSERT INTO user (id, name) VALUES (${1}, ${"Alice"})".update
-  val users: List[User] = sql"SELECT id, name FROM user".query[User]
+  Frag.literal("CREATE TABLE users (id INTEGER NOT NULL, name TEXT NOT NULL)").update
+  sql"INSERT INTO users (id, name) VALUES (${1}, ${"Alice"})".update
+  val users: List[User] = sql"SELECT id, name FROM users".query[User]
   // Access the context members directly when needed
   val dialectName: String = summon[DbCon].dialect.toString
   (users, dialectName)
@@ -84,7 +84,7 @@ val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.S
 
 // The `DbCon` binding is supplied by `connect` — no manual construction
 val names: List[String] = tx.connect {
-  sql"SELECT name FROM user ORDER BY name".query[String]
+  sql"SELECT name FROM users ORDER BY name".query[String]
 }
 ```
 
@@ -113,8 +113,8 @@ val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.S
 
 tx.transact {
   // Both inserts commit together; an exception rolls back both
-  sql"INSERT INTO user (id, name) VALUES (${1}, ${"Alice"})".update
-  sql"INSERT INTO user (id, name) VALUES (${2}, ${"Bob"})".update
+  sql"INSERT INTO users (id, name) VALUES (${1}, ${"Alice"})".update
+  sql"INSERT INTO users (id, name) VALUES (${2}, ${"Bob"})".update
 }
 ```
 
@@ -145,7 +145,7 @@ val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.S
 
 tx.connect {
   val conn: DbConnection = summon[DbCon].connection
-  val ps = conn.prepareStatement("SELECT COUNT(*) FROM user")
+  val ps = conn.prepareStatement("SELECT COUNT(*) FROM users")
   try {
     val rs = ps.executeQuery()
     try { rs.next(); rs.reader.getInt(1) }
@@ -176,7 +176,7 @@ import zio.blocks.sql._
 val tx: Transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 tx.connect {
-  val frag = sql"SELECT id FROM user WHERE id = ${42}"
+  val frag = sql"SELECT id FROM users WHERE id = ${42}"
   frag.sql(summon[DbCon].dialect)
 }
 ```
@@ -233,7 +233,7 @@ import zio.blocks.sql._
 
 // This helper compiles only inside a `transact` block, never inside `connect`
 def insertUser(id: Int, name: String)(using DbTx): Unit = {
-  sql"INSERT INTO user (id, name) VALUES ($id, $name)".update
+  sql"INSERT INTO users (id, name) VALUES ($id, $name)".update
   ()
 }
 
@@ -256,5 +256,5 @@ import zio.blocks.maybe.Maybe
 
 // Usable inside both `connect` and `transact` blocks
 def findUser(id: Int)(using DbCon): Maybe[String] =
-  sql"SELECT name FROM user WHERE id = $id".queryOne[String]
+  sql"SELECT name FROM users WHERE id = $id".queryOne[String]
 ```

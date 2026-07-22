@@ -41,8 +41,9 @@ object User {
   implicit val schema: Schema[User] = Schema.derived
 }
 
-// Derive the table binding — name and columns come from the schema
-val table = Table.derived[User]
+// Derive the table binding — columns come from the schema; "user" is a
+// reserved word in PostgreSQL, so the table name is overridden explicitly
+val table = Table.derived[User]("users")
 table.name
 table.columns
 
