@@ -109,7 +109,7 @@ table.columns
 ```
 
 :::caution
-The table name is validated as a SQL identifier immediately at construction time. Spaces, hyphens, or any character outside `[A-Za-z0-9_]` (with a letter or underscore as the first character) will cause `Table.derived` to throw `IllegalArgumentException`. For example, `Table.derived[UserProfile]("user profile")` throws with the message `Invalid SQL table identifier 'user profile'`.
+The table name is validated as a SQL identifier immediately at construction time. Spaces, hyphens, or any character outside `[A-Za-z0-9_]` (with a letter or underscore as the first character) will cause `Table.derived` to throw `IllegalArgumentException`. For example, `Table.derived[UserProfile]("user profile")` throws with the message `Invalid SQL table identifier 'user profile'. Only ASCII letters, digits, and underscores are supported, and the first character must be a letter or underscore.`
 :::
 
 ### `Table.derived` (with naming policy) — Control table name derivation

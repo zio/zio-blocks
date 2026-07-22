@@ -108,7 +108,7 @@ repo.table.codec.columns
 ```
 
 :::caution
-The `idColumn` string must exactly match a column name in the derived table (after `SqlNameMapper` applies, so `camelCase` fields become `snake_case`). A mismatch throws `RuntimeException` at construction time — not at query time.
+The `idColumn` string must exactly match a column name in the derived table (after `SqlNameMapper` applies, so `camelCase` fields become `snake_case`). A mismatch throws `IllegalArgumentException` (via `require`) at construction time — not at query time.
 :::
 
 ### `Repo.derived` — Derive with table name, ID column, and getter
