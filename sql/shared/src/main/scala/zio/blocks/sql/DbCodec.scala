@@ -202,12 +202,12 @@ object DbCodec extends DbCodecOpaquePriority {
 
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Maybe[A] = {
       val value = inner.readValue(reader, columnLabels)
-      if (reader.wasNull) Maybe.absent else Maybe.present(value)
+      if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
     }
 
     override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] = {
       val value = inner.readValue(reader, startIndex)
-      if (reader.wasNull) Maybe.absent else Maybe.present(value)
+      if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
     }
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit =
