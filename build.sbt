@@ -1582,7 +1582,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1610,7 +1610,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1647,7 +1647,7 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio" %% "zio-prelude"    % "1.0.0-RC47",
-      "dev.zio" %% "zio-sbt-source" % "0.6.0"
+      "dev.zio" %% "zio-sbt-source" % "0.6.1"
     ),
     // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
     mdocVariables ++= Map(
