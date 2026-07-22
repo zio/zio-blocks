@@ -410,7 +410,7 @@ val nested = div(p("First"), p("Second"))
 
 // Lists of children — elements append directly, no wrapper
 val items = List("Apple", "Banana", "Cherry")
-val listEl = ul(items.map(item => li(item)): _*)
+val listEl = ul(items.map(item => li(item)))
 ```
 
 ### Conditional Rendering
