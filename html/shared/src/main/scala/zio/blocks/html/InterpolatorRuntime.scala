@@ -281,9 +281,10 @@ object InterpolatorRuntime {
     val endPos: Int
   )
 
-  private def createElement(tag: String, attrs: Chunk[Dom.Attribute], children: Chunk[Dom]): Dom.Element =
+  private def createElement(tag: String, attrs: Chunk[Dom.Attribute], children: Chunk[Dom]): Dom =
     if (tag == "script") Dom.Element.Script(attrs, children)
     else if (tag == "style") Dom.Element.Style(attrs, children)
+    else if (Dom.voidElements.contains(tag)) Dom.Element.VoidGeneric(tag, attrs)
     else Dom.Element.Generic(tag, attrs, children)
 
   private def textChunk(text: String): Chunk[Dom] =

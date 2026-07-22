@@ -49,10 +49,10 @@ See the [Config reference](reference/config.md) for the full API surface, suppor
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "<version>"
 ```
 
 ### Quick Start: StaticFlag
@@ -188,14 +188,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "<version>"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "<version>"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "<version>"
 ```
 
 ### Example: Optics
@@ -250,7 +250,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "<version>"
 ```
 
 ### Example
@@ -339,7 +339,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "<version>"
 ```
 
 ### Example: Basic Resource Management
@@ -442,7 +442,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "<version>"
 ```
 
 ### Example
@@ -526,7 +526,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "<version>"
 ```
 
 ### Example
@@ -569,7 +569,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "<version>"
 ```
 
 ### Example
@@ -621,7 +621,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "<version>"
 ```
 
 ### Example
@@ -679,10 +679,10 @@ val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
 
 ```scala
 // Core module (Scala 3, JVM + Scala.js)
-libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "<version>"
 
 // ZIO integration (Scala 3, JVM only)
-libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "<version>"
 ```
 
 ### Example

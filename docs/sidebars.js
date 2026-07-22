@@ -218,6 +218,7 @@ const sidebars = {
             ]
           },
           "reference/sql",
+          "reference/data-migration",
           "reference/sql-zio",
         ]
       },
