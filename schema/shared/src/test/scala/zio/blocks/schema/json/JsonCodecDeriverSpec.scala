@@ -3795,8 +3795,6 @@ object JsonCodecDeriverSpec extends SchemaBaseSpec {
     case object Green extends TrafficLight
   }
 
-  implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived
-
   case class UserId(value: Long)
 
   object UserId {

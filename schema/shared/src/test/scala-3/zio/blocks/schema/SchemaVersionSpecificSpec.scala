@@ -21,11 +21,14 @@ import zio.blocks.chunk.Chunk
 import zio.blocks.docs.{Doc, Paragraph, Inline}
 import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
 import zio.blocks.schema.binding._
-import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends SchemaBaseSpec {
+
+  private val schemaVersionSpecificSpecOwner =
+    Owner.fromPackagePath("zio.blocks.schema").term("SchemaVersionSpecificSpec")
 
   private def textDoc(s: String): Doc =
     Doc(Chunk.single(Paragraph(Chunk.single(Inline.Text(s)))))
@@ -864,6 +867,16 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
         val schema: Schema[IntWrapper] = Schema[Int].transform(to = IntWrapper(_), from = _.value)
         val wrapper                    = schema.reflect.asWrapperUnknown
         assert(wrapper.flatMap(_.wrapper.underlyingPrimitiveType))(isNone)
+      },
+      test("implicit Either schemas preserve primitive layouts for opaque types") {
+        def eitherSchema[A: Schema, B: Schema]: Schema[Either[A, B]] = Schema[Either[A, B]]
+
+        val schema = eitherSchema[EitherOpaqueInt, EitherOpaqueLong]
+        val left   = Left(EitherOpaqueInt(1)): Either[EitherOpaqueInt, EitherOpaqueLong]
+        val right  = Right(EitherOpaqueLong(2L)): Either[EitherOpaqueInt, EitherOpaqueLong]
+
+        assert(schema.fromDynamicValue(schema.toDynamicValue(left)))(isRight(equalTo(left))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(right)))(isRight(equalTo(right)))
       }
     )
   )
@@ -953,6 +966,28 @@ object SchemaVersionSpecificSpec extends SchemaBaseSpec {
     extension (x: InnerValue) {
       inline def toInt: Int = x
     }
+  }
+
+  opaque type EitherOpaqueInt = Int
+
+  object EitherOpaqueInt {
+    inline def apply(value: Int): EitherOpaqueInt = value
+
+    implicit val schema: Schema[EitherOpaqueInt] =
+      Schema.int.transform[EitherOpaqueInt](value => apply(value), value => value)(
+        TypeId.opaque("EitherOpaqueInt", schemaVersionSpecificSpecOwner, representation = TypeRepr.Ref(TypeId.int))
+      )
+  }
+
+  opaque type EitherOpaqueLong = Long
+
+  object EitherOpaqueLong {
+    inline def apply(value: Long): EitherOpaqueLong = value
+
+    implicit val schema: Schema[EitherOpaqueLong] =
+      Schema.long.transform[EitherOpaqueLong](value => apply(value), value => value)(
+        TypeId.opaque("EitherOpaqueLong", schemaVersionSpecificSpecOwner, representation = TypeRepr.Ref(TypeId.long))
+      )
   }
 
   enum OneCaseEnum derives Schema { case Case1 }

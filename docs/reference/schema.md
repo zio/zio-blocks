@@ -186,6 +186,17 @@ import zio.blocks.schema.Schema
 Schema[Option[A]]  // Generic option for reference types
 ```
 
+### Either Values
+
+An `Either[A, B]` schema is available whenever both branch types have schemas. Primitive values and primitive-backed wrappers use specialized primitive register layouts, while other values use the layouts described by their schemas:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+
+Schema[Either[String, Int]]
+Schema[Either[Int, Long]]
+```
+
 ### Collection Types
 
 ZIO Blocks also provides polymorphic schemas for standard Scala collections. You can summon schemas for collections of any element type `A` (and key/value types `K`/`V` for maps):
