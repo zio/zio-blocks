@@ -456,7 +456,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.1" % Test,
       "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
   )
