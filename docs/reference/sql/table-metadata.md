@@ -78,7 +78,7 @@ table3.name
 
 ## Key Points
 
-**`columnsFor`** — Walks a schema's structure and returns metadata for each column, respecting `@Modifier.transient` (skip field), `@Modifier.rename` (override name), and `Option[A]` (mark nullable).
+**`columnsFor`** — Walks a schema's structure and returns metadata for each column, respecting `@Modifier.transient` (skip field), `@Modifier.rename` (override name), and `Option[A]` / `Maybe[A]` (mark nullable).
 
 **ColumnMeta** — Holds the column name, a representative `DbValue` for type inference, and a nullable flag. The actual value in `dbValue` doesn't matter—only its variant is used by `SqlDialect#typeName`.
 
@@ -86,6 +86,6 @@ table3.name
 
 ## How It Works
 
-`Table.derived` calls `columnsFor` to extract column metadata from the schema. For each `ColumnMeta`, the dialect's `typeName` method is called to get the SQL type string. The metadata tracks which columns are nullable based on `Option[A]` types. Fields annotated with `@Modifier.rename` use their explicit name instead of the mapper.
+`Table.derived` calls `columnsFor` to extract column metadata from the schema. For each `ColumnMeta`, the dialect's `typeName` method is called to get the SQL type string. The metadata tracks which columns are nullable based on `Option[A]` or `Maybe[A]` types. Fields annotated with `@Modifier.rename` use their explicit name instead of the mapper.
 
 For how Table uses this metadata, see [Table](./table.md). For DDL generation, see [Ddl](./ddl.md).

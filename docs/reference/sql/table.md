@@ -158,10 +158,11 @@ import zio.blocks.sql._
 
 case class Tag(id: Int, label: String) derives DbCodec
 
-// columnsMeta must describe the same columns, in the same order, as the codec
+// columnsMeta must describe the same columns, in the same order, as the codec;
+// nullable must match the field's actual optionality (Tag.label is non-optional)
 val meta  = IndexedSeq(
   ColumnMeta("id",    DbValue.DbInt(0),    nullable = false),
-  ColumnMeta("label", DbValue.DbString(""), nullable = true)
+  ColumnMeta("label", DbValue.DbString(""), nullable = false)
 )
 val table = Table[Tag]("tag", DbCodec[Tag], meta)
 table.name
