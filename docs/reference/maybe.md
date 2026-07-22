@@ -222,7 +222,7 @@ Wraps a value in `Maybe`, treating `null` as `Maybe.absent`:
 import zio.blocks.maybe._
 
 val present: Maybe[Int]    = Maybe(42)                         // Maybe[Int] containing 42
-val absent: Maybe[String]  = Maybe(null.asInstanceOf[String])  // Maybe.absent via null
+val absent: Maybe[String]  = Maybe(null.asInstanceOf[String])  // null.asInstanceOf[String] avoids inferring A = Null (rejected by MaybeSafe)
 ```
 
 > **Note (Scala 3):** `Maybe.apply` requires a `MaybeSafe[A]` implicit at the call site. Unsound types like `Null`, `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time. Use `Maybe.fromOption` as a bypass for generic code.

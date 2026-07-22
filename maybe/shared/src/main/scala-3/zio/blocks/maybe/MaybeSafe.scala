@@ -47,15 +47,16 @@ sealed trait MaybeSafe[A]
 object MaybeSafe {
   transparent inline given [A]: MaybeSafe[A] = ${ maybeSafeImpl[A] }
 
-  def maybeSafeImpl[A: Type](using Quotes): Expr[MaybeSafe[A]] = {
+  private def maybeSafeImpl[A: Type](using Quotes): Expr[MaybeSafe[A]] = {
     import quotes.reflect.*
 
-    val tpe = TypeRepr.of[A]
+    val tpe  = TypeRepr.of[A]
+    val tpe0 = tpe.dealias
 
     // 1. Reject union types (OrType) — NotGiven cannot express this check.
     //    Union types can embed Null or Maybe, e.g. String | Null or Maybe[Int] | Null,
     //    which cause the opaque underlying type A | Null to degenerate.
-    tpe match {
+    tpe0 match {
       case _: OrType =>
         report.errorAndAbort(
           errorMsg("union types are not supported as Maybe elements")
@@ -74,8 +75,9 @@ object MaybeSafe {
 
     // 5. Reject nested Maybe[_] — e.g. Maybe[Maybe[String]].
     //    Since Maybe[+A] = A | Null, the outer A | Null becomes (A | Null) | Null = A | Null = Maybe[A].
+    //    Use tpe0 (dealiased) so type aliases like `type MyMaybe = Maybe[Int]` are caught.
     val maybeSym = TypeRepr.of[Maybe[Any]].typeSymbol
-    tpe match {
+    tpe0 match {
       case AppliedType(tycon, _) if tycon.typeSymbol == maybeSym =>
         report.errorAndAbort(errorMsg("nested Maybe types are not supported"))
       case _ => ()
