@@ -59,11 +59,11 @@ val active  = true
 tx.connect {
   // Query — returns all matching rows
   val users: List[User] = 
-    sql"SELECT id, name FROM user WHERE id > $userId AND active = $active".query[User]
+    sql"SELECT id, name, email FROM user WHERE id > $userId AND active = $active".query[User]
   
   // QueryOne — returns at most one row
   val one: Maybe[User] = 
-    sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
+    sql"SELECT id, name, email FROM user WHERE id = ${1}".queryOne[User]
   
   // Update — returns affected row count
   val deleted: Int = 

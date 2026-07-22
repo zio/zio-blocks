@@ -67,15 +67,17 @@ val insertUser: Task[Unit] = tx.transact {
 }
 
 // Effect-aware connection — body returns ZIO; connection closes even on interruption
+// connectZIO/transactZIO only wrap connection open/close in attemptBlocking, so the
+// body itself must wrap each blocking JDBC call explicitly.
 val effectRead: ZIO[Any, Throwable, List[User]] = tx.connectZIO {
-  ZIO.succeed(repo.all)
+  ZIO.attemptBlocking(repo.all)
 }
 
 // Effect-aware transaction — commits on success, rolls back on failure, interrupt-safe
 val effectWrite: ZIO[Any, Throwable, Maybe[User]] = tx.transactZIO {
   for {
-    _    <- ZIO.succeed(repo.insert(User(2, "Bob", "bob@example.com")))
-    user <- ZIO.succeed(repo.find(2))
+    _    <- ZIO.attemptBlocking(repo.insert(User(2, "Bob", "bob@example.com")))
+    user <- ZIO.attemptBlocking(repo.find(2))
   } yield user
 }
 
@@ -293,7 +295,7 @@ class TransactorZIO {
 }
 ```
 
-Inside the body, `DbCon` is available as a given. We can mix synchronous SQL calls wrapped in `ZIO.succeed` with any other ZIO effects:
+Inside the body, `DbCon` is available as a given. `connectZIO` only wraps the connection open/close steps in `ZIO.attemptBlocking` — the body itself must wrap each blocking JDBC call the same way to avoid blocking a ZIO compute thread:
 
 ```scala
 import zio._
@@ -311,7 +313,7 @@ val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDia
 // The body returns a ZIO; the connection remains open for the full duration of the effect
 val result: ZIO[Any, Throwable, List[User]] = tx.connectZIO {
   for {
-    users <- ZIO.succeed(repo.all)
+    users <- ZIO.attemptBlocking(repo.all)
     _     <- ZIO.logInfo(s"Fetched ${users.size} users from the database")
   } yield users
 }
@@ -333,7 +335,7 @@ class TransactorZIO {
 }
 ```
 
-On success the connection is committed; on failure — whether from an error, a defect, or fiber interruption — the transaction is rolled back before the connection is closed:
+On success the connection is committed; on failure — whether from an error, a defect, or fiber interruption — the transaction is rolled back before the connection is closed. As with `connectZIO`, wrap each blocking JDBC call in the body with `ZIO.attemptBlocking`:
 
 ```scala
 import zio._
@@ -352,15 +354,15 @@ val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDia
 // The ZIO for-comprehension runs within a single JDBC transaction
 val result: ZIO[Any, Throwable, Maybe[User]] = tx.transactZIO {
   for {
-    _    <- ZIO.succeed(repo.insert(User(1, "Alice", "alice@example.com")))
-    user <- ZIO.succeed(repo.find(1))
+    _    <- ZIO.attemptBlocking(repo.insert(User(1, "Alice", "alice@example.com")))
+    user <- ZIO.attemptBlocking(repo.find(1))
     _    <- ZIO.logInfo("Insert and fetch completed atomically")
   } yield user
 }
 ```
 
 :::caution
-If `commit` itself fails after a successful body, a rollback is attempted. If both `commit` and `rollback` fail, the commit error is suppressed (added as a suppressed exception via `addSuppressed`) and the rollback error propagates. The body's return value is discarded in either failure case.
+If `commit` itself fails after a successful body, a rollback is attempted. If both `commit` and `rollback` fail, the rollback error is suppressed onto the commit error (via `addSuppressed`), and the commit error is the one that propagates. The body's return value is discarded in either failure case.
 :::
 
 ## Comparison: `TransactorZIO` vs `JdbcTransactor`
@@ -374,7 +376,7 @@ If `commit` itself fails after a successful body, a rollback is attempted. If bo
 | **Interruption safety**   | None — body runs to completion                       | `connectZIO`/`transactZIO` close the connection on fiber interruption               |
 | **ZIO dependency**        | None — zero ZIO runtime dependency                   | Requires ZIO runtime                                                                |
 | **Dependency injection**  | Manual construction                                  | `TransactorZIO.layer` provides a `ZLayer[Any, Nothing, TransactorZIO]`              |
-| **Scala versions**        | Scala 3 only (JVM + JS)                              | Scala 3 only (JVM only)                                                             |
+| **Scala versions**        | Scala 3 only (the `sql` module is cross-built JVM + JS, but `JdbcTransactor` itself is JVM-only) | Scala 3 only (JVM only)                                                             |
 | **When to use**           | Synchronous code, scripts, or non-ZIO applications   | ZIO-based applications where effects compose across the entire call stack           |
 
 The following diagram shows how the two types relate within the `sql` and `sql-zio` modules:

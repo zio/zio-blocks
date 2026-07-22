@@ -309,7 +309,7 @@ The `Singular` policy is chosen because most databases treat table names as sing
 | Query DSL                | Plain SQL via `sql"..."` interpolator + `Frag` composition   | Lifted Scala expressions compiled to SQL                    | Plain SQL via `sql"..."` interpolator                |
 | DDL generation           | `Table#createTable` / `Table#dropTable` return `Frag` values | Via `schema.create` / `schema.drop` (requires lifted query) | Not built-in; usually handled by Flyway or Liquibase |
 | Runtime overhead         | Zero — derivation is compile-time; no reflection at runtime  | JVM reflection + query compilation per session              | Minimal; `Get`/`Put` are materialized type classes   |
-| Effect system dependency | None (`sql` module is pure JDBC)                             | Slick's `DBIO` monad                                        | Cats `IO` or `Sync[F]`                               |
+| Effect system dependency | None (the shared API abstracts over `DbConnection`; no JDBC dependency in shared code) | Slick's `DBIO` monad                                        | Cats `IO` or `Sync[F]`                               |
 
 `Table` does not model relationships, joins, or query projection — those concerns belong to hand-written `sql"..."` fragments and the `Repo` type. When you need rich relational queries, compose `Frag` values manually rather than using a lifted embedding.
 

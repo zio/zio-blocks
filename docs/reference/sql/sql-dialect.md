@@ -49,7 +49,7 @@ tx.connect {
   (
     dialect.typeName(DbValue.DbInt(0)),
     dialect.typeName(DbValue.DbUUID(new java.util.UUID(0L, 0L))),
-    dialect.paramPlaceholder(0)
+    dialect.paramPlaceholder(1)
   )
 }
 ```

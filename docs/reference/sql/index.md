@@ -37,10 +37,11 @@ Key advantages of the `zio-blocks-sql` module are:
 The core SQL module and the ZIO integration module publish separately. Add the artifacts you need to your build:
 
 ```scala
-// Core SQL module (synchronous JDBC, JVM only)
+// Core SQL module (cross-built for JVM and Scala.js; the JDBC-backed
+// JdbcTransactor implementation itself is JVM-only)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// ZIO integration (lifts JDBC into ZIO effects)
+// ZIO integration (lifts JDBC into ZIO effects; JVM-only)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 ```
 
