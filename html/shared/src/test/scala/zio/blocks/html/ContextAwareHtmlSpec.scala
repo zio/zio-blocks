@@ -16,6 +16,7 @@
 
 package zio.blocks.html
 
+import zio.blocks.chunk.Chunk
 import zio.test._
 
 object ContextAwareHtmlSpec extends ZIOSpecDefault {
@@ -78,11 +79,11 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<div disabled></div>")
       },
       test("checked is usable via ToModifier (BooleanAttribute)") {
-        val result = input(checked)
+        val result = Dom.Element.Generic("input", Chunk(checked), Chunk.empty)
         assertTrue(result.render == "<input checked/>")
       },
       test("required is usable via ToModifier (BooleanAttribute)") {
-        val result = input(required)
+        val result = Dom.Element.Generic("input", Chunk(required), Chunk.empty)
         assertTrue(result.render == "<input required/>")
       },
       test("hidden is usable via ToModifier (BooleanAttribute)") {
@@ -90,7 +91,7 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<div hidden></div>")
       },
       test("readonly is usable via ToModifier (BooleanAttribute)") {
-        val result = input(readonly)
+        val result = Dom.Element.Generic("input", Chunk(readonly), Chunk.empty)
         assertTrue(result.render == "<input readonly/>")
       },
       test("selected is usable via ToModifier (BooleanAttribute)") {
@@ -102,7 +103,7 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == "<select multiple></select>")
       },
       test("autofocus is usable via ToModifier (BooleanAttribute)") {
-        val result = input(autofocus)
+        val result = Dom.Element.Generic("input", Chunk(autofocus), Chunk.empty)
         assertTrue(result.render == "<input autofocus/>")
       },
       test("open is usable via ToModifier (BooleanAttribute)") {
@@ -132,7 +133,7 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         assertTrue(result.render == """<div class="container"></div>""")
       },
       test("type := on input") {
-        val result = input(`type` := "text")
+        val result = Dom.Element.Generic("input", Chunk(`type` := "text"), Chunk.empty)
         assertTrue(result.render == """<input type="text"/>""")
       }
     ),
@@ -145,7 +146,7 @@ object ContextAwareHtmlSpec extends ZIOSpecDefault {
         )
       },
       test("multiple boolean attrs on same element") {
-        val result   = input(disabled, required, readonly)
+        val result   = Dom.Element.Generic("input", Chunk(disabled, required, readonly), Chunk.empty)
         val rendered = result.render
         assertTrue(
           rendered == "<input disabled required readonly/>"
