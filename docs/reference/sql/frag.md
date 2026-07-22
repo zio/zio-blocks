@@ -31,7 +31,7 @@ object Frag {
 
   extension (frag: Frag) {
     def query[A](using DbCon, DbCodec[A]): List[A]
-    def queryOne[A](using DbCon, DbCodec[A]): Option[A]
+    def queryOne[A](using DbCon, DbCodec[A]): Maybe[A]
     def queryLimit[A](limit: Int)(using DbCon, DbCodec[A]): List[A]
     def update(using DbCon): Int
     def updateReturningKeys[A](using DbCon, DbCodec[A]): List[A]
@@ -46,6 +46,7 @@ Build fragments with the `sql"..."` interpolator and execute them inside a `Tran
 ```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -61,7 +62,7 @@ tx.connect {
     sql"SELECT id, name FROM user WHERE id > $userId AND active = $active".query[User]
   
   // QueryOne — returns at most one row
-  val one: Option[User] = 
+  val one: Maybe[User] = 
     sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
   
   // Update — returns affected row count
@@ -152,13 +153,14 @@ val users: List[User] = sql"SELECT id, name FROM user".query[User]
 ```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
 
 given DbCon = ???
 
-val user: Option[User] = sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
+val user: Maybe[User] = sql"SELECT id, name FROM user WHERE id = ${1}".queryOne[User]
 ```
 
 **`queryLimit[A](n)`** — Execute SELECT and return up to n rows (fetched from Scala side):

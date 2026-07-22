@@ -47,6 +47,7 @@ import zio._
 import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -57,7 +58,7 @@ val tx   = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Synchronous read — runs on blocking thread pool, no transaction overhead
 val readAll: Task[List[User]] = tx.connect {
-  repo.findAll
+  repo.all
 }
 
 // Atomic write — commits on success, rolls back on any failure
@@ -67,14 +68,14 @@ val insertUser: Task[Unit] = tx.transact {
 
 // Effect-aware connection — body returns ZIO; connection closes even on interruption
 val effectRead: ZIO[Any, Throwable, List[User]] = tx.connectZIO {
-  ZIO.succeed(repo.findAll)
+  ZIO.succeed(repo.all)
 }
 
 // Effect-aware transaction — commits on success, rolls back on failure, interrupt-safe
-val effectWrite: ZIO[Any, Throwable, Option[User]] = tx.transactZIO {
+val effectWrite: ZIO[Any, Throwable, Maybe[User]] = tx.transactZIO {
   for {
     _    <- ZIO.succeed(repo.insert(User(2, "Bob", "bob@example.com")))
-    user <- ZIO.succeed(repo.findById(2))
+    user <- ZIO.succeed(repo.find(2))
   } yield user
 }
 
@@ -182,16 +183,17 @@ The following shows how to compose the layer with a ZIO program that reads `Tran
 import zio._
 import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
+import zio.blocks.maybe.Maybe
 
 val transactorLayer: ZLayer[Any, Nothing, TransactorZIO] =
   TransactorZIO.layer("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-val program: ZIO[TransactorZIO, Throwable, Option[Int]] =
+val program: ZIO[TransactorZIO, Throwable, Maybe[Int]] =
   ZIO.serviceWithZIO[TransactorZIO](_.connect {
     sql"SELECT 1".queryOne[Int]
   })
 
-val runnable: ZIO[Any, Throwable, Option[Int]] =
+val runnable: ZIO[Any, Throwable, Maybe[Int]] =
   program.provideLayer(transactorLayer)
 ```
 
@@ -230,9 +232,9 @@ implicit val userCodec: DbCodec[User] = User.schema.deriving(DbCodecDeriver).der
 val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-// DbCon is synthesized by connect and threaded into findAll automatically
+// DbCon is synthesized by connect and threaded into all automatically
 val users: Task[List[User]] = tx.connect {
-  repo.findAll
+  repo.all
 }
 ```
 
@@ -261,6 +263,7 @@ import zio._
 import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -270,9 +273,9 @@ val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // Both statements run in one transaction; failure in either rolls back the whole block
-val result: Task[Option[User]] = tx.transact {
+val result: Task[Maybe[User]] = tx.transact {
   repo.insert(User(1, "Alice", "alice@example.com"))
-  repo.findById(1)
+  repo.find(1)
 }
 ```
 
@@ -308,7 +311,7 @@ val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDia
 // The body returns a ZIO; the connection remains open for the full duration of the effect
 val result: ZIO[Any, Throwable, List[User]] = tx.connectZIO {
   for {
-    users <- ZIO.succeed(repo.findAll)
+    users <- ZIO.succeed(repo.all)
     _     <- ZIO.logInfo(s"Fetched ${users.size} users from the database")
   } yield users
 }
@@ -337,6 +340,7 @@ import zio._
 import zio.blocks.sql._
 import zio.blocks.sql.zio.TransactorZIO
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -346,10 +350,10 @@ val repo: Repo[User, Int] = Repo.derived[User, Int]("id", _.id)
 val tx: TransactorZIO     = TransactorZIO.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
 // The ZIO for-comprehension runs within a single JDBC transaction
-val result: ZIO[Any, Throwable, Option[User]] = tx.transactZIO {
+val result: ZIO[Any, Throwable, Maybe[User]] = tx.transactZIO {
   for {
     _    <- ZIO.succeed(repo.insert(User(1, "Alice", "alice@example.com")))
-    user <- ZIO.succeed(repo.findById(1))
+    user <- ZIO.succeed(repo.find(1))
     _    <- ZIO.logInfo("Insert and fetch completed atomically")
   } yield user
 }

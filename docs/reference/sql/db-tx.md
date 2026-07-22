@@ -64,7 +64,7 @@ tx.transact {
   repo.insert(User(1, "Alice", "alice@example.com"))
   repo.insert(User(2, "Bob",   "bob@example.com"))
 
-  val all:    List[User] = repo.findAll
+  val all:    List[User] = repo.all
   val custom: List[User] =
     sql"SELECT id, name, email FROM user WHERE name LIKE ${"A%"}".query[User]
 

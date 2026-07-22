@@ -124,7 +124,7 @@ Always call `wasNull` immediately after the `get*` call whose NULL status you wa
 
 ## How It Works
 
-When you use high-level operations like `Frag.query` or `Repo.findById`, `DbCodec` internally calls `DbResultReader` methods to decode result rows. You only see this trait directly when dropping down to raw prepared statements for advanced use cases.
+When you use high-level operations like `Frag.query` or `Repo.find`, `DbCodec` internally calls `DbResultReader` methods to decode result rows. You only see this trait directly when dropping down to raw prepared statements for advanced use cases.
 
 Label-based access (preferred) lets you ignore column order:
 

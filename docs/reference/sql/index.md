@@ -57,7 +57,7 @@ These seven types form the public API for everyday SQL work:
 - **[`DbCodec`](./db-codec.md)** — Converts between Scala values and database columns. Read values from result sets by column label or position; write values as bound parameters. Derived automatically from `Schema[A]`.
 - **[`Frag`](./frag.md)** — An immutable SQL fragment built with the `sql"..."` interpolator. Holds literal SQL text and typed parameters separately, preventing SQL injection. Executed via `query`, `queryOne`, `update`, and other extension methods.
 - **[`Table`](./table.md)** — Binds a Scala type to a database table: table name, codec, and column metadata. Derived from a `Schema` using naming conventions. Provides DDL generation via `createTable` and `dropTable`.
-- **[`Repo`](./repo.md)** — Type-safe CRUD repository providing `findAll`, `findById`, `insert`, `update`, `delete`, and other standard operations. All SQL is pre-built at construction time.
+- **[`Repo`](./repo.md)** — Type-safe CRUD repository providing `all`, `find`, `insert`, `update`, `delete`, and other standard operations. All SQL is pre-built at construction time.
 - **[`Transactor`](./transactor.md)** — Entry point for executing SQL. `connect` opens a connection; `transact` adds automatic commit/rollback. `JdbcTransactor` is the JDBC implementation.
 - **[`DbCon`](./db-con.md)** — Implicit context available inside a `Transactor` block. Carries the connection, dialect, and logger. Threaded through all SQL operations automatically.
 - **[`DbTx`](./db-tx.md)** — A `DbCon` subtype marking transactional scope (inside `Transactor#transact`). Extends `DbCon` so transactional and non-transactional operations compose freely.
@@ -109,15 +109,15 @@ The following diagram shows the data-flow relationships between types:
                     Table[A](name, codec, columnsMeta)
                             │
                     Repo[E, ID]                   sql"..." → Frag
-                    ─ findAll / findById           ─ frag.query[A]
+                    ─ all / find                   ─ frag.query[A]
                     ─ insert / update / delete     ─ frag.update
                             │                             │
                     ┌───────┴─────────────────────────────┘
                     │
                     ▼
               Transactor
-              ├─ .connect  { given DbCon => … }    (non-transactional)
-              └─ .transact { given DbTx =>  … }    (commit / rollback)
+              ├─ .connect  { ... }    (non-transactional, DbCon in scope)
+              └─ .transact { ... }    (commit / rollback, DbTx in scope)
                                 │
                          DbCon / DbTx
                    ┌────────────┼────────────┐
@@ -134,6 +134,7 @@ A complete end-to-end example showing schema definition, table setup, repository
 ```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -154,7 +155,7 @@ tx.transact {
   repo.insert(User(2, "Bob", "bob@example.com"))
 
   // Read via repository
-  val alice: Option[User] = repo.findById(1)
+  val alice: Maybe[User] = repo.find(1)
 
   // Read via raw SQL fragment — composes freely with repo operations
   val aUsers: List[User] =
@@ -162,7 +163,7 @@ tx.transact {
 
   // Update and delete
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
-  repo.deleteById(2)
+  repo.delete(2)
 
   (alice, aUsers)
 }

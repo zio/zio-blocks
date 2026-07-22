@@ -7,12 +7,12 @@ keywords:
   - "schema-driven SQL derivation"
   - "insertBatch batch insert"
   - "insertAll multi-row insert"
-  - "findById primary key lookup"
+  - "find primary key lookup"
   - "DbCon implicit context"
   - "Table entity mapping"
 ---
 
-`Repo[E, ID]` is a type-safe CRUD repository that provides `findAll`, `findById`, `insert`, `update`, `delete`, and related operations for entities of type `E` identified by a primary key of type `ID`. In the `sql` module's layered architecture, `Repo` sits above `Table[E]` (which it wraps) and below the `Transactor` (which supplies the `DbCon` or `DbTx` context each operation requires). All SQL — `SELECT`, `INSERT`, `UPDATE`, and `DELETE` — is assembled from the `Table`'s column metadata at construction time; individual calls do only parameter binding.
+`Repo[E, ID]` is a type-safe CRUD repository that provides `all`, `find`, `insert`, `update`, `delete`, and related operations for entities of type `E` identified by a primary key of type `ID`. In the `sql` module's layered architecture, `Repo` sits above `Table[E]` (which it wraps) and below the `Transactor` (which supplies the `DbCon` or `DbTx` context each operation requires). All SQL — `SELECT`, `INSERT`, `UPDATE`, and `DELETE` — is assembled from the `Table`'s column metadata at construction time; individual calls do only parameter binding.
 
 Its primary constructor and public fields have this structure:
 
@@ -40,6 +40,7 @@ The example below shows the full lifecycle: deriving a repository from a `Schema
 ```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User {
@@ -56,13 +57,13 @@ tx.transact {
   repo.insert(User(1, "Alice", "alice@example.com"))
   repo.insert(User(2, "Bob",   "bob@example.com"))
 
-  val all: List[User]   = repo.findAll         // SELECT id, name, email FROM user
-  val one: Option[User] = repo.findById(1)     // SELECT … WHERE id = ?
-  val exists: Boolean   = repo.existsById(99)  // SELECT … WHERE id = ?
-  val total: Long       = repo.count           // SELECT COUNT(*) FROM user
+  val allUsers: List[User] = repo.all          // SELECT id, name, email FROM user
+  val one: Maybe[User]     = repo.find(1)      // SELECT … WHERE id = ?
+  val exists: Boolean      = repo.exists(99)   // SELECT … WHERE id = ?
+  val total: Long          = repo.count        // SELECT COUNT(*) FROM user
 
   repo.update(User(1, "Alice Smith", "alice.smith@example.com"))
-  repo.deleteById(2)
+  repo.delete(2)
 
   // Single multi-row VALUES (…),(…) statement; returns the supplied IDs
   val ids: Seq[Int] = repo.insertAll(Seq(User(3, "Carol", "carol@example.com")))
@@ -70,7 +71,7 @@ tx.transact {
   // JDBC addBatch/executeBatch; returns total row count
   val n: Int = repo.insertBatch(List(User(4, "Dave", "dave@example.com")))
 
-  (all, one, exists, total, ids, n)
+  (allUsers, one, exists, total, ids, n)
 }
 ```
 
@@ -193,7 +194,7 @@ val repo  = Repo(table, "category_id", DbCodec[Int], _.categoryId)
 given DbCon = ???
 
 repo.table.createTable(summon[DbCon].dialect).update  // DDL from Table
-repo.findAll                                          // pre-built SELECT from Repo
+repo.all                                              // pre-built SELECT from Repo
 ```
 
 ## Core Operations
@@ -202,15 +203,15 @@ Every `Repo` method requires a `DbCon` (or `DbTx`) given in scope, which is supp
 
 ### Read Operations
 
-The read operations query the database without modifying it. `Repo#findAll` and `Repo#findById` decode and return entity values; `Repo#existsById` and `Repo#count` return summary information without decoding full rows.
+The read operations query the database without modifying it. `Repo#all`, `Repo#findAll`, and `Repo#find` decode and return entity values; `Repo#exists` and `Repo#count` return summary information without decoding full rows.
 
-#### `findAll` — Retrieve all rows
+#### `all` — Retrieve all rows
 
-`Repo#findAll` executes `SELECT <columns> FROM <table>` and decodes every result-set row into an `E` using the entity's `DbCodec`, returning all rows as a `List[E]` in database-native order.
+`Repo#all` executes `SELECT <columns> FROM <table>` and decodes every result-set row into an `E` using the entity's `DbCodec`, returning all rows as a `List[E]` in database-native order.
 
 ```scala
 class Repo[E, ID] {
-  def findAll(using con: DbCon): List[E]
+  def all(using con: DbCon): List[E]
 }
 ```
 
@@ -227,20 +228,45 @@ val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
 // Inside a Transactor#connect or #transact block:
-val users: List[User] = repo.findAll
+val users: List[User] = repo.all
 ```
 
 :::caution
-`findAll` loads the entire table into memory. For large tables, complement `Repo` with a custom `Frag` query that includes `LIMIT` and `OFFSET` clauses.
+`all` loads the entire table into memory. For large tables, complement `Repo` with a custom `Frag` query that includes `LIMIT` and `OFFSET` clauses.
 :::
 
-#### `findById` — Find a row by primary key
+#### `findAll` — Retrieve rows by a set of primary keys
 
-`Repo#findById` executes `SELECT <columns> FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns `None` if no row with the given key exists, or `Some(entity)` if a row is found.
+`Repo#findAll` executes `SELECT <columns> FROM <table> WHERE <idColumn> IN (...)` for the given IDs and decodes every matching row into an `E`. It returns an empty `List` immediately, without executing any SQL, when `ids` is empty.
 
 ```scala
 class Repo[E, ID] {
-  def findById(id: ID)(using con: DbCon): Option[E]
+  def findAll(ids: Iterable[ID])(using con: DbCon): List[E]
+}
+```
+
+Use it to batch-fetch a known set of rows in a single round-trip instead of calling `find` in a loop:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val repo = Repo.derived[User, Int]("id", _.id)
+given DbCon = ???
+
+val users: List[User] = repo.findAll(List(1, 2, 3))
+```
+
+#### `find` — Find a row by primary key
+
+`Repo#find` executes `SELECT <columns> FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns `Maybe.absent` if no row with the given key exists, or `Maybe(entity)` if a row is found.
+
+```scala
+class Repo[E, ID] {
+  def find(id: ID)(using con: DbCon): Maybe[E]
 }
 ```
 
@@ -249,6 +275,7 @@ The ID value is bound as a parameterized `?` — no string formatting or concate
 ```scala mdoc:compile-only
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -256,20 +283,20 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
-val alice: Option[User] = repo.findById(1)
+val alice: Maybe[User] = repo.find(1)
 ```
 
-#### `existsById` — Check whether a row exists
+#### `exists` — Check whether a row exists
 
-`Repo#existsById` returns `true` when a row with the given primary key exists in the table. It delegates to `findById` and tests whether the result is defined, running a single parameterized `SELECT`.
+`Repo#exists` returns `true` when a row with the given primary key exists in the table. It delegates to `find` and tests whether the result is defined, running a single parameterized `SELECT`.
 
 ```scala
 class Repo[E, ID] {
-  def existsById(id: ID)(using con: DbCon): Boolean
+  def exists(id: ID)(using con: DbCon): Boolean
 }
 ```
 
-Use `existsById` when you only need to confirm presence without loading the full entity:
+Use `exists` when you only need to confirm presence without loading the full entity:
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -281,7 +308,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
-val exists: Boolean = repo.existsById(99)
+val exists: Boolean = repo.exists(99)
 ```
 
 #### `count` — Count all rows
@@ -311,7 +338,7 @@ val total: Long = repo.count
 
 ### Write Operations
 
-The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#update`, `Repo#deleteById`, `Repo#delete`, and `Repo#truncate` each return an `Int` row count; `Repo#insertReturning` is the exception and returns the full inserted entity.
+The write operations insert, update, or delete rows in the database. `Repo#insert`, `Repo#insertBatch`, `Repo#insertAll`, `Repo#update`, `Repo#delete`, `Repo#deleteAll`, and `Repo#clear` each return an `Int` row count (`insertAll` returns the inserted IDs instead); `Repo#insertReturning` is the exception and returns the full inserted entity.
 
 #### `insert` — Insert a single entity
 
@@ -340,7 +367,7 @@ val rowsAffected: Int = repo.insert(User(1, "Alice", "alice@example.com"))
 
 #### `insertReturning` — Insert and return the inserted entity
 
-`Repo#insertReturning` inserts the entity, retrieves the generated primary key via JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `findById` with that key. If the driver returns no generated key, it falls back to `findById(getId(entity))`.
+`Repo#insertReturning` inserts the entity, retrieves the generated primary key via JDBC's `getGeneratedKeys`, and re-fetches the full row by calling `find` with that key. If the driver returns no generated key, it falls back to `find(getId(entity))`.
 
 ```scala
 class Repo[E, ID] {
@@ -463,13 +490,13 @@ val rowsAffected: Int = repo.update(User(1, "Alice Smith", "alice.smith@example.
 `update` returns 0 when the entity type has only an ID column and no other updatable fields. In that case the generated `SET` clause would be empty, and `Repo` skips the statement entirely.
 :::
 
-#### `deleteById` — Delete by primary key
+#### `delete` — Delete by primary key
 
-`Repo#deleteById` executes `DELETE FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns the number of deleted rows — 0 if no row with the given ID exists.
+`Repo#delete` executes `DELETE FROM <table> WHERE <idColumn> = ?`, binding the ID through `idCodec`. It returns the number of deleted rows — 0 if no row with the given ID exists.
 
 ```scala
 class Repo[E, ID] {
-  def deleteById(id: ID)(using con: DbCon): Int
+  def delete(id: ID)(using con: DbCon): Int
 }
 ```
 
@@ -485,20 +512,22 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
-val rowsAffected: Int = repo.deleteById(42)
+val rowsAffected: Int = repo.delete(42)
 ```
 
-#### `delete` — Delete an entity by reference
+To delete by an entity value rather than a bare ID, extract the key with `getId` first: `repo.delete(repo.getId(user))`.
 
-`Repo#delete` extracts the primary key from the entity using `getId` and delegates to `deleteById`. It is a convenience wrapper for callers that already hold the entity value.
+#### `deleteAll` — Delete rows by a set of primary keys
+
+`Repo#deleteAll` executes `DELETE FROM <table> WHERE <idColumn> IN (...)` for the given IDs in a single round-trip and returns the total number of deleted rows. It returns `0` immediately, without executing any SQL, when `ids` is empty.
 
 ```scala
 class Repo[E, ID] {
-  def delete(entity: E)(using con: DbCon): Int
+  def deleteAll(ids: Iterable[ID])(using con: DbCon): Int
 }
 ```
 
-Calling `repo.delete(user)` is semantically identical to `repo.deleteById(repo.getId(user))`:
+Use it to batch-delete a known set of rows instead of calling `delete` in a loop:
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -510,21 +539,20 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
-val user: User        = repo.findById(1).get
-val rowsAffected: Int = repo.delete(user)
+val rowsAffected: Int = repo.deleteAll(List(1, 2, 3))
 ```
 
-#### `truncate` — Remove all rows
+#### `clear` — Remove all rows
 
-`Repo#truncate` executes `DELETE FROM <table>` without a `WHERE` clause and returns the number of deleted rows.
+`Repo#clear` executes `DELETE FROM <table>` without a `WHERE` clause and returns the number of deleted rows.
 
 ```scala
 class Repo[E, ID] {
-  def truncate()(using con: DbCon): Int
+  def clear()(using con: DbCon): Int
 }
 ```
 
-Despite its name, this method issues a `DELETE FROM` statement rather than a SQL `TRUNCATE`, so the operation participates in transactions and the returned row count is exact:
+Despite the different name, this method issues a `DELETE FROM` statement rather than a SQL `TRUNCATE`, so the operation participates in transactions and the returned row count is exact:
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
@@ -536,7 +564,7 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 val repo = Repo.derived[User, Int]("id", _.id)
 given DbCon = ???
 
-val rowsDeleted: Int = repo.truncate()
+val rowsDeleted: Int = repo.clear()
 ```
 
 :::note

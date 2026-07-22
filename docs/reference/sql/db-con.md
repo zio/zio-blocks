@@ -24,7 +24,7 @@ trait DbCon {
 
 Application code never constructs a `DbCon` directly. Instead, `Transactor#connect` and `Transactor#transact` each create one internally and supply it as a Scala 3 context parameter (`?=>`) to the block they receive. 
 
-All `Frag` execution methods (`query`, `queryOne`, `queryLimit`, `update`, `updateReturningKeys`) and all `Repo` CRUD methods (`findAll`, `findById`, `insert`, `update`, `deleteById`, and friends) require an implicit `DbCon` in scope — so any code that runs inside a `Transactor#connect` or `Transactor#transact` block automatically has everything it needs to execute SQL.
+All `Frag` execution methods (`query`, `queryOne`, `queryLimit`, `update`, `updateReturningKeys`) and all `Repo` CRUD methods (`all`, `find`, `insert`, `update`, `delete`, and friends) require an implicit `DbCon` in scope — so any code that runs inside a `Transactor#connect` or `Transactor#transact` block automatically has everything it needs to execute SQL.
 
 Key properties:
 - **Implicit context type** — carries the active database session without explicit parameter threading.
@@ -252,8 +252,9 @@ When a helper only reads data and should work in both contexts, declare it with 
 
 ```scala mdoc:compile-only
 import zio.blocks.sql._
+import zio.blocks.maybe.Maybe
 
 // Usable inside both `connect` and `transact` blocks
-def findUser(id: Int)(using DbCon): Option[String] =
+def findUser(id: Int)(using DbCon): Maybe[String] =
   sql"SELECT name FROM user WHERE id = $id".queryOne[String]
 ```

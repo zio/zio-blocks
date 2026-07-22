@@ -75,7 +75,7 @@ transactor.transact {
 
 // connect: auto-commit unchanged; no transaction overhead for pure reads
 val users: List[User] = transactor.connect {
-  repo.findAll
+  repo.all
 }
 ```
 
@@ -213,7 +213,7 @@ val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLit
 
 // The body receives DbCon as a given — no explicit passing required
 val users: List[User] = transactor.connect {
-  repo.findAll
+  repo.all
 }
 ```
 
@@ -238,6 +238,7 @@ Because `DbTx extends DbCon`, the `DbTx` given satisfies any `DbCon ?=>` require
 ```scala mdoc:reset
 import zio.blocks.sql._
 import zio.blocks.schema.Schema
+import zio.blocks.maybe.Maybe
 
 case class User(id: Int, name: String, email: String)
 object User { implicit val schema: Schema[User] = Schema.derived }
@@ -252,7 +253,7 @@ transactor.transact {
   repo.insert(User(1, "Alice", "alice@example.com"))
 
   // If this throws, the INSERT above is rolled back
-  val existing: Option[User] = repo.findById(1)
+  val existing: Maybe[User] = repo.find(1)
   existing
 }
 ```
@@ -318,10 +319,8 @@ val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLit
 
 // Helper that composes two Repo calls — requires only DbCon, not Transactor
 def upsertUser(user: User)(using DbCon): Unit = {
-  repo.findById(user.id) match {
-    case Some(_) => repo.update(user)
-    case None    => repo.insert(user)
-  }
+  if (repo.exists(user.id)) repo.update(user)
+  else repo.insert(user)
 }
 
 // The Transactor provides the DbCon; upsertUser picks it up automatically
@@ -329,7 +328,7 @@ transactor.transact {
   repo.table.createTable(summon[DbTx].dialect).update
   upsertUser(User(1, "Alice", "alice@example.com"))
   upsertUser(User(1, "Alice Smith", "alice.smith@example.com"))
-  repo.findById(1)
+  repo.find(1)
 }
 ```
 
