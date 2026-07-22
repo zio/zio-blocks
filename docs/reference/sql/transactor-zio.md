@@ -9,6 +9,10 @@ keywords:
 
 `TransactorZIO` is the ZIO-integrated database transactor from the `zio-blocks-sql-zio` module. It wraps a [`JdbcTransactor`](./transactor.md) — the synchronous JDBC transactor from the core `sql` module — and lifts its connection and transaction lifecycle management into the ZIO effect system. The module targets Scala 3 and runs on JVM only.
 
+:::info
+This page is a detailed reference for the `TransactorZIO` class specifically. If you only need `ZLayer`-based dependency injection for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` / `sqliteLayer`), see the [SQL — ZIO Integration](../sql-zio.md) guide instead — it covers both integration styles and when to reach for each.
+:::
+
 `TransactorZIO` exposes two pairs of methods. The **blocking wrappers** (`connect`, `transact`) run a synchronous body on ZIO's blocking thread pool via `ZIO.attemptBlocking` and return `Task[A]`. The **effect-aware methods** (`connectZIO`, `transactZIO`) accept a body that itself returns a `ZIO[R, E, A]`, bracket the JDBC connection with `ZIO.acquireRelease`, and return `ZIO[R, E | Throwable, A]` — guaranteeing connection cleanup even under fiber interruption.
 
 - **Immutable** — `TransactorZIO` holds no mutable state; each `connect` or `transact` invocation opens a fresh connection via the provided `connectionFactory`.
