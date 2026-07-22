@@ -29,7 +29,7 @@ trait SqlLogger {
 
 Implement the trait to observe SQL execution:
 
-```scala
+```scala mdoc:reset
 import zio.blocks.sql.SqlLogger
 
 val myLogger: SqlLogger = new SqlLogger {
@@ -43,12 +43,20 @@ val myLogger: SqlLogger = new SqlLogger {
 
 Pass the logger when creating a `JdbcTransactor`:
 
-```scala
-val tx = JdbcTransactor(dataSource, SqlDialect.PostgreSQL, myLogger)
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val dataSource: javax.sql.DataSource = ???
+val myLogger: SqlLogger = SqlLogger.noop
+
+val tx = new JdbcTransactor(() => dataSource.getConnection(), SqlDialect.PostgreSQL, myLogger)
 ```
 
 Use the predefined no-op logger when you don't need logging:
 
-```scala
-val tx = JdbcTransactor(dataSource, SqlDialect.PostgreSQL, SqlLogger.noop)
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val dataSource: javax.sql.DataSource = ???
+val tx: JdbcTransactor = JdbcTransactor.fromDataSource(dataSource, SqlDialect.PostgreSQL)
 ```
