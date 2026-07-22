@@ -8,7 +8,6 @@ keywords:
   - "ColumnDef SQL type"
   - "CREATE TABLE IF NOT EXISTS"
   - "DROP TABLE IF EXISTS"
-  - "sql module"
 ---
 
 `Ddl` is a helper object that generates DDL (Data Definition Language) SQL fragments for creating and dropping tables. `ColumnDef` is a simple data class pairing a column name with a SQL type string and a nullability flag.

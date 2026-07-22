@@ -3,11 +3,10 @@ id: db-param-writer
 title: "DbParamWriter"
 description: "Reference for DbParamWriter, the interface for binding typed Scala values to SQL prepared-statement parameters."
 keywords:
-  - "DbParamWriter parameter binding"
-  - "typed SQL parameters"
-  - "prepared statement binding"
-  - "JDBC parameter binding"
-  - "sql module"
+  - "DbParamWriter Parameter Binding"
+  - "Typed SQL Parameters"
+  - "Prepared Statement Binding"
+  - "JDBC Parameter Binding"
 ---
 
 `DbParamWriter` is a trait for binding typed Scala values to the `?` placeholders in a SQL prepared statement. It provides methods to set parameters by their 1-based index (following JDBC convention).

@@ -6,7 +6,6 @@ keywords:
   - "SqlLogger observability"
   - "SQL execution logging"
   - "SuccessEvent ErrorEvent"
-  - "sql module"
 ---
 
 `SqlLogger` is a callback interface that reports SQL execution events. Every statement calls either `onSuccess` or `onError` with details about the execution: rendered SQL, bound parameters, duration, and row count.
