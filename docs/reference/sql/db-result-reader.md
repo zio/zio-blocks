@@ -13,7 +13,7 @@ Application code does not use `DbResultReader` directly — the framework create
 
 ## Core API
 
-The core API reads numeric, text, binary, boolean, temporal, UUID, and SQL array values, plus column metadata and NULL status:
+The core API reads numeric, text, binary, boolean, temporal, and UUID values, plus column metadata and NULL status. `getArray` also exists but defaults to throwing `UnsupportedOperationException` in the shared trait; only backends that override it (the JVM implementation does) actually support SQL array access:
 
 ```scala
 trait DbResultReader {
@@ -58,8 +58,8 @@ trait DbResultReader {
   // Other types
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
-  def getArray(index: Int): java.sql.Array
-  def getArray(label: String): java.sql.Array
+  def getArray(index: Int): java.sql.Array   // default: throws UnsupportedOperationException
+  def getArray(label: String): java.sql.Array // default: throws UnsupportedOperationException
 
   // Metadata and NULL detection
   def columnLabel(index: Int): String
