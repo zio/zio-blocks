@@ -191,7 +191,6 @@ object BuildHelper {
           Seq(
             "-release",
             if (minor < 8) "11" else "17",
-            "-rewrite",
             "-no-indent",
             "-explain",
             "-explain-cyclic",
