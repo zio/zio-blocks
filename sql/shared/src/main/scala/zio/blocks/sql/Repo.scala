@@ -50,9 +50,11 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * final class UserRepo extends Repo[User, UserId]
    * }}}
    */
-  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) = {
-    this(Repo.derivedMetadata[E, ID])
-  }
+  protected def this()(using
+    schema: Schema[E],
+    idSchema: Schema[ID],
+    idCodec: DbCodec[ID]
+  ) = this(Repo.derivedMetadata[E, ID])
 
   /** The table this repository operates on. */
   final val table: Table[E] = metadata.table
