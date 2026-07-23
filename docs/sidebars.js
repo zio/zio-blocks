@@ -217,7 +217,46 @@ const sidebars = {
               "reference/streams/zero-boxing",
             ]
           },
-          "reference/sql",
+          {
+            type: "category",
+            label: "SQL",
+            link: { type: "doc", id: "reference/sql/index" },
+            items: [
+              {
+                type: "category",
+                label: "Core Types",
+                collapsed: false,
+                items: [
+                  "reference/sql/db-codec",
+                  "reference/sql/frag",
+                  "reference/sql/table",
+                  "reference/sql/repo",
+                  "reference/sql/transactor",
+                  "reference/sql/db-con",
+                  "reference/sql/db-tx",
+                ],
+              },
+              {
+                type: "category",
+                label: "Supporting Types",
+                collapsed: false,
+                items: [
+                  "reference/sql/db-value",
+                  "reference/sql/db-param",
+                  "reference/sql/sql-dialect",
+                  "reference/sql/sql-logger",
+                  "reference/sql/sql-name-mapper",
+                  "reference/sql/table-metadata",
+                  "reference/sql/ddl",
+                  "reference/sql/db-connection",
+                  "reference/sql/db-result-reader",
+                  "reference/sql/db-param-writer",
+                  "reference/sql/db-codec-deriver",
+                  "reference/sql/transactor-zio",
+                ],
+              },
+            ],
+          },
           "reference/sql-zio",
         ]
       },
