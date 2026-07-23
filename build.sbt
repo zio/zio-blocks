@@ -456,7 +456,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.1" % Test,
       "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
   )
@@ -1582,7 +1582,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1610,7 +1610,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1647,7 +1647,7 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC47",
-      "dev.zio"   %% "zio-sbt-source" % "0.6.0",
+      "dev.zio"   %% "zio-sbt-source" % "0.6.1",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
@@ -1841,7 +1841,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // compatibility.
     libraryDependencies ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.3")
+        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.4")
         case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       }
     },
