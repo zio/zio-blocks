@@ -133,7 +133,7 @@ When waiting on PR checks, suppress watch output to avoid context bloat:
 - Batch edits; keep sbt runs scoped to one project
 - Update AGENTS.md if you find errors or gaps
 - In the middle of executing a skill, if you discover a deviation from the skill's instructions, encounter missing information or unclear guidance, or discover a better approach than what was written, update that skill file to reflect what you learned.
-- Document new data types in `docs/`; update existing docs when behavior changes
+- Treat docs as part of the change: new data type, new feature, API change, or API removal isn't done until its `docs/` page(s) match
 - **README.md is auto-generated.** Never edit `README.md` directly. Edit `docs/index.md` instead, then run `sbt --client docs/generateReadme` to regenerate `README.md`. (The `generateReadme` task is provided by `WebsitePlugin` on the `docs` project; running it unscoped at the root fails with "Not a valid command".)
   - **Caveat — manually-maintained sections.** `generateReadme` runs mdoc and only emits sections whose code can compile against the `docs` project's `dependsOn` classpath. Modules **not** in `docs`' `dependsOn` (e.g. `config` and its adapters) cannot be mdoc-generated, so their README section is maintained by hand (raw-pasted into README, see the Config section added in #1426). A fresh `generateReadme` will silently **drop** such sections. After regenerating, diff against `origin/main` and re-insert any manually-maintained section (currently only `## Config`, which sits between `## The Blocks` and `## Core Principles`) so you don't regress it.
 
