@@ -853,11 +853,7 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 **Metrics**
 - [MeterProvider](./reference/telemetry/meter-provider.md) - Factory for `Meter` instances
-- [Meter](./reference/telemetry/meter.md) - Per-library scope-bound metric factory
-- [Counter](./reference/telemetry/counter.md) - Monotonically increasing cumulative counter
-- [UpDownCounter](./reference/telemetry/up-down-counter.md) - Bidirectional counter for values that go up and down
-- [Histogram](./reference/telemetry/histogram.md) - Latency and size distribution recorder
-- [Gauge](./reference/telemetry/gauge.md) - Point-in-time gauge for instantaneous measurements
+- [Meter](./reference/telemetry/meter.md) - Per-library scope-bound metric factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments
 
 **Shared Vocabulary**
 - [Attributes](./reference/telemetry/attributes.md) - Parallel-array key/value store shared across signals

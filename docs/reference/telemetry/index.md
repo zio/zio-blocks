@@ -101,12 +101,7 @@ The metrics pillar is built around `MeterProvider`, `Meter`, and the instrument 
 - [**`MeterProvider`**](./meter-provider.md) is the factory for `Meter` instances, backed by a shared `MeterRegistry`. It exposes a `MetricReader` via its `reader` field that can collect snapshots from all registered meters at any time. Build one with `MeterProvider.builder`.
 - [**`Meter`**](./meter.md) creates and registers metric instruments for a given instrumentation scope. Builder methods such as `Meter#counterBuilder`, `Meter#histogramBuilder`, and `Meter#gaugeBuilder` return fluent builders; shortcut methods such as `Meter#labeledCounter` create `LabeledCounter` instruments with pre-declared label names. Obtain a `Meter` from `MeterProvider.get` or `metric.get`.
 
-Instrument types are the leaf nodes of the metrics pillar. Each instrument type has a different data model and use case:
-
-- [**`Counter`**](./counter.md) is a monotonically increasing instrument that enforces non-negative deltas. It is backed by a `ConcurrentHashMap[Attributes, LongAdder]` for lock-free, allocation-efficient multi-dimension recording.
-- [**`UpDownCounter`**](./up-down-counter.md) is a bidirectional counter that accepts both positive and negative deltas, making it suitable for tracking values such as active connection counts or queue depths that can go up and down.
-- [**`Histogram`**](./histogram.md) records `Double` values into configurable buckets. The default boundaries are `[0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000]`. It is the right instrument for latency, request size, and other value distributions.
-- [**`Gauge`**](./gauge.md) records the most recent `Double` value per attribute set, discarding previous readings. Use it for instantaneous values where only the current reading matters, such as memory usage or thread pool size.
+The instrument types are the leaf nodes of the metrics pillar, each with a different data model: `Counter` (cumulative), `UpDownCounter` (bidirectional), `Histogram` (distribution), and `Gauge` (last-write). All four are created by a `Meter` and documented in the [Meter](./meter.md) reference.
 
 ### Shared Vocabulary
 

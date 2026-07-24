@@ -192,10 +192,6 @@ val data = metric.reader.read()
 
 - [Telemetry Reference](./index.md) — Module overview and all three signal pillars (tracing, logging, metrics)
 - [MeterProvider](./meter-provider.md) — Factory for `Meter` instances; configure once at startup to wire exporters
-- [Meter](./meter.md) — Per-library scope-bound metric factory; prefer over `metric` in library code
-- [Counter](./counter.md) — Monotonically increasing cumulative counter
-- [UpDownCounter](./up-down-counter.md) — Bidirectional counter for values that go up and down
-- [Histogram](./histogram.md) — Latency and size distribution recorder
-- [Gauge](./gauge.md) — Point-in-time instantaneous measurement
+- [Meter](./meter.md) — Per-library scope-bound metric factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments. Prefer over `metric` in library code
 - [MetricData](./metric-data.md) — Snapshot of a metric instrument's collected data
 - [Telemetry Guide](../../guides/telemetry-guide.md) — Architecture and real-world patterns for the telemetry module

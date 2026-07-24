@@ -260,10 +260,6 @@ const sidebars = {
                 items: [
                   "reference/telemetry/meter-provider",
                   "reference/telemetry/meter",
-                  "reference/telemetry/counter",
-                  "reference/telemetry/up-down-counter",
-                  "reference/telemetry/histogram",
-                  "reference/telemetry/gauge",
                 ]
               },
               {

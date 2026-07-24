@@ -9,7 +9,7 @@ keywords:
   - "MeterProvider"
 ---
 
-A `Meter` creates metric instruments — [counters](./counter.md), [up/down counters](./up-down-counter.md), [histograms](./histogram.md), and [gauges](./gauge.md) — for one part of your application. Its name (an [`InstrumentationScope`](./instrumentation-scope.md)) identifies the source, keeping measurements grouped.
+A `Meter` creates metric instruments — counters, up/down counters, histograms, and gauges — for one part of your application. Its name (an [`InstrumentationScope`](./instrumentation-scope.md)) identifies the source, keeping measurements grouped.
 
 Get a `Meter` from [`MeterProvider#get`](./meter-provider.md) or the global [`metric.get`](./metric.md) shortcut.
 
@@ -48,6 +48,66 @@ Every builder supports three methods:
 - `build()` — create the instrument and register it with the `Meter`.
 
 The counter, up-down counter, and gauge builders also offer `buildWithCallback(callback)` for observable (push-style) instruments.
+
+## Instruments
+
+Each instrument tracks one time series per distinct `Attributes` set. They all share the same shape — `add`/`record` (a typed `Attributes` or vararg `(String, Any)*` tuples), a `bind(attributes)` handle that skips the per-call lookup on a hot path, and `collect(): MetricData` — differing only in value semantics.
+
+### Counter (Cumulative)
+
+A monotonically increasing `Long` total; `add` non-negative deltas — negatives are silently ignored. `collect` returns `MetricData.SumData`.
+
+```scala
+final class Counter {
+  def add(value: Long, attributes: Attributes): Unit
+  def add(value: Long, attrs: (String, Any)*): Unit
+  def bind(attributes: Attributes): BoundCounter   // BoundCounter#add(value: Long)
+  def collect(): MetricData
+}
+```
+
+### UpDownCounter (Bidirectional)
+
+Like `Counter` but accepts positive *and* negative deltas — for a quantity that rises and falls, such as active connections or queue depth. `collect` returns `MetricData.SumData`.
+
+```scala
+final class UpDownCounter {
+  def add(value: Long, attributes: Attributes): Unit
+  def add(value: Long, attrs: (String, Any)*): Unit
+  def bind(attributes: Attributes): BoundUpDownCounter
+  def collect(): MetricData
+}
+```
+
+### Histogram (Distribution)
+
+Buckets `Double` samples for percentile and latency analysis; default boundaries are `[0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000]`. `collect` returns `MetricData.HistogramData` (per-bucket counts, sum, min, max).
+
+```scala
+final class Histogram {
+  def record(value: Double, attributes: Attributes): Unit
+  def record(value: Double, attrs: (String, Any)*): Unit
+  def bind(attributes: Attributes): BoundHistogram
+  def collect(): MetricData
+}
+```
+
+:::note
+There is no builder setter for custom bucket boundaries; construct `Histogram(name, description, unit, boundaries)` directly when you need non-default buckets.
+:::
+
+### Gauge (Last-Write)
+
+Stores the most recent `Double` per attribute set — the last write wins — for current-state values like CPU usage, memory pressure, or temperature. `collect` returns `MetricData.GaugeData`.
+
+```scala
+final class Gauge {
+  def record(value: Double, attributes: Attributes): Unit
+  def record(value: Double, attrs: (String, Any)*): Unit
+  def bind(attributes: Attributes): BoundGauge
+  def collect(): MetricData
+}
+```
 
 ## Labeled instruments
 
