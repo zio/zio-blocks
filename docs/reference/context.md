@@ -546,3 +546,8 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExam
 ```bash
 sbt "schema-examples/runMain context.ContextModificationExample"
 ```
+
+## See Also
+
+- [Telemetry Reference](./telemetry/index.md) — Uses `ContextStorage` from this module for trace-log correlation across all three signal pillars
+- [Telemetry Guide](../guides/telemetry-guide.md) — Architecture and patterns for the telemetry module built on top of `Context`

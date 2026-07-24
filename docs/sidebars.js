@@ -219,6 +219,100 @@ const sidebars = {
           },
           "reference/sql",
           "reference/sql-zio",
+          {
+            type: "category",
+            label: "Telemetry",
+            link: { type: "doc", id: "reference/telemetry/index" },
+            items: [
+              {
+                type: "category",
+                label: "Global Entry Points",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/trace",
+                  "reference/telemetry/log",
+                  "reference/telemetry/metric",
+                ]
+              },
+              {
+                type: "category",
+                label: "Tracing",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/tracer-provider",
+                  "reference/telemetry/tracer",
+                  "reference/telemetry/span",
+                ]
+              },
+              {
+                type: "category",
+                label: "Logging",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/logger-provider",
+                  "reference/telemetry/logger",
+                ]
+              },
+              {
+                type: "category",
+                label: "Metrics",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/meter-provider",
+                  "reference/telemetry/meter",
+                  "reference/telemetry/counter",
+                  "reference/telemetry/up-down-counter",
+                  "reference/telemetry/histogram",
+                  "reference/telemetry/gauge",
+                ]
+              },
+              {
+                type: "category",
+                label: "Shared Vocabulary",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/attributes",
+                  "reference/telemetry/attribute-key",
+                  "reference/telemetry/resource",
+                  "reference/telemetry/instrumentation-scope",
+                ]
+              },
+              {
+                type: "category",
+                label: "Tracing Support",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/span-context",
+                  "reference/telemetry/span-data",
+                  "reference/telemetry/span-processor",
+                  "reference/telemetry/sampler",
+                ]
+              },
+              {
+                type: "category",
+                label: "Logging Support",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/log-record",
+                  "reference/telemetry/log-record-processor",
+                  "reference/telemetry/log-formatter",
+                  "reference/telemetry/severity",
+                  "reference/telemetry/log-enrichment",
+                ]
+              },
+              {
+                type: "category",
+                label: "Metrics Support",
+                collapsed: false,
+                items: [
+                  "reference/telemetry/metric-data",
+                  "reference/telemetry/labeled-counter",
+                  "reference/telemetry/labeled-histogram",
+                  "reference/telemetry/labeled-gauge",
+                ]
+              },
+            ]
+          },
         ]
       },
     {
@@ -232,6 +326,7 @@ const sidebars = {
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
         "guides/zio-schema-migration",
+        "guides/telemetry-guide",
       ]
     }
   ]

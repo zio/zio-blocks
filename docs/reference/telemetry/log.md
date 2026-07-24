@@ -254,13 +254,13 @@ log.info("user authenticated", attrs)
 ```
 :::
 
-### Rate-Limited Logging (Every-N)
+### Rate-Limited Logging
 
-The every-N family — `traceEvery`, `debugEvery`, `infoEvery`, `warnEvery`, `errorEvery`, and `fatalEvery` — limits emission to at most once every `every` invocations of the same call site. The counter is per-call-site: a `log.infoEvery(100, ...)` at line 42 and another at line 87 each maintain independent counters.
+When the same log call sits in a hot path, two families throttle it — both keyed to the call site (see the caution below). Choose by how you want to limit: **Every-N** caps by invocation count, **Time-Window** caps by elapsed time.
 
-#### `traceEvery` / `debugEvery` / `infoEvery` / `warnEvery` / `errorEvery` / `fatalEvery` — Log every N invocations
+#### Every-N — `traceEvery` / `debugEvery` / `infoEvery` / `warnEvery` / `errorEvery` / `fatalEvery`
 
-Each method takes the sampling integer `every` as its first argument, followed by the message and any enrichments, with the same macro-expansion guarantee as the basic methods:
+The every-N family limits emission to at most once every `every` invocations of the same call site. Each method takes the sampling integer `every` as its first argument, followed by the message and any enrichments, with the same macro-expansion guarantee as the basic methods:
 
 ```scala
 trait LogVersionSpecific { self: log.type =>
@@ -271,7 +271,7 @@ trait LogVersionSpecific { self: log.type =>
 
 A heartbeat log should appear roughly once per hundred loop iterations, not on every tick. We use `log.infoEvery` to suppress the flood while keeping the signal:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.log
 
 var tick = 0
@@ -283,17 +283,9 @@ while (true) {
 }
 ```
 
-:::caution
-Rate limiting is best-effort. Call-site identity is tracked by a hash; hash collisions between two different call sites can cause cross-site interference, where one site's counter advances the other's. Collisions are extremely rare in practice.
-:::
+#### Time-Window — `traceAtMost` / `debugAtMost` / `infoAtMost` / `warnAtMost` / `errorAtMost` / `fatalAtMost`
 
-### Rate-Limited Logging (Time-Window)
-
-The time-window family — `traceAtMost`, `debugAtMost`, `infoAtMost`, `warnAtMost`, `errorAtMost`, and `fatalAtMost` — limits emission to at most once per `intervalMillis` milliseconds from the same call site, regardless of how many times the surrounding code runs.
-
-#### `traceAtMost` / `debugAtMost` / `infoAtMost` / `warnAtMost` / `errorAtMost` / `fatalAtMost` — Log at most once per interval
-
-Each method takes the interval in milliseconds as its first argument, followed by the message and enrichments:
+The time-window family limits emission to at most once per `intervalMillis` milliseconds from the same call site, regardless of how many times the surrounding code runs. Each method takes the interval in milliseconds as its first argument, followed by the message and enrichments:
 
 ```scala
 trait LogVersionSpecific { self: log.type =>
@@ -304,7 +296,7 @@ trait LogVersionSpecific { self: log.type =>
 
 A slow-query warning that fires inside a hot request handler could produce thousands of records per second. We use `log.warnAtMost` to keep at most one warning per five-second window:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.log
 
 def executeQuery(sql: String): Unit = {
@@ -318,6 +310,12 @@ def executeQuery(sql: String): Unit = {
 
 :::note
 The time window uses `System.currentTimeMillis()` with millisecond precision. Very short intervals (< 10 ms) may behave inconsistently on platforms with coarse system clocks.
+:::
+
+:::caution
+Rate limiting is best-effort. Each rate-limited call site is identified at compile time by hashing its source location (`file:line`), and that hash picks one slot in a fixed, process-wide table of 4096 counters (`siteId & 4095`). "Same call site" therefore means the same physical line — a call inside a loop shares one counter across all iterations (which is the point), while the same call copied onto two different lines gets two independent counters.
+
+Two different call sites can collide onto one slot — either because their hashes are equal (rare) or, more commonly, because two distinct hashes fold to the same slot; the odds of some collision grow as the number of rate-limited call sites in your app passes a few dozen. When two sites share a slot they share a counter, so one site's calls advance — and can trip — the other's limit. The table is never reset and the checks are lock-free, so under heavy concurrency the every-N / interval boundary is approximate, not exact.
 :::
 
 ### Annotations

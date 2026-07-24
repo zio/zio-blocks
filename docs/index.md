@@ -833,6 +833,57 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
   - [Into](reference/schema/schema-evolution/into.md) - One-way conversion with validation
   - [As](reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
 
+### Telemetry
+
+- [Telemetry](./reference/telemetry/index.md) - Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics
+
+**Global Entry Points**
+- [trace](./reference/telemetry/trace.md) - Global tracing singleton: span creation, provider configuration, in-memory inspection
+- [log](./reference/telemetry/log.md) - Global logging singleton: structured log emission with macro-captured source locations
+- [metric](./reference/telemetry/metric.md) - Global metrics singleton: counter, histogram, and gauge creation
+
+**Tracing**
+- [TracerProvider](./reference/telemetry/tracer-provider.md) - Factory for `Tracer` instances, configured once at startup
+- [Tracer](./reference/telemetry/tracer.md) - Per-library scope-bound span emitter
+- [Span](./reference/telemetry/span.md) - Active trace unit with attributes, events, and status
+
+**Logging**
+- [LoggerProvider](./reference/telemetry/logger-provider.md) - Factory for `Logger` instances
+- [Logger](./reference/telemetry/logger.md) - Per-library scope-bound structured log emitter
+
+**Metrics**
+- [MeterProvider](./reference/telemetry/meter-provider.md) - Factory for `Meter` instances
+- [Meter](./reference/telemetry/meter.md) - Per-library scope-bound metric factory
+- [Counter](./reference/telemetry/counter.md) - Monotonically increasing cumulative counter
+- [UpDownCounter](./reference/telemetry/up-down-counter.md) - Bidirectional counter for values that go up and down
+- [Histogram](./reference/telemetry/histogram.md) - Latency and size distribution recorder
+- [Gauge](./reference/telemetry/gauge.md) - Point-in-time gauge for instantaneous measurements
+
+**Shared Vocabulary**
+- [Attributes](./reference/telemetry/attributes.md) - Parallel-array key/value store shared across signals
+- [AttributeKey](./reference/telemetry/attribute-key.md) - Typed, interned attribute key
+- [Resource](./reference/telemetry/resource.md) - Immutable set of attributes describing the telemetry source entity
+- [InstrumentationScope](./reference/telemetry/instrumentation-scope.md) - Named and versioned scope for grouping signals
+
+**Tracing Support**
+- [SpanContext](./reference/telemetry/span-context.md) - Immutable trace and span identifiers for propagation
+- [SpanData](./reference/telemetry/span-data.md) - Completed span snapshot used by exporters
+- [SpanProcessor](./reference/telemetry/span-processor.md) - Hook interface for span start/end events
+- [Sampler](./reference/telemetry/sampler.md) - Decision interface for whether to record and export a span
+
+**Logging Support**
+- [LogRecord](./reference/telemetry/log-record.md) - Immutable structured log record
+- [LogRecordProcessor](./reference/telemetry/log-record-processor.md) - Hook interface for processing emitted log records
+- [LogFormatter](./reference/telemetry/log-formatter.md) - Converts log records to strings for console or file output
+- [Severity](./reference/telemetry/severity.md) - OpenTelemetry log severity enumeration
+- [LogEnrichment](./reference/telemetry/log-enrichment.md) - Mechanism for attaching context attributes to every log record
+
+**Metrics Support**
+- [MetricData](./reference/telemetry/metric-data.md) - Snapshot of a metric instrument's collected data
+- [LabeledCounter](./reference/telemetry/labeled-counter.md) - Counter reading labeled with its attribute set
+- [LabeledHistogram](./reference/telemetry/labeled-histogram.md) - Histogram reading labeled with its attribute set
+- [LabeledGauge](./reference/telemetry/labeled-gauge.md) - Gauge reading labeled with its attribute set
+
 ### Other Blocks
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences

@@ -994,3 +994,8 @@ You now understand Scope's core concepts:
 - **Thread ownership** — JVM enforcement of structured concurrency.
 
 For complete API documentation, see the [Scope Reference](../reference/resource-management/scope.md).
+
+## See Also
+
+- [Telemetry Reference](../reference/telemetry/index.md) — Apply Scope-based resource safety to manage `TracerProvider`, `LoggerProvider`, and `MeterProvider` lifetimes
+- [Telemetry Guide](./telemetry-guide.md) — Real-world patterns for provider lifecycle management using Scope
