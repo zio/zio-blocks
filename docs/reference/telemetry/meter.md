@@ -12,7 +12,7 @@ keywords:
   - "MeterProvider"
 ---
 
-`Meter` is the instrument factory for the ZIO Blocks Telemetry metrics pillar. Each `Meter` is tied to an `InstrumentationScope` — a name that identifies the library or component producing the metrics — and registers every instrument it creates into an internal `CopyOnWriteArrayList` so the `MetricReader` can collect from all of them. Obtain a `Meter` from `MeterProvider#get` or from the global `metric.get` singleton.
+A `Meter` is what you use to create metric instruments — counters, up/down counters, histograms, and gauges — for one part of your application. Each `Meter` carries a name (its `InstrumentationScope`) identifying the library or component the metrics come from, so measurements stay grouped by their source. You get a `Meter` from `MeterProvider#get`, or from the global `metric.get` shortcut.
 
 ```scala
 final class Meter private[telemetry] (
