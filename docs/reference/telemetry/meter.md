@@ -79,7 +79,11 @@ bound.add(1L)
 val snapshot: MetricData = reqs.collect()
 ```
 
-The three share the same shape, differing only by value type and record method (`LabeledGauge#record` is last-write-wins):
+All three share the same shape — a `labelNames` list, `bind(labelValues*)` returning a reusable `Bound*` handle for a hot label combination, and `collect()` snapshotting the underlying instrument as `MetricData` — differing only in how a value is recorded.
+
+### LabeledCounter (Cumulative)
+
+A counter with fixed labels; `add` a non-negative `Long` delta, and the running total is kept per label combination.
 
 ```scala
 final class LabeledCounter {
@@ -88,14 +92,26 @@ final class LabeledCounter {
   def bind(labelValues: Any*): BoundCounter
   def collect(): MetricData
 }
+```
 
+### LabeledHistogram (Distribution)
+
+A histogram with fixed labels; `record` a `Double` sample and it lands in the bucketed distribution for that combination.
+
+```scala
 final class LabeledHistogram {
   val labelNames: Array[String]
   def record(value: Double, labelValues: Any*): Unit
   def bind(labelValues: Any*): BoundHistogram
   def collect(): MetricData
 }
+```
 
+### LabeledGauge (Last-Write)
+
+A gauge with fixed labels; `record` the current `Double` value, and the latest write for a combination wins.
+
+```scala
 final class LabeledGauge {
   val labelNames: Array[String]
   def record(value: Double, labelValues: Any*): Unit
