@@ -12,59 +12,37 @@ keywords:
   - "Scoped Thread-Local Annotations"
 ---
 
-`log` is the global structured logging entry point of `zio-blocks-telemetry`. It is declared as `object log extends LogVersionSpecific` — a singleton you import and call directly, with no instantiation or injection. The six severity methods (`trace`, `debug`, `info`, `warn`, `error`, `fatal`) are macro-expanded at compile time on both Scala 2 and Scala 3: source file path, class name, method name, and line number are captured statically and attached as `code.*` attributes on every record, with zero runtime reflection. A single integer comparison against the global minimum severity gates every call, so below-threshold logging costs almost nothing before any allocation occurs.
+`log` is the global structured logging entry point of `zio-blocks-telemetry` — an `object` you import and call directly to emit log records at six severity levels, attach typed contextual data, and route output to pluggable backends. It is designed for hot paths: every call captures its source location at compile time and is cheap to skip when below the configured severity floor.
 
 Within the Telemetry module, `log` is one of three global entry points alongside `trace` (distributed tracing) and `metric` (instrumentation). It wraps an internal `Logger` that routes records through a chain of `LogRecordProcessor` instances. The backend is fully pluggable at runtime: call `log.writer`, `log.install`, or `log.addProcessor` to configure where records go.
 
 Key design properties:
 
-- **Global singleton** — import and call directly; no DI or instantiation required. Library code that needs isolation should accept a `Logger` parameter instead.
-- **Compile-time source location** — call-site `code.*` attributes are injected by the macro, not by stack-walking. Zero runtime cost.
-- **Global min-severity fast path** — a single `Int` comparison discards below-threshold calls before any object is allocated.
 - **Hierarchical severity overrides** — per-package prefix overrides let you silence noisy packages while keeping others verbose; the most-specific prefix wins.
 - **Per-call-site rate limiting** — every-N and time-window variants prevent log floods from tight loops without instrumenting the surrounding code.
-- **Scoped thread-local annotations** — `log.annotated` attaches key/value pairs to every record emitted within a lexical block.
-- **Pluggable backend** — `addProcessor` / `writer` / `install` replace or extend the pipeline at any time.
+- **Scoped annotations** — `log.annotated` attaches key/value pairs to every record emitted within a lexical block (auto-removed on exit), unlike a thread-local MDC you clear manually.
 - **Active-span correlation** — the active `SpanContext` is automatically injected from `ContextStorage` into each record when a trace is in progress.
 
 The declaration shape and primary members are:
 
 ```scala
 object log extends LogVersionSpecific {
-  // Scoped annotation
-  def annotated[A](annotations: (String, String)*)(f: => A): A
+  // Severity methods — macro-expanded (inline def on Scala 3, macro on Scala 2):
+  def info(message: String, enrichments: Any*): Unit          // + trace/debug/warn/error/fatal
+  def infoEvery(every: Int, message: String, ...): Unit       // rate-limited (every-N) family
+  def infoAtMost(intervalMillis: Long, message: String, ...): Unit // rate-limited (time-window) family
 
-  // Global severity floor
+  def annotated[A](annotations: (String, String)*)(f: => A): A     // scoped annotations
+
+  // Severity floor + per-package overrides (also clearMinSeverity / clearAllOverrides)
   def setMinSeverity(severity: Severity): Unit
   def setMinSeverity(prefix: String, severity: Severity): Unit
-  def clearMinSeverity(prefix: String): Unit
-  def clearAllOverrides(): Unit
   def withMinSeverity[A](severity: Severity)(f: => A): A
 
-  // Backend management
+  // Pluggable backend (also clearWriters / removeAll)
+  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
   def addProcessor(processor: LogRecordProcessor): Unit
   def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-  def removeAll(): Unit
-  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
-  def clearWriters(): Unit
-}
-
-// Scala 3 — inline macros in LogVersionSpecific
-trait LogVersionSpecific {
-  inline def trace(inline message: String, inline enrichments: Any*): Unit
-  inline def debug(inline message: String, inline enrichments: Any*): Unit
-  inline def info(inline message: String, inline enrichments: Any*): Unit
-  inline def warn(inline message: String, inline enrichments: Any*): Unit
-  inline def error(inline message: String, inline enrichments: Any*): Unit
-  inline def fatal(inline message: String, inline enrichments: Any*): Unit
-
-  inline def traceEvery(every: Int, inline message: String, inline enrichments: Any*): Unit
-  inline def infoEvery(every: Int, inline message: String, inline enrichments: Any*): Unit
-  // ... debugEvery / warnEvery / errorEvery / fatalEvery follow the same shape
-
-  inline def traceAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit
-  inline def infoAtMost(intervalMillis: Long, inline message: String, inline enrichments: Any*): Unit
-  // ... debugAtMost / warnAtMost / errorAtMost / fatalAtMost follow the same shape
 }
 ```
 
