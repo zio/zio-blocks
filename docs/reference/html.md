@@ -619,8 +619,8 @@ Pseudo-classes match elements by their state, and pseudo-elements create dynamic
 import zio.blocks.html._
 
 val hoverSel = a.hover              // a:hover
-val firstChild = li.firstChild      // li:first-child
-val nthChild = tr.nthChild(2)       // tr:nth-child(2)
+val firstChild = li().firstChild      // li:first-child
+val nthChild = tr().nthChild(2)       // tr:nth-child(2)
 val before = div.before             // div::before
 val after = span.after              // span::after
 ```
@@ -1021,7 +1021,7 @@ Map over collections to create child elements:
 import zio.blocks.html._
 
 def userList(users: List[String]): Dom.Element =
-  ul(users.map(user => li(user)))
+  ul(users.map(user => li(user)): _*)
 
 val page = userList(List("Alice", "Bob", "Charlie"))
 ```

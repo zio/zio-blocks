@@ -226,6 +226,12 @@ object Dom {
         case None        => this
       }
 
+    override def equals(other: Any): Boolean = other match {
+      case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
+      case _          => false
+    }
+    override def hashCode: Int = (tag, attributes, children).hashCode
+
     private[html] def escapeText: Boolean
 
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
@@ -299,6 +305,15 @@ object Dom {
 
   object Element {
 
+    // --- Marker traits for typed content model (proper OO hierarchy, same file as sealed Element) ---
+    trait Li          extends Element
+    trait Th          extends Cell
+    trait Td          extends Cell
+    trait Opt         extends SelectChild
+    trait Optgroup    extends SelectChild
+    trait Cell        extends Element
+    trait SelectChild extends Element
+
     /**
      * A generic HTML element.
      *
@@ -320,6 +335,83 @@ object Dom {
       private[html] def escapeText: Boolean                = true
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
+    }
+
+    // --- Typed content model elements (proper OO hierarchy for Scala 2/3 parity) ---
+
+    final case class LiElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Li {
+      def tag: String                                                    = "li"
+      private[html] def escapeText: Boolean                              = true
+      def withAttributes(attrs: Chunk[Attribute]): Li                    = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Li                             = copy(children = kids)
+      override def apply(effect: DomModifier, effects: DomModifier*): Li =
+        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Li]
+      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Li =
+        if (condition) apply(effect, effects: _*) else this
+    }
+
+    final case class ThElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Th {
+      def tag: String                                                    = "th"
+      private[html] def escapeText: Boolean                              = true
+      def withAttributes(attrs: Chunk[Attribute]): Th                    = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Th                             = copy(children = kids)
+      override def apply(effect: DomModifier, effects: DomModifier*): Th =
+        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Th]
+      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Th =
+        if (condition) apply(effect, effects: _*) else this
+    }
+
+    final case class TdElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Td {
+      def tag: String                                                    = "td"
+      private[html] def escapeText: Boolean                              = true
+      def withAttributes(attrs: Chunk[Attribute]): Td                    = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Td                             = copy(children = kids)
+      override def apply(effect: DomModifier, effects: DomModifier*): Td =
+        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Td]
+      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Td =
+        if (condition) apply(effect, effects: _*) else this
+    }
+
+    final case class OptElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Opt {
+      def tag: String                                                     = "option"
+      private[html] def escapeText: Boolean                               = true
+      def withAttributes(attrs: Chunk[Attribute]): Opt                    = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Opt                             = copy(children = kids)
+      override def apply(effect: DomModifier, effects: DomModifier*): Opt =
+        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Opt]
+      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Opt =
+        if (condition) apply(effect, effects: _*) else this
+    }
+
+    final case class OptgroupElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Optgroup {
+      def tag: String                                                          = "optgroup"
+      private[html] def escapeText: Boolean                                    = true
+      def withAttributes(attrs: Chunk[Attribute]): Optgroup                    = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Optgroup                             = copy(children = kids)
+      override def apply(effect: DomModifier, effects: DomModifier*): Optgroup =
+        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Optgroup]
+      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Optgroup =
+        if (condition) apply(effect, effects: _*) else this
     }
 
     /**
