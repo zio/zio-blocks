@@ -52,13 +52,3 @@ metric.reader.collectAllMetrics().foreach {
     pts.foreach(p => println(s"gauge ${p.value} at ${p.timeNanos}"))
 }
 ```
-
-## Data Point Types
-
-| Type | Fields | Produced by |
-|---|---|---|
-| `SumDataPoint` | `attributes`, `startTimeNanos`, `timeNanos`, `value: Long` | `Counter`, `UpDownCounter` |
-| `HistogramDataPoint` | `attributes`, `startTimeNanos`, `timeNanos`, `count`, `sum`, `min`, `max`, `bucketCounts`, `boundaries` | `Histogram` |
-| `GaugeDataPoint` | `attributes`, `timeNanos`, `value: Double` | `Gauge` |
-
-`bucketCounts` in `HistogramDataPoint` has length `boundaries.length + 1`, where the last bucket counts all observations above the highest boundary.

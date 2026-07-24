@@ -12,7 +12,7 @@ keywords:
   - "Telemetry Metrics Setup"
 ---
 
-`MeterProvider` is the entry point for the metrics pillar in ZIO Blocks Telemetry. It creates and caches [`Meter`](./meter.md) instances keyed by instrumentation scope, backs them with a shared `MeterRegistry`, and exposes a single `MetricReader` that collects data from every registered instrument across all meters.
+`MeterProvider` is the entry point to the metrics pillar in ZIO Blocks Telemetry: you build one, then ask it for [`Meter`](./meter.md) instances. It returns a `Meter` per instrumentation scope — reusing the same instance for a given scope — and exposes a single `MetricReader` that collects everything recorded through those meters.
 
 - **Thread-safe instrument registry** — `Meter` instances are stored in a `ConcurrentHashMap`, so calling `get` from concurrent threads requires no external synchronization.
 - **`AutoCloseable` lifecycle** — `close()` delegates to `shutdown()`, enabling use with `scala.util.Using.resource` or a JVM shutdown hook.
@@ -59,6 +59,12 @@ metric (global singleton — AtomicReference[MeterProvider])
         └── Meter               (obtained via MeterProvider#get, cached by scope)
               └── Counter / UpDownCounter / Histogram / Gauge
 ```
+
+## Motivation
+
+In a real application, many different components — your own modules and the third-party libraries you depend on — all want to record metrics, and every one of them needs a `Meter` to do so. Without a central owner, each component would have to know how metrics are collected and exported, and asking for the "same" meter twice could hand back two unrelated instances whose data never lines up.
+
+`MeterProvider` exists to be that single owner: it hands out `Meter` instances keyed by instrumentation scope and deduplicates them, so requesting the same scope always yields the identical meter, and it backs every meter with one shared `MetricReader` that collects across all of them. This lets application startup configure collection in exactly one place, while library and feature code simply calls `get` to obtain a scope-bound `Meter` and stays decoupled from how the data is ultimately read and exported. The payoff is a clear separation of concerns — instrumentation code focuses on recording measurements, and the provider owns the collection pipeline and its lifecycle.
 
 ## Usage
 
@@ -269,33 +275,3 @@ Using.resource(MeterProvider.builder.build()) { provider =>
 }
 // provider.close() — and therefore shutdown() — is called automatically here
 ```
-
-## Comparisons
-
-### `MeterProvider` vs. OpenTelemetry Java `MeterProvider`
-
-The OpenTelemetry Java SDK's `SdkMeterProvider` follows the same conceptual pattern — builder, resource, metric readers — but differs in dependency weight and API ergonomics:
-
-| Aspect                      | ZIO Blocks `MeterProvider`                          | OTel Java `SdkMeterProvider`                             |
-|-----------------------------|-----------------------------------------------------|----------------------------------------------------------|
-| Dependencies                | Zero — pure Scala, no OTel SDK jars                 | Requires `opentelemetry-sdk` and matching exporter jars  |
-| `MetricReader` registration | Derived automatically from internal `MeterRegistry` | Explicit `registerMetricReader` call during build        |
-| `AutoCloseable`             | Yes — `close()` delegates to `shutdown()`           | Yes — same pattern                                       |
-| Cross-platform              | Compiles on JVM and Scala.js                        | JVM only                                                 |
-| Global singleton            | `metric` object with `install` / `removeAll`        | `GlobalOpenTelemetry` with static registration           |
-
-The key difference is that OTel Java requires you to supply and register a `MetricReader` explicitly during provider construction. ZIO Blocks derives the `MetricReader` automatically from the shared `MeterRegistry`, so a provider is ready for collection immediately after `build()`.
-
-### `MeterProvider` vs. Micrometer `MeterRegistry`
-
-Micrometer uses a unified `MeterRegistry` for both instrument creation and data export. ZIO Blocks separates these concerns:
-
-| Aspect                 | ZIO Blocks `MeterProvider`                            | Micrometer `MeterRegistry`                                              |
-|------------------------|-------------------------------------------------------|-------------------------------------------------------------------------|
-| Instrument creation    | `MeterProvider#get` → `Meter` → instrument builder    | `MeterRegistry#counter`, `#gauge`, `#timer`, etc.                       |
-| Data collection/export | Separate `MetricReader` via `provider.reader`         | Export handled by the registry subclass (e.g. `PrometheusMeterRegistry`) |
-| Naming model           | `InstrumentationScope` (name + version)               | Tags on individual meters                                               |
-| Multi-backend routing  | Install a custom `MeterProvider` via `metric.install` | Composite registries (`CompositeMeterRegistry`)                         |
-| Zero-dependency core   | Yes                                                   | No — Micrometer core is its own artifact                                |
-
-The separation between `MeterProvider` (creates instruments) and `MetricReader` (exports data) mirrors the OpenTelemetry specification's separation of concerns, making it straightforward to swap export backends without changing instrumentation code.
