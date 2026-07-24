@@ -12,13 +12,15 @@ keywords:
   - "MeterProvider"
 ---
 
-A `Meter` is what you use to create metric instruments — counters, up/down counters, histograms, and gauges — for one part of your application. Each `Meter` carries a name (its `InstrumentationScope`) identifying the library or component the metrics come from, so measurements stay grouped by their source. You get a `Meter` from `MeterProvider#get`, or from the global `metric.get` shortcut.
+A `Meter` is what you use to create metric instruments — [counters](./counter.md), [up/down counters](./up-down-counter.md), [histograms](./histogram.md), and [gauges](./gauge.md) — for one part of your application. Each `Meter` carries a name (its [`InstrumentationScope`](./instrumentation-scope.md)) identifying the library or component the metrics come from, so measurements stay grouped by their source. 
 
 ```scala
 final class Meter private[telemetry] (
   val instrumentationScope: InstrumentationScope
 )
 ```
+
+You get a `Meter` from [`MeterProvider#get`](./meter-provider.md), or from the global [`metric.get`](./metric.md) shortcut.
 
 ## Usage
 
@@ -58,9 +60,9 @@ Pre-declared label names eliminate per-call attribute construction and validate 
 
 | Method | Returns | Description |
 |---|---|---|
-| `labeledCounter(name: String, labels: String*): LabeledCounter` | `LabeledCounter` | Creates a `Counter` with fixed label names. |
-| `labeledHistogram(name: String, labels: String*): LabeledHistogram` | `LabeledHistogram` | Creates a `Histogram` with fixed label names. |
-| `labeledGauge(name: String, labels: String*): LabeledGauge` | `LabeledGauge` | Creates a `Gauge` with fixed label names. |
+| `labeledCounter(name: String, labels: String*): LabeledCounter` | [`LabeledCounter`](./labeled-counter.md) | Creates a `Counter` with fixed label names. |
+| `labeledHistogram(name: String, labels: String*): LabeledHistogram` | [`LabeledHistogram`](./labeled-histogram.md) | Creates a `Histogram` with fixed label names. |
+| `labeledGauge(name: String, labels: String*): LabeledGauge` | [`LabeledGauge`](./labeled-gauge.md) | Creates a `Gauge` with fixed label names. |
 
 ```scala
 import zio.blocks.telemetry._
