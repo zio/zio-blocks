@@ -115,94 +115,80 @@ log.withMinSeverity(Severity.Warn) {
 
 ## Configuring the Logging Backend
 
-The three primary methods for this are `log.writer`, `log.install`, and `log.addProcessor`.
+The backend is a chain of `LogRecordProcessor` instances. Two concerns: adding outputs, and replacing or tearing the chain down.
 
-### `log.writer` — Add a formatted output sink
+### Adding outputs
 
-`log.writer` appends a `FormattedLogRecordProcessor` that formats each record with the given `LogFormatter` and hands the result to the given `LogWriter`. Calling `log.writer` multiple times installs multiple independent outputs — useful when you want human-readable logs to stdout and JSON logs to a file simultaneously.
+`writer(formatter, logWriter)` wraps a `LogFormatter` + `LogWriter` into a `FormattedLogRecordProcessor` and appends it; `addProcessor(processor)` appends any `LogRecordProcessor` directly. Both leave existing outputs in place, so repeated calls install multiple independent sinks.
 
 ```scala
 object log {
   def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
-}
-```
-
-The most common setup pairs `TextLogFormatter` with `StdoutWriter` for local development:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{TextLogFormatter, JsonLogFormatter, StdoutWriter, StderrWriter}
-
-// Human-readable output to stdout
-log.writer(TextLogFormatter, StdoutWriter)
-
-// Add a second sink for JSON output to stderr (both are active)
-log.writer(JsonLogFormatter, StderrWriter)
-```
-
-:::caution
-Each call to `log.writer` appends a new processor. Calling it N times means N format-and-write operations per record. Call `log.clearWriters()` first if you need to replace an existing output.
-:::
-
-### `log.install` — Replace the entire backend
-
-`log.install` replaces the entire logging backend with a custom `Logger` built externally (typically via `LoggerProvider`) and sets the global minimum severity in one atomic step.
-
-```scala
-object log {
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-}
-```
-
-This method suits production scenarios where the `Logger` is constructed by an integration layer — for example, a `LoggerProvider` that routes records to an OTLP exporter — and the configuration must be done before the application processes any requests:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{Logger, Severity}
-
-// Replace the default console backend with a custom Logger,
-// and raise the global floor to Info
-def configureProd(logger: Logger): Unit =
-  log.install(logger, Severity.Info)
-```
-
-:::caution
-`log.install` does not shut down processors attached to the previously installed backend. Call `log.removeAll()` first if you need a clean transition.
-:::
-
-### `log.addProcessor` — Attach a processor directly
-
-`log.addProcessor` appends a raw `LogRecordProcessor` to the current backend without replacing any existing processors. This is the right choice when you need fine-grained control over record handling — for example, buffering, batching, or forwarding to a remote endpoint.
-
-```scala
-object log {
   def addProcessor(processor: LogRecordProcessor): Unit
 }
 ```
 
-We can implement `LogRecordProcessor` directly to capture records in tests or route them to a custom sink:
+We send records to a human-readable and a JSON sink at once, and attach a processor that counts errors for internal metrics:
 
 ```scala
 import zio.blocks.telemetry.log
+import zio.blocks.telemetry.{TextLogFormatter, JsonLogFormatter, StdoutWriter, StderrWriter}
 import zio.blocks.telemetry.{LogRecordProcessor, LogRecord}
+import java.util.concurrent.atomic.LongAdder
 
-val capturingProcessor: LogRecordProcessor = new LogRecordProcessor {
-  private val records = scala.collection.mutable.ArrayBuffer.empty[LogRecord]
-  def onEmit(record: LogRecord): Unit = records += record
-  def shutdown(): Unit                = ()
-  def forceFlush(): Unit              = ()
-}
+log.writer(TextLogFormatter, StdoutWriter)
+log.writer(JsonLogFormatter, StderrWriter)
 
-log.addProcessor(capturingProcessor)
+val errorCount = new LongAdder()
+log.addProcessor(new LogRecordProcessor {
+  def onEmit(record: LogRecord): Unit =
+    if (record.severity.number >= 17) errorCount.increment()
+  def shutdown(): Unit   = ()
+  def forceFlush(): Unit = ()
+})
 ```
+
+:::caution
+Each `writer` call appends a new processor — N calls means N format-and-write operations per record. Call `clearWriters()` first if you need to replace an existing output.
+:::
+
+### Replacing and tearing down
+
+`install(logger, minSeverity)` atomically swaps the whole backend for a provided `Logger` and sets the global floor (`minSeverity` defaults to `Severity.Trace`, so all records pass). `clearWriters()` shuts down only the outputs added via `writer`, leaving `addProcessor`/`install` processors intact; `removeAll()` shuts down *everything* and resets to a no-op state, after which records are discarded until a new output is installed.
+
+```scala
+object log {
+  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
+  def clearWriters(): Unit
+  def removeAll(): Unit
+}
+```
+
+We install a provider-built `Logger` at startup, swap writers without duplicating records, and flush everything at shutdown:
+
+```scala
+import zio.blocks.telemetry.log
+import zio.blocks.telemetry.{Logger, Severity, JsonLogFormatter, StdoutWriter}
+
+def initLogging(logger: Logger): Unit =
+  log.install(logger, Severity.Info)
+
+log.clearWriters()                          // drop writer-based outputs...
+log.writer(JsonLogFormatter, StdoutWriter)  // ...now the only active writer
+
+// At JVM shutdown, flush and close all channels
+Runtime.getRuntime.addShutdownHook(new Thread(() => log.removeAll()))
+```
+
+:::caution
+`install` does not shut down the previously installed backend's processors — call `removeAll()` first for a clean transition.
+:::
 
 ## Core Operations
 
 ### Basic Logging
 
 The six basic logging methods — `trace`, `debug`, `info`, `warn`, `error`, and `fatal` — emit a record at the named severity. Every call is macro-expanded at compile time so that `code.filepath`, `code.namespace`, `code.function`, and `code.lineno` attributes are injected statically. The call is skipped entirely when the record's severity falls below the current global minimum.
-
-#### `trace` / `debug` / `info` / `warn` / `error` / `fatal` — Emit a log record
 
 Each method accepts a message string followed by zero or more enrichments. Enrichments can be typed key/value tuples (`(String, String)`, `(String, Long)`, `(String, Double)`, `(String, Boolean)`, `(String, Int)`), a bare `Throwable` (which becomes `exception.type`, `exception.message`, and `exception.stacktrace` attributes), or an `Attributes` value.
 
@@ -350,224 +336,66 @@ Annotations are `String`-to-`String` only. If you need typed numeric or boolean 
 
 ### Severity Control
 
-The severity control methods govern which records are emitted. They operate at two levels: a global floor that applies to every call, and per-prefix overrides that let specific packages bypass (or tighten) the global setting. The five methods in this category are `setMinSeverity` (global), `setMinSeverity` (prefix), `clearMinSeverity`, `clearAllOverrides`, and `withMinSeverity`.
+Which records are emitted is governed at two levels: a global floor that applies to every call, and per-package overrides that tighten or relax specific namespaces. Records below the applicable floor are discarded before any object is allocated.
 
-#### `setMinSeverity` (global) — Set the global severity floor
+#### The global floor
 
-`log.setMinSeverity(severity)` sets the global minimum severity. Records below this level are discarded before any object is allocated:
+`setMinSeverity(severity)` sets the process-wide minimum; `withMinSeverity(severity)(f)` sets it only for the duration of a block, restoring the previous floor via `try/finally` whether `f` returns or throws.
 
 ```scala
 object log {
   def setMinSeverity(severity: Severity): Unit
-}
-```
-
-In a production environment where trace and debug output is noise, we raise the floor to `Warn`:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.Severity
-
-log.setMinSeverity(Severity.Warn) // suppresses Trace, Debug, and Info globally
-```
-
-#### `setMinSeverity` (prefix) — Set a per-package severity override
-
-`log.setMinSeverity(prefix, severity)` installs a severity override for all `log` calls whose compile-time namespace starts with `prefix`. The most-specific prefix wins over both the global floor and other prefix overrides:
-
-```scala
-object log {
-  def setMinSeverity(prefix: String, severity: Severity): Unit
-}
-```
-
-We can silence one particularly verbose subsystem while keeping everything else at `Debug`:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.Severity
-
-log.setMinSeverity(Severity.Debug)                           // global floor
-log.setMinSeverity("com.example.noisy", Severity.Warn)       // quiet this package
-log.setMinSeverity("com.example", Severity.Debug)            // explicit for the parent
-```
-
-:::note
-Prefix matching uses `String#startsWith`, not glob or regex. The prefix `"com.example"` matches both `com.example.Foo` and `com.example.util.Bar`.
-:::
-
-#### `clearMinSeverity` — Remove a per-prefix override
-
-`log.clearMinSeverity` removes the severity override installed for a specific prefix, restoring that prefix to the global floor:
-
-```scala
-object log {
-  def clearMinSeverity(prefix: String): Unit
-}
-```
-
-After a debugging session we remove the per-package override we added for `com.example.noisy`:
-
-```scala
-import zio.blocks.telemetry.log
-
-log.clearMinSeverity("com.example.noisy")
-```
-
-#### `clearAllOverrides` — Remove all per-prefix overrides
-
-`log.clearAllOverrides` removes every per-prefix severity override in one call, leaving only the global floor in effect:
-
-```scala
-object log {
-  def clearAllOverrides(): Unit
-}
-```
-
-We call `log.clearAllOverrides` to reset diagnostic state between integration test suites:
-
-```scala
-import zio.blocks.telemetry.log
-
-log.clearAllOverrides()
-```
-
-#### `withMinSeverity` — Temporarily adjust the severity floor
-
-`log.withMinSeverity` sets the global severity floor for the duration of block `f` and then restores the previous floor via `try/finally`, regardless of whether `f` completes normally or throws:
-
-```scala
-object log {
   def withMinSeverity[A](severity: Severity)(f: => A): A
 }
 ```
 
-We use `log.withMinSeverity` to capture verbose diagnostic output from a specific operation without changing the global configuration permanently:
+In production we raise the floor to `Warn` globally, then use the scoped form to capture verbose output from one operation without changing global state:
 
 ```scala
 import zio.blocks.telemetry.log
 import zio.blocks.telemetry.Severity
+
+log.setMinSeverity(Severity.Warn) // suppresses Trace, Debug, Info globally
 
 val result = log.withMinSeverity(Severity.Debug) {
   log.debug("entering diagnostic mode")
   computeResult()
 }
-// The previous floor is restored here
+// previous floor restored here
 ```
 
 :::caution
-`log.withMinSeverity` modifies global state. Other threads logging concurrently will observe the temporary floor during the window. For thread-isolated severity control, use per-prefix overrides instead.
+`withMinSeverity` modifies global state — other threads logging concurrently observe the temporary floor during the window. For thread-isolated control, use per-package overrides.
 :::
 
-### Backend Configuration
+#### Per-package overrides
 
-The backend configuration methods control which `LogRecordProcessor` instances receive records and how they are shut down. Together, `writer`, `addProcessor`, `install`, `clearWriters`, and `removeAll` form the lifecycle management surface of `log`.
-
-#### `writer` — Add a formatted output sink
-
-`log.writer` wraps a `LogFormatter` and a `LogWriter` into a `FormattedLogRecordProcessor` and appends it to the current backend. Calling `log.writer` multiple times installs multiple independent sinks:
+`setMinSeverity(prefix, severity)` installs a floor for every call whose compile-time namespace starts with `prefix` (most-specific prefix wins over the global floor and less-specific prefixes); `clearMinSeverity(prefix)` removes one override, `clearAllOverrides()` removes them all.
 
 ```scala
 object log {
-  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
+  def setMinSeverity(prefix: String, severity: Severity): Unit
+  def clearMinSeverity(prefix: String): Unit
+  def clearAllOverrides(): Unit
 }
 ```
 
-We add both a human-readable and a JSON sink to direct records to two different destinations:
+We silence one noisy subsystem while keeping everything else at `Debug`, then clean up afterward:
 
 ```scala
 import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{TextLogFormatter, JsonLogFormatter, StdoutWriter, StderrWriter}
+import zio.blocks.telemetry.Severity
 
-log.writer(TextLogFormatter, StdoutWriter)
-log.writer(JsonLogFormatter, StderrWriter)
+log.setMinSeverity(Severity.Debug)                     // global floor
+log.setMinSeverity("com.example.noisy", Severity.Warn) // quiet this package
+
+log.clearMinSeverity("com.example.noisy")              // remove one override
+log.clearAllOverrides()                                // or remove every override
 ```
 
-#### `addProcessor` — Attach a processor
-
-`log.addProcessor` appends any `LogRecordProcessor` implementation to the current backend, leaving existing processors in place:
-
-```scala
-object log {
-  def addProcessor(processor: LogRecordProcessor): Unit
-}
-```
-
-We attach a processor that counts records by severity for internal metrics:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{LogRecordProcessor, LogRecord}
-import java.util.concurrent.atomic.LongAdder
-
-val errorCount = new LongAdder()
-
-log.addProcessor(new LogRecordProcessor {
-  def onEmit(record: LogRecord): Unit =
-    if (record.severity.number >= 17) errorCount.increment()
-  def shutdown(): Unit   = ()
-  def forceFlush(): Unit = ()
-})
-```
-
-#### `install` — Replace the entire backend
-
-`log.install` atomically replaces the internal `Logger` with the one provided and sets the global minimum severity:
-
-```scala
-object log {
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-}
-```
-
-The default value for `minSeverity` is `Severity.Trace`, so omitting it means all records pass the global floor check. We call `log.install` at application startup when the `Logger` is built by a provider layer:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{Logger, Severity}
-
-def initLogging(logger: Logger): Unit =
-  log.install(logger, Severity.Info)
-```
-
-#### `clearWriters` — Remove all writer-based outputs
-
-`log.clearWriters` shuts down every processor added via `log.writer` and removes them from the backend. Processors added with `log.addProcessor` or `log.install` are unaffected:
-
-```scala
-object log {
-  def clearWriters(): Unit
-}
-```
-
-We call `log.clearWriters` before reconfiguring outputs to avoid duplicate records:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{JsonLogFormatter, StdoutWriter}
-
-log.clearWriters()
-log.writer(JsonLogFormatter, StdoutWriter) // now the only active writer
-```
-
-#### `removeAll` — Remove all processors and writers
-
-`log.removeAll` shuts down every processor and writer — including those from `log.addProcessor` and `log.install` — by calling `shutdown()` on each, then resets the backend to a no-op state. After this call, all log invocations are silently discarded until a new processor or writer is installed:
-
-```scala
-object log {
-  def removeAll(): Unit
-}
-```
-
-We call `log.removeAll` at application shutdown to flush and close all output channels, or between test suites to guarantee a clean state:
-
-```scala
-import zio.blocks.telemetry.log
-
-// At JVM shutdown
-Runtime.getRuntime.addShutdownHook(new Thread(() => log.removeAll()))
-```
+:::note
+Prefix matching uses `String#startsWith`, not glob or regex — `"com.example"` matches both `com.example.Foo` and `com.example.util.Bar`.
+:::
 
 ## Comparison
 
