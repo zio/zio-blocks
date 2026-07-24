@@ -28,7 +28,7 @@ val snapshot: MetricData = c.collect()
 
 Every instrument you build is registered with the `Meter` automatically. The `MetricReader` from `MeterProvider#reader` then collects from all of them via `collectAllMetrics()`.
 
-## Builders
+## Instrument Builders
 
 Each builder factory is pre-wired to the `Meter`:
 
@@ -41,7 +41,7 @@ final class Meter {
 }
 ```
 
-Each factory returns a builder with the same fluent interface — shown here for `CounterBuilder`; the others mirror it, returning their own builder and instrument types:
+Each factory returns a builder with the same fluent interface — shown here for `CounterBuilder`; the others mirror it, returning their own builder and instrument types. For example, the `CounterBuilder` has `setDescription`, `setUnit`, and `build` methods, plus `buildWithCallback` for pull-style observable counters:
 
 ```scala
 final class CounterBuilder {
@@ -51,6 +51,8 @@ final class CounterBuilder {
   def buildWithCallback(callback: ObservableCallback => Unit): ObservableCounter
 }
 ```
+
+The following example shows how to create a `Meter`, build a counter with description and unit, and register it:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -62,7 +64,20 @@ val requests: Counter = meter.counterBuilder("http.requests")
   .build()
 ```
 
-`setDescription` and `setUnit` attach exporter-facing **metadata** — a documentation string and a UCUM unit like `"ms"`, `"bytes"`, or `"1"` (dimensionless). Both are descriptive only (they never scale or validate recorded values), and each returns the builder so calls chain. `build()` then creates the instrument and registers it with the `Meter`, so a `MetricReader` includes it in `collectAllMetrics()`. The counter, up-down counter, and gauge builders also offer `buildWithCallback`, which produces a **pull-style observable** instrument — instead of calling `add`/`record`, you supply a callback the SDK invokes at collection time to read the current value; `HistogramBuilder` has no such method.
+`setDescription` and `setUnit` attach exporter-facing **metadata** — a documentation string and a UCUM unit like `"ms"`, `"bytes"`, or `"1"` (dimensionless). Both are descriptive only (they never scale or validate recorded values), and each returns the builder so calls chain. `build()` then creates the instrument and registers it with the `Meter`, so a `MetricReader` includes it in `collectAllMetrics()`. 
+
+The counter, up-down counter, and gauge builders also offer `buildWithCallback`, which produces a **pull-style observable** instrument — instead of calling `add`/`record`, you supply a callback the SDK invokes at collection time to read the current value; `HistogramBuilder` has no such method. An observable gauge that samples JVM heap usage on every collection:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val meter: Meter = metric.get("com.example")
+val rt = Runtime.getRuntime
+
+meter.gaugeBuilder("jvm.memory.used").setUnit("bytes").buildWithCallback { cb =>
+  cb.record((rt.totalMemory() - rt.freeMemory()).toDouble, Attributes.empty)
+}
+```
 
 ## Instruments
 
