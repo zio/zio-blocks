@@ -11,7 +11,7 @@ keywords:
   - "version"
 ---
 
-`InstrumentationScope` identifies the library or component that produced a telemetry signal. It is stamped into every `Span`, `SpanData`, and `LogRecord` and carried through to the exporter, where telemetry backends use it to group signals by the library version that produced them. A scope has a required `name` (typically a reverse-DNS package name), an optional `version`, and an optional set of additional `Attributes`.
+An `InstrumentationScope` is a label that says which library or component produced a piece of telemetry. It travels with every `Span`, `SpanData`, and `LogRecord` all the way to the exporter, so a backend can tell where each signal came from. A scope has a required `name` (usually a reverse-DNS package name like `com.example.mylib`), an optional `version`, and optional extra `Attributes`.
 
 ```scala
 final case class InstrumentationScope(
@@ -20,6 +20,10 @@ final case class InstrumentationScope(
   attributes: Attributes = Attributes.empty
 )
 ```
+
+## Motivation
+
+A running application emits telemetry from many sources at once — your own code, framework internals, and third-party libraries all produce spans and logs into the same stream. Without a marker of origin those signals are indistinguishable: you can't filter to one library, attribute a slow span to the component that created it, or tell whether a regression arrived with a particular library upgrade. `InstrumentationScope` solves this by stamping each signal with the name and version of the code that produced it, so a backend can group, filter, and compare telemetry by its source.
 
 ## Usage
 
@@ -40,13 +44,6 @@ tracer.span("operation") { _ => () }
 
 `TracerProvider#get(name, version)` constructs an `InstrumentationScope(name, Some(version))` internally when `version` is non-empty, and `InstrumentationScope(name, None)` when `version` is the empty string default. Both forms stamp the scope into every `SpanData` the tracer produces.
 
-## Key Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `name: String` | Required | Reverse-DNS name of the instrumented library or component, e.g. `"com.example.payments"`. |
-| `version: Option[String]` | Optional | Semantic version string of the instrumentation, e.g. `Some("1.2.3")`. `None` when no version is declared. |
-| `attributes: Attributes` | Optional | Additional metadata about the scope. Defaults to `Attributes.empty`. |
 
 :::tip
 Use a reverse-DNS name (`com.example.mylib`) for the scope `name` rather than a human-readable label. Telemetry backends index by scope name and version, so a consistent naming convention makes it easy to correlate signals across service deployments and library upgrades.
