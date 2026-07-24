@@ -12,7 +12,7 @@ keywords:
   - "Zero-Setup Metrics"
 ---
 
-`metric` is the global metrics entry point for the ZIO Blocks Telemetry module — a singleton you import and call directly, with no instantiation or injection. Backed by a default `MeterProvider` out of the box, it creates `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` instruments on a shared `"default"` `Meter`. Call `metric.install` once at application startup to replace the default provider with one that exports to a real backend; until then, all measurements are accumulated in memory and readable via `metric.reader`.
+`metric` is the global metrics entry point for the ZIO Blocks Telemetry module — a singleton you import and call directly to create instruments (`Counter`, `UpDownCounter`, `Histogram`, `Gauge`), record measurements, and export them to a monitoring backend. 
 
 Its public API groups into four categories:
 
