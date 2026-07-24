@@ -188,32 +188,6 @@ val data = metric.reader.read()
 // data contains a MetricData entry for "cache.hits" with cumulative sum 10
 ```
 
-## Comparisons
-
-### `metric` vs. `MeterProvider` / `Meter`
-
-The three types form a hierarchy. `metric` is the root global singleton; `MeterProvider` manages a fleet of named `Meter` instances; `Meter` builds individual instruments.
-
-| Aspect | `metric` | `MeterProvider` | `Meter` |
-|---|---|---|---|
-| Scope | Process-global singleton | Configurable factory | Per-library instruments |
-| Typical user | Application code | Bootstrap / test code | Library code |
-| Setup required | None | Yes — exporter/reader | Obtained from provider |
-| Thread safety | `AtomicReference` on provider | Immutable after build | Instrument state is thread-safe |
-
-### `metric` vs. OpenTelemetry Java SDK `GlobalOpenTelemetry`
-
-Both provide a process-global entry point for metrics, but they differ in ergonomics and dependency footprint.
-
-| Aspect | `metric` | OTel Java SDK `GlobalOpenTelemetry` |
-|---|---|---|
-| Zero-setup default | In-memory accumulation; readable immediately | No-op until an SDK `MeterProvider` is registered |
-| Effect system dependency | None — purely synchronous | None |
-| External dependencies | Zero — pure Scala, no OTel API jar | Requires `opentelemetry-api` on the classpath |
-| Labeled instruments | `labeledCounter` / `labeledHistogram` / `labeledGauge` | `LongCounter.add(value, Attributes)` |
-
-The `metric` singleton mirrors OpenTelemetry concepts and naming conventions closely enough that knowledge of the OTel specification transfers directly. The principal practical difference is the zero-setup default: where the OTel Java SDK silently drops all measurements until a `MeterProvider` is installed, `metric` accumulates every measurement from the first call and makes them readable via `metric.reader`.
-
 ## See Also
 
 - [Telemetry Reference](./index.md) — Module overview and all three signal pillars (tracing, logging, metrics)
