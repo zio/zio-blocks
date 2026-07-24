@@ -405,32 +405,3 @@ log.clearAllOverrides()                                // or remove every overri
 :::note
 Prefix matching uses `String#startsWith`, not glob or regex — `"com.example"` matches both `com.example.Foo` and `com.example.util.Bar`.
 :::
-
-## Comparison
-
-### vs SLF4J / Logback
-
-SLF4J and Logback are the most widely deployed Java logging stack. The table below contrasts them with `log` on the dimensions most relevant to performance-sensitive Scala applications:
-
-| Dimension              | SLF4J / Logback                                               | `log`                                                                  |
-|------------------------|---------------------------------------------------------------|------------------------------------------------------------------------|
-| Source location        | Stack-walking at runtime (expensive, optional)                | Compile-time macro injection — zero runtime cost                       |
-| Severity levels        | 5 (`TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR`)            | 24 fine-grained levels in 6 categories                                 |
-| Contextual data        | Thread-local MDC (`String` → `String`)                        | Typed enrichments (`String`, `Long`, `Double`, `Boolean`) + MDC-style annotations |
-| Fast-path cost         | Logger-name lookup in `LoggerFactory`, then level check       | Single integer comparison against a volatile `Int`                     |
-| Backend configuration  | `logback.xml` / `logback-groovy` at startup                   | Programmatic, hot-reloadable via `log.writer` / `log.addProcessor`     |
-| Dependency             | SLF4J API + Logback Classic (~500 KB combined)                | `zio-blocks-telemetry` only, zero transitive dependencies              |
-
-The MDC equivalent in `log` is `log.annotated`, which is scoped to a lexical block rather than a thread-local map that must be manually cleared.
-
-### vs java.util.logging (JUL)
-
-`java.util.logging` is the standard JDK logging API. Its `Logger.log(Level, String)` allocates a `LogRecord` object on every call — even when the logger is disabled — unless the caller guards with `isLoggable`. `log` avoids this allocation by checking the global minimum severity as a raw `Int` comparison before any work begins, and by passing raw primitives directly to the formatter's `StringBuilder` rather than wrapping them in a `LogRecord` first.
-
-| Dimension          | java.util.logging                                          | `log`                                                             |
-|--------------------|------------------------------------------------------------|-------------------------------------------------------------------|
-| Allocation on call | `new LogRecord(...)` before level check (unless guarded)   | Zero allocation below global min-severity threshold               |
-| Structured data    | Not supported — message is a `String`                      | First-class typed key/value attributes on every record            |
-| Source location    | `LogRecord` infers caller via stack inspection             | Compile-time macro — no stack inspection                          |
-| Configuration      | `logging.properties` file or JMX                          | Programmatic, in-process                                          |
-| OTLP / OTel        | Not supported without a handler bridge                     | Native OTLP JSON export via `zio-blocks-telemetry-otel`           |
