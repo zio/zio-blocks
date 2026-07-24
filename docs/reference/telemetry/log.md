@@ -258,9 +258,9 @@ log.info("user authenticated", attrs)
 
 When the same log call sits in a hot path, two families throttle it — both keyed to the call site (see the caution below). Choose by how you want to limit: **Every-N** caps by invocation count, **Time-Window** caps by elapsed time.
 
-#### Every-N — `traceEvery` / `debugEvery` / `infoEvery` / `warnEvery` / `errorEvery` / `fatalEvery`
+#### Every-N
 
-The every-N family limits emission to at most once every `every` invocations of the same call site. Each method takes the sampling integer `every` as its first argument, followed by the message and any enrichments, with the same macro-expansion guarantee as the basic methods:
+The every-N family — `traceEvery`, `debugEvery`, `infoEvery`, `warnEvery`, `errorEvery`, `fatalEvery` — limits emission to at most once every `every` invocations of the same call site. Each method takes the sampling integer `every` as its first argument, followed by the message and any enrichments, with the same macro-expansion guarantee as the basic methods:
 
 ```scala
 trait LogVersionSpecific { self: log.type =>
@@ -283,9 +283,9 @@ while (true) {
 }
 ```
 
-#### Time-Window — `traceAtMost` / `debugAtMost` / `infoAtMost` / `warnAtMost` / `errorAtMost` / `fatalAtMost`
+#### Time-Window
 
-The time-window family limits emission to at most once per `intervalMillis` milliseconds from the same call site, regardless of how many times the surrounding code runs. Each method takes the interval in milliseconds as its first argument, followed by the message and enrichments:
+The time-window family — `traceAtMost`, `debugAtMost`, `infoAtMost`, `warnAtMost`, `errorAtMost`, `fatalAtMost` — limits emission to at most once per `intervalMillis` milliseconds from the same call site, regardless of how many times the surrounding code runs. Each method takes the interval in milliseconds as its first argument, followed by the message and enrichments:
 
 ```scala
 trait LogVersionSpecific { self: log.type =>
@@ -309,7 +309,7 @@ def executeQuery(sql: String): Unit = {
 ```
 
 :::note
-The time window uses `System.currentTimeMillis()` with millisecond precision. Very short intervals (< 10 ms) may behave inconsistently on platforms with coarse system clocks.
+The time window uses `System.currentTimeMillis()`, whose granularity depends on the platform's system clock — often coarser than 1 ms. Because the clock advances in discrete ticks, calls within one tick read the same value, so the elapsed-time check can see zero (over-suppressing) and then jump a whole tick at once (letting a burst through). Intervals near or below that granularity therefore behave inconsistently — prefer intervals comfortably above that threshold (e.g., 10–20 ms) for more predictable suppression.
 :::
 
 :::caution
@@ -320,11 +320,7 @@ Two different call sites can collide onto one slot — either because their hash
 
 ### Annotations
 
-This category provides `log.annotated`, the mechanism for attaching contextual key/value pairs to every record emitted within a lexical scope.
-
-#### `annotated` — Attach scoped key/value annotations
-
-`log.annotated` stores the given `(String, String)` pairs in thread-local state and merges them into the `Attributes` of every record emitted inside the block `f`. When the block exits — normally or by exception — the annotations are removed via the thread-local scope:
+`log.annotated` attaches contextual key/value pairs to every record emitted within a lexical scope. It stores the given `(String, String)` pairs in thread-local state and merges them into the `Attributes` of every record emitted inside the block `f`; when the block exits — normally or by exception — the annotations are removed via the thread-local scope:
 
 ```scala
 object log {
