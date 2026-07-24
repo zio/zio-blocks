@@ -364,8 +364,17 @@ val result = log.withMinSeverity(Severity.Debug) {
 // previous floor restored here
 ```
 
+:::note
+`setMinSeverity(severity)` also clears every per-package override — it reinstalls the backend with a fresh, empty override map. Set the global floor first, then add per-package overrides, not the other way around.
+:::
+
 :::caution
-`withMinSeverity` modifies global state — other threads logging concurrently observe the temporary floor during the window. For thread-isolated control, use per-package overrides.
+The severity floor is a single setting shared by the whole program. `withMinSeverity` changes it for the duration of your block, then puts the old value back when the block finishes. Two things to watch:
+
+- **It is not private to your thread.** While your block runs, every other thread that logs sees the changed floor too.
+- **The restore can undo someone else's change.** When your block ends, it writes back the value it saw when it *started*. If another thread — or a nested `withMinSeverity` — changed the floor in between, that change is overwritten and lost.
+
+So use `withMinSeverity` only when nothing else is logging at the same time, such as a single-threaded script or an isolated test. To lower verbosity for one part of a running app without disturbing the rest, use a per-package override instead: it targets code by its package name and leaves the shared floor untouched.
 :::
 
 #### Per-package overrides
