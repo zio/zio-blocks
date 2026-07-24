@@ -41,13 +41,28 @@ final class Meter {
 }
 ```
 
-Every builder supports three methods:
+Each factory returns a builder with the same fluent interface — shown here for `CounterBuilder`; the others mirror it, returning their own builder and instrument types:
 
-- `setDescription(text)` — attach a human-readable description of the instrument.
-- `setUnit(unit)` — set the unit of measure (for example, `"ms"` or `"bytes"`). Use `"1"` for dimensionless values such as a plain count or a ratio.
-- `build()` — create the instrument and register it with the `Meter`.
+```scala
+final class CounterBuilder {
+  def setDescription(desc: String): CounterBuilder
+  def setUnit(u: String): CounterBuilder
+  def build(): Counter
+  def buildWithCallback(callback: ObservableCallback => Unit): ObservableCounter
+}
+```
 
-The counter, up-down counter, and gauge builders also offer `buildWithCallback(callback)` for observable (push-style) instruments.
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val meter: Meter = metric.get("com.example")
+val requests: Counter = meter.counterBuilder("http.requests")
+  .setDescription("Total HTTP requests")
+  .setUnit("1")
+  .build()
+```
+
+`setDescription` and `setUnit` attach exporter-facing **metadata** — a documentation string and a UCUM unit like `"ms"`, `"bytes"`, or `"1"` (dimensionless). Both are descriptive only (they never scale or validate recorded values), and each returns the builder so calls chain. `build()` then creates the instrument and registers it with the `Meter`, so a `MetricReader` includes it in `collectAllMetrics()`. The counter, up-down counter, and gauge builders also offer `buildWithCallback`, which produces a **pull-style observable** instrument — instead of calling `add`/`record`, you supply a callback the SDK invokes at collection time to read the current value; `HistogramBuilder` has no such method.
 
 ## Instruments
 
