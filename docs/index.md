@@ -880,9 +880,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 **Metrics Support**
 - [MetricData](./reference/telemetry/metric-data.md) - Snapshot of a metric instrument's collected data
-- [LabeledCounter](./reference/telemetry/labeled-counter.md) - Counter reading labeled with its attribute set
-- [LabeledHistogram](./reference/telemetry/labeled-histogram.md) - Histogram reading labeled with its attribute set
-- [LabeledGauge](./reference/telemetry/labeled-gauge.md) - Gauge reading labeled with its attribute set
 
 ### Other Blocks
 

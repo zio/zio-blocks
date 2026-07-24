@@ -141,9 +141,7 @@ The logging pillar has some additional supporting types that appear when buildin
 The metrics pillar has some additional supporting types that appear when building custom readers, exporters, or advanced configurations:
 
 - [**`MetricData`**](./metric-data.md) is the sealed trait for aggregated metric snapshots. Its three variants — `SumData`, `HistogramData`, and `GaugeData` — are returned by `MetricReader#collectAllMetrics` and are the output of `Counter#collect`, `Histogram#collect`, and `Gauge#collect` respectively.
-- [**`LabeledCounter`**](./labeled-counter.md) wraps a `Counter` with pre-declared label names and validates label-value arity at runtime. It is created via `Meter#labeledCounter` and lets callers record values with positional string values rather than constructing `Attributes` manually.
-- [**`LabeledHistogram`**](./labeled-histogram.md) wraps a `Histogram` with the same pre-declared-label pattern as `LabeledCounter`. Create one with `Meter#labeledHistogram` and record values with `LabeledHistogram#record`.
-- [**`LabeledGauge`**](./labeled-gauge.md) wraps a `Gauge` with pre-declared label names. Create one with `Meter#labeledGauge` for gauge instruments whose dimensions are fixed at construction time.
+- **Labeled instruments** — `LabeledCounter`, `LabeledHistogram`, and `LabeledGauge` wrap a base instrument with pre-declared label names, so callers pass label values positionally instead of building `Attributes` by hand. They are created via `Meter#labeledCounter` / `labeledHistogram` / `labeledGauge` and documented in the [Meter](./meter.md) reference.
 
 ## How They Work Together
 

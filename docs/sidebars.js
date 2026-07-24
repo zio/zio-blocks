@@ -306,9 +306,6 @@ const sidebars = {
                 collapsed: false,
                 items: [
                   "reference/telemetry/metric-data",
-                  "reference/telemetry/labeled-counter",
-                  "reference/telemetry/labeled-histogram",
-                  "reference/telemetry/labeled-gauge",
                 ]
               },
             ]
