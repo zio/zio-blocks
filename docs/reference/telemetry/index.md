@@ -58,7 +58,15 @@ The whole module shares a common vocabulary of typed key-value pairs, resource d
 
 ## How They Work Together
 
-The three pillars share a structural pattern — a global singleton wraps a provider that is a factory for scope-bound signal emitters — and two shared concerns cross pillar boundaries: the `Attributes`-based vocabulary and the `ContextStorage` that connects tracing to logging.
+The three pillars share a structural pattern — a zero-config **global singleton** wraps a **provider** (built once at startup, owning the export pipeline) that is a factory for **scope-bound signal emitters** (one per instrumentation scope, producing the actual signals):
+
+| Layer                                  | Tracing           | Logging                | Metrics               |
+|----------------------------------------|-------------------|------------------------|-----------------------|
+| Global singleton                       | `trace`           | `log`                  | `metric`              |
+| Provider (factory, owns pipeline)      | `TracerProvider`  | `LoggerProvider`       | `MeterProvider`       |
+| Scope-bound emitter (produces signals) | `Tracer` → `Span` | `Logger` → `LogRecord` | `Meter` → instruments |
+
+Two concerns cross pillar boundaries: the `Attributes`-based vocabulary describes signals in all three pillars, and a shared `ContextStorage` holding the active `SpanContext` connects tracing to logging (so log records carry the active span's IDs — metrics is not involved).
 
 The typical workflow for a production-configured application proceeds in four steps:
 
