@@ -78,38 +78,6 @@ Out of the box you can just call `trace`, `log`, and `metric` and read the resul
 3. **Emit — instrument your code.** This is the only part most code touches: wrap work in `trace.span("...") { ... }`, write logs with `log.info(...)`/`log.error(...)`, and record measurements with `counter.add(...)`, `histogram.record(...)`, or `gauge.record(...)`. Because installation happened behind the global objects, these calls are identical whether you configured a backend or not.
 4. **Collect — get the data out.** Traces and logs are *pushed*: as each span finishes it is handed to the exporter automatically. Metrics are *pulled*: nothing leaves until something calls `metric.reader.collectAllMetrics()`, which takes a snapshot of every instrument's current values (a monitoring system typically calls this on a timer).
 
-The relationships and data flows among the types are shown below:
-
-```
-  Shared Vocabulary
-  ┌──────────────────────────────────────────────────────────────────┐
-  │  Attributes · AttributeKey · Resource · InstrumentationScope     │
-  └──────────────────────────────────────────────────────────────────┘
-         │ stamped into every Span, LogRecord, and MetricData
-
-  TRACING PILLAR                  LOGGING PILLAR                METRICS PILLAR
-  ──────────────────────          ───────────────────────       ─────────────────────────
-  trace (global)                  log (global)                  metric (global)
-    │ wraps                         │ wraps                       │ wraps
-  TracerProvider                  LoggerProvider                MeterProvider
-    │ creates                        │ creates                     │ creates
-  Tracer ──────────────────────► Logger                          Meter
-    │ consults                    │ reads SpanContext              │ creates
-  Sampler          ContextStorage[Option[SpanContext]]          Counter
-    │ creates       (shared by both providers)                  Histogram
-  Span                             │ emits                       Gauge
-    │ notifies                   LogRecord ─────────────────► UpDownCounter
-  SpanProcessor                    │ fans out to
-    │ snapshots                  LogRecordProcessor
-  SpanData                         │ formatted by
-                                 LogFormatter
-                                                               reader
-  trace.collectedSpans             log.annotated              metric.reader
-  (test / dev)                     (scoped context)           .collectAllMetrics()
-                                                                 │ yields
-                                                               MetricData
-```
-
 **Tracing data flow:** `trace.span("name") { span => … }` delegates to `Tracer#span`, which consults the `Sampler`. If the decision is `RecordAndSample`, the tracer creates a `RecordingSpan` via `SpanBuilder`, calls `SpanProcessor#onStart`, scopes the new `SpanContext` into `ContextStorage`, runs the user block, calls `span.end()`, snapshots all data into `SpanData`, and calls `SpanProcessor#onEnd`. If the decision is `Drop`, the tracer substitutes `Span.NoOp` — the user block runs with zero overhead for span management.
 
 **Logging data flow:** A macro-generated `log.info(…)` call checks `GlobalLogState.globalMinLevel` and any per-namespace level override. If the record passes, the macro adds `code.*` attributes at the call site, merges any active `LogAnnotations`, reads the current `SpanContext` from `ContextStorage`, and dispatches to the `Logger`'s emitter. When exactly one `ConsoleLogRecordProcessor` is configured, `Logger` selects the `FormattedLogEmitter` fast path that formats directly from builder arrays without constructing a `LogRecord` object.
