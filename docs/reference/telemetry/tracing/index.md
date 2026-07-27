@@ -67,11 +67,6 @@ trace
 
 The `TracerProvider` reference is held in a `java.util.concurrent.atomic.AtomicReference`, making it safe to replace exactly once at startup. App code calls `trace` directly; library code should accept a `Tracer` parameter obtained via `trace.get` so it remains independent of the global singleton.
 
-- **Zero-setup** — an `InMemorySpanProcessor` is wired before the first call; no configuration is required.
-- **Thread-safe** — the `TracerProvider` reference is stored in an `AtomicReference`.
-- **Global singleton** — `trace.install` and `trace.removeAll` mutate shared state; call each at most once at startup.
-- **Delegates lifecycle** — `trace` never manages span state directly; it delegates to `TracerProvider`, `Tracer`, and `Span`.
-
 ## Usage
 
 The following example shows the core workflow in one place: wrap work in `trace.span`, enrich the live span with attributes, then inspect the completed span via `trace.collectedSpans`:
