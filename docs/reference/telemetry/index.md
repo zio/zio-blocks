@@ -51,17 +51,7 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 
 Use `%%%` for cross-platform (JVM + Scala.js) projects. For JVM-only projects, `%%` also works. No further configuration is needed to start using the global API.
 
-## Overview
-
-The module is organized into three signal **pillars** plus a shared vocabulary. Each pillar has its own reference page that introduces the pillar, its types, and how they compose — this section is only a map.
-
-- **[Tracing](./tracing/index.md)** — causal spans of work. Entry point: the global `trace` object; core types `TracerProvider`, `Tracer`, `Span`.
-- **[Logging](./logging/index.md)** — structured, trace-correlated log records with compile-time source location. Entry point: the global `log` object; core types `LoggerProvider`, `Logger`.
-- **[Metrics](./metrics/index.md)** — counters, histograms, and gauges. Entry point: the global `metric` object; core types `MeterProvider`, `Meter`.
-
-All three work with no configuration (in-memory by default) and share the vocabulary below.
-
-### Shared Vocabulary
+## Shared Vocabulary
 
 The whole module shares a common vocabulary of typed key-value pairs, resource descriptors, and instrumentation scope identifiers. These types are used in all three pillars to describe the entity producing telemetry, the library or component that produced a signal, and the attributes associated with each signal.
 
