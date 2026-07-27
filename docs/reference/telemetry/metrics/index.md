@@ -16,12 +16,12 @@ The **metrics** pillar records measurements through instruments — counters, up
 
 ## Types in this pillar
 
-**Core**
+**Producing metrics**
 - [`metric`](#the-metric-object) — global entry point; documented below.
 - [`MeterProvider`](./meter-provider.md) — builds and dedupes `Meter`s by scope; owns the shared `MetricReader`.
 - [`Meter`](./meter.md) — the instrument factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments (and their labeled variants).
 
-**Support**
+**Collected data**
 - [`MetricData`](./metric-data.md) — the aggregated snapshot a `MetricReader` collects (`SumData` / `HistogramData` / `GaugeData`).
 
 ## The `metric` object
