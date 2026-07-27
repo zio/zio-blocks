@@ -15,17 +15,19 @@ The **logging** pillar emits structured, trace-correlated log records with compi
 
 ## Types in this pillar
 
-**Core**
+**Emitting logs**
 - [`log`](#the-log-object) — global entry point; documented below.
 - [`LoggerProvider`](./logger-provider.md) — factory for `Logger`s; holds the shared processor array, resource, and context storage.
 - [`Logger`](./logger.md) — emits records within one instrumentation scope through the processor chain.
 
-**Support**
+**Records and enrichment**
 - [`LogRecord`](./log-record.md) — the immutable record a log call produces (body, severity, attributes, trace-correlation fields).
+- [`LogEnrichment`](./log-enrichment.md) — typeclass letting a call mix `Throwable`, `String`, `Attributes`, and `(String, V)` enrichments.
+
+**Processing, formatting, and severity**
 - [`LogRecordProcessor`](./log-record-processor.md) — receives each record; implement it to export to a backend.
 - [`LogFormatter`](./log-formatter.md) — renders a record to human-readable text or OTLP JSON.
 - [`Severity`](./severity.md) — the 24-level severity scale.
-- [`LogEnrichment`](./log-enrichment.md) — typeclass letting a call mix `Throwable`, `String`, `Attributes`, and `(String, V)` enrichments.
 
 ## The `log` object
 
