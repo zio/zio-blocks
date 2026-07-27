@@ -47,6 +47,12 @@ libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 
 Use `%%%` for cross-platform (JVM + Scala.js) projects. For JVM-only projects, `%%` also works. No further configuration is needed to start using the global API.
 
+To export to an OpenTelemetry backend (OTLP), add the JVM-only companion module:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
+```
+
 ## Shared Vocabulary
 
 The whole module shares a common vocabulary of typed key-value pairs, resource descriptors, and instrumentation scope identifiers. These types are used in all three pillars to describe the entity producing telemetry, the library or component that produced a signal, and the attributes associated with each signal.
