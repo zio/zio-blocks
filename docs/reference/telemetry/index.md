@@ -223,7 +223,7 @@ while (running) {
 
 `Meter#labeledCounter`, `Meter#labeledHistogram`, and `Meter#labeledGauge` declare label names once at instrument creation and accept positional label values when recording. This mirrors the Prometheus / OpenMetrics pattern and avoids constructing `Attributes` at each record site:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val meter    = metric.get("com.example.http")
