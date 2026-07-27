@@ -15,17 +15,19 @@ The **tracing** pillar records causal [`Span`](./span.md)s of work across a requ
 
 ## Types in this pillar
 
-**Core**
+**Creating spans**
 - [`trace`](#the-trace-object) — global entry point; documented below.
 - [`TracerProvider`](./tracer-provider.md) — factory for `Tracer`s; holds the shared sampler, processor chain, resource, and context storage.
 - [`Tracer`](./tracer.md) — creates spans within one instrumentation scope.
-- [`Span`](./span.md) — a mutable, thread-safe unit of work: attributes, events, links, status.
 
-**Support**
+**Spans and their data**
+- [`Span`](./span.md) — a mutable, thread-safe unit of work: attributes, events, links, status.
 - [`SpanContext`](./span-context.md) — the propagatable trace/span identity carried across boundaries.
 - [`SpanData`](./span-data.md) — the immutable snapshot a finished span exports.
-- [`SpanProcessor`](./span-processor.md) — the `onStart`/`onEnd` hook; implement it to export spans.
+
+**Sampling and export**
 - [`Sampler`](./sampler.md) — the policy deciding which spans are recorded.
+- [`SpanProcessor`](./span-processor.md) — the `onStart`/`onEnd` hook; implement it to export spans.
 
 ## The `trace` object
 
