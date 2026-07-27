@@ -68,12 +68,12 @@ The three pillars share a structural pattern — a zero-config **global singleto
 
 Two concerns cross pillar boundaries: the `Attributes`-based vocabulary describes signals in all three pillars, and a shared `ContextStorage` holding the active `SpanContext` connects tracing to logging (so log records carry the active span's IDs — metrics is not involved).
 
-The typical workflow for a production-configured application proceeds in four steps:
+Out of the box you can just call `trace`, `log`, and `metric` and read the results back in memory — that is all a test or a quick script needs. To send telemetry to a real monitoring system in production, you do a little setup once at startup, and then the rest of your code stays exactly the same. There are four stages:
 
-1. **Configure** a `Resource` describing the service and build providers for each pillar, passing the same `ContextStorage` instance to `TracerProvider` and `LoggerProvider` so spans and log records are correlated automatically.
-2. **Install** into the global singletons at application startup: `trace.install(provider)` and `metric.install(provider)` take the provider directly, while `log.install(logger)` takes a `Logger` obtained from `LoggerProvider.get`.
-3. **Emit** signals from application and library code using `trace.span`, the severity methods on `log`, and `Counter#add` / `Histogram#record` / `Gauge#record` on instruments obtained from `metric`.
-4. **Collect** when ready: `SpanProcessor.onEnd` ships spans eagerly; `metric.reader.collectAllMetrics()` pulls a snapshot of all registered instruments on demand.
+1. **Configure — describe your service and how telemetry leaves the process.** Create a `Resource` (a small bundle of facts about *what* is producing the telemetry: service name, version, host). Then build one *provider* per pillar (`TracerProvider`, `LoggerProvider`, `MeterProvider`) — a provider is the object that knows where signals should go (which exporter, sampler, etc.). Give the **same** `ContextStorage` to the tracing and logging providers: this shared box holds "the span that is currently running", which is how a log message can automatically know which trace it belongs to.
+2. **Install — make those providers the global default.** At startup, hand each provider to its global object so every later `trace`/`log`/`metric` call uses your production setup instead of the in-memory default: `trace.install(provider)` and `metric.install(provider)` take the provider directly; logging installs a `Logger` you get from `loggerProvider.get(...)` via `log.install(logger)`.
+3. **Emit — instrument your code.** This is the only part most code touches: wrap work in `trace.span("...") { ... }`, write logs with `log.info(...)`/`log.error(...)`, and record measurements with `counter.add(...)`, `histogram.record(...)`, or `gauge.record(...)`. Because installation happened behind the global objects, these calls are identical whether you configured a backend or not.
+4. **Collect — get the data out.** Traces and logs are *pushed*: as each span finishes it is handed to the exporter automatically. Metrics are *pulled*: nothing leaves until something calls `metric.reader.collectAllMetrics()`, which takes a snapshot of every instrument's current values (a monitoring system typically calls this on a timer).
 
 The relationships and data flows among the types are shown below:
 
