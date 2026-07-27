@@ -18,7 +18,7 @@ The telemetry module is a zero-dependency, OpenTelemetry-aligned observability s
 - **[Logging](./logging/index.md)** — structured, timestamped records of discrete events.
 - **[Metrics](./metrics/index.md)** — numeric measurements aggregated over time, such as counters and latency histograms.
 
-"OpenTelemetry-aligned" means the data model and naming follow the OpenTelemetry specification, so signals map cleanly onto OTLP exporters and familiar backends — but without pulling in the OpenTelemetry SDK or any effect-system dependency.
+"OpenTelemetry-aligned" means the data model and naming follow the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/), so signals map cleanly onto OTLP exporters and familiar backends — but without pulling in the OpenTelemetry SDK or any effect-system dependency.
 
 Each pillar has a **global singleton** — `trace`, `log`, and `metric` — that you import and call directly. These need no setup: by default they keep spans and records **in-memory**, so instrumentation works immediately in tests and development. When you are ready for production, the **provider/builder API** ([`TracerProvider`](./tracing/tracer-provider.md), [`LoggerProvider`](./logging/logger-provider.md), [`MeterProvider`](./metrics/meter-provider.md)) lets you wire real export pipelines — custom exporters, samplers, and processors — and install them behind the same global entry points, so instrumentation code never changes.
 
