@@ -226,40 +226,43 @@ const sidebars = {
             items: [
               {
                 type: "category",
-                label: "Global Entry Points",
-                collapsed: false,
-                items: [
-                  "reference/telemetry/trace",
-                  "reference/telemetry/log",
-                  "reference/telemetry/metric",
-                ]
-              },
-              {
-                type: "category",
                 label: "Tracing",
+                link: { type: "doc", id: "reference/telemetry/tracing/index" },
                 collapsed: false,
                 items: [
-                  "reference/telemetry/tracer-provider",
-                  "reference/telemetry/tracer",
-                  "reference/telemetry/span",
+                  "reference/telemetry/tracing/tracer-provider",
+                  "reference/telemetry/tracing/tracer",
+                  "reference/telemetry/tracing/span",
+                  "reference/telemetry/tracing/span-context",
+                  "reference/telemetry/tracing/span-data",
+                  "reference/telemetry/tracing/span-processor",
+                  "reference/telemetry/tracing/sampler",
                 ]
               },
               {
                 type: "category",
                 label: "Logging",
+                link: { type: "doc", id: "reference/telemetry/logging/index" },
                 collapsed: false,
                 items: [
-                  "reference/telemetry/logger-provider",
-                  "reference/telemetry/logger",
+                  "reference/telemetry/logging/logger-provider",
+                  "reference/telemetry/logging/logger",
+                  "reference/telemetry/logging/log-record",
+                  "reference/telemetry/logging/log-record-processor",
+                  "reference/telemetry/logging/log-formatter",
+                  "reference/telemetry/logging/severity",
+                  "reference/telemetry/logging/log-enrichment",
                 ]
               },
               {
                 type: "category",
                 label: "Metrics",
+                link: { type: "doc", id: "reference/telemetry/metrics/index" },
                 collapsed: false,
                 items: [
-                  "reference/telemetry/meter-provider",
-                  "reference/telemetry/meter",
+                  "reference/telemetry/metrics/meter-provider",
+                  "reference/telemetry/metrics/meter",
+                  "reference/telemetry/metrics/metric-data",
                 ]
               },
               {
@@ -271,37 +274,6 @@ const sidebars = {
                   "reference/telemetry/attribute-key",
                   "reference/telemetry/resource",
                   "reference/telemetry/instrumentation-scope",
-                ]
-              },
-              {
-                type: "category",
-                label: "Tracing Support",
-                collapsed: false,
-                items: [
-                  "reference/telemetry/span-context",
-                  "reference/telemetry/span-data",
-                  "reference/telemetry/span-processor",
-                  "reference/telemetry/sampler",
-                ]
-              },
-              {
-                type: "category",
-                label: "Logging Support",
-                collapsed: false,
-                items: [
-                  "reference/telemetry/log-record",
-                  "reference/telemetry/log-record-processor",
-                  "reference/telemetry/log-formatter",
-                  "reference/telemetry/severity",
-                  "reference/telemetry/log-enrichment",
-                ]
-              },
-              {
-                type: "category",
-                label: "Metrics Support",
-                collapsed: false,
-                items: [
-                  "reference/telemetry/metric-data",
                 ]
               },
             ]

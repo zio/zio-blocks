@@ -9,9 +9,9 @@ keywords:
   - "MeterProvider"
 ---
 
-A `Meter` creates metric instruments — counters, up/down counters, histograms, and gauges — for one part of your application. Its name (an [`InstrumentationScope`](./instrumentation-scope.md)) identifies the source, keeping measurements grouped.
+A `Meter` creates metric instruments — counters, up/down counters, histograms, and gauges — for one part of your application. Its name (an [`InstrumentationScope`](../instrumentation-scope.md)) identifies the source, keeping measurements grouped.
 
-Get a `Meter` from [`MeterProvider#get`](./meter-provider.md) or the global [`metric.get`](./metric.md) shortcut.
+Get a `Meter` from [`MeterProvider#get`](./meter-provider.md) or the global [`metric.get`](./index.md) shortcut.
 
 ## Usage
 

@@ -1,16 +1,30 @@
 ---
-id: metric
-title: "metric"
-description: "Reference for the `metric` global metrics singleton — counter, histogram, gauge creation, and MeterProvider configuration."
+id: index
+title: "Metrics"
+description: "The metrics pillar of ZIO Blocks Telemetry — the global metric object for creating instruments and collecting snapshots, plus MeterProvider configuration."
 keywords:
+  - "metrics"
   - "Global Metrics Entry Point"
   - "Counter Creation"
   - "Histogram Creation"
   - "Gauge Creation"
   - "MeterProvider Configuration"
-  - "UpDownCounter"
   - "Zero-Setup Metrics"
 ---
+
+The **metrics** pillar records measurements through instruments — counters, up/down counters, histograms, and gauges. A [`MeterProvider`](./meter-provider.md) builds [`Meter`](./meter.md)s (one per instrumentation scope, deduplicated), each `Meter` creates the instruments your code records into, and the provider's single `MetricReader` collects aggregated [`MetricData`](./metric-data.md) snapshots from all of them. Most code never touches the provider directly — it calls the global `metric` object, which wraps a default `MeterProvider`.
+
+## Types in this pillar
+
+**Core**
+- [`metric`](#the-metric-object) — global entry point; documented below.
+- [`MeterProvider`](./meter-provider.md) — builds and dedupes `Meter`s by scope; owns the shared `MetricReader`.
+- [`Meter`](./meter.md) — the instrument factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments (and their labeled variants).
+
+**Support**
+- [`MetricData`](./metric-data.md) — the aggregated snapshot a `MetricReader` collects (`SumData` / `HistogramData` / `GaugeData`).
+
+## The `metric` object
 
 `metric` is the global metrics entry point for the ZIO Blocks Telemetry module — a singleton you import and call directly to create instruments (`Counter`, `UpDownCounter`, `Histogram`, `Gauge`), record measurements, and export them to a monitoring backend. 
 
@@ -190,8 +204,5 @@ val data = metric.reader.read()
 
 ## See Also
 
-- [Telemetry Reference](./index.md) — Module overview and all three signal pillars (tracing, logging, metrics)
-- [MeterProvider](./meter-provider.md) — Factory for `Meter` instances; configure once at startup to wire exporters
-- [Meter](./meter.md) — Per-library scope-bound metric factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments. Prefer over `metric` in library code
-- [MetricData](./metric-data.md) — Snapshot of a metric instrument's collected data
-- [Telemetry Guide](../../guides/telemetry-guide.md) — Architecture and real-world patterns for the telemetry module
+- [Telemetry Reference](../index.md) — module overview and all three signal pillars.
+- [Telemetry Guide](../../../guides/telemetry-guide.md) — architecture and real-world patterns.

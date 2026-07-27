@@ -17,7 +17,7 @@ keywords:
 - **Immutable after construction** — all settings are fixed when `build()` is called; no field can be mutated at runtime.
 - **Builder pattern** — the primary constructor is package-private; `LoggerProvider.builder` is the only public entry point.
 - **`AutoCloseable`** — `close()` delegates to `shutdown()`, so a provider can be managed with `scala.util.Using.resource` or a JVM shutdown hook.
-- **Trace-context-aware** — the same `ContextStorage[Option[SpanContext]]` can be shared with [`TracerProvider`](./tracer-provider.md) so every log record carries the active span's trace and span IDs automatically.
+- **Trace-context-aware** — the same `ContextStorage[Option[SpanContext]]` can be shared with [`TracerProvider`](../tracing/tracer-provider.md) so every log record carries the active span's trace and span IDs automatically.
 
 The public surface of `LoggerProvider` and its companion builder is:
 

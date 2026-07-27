@@ -12,7 +12,17 @@ keywords:
   - "Attributes parallel arrays"
 ---
 
-The telemetry module provides a zero-dependency, OpenTelemetry-aligned observability stack covering the three standard pillars: tracing, logging, and metrics. Three global singletons — `trace`, `log`, and `metric` — work without any configuration and keep spans and log records in-memory by default; the full provider and builder API ([`TracerProvider`](./tracer-provider.md), [`LoggerProvider`](./logger-provider.md), [`MeterProvider`](./meter-provider.md)) supports production wiring with custom exporters, samplers, and processors. A shared attribute vocabulary — [`Attributes`](./attributes.md), [`AttributeKey`](./attribute-key.md), [`Resource`](./resource.md), and [`InstrumentationScope`](./instrumentation-scope.md) — is reused across all three pillars, and a shared `ContextStorage[Option[`[`SpanContext`](./span-context.md)`]]` enables automatic trace-log correlation so every log record emitted inside a span carries the span's trace and span IDs.
+The telemetry module is a zero-dependency, OpenTelemetry-aligned observability stack. It covers the **three standard pillars** of observability:
+
+- **[Tracing](./tracing/index.md)** — the causal path of a request through your system, recorded as nested spans.
+- **[Logging](./logging/index.md)** — structured, timestamped records of discrete events.
+- **[Metrics](./metrics/index.md)** — numeric measurements aggregated over time, such as counters and latency histograms.
+
+"OpenTelemetry-aligned" means the data model and naming follow the OpenTelemetry specification, so signals map cleanly onto OTLP exporters and familiar backends — but without pulling in the OpenTelemetry SDK or any effect-system dependency.
+
+Each pillar has a **global singleton** — `trace`, `log`, and `metric` — that you import and call directly. These need no setup: by default they keep spans and records **in-memory**, so instrumentation works immediately in tests and development. When you are ready for production, the **provider/builder API** ([`TracerProvider`](./tracing/tracer-provider.md), [`LoggerProvider`](./logging/logger-provider.md), [`MeterProvider`](./metrics/meter-provider.md)) lets you wire real export pipelines — custom exporters, samplers, and processors — and install them behind the same global entry points, so instrumentation code never changes.
+
+Two things are shared across all three pillars. First, a common **attribute vocabulary** — [`Attributes`](./attributes.md) (typed key/value pairs), [`AttributeKey`](./attribute-key.md) (their typed keys), [`Resource`](./resource.md) (what entity is producing the telemetry), and [`InstrumentationScope`](./instrumentation-scope.md) (which library produced a signal) — so every span, log record, and metric is described the same way. Second, a shared `ContextStorage[Option[`[`SpanContext`](./tracing/span-context.md)`]]` holds the currently-active span, which enables automatic **trace-log correlation**: any log record emitted inside a span is automatically stamped with that span's trace and span IDs, so you can pivot from a log line to the trace it belongs to.
 
 The module is organized into three symmetric layers:
 
@@ -69,39 +79,13 @@ Use `%%%` for cross-platform (JVM + Scala.js) projects. For JVM-only projects, `
 
 ## Overview
 
-The module's types are organized into eight groups. The first three groups form the core API that most application code touches directly; the remaining groups contain supporting types that appear when building custom processors, exporters, or advanced configurations.
+The module is organized into three signal **pillars** plus a shared vocabulary. Each pillar has its own reference page that introduces the pillar, its types, and how they compose — this section is only a map.
 
-### Global Entry Points
+- **[Tracing](./tracing/index.md)** — causal spans of work. Entry point: the global `trace` object; core types `TracerProvider`, `Tracer`, `Span`.
+- **[Logging](./logging/index.md)** — structured, trace-correlated log records with compile-time source location. Entry point: the global `log` object; core types `LoggerProvider`, `Logger`.
+- **[Metrics](./metrics/index.md)** — counters, histograms, and gauges. Entry point: the global `metric` object; core types `MeterProvider`, `Meter`.
 
-The three global singletons are the entry points for most application code. They are backed by in-memory processors by default, so they work immediately in tests and development without any configuration:
-
-- [**`trace`**](./trace.md) is the global tracing singleton. It stores spans in an in-memory ring buffer by default, so `trace.span("name") { span => … }` works immediately in tests and development. Call `trace.install` to replace the default provider with a production-configured `TracerProvider`.
-- [**`log`**](./log.md) is the global structured-logging singleton. Its severity methods — `log.info`, `log.warn`, `log.error`, and so on — are macro-generated: the macro captures the call-site file path, namespace, method name, and line number at compile time and adds them as `code.*` attributes to every record. Severity filtering, per-namespace overrides, rate-limiting (`log.infoEvery`), and scoped annotations (`log.annotated`) are all built in.
-- [**`metric`**](./metric.md) is the global metrics singleton. Convenience factory methods such as `metric.counter` and `metric.histogram` create instruments on the default meter without touching the provider directly. Call `metric.install` to wire a production `MeterProvider`, and `metric.reader` to collect snapshots.
-
-### Tracing
-
-The tracing pillar is built around three core types: `TracerProvider`, `Tracer`, and `Span`. They are the entry points for most application code:
-
-- [**`TracerProvider`**](./tracer-provider.md) is the factory for `Tracer` instances. It holds the shared `Resource`, `Sampler`, `SpanProcessor` chain, and `ContextStorage`, so all tracers created from the same provider share the same sampling policy and export pipeline. Build one with `TracerProvider.builder` and install it via `trace.install`.
-- [**`Tracer`**](./tracer.md) creates spans within a single instrumentation scope. It consults the `Sampler` to decide whether to record a span, stores the active `SpanContext` in `ContextStorage` for the duration of the block, and notifies each `SpanProcessor` on span start and end. Obtain a `Tracer` from `TracerProvider.get` or `trace.get`.
-- [**`Span`**](./span.md) is a mutable, thread-safe unit of work in a trace. It tracks attributes, events, links, and status; once `Span#end` is called all mutating methods become no-ops. When sampling drops a span, `Tracer` substitutes `Span.NoOp` — a zero-allocation singleton — so hot paths never pay for dropped spans.
-
-### Logging
-
-The logging pillar is built around two core types: `LoggerProvider` and `Logger`. They are the entry points for most application code:
-
-- [**`LoggerProvider`**](./logger-provider.md) is the factory for `Logger` instances. It holds the shared `Resource`, `LogRecordProcessor` array, and `ContextStorage`, making it the logging equivalent of `TracerProvider`. Build one with `LoggerProvider.builder` and pass loggers obtained from `LoggerProvider.get` to `log.install`.
-- [**`Logger`**](./logger.md) emits `LogRecord`s through the configured processor chain. At construction time it automatically selects a fast `FormattedLogEmitter` path when the only processor is a `ConsoleLogRecordProcessor`, bypassing `LogRecord` allocation entirely. It also reads the active `SpanContext` from its `ContextStorage` and stamps `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` into each record as primitives, enabling automatic trace-log correlation.
-
-### Metrics
-
-The metrics pillar is built around `MeterProvider`, `Meter`, and the instrument types (`Counter`, `UpDownCounter`, `Histogram`, and `Gauge`). They are the entry points for most application code:
-
-- [**`MeterProvider`**](./meter-provider.md) is the factory for `Meter` instances, backed by a shared `MeterRegistry`. It exposes a `MetricReader` via its `reader` field that can collect snapshots from all registered meters at any time. Build one with `MeterProvider.builder`.
-- [**`Meter`**](./meter.md) creates and registers metric instruments for a given instrumentation scope. Builder methods such as `Meter#counterBuilder`, `Meter#histogramBuilder`, and `Meter#gaugeBuilder` return fluent builders; shortcut methods such as `Meter#labeledCounter` create `LabeledCounter` instruments with pre-declared label names. Obtain a `Meter` from `MeterProvider.get` or `metric.get`.
-
-The instrument types are the leaf nodes of the metrics pillar, each with a different data model: `Counter` (cumulative), `UpDownCounter` (bidirectional), `Histogram` (distribution), and `Gauge` (last-write). All four are created by a `Meter` and documented in the [Meter](./meter.md) reference.
+All three work with no configuration (in-memory by default) and share the vocabulary below.
 
 ### Shared Vocabulary
 
@@ -111,32 +95,6 @@ The whole module shares a common vocabulary of typed key-value pairs, resource d
 - [**`AttributeKey`**](./attribute-key.md) is the type-safe key for `Attributes` storage. Each key binds a name string to a specific value type `A`; the eight supported types are `String`, `Boolean`, `Long`, `Double`, and four `Seq` variants. Factory methods `AttributeKey.string`, `AttributeKey.long`, and so on enforce consistency between key and value at compile time.
 - [**`Resource`**](./resource.md) describes the entity producing telemetry — the service, container, or host. `Resource.default` auto-populates `service.name`, `telemetry.sdk.name`, `telemetry.sdk.language`, and `telemetry.sdk.version` from build metadata. Combine two resources with the `merge` extension method.
 - [**`InstrumentationScope`**](./instrumentation-scope.md) identifies the library or component that produced a signal. It carries a `name`, an optional `version`, and optional `Attributes`, and is stamped into every `Span`, `SpanData`, and `LogRecord` to distinguish signals from different instrumentation libraries running in the same process.
-
-### Tracing Support
-
-The tracing pillar has some additional supporting types that appear when building custom exporters, processors, or advanced configurations:
-
-- [**`SpanContext`**](./span-context.md) is the propagatable identity of a span — the part that travels across process boundaries. The trace ID is stored as two `Long` fields (`traceIdHi` and `traceIdLo`) for zero heap allocation. `SpanContext.invalid` is the sentinel for "no active span".
-- [**`SpanData`**](./span-data.md) is the immutable snapshot of all span data produced when `Span#end` is called. It carries the name, kind, start and end timestamps in nanoseconds, attributes, events, links, status, resource, and instrumentation scope. `SpanProcessor.onEnd` receives `SpanData`, and `trace.collectedSpans` returns a list of it for test assertions.
-- [**`SpanProcessor`**](./span-processor.md) is the open trait that receives `onStart` and `onEnd` lifecycle hooks from a `Tracer`. Custom exporters implement `SpanProcessor` to ship spans to backends such as OTLP, Zipkin, or Jaeger. The built-in `InMemorySpanProcessor` is used by the global `trace` singleton for development and testing.
-- [**`Sampler`**](./sampler.md) decides whether a new span should be dropped, recorded-only, or recorded-and-sampled. Three built-ins cover the common cases: `AlwaysOnSampler`, `AlwaysOffSampler`, and `ParentBasedSampler(root)`, which defers to the parent span's decision and falls back to `root` for root spans.
-
-### Logging Support
-
-The logging pillar has some additional supporting types that appear when building custom processors, formatters, or advanced configurations:
-
-- [**`LogRecord`**](./log-record.md) is the immutable snapshot of a single log emission. It carries timestamp, observed timestamp, severity, body, attributes, and trace correlation fields (`traceIdHi`, `traceIdLo`, `spanId`, `traceFlags`) stored as primitives with `0` as the sentinel for absent. The `hasTraceId` and `hasSpanId` helpers reflect whether a real span context was present.
-- [**`LogRecordProcessor`**](./log-record-processor.md) is the open trait that receives `onEmit(logRecord: LogRecord)` from a `Logger`. Implement it to forward records to any backend. The `minimumLevel` method lets the `Logger` short-circuit below-threshold records before constructing them, enabling zero-overhead filtering.
-- [**`LogFormatter`**](./log-formatter.md) is a stateless singleton that converts log data to text or JSON. Two built-in implementations cover the common cases: `TextLogFormatter` produces human-readable output and `JsonLogFormatter` produces OTLP-compatible JSON. Formatters append to a pooled `StringBuilder` and carry no per-instance state.
-- [**`Severity`**](./severity.md) is a sealed trait with 24 levels following the OpenTelemetry log data model, grouped into six categories: Trace (1–4), Debug (5–8), Info (9–12), Warn (13–16), Error (17–20), and Fatal (21–24). Parse a level from an integer with `Severity.fromNumber` or from a string with `Severity.fromText`.
-- [**`LogEnrichment`**](./log-enrichment.md) is the typeclass consumed by macro-generated log calls. Built-in instances handle `Throwable`, `String`, `Attributes`, `Severity`, and `(String, V)` key-value pairs, letting callers pass mixed enrichment arguments such as `log.error("payment failed", ex, "orderId" -> id)`.
-
-### Metrics Support
-
-The metrics pillar has some additional supporting types that appear when building custom readers, exporters, or advanced configurations:
-
-- [**`MetricData`**](./metric-data.md) is the sealed trait for aggregated metric snapshots. Its three variants — `SumData`, `HistogramData`, and `GaugeData` — are returned by `MetricReader#collectAllMetrics` and are the output of `Counter#collect`, `Histogram#collect`, and `Gauge#collect` respectively.
-- **Labeled instruments** — `LabeledCounter`, `LabeledHistogram`, and `LabeledGauge` wrap a base instrument with pre-declared label names, so callers pass label values positionally instead of building `Attributes` by hand. They are created via `Meter#labeledCounter` / `labeledHistogram` / `labeledGauge` and documented in the [Meter](./meter.md) reference.
 
 ## How They Work Together
 

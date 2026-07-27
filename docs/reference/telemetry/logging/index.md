@@ -1,16 +1,33 @@
 ---
-id: log
-title: "log"
-description: "Global structured logging singleton for zio-blocks-telemetry with compile-time source location, rate limiting, and pluggable backend."
+id: index
+title: "Logging"
+description: "The logging pillar of ZIO Blocks Telemetry — the global log object for structured records with compile-time source location, rate limiting, and pluggable backends."
 keywords:
+  - "logging"
   - "Global Logging Singleton"
   - "Compile-Time Source Location"
-  - "Structured Log Enrichments"
   - "Per-Call-Site Rate Limiting"
-  - "Severity Floor Fast Path"
   - "Log Record Processor"
   - "Scoped Thread-Local Annotations"
 ---
+
+The **logging** pillar emits structured, trace-correlated log records with compile-time source location. A [`LoggerProvider`](./logger-provider.md) builds [`Logger`](./logger.md)s (one per instrumentation scope), each `Logger` turns a call into a [`LogRecord`](./log-record.md) and pushes it through a chain of [`LogRecordProcessor`](./log-record-processor.md)s, and a [`LogFormatter`](./log-formatter.md) renders records to text or JSON. Most code never touches those types directly — it calls the global `log` object, which wraps a default `Logger`.
+
+## Types in this pillar
+
+**Core**
+- [`log`](#the-log-object) — global entry point; documented below.
+- [`LoggerProvider`](./logger-provider.md) — factory for `Logger`s; holds the shared processor array, resource, and context storage.
+- [`Logger`](./logger.md) — emits records within one instrumentation scope through the processor chain.
+
+**Support**
+- [`LogRecord`](./log-record.md) — the immutable record a log call produces (body, severity, attributes, trace-correlation fields).
+- [`LogRecordProcessor`](./log-record-processor.md) — receives each record; implement it to export to a backend.
+- [`LogFormatter`](./log-formatter.md) — renders a record to human-readable text or OTLP JSON.
+- [`Severity`](./severity.md) — the 24-level severity scale.
+- [`LogEnrichment`](./log-enrichment.md) — typeclass letting a call mix `Throwable`, `String`, `Attributes`, and `(String, V)` enrichments.
+
+## The `log` object
 
 `log` is the global structured logging entry point of `zio-blocks-telemetry` — an `object` you import and call directly to emit log records at six severity levels, attach typed contextual data, and route output to pluggable backends. It is designed for hot paths: every call captures its source location at compile time and is cheap to skip when below the configured severity floor.
 
@@ -383,3 +400,4 @@ log.clearAllOverrides()                                // or remove every overri
 :::note
 Prefix matching uses `String#startsWith`, not glob or regex — `"com.example"` matches both `com.example.Foo` and `com.example.util.Bar`.
 :::
+

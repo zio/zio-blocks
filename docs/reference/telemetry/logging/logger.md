@@ -12,7 +12,7 @@ keywords:
   - "Trace Context Injection"
 ---
 
-`Logger` is an instance-scoped structured logger that routes every log record through an ordered chain of `LogRecordProcessor` instances and automatically correlates records with the active `SpanContext` drawn from a `ContextStorage`. Its constructor is package-private; instances are obtained via `LoggerProvider#get`. The global [`log`](./log.md) singleton delegates to an internal `Logger` — library code that needs isolation from the global backend should accept a `Logger` as a constructor parameter instead.
+`Logger` is an instance-scoped structured logger that routes every log record through an ordered chain of `LogRecordProcessor` instances and automatically correlates records with the active `SpanContext` drawn from a `ContextStorage`. Its constructor is package-private; instances are obtained via `LoggerProvider#get`. The global [`log`](./index.md) singleton delegates to an internal `Logger` — library code that needs isolation from the global backend should accept a `Logger` as a constructor parameter instead.
 
 - **Instance-scoped** — each `Logger` is bound to one `InstrumentationScope` (name + optional version), so `instrumentationScope` appears on every record it emits.
 - **Processor pipeline** — records flow through every `LogRecordProcessor` in the order they were registered. Exceptions from individual processors are caught so that later processors always receive the record.
@@ -215,7 +215,7 @@ logger.fatal("disk full",      "freeBytes"  -> AttributeValue.LongValue(0L))
 ```
 
 :::caution
-Unlike the global [`log`](./log.md) macros, these instance methods do not inject compile-time source location. No `code.filepath`, `code.namespace`, or `code.lineno` attributes are added to the record. If source location is important, use the global `log` at the application layer and reserve `Logger` for library internals.
+Unlike the global [`log`](./index.md) macros, these instance methods do not inject compile-time source location. No `code.filepath`, `code.namespace`, or `code.lineno` attributes are added to the record. If source location is important, use the global `log` at the application layer and reserve `Logger` for library internals.
 :::
 
 #### `emit` — Emit a pre-built LogRecord
@@ -282,7 +282,7 @@ ctx match {
 
 ### vs `log` (global singleton)
 
-[`log`](./log.md) and `Logger` occupy different layers of the telemetry module. `log` is the global application-layer entry point; `Logger` is the instance-level engine that `log` delegates to. The distinction governs when you reach for each:
+[`log`](./index.md) and `Logger` occupy different layers of the telemetry module. `log` is the global application-layer entry point; `Logger` is the instance-level engine that `log` delegates to. The distinction governs when you reach for each:
 
 | Dimension                 | `log` (global singleton)                                            | `Logger` (instance)                                             |
 |---------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------|

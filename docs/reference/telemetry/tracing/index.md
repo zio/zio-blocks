@@ -1,16 +1,33 @@
 ---
-id: trace
-title: "trace"
-description: "Reference for the `trace` global tracing singleton — span creation, provider configuration, and in-memory inspection."
+id: index
+title: "Tracing"
+description: "The tracing pillar of ZIO Blocks Telemetry — the global trace object for spans, with provider configuration and in-memory inspection."
 keywords:
+  - "tracing"
   - "Global Tracing Entry Point"
   - "Span Creation"
   - "TracerProvider Configuration"
-  - "InMemory Span Inspection"
   - "Zero-Setup Tracing"
-  - "SpanKind"
   - "Distributed Tracing Singleton"
 ---
+
+The **tracing** pillar records causal [`Span`](./span.md)s of work across a request or operation. A [`TracerProvider`](./tracer-provider.md) builds [`Tracer`](./tracer.md)s (one per instrumentation scope), each `Tracer` opens spans — consulting a [`Sampler`](./sampler.md) and notifying a [`SpanProcessor`](./span-processor.md) chain on start/end — and a finished span is exported as immutable [`SpanData`](./span-data.md). Most code never touches those types directly — it calls the global `trace` object, which wraps a default in-memory `TracerProvider`.
+
+## Types in this pillar
+
+**Core**
+- [`trace`](#the-trace-object) — global entry point; documented below.
+- [`TracerProvider`](./tracer-provider.md) — factory for `Tracer`s; holds the shared sampler, processor chain, resource, and context storage.
+- [`Tracer`](./tracer.md) — creates spans within one instrumentation scope.
+- [`Span`](./span.md) — a mutable, thread-safe unit of work: attributes, events, links, status.
+
+**Support**
+- [`SpanContext`](./span-context.md) — the propagatable trace/span identity carried across boundaries.
+- [`SpanData`](./span-data.md) — the immutable snapshot a finished span exports.
+- [`SpanProcessor`](./span-processor.md) — the `onStart`/`onEnd` hook; implement it to export spans.
+- [`Sampler`](./sampler.md) — the policy deciding which spans are recorded.
+
+## The `trace` object
 
 `trace` is the global tracing entry point for the ZIO Blocks Telemetry module — a companion-style singleton that requires zero configuration to use. Backed by an `InMemorySpanProcessor` out of the box, it records every completed span in a fixed-size ring buffer. Call `trace.install` once at application startup to replace the default provider with one that exports to a real backend; until then, all spans land in memory and are inspectable via `trace.collectedSpans`.
 
@@ -333,4 +350,5 @@ Both `trace` and `GlobalOpenTelemetry` are global singletons installed once at s
 | Language idiom           | Scala object with higher-order functions          | Java-style builder + try/finally                    |
 
 The `trace` object mirrors the `GlobalOpenTelemetry` pattern but avoids the "noop until configured" footgun: every span is recorded in the in-memory buffer from the first call, so tests and development environments work without any additional setup. The higher-order function design also eliminates the need for a `try`/`finally` block at every call site.
+
 
