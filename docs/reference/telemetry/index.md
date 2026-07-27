@@ -22,40 +22,14 @@ The telemetry module is a zero-dependency, OpenTelemetry-aligned observability s
 
 Each pillar has a **global singleton** — `trace`, `log`, and `metric` — that you import and call directly. These need no setup: by default they keep spans and records **in-memory**, so instrumentation works immediately in tests and development. When you are ready for production, the **provider/builder API** ([`TracerProvider`](./tracing/tracer-provider.md), [`LoggerProvider`](./logging/logger-provider.md), [`MeterProvider`](./metrics/meter-provider.md)) lets you wire real export pipelines — custom exporters, samplers, and processors — and install them behind the same global entry points, so instrumentation code never changes.
 
-Two things are shared across all three pillars. First, a common **attribute vocabulary** — [`Attributes`](./attributes.md) (typed key/value pairs), [`AttributeKey`](./attribute-key.md) (their typed keys), [`Resource`](./resource.md) (what entity is producing the telemetry), and [`InstrumentationScope`](./instrumentation-scope.md) (which library produced a signal) — so every span, log record, and metric is described the same way. Second, a shared `ContextStorage[Option[`[`SpanContext`](./tracing/span-context.md)`]]` holds the currently-active span, which enables automatic **trace-log correlation**: any log record emitted inside a span is automatically stamped with that span's trace and span IDs, so you can pivot from a log line to the trace it belongs to.
+Two things are shared across all three pillars:
 
-The module is organized into three symmetric layers:
-
-```scala
-import zio.blocks.telemetry._
-
-// Layer 1 — global singletons, backed by in-memory processors by default
-object trace {
-  def span[A](name: String, kind: SpanKind)(f: Span => A): A
-  def get(name: String): Tracer
-  def install(provider: TracerProvider): Unit
-}
-object log {
-  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-  // info/debug/warn/error/fatal/trace — macro-generated, capture source location at compile time
-}
-object metric {
-  def counter(name: String): Counter
-  def get(name: String): Meter
-  def install(provider: MeterProvider): Unit
-}
-
-// Layer 2 — provider/factory types, configured once at application startup
-final class TracerProvider { def get(name: String, version: String = ""): Tracer }
-final class LoggerProvider { def get(name: String, version: String = ""): Logger }
-final class MeterProvider  { def get(name: String, version: String = ""): Meter  }
-
-// Layer 3 — scope-bound signal emitters, one per instrumentation library
-final class Tracer { def span[A](name: String)(f: Span => A): A         }
-final class Logger { /* severity methods emit through LogRecordProcessor */ }
-final class Meter  { def counterBuilder(name: String): CounterBuilder    }
-```
+1. A common **attribute vocabulary**, so every span, log record, and metric is described the same way:
+   - [`Attributes`](./attributes.md) — typed key/value pairs.
+   - [`AttributeKey`](./attribute-key.md) — their typed keys.
+   - [`Resource`](./resource.md) — what entity is producing the telemetry.
+   - [`InstrumentationScope`](./instrumentation-scope.md) — which library produced a signal.
+2. A shared `ContextStorage[Option[`[`SpanContext`](./tracing/span-context.md)`]]` holding the currently-active span, which enables automatic **trace-log correlation**: any log record emitted inside a span is stamped with that span's trace and span IDs, so you can pivot from a log line to the trace it belongs to.
 
 ## Motivation
 
