@@ -71,7 +71,7 @@ Two concerns cross pillar boundaries: the `Attributes`-based vocabulary describe
 The typical workflow for a production-configured application proceeds in four steps:
 
 1. **Configure** a `Resource` describing the service and build providers for each pillar, passing the same `ContextStorage` instance to `TracerProvider` and `LoggerProvider` so spans and log records are correlated automatically.
-2. **Install** the providers into the global singletons with `trace.install`, `log.install`, and `metric.install` at application startup.
+2. **Install** into the global singletons at application startup: `trace.install(provider)` and `metric.install(provider)` take the provider directly, while `log.install(logger)` takes a `Logger` obtained from `LoggerProvider.get`.
 3. **Emit** signals from application and library code using `trace.span`, the severity methods on `log`, and `Counter#add` / `Histogram#record` / `Gauge#record` on instruments obtained from `metric`.
 4. **Collect** when ready: `SpanProcessor.onEnd` ships spans eagerly; `metric.reader.collectAllMetrics()` pulls a snapshot of all registered instruments on demand.
 
