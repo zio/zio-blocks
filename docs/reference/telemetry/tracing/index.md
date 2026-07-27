@@ -76,7 +76,7 @@ The `TracerProvider` reference is held in a `java.util.concurrent.atomic.AtomicR
 
 The following example shows the core workflow in one place: wrap work in `trace.span`, enrich the live span with attributes, then inspect the completed span via `trace.collectedSpans`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 import zio.blocks.telemetry.{AttributeKey, Span, SpanData}
 
@@ -142,7 +142,7 @@ object trace {
 
 The return value of the block is returned directly. We never call `Span#end` manually; `trace.span` handles that:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 import zio.blocks.telemetry.{AttributeKey, Span}
 
@@ -165,7 +165,7 @@ object trace {
 
 Marking an outbound HTTP call as `SpanKind.Client` lets the tracing backend correlate it with the matching `SpanKind.Server` span on the receiving service:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 import zio.blocks.telemetry.{SpanKind, AttributeKey}
 
@@ -187,7 +187,7 @@ object trace {
 
 We build the initial attributes using `Attributes.of` or `Attributes.builder`, both from the same `zio.blocks.telemetry` package:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 import zio.blocks.telemetry.{SpanKind, Attributes, AttributeKey}
 
@@ -213,7 +213,7 @@ object trace {
 
 We acquire the `Tracer` once at module startup and reuse it — every call to `trace.get` creates a new `Tracer` instance, so calling it on the hot path is wasteful:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.{trace, Tracer}
 
 // Acquire once at startup or module initialization
@@ -270,7 +270,7 @@ object trace {
 
 `trace.removeAll` is useful in test suites that want to suppress all tracing for a test that does not need span assertions:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 
 trace.removeAll()
@@ -297,7 +297,7 @@ object trace {
 
 After a span completes, its data is available immediately in the returned list:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.{trace, SpanData, AttributeKey}
 
 trace.span("validate") { span =>
@@ -326,7 +326,7 @@ object trace {
 
 A typical test pattern clears the buffer before each test and inspects it after exercising the code under test:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
 
 // before each test
