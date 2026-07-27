@@ -24,11 +24,7 @@ Each pillar has a **global singleton** — `trace`, `log`, and `metric` — that
 
 Two things are shared across all three pillars:
 
-1. A common **attribute vocabulary**, so every span, log record, and metric is described the same way:
-   - [`Attributes`](./attributes.md) — typed key/value pairs.
-   - [`AttributeKey`](./attribute-key.md) — their typed keys.
-   - [`Resource`](./resource.md) — what entity is producing the telemetry.
-   - [`InstrumentationScope`](./instrumentation-scope.md) — which library produced a signal.
+1. A common **attribute vocabulary** so every span, log record, and metric is described the same way — see [Shared Vocabulary](#shared-vocabulary) below.
 2. A shared `ContextStorage[Option[`[`SpanContext`](./tracing/span-context.md)`]]` holding the currently-active span, which enables automatic **trace-log correlation**: any log record emitted inside a span is stamped with that span's trace and span IDs, so you can pivot from a log line to the trace it belongs to.
 
 ## Motivation
