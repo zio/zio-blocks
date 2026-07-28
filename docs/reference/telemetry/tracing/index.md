@@ -75,47 +75,44 @@ The following example shows the core workflow in one place: wrap work in `trace.
 import zio.blocks.telemetry.trace
 import zio.blocks.telemetry.{AttributeKey, Span, SpanData}
 
-val result: Int = trace.span("fetch-user") { span =>
-  span.setAttribute(AttributeKey.string("user.id"), "u42")
-  span.setAttribute(AttributeKey.long("db.rows"), 1L)
-  42
-}
-// result == 42
+case class User(id: String, name: String)
+val userStore: Map[String, User] = Map("u42" -> User("u42", "Ada Lovelace"))
 
+// Trace a user lookup: the span records what was queried and the outcome.
+def fetchUser(id: String): User =
+  trace.span("fetch-user") { span =>
+    span.setAttribute(AttributeKey.string("user.id"), id)
+    val user = userStore(id)
+    span.setAttribute(AttributeKey.long("db.rows"), 1L)
+    span.setAttribute(AttributeKey.string("user.name"), user.name)
+    user
+  }
+
+val ada = fetchUser("u42")
+
+// In tests or development, inspect the spans the call produced:
 val spans: List[SpanData] = trace.collectedSpans
 // spans.head.name == "fetch-user"
 // spans.head.attributes.get(AttributeKey.string("user.id")) == Some("u42")
 ```
 
-For production use, swap out the default provider by supplying a `TracerProvider` configured with a real exporter:
+For production use, swap out the default provider by supplying a `TracerProvider` configured with an exporter. An exporter is a `SpanProcessor` — implement `onEnd` to ship each finished span to your backend. The ready-made OTLP exporter lives in the `zio-blocks-telemetry-otel` module; here we implement a trivial one inline to show the SPI:
 
-```scala
-import zio.blocks.telemetry.{trace, TracerProvider, SpanProcessor}
+```scala mdoc:compile-only
+import zio.blocks.telemetry.{trace, TracerProvider, SpanProcessor, Span, SpanData}
 
-// myExportProcessor sends spans to an OTLP endpoint (from zio-blocks-telemetry-otel)
+val exportProcessor: SpanProcessor = new SpanProcessor {
+  def onStart(span: Span): Unit       = ()
+  def onEnd(spanData: SpanData): Unit = println(s"export span: ${spanData.name}")
+  def shutdown(): Unit                = ()
+  def forceFlush(): Unit              = ()
+}
+
 val provider = TracerProvider.builder
-  .addSpanProcessor(myExportProcessor)
+  .addSpanProcessor(exportProcessor)
   .build()
 trace.install(provider)
 ```
-
-## Construction / Creating Instances
-
-`trace` is a Scala `object` — there is nothing to instantiate. We import and use it directly:
-
-```scala
-import zio.blocks.telemetry.trace
-```
-
-The object declaration is:
-
-```scala
-object trace {
-  // see Core Operations below for all members
-}
-```
-
-At module initialization, `trace` creates a private `InMemorySpanProcessor`, wires it into a default `TracerProvider` through `TracerProvider.builder`, and stores that provider in an `AtomicReference`. All of this happens before the first call; no user code is needed to trigger it.
 
 ## Core Operations
 
@@ -334,18 +331,3 @@ trace.span("my-op") { _ => () }
 assert(trace.collectedSpans.nonEmpty)
 assert(trace.collectedSpans.head.name == "my-op")
 ```
-
-## `trace` vs. OpenTelemetry Java SDK (`GlobalOpenTelemetry`)
-
-Both `trace` and `GlobalOpenTelemetry` are global singletons installed once at startup, and both delegate to a provider that creates instrumentation-scope-specific tracers. The practical differences are:
-
-| Aspect                   | `trace`                                           | `GlobalOpenTelemetry`                               |
-|--------------------------|---------------------------------------------------|-----------------------------------------------------|
-| Zero-setup default       | In-memory buffer; spans visible immediately       | No-op until an `SdkTracerProvider` is registered    |
-| Span lifecycle           | Higher-order function; `end` called automatically | `span.end()` required in a `finally` block          |
-| Effect system dependency | None — purely synchronous                         | None in the Java SDK; ZIO wrappers exist separately |
-| Language idiom           | Scala object with higher-order functions          | Java-style builder + try/finally                    |
-
-The `trace` object mirrors the `GlobalOpenTelemetry` pattern but avoids the "noop until configured" footgun: every span is recorded in the in-memory buffer from the first call, so tests and development environments work without any additional setup. The higher-order function design also eliminates the need for a `try`/`finally` block at every call site.
-
-
