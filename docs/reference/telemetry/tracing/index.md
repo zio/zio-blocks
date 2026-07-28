@@ -24,6 +24,7 @@ The **tracing** pillar records causal [`Span`](./span.md)s of work across a requ
 - [`Span`](./span.md) — a mutable, thread-safe unit of work: attributes, events, links, status.
 - [`SpanContext`](./span-context.md) — the propagatable trace/span identity carried across boundaries.
 - [`SpanData`](./span-data.md) — the immutable snapshot a finished span exports.
+- [`SpanKind`](./span-kind.md) — the span's role in the trace topology (Internal / Server / Client / Producer / Consumer).
 
 **Sampling and export**
 - [`Sampler`](./sampler.md) — the policy deciding which spans are recorded.
@@ -147,7 +148,7 @@ val count: Int = trace.span("compute") { span =>
 
 #### Choosing a span kind
 
-Accepts a `SpanKind` parameter, allowing you to mark the span as `Client`, `Server`, `Producer`, or `Consumer` instead of the default `Internal`. The kind is recorded in `SpanData` and used by distributed tracing backends and OpenTelemetry conventions to infer the span's role in the trace topology.
+Accepts a [`SpanKind`](./span-kind.md) parameter, allowing you to mark the span as `Client`, `Server`, `Producer`, or `Consumer` instead of the default `Internal`. The kind is recorded in `SpanData` and used by distributed tracing backends and OpenTelemetry conventions to infer the span's role in the trace topology.
 
 ```scala
 object trace {

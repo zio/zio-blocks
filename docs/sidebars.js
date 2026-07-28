@@ -235,6 +235,7 @@ const sidebars = {
                   "reference/telemetry/tracing/span",
                   "reference/telemetry/tracing/span-context",
                   "reference/telemetry/tracing/span-data",
+                  "reference/telemetry/tracing/span-kind",
                   "reference/telemetry/tracing/span-processor",
                   "reference/telemetry/tracing/sampler",
                 ]
