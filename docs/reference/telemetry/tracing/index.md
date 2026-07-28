@@ -155,7 +155,7 @@ object trace {
 }
 ```
 
-Marking an outbound HTTP call as `SpanKind.Client` lets the tracing backend correlate it with the matching `SpanKind.Server` span on the receiving service:
+Here we wrap an outbound HTTP request in a `SpanKind.Client` span and tag it with the request method, marking its role as the caller side of the request:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry.trace
