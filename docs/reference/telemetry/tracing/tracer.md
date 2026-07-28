@@ -77,69 +77,9 @@ provider.shutdown()
 
 `Tracer#span` consults the configured `Sampler`, sets the active `SpanContext` in `ContextStorage`, calls `SpanProcessor#onStart`, then executes the block. The span is always ended in a `finally` clause and `SpanProcessor#onEnd` is called with the resulting `SpanData`.
 
-## Construction / Creating Instances
+## Obtaining a Tracer
 
-`Tracer`'s primary constructor is package-private; the two supported entry points are `TracerProvider#get` for production use and `trace.get` for quick application-level access.
-
-### `TracerProvider#get` — Named scope from a configured provider
-
-Returns a `Tracer` whose `InstrumentationScope` is set to the given `name` and optional `version`. The tracer inherits the provider's `Resource`, `Sampler`, `SpanProcessor` list, and `ContextStorage`. A new `Tracer` instance is constructed on every call, so we cache the result at module initialization.
-
-```scala
-final class TracerProvider private[telemetry] (...) {
-  def get(name: String, version: String = ""): Tracer
-}
-```
-
-We call `TracerProvider#get` once during application or library initialization, naming the instrumentation scope after the library or service component:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-import scala.util.Using
-
-Using.resource(
-  TracerProvider.builder
-    .setSampler(ParentBasedSampler(AlwaysOnSampler))
-    .addSpanProcessor(SpanProcessor.noop)
-    .build()
-) { provider =>
-  val tracer: Tracer = provider.get("payments-service", "1.0.0")
-
-  tracer.span("charge") { span =>
-    span.setAttribute("amount_cents", 4200L)
-  }
-}
-```
-
-When `version` is an empty string (the default), the `InstrumentationScope` records no version. Supply a semantic version string whenever the instrumentation scope is a versioned library component.
-
-:::caution
-`TracerProvider#get` constructs a new `Tracer` on every call. Cache the returned instance at module initialization rather than calling `get` on the hot path.
-:::
-
-### `trace.get` — Named scope from the global provider
-
-Returns a `Tracer` scoped to the given `name`, backed by whichever `TracerProvider` is currently installed in the global `trace` singleton. This is the fastest way to get a tracer in application code without managing a `TracerProvider` explicitly.
-
-```scala
-object trace {
-  def get(name: String): Tracer
-}
-```
-
-We call `trace.get` once at the top of an application module, before any spans are created:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val tracer: Tracer = trace.get("order-service")
-
-tracer.span("submit-order") { span =>
-  span.setAttribute("order.id", "ORD-7291")
-}
-```
-
-If `trace.install` has not been called, `trace.get` delegates to the default in-memory provider, which buffers completed spans in `trace.collectedSpans`. This is useful for testing without any exporter setup.
+`Tracer`'s constructor is package-private — you never build one directly. Get a named tracer from [`TracerProvider#get`](./tracer-provider.md) (production, with your configured provider) or [`trace.get`](./index.md) (a quick tracer off the global provider). A new instance is built per call, so cache it at initialization rather than calling on a hot path.
 
 :::note
 Library code should accept `Tracer` as a parameter rather than calling `trace.get` inside the library. Depending on the global singleton makes a library non-portable and forces callers to install a global provider to control sampling.
@@ -229,10 +169,6 @@ tracer.span("db-query", SpanKind.Client, attrs) { span =>
 }
 ```
 
-:::note
-Attributes set via the `attributes` parameter are passed to the sampler before the span is created. Attributes set via `Span#setAttribute` inside the block are recorded after sampling; the sampler never sees them.
-:::
-
 ### Manual Span Management
 
 The `spanBuilder` method gives precise control over span lifecycle at the cost of requiring manual `end()` calls.
@@ -308,34 +244,3 @@ tracer.span("outer") { _ =>
 ```
 
 Outside any active `span` block, `currentSpan` returns `None`. Inside a `Drop`-sampled span it returns `Some` with a non-sampled `SpanContext` (the dropped context that was scoped to preserve propagation).
-
-## Comparisons
-
-### `Tracer` vs. OpenTelemetry Java `io.opentelemetry.api.trace.Tracer`
-
-The OpenTelemetry Java `Tracer` interface and this `Tracer` serve the same conceptual role but differ in dependency weight, context propagation mechanism, and call-site ergonomics:
-
-| Aspect                        | ZIO Blocks `Tracer`                                     | OTel Java `Tracer`                                        |
-|-------------------------------|---------------------------------------------------------|-----------------------------------------------------------|
-| Dependencies                  | Zero — pure Scala, no OTel SDK jars                     | Requires `opentelemetry-api` (and SDK for processors)     |
-| Context propagation           | JDK ScopedValue via pluggable `ContextStorage`          | Thread-local `Context` (pluggable via `ContextStorage`)   |
-| Span lifecycle                | Higher-order `tracer.span("op") { ... }` — always ended | Manual `span.end()` in a `try`/`finally` block            |
-| Missing `end()` risk          | None — the `finally` block is inside `Tracer`           | High — caller must remember the `finally` block           |
-| Sampler integration           | Sampler consulted inside `span`; attributes visible     | Sampler consulted inside `SpanBuilder.startSpan()`        |
-| Zero-cost dropped spans       | `Span.NoOp` singleton, no allocation                   | `PropagatedSpan` / `InvalidSpan` singleton, similar cost  |
-| Cross-platform                | JVM and Scala.js                                        | JVM only                                                  |
-
-The most significant ergonomic difference is span lifecycle: in OTel Java, every call site must wrap span work in `try { ... } finally { span.end(); }` to guarantee the span is recorded. Missing this block silently produces open spans that clog backends and inflate latency histograms. The higher-order `Tracer#span` API eliminates this class of bug by placing the `finally` block inside `Tracer`, where it cannot be omitted.
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-// ZIO Blocks — span is always ended; no try/finally at the call site
-val tracer: Tracer = trace.get("example")
-tracer.span("operation") { span =>
-  span.setAttribute("key", "value")
-  // end() is called automatically here, even on exception
-}
-```
-
-The OpenTelemetry Java equivalent requires manual lifecycle management at every instrumentation point, which makes instrumentation code visually heavier and more error-prone.
