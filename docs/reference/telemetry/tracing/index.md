@@ -192,7 +192,7 @@ trace.span("db-query", SpanKind.Client, initial) { span =>
 
 ### Tracer Retrieval
 
-`trace.get` is the bridge between the global singleton and the `Tracer` abstraction that library code accepts via dependency injection.
+`trace.get` is the bridge between the global singleton and the [`Tracer`](./tracer.md) abstraction that library code accepts via dependency injection.
 
 #### Named tracers
 
