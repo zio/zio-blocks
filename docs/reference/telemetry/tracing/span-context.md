@@ -31,7 +31,7 @@ final case class SpanContext(
 
 The following example reads the active span context from a `Tracer` and uses the trace ID hex string for log correlation:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val tracer: Tracer = trace.get("com.example")

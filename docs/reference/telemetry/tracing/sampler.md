@@ -40,7 +40,7 @@ final case class ParentBasedSampler(root: Sampler) extends Sampler
 
 The following example configures a `TracerProvider` with `ParentBasedSampler`, which records all root spans by delegating to `AlwaysOnSampler` and follows the parent decision for child spans:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = TracerProvider.builder

@@ -36,7 +36,7 @@ final case class SpanData(
 
 The following example records a span, then retrieves and inspects its `SpanData` snapshot via `trace.collectedSpans`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 trace.clearSpans()
