@@ -192,11 +192,11 @@ trace.span("db-query", SpanKind.Client, initial) { span =>
 
 ### Tracer Retrieval
 
-`trace.get` is the bridge between the global singleton and the [`Tracer`](./tracer.md) abstraction that library code accepts as a constructor parameter.
+Use `trace.get` when you want a named [`Tracer`](./tracer.md) of your own instead of calling the global `trace` directly — for example, to give a library or component its own tracer and pass it in where it is needed.
 
 #### Named tracers
 
-Returns a `Tracer` for the given instrumentation scope name from the currently installed `TracerProvider`. Library authors call `trace.get` once at initialization and accept the resulting `Tracer` throughout, keeping library code decoupled from the global singleton and independently testable.
+Returns a `Tracer` for the given instrumentation scope name from the currently installed `TracerProvider`. Each call builds a new `Tracer`, so obtain one once at startup rather than on a hot path. The application typically calls `trace.get` at startup and passes the resulting `Tracer` into its libraries; a library that accepts a `Tracer` parameter (instead of calling the global `trace` itself) stays decoupled from the global singleton and easy to test with a substitute tracer.
 
 ```scala
 object trace {
