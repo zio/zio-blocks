@@ -192,7 +192,7 @@ trace.span("db-query", SpanKind.Client, initial) { span =>
 
 ### Tracer Retrieval
 
-`trace.get` is the bridge between the global singleton and the [`Tracer`](./tracer.md) abstraction that library code accepts via dependency injection.
+`trace.get` is the bridge between the global singleton and the [`Tracer`](./tracer.md) abstraction that library code accepts as a constructor parameter.
 
 #### Named tracers
 
@@ -235,7 +235,7 @@ object trace {
 }
 ```
 
-We construct the provider using `TracerProvider.builder`, which accepts a `Resource`, a `Sampler`, and one or more `SpanProcessor` implementations:
+We construct the provider using `TracerProvider.builder`, which accepts a [`Resource`](../resource.md), a `Sampler`, and one or more `SpanProcessor` implementations:
 
 ```scala
 import zio.blocks.telemetry.{trace, TracerProvider, Resource}
