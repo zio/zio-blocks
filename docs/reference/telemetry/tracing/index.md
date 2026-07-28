@@ -122,7 +122,7 @@ The `trace` singleton groups its API into span creation, tracer retrieval, globa
 
 The span creation overloads — `span`, `span` with kind, and `span` with kind and attributes — all wrap a block of user code in a tracing span, calling the configured `SpanProcessor`'s `onStart` and `onEnd` hooks automatically so the caller never manages span lifecycle manually.
 
-#### `span` — Create an internal span
+#### Internal spans
 
 Creates a `SpanKind.Internal` span around a block of user code using the default tracer. The span is started before the block executes and ended after it returns — even on exception. The block receives the live `Span` and may attach attributes, events, or a status to it.
 
@@ -145,7 +145,7 @@ val count: Int = trace.span("compute") { span =>
 // count == 100
 ```
 
-#### `span` — Create a span with an explicit kind
+#### Choosing a span kind
 
 Accepts a `SpanKind` parameter, allowing you to mark the span as `Client`, `Server`, `Producer`, or `Consumer` instead of the default `Internal`. The kind is recorded in `SpanData` and used by distributed tracing backends and OpenTelemetry conventions to infer the span's role in the trace topology.
 
@@ -167,7 +167,7 @@ trace.span("http-get-users", SpanKind.Client) { span =>
 }
 ```
 
-#### `span` — Create a span with kind and initial attributes
+#### Initial attributes
 
 The full overload accepts `name`, `kind`, and an `Attributes` collection as initial attributes. Providing attributes at creation time rather than via `Span#setAttribute` inside the block allows the configured `Sampler` to inspect them before deciding whether to record the span.
 
@@ -193,7 +193,7 @@ trace.span("db-query", SpanKind.Client, initial) { span =>
 
 `trace.get` is the bridge between the global singleton and the `Tracer` abstraction that library code accepts via dependency injection.
 
-#### `get` — Obtain a named tracer
+#### Named tracers
 
 Returns a `Tracer` for the given instrumentation scope name from the currently installed `TracerProvider`. Library authors call `trace.get` once at initialization and accept the resulting `Tracer` throughout, keeping library code decoupled from the global singleton and independently testable.
 
@@ -224,7 +224,7 @@ Library code should accept a `Tracer` parameter rather than calling `trace.get` 
 
 The configuration operations replace the global `TracerProvider` atomically. We call `trace.install` exactly once at startup to wire production exporters, and `trace.removeAll` to silence all tracing — for instance in test suites that need to suppress tracing overhead.
 
-#### `install` — Replace the TracerProvider
+#### Installing a provider
 
 Atomically replaces the installed `TracerProvider` with a user-configured one. Any subsequent `trace.span` or `trace.get` call uses the new provider immediately. Spans already in flight at the moment of the swap continue on the old provider.
 
@@ -250,7 +250,7 @@ trace.install(provider)
 `trace.install` mutates global state. If called concurrently with active span creation, spans crossing the swap boundary may be processed by either the old or new provider. Call it exactly once, before your application starts processing requests.
 :::
 
-#### `removeAll` — Disable tracing globally
+#### Disabling tracing
 
 Replaces the installed provider with one that uses `AlwaysOffSampler`. All subsequent spans become no-ops: the user block still executes, but no attributes are recorded, no processors are notified, and `trace.collectedSpans` returns an empty list.
 
@@ -277,7 +277,7 @@ Dropped spans still propagate a `SpanContext` with `isSampled == false`, so cont
 
 The inspection methods expose the in-memory ring buffer managed by the built-in `InMemorySpanProcessor`. They are most valuable in unit tests: create spans, then assert against the collected `SpanData` without standing up a real exporter.
 
-#### `collectedSpans` — Read the in-memory buffer
+#### Reading collected spans
 
 Returns all `SpanData` instances collected by the default `InMemorySpanProcessor` since the last `trace.clearSpans` call. Each `SpanData` is an immutable snapshot of a completed span's name, kind, `SpanContext`, attributes, events, links, and status.
 
@@ -306,7 +306,7 @@ val s = spans.head
 `trace.collectedSpans` only reflects spans collected by the built-in `InMemorySpanProcessor`. When you call `trace.install` with a custom provider, new spans flow to that provider's processors and are **not** visible through `collectedSpans`.
 :::
 
-#### `clearSpans` — Reset the in-memory buffer
+#### Clearing the buffer
 
 Clears all spans from the `InMemorySpanProcessor` by zeroing its ring buffer and resetting the write index and element count. We call `trace.clearSpans` between test cases to prevent spans from one test leaking into assertions in the next.
 
