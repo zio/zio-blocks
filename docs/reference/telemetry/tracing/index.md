@@ -170,7 +170,7 @@ trace.span("http-get-users", SpanKind.Client) { span =>
 
 #### Initial attributes
 
-The full overload accepts `name`, `kind`, and an `Attributes` collection as initial attributes. Providing attributes at creation time rather than via `Span#setAttribute` inside the block allows the configured `Sampler` to inspect them before deciding whether to record the span.
+The full overload accepts `name`, `kind`, and an [`Attributes`](../attributes.md) collection as initial attributes. Providing attributes at creation time rather than via `Span#setAttribute` inside the block allows the configured [`Sampler`](./sampler.md) to inspect them before deciding whether to record the span.
 
 ```scala
 object trace {
