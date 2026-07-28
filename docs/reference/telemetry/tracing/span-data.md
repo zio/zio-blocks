@@ -55,19 +55,3 @@ println(sd.endTimeNanos > sd.startTimeNanos)        // true
 ```
 
 `SpanData` can also be obtained directly from a `Span` at any time via `Span#toSpanData` — for instance, before the span ends, in which case `endTimeNanos` is `0L`.
-
-## Key Fields
-
-| Field | Type | Description |
-|---|---|---|
-| `name` | `String` | The operation name set at span creation. |
-| `kind` | `SpanKind` | `Internal`, `Server`, `Client`, `Producer`, or `Consumer`. |
-| `spanContext` | `SpanContext` | The trace ID, span ID, and sampling flags for this span. |
-| `parentSpanContext` | `SpanContext` | The parent's context, or `SpanContext.invalid` for a root span. |
-| `startTimeNanos` | `Long` | Epoch nanoseconds when the span started. |
-| `endTimeNanos` | `Long` | Epoch nanoseconds when the span ended (`0L` if still recording). |
-| `attributes` | `Attributes` | All key-value annotations set on the span. |
-| `events` | `List[SpanEvent]` | Named point-in-time events recorded during the span. |
-| `status` | `SpanStatus` | `Unset`, `Ok`, or `Error(description)`. |
-| `resource` | `Resource` | The resource describing the producing service. |
-| `instrumentationScope` | `InstrumentationScope` | The library scope that created the span. |
