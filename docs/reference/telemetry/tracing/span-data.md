@@ -3,9 +3,10 @@ id: span-data
 title: "SpanData"
 description: "Immutable snapshot of a finished span — the read-only record a SpanProcessor exports."
 keywords:
-  - "SpanData"
+  - "Distributed Tracing"
+  - "Span Export"
   - "Immutable Span Snapshot"
-  - "SpanProcessor"
+  - "SpanData"
 sidebar_label: "SpanData"
 ---
 
