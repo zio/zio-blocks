@@ -3,14 +3,16 @@ id: span-builder
 title: "SpanBuilder"
 description: "Mutable builder for creating spans with explicit kind, start timestamp, links, or parent context outside the normal Tracer.span lifecycle."
 keywords:
-  - "SpanBuilder startSpan"
-  - "explicit span timestamp links"
-  - "setKind setParent addLink"
-  - "manual span management"
+  - "Distributed Tracing"
+  - "Manual Span Creation"
+  - "Explicit Span Configuration"
+  - "SpanBuilder"
 sidebar_label: "SpanBuilder"
 ---
 
-`SpanBuilder` is a mutable builder for creating `Span` instances outside the normal `Tracer.span` callback lifecycle. Use it when you need fine-grained control over span metadata — explicit start timestamps, links to spans in other traces, or a non-default parent context — that the `span(name, kind, attrs)` overloads do not expose.
+`SpanBuilder` is a mutable builder for creating a [`Span`](./span.md) by hand, outside the automatic [`trace.span`](./index.md) lifecycle, with control the `span(name, kind, attributes)` overloads cannot express: an explicit start timestamp, links to spans in other traces, or a non-default parent context. 
+
+Crucially, a span it starts bypasses the [`Tracer`](./tracer.md)'s [`Sampler`](./sampler.md) and [`SpanProcessor`](./span-processor.md) list — nothing samples it, no `onStart`/`onEnd` fires, and **it is never exported to a backend**. The span lives only in memory, readable via `toSpanData`, and you must `end()` it yourself. Use `SpanBuilder` for tests or local inspection; for any span that should reach your tracing pipeline, use `trace.span`.
 
 ```scala
 object SpanBuilder {
@@ -28,45 +30,27 @@ final class SpanBuilder {
   def setInstrumentationScope(scope: InstrumentationScope): SpanBuilder
 
   // Finalization
-  def startSpan(): Span                                    // random trace ID
-  def startSpan(traceIdHi: Long, traceIdLo: Long): Span   // explicit trace ID
+  def startSpan(): Span                                  // random trace ID
+  def startSpan(traceIdHi: Long, traceIdLo: Long): Span  // explicit trace ID
 }
 ```
 
-:::caution
-Spans created through `SpanBuilder#startSpan` bypass the `Tracer`'s `Sampler` and `SpanProcessor` list — no `onStart` or `onEnd` callbacks fire. For normal traced work, use `Tracer.span(...) { ... }`.
-:::
-
 ## Usage
 
-The following example creates a `Producer` span with an explicit start timestamp, a causal link to an upstream context, and explicit trace IDs — all capabilities unavailable through `Tracer.span`:
+Obtain a pre-configured builder from `Tracer.spanBuilder` — it fills in the tracer's `Resource` and `InstrumentationScope` — set the metadata the `span` overloads cannot, then `startSpan()` and `end()` the span in a `try`/`finally`:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val upstreamCtx = SpanContext.invalid   // in practice, parsed from a queue message header
+val tracer = TracerProvider.builder.build().get("com.example")
 
-val span = SpanBuilder("enqueue-message")
+val span = tracer.spanBuilder("enqueue-message")
   .setKind(SpanKind.Producer)
-  .setParent(upstreamCtx)
-  .setAttribute(AttributeKey.string("queue"), "orders")
-  .addLink(SpanLink(upstreamCtx, Attributes.empty))
-  .setStartTimestamp(1_000_000_000L)
+  .addLink(SpanLink(SpanContext.invalid, Attributes.empty)) // in practice, an upstream context
+  .setStartTimestamp(System.nanoTime())
   .startSpan()
 
-try {
-  span.setAttribute("message.id", "msg-456")
-  span.setStatus(SpanStatus.Ok)
-} finally {
-  span.end(1_000_500_000L)
-}
-
-val data = span.toSpanData
-assert(data.kind == SpanKind.Producer)
-assert(data.startTimeNanos == 1_000_000_000L)
-assert(data.endTimeNanos   == 1_000_500_000L)
+try span.setAttribute("message.id", "msg-456")
+finally span.end()
 ```
 
-## Integration
-
-`Tracer.spanBuilder` calls `SpanBuilder.apply` internally and pre-configures it with the tracer's `Resource` and `InstrumentationScope`. When you call `Tracer.spanBuilder(name).startSpan()` via a `Tracer` obtained from a `TracerProvider`, the resource and scope are already set. When you call `SpanBuilder("name")` directly, set `setResource` and `setInstrumentationScope` yourself to ensure the exported `SpanData` carries the correct metadata.
