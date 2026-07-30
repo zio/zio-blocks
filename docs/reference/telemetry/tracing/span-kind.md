@@ -1,7 +1,7 @@
 ---
 id: span-kind
 title: "SpanKind"
-description: "SpanKind — the sealed enumeration classifying a span's role in a trace (Internal, Server, Client, Producer, Consumer) in the telemetry Tracing sub-domain."
+description: "SpanKind — the sealed enumeration classifying a span's role in a trace (Internal, Server, Client, Producer, Consumer) in the telemetry module's tracing area."
 keywords:
   - "Distributed Tracing"
   - "Span Classification"
@@ -51,5 +51,5 @@ Setting the kind accurately lets a tracing backend pair a `Client` span in one s
 ## See Also
 
 - [Span](./span.md) — the unit of work a `SpanKind` classifies.
-- [Tracing](./index.md) — the sub-domain overview and the `trace` entry point.
+- [Tracing](./index.md) — the tracing overview and the `trace` entry point.
 - [OpenTelemetry SpanKind specification](https://opentelemetry.io/docs/specs/otel/trace/api/#spankind) — the cross-language semantics this enumeration follows.
