@@ -1,12 +1,12 @@
 ---
 id: span-status
 title: "SpanStatus"
-description: "SpanStatus — the sealed enumeration recording a span's completion outcome (Unset, Ok, Error) in the telemetry Tracing sub-domain."
+description: "SpanStatus — the sealed enumeration recording a span's completion outcome (Unset, Ok, Error) in the telemetry module's tracing area."
 keywords:
-  - "SpanStatus Unset Ok Error"
-  - "span outcome"
-  - "span completion status"
-  - "OpenTelemetry span status"
+  - "Distributed Tracing"
+  - "Span Outcome"
+  - "Completion Status"
+  - "SpanStatus"
 sidebar_label: "SpanStatus"
 ---
 
@@ -44,4 +44,4 @@ provider.shutdown()
 
 - [Span](./span.md) — the unit of work whose outcome `SpanStatus` records.
 - [SpanKind](./span-kind.md) — the companion classification, set once at span creation.
-- [Tracing](./index.md) — the sub-domain overview.
+- [Tracing](./index.md) — the tracing overview.
