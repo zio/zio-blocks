@@ -1,17 +1,16 @@
 ---
 id: index
 title: "Tracing"
-description: "Tracing sub-domain index: the trace entry point, TracerProvider, Tracer, Span, and supporting types for distributed tracing in the telemetry module."
+description: "Tracing index: the trace entry point, TracerProvider, Tracer, Span, and supporting types for distributed tracing in the telemetry module."
 keywords:
-  - "distributed tracing"
-  - "trace TracerProvider Tracer Span"
-  - "SpanContext SpanData SpanProcessor"
-  - "Sampler SpanKind SpanStatus"
-  - "OpenTelemetry Scala"
+  - "Distributed Tracing"
+  - "Trace Correlation"
+  - "Tracing Overview"
+  - "TracerProvider"
 sidebar_label: "Tracing"
 ---
 
-The Tracing sub-domain covers the complete span lifecycle for distributed tracing. The `trace` object is the entry point; behind it, [`TracerProvider`](./tracer-provider.md) is configured once at startup and produces [`Tracer`](./tracer.md) instances, and each `Tracer` opens and closes [`Span`](./span.md) scopes, consulting a [`Sampler`](./sampler.md) and notifying [`SpanProcessor`](./span-processor.md) listeners as spans begin and end.
+Tracing covers the complete span lifecycle for distributed tracing. The `trace` object is the entry point; behind it, [`TracerProvider`](./tracer-provider.md) is configured once at startup and produces [`Tracer`](./tracer.md) instances, and each `Tracer` opens and closes [`Span`](./span.md) scopes, consulting a [`Sampler`](./sampler.md) and notifying [`SpanProcessor`](./span-processor.md) listeners as spans begin and end.
 
 `trace` is the zero-setup entry point and the primary tracing API. On import it delegates to an internally-managed `TracerProvider` that samples every span and buffers completed spans in memory, so `trace.span(...)` records immediately with no configuration — the default for development and tests, where `trace.collectedSpans` returns exactly what was recorded. Call `trace.install(provider)` once at application startup to route spans to real exporters.
 
@@ -126,27 +125,11 @@ object trace {
 }
 ```
 
-`trace.removeAll()` detaches the provider, turning subsequent spans into no-ops.
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-trace.install(
-  TracerProvider.builder
-    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
-    .setSampler(ParentBasedSampler(AlwaysOnSampler))
-    .build()
-)
-
-// later, at shutdown
-trace.removeAll()
-```
-
-The builder wires the provider's pipeline: `setResource` stamps a service identity — the well-known `ServiceName` attribute, here `"order-service"` — onto every span; `setSampler(ParentBasedSampler(AlwaysOnSampler))` follows an incoming parent span's sampling decision and records all root spans; and `build()` produces the `TracerProvider`. After `install`, every `trace.span` routes through it, and `removeAll()` restores the no-op default at shutdown.
+`trace.removeAll()` detaches the provider, turning subsequent spans into no-ops. The Usage example below shows a full provider build and install.
 
 ## Usage
 
-Tracing's core job is to **track a request through your application**. Install a provider once at startup, then wrap each unit of work in a span; nested spans automatically attach to their parent through the shared `ContextStorage`.
+Tracing's core job is to **track a request through your application** — install a provider once at startup, then wrap each unit of work in a span:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
