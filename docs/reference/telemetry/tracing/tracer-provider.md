@@ -1,25 +1,25 @@
 ---
 id: tracer-provider
 title: "TracerProvider"
-description: "Factory for Tracer instances — configures Resource, Sampler, SpanProcessors, and ContextStorage for distributed tracing."
+description: "Root factory for distributed tracing: produces Tracer instances sharing a Resource, Sampler, SpanProcessors, and ContextStorage."
 keywords:
-  - "TracerProvider Builder"
-  - "Tracer Factory"
-  - "SpanProcessor Configuration"
-  - "Distributed Tracing Setup"
-  - "ContextStorage Propagation"
-  - "Sampler Configuration"
-  - "Telemetry Provider Lifecycle"
+  - "TracerProvider tracing factory"
+  - "TracerProviderBuilder configuration"
+  - "SpanProcessor registration"
+  - "trace-log correlation ContextStorage"
+  - "Sampler head sampling"
+  - "Tracer instrumentation scope"
+  - "distributed tracing ZIO Blocks"
 ---
 
-`TracerProvider` is a factory for `Tracer` instances that share a common `Resource`, `Sampler`, ordered list of `SpanProcessor`s, and `ContextStorage` for active-span propagation. It is the production configuration entry point for the tracing pillar of the ZIO Blocks Telemetry module — positioned between the global `trace` singleton (which holds a reference to the installed provider) and the per-scope `Tracer` instances that library code receives via `TracerProvider#get`.
+`TracerProvider` is the root factory for distributed tracing in the telemetry module. It holds a shared `Resource`, `Sampler`, ordered sequence of `SpanProcessor`s, and `ContextStorage[Option[SpanContext]]`, and produces `Tracer` instances that all inherit that configuration. Its primary constructor is package-private; use `TracerProvider.builder` and the returned `TracerProviderBuilder` to configure and create a provider.
 
-- **Immutable after construction** — all settings are fixed when `build()` is called; no field can be mutated at runtime.
-- **Builder pattern** — the primary constructor is package-private; `TracerProvider.builder` is the only public entry point.
-- **`AutoCloseable`** — `close()` delegates to `shutdown()`, so a provider can be managed with `scala.util.Using.resource` or a JVM shutdown hook.
-- **Thread-safe on JVM** — the default `ContextStorage` uses `ScopedValue`-backed scoped bindings, which are inherently per-call-stack.
+- **Immutable after construction** — Once `build()` is called, the provider's resource, sampler, processor list, and context storage are fixed for its lifetime.
+- **Builder pattern** — `TracerProvider.builder` returns a `TracerProviderBuilder`; call the configuration methods in any order and finish with `build()`.
+- **`AutoCloseable`** — `close()` delegates to `shutdown()`, so the provider can be used in `scala.util.Using.resource` blocks or Java `try`-with-resources.
+- **Platform-neutral** — Shared sources compile on both JVM and Scala.js. The `ContextStorage` implementation is platform-specific: JVM uses JDK 25 `ScopedValue`; Scala.js substitutes an equivalent alternative.
 
-The public surface of `TracerProvider` and its companion builder is:
+The two cooperating classes share the following public surface:
 
 ```scala
 final class TracerProvider private[telemetry] (
@@ -43,7 +43,7 @@ object TracerProvider {
 }
 
 final class TracerProviderBuilder private[telemetry] (...) {
-  // Builder Configuration — call before build()
+  // Builder — Configuration
   def setResource(resource: Resource): TracerProviderBuilder
   def setSampler(sampler: Sampler): TracerProviderBuilder
   def addSpanProcessor(processor: SpanProcessor): TracerProviderBuilder
@@ -53,51 +53,38 @@ final class TracerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-`TracerProvider` sits in the Tracing group alongside `Tracer` and `Span`. The relationship across the full tracing pillar looks like this:
-
-```
-trace (global singleton — AtomicReference[TracerProvider])
-  └── TracerProvider   ← this type
-        └── Tracer     (obtained via TracerProvider#get)
-              └── Span (active unit of work)
-                    └── SpanData (immutable export snapshot → SpanProcessor)
-```
-
 ## Usage
 
-The following example shows the complete lifecycle: configure a provider with a custom resource and processor, obtain a `Tracer`, record a span, then shut down:
+The following block shows the complete lifecycle of a `TracerProvider` — building it, obtaining a `Tracer`, opening a `Span`, and shutting down:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
-import scala.util.Using
 
-Using.resource(
-  TracerProvider.builder
-    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
-    .setSampler(ParentBasedSampler(AlwaysOnSampler))
-    .addSpanProcessor(SpanProcessor.noop)
-    .build()
-) { provider =>
-  val tracer: Tracer = provider.get("payments-service", "1.0.0")
+val provider = TracerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
+  .setSampler(AlwaysOnSampler)
+  .addSpanProcessor(SpanProcessor.noop)
+  .build()
 
-  val result: Int = tracer.span("process-payment") { span =>
-    span.setAttribute(AttributeKey.long("amount_cents"), 4200L)
-    42
-  }
+val tracer = provider.get("com.example.payments")
 
-  result // 42
+tracer.span("process-payment") { span =>
+  span.setAttribute("payment.id", "pay-001")
+  span.setAttribute("currency", "USD")
 }
+
+provider.shutdown()
 ```
 
-`Using.resource` calls `provider.close()` — which delegates to `shutdown()` — automatically when the block exits, even on exception.
+The global `trace` singleton wraps this pattern behind a zero-setup API. Call `trace.install(provider)` once at application startup to replace its built-in in-memory provider with a production-configured one.
 
-## Construction / Creating Instances
+## Creating Values
 
-Because `TracerProvider`'s primary constructor is package-private, the builder is the only supported construction path. We start with `TracerProvider.builder`, call zero or more configuration methods on the returned `TracerProviderBuilder`, and finish with `build()`. Every configuration method returns `this`, so calls chain fluently.
+We build a `TracerProvider` in two steps: start with `TracerProvider.builder` to get a `TracerProviderBuilder`, configure it, then call `build()`.
 
-### `TracerProvider.builder` — Start a new builder
+### Starting with `TracerProvider.builder`
 
-Returns a `TracerProviderBuilder` pre-populated with the following defaults: `Resource.default` (SDK attributes plus `service.name = "unknown_service"`), `AlwaysOnSampler`, an empty processor list, and `ContextStorage.create[Option[SpanContext]](None)` (a `ScopedValue`-backed store on JVM).
+`TracerProvider.builder` is the sole public entry point for construction. It returns a fresh `TracerProviderBuilder` pre-populated with `Resource.default` (service name `"unknown_service"` plus SDK attributes), `AlwaysOnSampler`, an empty processor list, and the platform's default `ContextStorage`:
 
 ```scala
 object TracerProvider {
@@ -105,121 +92,20 @@ object TracerProvider {
 }
 ```
 
-We always begin provider construction with this call:
+We obtain a builder and immediately verify that its defaults are sane before adding any configuration:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val builder: TracerProviderBuilder = TracerProvider.builder
+val builder = TracerProvider.builder
+// builder: TracerProviderBuilder — ready for chained configuration calls
+val minimalProvider = builder.build()
+minimalProvider.shutdown()
 ```
 
-The builder is mutable internally but its mutations are not visible outside the builder: once `build()` is called the resulting `TracerProvider` is immutable.
+### Building with `TracerProviderBuilder.build`
 
-### `setResource` — Identify the producing service
-
-Sets the `Resource` that is attached to every span this provider emits. A `Resource` wraps `Attributes` that describe the service, container, or host producing the telemetry. If not called, the builder uses `Resource.default`, which includes SDK identification attributes and `service.name = "unknown_service"`.
-
-```scala
-final class TracerProviderBuilder private[telemetry] (...) {
-  def setResource(resource: Resource): TracerProviderBuilder
-}
-```
-
-We build a `Resource` from a single `Attributes.of` call, using the predefined `Attributes.ServiceName` key:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = TracerProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
-  .build()
-```
-
-Passing descriptive resource attributes is important for backends such as Jaeger or Zipkin, which use them to group spans under the correct service name.
-
-### `setSampler` — Control span recording
-
-Sets the `Sampler` consulted when a `Tracer` starts a new span. The sampler receives the parent context, trace ID, span name, kind, and initial attributes, and returns a `SamplingResult` indicating whether to drop, record-only, or record-and-sample the span. If not called, the builder uses `AlwaysOnSampler`.
-
-```scala
-final class TracerProviderBuilder private[telemetry] (...) {
-  def setSampler(sampler: Sampler): TracerProviderBuilder
-}
-```
-
-`ParentBasedSampler` is the most common production choice: it follows the parent span's sampling decision for remote spans and delegates to a root sampler for new traces:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = TracerProvider.builder
-  .setSampler(ParentBasedSampler(AlwaysOnSampler))
-  .build()
-```
-
-Other built-in samplers are `AlwaysOnSampler` (record everything) and `AlwaysOffSampler` (drop everything, useful in tests).
-
-### `addSpanProcessor` — Wire exporters and observers
-
-Appends a `SpanProcessor` to the provider's ordered list. Each processor receives `onStart` and `onEnd` callbacks as spans are created and completed. Processors are invoked in insertion order; call `addSpanProcessor` multiple times to attach several processors.
-
-```scala
-final class TracerProviderBuilder private[telemetry] (...) {
-  def addSpanProcessor(processor: SpanProcessor): TracerProviderBuilder
-}
-```
-
-The following example wires two processors — one for in-memory inspection during tests and one that exports spans to a backend:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val inMemory = SpanProcessor.noop
-
-val provider = TracerProvider.builder
-  .addSpanProcessor(inMemory)
-  .addSpanProcessor(SpanProcessor.noop) // replace with a real exporter in production
-  .build()
-```
-
-:::caution
-Processors are called in insertion order on the thread that ends the span. A slow or blocking processor (for example, a synchronous HTTP exporter) will slow every span's end. Prefer batch processors that hand off to a background thread.
-:::
-
-### `setContextStorage` — Override active-span propagation
-
-Overrides the `ContextStorage[Option[SpanContext]]` used to propagate the currently active span through the call stack. When not called, the builder resolves to `ContextStorage.create[Option[SpanContext]](None)`, which on JVM is backed by a `ScopedValue`.
-
-```scala
-final class TracerProviderBuilder private[telemetry] (...) {
-  def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): TracerProviderBuilder
-}
-```
-
-Pass the same `ContextStorage` instance to both `TracerProvider` and `LoggerProvider` to enable automatic trace-log correlation — log records will carry the active `SpanContext` without any additional instrumentation:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val sharedStorage: ContextStorage[Option[SpanContext]] =
-  ContextStorage.create[Option[SpanContext]](None)
-
-val tracerProvider = TracerProvider.builder
-  .setContextStorage(sharedStorage)
-  .build()
-
-val loggerProvider = LoggerProvider.builder
-  .setContextStorage(sharedStorage)
-  .build()
-```
-
-:::note
-Override `ContextStorage` only when integrating with a custom async runtime whose threading model makes `ScopedValue` propagation unreliable, or when sharing context explicitly with `LoggerProvider` as shown above.
-:::
-
-### `TracerProviderBuilder.build` — Finalise configuration
-
-Constructs the `TracerProvider` from the accumulated builder state. If `setContextStorage` was not called, `build()` supplies `ContextStorage.create[Option[SpanContext]](None)` automatically. The resulting provider is immutable.
+`TracerProviderBuilder.build()` resolves the accumulated configuration and returns an immutable `TracerProvider`. If `setContextStorage` was never called, it substitutes `ContextStorage.defaultSpanContextStorage` — the shared singleton used for trace–log correlation:
 
 ```scala
 final class TracerProviderBuilder private[telemetry] (...) {
@@ -227,33 +113,128 @@ final class TracerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-We call `build()` once at the end of the chain after all configuration methods:
+The following example assembles a fully specified provider for an `"order-service"`:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val provider: TracerProvider = TracerProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "my-service")))
-  .setSampler(AlwaysOnSampler)
+val provider = TracerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
+  .setSampler(ParentBasedSampler(AlwaysOnSampler))
   .addSpanProcessor(SpanProcessor.noop)
   .build()
 
 provider.shutdown()
 ```
 
-After calling `build()`, the builder instance should be discarded. Re-using or further mutating the builder after `build()` is not supported.
-
 ## Core Operations
 
-Once a `TracerProvider` is built, its API groups into two categories: obtaining `Tracer` instances and managing the provider's lifecycle.
+The full API of `TracerProvider` and `TracerProviderBuilder` falls into three categories: the builder's four configuration methods, the single method that produces a `Tracer`, and the three lifecycle methods that release processor resources.
+
+### Builder — Configuration
+
+The builder methods `setResource`, `setSampler`, `addSpanProcessor`, and `setContextStorage` control every aspect of a provider before it is built. Each method mutates the builder in place and returns `this`, enabling a fluent chain.
+
+#### Describing the service entity
+
+`TracerProviderBuilder.setResource` replaces the `Resource` that the provider stamps on every span. A `Resource` wraps a typed `Attributes` collection; the most common attribute is `service.name`, accessed via the predefined `Attributes.ServiceName` key. If `setResource` is never called, the builder uses `Resource.default`, which carries `service.name = "unknown_service"` alongside SDK identification attributes:
+
+```scala
+final class TracerProviderBuilder private[telemetry] (...) {
+  def setResource(resource: Resource): TracerProviderBuilder
+}
+```
+
+We override the resource when multiple services share a single JVM process and need distinct identities in the trace backend:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val provider = TracerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "inventory-service")))
+  .build()
+
+provider.shutdown()
+```
+
+#### Controlling sampling behavior
+
+`TracerProviderBuilder.setSampler` sets the `Sampler` consulted on every new span. Three built-in samplers cover the common strategies: `AlwaysOnSampler` records every span (the default), `AlwaysOffSampler` drops all spans and returns a `Span.NoOp` with zero allocation overhead, and `ParentBasedSampler` follows the incoming trace's sampling flag for child spans and delegates to a root sampler when no parent exists:
+
+```scala
+final class TracerProviderBuilder private[telemetry] (...) {
+  def setSampler(sampler: Sampler): TracerProviderBuilder
+}
+```
+
+We configure OpenTelemetry-compatible head sampling by wrapping `AlwaysOnSampler` as the root of a `ParentBasedSampler`:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val provider = TracerProvider.builder
+  .setSampler(ParentBasedSampler(AlwaysOnSampler))
+  .build()
+
+provider.shutdown()
+```
+
+#### Attaching span processors
+
+`TracerProviderBuilder.addSpanProcessor` appends a `SpanProcessor` to the provider's ordered list. A `SpanProcessor` receives `onStart` and `onEnd` callbacks for every sampled span. Multiple calls accumulate processors; the first added is the first called during both event dispatches and during `shutdown()` or `forceFlush()`:
+
+```scala
+final class TracerProviderBuilder private[telemetry] (...) {
+  def addSpanProcessor(processor: SpanProcessor): TracerProviderBuilder
+}
+```
+
+We register two processors in insertion order — for example, an exporter alongside a local inspector:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val provider = TracerProvider.builder
+  .addSpanProcessor(SpanProcessor.noop) // replace with an OTLP exporter
+  .addSpanProcessor(SpanProcessor.noop) // replace with a metrics bridge
+  .build()
+
+provider.shutdown()
+```
+
+:::caution
+Processors are invoked in insertion order. If an earlier processor throws, later processors in the chain do not receive the callback for that span.
+:::
+
+#### Sharing the context store
+
+`TracerProviderBuilder.setContextStorage` overrides the `ContextStorage[Option[SpanContext]]` used to propagate the active span context through the call stack. When not set, the builder uses `ContextStorage.defaultSpanContextStorage`, backed by JDK 25 `ScopedValue` on JVM. Override this when integrating with a custom async runtime or when you need to share the same storage instance with a `LoggerProvider` to enable trace–log correlation:
+
+```scala
+final class TracerProviderBuilder private[telemetry] (...) {
+  def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): TracerProviderBuilder
+}
+```
+
+The following example creates a single `ContextStorage` instance and passes it to both a `TracerProvider` and a `LoggerProvider` so that every `LogRecord` emitted inside a span carries that span's trace and span identifiers:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val sharedStorage = ContextStorage.create[Option[SpanContext]](None)
+
+val tp = TracerProvider.builder.setContextStorage(sharedStorage).build()
+val lp = LoggerProvider.builder.setContextStorage(sharedStorage).build()
+
+trace.install(tp)
+log.install(lp.get("com.example"))
+
+tp.shutdown()
+```
 
 ### Tracer Access
 
-The `get` method is the bridge between `TracerProvider` configuration and the `Tracer` instances that library code uses to create spans.
-
-#### `get` — Obtain a named tracer
-
-Returns a `Tracer` for the given instrumentation scope `name` and optional `version`. The returned `Tracer` carries the provider's shared `Resource`, `Sampler`, processors, and `ContextStorage`, scoped under an `InstrumentationScope` identified by the provided name and version. A new `Tracer` instance is constructed on every call.
+`TracerProvider.get` produces a `Tracer` bound to a named instrumentation scope. Pass a scope name — typically a package or library name — and an optional version string. The returned `Tracer` inherits the provider's resource, sampler, processor list, and context storage; every span it opens is stamped with the given `InstrumentationScope`:
 
 ```scala
 final class TracerProvider private[telemetry] (...) {
@@ -261,124 +242,101 @@ final class TracerProvider private[telemetry] (...) {
 }
 ```
 
-We call `TracerProvider#get` once at library or module initialization and reuse the resulting `Tracer` throughout, since each call allocates a new instance:
+We retrieve a versioned tracer for a specific component alongside an unversioned one for general use:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = TracerProvider.builder.build()
 
-// Acquire once — both name and version are recorded in every span's InstrumentationScope
-val tracer: Tracer = provider.get("payments-service", "1.0.0")
+val tracer  = provider.get("com.example.checkout")
+val tracerV = provider.get("com.example.checkout", "3.1.0")
 
-// Use the Tracer to create spans
-val result: Int = tracer.span("charge") { span =>
-  span.setAttribute(AttributeKey.long("amount_cents"), 4200L)
-  42
+tracer.span("validate-cart") { span =>
+  span.setAttribute("cart.items", 5L)
 }
+
+provider.shutdown()
 ```
 
-When `version` is an empty string (the default), the `InstrumentationScope` records no version. Supply a semantic version string whenever the instrumentation scope is a versioned library component so that tracing backends can correlate spans with library releases.
-
-:::caution
-`get` constructs a new `Tracer` on every invocation. Cache the result at module initialization rather than calling `get` on the hot path.
+:::note
+`TracerProvider.get` allocates a new `Tracer` on every call. Assign the result to a `val` at startup and reuse it throughout the service lifetime rather than calling `get` per request.
 :::
 
 ### Lifecycle
 
-The lifecycle operations release resources held by the registered `SpanProcessor`s. We call them once when the application is shutting down or when the provider is no longer needed.
+`TracerProvider.shutdown`, `TracerProvider.forceFlush`, and `TracerProvider.close` manage the provider's operational lifetime. All three iterate the registered processor list and delegate to the corresponding method on each processor.
 
-#### `shutdown` — Release processor resources
-
-Calls `shutdown()` on every registered `SpanProcessor` in insertion order, releasing any background threads, buffers, or network connections they hold. After `shutdown()` returns, the provider is still structurally valid — spans can still be started — but processors will no longer emit data.
+`TracerProvider.shutdown` calls `shutdown()` on every processor in insertion order, releasing their resources; call it once when the application exits. `TracerProvider.forceFlush` calls `forceFlush()` on each processor, asking them to export any buffered span data immediately; use it before a scheduled checkpoint or a graceful drain. `TracerProvider.close` is an alias for `shutdown()` that satisfies `AutoCloseable`:
 
 ```scala
-final class TracerProvider private[telemetry] (...) {
+final class TracerProvider private[telemetry] (...) extends AutoCloseable {
   def shutdown(): Unit
-}
-```
-
-We call `TracerProvider#shutdown` once during application shutdown:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build()
-// ... application runs ...
-provider.shutdown()
-```
-
-#### `forceFlush` — Export buffered spans immediately
-
-Calls `forceFlush()` on every registered `SpanProcessor`, asking each to export any spans it is currently buffering rather than waiting for the next scheduled flush. This is useful before a planned shutdown to avoid losing in-flight telemetry.
-
-```scala
-final class TracerProvider private[telemetry] (...) {
   def forceFlush(): Unit
-}
-```
-
-We call `TracerProvider#forceFlush` before `shutdown()` to drain buffered data:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build()
-// ... application preparing to shut down ...
-provider.forceFlush()
-provider.shutdown()
-```
-
-#### `close` — `AutoCloseable` delegation
-
-Implements the `AutoCloseable` contract by delegating to `shutdown()`. This allows `TracerProvider` to be used directly with `scala.util.Using.resource` or Java's try-with-resources construct.
-
-```scala
-final class TracerProvider private[telemetry] (...) {
   override def close(): Unit
 }
 ```
 
-Using `scala.util.Using.resource` guarantees shutdown even when an exception propagates out of the block:
+We use `scala.util.Using.resource` to guarantee `shutdown()` even if span processing throws:
+
+```scala mdoc:compile-only
+import scala.util.Using
+import zio.blocks.telemetry._
+
+Using.resource(TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build()) { provider =>
+  val tracer = provider.get("com.example")
+  tracer.span("startup-check") { _ => () }
+}
+```
+
+## Subtypes and Related Types
+
+Two closely associated types complete the `TracerProvider` story: the mutable builder that produces it, and the global `trace` singleton that holds a reference to one.
+
+| Type                    | Relationship                                                                                                                                                                              |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `TracerProviderBuilder` | Mutable builder returned by `TracerProvider.builder`. Accumulates resource, sampler, processor, and context-storage settings; call `build()` to produce an immutable `TracerProvider`.    |
+| `trace` (object)        | Global singleton backed by an `AtomicReference[TracerProvider]`. Ships with an in-memory default; call `trace.install(provider)` to replace it with a production-configured provider.     |
+
+The `trace` object is the most common integration point for application code. We install a configured provider at startup and remove the setup burden from every individual call site:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
-import scala.util.Using
 
-Using.resource(TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build()) { provider =>
-  val tracer = provider.get("scope")
-  tracer.span("op") { _ => () }
+val provider = TracerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "catalog")))
+  .setSampler(ParentBasedSampler(AlwaysOnSampler))
+  .build()
+
+trace.install(provider)
+
+trace.span("list-products", SpanKind.Server) { span =>
+  span.setAttribute("page.size", 20L)
 }
-// provider.close() — and therefore shutdown() — is called automatically here
+
+provider.shutdown()
 ```
 
-## Comparisons
+## Comparison: OpenTelemetry Java `SdkTracerProvider`
 
-### `TracerProvider` vs. OpenTelemetry Java `SdkTracerProvider`
+Both `SdkTracerProvider` and `TracerProvider` follow the same conceptual pattern: builder → provider → tracer → span. The following table summarises the key differences:
 
-`SdkTracerProvider` from the `io.opentelemetry:opentelemetry-sdk` artifact follows the same conceptual pattern — builder, resource, sampler, span processors — but differs in dependency weight and call-site ergonomics:
+| Aspect                  | OpenTelemetry Java `SdkTracerProvider`                                         | ZIO Blocks `TracerProvider`                                                               |
+|-------------------------|--------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------|
+| **Dependencies**        | Requires `opentelemetry-sdk` and its transitive closure                        | Zero external dependencies                                                                |
+| **Platform**            | JVM only                                                                       | JVM and Scala.js via shared sources                                                       |
+| **Builder entry point** | `SdkTracerProvider.builder()` (static factory)                                 | `TracerProvider.builder` (companion object method)                                        |
+| **Context propagation** | `Context` / `ContextKey` from the OTel API                                     | `ContextStorage[Option[SpanContext]]` — ScopedValue semantics, no OTel API dependency     |
+| **Scope identity**      | `InstrumentationLibrary` registered via service loader or SDK config           | `InstrumentationScope(name, version)` passed directly to `get`                            |
+| **Resource defaults**   | Populated via `ResourceProvider` SPI                                           | `Resource.default` with `service.name`, SDK name, language, and version attributes        |
+| **Shutdown result**     | `close()` returns `CompletableResultCode`                                      | `shutdown()` is synchronous `Unit`                                                        |
 
-| Aspect                     | ZIO Blocks `TracerProvider`                          | OTel Java `SdkTracerProvider`                          |
-|----------------------------|------------------------------------------------------|--------------------------------------------------------|
-| Dependencies               | Zero — pure Scala, no OTel SDK jars                  | Requires `opentelemetry-sdk` and gRPC/HTTP exporters   |
-| Default sampler            | `AlwaysOnSampler`                                    | `ParentBasedSampler(ALWAYS_ON)` by default             |
-| Span lifecycle             | Higher-order `tracer.span("op") { ... }`             | Manual `span.end()` in a `finally` block               |
-| `AutoCloseable`            | Yes — `close()` delegates to `shutdown()`            | Yes — same pattern                                     |
-| Context propagation        | `ScopedValue` on JVM; pluggable via `setContextStorage` | Thread-local `Context` by default; pluggable          |
-| Cross-platform             | Compiles on JVM and Scala.js                         | JVM only                                               |
+If you need to forward spans to an OpenTelemetry-compatible collector, implement `SpanProcessor` to translate `SpanData` to the OTLP wire format and register it via `addSpanProcessor`. This keeps the application free of the OTel SDK dependency while remaining wire-compatible with any OTLP-capable backend.
 
-The higher-order `span` API on `Tracer` eliminates the need for a `try`/`finally` block at every call site, which is the most common source of missing `span.end()` calls in OTel Java code.
+## Integration
 
-### `TracerProvider` vs. `MeterProvider` and `LoggerProvider`
+`TracerProvider` sits at the head of the Tracing type chain. It produces `Tracer` instances; each `Tracer` opens and closes `Span` scopes, consults the shared `Sampler`, dispatches `onStart` and `onEnd` to the shared `SpanProcessor` list, and stores the active `SpanContext` in the shared `ContextStorage` for nested-span parent resolution.
 
-`MeterProvider` and `LoggerProvider` are the sibling provider types in the same `zio.blocks.telemetry` package, serving the metrics and logging pillars respectively. All three follow the identical builder pattern and `AutoCloseable` lifecycle:
+The most important cross-pillar integration point is trace–log correlation. When a `TracerProvider` and a `LoggerProvider` share the same `ContextStorage[Option[SpanContext]]` instance, every `LogRecord` emitted while a span is active automatically carries that span's `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` as unboxed primitive fields — no boxing, no string formatting until a `LogFormatter` runs. Both providers default to the same internal `ContextStorage.defaultSpanContextStorage` singleton, so correlation is automatic when both are installed with their default settings. Pass an explicit shared instance via `setContextStorage` when you need to isolate correlation in tests or when integrating with a custom async runtime.
 
-| Aspect                     | `TracerProvider`                                     | `MeterProvider`                          | `LoggerProvider`                         |
-|----------------------------|------------------------------------------------------|------------------------------------------|------------------------------------------|
-| Produces                   | `Tracer` → `Span`                                    | `Meter` → instruments (Counter, etc.)    | `Logger` → log records                   |
-| Builder method             | `TracerProvider.builder`                             | `MeterProvider.builder`                  | `LoggerProvider.builder`                 |
-| Sampler support            | Yes — `setSampler`                                   | No                                       | No                                       |
-| `ContextStorage` support   | Yes — `setContextStorage`                            | No                                       | Yes — `setContextStorage`                |
-| `AutoCloseable`            | Yes                                                  | Yes                                      | Yes                                      |
-
-Passing the same `ContextStorage` instance to both `TracerProvider` and `LoggerProvider` enables trace-log correlation automatically: log records emitted inside a `tracer.span` block carry the active `SpanContext` without any additional instrumentation. `MeterProvider` does not participate in span context propagation because metrics are aggregated rather than correlated to individual traces.
+For a complete picture of how `TracerProvider`, `LoggerProvider`, and `MeterProvider` interconnect across all three observability pillars, see the [Telemetry module index](./index.md).

@@ -1,65 +1,75 @@
 ---
 id: span-context
 title: "SpanContext"
-description: "Propagatable identity of a span in the ZIO Blocks Telemetry tracing pillar — stores trace and span IDs as primitives for zero-allocation propagation."
+description: "Propagatable span identity: 128-bit trace ID (two Longs), SpanId, TraceFlags, trace state, and isRemote."
 keywords:
-  - "SpanContext"
-  - "Trace ID"
-  - "Span ID"
-  - "TraceFlags"
-  - "Distributed Tracing"
-  - "W3C Trace Context"
-  - "isRemote"
+  - "SpanContext tracing identity"
+  - "traceIdHi traceIdLo SpanId TraceFlags"
+  - "W3C TraceContext propagation"
+  - "isValid isSampled traceIdHex"
+sidebar_label: "SpanContext"
 ---
 
-`SpanContext` is the propagatable identity of a span. It carries the 128-bit trace ID inlined as two `Long` fields (`traceIdHi`, `traceIdLo`), a 64-bit span ID stored as the `SpanId` AnyVal, trace flags as the `TraceFlags` AnyVal, a vendor-specific trace state string, and a boolean indicating whether the context originated from a remote parent. All fields are stored as primitives to avoid boxing on the hot propagation path.
-
-`SpanContext.invalid` is the sentinel value used when no span is active — all numeric fields are zero and both `isValid` and `isSampled` return `false`.
+`SpanContext` is the propagatable portion of a span. It carries the 128-bit trace ID (split into two `Long` fields to avoid boxing), the `SpanId` (an `AnyVal` wrapping a `Long`), the `TraceFlags` (an `AnyVal` wrapping a `Byte`), a trace-state string, and an `isRemote` flag that marks contexts extracted from upstream HTTP headers. `SpanContext.invalid` is the sentinel used when no span is active.
 
 ```scala
 final case class SpanContext(
-  traceIdHi: Long,
-  traceIdLo: Long,
-  spanId: SpanId,
-  traceFlags: TraceFlags,
-  traceState: String,
-  isRemote: Boolean
-)
+  traceIdHi:   Long,        // high 64 bits of the 128-bit trace ID
+  traceIdLo:   Long,        // low  64 bits of the 128-bit trace ID
+  spanId:      SpanId,      // AnyVal wrapping a Long
+  traceFlags:  TraceFlags,  // AnyVal wrapping a Byte
+  traceState:  String,      // W3C tracestate header value
+  isRemote:    Boolean      // true when extracted from an incoming request
+) {
+  def isValid:      Boolean // true when traceId or spanId is non-zero
+  def isSampled:    Boolean // true when the sampled bit of traceFlags is set
+  def traceIdHex:   String  // 32-char lowercase hex trace ID
+}
+
+object SpanContext {
+  val invalid: SpanContext   // sentinel: all-zero IDs, not sampled, not remote
+  def create(traceIdHi: Long, traceIdLo: Long, spanId: SpanId, traceFlags: TraceFlags,
+             traceState: String, isRemote: Boolean): SpanContext
+}
 ```
 
-## Usage
+## Creating Values
 
-The following example reads the active span context from a `Tracer` and uses the trace ID hex string for log correlation:
+Most code never constructs a `SpanContext` directly — `Tracer.span` generates one per new span. The two named constructors are for advanced use cases:
+
+- **`SpanContext.invalid`** — the zero-value sentinel; `isValid` returns `false`.
+- **`SpanContext.create`** — builds an explicit context for distributed propagation (header extraction) or testing.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val tracer: Tracer = trace.get("com.example")
+// Sentinel for "no active span"
+val noSpan = SpanContext.invalid
+assert(!noSpan.isValid)
+assert(!noSpan.isSampled)
 
-tracer.span("handle-request") { _ =>
-  val ctx: Option[SpanContext] = tracer.currentSpan
-
-  ctx.foreach { c =>
-    if (c.isValid) {
-      // 32-character lowercase hex string suitable for injection into log MDC
-      val traceId: String = c.traceIdHex
-      println(s"trace=$traceId sampled=${c.isSampled}")
-    }
-  }
-}
-
-// Outside any active span — falls back to the invalid sentinel
-val fallback: SpanContext = tracer.currentSpan.getOrElse(SpanContext.invalid)
-assert(!fallback.isValid)
+// Extract from an incoming W3C traceparent header (simplified)
+val extracted = SpanContext.create(
+  traceIdHi  = 0x4bf92f3577b34da6L,
+  traceIdLo  = 0xa3ce929d0e0e4736L,
+  spanId     = SpanId(0x00f067aa0ba902b7L),
+  traceFlags = TraceFlags.sampled,
+  traceState = "",
+  isRemote   = true
+)
+assert(extracted.isValid)
+assert(extracted.isSampled)
+println(extracted.traceIdHex) // "4bf92f3577b34da6a3ce929d0e0e4736"
 ```
 
-`SpanContext` values flow automatically through `ContextStorage` when spans are created via `Tracer#span`. Inject a `SpanContext` into outbound HTTP headers to propagate the W3C `traceparent` header to downstream services.
+## Core Operations
 
-## Key Operations
+| Method | Description |
+|--------|-------------|
+| `isValid: Boolean` | `true` when either `traceIdHi`, `traceIdLo`, or `spanId.value` is non-zero. |
+| `isSampled: Boolean` | `true` when the sampled bit (`0x01`) of `traceFlags` is set. |
+| `traceIdHex: String` | Returns the 128-bit trace ID as a 32-character lowercase hexadecimal string. |
 
-| Member | Description |
-|---|---|
-| `isValid: Boolean` | Returns `true` if both the trace ID (`traceIdHi | traceIdLo != 0`) and the span ID are non-zero. |
-| `isSampled: Boolean` | Returns `true` if the sampled flag in `traceFlags` is set. Use to decide whether to forward the trace context. |
-| `traceIdHex: String` | Returns the 128-bit trace ID as a 32-character lowercase hex string. Suitable for log MDC and outbound header values. |
-| `SpanContext.invalid` | The zero-valued sentinel representing "no active span". |
+## Integration
+
+`SpanContext` is read from `ContextStorage` by `Tracer.currentSpan` and by `Logger` on every emit for automatic trace–log correlation. `SpanData` carries two `SpanContext` values: the span's own context and its parent's. `SpanContext.invalid` is the parent context for root spans (those with no parent).
