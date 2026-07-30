@@ -3,8 +3,10 @@ id: span
 title: "Span"
 description: "A mutable, thread-safe unit of work in a distributed trace."
 keywords:
-  - "Span Tracing Unit of Work"
-  - "Distributed Trace Span Lifecycle"
+  - "Distributed Tracing"
+  - "Span Lifecycle"
+  - "Unit of Work"
+  - "Span"
 ---
 
 `Span` is a mutable, thread-safe unit of work in a distributed trace — it records the name, kind, attributes, events, and outcome of one operation. You obtain a live `Span` from the higher-order [`trace.span`](./index.md) (or `Tracer#span`), which creates it, samples it, and ends it for you — you rarely create one directly.
