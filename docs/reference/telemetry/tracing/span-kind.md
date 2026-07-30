@@ -3,8 +3,9 @@ id: span-kind
 title: "SpanKind"
 description: "SpanKind — the sealed enumeration classifying a span's role in a trace (Internal, Server, Client, Producer, Consumer) in the telemetry Tracing sub-domain."
 keywords:
+  - "Distributed Tracing"
+  - "Span Classification"
   - "SpanKind"
-  - "OpenTelemetry SpanKind"
 sidebar_label: "SpanKind"
 ---
 
