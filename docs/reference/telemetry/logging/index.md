@@ -1,309 +1,75 @@
 ---
 id: index
 title: "Logging"
-description: "The logging pillar of ZIO Blocks Telemetry — the global log object for structured records with compile-time source location, rate limiting, and pluggable backends."
+description: "Logging index: the log entry point, LoggerProvider, Logger, LogRecord, and supporting types for structured logging in the telemetry module."
 keywords:
-  - "logging"
-  - "Global Logging Singleton"
-  - "Compile-Time Source Location"
-  - "Per-Call-Site Rate Limiting"
-  - "Log Record Processor"
-  - "Scoped Thread-Local Annotations"
+  - "Structured Logging"
+  - "Trace Correlation"
+  - "Logging Overview"
+  - "LoggerProvider"
+sidebar_label: "Logging"
 ---
 
-The **logging** pillar emits structured, trace-correlated log records with compile-time source location. A [`LoggerProvider`](./logger-provider.md) builds [`Logger`](./logger.md)s (one per instrumentation scope), each `Logger` turns a call into a [`LogRecord`](./log-record.md) and pushes it through a chain of [`LogRecordProcessor`](./log-record-processor.md)s, and a [`LogFormatter`](./log-formatter.md) renders records to text or JSON. Most code never touches those types directly — it calls the global `log` object, which wraps a default `Logger`.
+Logging covers structured, severity-leveled log emission. The `log` object is the entry point; behind it, [`LoggerProvider`](./logger-provider.md) is configured once at startup and produces [`Logger`](./logger.md) instances, and each `Logger` emits [`LogRecord`](./log-record.md) snapshots through an ordered pipeline of [`LogRecordProcessor`](./log-record-processor.md) instances.
 
-## Types in this pillar
+`log` is the zero-setup entry point and the primary logging API. Its emission methods are macros that capture the call site's source file, enclosing class, method name, and line number at compile time, and they stamp the active span's trace and span IDs into every record automatically. Register a [`LogWriter`](./log-formatter.md) via `log.writer` for human-readable console output, or install a `Logger` / add a `LogRecordProcessor` via `log.install` / `log.addProcessor` for a full export pipeline.
 
-**Emitting logs**
-- [`log`](#the-log-object) — global entry point; documented below.
-- [`LoggerProvider`](./logger-provider.md) — factory for `Logger`s; holds the shared processor array, resource, and context storage.
-- [`Logger`](./logger.md) — emits records within one instrumentation scope through the processor chain.
+Each emission method takes a message plus a varargs list of context values (`ctx: Any*`). Every argument is classified at compile time: a `(String, String)`, `(String, Long)`, `(String, Int)`, `(String, Double)`, or `(String, Boolean)` pair becomes a typed attribute; a `Throwable` attaches its type, message, and stack trace; a [`Severity`](./severity.md) overrides the record's level; an [`Attributes`](../shared/attributes.md) set is merged in; a bare `String` replaces the body; and any other type resolves through an implicit [`LogEnrichment[A]`](./log-enrichment.md) instance (define your own to log domain values directly).
 
-**Records and enrichment**
-- [`LogRecord`](./log-record.md) — the immutable record a log call produces (body, severity, attributes, trace-correlation fields).
-- [`LogEnrichment`](./log-enrichment.md) — typeclass letting a call mix `Throwable`, `String`, `Attributes`, and `(String, V)` enrichments.
+## Emit structured, severity-leveled records
 
-**Processing, formatting, and severity**
-- [`LogRecordProcessor`](./log-record-processor.md) — receives each record; implement it to export to a backend.
-- [`LogFormatter`](./log-formatter.md) — renders a record to human-readable text or OTLP JSON.
-- [`Severity`](./severity.md) — the 24-level severity scale.
-
-## The `log` object
-
-`log` is the global structured logging entry point of `zio-blocks-telemetry` — an `object` you import and call directly to emit log records at six severity levels, attach typed contextual data, and route output to pluggable backends. It is designed for hot paths: every call captures its source location at compile time and is cheap to skip when below the configured severity floor.
-
-Within the Telemetry module, `log` is one of three global entry points alongside `trace` (distributed tracing) and `metric` (instrumentation). It wraps an internal `Logger` that routes records through a chain of `LogRecordProcessor` instances. The backend is fully pluggable at runtime: call `log.writer`, `log.install`, or `log.addProcessor` to configure where records go.
-
-Key design properties:
-
-- **Hierarchical severity overrides** — per-package prefix overrides let you silence noisy packages while keeping others verbose; the most-specific prefix wins.
-- **Per-call-site rate limiting** — every-N and time-window variants prevent log floods from tight loops without instrumenting the surrounding code.
-- **Scoped annotations** — `log.annotated` attaches key/value pairs to every record emitted within a lexical block (auto-removed on exit), unlike a thread-local MDC you clear manually.
-- **Active-span correlation** — the active `SpanContext` is automatically injected from `ContextStorage` into each record when a trace is in progress.
-
-The declaration shape and primary members are:
-
-```scala
-object log extends LogVersionSpecific {
-  // Severity methods — macro-expanded (inline def on Scala 3, macro on Scala 2):
-  def info(message: String, enrichments: Any*): Unit          // + trace/debug/warn/error/fatal
-  def infoEvery(every: Int, message: String, ...): Unit       // rate-limited (every-N) family
-  def infoAtMost(intervalMillis: Long, message: String, ...): Unit // rate-limited (time-window) family
-
-  def annotated[A](annotations: (String, String)*)(f: => A): A     // scoped annotations
-
-  // Severity floor + per-package overrides (also clearMinSeverity / clearAllOverrides)
-  def setMinSeverity(severity: Severity): Unit
-  def setMinSeverity(prefix: String, severity: Severity): Unit
-  def withMinSeverity[A](severity: Severity)(f: => A): A
-
-  // Pluggable backend (also clearWriters / removeAll)
-  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
-  def addProcessor(processor: LogRecordProcessor): Unit
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-}
-```
-
-## Usage
-
-The following example shows the core capabilities in a single cohesive snippet: configuring an output writer, logging at two different levels with typed attributes, scoping an annotation block, and temporarily suppressing verbose output:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{Severity, TextLogFormatter, StdoutWriter}
-
-// Direct output to stdout in a human-readable format
-log.writer(TextLogFormatter, StdoutWriter)
-
-// Basic logging with typed key/value enrichments
-log.info("server started", "port" -> 8080, "env" -> "production")
-log.warn("high memory usage", "heapMb" -> 1024L, "threshold" -> 768L)
-
-// All records within this block carry requestId and userId attributes
-log.annotated("requestId" -> "req-abc", "userId" -> "u-42") {
-  log.info("processing request")
-  log.debug("cache miss", "key" -> "products:featured")
-}
-
-// Rate-limit a heartbeat log to every 100 invocations of this call site
-val uptimeSeconds = 300L
-log.infoEvery(100, "heartbeat", "uptime" -> uptimeSeconds)
-
-// Suppress Debug and Info temporarily (e.g., during a known-noisy section)
-log.withMinSeverity(Severity.Warn) {
-  log.debug("this is suppressed")
-  log.warn("this still appears")
-}
-```
-
-## Predefined Instances
-
-`zio-blocks-telemetry` ships with two ready-to-use `LogFormatter` implementations and two `LogWriter` sinks. We can combine them freely with `log.writer`.
-
-| Type               | Kind           | Description                                                                             |
-|--------------------|----------------|-----------------------------------------------------------------------------------------|
-| `TextLogFormatter` | `LogFormatter` | Human-readable text: `2026-03-31T17:30:00.123Z INFO [MyClass.method:42] message {k=v}`  |
-| `JsonLogFormatter` | `LogFormatter` | OTLP-compatible JSON: `{"timeUnixNano":…,"severityNumber":…,"body":…,"attributes":[…]}` |
-| `StdoutWriter`     | `LogWriter`    | Writes each formatted line to `System.out`                                              |
-| `StderrWriter`     | `LogWriter`    | Writes each formatted line to `System.err`                                              |
-
-`TextLogFormatter` caches the per-second UTC timestamp prefix to minimize formatting work on the hot path. `JsonLogFormatter` produces output compatible with the OTLP log data model and is the natural choice when forwarding records to an OpenTelemetry collector or a log aggregator that speaks OTLP.
-
-## Configuring the Logging Backend
-
-The backend is a chain of `LogRecordProcessor` instances. Two concerns: adding outputs, and replacing or tearing the chain down.
-
-### Adding outputs
-
-`writer(formatter, logWriter)` wraps a `LogFormatter` + `LogWriter` into a `FormattedLogRecordProcessor` and appends it; `addProcessor(processor)` appends any `LogRecordProcessor` directly. Both leave existing outputs in place, so repeated calls install multiple independent sinks.
+Six severities — `trace`, `debug`, `info`, `warn`, `error`, `fatal` — cover the whole scale.
 
 ```scala
 object log {
-  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
-  def addProcessor(processor: LogRecordProcessor): Unit
+  def trace(msg: String, ctx: Any*): Unit
+  def debug(msg: String, ctx: Any*): Unit
+  def info(msg: String, ctx: Any*): Unit
+  def warn(msg: String, ctx: Any*): Unit
+  def error(msg: String, ctx: Any*): Unit
+  def fatal(msg: String, ctx: Any*): Unit
 }
 ```
 
-We send records to a human-readable and a JSON sink at once, and attach a processor that counts errors for internal metrics:
+Pass typed key/value pairs for structured attributes, a `Throwable` to capture an exception, or an `Attributes` set to merge many values at once.
 
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{TextLogFormatter, JsonLogFormatter, StdoutWriter, StderrWriter}
-import zio.blocks.telemetry.{LogRecordProcessor, LogRecord}
-import java.util.concurrent.atomic.LongAdder
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-log.writer(TextLogFormatter, StdoutWriter)
-log.writer(JsonLogFormatter, StderrWriter)
+log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L, "express" -> true)
+log.debug("cache lookup", "hit" -> false)
 
-val errorCount = new LongAdder()
-log.addProcessor(new LogRecordProcessor {
-  def onEmit(record: LogRecord): Unit =
-    if (record.severity.number >= 17) errorCount.increment()
-  def shutdown(): Unit   = ()
-  def forceFlush(): Unit = ()
-})
+try throw new RuntimeException("payment declined")
+catch { case e: Throwable => log.error("charge failed", "orderId" -> "ord-123", e) }
 ```
 
-:::caution
-Each `writer` call appends a new processor — N calls means N format-and-write operations per record. Call `clearWriters()` first if you need to replace an existing output.
-:::
+## Limit log volume at hot call sites
 
-### Replacing and tearing down
-
-`install(logger, minSeverity)` atomically swaps the whole backend for a provided `Logger` and sets the global floor (`minSeverity` defaults to `Severity.Trace`, so all records pass). `clearWriters()` shuts down only the outputs added via `writer`, leaving `addProcessor`/`install` processors intact; `removeAll()` shuts down *everything* and resets to a no-op state, after which records are discarded until a new output is installed.
+Two rate-limiting families, each spanning all six severities, keep high-frequency sites quiet.
 
 ```scala
 object log {
-  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
-  def clearWriters(): Unit
-  def removeAll(): Unit
+  def <level>Every(every: Int, msg: String, ctx: Any*): Unit
+  def <level>AtMost(intervalMillis: Long, msg: String, ctx: Any*): Unit
 }
 ```
 
-We install a provider-built `Logger` at startup, swap writers without duplicating records, and flush everything at shutdown:
-
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.{Logger, Severity, JsonLogFormatter, StdoutWriter}
-
-def initLogging(logger: Logger): Unit =
-  log.install(logger, Severity.Info)
-
-log.clearWriters()                          // drop writer-based outputs...
-log.writer(JsonLogFormatter, StdoutWriter)  // ...now the only active writer
-
-// At JVM shutdown, flush and close all channels
-Runtime.getRuntime.addShutdownHook(new Thread(() => log.removeAll()))
-```
-
-:::caution
-`install` does not shut down the previously installed backend's processors — call `removeAll()` first for a clean transition.
-:::
-
-## Core Operations
-
-### Basic Logging
-
-The six basic logging methods — `trace`, `debug`, `info`, `warn`, `error`, and `fatal` — emit a record at the named severity. Every call is macro-expanded at compile time so that `code.filepath`, `code.namespace`, `code.function`, and `code.lineno` attributes are injected statically. The call is skipped entirely when the record's severity falls below the current global minimum.
-
-Each method accepts a message string followed by zero or more enrichments. Enrichments can be typed key/value tuples (`(String, String)`, `(String, Long)`, `(String, Double)`, `(String, Boolean)`, `(String, Int)`), a bare `Throwable` (which becomes `exception.type`, `exception.message`, and `exception.stacktrace` attributes), or an `Attributes` value.
-
-Each method is a compile-time macro — `inline def` on Scala 3, a blackbox macro on Scala 2 — but the call syntax is identical across versions:
-
-```scala
-trait LogVersionSpecific { self: log.type =>
-  def trace(message: String, enrichments: Any*): Unit
-  def debug(message: String, enrichments: Any*): Unit
-  def info(message: String, enrichments: Any*): Unit
-  def warn(message: String, enrichments: Any*): Unit
-  def error(message: String, enrichments: Any*): Unit
-  def fatal(message: String, enrichments: Any*): Unit
-}
-```
-
-The enrichments accept a mix of types in one call. Here we log a successful authentication event with a string attribute and then log a failure with a `Throwable`:
-
-```scala
-import zio.blocks.telemetry.log
-
-log.info("user authenticated", "userId" -> "u-123", "region" -> "eu-west")
-log.error("payment failed", new RuntimeException("gateway timeout"), "orderId" -> 42L)
-```
-
-Each of the six methods records at the primary level of its category — `log.info` at `Severity.Info` (numeric value 9), `log.warn` at `Severity.Warn`, and so on. See [`Severity`](./severity.md) for the full 24-level scale.
-
-:::caution
-Because these methods are macros, they inspect each enrichment's type *at compile time* (right where you write the call) to decide how it becomes an attribute. That only works when every enrichment is written out directly in the call:
-
-```scala
-val fields = Seq("userId" -> "u-123", "region" -> "eu-west")
-
-log.info("ok", "userId" -> "u-123", "region" -> "eu-west") // ✅ written inline
-log.info("ok", fields: _*)                                 // ❌ compile error
-```
-
-Spreading a pre-built sequence with `fields: _*` hides the individual values from the macro (it sees one runtime `Seq[Any]`, not the literal arguments), so it fails to compile with the message *"log methods require explicit arguments, not `args: _*` syntax"*. If you already have a collection, fold it into a single `Attributes` value and pass that — one value the macro accepts directly, no spread needed:
+The `Every` family is count-based — `<level>Every(every, msg, ctx*)` emits on every Nth call at that site. The `AtMost` family is time-based — `<level>AtMost(intervalMillis, msg, ctx*)` emits at most once per interval at that site. Each call site tracks its own counter/clock independently.
 
 ```scala mdoc:compile-only
-import zio.blocks.telemetry.{log, Attributes}
+import zio.blocks.telemetry._
 
-val fields: Seq[(String, String)] = Seq("userId" -> "u-123", "region" -> "eu-west")
+// Count-based: one line for every 100th retry
+log.warnEvery(100, "retrying upstream call", "endpoint" -> "/inventory")
 
-val attrs: Attributes =
-  fields.foldLeft(Attributes.builder) { case (b, (k, v)) => b.put(k, v) }.build
-
-log.info("user authenticated", attrs)
-```
-:::
-
-### Rate-Limited Logging
-
-When the same log call sits in a hot path, two families throttle it — both keyed to the call site (see the caution below). Choose by how you want to limit: **Every-N** caps by invocation count, **Time-Window** caps by elapsed time.
-
-#### Every-N
-
-The every-N family — `traceEvery`, `debugEvery`, `infoEvery`, `warnEvery`, `errorEvery`, `fatalEvery` — limits emission to at most once every `every` invocations of the same call site. Each method takes the sampling integer `every` as its first argument, followed by the message and any enrichments, with the same macro-expansion guarantee as the basic methods:
-
-```scala
-trait LogVersionSpecific { self: log.type =>
-  def infoEvery(every: Int, message: String, enrichments: Any*): Unit
-  // traceEvery / debugEvery / warnEvery / errorEvery / fatalEvery follow the same shape
-}
+// Time-based: at most one line per 5 seconds, whatever the call rate
+log.infoAtMost(5000L, "processing batch", "size" -> 512L)
+log.errorAtMost(1000L, "connection pool exhausted")
 ```
 
-A heartbeat log should appear roughly once per hundred loop iterations, not on every tick. We use `log.infoEvery` to suppress the flood while keeping the signal:
+## Attach scoped annotations
 
-```scala mdoc:compile-only
-import zio.blocks.telemetry.log
-
-var tick = 0
-while (true) {
-  val uptimeSeconds = tick.toLong * 5
-  log.infoEvery(100, "heartbeat", "uptime" -> uptimeSeconds)
-  tick += 1
-  Thread.sleep(5000)
-}
-```
-
-#### Time-Window
-
-The time-window family — `traceAtMost`, `debugAtMost`, `infoAtMost`, `warnAtMost`, `errorAtMost`, `fatalAtMost` — limits emission to at most once per `intervalMillis` milliseconds from the same call site, regardless of how many times the surrounding code runs. Each method takes the interval in milliseconds as its first argument, followed by the message and enrichments:
-
-```scala
-trait LogVersionSpecific { self: log.type =>
-  def warnAtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit
-  // traceAtMost / debugAtMost / infoAtMost / errorAtMost / fatalAtMost follow the same shape
-}
-```
-
-A slow-query warning that fires inside a hot request handler could produce thousands of records per second. We use `log.warnAtMost` to keep at most one warning per five-second window:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry.log
-
-def executeQuery(sql: String): Unit = {
-  val start   = System.currentTimeMillis()
-  // ... execute ...
-  val elapsed = System.currentTimeMillis() - start
-  if (elapsed > 500)
-    log.warnAtMost(5000L, "slow query", "queryMs" -> elapsed, "sql" -> sql)
-}
-```
-
-:::note
-The time window uses `System.currentTimeMillis()`, whose granularity depends on the platform's system clock — often coarser than 1 ms. Because the clock advances in discrete ticks, calls within one tick read the same value, so the elapsed-time check can see zero (over-suppressing) and then jump a whole tick at once (letting a burst through). Intervals near or below that granularity therefore behave inconsistently — prefer intervals comfortably above that threshold (e.g., 10–20 ms) for more predictable suppression.
-:::
-
-:::caution
-Rate limiting is best-effort. Each rate-limited call site is identified at compile time by hashing its source location (`file:line`), and that hash picks one slot in a fixed, process-wide table of 4096 counters (`siteId & 4095`). "Same call site" therefore means the same physical line — a call inside a loop shares one counter across all iterations (which is the point), while the same call copied onto two different lines gets two independent counters.
-
-Two different call sites can collide onto one slot — either because their hashes are equal (rare) or, more commonly, because two distinct hashes fold to the same slot; the odds of some collision grow as the number of rate-limited call sites in your app passes a few dozen. When two sites share a slot they share a counter, so one site's calls advance — and can trip — the other's limit. The table is never reset and the checks are lock-free, so under heavy concurrency the every-N / interval boundary is approximate, not exact.
-:::
-
-### Annotations
-
-`log.annotated` attaches contextual key/value pairs to every record emitted within a lexical scope. It stores the given `(String, String)` pairs in thread-local state and merges them into the `Attributes` of every record emitted inside the block `f`; when the block exits — normally or by exception — the annotations are removed via the thread-local scope:
+Attach key/value pairs to every record emitted inside a block with `annotated`.
 
 ```scala
 object log {
@@ -311,95 +77,140 @@ object log {
 }
 ```
 
-Annotations compose naturally by nesting. Inner annotations shadow outer ones on key collision. We can attach a request ID and tenant to every log record produced while handling a single HTTP request:
+The pairs reach every record from the block, including calls in nested methods, without threading them through each `log.*` call.
 
-```scala
-import zio.blocks.telemetry.log
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-def handleRequest(requestId: String, tenant: String): Unit =
-  log.annotated("requestId" -> requestId, "tenant" -> tenant) {
-    log.info("request received")
-    // nested block adds userId; requestId and tenant are still present
-    log.annotated("userId" -> "u-77") {
-      log.debug("user context resolved")
-    }
-    log.info("request complete")
-  }
+log.annotated("requestId" -> "req-42", "tenant" -> "acme") {
+  log.info("started")   // both annotations attached
+  log.info("finished")  // both annotations attached
+}
 ```
 
-:::caution
-Annotations are `String`-to-`String` only. If you need typed numeric or boolean contextual data, add it as an enrichment argument directly on the `log.info(...)` call rather than through `log.annotated`.
-:::
+## Correlate logs with the active span
 
-### Severity Control
+When a `log.*` call runs inside a `trace.span`, the record is stamped with the enclosing span's trace and span IDs automatically, because logging and tracing share the same `ContextStorage`. No extra wiring is required.
 
-Which records are emitted is governed at two levels: a global floor that applies to every call, and per-package overrides that tighten or relax specific namespaces. Records below the applicable floor are discarded before any object is allocated.
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-#### The global floor
+trace.span("checkout") { _ =>
+  log.info("order validated", "orderId" -> "ord-123") // carries the checkout span's IDs
+}
+```
 
-`setMinSeverity(severity)` sets the process-wide minimum; `withMinSeverity(severity)(f)` sets it only for the duration of a block, restoring the previous floor via `try/finally` whether `f` returns or throws.
+## Filter by severity
+
+Drop records below a threshold, globally or per package prefix.
 
 ```scala
 object log {
   def setMinSeverity(severity: Severity): Unit
+  def setMinSeverity(prefix: String, severity: Severity): Unit
+  def clearMinSeverity(prefix: String): Unit
+  def clearAllOverrides(): Unit
   def withMinSeverity[A](severity: Severity)(f: => A): A
 }
 ```
 
-In production we raise the floor to `Warn` globally, then use the scoped form to capture verbose output from one operation without changing global state:
+Set a global floor with `setMinSeverity(severity)`, or a per-package-prefix override with `setMinSeverity(prefix, severity)` (matched against the call site's namespace). Clear overrides with `clearMinSeverity(prefix)` or `clearAllOverrides()`, and lower the threshold for one block with `withMinSeverity`.
 
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.Severity
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-log.setMinSeverity(Severity.Warn) // suppresses Trace, Debug, Info globally
+log.setMinSeverity(Severity.Info)                     // drop trace/debug globally
+log.setMinSeverity("com.example.noisy", Severity.Warn) // stricter for one package
 
-val result = log.withMinSeverity(Severity.Debug) {
-  log.debug("entering diagnostic mode")
-  computeResult()
+log.withMinSeverity(Severity.Trace) {
+  log.trace("visible only inside this block")
 }
-// previous floor restored here
 ```
 
-:::note
-`setMinSeverity(severity)` also clears every per-package override — it reinstalls the backend with a fresh, empty override map. Set the global floor first, then add per-package overrides, not the other way around.
-:::
+## Route output
 
-:::caution
-The severity floor is a single setting shared by the whole program. `withMinSeverity` changes it for the duration of your block, then puts the old value back when the block finishes. Two things to watch:
-
-- **It is not private to your thread.** While your block runs, every other thread that logs sees the changed floor too.
-- **The restore can undo someone else's change.** When your block ends, it writes back the value it saw when it *started*. If another thread — or a nested `withMinSeverity` — changed the floor in between, that change is overwritten and lost.
-
-So use `withMinSeverity` only when nothing else is logging at the same time, such as a single-threaded script or an isolated test. To lower verbosity for one part of a running app without disturbing the rest, use a per-package override instead: it targets code by its package name and leaves the shared floor untouched.
-:::
-
-#### Per-package overrides
-
-`setMinSeverity(prefix, severity)` installs a floor for every call whose compile-time namespace starts with `prefix` (most-specific prefix wins over the global floor and less-specific prefixes); `clearMinSeverity(prefix)` removes one override, `clearAllOverrides()` removes them all.
+Send records to a console writer for simple output, or to a processor pipeline for export.
 
 ```scala
 object log {
-  def setMinSeverity(prefix: String, severity: Severity): Unit
-  def clearMinSeverity(prefix: String): Unit
-  def clearAllOverrides(): Unit
+  def writer(formatter: LogFormatter, logWriter: LogWriter): Unit
+  def clearWriters(): Unit
+  def install(logger: Logger, minSeverity: Severity = Severity.Trace): Unit
+  def addProcessor(processor: LogRecordProcessor): Unit
+  def removeAll(): Unit
 }
 ```
 
-We silence one noisy subsystem while keeping everything else at `Debug`, then clean up afterward:
+For simple console output, `log.writer(formatter, writer)` adds a formatted sink; it is additive, so each call adds another output, and `log.clearWriters()` removes them. For a full pipeline, `log.install(logger)` replaces the backend with a configured `Logger`, `log.addProcessor(processor)` appends a `LogRecordProcessor`, and `log.removeAll()` detaches everything (calls become no-ops until an output is added again).
 
-```scala
-import zio.blocks.telemetry.log
-import zio.blocks.telemetry.Severity
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-log.setMinSeverity(Severity.Debug)                     // global floor
-log.setMinSeverity("com.example.noisy", Severity.Warn) // quiet this package
+// Human-readable text to stdout, JSON to stderr
+log.writer(TextLogFormatter, StdoutWriter)
+log.writer(JsonLogFormatter, StderrWriter)
 
-log.clearMinSeverity("com.example.noisy")              // remove one override
-log.clearAllOverrides()                                // or remove every override
+// Or install a processor-based backend
+val logger = LoggerProvider.builder
+  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
+  .build()
+  .get("com.example")
+log.install(logger, Severity.Info)
 ```
 
-:::note
-Prefix matching uses `String#startsWith`, not glob or regex — `"com.example"` matches both `com.example.Foo` and `com.example.util.Bar`.
-:::
+## How They Work Together
 
+The `log` object delegates to a `LoggerProvider`, which acts as a factory for `Logger` instances that emit `LogRecord` snapshots. Because the provider shares its `ContextStorage` with [`TracerProvider`](../tracing/tracer-provider.md), each record is stamped with the active span's identity — correlation is automatic.
+
+```
+  log (object)  ── macros capture file / class / method / line
+     │  delegates to
+     ▼
+  LoggerProvider ──── Resource · LogRecordProcessor[] · ContextStorage
+     │  get(scope)
+     ▼
+  Logger ──emit──▶ LogRecord ──▶ LogRecordProcessor.onEmit ──▶ writer / exporter
+     ▲                              (LogFormatter + LogWriter render text / JSON)
+     └── reads active SpanContext from shared ContextStorage (trace–log correlation)
+```
+
+**Type Relationships:**
+
+- `log` wraps a `Logger`; its methods are macros that capture source location at compile time and add rate-limiting and `annotated` scopes.
+- `LoggerProvider` holds the shared [`Resource`](../shared/resource.md) and `LogRecordProcessor` pipeline and creates `Logger` instances via `get(scope)`.
+- `Logger` builds an immutable `LogRecord` per emission and dispatches it to every `LogRecordProcessor.onEmit`.
+- A `LogRecordProcessor` renders output through a [`LogFormatter`](./log-formatter.md) + `LogWriter`, gates emission by `Severity`, or exports to an external system.
+- Because `LoggerProvider` shares its `ContextStorage` with `TracerProvider`, each `LogRecord` is stamped with the active span's trace and span IDs.
+- `Severity` classifies each record; `LogEnrichment` attaches the typed values passed at the call site.
+
+## Usage
+
+Logging's core job is to **emit structured, correlated logs**. Point `log` at a writer once, then emit records inside your spans; each record carries its typed key-value context and the active trace and span IDs automatically.
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+trace.install(TracerProvider.builder.build())
+log.writer(TextLogFormatter, StdoutWriter)
+
+trace.span("checkout") { _ =>
+  log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)
+  log.warn("inventory low", "sku" -> "sku-42", "remaining" -> 3L)
+}
+```
+
+## Type Pages
+
+- **[LoggerProvider](./logger-provider.md)** — factory for `Logger` instances; holds `Resource`, the `LogRecordProcessor` pipeline, and `ContextStorage`. Build via `LoggerProvider.builder`.
+- **[Logger](./logger.md)** — emits `LogRecord`s through configured processors; auto-correlates with the active span via `ContextStorage`.
+- **[LogRecord](./log-record.md)** — immutable snapshot of a single log emission, carrying severity, body, typed attributes, and trace-correlation fields as unboxed primitives.
+- **[LogRecordProcessor](./log-record-processor.md)** — hook for the log record lifecycle (`onEmit`); implement to export, filter, or format records.
+- **[LogFormatter / LogWriter](./log-formatter.md)** — `LogFormatter` renders a `LogRecord`; `LogWriter` routes the output. Built-in: `TextLogFormatter`, `JsonLogFormatter`, `StdoutWriter`, `StderrWriter`.
+- **[Severity](./severity.md)** — 24-level severity scale following the OpenTelemetry log data model, in six categories: Trace, Debug, Info, Warn, Error, Fatal.
+- **[LogEnrichment](./log-enrichment.md)** — typeclass resolved at compile time by macro-generated `log.*` calls; attaches typed values to records.
+
+## See Also
+
+- [Telemetry Guide](../../../guides/telemetry-guide.md) — logging data flow, rate limiting, and production patterns
+- [Telemetry Reference](../index.md) — module overview and all three pillars
+- [Shared Vocabulary](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

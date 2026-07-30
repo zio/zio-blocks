@@ -1,26 +1,23 @@
 ---
 id: logger
 title: "Logger"
-description: "Scope-bound structured logger that routes records through a LogRecordProcessor pipeline with active-span correlation."
+description: "Instance-level structured logger that routes log records through a LogRecordProcessor pipeline with automatic span correlation."
 keywords:
-  - "Instance-Scoped Logger"
-  - "LogRecordProcessor Pipeline"
-  - "Structured Log Emission"
-  - "Active Span Correlation"
-  - "LoggerProvider Factory"
-  - "Severity-Level Logging"
-  - "Trace Context Injection"
+  - "Structured Logging"
+  - "Trace Correlation"
+  - "Log Emission"
+  - "Logger"
 ---
 
-`Logger` is an instance-scoped structured logger that routes every log record through an ordered chain of `LogRecordProcessor` instances and automatically correlates records with the active `SpanContext` drawn from a `ContextStorage`. Its constructor is package-private; instances are obtained via `LoggerProvider#get`. The global [`log`](./index.md) singleton delegates to an internal `Logger` — library code that needs isolation from the global backend should accept a `Logger` as a constructor parameter instead.
+`Logger` is the instance-level structured log emitter in the logging area of the telemetry module. Each `Logger` is bound to one named `InstrumentationScope`, carries the `Resource` and `LogRecordProcessor` pipeline configured on its parent `LoggerProvider`, and automatically stamps every emitted `LogRecord` with the active `SpanContext` it reads from `ContextStorage`. Instances are obtained by calling `LoggerProvider#get`; the global `log` singleton delegates to one internally.
 
-- **Instance-scoped** — each `Logger` is bound to one `InstrumentationScope` (name + optional version), so `instrumentationScope` appears on every record it emits.
-- **Processor pipeline** — records flow through every `LogRecordProcessor` in the order they were registered. Exceptions from individual processors are caught so that later processors always receive the record.
-- **Active-span correlation** — `currentSpanContext` reads the `ContextStorage` at emit time and injects `traceId`, `spanId`, and `traceFlags` into every record when a span is active.
-- **Fast path** — when the sole registered processor is a `ConsoleLogRecordProcessor`, `Logger` constructs a `FormattedLogEmitter` backed by `TextLogFormatter` and `StdoutWriter`, bypassing the general `StandardLogEmitter` path.
-- **Thread-safe emit** — processor iteration uses a fixed array with per-processor `try/catch NonFatal`; no locks are required.
+- **Instance-scoped** — bound to one `InstrumentationScope` (library name and optional version), so records carry a precise origin label.
+- **Processor pipeline** — records flow through every registered `LogRecordProcessor` in insertion order; processor exceptions are caught and printed to stderr so later processors still receive the record.
+- **Active-span correlation** — `ContextStorage` is consulted on every emit; the active `SpanContext`'s trace ID, span ID, and trace flags are injected into the `LogRecord` as unboxed primitive fields with zero allocation.
+- **Severity gate** — each processor's `minimumLevel` is cached at construction; records below the lowest gate are dropped before any allocation occurs.
+- **Thread-safe emit** — the emit path contains no shared mutable state.
 
-The full public surface, alongside its provider and builder, is:
+The full public surface of `Logger` is:
 
 ```scala
 final class Logger private[telemetry] (
@@ -29,10 +26,11 @@ final class Logger private[telemetry] (
   private[telemetry] val processors: Array[LogRecordProcessor],
   private[telemetry] val contextStorage: ContextStorage[Option[SpanContext]]
 ) {
-  // Trace correlation
+
+  // Trace Correlation
   def currentSpanContext(): Option[SpanContext]
 
-  // Structured logging — each method targets one Severity category
+  // Severity-level logging — (String, AttributeValue)* attribute pairs
   def trace(body: String, attrs: (String, AttributeValue)*): Unit
   def debug(body: String, attrs: (String, AttributeValue)*): Unit
   def info(body: String, attrs: (String, AttributeValue)*): Unit
@@ -40,93 +38,70 @@ final class Logger private[telemetry] (
   def error(body: String, attrs: (String, AttributeValue)*): Unit
   def fatal(body: String, attrs: (String, AttributeValue)*): Unit
 
-  // Low-level emit — passes a pre-built LogRecord to all processors
+  // Low-level pre-built record emit
   def emit(logRecord: LogRecord): Unit
-}
-
-object LoggerProvider {
-  def builder: LoggerProviderBuilder
-}
-
-final class LoggerProvider private[telemetry] (
-  resource: Resource,
-  private val processors: Array[LogRecordProcessor],
-  contextStorage: ContextStorage[Option[SpanContext]]
-) extends AutoCloseable {
-  def get(name: String, version: String = ""): Logger
-  def shutdown(): Unit
-  override def close(): Unit
-}
-
-final class LoggerProviderBuilder private[telemetry] (...) {
-  def setResource(resource: Resource): LoggerProviderBuilder
-  def addLogRecordProcessor(processor: LogRecordProcessor): LoggerProviderBuilder
-  def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): LoggerProviderBuilder
-  def build(): LoggerProvider
 }
 ```
 
 ## Usage
 
-The following example configures a `LoggerProvider` with a console processor, obtains a scoped `Logger`, and emits records at several severity levels with typed attributes:
+The following example shows the complete lifecycle — building a `LoggerProvider`, obtaining a `Logger`, and emitting records at several severity levels:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Build a provider backed by a console processor
-val provider: LoggerProvider = LoggerProvider.builder
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor())
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
   .build()
 
-// Obtain a Logger scoped to "payment-service" version "1.0"
-val logger: Logger = provider.get("payment-service", "1.0")
+val logger = provider.get("com.example.OrderService", "1.0.0")
 
-// Emit at different severity levels with key/value attributes
-logger.info("request received",
-  "userId"  -> AttributeValue.StringValue("u42"),
-  "orderId" -> AttributeValue.LongValue(7001L))
+logger.info("order placed", "orderId" -> AttributeValue.StringValue("ord-001"))
+logger.warn("payment delayed", "durationMs" -> AttributeValue.LongValue(250L))
+logger.error("checkout failed", "code" -> AttributeValue.LongValue(503L))
 
-logger.warn("slow downstream",
-  "serviceMs" -> AttributeValue.LongValue(820L))
-
-logger.error("payment declined",
-  "code" -> AttributeValue.LongValue(402L))
-
-// Inspect active span context (None if no span is active)
-val ctx: Option[SpanContext] = logger.currentSpanContext()
+provider.shutdown()
 ```
 
-## Construction / Creating Instances
+## Creating Values
 
-`Logger` instances are always obtained through a `LoggerProvider`. The provider binds the processor pipeline and context storage; each call to `LoggerProvider#get` produces a new `Logger` scoped to a distinct `InstrumentationScope`.
+A `Logger` cannot be constructed directly — its constructor is package-private. We obtain one from a `LoggerProvider`, which itself is built through `LoggerProvider.builder`.
 
-### `LoggerProvider.get` — Obtain a Logger by instrumentation scope
+### Obtaining a Logger from a provider
 
-`LoggerProvider#get` creates a `Logger` whose `InstrumentationScope` carries the given name and optional version. All records emitted by the returned logger carry this scope as metadata, which allows log processors and exporters to distinguish records from different libraries or components in the same process.
+`LoggerProvider#get` produces a `Logger` bound to a named instrumentation scope. Pass a scope name — typically a fully qualified package or library identifier — and an optional version string. The returned instance inherits the provider's `Resource`, processor list, and `ContextStorage`:
 
 ```scala
-final class LoggerProvider private[telemetry] (...) extends AutoCloseable {
+final class LoggerProvider private[telemetry] (...) {
   def get(name: String, version: String = ""): Logger
 }
 ```
 
-We call `LoggerProvider#get` once per instrumentation scope at startup, typically storing the result as a constructor parameter or a module-level value:
+We retrieve both a versioned logger for a payment component and an unversioned one for order processing from the same provider:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val provider: LoggerProvider = LoggerProvider.builder.build()
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
 
-// Scope to a library name; version is optional
-val logger: Logger = provider.get("com.example.payments")
+val orderLogger   = provider.get("com.example.OrderService")
+val paymentLogger = provider.get("com.example.PaymentService", "2.1.0")
 
-// With an explicit version string
-val versionedLogger: Logger = provider.get("com.example.auth", "2.3.1")
+orderLogger.info("order received")
+paymentLogger.warn("payment gateway slow")
+
+provider.shutdown()
 ```
 
-### `LoggerProvider.builder` — Build a custom provider
+:::note
+`LoggerProvider#get` allocates a new `Logger` on every call. Assign the result to a `val` at startup and reuse it throughout the component's lifetime rather than calling `get` per request.
+:::
 
-`LoggerProvider.builder` is the sole public entry point for constructing a `LoggerProvider`. It returns a `LoggerProviderBuilder` whose fluent API lets us attach processors, override the resource, and supply a custom `ContextStorage` before calling `build()`.
+### Building the provider
+
+`LoggerProvider.builder` is the sole public entry point for creating the `LoggerProvider` that vends `Logger` instances. It returns a `LoggerProviderBuilder` pre-populated with `Resource.default`, an empty processor list, and no explicit `ContextStorage`. Call configuration methods in any order and finish with `build()`:
 
 ```scala
 object LoggerProvider {
@@ -141,86 +116,82 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-The builder produces a `LoggerProvider` configured with a `ConsoleLogRecordProcessor` that writes human-readable text to stdout, combined with a custom capturing processor for tests:
+The following example assembles a fully specified provider for an `"inventory-service"` and installs it into the global `log` singleton so that call sites need no provider reference:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val records = scala.collection.mutable.ArrayBuffer.empty[LogRecord]
-
-val capturingProcessor: LogRecordProcessor = new LogRecordProcessor {
-  def onEmit(record: LogRecord): Unit = records += record
-  def shutdown(): Unit                = ()
-  def forceFlush(): Unit              = ()
-  override def minimumLevel: Int      = 1
-}
-
-val provider: LoggerProvider = LoggerProvider.builder
-  .setResource(Resource.default)
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor())
-  .addLogRecordProcessor(capturingProcessor)
+val provider = LoggerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "inventory-service")))
+  .addLogRecordProcessor(LogRecordProcessor.noop)
   .build()
+
+log.install(provider.get("com.example.inventory"))
+
+log.info("server started")
+
+provider.shutdown()
 ```
 
-:::note
-Calling `build()` with no processors configured results in a `Logger` that silently discards all records — no output is produced. Add at least one processor before calling `build()`.
-:::
+For a complete walkthrough of every `LoggerProviderBuilder` option — including `setContextStorage` for explicit trace–log correlation — see the [LoggerProvider](./logger-provider.md) reference page.
 
 ## Core Operations
 
+`Logger` exposes two groups of operations: the severity-leveled emit methods that cover the common logging path, and a lower-level `emit` that accepts a fully constructed `LogRecord`. A third category provides access to the active `SpanContext`.
+
 ### Logging
 
-The logging category contains seven methods: the six severity-level methods (`trace`, `debug`, `info`, `warn`, `error`, `fatal`) that each accept a body string and variadic key/value attribute pairs, and `emit` for submitting a fully pre-built `LogRecord`.
+The logging methods cover both the common severity-leveled path and the rare case where a caller builds a `LogRecord` by hand.
 
-#### `trace` / `debug` / `info` / `warn` / `error` / `fatal` — Emit a record at a named severity
+#### Emitting at a fixed severity
 
-Each method builds an `AttributesBuilder` from the supplied key/value pairs, reads the active `SpanContext` from `ContextStorage`, constructs a `LogRecord` with a nanosecond-precision timestamp, and forwards the record to `Logger#emit`. The severity numbers follow the OpenTelemetry log data model:
-
-| Method  | `Severity`       | Number |
-|---------|------------------|--------|
-| `trace` | `Severity.Trace` |      1 |
-| `debug` | `Severity.Debug` |      5 |
-| `info`  | `Severity.Info`  |      9 |
-| `warn`  | `Severity.Warn`  |     13 |
-| `error` | `Severity.Error` |     17 |
-| `fatal` | `Severity.Fatal` |     21 |
-
-All six share the same signature shape:
+`Logger#trace`, `Logger#debug`, `Logger#info`, `Logger#warn`, `Logger#error`, and `Logger#fatal` each emit a log record at a specific severity level. Every method accepts a message body string and an optional variadic sequence of `(String, AttributeValue)` pairs that attach typed structured metadata to the record. The active `SpanContext` is read from `ContextStorage` and injected automatically:
 
 ```scala
 final class Logger private[telemetry] (...) {
-  def trace(body: String, attrs: (String, AttributeValue)*): Unit
-  def debug(body: String, attrs: (String, AttributeValue)*): Unit
-  def info(body: String, attrs: (String, AttributeValue)*): Unit
-  def warn(body: String, attrs: (String, AttributeValue)*): Unit
-  def error(body: String, attrs: (String, AttributeValue)*): Unit
-  def fatal(body: String, attrs: (String, AttributeValue)*): Unit
+  def trace(body: String, attrs: (String, AttributeValue)*): Unit  // Severity 1
+  def debug(body: String, attrs: (String, AttributeValue)*): Unit  // Severity 5
+  def info(body: String, attrs: (String, AttributeValue)*): Unit   // Severity 9
+  def warn(body: String, attrs: (String, AttributeValue)*): Unit   // Severity 13
+  def error(body: String, attrs: (String, AttributeValue)*): Unit  // Severity 17
+  def fatal(body: String, attrs: (String, AttributeValue)*): Unit  // Severity 21
 }
 ```
 
-The attribute values use `AttributeValue`, a sealed ADT whose variants cover strings, booleans, longs, doubles, and sequences of each. The following example shows logging at each level with representative attributes:
+The following example shows each method alongside representative `AttributeValue` variants:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val logger: Logger = LoggerProvider.builder.build().get("example")
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
 
-logger.trace("entering loop",  "iter"       -> AttributeValue.LongValue(0L))
-logger.debug("cache miss",     "key"        -> AttributeValue.StringValue("products:featured"))
-logger.info("user signed in",  "userId"     -> AttributeValue.StringValue("u42"),
-                                "region"    -> AttributeValue.StringValue("eu-west"))
-logger.warn("slow query",      "durationMs" -> AttributeValue.LongValue(620L))
-logger.error("payment failed", "code"       -> AttributeValue.LongValue(402L))
-logger.fatal("disk full",      "freeBytes"  -> AttributeValue.LongValue(0L))
+val logger = provider.get("com.example.PaymentService")
+
+logger.trace("entering loop", "iter" -> AttributeValue.LongValue(0L))
+logger.debug("cache miss", "key" -> AttributeValue.StringValue("abc"))
+logger.info(
+  "request processed",
+  "userId" -> AttributeValue.StringValue("u42"),
+  "ms"     -> AttributeValue.LongValue(37L)
+)
+logger.warn("slow query", "durationMs" -> AttributeValue.LongValue(500L))
+logger.error("payment failed", "code" -> AttributeValue.LongValue(503L))
+logger.fatal("unrecoverable state")
+
+provider.shutdown()
 ```
 
+`AttributeValue` supports eight variants covering all OpenTelemetry primitive and array types: `StringValue`, `BooleanValue`, `LongValue`, `DoubleValue`, `StringSeqValue`, `LongSeqValue`, `DoubleSeqValue`, and `BooleanSeqValue`. Each named attribute key must be a `String`.
+
 :::caution
-Unlike the global [`log`](./index.md) macros, these instance methods do not inject compile-time source location. No `code.filepath`, `code.namespace`, or `code.lineno` attributes are added to the record. If source location is important, use the global `log` at the application layer and reserve `Logger` for library internals.
+These six methods follow the full `LogRecord` allocation path: they capture a nanosecond timestamp, read `ContextStorage`, build an `Attributes` map, and construct a `LogRecord` before passing it to the processor pipeline. The global `log` singleton's macro-generated equivalents additionally inject compile-time source location and can take a fast formatted path that skips `LogRecord` construction entirely when the sole processor is a console writer. For maximum throughput in hot paths, prefer `log` over a bare `Logger`.
 :::
 
-#### `emit` — Emit a pre-built LogRecord
+#### Emitting a pre-built record
 
-`Logger#emit` accepts a fully constructed `LogRecord` and forwards it directly to every registered `LogRecordProcessor`. Per-processor exceptions are caught via `NonFatal`, ensuring that a misbehaving processor cannot prevent later processors from receiving the record. Records whose `severity.number` is below the computed minimum across all processors are discarded before iteration begins.
+`Logger#emit` accepts a fully constructed `LogRecord` and routes it through the processor pipeline directly. Records whose severity number is below every processor's `minimumLevel` are dropped immediately. Otherwise each processor's `onEmit` callback is called in insertion order; a `NonFatal` exception from any processor is caught, written to stderr, and processing continues with the next processor:
 
 ```scala
 final class Logger private[telemetry] (...) {
@@ -228,33 +199,34 @@ final class Logger private[telemetry] (...) {
 }
 ```
 
-We use `Logger#emit` when we need full control over all `LogRecord` fields — for example, when replaying records from a buffer with their original timestamps, or when a `LogRecord` arrives from an external source:
+We build a `LogRecord` with `LogRecord.builder`, set its severity and body, and emit it:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val logger: Logger = LoggerProvider.builder.build().get("replay-agent")
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
 
-val record: LogRecord = LogRecord.builder
+val logger = provider.get("com.example.AuditService")
+
+val record = LogRecord.builder
   .setSeverity(Severity.Warn)
-  .setBody("upstream degraded")
-  .setAttribute(AttributeKey.string("upstream"), "payment-gateway")
+  .setBody("audit event: config reloaded")
   .build
 
 logger.emit(record)
+
+provider.shutdown()
 ```
 
 :::caution
-`Logger#emit` bypasses the automatic `SpanContext` injection that the severity-level methods perform. If you want trace correlation on a manually built record, populate the trace fields on the `LogRecordBuilder` explicitly before calling `emit`.
+`Logger#emit` bypasses the automatic `SpanContext` injection and the fast-path `FormattedLogEmitter` that the severity-level methods use. Use it only when the record has been pre-populated with all required fields, such as when bridging from another logging framework or replaying records from a buffer.
 :::
 
 ### Trace Correlation
 
-The trace correlation category exposes the active span context that `Logger` automatically injects into every record emitted by the severity-level methods.
-
-#### `currentSpanContext` — Read the active span context
-
-`Logger#currentSpanContext` delegates to the `ContextStorage[Option[SpanContext]]` the logger was constructed with and returns the currently active `SpanContext`, or `None` when no span is active. This is the same storage read that the severity-level methods use internally to populate `traceId`, `spanId`, and `traceFlags` on each `LogRecord`.
+`Logger#currentSpanContext` returns the `SpanContext` currently stored in the logger's `ContextStorage`, or `None` if no span is active. The same value is injected automatically into every record emitted through the severity-level methods, but this accessor is useful when code needs to read the active trace and span identifiers explicitly — for instance to attach them to an outgoing HTTP header or to log them alongside a manual record:
 
 ```scala
 final class Logger private[telemetry] (...) {
@@ -262,52 +234,49 @@ final class Logger private[telemetry] (...) {
 }
 ```
 
-We call `Logger#currentSpanContext` to inspect trace correlation before emitting a record conditionally, or to extract trace IDs for manual propagation:
+The following example reads the active span context before emitting a record:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val logger: Logger = LoggerProvider.builder.build().get("diagnostics")
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
+
+val logger = provider.get("com.example.TraceAwareService")
 
 val ctx: Option[SpanContext] = logger.currentSpanContext()
-ctx match {
-  case Some(spanCtx) if spanCtx.isValid =>
-    logger.info("in-trace diagnostic", "traceId" -> AttributeValue.StringValue(spanCtx.traceIdHex))
-  case _ =>
-    logger.info("out-of-trace diagnostic")
-}
+logger.info("span context present", "active" -> AttributeValue.BooleanValue(ctx.isDefined))
+
+provider.shutdown()
 ```
 
-## Comparison
+When a `TracerProvider` and a `LoggerProvider` share the same `ContextStorage[Option[SpanContext]]` instance, every log record emitted while a span is active is automatically stamped with the span's `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` fields. Both providers default to `ContextStorage.defaultSpanContextStorage`, so correlation is active with no explicit setup. Pass a shared instance via `LoggerProviderBuilder#setContextStorage` only when isolating correlation in tests or integrating with a custom runtime.
 
-### vs `log` (global singleton)
+## Comparisons
 
-[`log`](./index.md) and `Logger` occupy different layers of the telemetry module. `log` is the global application-layer entry point; `Logger` is the instance-level engine that `log` delegates to. The distinction governs when you reach for each:
+### Logger vs SLF4J Logger (Java)
 
-| Dimension                 | `log` (global singleton)                                            | `Logger` (instance)                                             |
-|---------------------------|---------------------------------------------------------------------|-----------------------------------------------------------------|
-| Access                    | Import and call directly — no injection needed                      | Constructor parameter or `LoggerProvider#get` call              |
-| Source location           | Injected at compile time via macro (`code.filepath`, `code.lineno`) | Not injected — no macro expansion                               |
-| Severity overrides        | Hierarchical per-prefix overrides; `withMinSeverity` block scope    | Processor `minimumLevel` only; no prefix hierarchy              |
-| Rate limiting             | `traceEvery` / `traceAtMost` family per call site                  | No built-in rate limiting                                       |
-| Scoped annotations        | `log.annotated` — thread-local key/value block                     | Not available on `Logger` directly                              |
-| Backend replacement       | `log.install(logger, ...)` — hot-swappable at runtime              | Fixed at construction by `LoggerProvider#get`                   |
-| Primary user              | Application code, frameworks, integration layers                    | Library code; inject for isolation and testability              |
+Both types represent a named logger, but their designs diverge sharply.
 
-Library code should declare a `Logger` parameter rather than calling `log` directly — this keeps the library free of global state and allows callers to substitute a no-op or capturing implementation in tests. Application code should use `log`, which provides the richer feature set and automatically delegates to the installed `Logger`.
+| Dimension               | ZIO-Blocks `Logger`                                                                                 | SLF4J `Logger`                                                                          |
+|-------------------------|-----------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **Acquisition**         | Obtained from `LoggerProvider#get`; provider carries the full configuration.                       | Obtained from the static `LoggerFactory`; backend is classpath-global.                  |
+| **Configuration scope** | Each `Logger` carries its own processor pipeline, `Resource`, and `ContextStorage` at construction. | `Logger` holds no configuration; all routing is delegated to the classpath-bound backend.|
+| **Trace correlation**   | `SpanContext` is injected automatically on every emit via `ContextStorage`.                         | No native OpenTelemetry correlation; requires a separate MDC bridge library.            |
+| **Testability**         | Injectable: pass a `Logger` constructed with a test processor to verify emitted records in isolation.| Backend is global; tests must configure a shared appender or use a test-specific factory.|
+| **Attribute types**     | Typed `AttributeValue` variants (String, Long, Double, Boolean, and array forms).                  | Untyped string key-value pairs via MDC; structured backends vary.                       |
 
-### vs SLF4J Logger (Java)
+### Logger vs `log` (global singleton)
 
-SLF4J's `Logger` is the dominant Java logging abstraction. The table contrasts it with the ZIO Blocks `Logger` on the dimensions most relevant to Scala library authors:
+`log` is the recommended API for application code; `Logger` is what `log` delegates to internally.
 
-| Dimension              | SLF4J `Logger`                                                           | ZIO Blocks `Logger`                                                         |
-|------------------------|--------------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| Acquisition            | `LoggerFactory.getLogger(Class<?>)` — static, classpath-global           | `LoggerProvider#get(name, version)` — explicit, injectable                  |
-| Backend coupling       | Classpath binding at startup; single global backend                       | Per-instance processor pipeline; multiple independent `Logger` instances     |
-| Structured data        | Fluent API (`atInfo().addKeyValue(...)`) since SLF4J 2.x                 | Variadic `(String, AttributeValue)` pairs on every severity method          |
-| Trace correlation      | MDC (`String` → `String`) must be populated manually                     | Automatic from `ContextStorage[Option[SpanContext]]` at emit time            |
-| Testability            | `LogbackTestAppender` or SLF4J `ListAppender`; classpath dependency       | Implement `LogRecordProcessor`; supply to `LoggerProvider.builder`          |
-| Severity granularity   | 5 levels: `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR`                 | 24 levels in 6 categories (e.g., `Info`, `Info2`, `Info3`, `Info4`)         |
-| OTLP compatibility     | Requires a bridge handler                                                 | Native `LogRecord` matches the OTLP log data model                          |
+| Dimension                | `Logger` instance method                                          | `log` global singleton                                                         |
+|--------------------------|-------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| **Source location**      | Not captured — the method call site is not recorded.              | Captured at compile time by macro-generated code; available to formatters.     |
+| **API surface**          | Plain Scala methods; identical across Scala 2 and 3.              | Macro-generated: `inline def` on Scala 3, `def ... = macro` on Scala 2.       |
+| **Rate limiting**        | Not available.                                                    | Per-call-site rate-limited variants are available.                             |
+| **Scoped annotations**   | Not available.                                                    | `log.annotated(...)` attaches key/value pairs for the duration of a block.    |
+| **Recommended for**      | Library authors who accept a `Logger` parameter for isolation.    | Application code; single global reference, no provider wiring required.       |
 
-The key practical difference is backend coupling. SLF4J binds to exactly one backend per classloader; swapping it in tests requires classloader manipulation or a special test implementation. A ZIO Blocks `Logger` is an ordinary value carrying its own processor list — tests create a `LoggerProvider` with a capturing processor, pass the resulting `Logger` to the unit under test, and inspect the collected `LogRecord` values directly, with no classloader tricks required.
+When writing a reusable library component that must be independently testable, accept a `Logger` parameter and call its methods directly. Application code that does not need that isolation level should use `log` instead and call `log.install(provider.get("com.example"))` once at startup to wire a production-configured `Logger` into the global singleton.

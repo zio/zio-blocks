@@ -1,58 +1,76 @@
 ---
 id: log-record-processor
 title: "LogRecordProcessor"
-description: "Open lifecycle trait in the ZIO Blocks Telemetry logging pillar — receives onEmit callbacks from a Logger and gates below-threshold records via minimumLevel."
+description: "Hook for log record lifecycle (onEmit) in the telemetry module's logging area. Implement to export, filter, or format log records."
 keywords:
-  - "LogRecordProcessor"
-  - "onEmit"
-  - "minimumLevel"
-  - "AutoCloseable"
+  - "Structured Logging"
   - "Log Export"
-  - "OTLP"
+  - "Lifecycle Hook"
+  - "LogRecordProcessor"
+sidebar_label: "LogRecordProcessor"
 ---
 
-`LogRecordProcessor` is an open trait that receives log records from a `Logger`. Every time the `log` macro produces a record that passes the global severity floor, each registered `LogRecordProcessor#onEmit` is called in sequence. The `minimumLevel` property lets individual processors declare their own floor: the `Logger` skips processors whose `minimumLevel` is higher than the record's `severity.number`. `LogRecordProcessor.noop` is the no-op singleton.
+`LogRecordProcessor` is the extension point for the logging emit pipeline. Every `LogRecord` produced by a `Logger` is dispatched to all registered processors in insertion order; each processor's `onEmit` callback fires synchronously on the emitting thread.
 
 ```scala
 trait LogRecordProcessor extends AutoCloseable {
   def onEmit(logRecord: LogRecord): Unit
   def shutdown(): Unit
   def forceFlush(): Unit
-  override def close(): Unit  // delegates to shutdown()
-  def minimumLevel: Int       // default 1 — accepts all severities
+  override def close(): Unit = shutdown()
+
+  // Optional severity gate — Logger caches the minimum across all processors
+  // and drops records below the threshold before constructing a LogRecord.
+  def minimumLevel: Int = 1   // default: accept everything (Severity.Trace = 1)
+}
+
+object LogRecordProcessor {
+  val noop: LogRecordProcessor  // no-op singleton; all methods are no-ops
 }
 ```
 
-## Usage
+## Predefined Implementations
 
-The following example implements a `LogRecordProcessor` inline and attaches it to the `log` global via `log.addProcessor`:
+| Type | Description |
+|------|-------------|
+| `LogRecordProcessor.noop` | No-op singleton; use as a placeholder. |
+| `ConsoleLogRecordProcessor` | Writes formatted text to stdout. When it is the sole registered processor, `Logger` uses a fast formatted path that skips `LogRecord` allocation entirely. |
+| `FormattedLogRecordProcessor(formatter, writer)` | Formats each record with a `LogFormatter` and writes the result via a `LogWriter`. Added when `log.writer(formatter, writer)` is called. |
 
-```scala
+## Creating Values
+
+Implement `LogRecordProcessor` to plug in a custom export or filtering layer:
+
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-def exportToOtlp(r: LogRecord): Unit = () // placeholder
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(new LogRecordProcessor {
+    def onEmit(r: LogRecord): Unit = {
+      // route to an OTLP exporter, Kafka, or any sink
+      println(s"[${r.severity}] ${r.body}")
+    }
+    def shutdown(): Unit   = ()
+    def forceFlush(): Unit = ()
+  })
+  .build()
 
-log.addProcessor(new LogRecordProcessor {
-  def onEmit(r: LogRecord): Unit = exportToOtlp(r)
-  def shutdown(): Unit           = ()
-  def forceFlush(): Unit         = ()
-})
+val logger = provider.get("com.example")
+logger.info("hello from processor")
 
-log.error("payment failed", "orderId" -> "ORD-42")
+provider.shutdown()
 ```
 
-A processor that should gate on a higher severity level overrides `minimumLevel`. For example, a noisy debug processor can declare `override def minimumLevel: Int = 5` to receive only `Debug` and above (numeric value ≥ 5) without requiring a global severity change.
+## Core Operations
 
-## Key Operations
+| Method | Description |
+|--------|-------------|
+| `onEmit(logRecord: LogRecord)` | Called for every record whose severity number meets `minimumLevel`. Called synchronously on the emitting thread. |
+| `minimumLevel: Int` | The lowest severity number this processor accepts. `Logger` caches the minimum across all processors and skips `LogRecord` construction entirely for records below the threshold. |
+| `shutdown()` | Flush and release resources. Called by `LoggerProvider.shutdown()`. |
+| `forceFlush()` | Flush any buffered records immediately. |
+| `close()` | Delegates to `shutdown()`; satisfies `AutoCloseable`. |
 
-| Member | Description |
-|---|---|
-| `onEmit(logRecord: LogRecord): Unit` | Called for every record whose `severity.number >= minimumLevel`. Runs synchronously on the logging thread. |
-| `shutdown(): Unit` | Releases resources held by this processor (buffers, connections). Called by `log.removeAll()`. |
-| `forceFlush(): Unit` | Exports any buffered records immediately. |
-| `minimumLevel: Int` | Lowest severity number this processor accepts. Default `1` accepts everything. |
-| `LogRecordProcessor.noop` | Singleton no-op implementation — all methods are empty. |
+## Integration
 
-:::caution
-`onEmit` is called synchronously on the thread emitting the log record. A slow or blocking implementation will add latency to every log call. Prefer a batching, asynchronous processor for production exporters.
-:::
+Processors are registered via `LoggerProvider.builder.addLogRecordProcessor(processor)`. Multiple processors can be added; they receive callbacks in insertion order. Processor exceptions are caught and printed to stderr, so one failing processor does not stop the rest. The global `log` object's `addProcessor` and `writer` methods add processors to the currently installed `Logger`'s pipeline without requiring a full provider rebuild.

@@ -1,63 +1,98 @@
 ---
 id: severity
 title: "Severity"
-description: "24-level severity scale in the ZIO Blocks Telemetry logging pillar — follows the OpenTelemetry log data model with six named categories from Trace to Fatal."
+description: "24-level severity scale following the OpenTelemetry log data model: Trace(1-4), Debug(5-8), Info(9-12), Warn(13-16), Error(17-20), Fatal(21-24)."
 keywords:
+  - "Structured Logging"
+  - "Severity Levels"
+  - "Log Filtering"
   - "Severity"
-  - "Log Level"
-  - "OpenTelemetry"
-  - "fromNumber"
-  - "fromText"
-  - "Severity Scale"
+sidebar_label: "Severity"
 ---
 
-`Severity` is a sealed trait with 24 case objects that represent the OpenTelemetry log data model severity scale. The levels are organized into six named categories — `Trace` (1–4), `Debug` (5–8), `Info` (9–12), `Warn` (13–16), `Error` (17–20), and `Fatal` (21–24) — where each category has a primary level and three fine-grained variants (`Trace2`/`Trace3`/`Trace4`, etc.). Every level exposes a numeric value and a canonical text label.
+`Severity` is a sealed trait with 24 case objects following the OpenTelemetry log data model. Six named categories map to four numeric levels each, allowing fine-grained severity distinctions within a category while remaining compatible with the canonical SLF4J / Java-util-logging five-level scale.
 
 ```scala
 sealed trait Severity {
-  def number: Int
-  def text: String
+  def number: Int    // 1 to 24
+  def text:   String // "TRACE", "TRACE2", ..., "DEBUG", ..., "FATAL4"
+}
+
+object Severity {
+  // Trace   1-4
+  case object Trace  extends Severity   // number = 1
+  case object Trace2 extends Severity   // number = 2
+  case object Trace3 extends Severity   // number = 3
+  case object Trace4 extends Severity   // number = 4
+
+  // Debug   5-8
+  case object Debug  extends Severity   // number = 5
+  // ... Debug2, Debug3, Debug4 ...
+
+  // Info   9-12
+  case object Info   extends Severity   // number = 9
+  // ... Info2, Info3, Info4 ...
+
+  // Warn  13-16
+  case object Warn   extends Severity   // number = 13
+  // ...
+
+  // Error 17-20
+  case object Error  extends Severity   // number = 17
+  // ...
+
+  // Fatal 21-24
+  case object Fatal  extends Severity   // number = 21
+  // ...
+
+  def fromNumber(n: Int): Option[Severity]   // Some if 1 <= n <= 24
+  def fromText(text: String): Option[Severity]  // case-insensitive match on text field
 }
 ```
 
 ## Usage
 
-The following example sets a global severity floor, then resolves severity values from text and numeric inputs:
+The six named category case objects (`Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`) are the most common:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Suppress Trace, Debug, and Info globally
+// Set the global minimum level to Warn — drops Trace, Debug, and Info records
 log.setMinSeverity(Severity.Warn)
 
-// Parse from text (case-insensitive; returns the primary level of each category)
-val fromText: Option[Severity] = Severity.fromText("ERROR")  // Some(Severity.Error)
-val unknown: Option[Severity]  = Severity.fromText("VERBOSE") // None
+log.debug("this is suppressed")  // dropped
+log.warn("this is emitted")      // passes
 
-// Parse from a numeric level
-val fromNum: Option[Severity]  = Severity.fromNumber(9)  // Some(Severity.Info)
-val fine: Option[Severity]     = Severity.fromNumber(10) // Some(Severity.Info2)
-val outOfRange: Option[Severity] = Severity.fromNumber(0) // None
+// Parse from an external string (e.g. an environment variable)
+val level = Severity.fromText("ERROR").getOrElse(Severity.Info)
+assert(level == Severity.Error)
+assert(level.number == 17)
+
+// Parse from a number (e.g. from an OTLP protobuf field)
+val numeric = Severity.fromNumber(9)
+assert(numeric == Some(Severity.Info))
 ```
 
-`Severity.fromText` only maps the six canonical text labels (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`) and returns the primary level of each category. The fine-grained variants (`Info2`–`Info4`, etc.) can only be obtained via `Severity.fromNumber`.
+## Severity Filtering
 
-## Severity Table
+`log.setMinSeverity(severity)` sets the global floor for the global `log` singleton. Records whose `severity.number` is below this floor are dropped before any `LogRecord` is constructed. Per-namespace overrides use `log.setMinSeverity("com.example.noisy", Severity.Warn)`, which takes precedence over the global floor for matching namespaces.
 
-| Category | Numbers | Primary object | `text` |
-|---|---|---|---|
-| Trace | 1–4 | `Severity.Trace` | `"TRACE"` |
-| Debug | 5–8 | `Severity.Debug` | `"DEBUG"` |
-| Info | 9–12 | `Severity.Info` | `"INFO"` |
-| Warn | 13–16 | `Severity.Warn` | `"WARN"` |
-| Error | 17–20 | `Severity.Error` | `"ERROR"` |
-| Fatal | 21–24 | `Severity.Fatal` | `"FATAL"` |
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
-## Key Operations
+// Global floor: only Warn and above
+log.setMinSeverity(Severity.Warn)
 
-| Member | Description |
-|---|---|
-| `number: Int` | Numeric severity level (1–24). Used by `LogRecordProcessor#minimumLevel` comparisons. |
-| `text: String` | Canonical text label for the category (`"INFO"`, `"WARN"`, etc.). Fine-grained variants share the same text as their primary level. |
-| `Severity.fromNumber(n: Int): Option[Severity]` | Returns the severity for numeric value 1–24, or `None` for out-of-range values. |
-| `Severity.fromText(s: String): Option[Severity]` | Case-insensitive parse of the six canonical labels. Returns `None` for unrecognized strings. |
+// Namespace override: Debug and above for the query layer
+log.setMinSeverity("com.example.db", Severity.Debug)
+
+// Remove namespace override
+log.clearMinSeverity("com.example.db")
+
+// Restore uniform global filtering
+log.clearAllOverrides()
+```
+
+## Integration
+
+`Severity` appears in `LogRecord.severity`, `LogRecordProcessor.minimumLevel` (as an `Int` for comparison efficiency), and `log.setMinSeverity`. The `log.warn(...)` global method emits at `Severity.Warn` (number 13), and `Logger.warn(...)` does the same; numeric comparison is used on the hot path to avoid pattern-matching overhead.

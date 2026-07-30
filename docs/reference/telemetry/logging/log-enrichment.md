@@ -1,53 +1,75 @@
 ---
 id: log-enrichment
 title: "LogEnrichment"
-description: "Typeclass consumed by macro-generated log calls in the ZIO Blocks Telemetry logging pillar — defines how each enrichment argument modifies a LogRecord."
+description: "Typeclass resolved at compile time by macro-generated log.* calls to attach typed values (Throwable, attributes, key-value pairs) to LogRecords."
 keywords:
-  - "LogEnrichment"
-  - "Log Typeclass"
   - "Structured Logging"
-  - "Enrichment Arguments"
-  - "Throwable Enrichment"
-  - "Attributes Enrichment"
+  - "Log Enrichment"
+  - "Compile-Time Typeclass"
+  - "LogEnrichment"
+sidebar_label: "LogEnrichment"
 ---
 
-`LogEnrichment[A]` is the typeclass that the `log` macro uses to process each enrichment argument passed to `log.info`, `log.error`, and the other severity methods. When the macro expands a call like `log.error("payment failed", ex, "orderId" -> orderId)`, it consults an implicit `LogEnrichment` instance for each argument and applies it to the in-progress `LogRecord`. Custom instances can extend enrichment to application-specific types.
+`LogEnrichment[A]` is a typeclass that macro-generated `log.*` calls resolve at compile time. When you write `log.info("msg", ex, "key" -> value, ...)`, the Scala macro expands each enrichment argument by finding an implicit `LogEnrichment[A]` for its type and calling `enrich` to attach the value to the emitted `LogRecord`.
 
 ```scala
 trait LogEnrichment[A] {
-  def enrich(record: LogRecord, value: A): LogRecord
+  def enrich(builder: AttributesBuilder, record: LogRecordBuilder, value: A): Unit
 }
 ```
 
-## Usage
-
-The following example uses the built-in enrichment instances to attach a throwable, a typed numeric attribute, and a `Severity` override to a single log call:
-
-```scala
-import zio.blocks.telemetry._
-
-val ex: Throwable = new RuntimeException("gateway timeout")
-val orderId: Long = 42L
-
-log.error("payment failed", ex, "orderId" -> orderId)
-```
-
-The macro applies `LogEnrichment[Throwable]` (which sets `exception.type`, `exception.message`, and defers the stack trace), then `LogEnrichment[(String, Long)]` (which adds a `long` attribute), all without any runtime reflection.
-
 ## Built-in Instances
 
-| Instance | Applied to | Effect on `LogRecord` |
-|---|---|---|
-| `LogEnrichment[Throwable]` | Bare exception | Sets `exception.type` and `exception.message` attributes; stores throwable for lazy stack-trace formatting. |
-| `LogEnrichment[String]` | Bare string | Overrides the record body. Rarely used; the first positional argument to `log.info(msg, ...)` is always the body. |
-| `LogEnrichment[Attributes]` | Pre-built `Attributes` value | Merges all attributes into the record's attribute set. |
-| `LogEnrichment[Severity]` | `Severity` value | Overrides the record's severity and `severityText`. |
-| `LogEnrichment[(String, String)]` | `"key" -> "value"` | Adds a `string` attribute. |
-| `LogEnrichment[(String, Long)]` | `"key" -> longValue` | Adds a `long` attribute. |
-| `LogEnrichment[(String, Double)]` | `"key" -> doubleValue` | Adds a `double` attribute. |
-| `LogEnrichment[(String, Boolean)]` | `"key" -> boolValue` | Adds a `boolean` attribute. |
-| `LogEnrichment[(String, Int)]` | `"key" -> intValue` | Converts `Int` to `Long` and adds a `long` attribute. |
+| Enrichment type | Effect on `LogRecord` |
+|-----------------|----------------------|
+| `Throwable` | Adds `exception.type` and `exception.message` string attributes; stores the throwable in `LogRecord.throwable`. |
+| `Attributes` | Merges all attributes into the record's attribute set. |
+| `Severity` | Overrides the record's severity. |
+| `(String, String)` | Adds a `String`-typed attribute. |
+| `(String, Long)` | Adds a `Long`-typed attribute. |
+| `(String, Int)` | Adds a `Long`-typed attribute (Int widened to Long). |
+| `(String, Double)` | Adds a `Double`-typed attribute. |
+| `(String, Boolean)` | Adds a `Boolean`-typed attribute. |
 
-:::caution
-The macro expands enrichment arguments at the call site. Passing a pre-collected `Seq[Any]` with the spread syntax (`enrichments: _*`) causes a compile error. Each enrichment must be a literal argument in the call.
-:::
+## Usage
+
+The enrichment typeclass is transparent to callers — all types with built-in instances are accepted directly as vararg arguments to `log.*`:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val ex: Throwable = new RuntimeException("connection refused")
+
+log.writer(TextLogFormatter, StdoutWriter)
+
+log.error(
+  "payment failed",
+  ex,                          // Throwable enrichment
+  "orderId"   -> "ord-123",   // (String, String) enrichment
+  "amount"    -> 99L,         // (String, Long) enrichment
+  "retryable" -> false        // (String, Boolean) enrichment
+)
+```
+
+## Custom Instances
+
+Add a custom `LogEnrichment[MyType]` implicit to attach domain objects to log records:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+final case class RequestId(value: String)
+
+implicit val requestIdEnrichment: LogEnrichment[RequestId] = new LogEnrichment[RequestId] {
+  def enrich(record: LogRecord, value: RequestId): LogRecord =
+    record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.string("request.id"), value.value))
+}
+
+log.writer(TextLogFormatter, StdoutWriter)
+log.info("handling request", RequestId("req-001"))
+// emits: ... request.id=req-001
+```
+
+## Integration
+
+`LogEnrichment` is resolved at compile time by the macro — there is zero runtime overhead for type dispatch. The macro-generated code calls `enrich` for each vararg argument in sequence, accumulating attributes into an `AttributesBuilder` and optionally setting fields on a `LogRecordBuilder`, before the final `LogRecord` is constructed and passed to the processor pipeline. Custom instances must be in implicit scope at the `log.*` call site.

@@ -1,68 +1,72 @@
 ---
 id: log-record
 title: "LogRecord"
-description: "Immutable snapshot of a single log emission in the ZIO Blocks Telemetry logging pillar — carries severity, body, attributes, and trace correlation fields."
+description: "Immutable snapshot of a single log emission with typed attributes and native trace-correlation fields."
 keywords:
-  - "LogRecord"
-  - "Log Emission"
-  - "Severity"
+  - "Structured Logging"
   - "Trace Correlation"
-  - "LogRecordBuilder"
-  - "hasTraceId"
-  - "hasSpanId"
+  - "Immutable Log Snapshot"
+  - "LogRecord"
+sidebar_label: "LogRecord"
 ---
 
-`LogRecord` is the immutable data object passed to every `LogRecordProcessor#onEmit` call. It captures the full state of a single log emission: timestamps, severity, message body, typed attributes, trace correlation fields, the producing resource, and an optional throwable whose stack trace is deferred to export time. Trace fields (`traceIdHi`, `traceIdLo`, `spanId`) use primitive `0` as the absent sentinel rather than `Option` wrappers, preserving zero allocation on the logging hot path.
+`LogRecord` is the immutable, fully-populated snapshot of a single log emission. It is the value passed to `LogRecordProcessor.onEmit` and the unit that log formatters and exporters receive. Trace-correlation fields (`traceIdHi`, `traceIdLo`, `spanId`, `traceFlags`) are stored as unboxed primitives; the sentinel value `0` means "no active span".
 
 ```scala
 final case class LogRecord(
-  timestampNanos: Long,
+  timestampNanos:         Long,
   observedTimestampNanos: Long,
-  severity: Severity,
-  severityText: String,
-  body: LogMessage,
-  attributes: Attributes,
-  traceIdHi: Long,
-  traceIdLo: Long,
-  spanId: Long,
-  traceFlags: Byte,
-  resource: Resource,
-  instrumentationScope: InstrumentationScope,
-  throwable: Option[Throwable] = None
-)
+  severity:               Severity,
+  severityText:           String,
+  body:                   LogMessage,       // typically LogMessage.StringMessage(text)
+  attributes:             Attributes,       // code.* source location + caller-supplied attrs
+  traceIdHi:              Long,             // 0L when no span is active
+  traceIdLo:              Long,             // 0L when no span is active
+  spanId:                 Long,             // 0L when no span is active
+  traceFlags:             Byte,             // 0x00 when not sampled
+  resource:               Resource,
+  instrumentationScope:   InstrumentationScope,
+  throwable:              Option[Throwable] = None
+) {
+  def hasTraceId: Boolean  // true when traceIdHi != 0L || traceIdLo != 0L
+  def hasSpanId:  Boolean  // true when spanId != 0L
+}
+
+object LogRecord {
+  def builder: LogRecordBuilder
+}
 ```
 
-## Usage
+## Creating Values
 
-The following example builds a `LogRecord` manually using `LogRecord.builder`, overriding severity and body:
+`LogRecord` is normally produced by `Logger` or the global `log` singleton on every `log.info(...)` call. The `LogRecord.builder` allows constructing a record manually — for instance to bridge from another logging framework:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val r: LogRecord = LogRecord.builder
+val record = LogRecord.builder
   .setSeverity(Severity.Error)
   .setBody("disk full")
-  .setAttribute(AttributeKey.string("host"), "node-7")
   .build
 
-println(r.severity.text)   // ERROR
-println(r.body.value)      // disk full
-println(r.hasTraceId)      // false — no trace context was set
+assert(record.severity == Severity.Error)
+assert(!record.hasTraceId)  // no active span; traceIdHi and traceIdLo are 0L
 ```
 
-In normal application code, `LogRecord` instances are created internally by the `log` macro and passed through the `LogRecordProcessor` pipeline. Use `LogRecord.builder` directly when constructing test fixtures or forwarding records from an external log source.
+## Key Fields
 
-## Key Members
+| Field | Description |
+|-------|-------------|
+| `timestampNanos` | Epoch nanoseconds when the log call was made. |
+| `severity` | One of the 24 severity levels from the OTel log data model. |
+| `body` | The log message string (or a key-value body for structured backends). |
+| `attributes` | Typed attributes including `code.filepath`, `code.namespace`, `code.function`, `code.lineno` set by the macro, plus any caller-supplied enrichments. |
+| `traceIdHi` / `traceIdLo` | The 128-bit trace ID split into two unboxed `Long`s. `0L/0L` when no span is active. |
+| `spanId` | The 64-bit span ID as an unboxed `Long`. `0L` when no span is active. |
+| `traceFlags` | W3C trace flags byte. `0x00` when not sampled. |
+| `resource` | Entity-level descriptor inherited from `LoggerProvider`. |
+| `instrumentationScope` | Library scope inherited from the `Logger`. |
 
-| Member | Description |
-|---|---|
-| `timestampNanos: Long` | Epoch nanoseconds when the event occurred. |
-| `severity: Severity` | One of the 24 severity levels. |
-| `body: LogMessage` | The log message — a `LogMessage.Simple` or deferred-formatted `Templated`. |
-| `attributes: Attributes` | Typed key-value annotations, including `code.*` source location attributes. |
-| `traceIdHi / traceIdLo: Long` | 128-bit trace ID stored as two primitive longs. Both are `0` when absent. |
-| `spanId: Long` | 64-bit span ID. `0` when absent. |
-| `hasTraceId: Boolean` | Returns `true` when `traceIdHi != 0 || traceIdLo != 0`. |
-| `hasSpanId: Boolean` | Returns `true` when `spanId != 0`. |
-| `throwable: Option[Throwable]` | Optional throwable whose stack trace is formatted lazily by the exporter. |
-| `LogRecord.builder` | Returns a `LogRecordBuilder` with sensible defaults (`Severity.Info`, current timestamps, empty attributes). |
+## Integration
+
+`LogRecord` flows from `Logger.emit` through every `LogRecordProcessor.onEmit` in the pipeline. `LogFormatter.formatRecord` converts one into a rendered string. `LogRecordProcessor` implementations can filter, enrich, or export records to any backend.

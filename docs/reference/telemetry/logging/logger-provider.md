@@ -1,25 +1,22 @@
 ---
 id: logger-provider
 title: "LoggerProvider"
-description: "Production factory for Logger instances — configures Resource, LogRecordProcessors, and ContextStorage for the logging pillar."
+description: "Root factory for Logger instances in the telemetry module's logging area: binds Resource, LogRecordProcessors, and ContextStorage together."
 keywords:
-  - "LoggerProvider Builder"
+  - "Structured Logging"
+  - "Logging Configuration"
   - "Logger Factory"
-  - "LogRecordProcessor Configuration"
-  - "Trace-Log Correlation"
-  - "ContextStorage Propagation"
-  - "Telemetry Provider Lifecycle"
-  - "Structured Logging Setup"
+  - "LoggerProvider"
 ---
 
-`LoggerProvider` is a factory for [`Logger`](./logger.md) instances that share a common `Resource`, ordered pipeline of `LogRecordProcessor`s, and `ContextStorage` for active-span propagation. It is the production configuration entry point for the logging pillar of the ZIO Blocks Telemetry module — positioned between the global `log` singleton (which holds a reference to the installed `Logger`) and the per-scope `Logger` instances that library code receives via `LoggerProvider#get`.
+`LoggerProvider` is the root factory for `Logger` instances in the logging area of the telemetry module. It binds a `Resource` (the entity-level service descriptor), an ordered pipeline of `LogRecordProcessor`s, and a `ContextStorage[Option[SpanContext]]` together, then mints named `Logger` objects that all inherit that shared configuration. Its constructor is package-private; use `LoggerProvider.builder` and the returned `LoggerProviderBuilder` to configure and create a provider.
 
-- **Immutable after construction** — all settings are fixed when `build()` is called; no field can be mutated at runtime.
-- **Builder pattern** — the primary constructor is package-private; `LoggerProvider.builder` is the only public entry point.
-- **`AutoCloseable`** — `close()` delegates to `shutdown()`, so a provider can be managed with `scala.util.Using.resource` or a JVM shutdown hook.
-- **Trace-context-aware** — the same `ContextStorage[Option[SpanContext]]` can be shared with [`TracerProvider`](../tracing/tracer-provider.md) so every log record carries the active span's trace and span IDs automatically.
+- **AutoCloseable lifecycle** — `close()` delegates to `shutdown()`, so the provider can be used in `scala.util.Using.resource` blocks or Java `try`-with-resources.
+- **Multi-processor fan-out** — Any number of `LogRecordProcessor`s can be registered; all are called in order on every emitted `LogRecord`.
+- **Trace-context-aware** — Sharing the same `ContextStorage[Option[SpanContext]]` instance with a `TracerProvider` enables automatic trace–log correlation: every `LogRecord` emitted inside an active span is stamped with the span's trace and span identifiers as unboxed primitive fields.
+- **Builder pattern** — `LoggerProvider.builder` returns a `LoggerProviderBuilder`; configure in any order and finish with `build()`.
 
-The public surface of `LoggerProvider` and its companion builder is:
+The two cooperating classes share the following public surface:
 
 ```scala
 final class LoggerProvider private[telemetry] (
@@ -41,7 +38,7 @@ object LoggerProvider {
 }
 
 final class LoggerProviderBuilder private[telemetry] (...) {
-  // Builder Configuration — call before build()
+  // Builder — Configuration
   def setResource(resource: Resource): LoggerProviderBuilder
   def addLogRecordProcessor(processor: LogRecordProcessor): LoggerProviderBuilder
   def setContextStorage(contextStorage: ContextStorage[Option[SpanContext]]): LoggerProviderBuilder
@@ -50,45 +47,32 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-`LoggerProvider` sits in the Logging group alongside `Logger`. Its relationship to the rest of the telemetry module looks like this:
-
-```
-log (global singleton — holds a reference to a Logger)
-  └── LoggerProvider   ← this type
-        └── Logger     (obtained via LoggerProvider#get → log.install)
-              └── log records → LogRecordProcessor pipeline
-                                  └── ConsoleLogRecordProcessor
-                                  └── custom exporters / batch processors
-```
-
 ## Usage
 
-The following example shows the complete lifecycle: configure a provider with a custom resource and processor, obtain a `Logger`, emit a record, then shut down:
+The following block shows the full lifecycle of a `LoggerProvider` — building it, obtaining a `Logger`, emitting a record, and shutting down:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
-import scala.util.Using
 
-Using.resource(
-  LoggerProvider.builder
-    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
-    .addLogRecordProcessor(new ConsoleLogRecordProcessor)
-    .build()
-) { provider =>
-  val logger: Logger = provider.get("payments-service", "1.0.0")
-  logger.info("server started")
-}
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
+
+val logger = provider.get("com.example.OrderService", "1.0.0")
+logger.info("order placed", "orderId" -> AttributeValue.StringValue("ord-001"))
+
+provider.shutdown()
 ```
 
-`Using.resource` calls `provider.close()` — which delegates to `shutdown()` — automatically when the block exits, even on exception.
+The global `log` singleton wraps this pattern behind a zero-setup, macro-enriched API. Call `log.install(provider.get("com.example"))` once at application startup to replace its built-in no-op with a production-configured logger.
 
-## Construction / Creating Instances
+## Creating Values
 
-Because `LoggerProvider`'s primary constructor is package-private, the builder is the only supported construction path. We start with `LoggerProvider.builder`, call zero or more configuration methods on the returned `LoggerProviderBuilder`, and finish with `build()`. Every configuration method returns `this`, so calls chain fluently.
+We build a `LoggerProvider` in two steps: obtain a `LoggerProviderBuilder` from `LoggerProvider.builder`, configure it, then call `build()`.
 
-### `LoggerProvider.builder` — Start a new builder
+### Starting with `LoggerProvider.builder`
 
-`LoggerProvider.builder` returns a `LoggerProviderBuilder` pre-populated with the following defaults: `Resource.default` (SDK attributes plus `service.name = "unknown_service"`), an empty processor list, and `ContextStorage.defaultSpanContextStorage` (a `ScopedValue`-backed store on JVM).
+`LoggerProvider.builder` is the sole public entry point for construction. It returns a fresh `LoggerProviderBuilder` pre-populated with `Resource.default` (service name `"unknown_service"` plus SDK attributes), an empty processor list, and no explicit `ContextStorage`:
 
 ```scala
 object LoggerProvider {
@@ -96,19 +80,19 @@ object LoggerProvider {
 }
 ```
 
-We always begin provider construction with this call:
+We obtain a builder and verify its defaults are acceptable before adding custom configuration:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val builder: LoggerProviderBuilder = LoggerProvider.builder
+val builder         = LoggerProvider.builder
+val minimalProvider = builder.build()
+minimalProvider.shutdown()
 ```
 
-The builder is mutable internally but its mutations are not visible outside the builder: once `build()` is called the resulting `LoggerProvider` is immutable.
+### Building with `LoggerProviderBuilder.build`
 
-### `LoggerProviderBuilder.build` — Finalise configuration
-
-`LoggerProviderBuilder.build` constructs the `LoggerProvider` from the accumulated builder state. If `setContextStorage` was not called, `build()` supplies `ContextStorage.defaultSpanContextStorage` automatically. The resulting provider is immutable.
+`LoggerProviderBuilder.build()` resolves the accumulated configuration and returns an immutable `LoggerProvider`. If `setContextStorage` was never called, it substitutes `ContextStorage.defaultSpanContextStorage` — the same shared singleton that `TracerProvider` defaults to, making trace–log correlation automatic when both are installed with their default settings:
 
 ```scala
 final class LoggerProviderBuilder private[telemetry] (...) {
@@ -116,73 +100,30 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-We call `build()` once at the end of the chain after all configuration methods:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider: LoggerProvider = LoggerProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "my-service")))
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
-  .build()
-
-provider.shutdown()
-```
-
-After calling `build()`, the builder instance should be discarded. Re-using or further mutating the builder after `build()` is not supported.
-
-## Core Operations
-
-Once a `LoggerProvider` is built, its API groups into three categories: obtaining `Logger` instances, configuring the builder before construction, and managing the provider's lifecycle.
-
-### Logger Acquisition
-
-The `get` method is the bridge between `LoggerProvider` configuration and the `Logger` instances that application code uses to emit records.
-
-#### `get` — Obtain a named logger
-
-`LoggerProvider#get` returns a `Logger` for the given instrumentation scope `name` and optional `version`. The returned `Logger` carries the provider's shared `Resource`, processors, and `ContextStorage`, scoped under an `InstrumentationScope` identified by the provided name and version. A new `Logger` instance is constructed on every call.
-
-```scala
-final class LoggerProvider private[telemetry] (...) {
-  def get(name: String, version: String = ""): Logger
-}
-```
-
-We call `LoggerProvider#get` once at module or library initialization and reuse the resulting `Logger`, since each call allocates a new instance:
+The following example assembles a fully specified provider for a `"payment-service"`:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = LoggerProvider.builder
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payment-service")))
+  .addLogRecordProcessor(LogRecordProcessor.noop)
   .build()
-
-// Acquire once — both name and version are recorded in every record's InstrumentationScope
-val logger: Logger = provider.get("com.example.MyService", "1.0.0")
-
-// Use the Logger to emit records at different severity levels
-logger.info("server started")
-logger.warn("high memory", "heapMb" -> AttributeValue.LongValue(1024L))
 
 provider.shutdown()
 ```
 
-When `version` is an empty string (the default), the `InstrumentationScope` records no version. Supply a semantic version string whenever the instrumentation scope is a versioned library component so that backends can correlate log records with library releases.
+## Core Operations
 
-After obtaining a `Logger` from `LoggerProvider#get`, we can install it into the global `log` singleton by calling `log.install(logger)` so that macro-based call-site logging picks up the configured pipeline.
+The full API of `LoggerProvider` and `LoggerProviderBuilder` falls into three categories: the builder's configuration methods, the single method that produces a `Logger`, and the lifecycle methods that release processor resources.
 
-:::caution
-`get` constructs a new `Logger` on every invocation. Cache the result at module initialization rather than calling `get` on the hot path.
-:::
+### Builder — Configuration
 
-### Builder
+The builder methods `setResource`, `addLogRecordProcessor`, and `setContextStorage` control every aspect of a provider before it is built. Each method mutates the builder in place and returns `this`, enabling a fluent chain.
 
-The builder methods configure the three dimensions of a `LoggerProvider`: the `Resource` describing the service, the ordered list of `LogRecordProcessor`s that receive each emitted record, and the `ContextStorage` that carries the active `SpanContext` for trace-log correlation. We call these methods on the `LoggerProviderBuilder` returned by `LoggerProvider.builder`, before calling `build()`.
+#### Describing the service entity
 
-#### `setResource` — Identify the producing service
-
-`LoggerProviderBuilder#setResource` sets the `Resource` that is attached to every log record this provider emits. A `Resource` wraps `Attributes` that describe the service, container, or host producing the telemetry. If not called, the builder uses `Resource.default`, which includes SDK identification attributes and `service.name = "unknown_service"`.
+`LoggerProviderBuilder.setResource` replaces the `Resource` that the provider stamps on every `LogRecord`. A `Resource` wraps a typed `Attributes` collection; the most common attribute is `service.name`, accessed via the predefined `Attributes.ServiceName` key. If `setResource` is never called, the builder uses `Resource.default`:
 
 ```scala
 final class LoggerProviderBuilder private[telemetry] (...) {
@@ -190,24 +131,21 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-We build a `Resource` from a single `Attributes.of` call, using the predefined `Attributes.ServiceName` key:
+We override the resource to give the provider a meaningful service identity:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = LoggerProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "inventory-service")))
   .build()
 
 provider.shutdown()
 ```
 
-Passing descriptive resource attributes is important for log aggregation backends, which use the `service.name` attribute to group records under the correct service.
+#### Adding log record processors
 
-#### `addLogRecordProcessor` — Wire processors and exporters
-
-`LoggerProviderBuilder#addLogRecordProcessor` appends a `LogRecordProcessor` to the provider's ordered pipeline. Each processor's `onEmit` method is called sequentially on the thread that emits each record. Calling `addLogRecordProcessor` multiple times attaches multiple processors; they run in insertion order.
+`LoggerProviderBuilder.addLogRecordProcessor` appends a `LogRecordProcessor` to the pipeline. Multiple calls accumulate processors; all are called in order on every `LogRecord` the `Logger` emits. Each processor's `onEmit` callback receives the full record including severity, body, typed attributes, and trace-correlation fields:
 
 ```scala
 final class LoggerProviderBuilder private[telemetry] (...) {
@@ -215,33 +153,26 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-The following example wires a console processor for human-readable local output alongside a second processor for exporting records to a remote backend:
+We register two processors in insertion order — a console writer alongside an exporter:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Implement a minimal no-op processor as a stand-in for a real exporter
-val exportingProcessor: LogRecordProcessor = new LogRecordProcessor {
-  def onEmit(logRecord: LogRecord): Unit = ()
-  def shutdown(): Unit                   = ()
-  def forceFlush(): Unit                 = ()
-}
-
 val provider = LoggerProvider.builder
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
-  .addLogRecordProcessor(exportingProcessor)
+  .addLogRecordProcessor(LogRecordProcessor.noop) // replace with a console writer
+  .addLogRecordProcessor(LogRecordProcessor.noop) // replace with an OTLP exporter
   .build()
 
 provider.shutdown()
 ```
 
 :::caution
-Processors are called sequentially on the calling thread. A slow or blocking processor — for example, a synchronous HTTP exporter — will slow every log emission. Prefer batch processors that hand off to a background thread.
+Processors are called sequentially on the calling thread. Long-running processors delay emission for all subsequent processors; consider wrapping I/O-bound exporters in an async-buffering adapter.
 :::
 
-#### `setContextStorage` — Enable trace-log correlation
+#### Sharing the context store
 
-`LoggerProviderBuilder#setContextStorage` overrides the `ContextStorage[Option[SpanContext]]` used to propagate the currently active span through the call stack. When not called, the builder resolves to `ContextStorage.defaultSpanContextStorage`, which on JVM is backed by a `ScopedValue`.
+`LoggerProviderBuilder.setContextStorage` overrides the `ContextStorage[Option[SpanContext]]` used to propagate the active span context into each emitted `LogRecord`. When not set, the builder uses `ContextStorage.defaultSpanContextStorage`, the same singleton that `TracerProvider` defaults to, giving automatic trace–log correlation with no additional setup. Pass an explicit shared instance when isolating correlation in tests or integrating with a custom async runtime:
 
 ```scala
 final class LoggerProviderBuilder private[telemetry] (...) {
@@ -249,119 +180,115 @@ final class LoggerProviderBuilder private[telemetry] (...) {
 }
 ```
 
-Pass the same `ContextStorage` instance to both `LoggerProvider` and `TracerProvider` to enable automatic trace-log correlation — log records emitted inside a `tracer.span` block will carry the active `SpanContext` without any additional instrumentation:
+The following example creates one `ContextStorage` instance and hands it to both a `TracerProvider` and a `LoggerProvider`, ensuring that every log record emitted inside a span carries that span's identifiers:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Create one shared storage instance and pass it to both providers
-val sharedStorage: ContextStorage[Option[SpanContext]] =
-  ContextStorage.create[Option[SpanContext]](None)
+val sharedStorage = ContextStorage.create[Option[SpanContext]](None)
 
-val loggerProvider = LoggerProvider.builder
-  .setContextStorage(sharedStorage)
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
-  .build()
+val tp = TracerProvider.builder.setContextStorage(sharedStorage).build()
+val lp = LoggerProvider.builder.setContextStorage(sharedStorage).build()
 
-val tracerProvider = TracerProvider.builder
-  .setContextStorage(sharedStorage)
-  .build()
+trace.install(tp)
+log.install(lp.get("com.example"))
 
-loggerProvider.shutdown()
-tracerProvider.shutdown()
+tp.shutdown()
+lp.shutdown()
 ```
 
 :::note
-Override `ContextStorage` only when sharing context explicitly with `TracerProvider`, or when integrating with a custom async runtime whose threading model makes `ScopedValue` propagation unreliable.
+Full `ScopedValue` support requires JDK 25 or later.
 :::
 
-### Lifecycle
+### Logger Acquisition
 
-The lifecycle operations release resources held by the registered `LogRecordProcessor`s. We call them once when the application is shutting down or when the provider is no longer needed.
-
-#### `shutdown` — Release processor resources
-
-`LoggerProvider#shutdown` calls `shutdown()` on every registered `LogRecordProcessor` in insertion order, releasing any background threads, buffers, or network connections they hold. After `shutdown()` returns, the provider is still structurally valid but processors will no longer emit data.
+`LoggerProvider.get` produces a `Logger` bound to a named instrumentation scope. Pass a scope name — typically a package or library name — and an optional version string. The returned `Logger` inherits the provider's `Resource`, processor list, and `ContextStorage`; every `LogRecord` it emits is stamped with the given `InstrumentationScope`:
 
 ```scala
 final class LoggerProvider private[telemetry] (...) {
-  def shutdown(): Unit
+  def get(name: String, version: String = ""): Logger
 }
 ```
 
-We call `LoggerProvider#shutdown` once during application shutdown:
+We retrieve a versioned logger for one component alongside an unversioned one for another:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = LoggerProvider.builder
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor)
+  .addLogRecordProcessor(LogRecordProcessor.noop)
   .build()
 
-val logger = provider.get("com.example.App")
-logger.info("application stopping")
+val logger  = provider.get("com.example.OrderService")
+val loggerV = provider.get("com.example.PaymentService", "2.1.0")
+
+logger.info("order received")
+loggerV.warn("payment gateway slow")
 
 provider.shutdown()
 ```
 
-#### `close` — `AutoCloseable` delegation
+:::note
+`LoggerProvider.get` allocates a new `Logger` on every call. Assign the result to a `val` at startup and reuse it throughout the service lifetime rather than calling `get` per request.
+:::
 
-`LoggerProvider#close` implements the `AutoCloseable` contract by delegating to `shutdown()`. This allows `LoggerProvider` to be used directly with `scala.util.Using.resource` or Java's try-with-resources construct.
+### Lifecycle
+
+`LoggerProvider.shutdown` and `LoggerProvider.close` manage the provider's operational lifetime. `LoggerProvider.shutdown` calls `shutdown()` on every registered processor in insertion order, flushing and releasing their resources. `LoggerProvider.close` is an alias for `shutdown()` that satisfies `AutoCloseable`, enabling use in `scala.util.Using.resource` blocks:
 
 ```scala
-final class LoggerProvider private[telemetry] (...) {
+final class LoggerProvider private[telemetry] (...) extends AutoCloseable {
+  def shutdown(): Unit
   override def close(): Unit
 }
 ```
 
-Using `scala.util.Using.resource` guarantees shutdown even when an exception propagates out of the block:
+We use `scala.util.Using.resource` to guarantee cleanup even if a processor throws:
+
+```scala mdoc:compile-only
+import scala.util.Using
+import zio.blocks.telemetry._
+
+Using.resource(LoggerProvider.builder.addLogRecordProcessor(LogRecordProcessor.noop).build()) { provider =>
+  val logger = provider.get("com.example")
+  logger.info("startup complete")
+}
+```
+
+:::caution
+`shutdown()` does not catch exceptions thrown by individual processors. Wrap the call in a `try/finally` block when processors may throw during cleanup.
+:::
+
+## Subtypes and Related Types
+
+Three closely associated types complete the `LoggerProvider` story: the mutable builder that produces it, the `Logger` scope instance it vends, and the `log` global singleton that holds a reference to one.
+
+| Type                    | Relationship                                                                                                                                                                                        |
+|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LoggerProviderBuilder` | Mutable builder returned by `LoggerProvider.builder`. Accumulates resource, processor, and context-storage settings; call `build()` to produce an immutable `LoggerProvider`.                       |
+| `Logger`                | Produced by `LoggerProvider.get(name, version)`. Emits `LogRecord` snapshots through the provider's shared processor pipeline and reads `SpanContext` from the shared `ContextStorage`.             |
+| `log` (object)          | Application-level global singleton backed by a shared `Logger`. Call `log.install(logger)` to replace its built-in no-op; macro-generated methods capture call-site source location at compile time. |
+
+We install a configured `Logger` into the global `log` singleton at application startup so that call sites need no provider reference:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
-import scala.util.Using
 
-Using.resource(
-  LoggerProvider.builder
-    .addLogRecordProcessor(new ConsoleLogRecordProcessor)
-    .build()
-) { provider =>
-  val logger = provider.get("com.example.App")
-  logger.info("hello from managed provider")
-}
-// provider.close() — and therefore shutdown() — is called automatically here
+val provider = LoggerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "catalog")))
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
+
+log.install(provider.get("com.example.catalog"))
+
+log.info("server started")
 ```
 
-## Comparisons
+## Integration
 
-`LoggerProvider` compares to two reference points: SLF4J's static factory singleton on the Java side, and `TracerProvider` within the same module.
+`LoggerProvider` sits at the head of the Logging type chain. It produces `Logger` instances; each `Logger` emits `LogRecord` snapshots that carry typed `Attributes`, a nanosecond timestamp, a `Severity` level, an `InstrumentationScope`, and — when a span is active — the trace and span identifiers read from the shared `ContextStorage`. Those records flow through the ordered `LogRecordProcessor` pipeline, where formatters, filters, and exporters transform or route them.
 
-### `LoggerProvider` vs. SLF4J `LoggerFactory`
+The most important cross-pillar integration point is trace–log correlation. When a `TracerProvider` and a `LoggerProvider` share the same `ContextStorage[Option[SpanContext]]` instance, every log record emitted while a span is active is automatically stamped with `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` as unboxed primitive fields — no boxing occurs until a `LogFormatter` runs. Because both providers default to the same `ContextStorage.defaultSpanContextStorage` singleton, correlation is active with no explicit configuration. For explicit control, pass a shared instance via `setContextStorage` to both providers — the same pattern shown in [TracerProvider](../tracing/tracer-provider.md).
 
-SLF4J's `LoggerFactory` is the most widely used Java logger-acquisition API. The table below contrasts it with `LoggerProvider` on the dimensions most relevant to production Scala applications:
-
-| Aspect                       | SLF4J `LoggerFactory`                                        | ZIO Blocks `LoggerProvider`                                         |
-|------------------------------|--------------------------------------------------------------|---------------------------------------------------------------------|
-| Instantiation                | Static service-loader singleton; configured via `logback.xml` | Explicit value you construct and pass around                        |
-| Configuration                | XML or Groovy at startup; limited programmatic control        | Fully programmatic; hot-reloadable via `log.install` / `log.writer` |
-| Global convenience facade    | `LoggerFactory.getLogger(...)` everywhere                    | `log` singleton — install via `log.install(provider.get(...))`      |
-| Trace-log correlation        | Requires MDC bridge + OTel agent or SDK integration          | Native — share `ContextStorage` with `TracerProvider`               |
-| Structured attributes        | MDC (`String` → `String` only)                               | Typed attributes (`Long`, `Double`, `Boolean`, `String`) per record |
-| `AutoCloseable`              | No; Logback has `stop()` on `LoggerContext`                  | Yes — `close()` delegates to `shutdown()`                           |
-| Dependencies                 | SLF4J API + Logback Classic (~500 KB)                        | `zio-blocks-telemetry` only, zero transitive dependencies           |
-
-The global `log` facade fills the same convenience role as `LoggerFactory.getLogger(...)` for code that should not depend on a specific logger instance. We install a provider-backed `Logger` into that facade with `log.install(provider.get("scope"))`, which makes it hot-swappable at runtime rather than locked to a static classloader binding.
-
-### `LoggerProvider` vs. `TracerProvider`
-
-`TracerProvider` and `LoggerProvider` are sibling provider types in the same `zio.blocks.telemetry` package, serving the tracing and logging pillars respectively. Both follow the identical builder pattern and `AutoCloseable` lifecycle. The key difference is that `TracerProvider` adds a `Sampler` configuration dimension that `LoggerProvider` does not need, while both share `ContextStorage` for cross-pillar correlation:
-
-| Aspect                     | `LoggerProvider`                                     | `TracerProvider`                                       |
-|----------------------------|------------------------------------------------------|--------------------------------------------------------|
-| Produces                   | `Logger` → log records                               | `Tracer` → `Span`                                      |
-| Builder method             | `LoggerProvider.builder`                             | `TracerProvider.builder`                               |
-| Sampler support            | No                                                   | Yes — `setSampler`                                     |
-| Processor type             | `LogRecordProcessor`                                 | `SpanProcessor`                                        |
-| `ContextStorage` support   | Yes — `setContextStorage`                            | Yes — `setContextStorage`                              |
-| `AutoCloseable`            | Yes                                                  | Yes                                                    |
-
-Passing the same `ContextStorage[Option[SpanContext]]` instance to both providers is the recommended approach for trace-log correlation: log records emitted inside a `tracer.span` block automatically carry the active `SpanContext`, with no additional instrumentation required.
+For a complete picture of how `LoggerProvider`, `TracerProvider`, and `MeterProvider` interconnect across all three observability pillars, see the [Telemetry module index](../index.md).
