@@ -1,70 +1,51 @@
 ---
 id: span-processor
 title: "SpanProcessor"
-description: "Hook for span lifecycle events (onStart, onEnd) in the telemetry Tracing sub-domain. Implement to export or collect spans."
+description: "Hook for span lifecycle events (onStart, onEnd) in the telemetry module's tracing area. Implement to export or collect spans."
 keywords:
-  - "SpanProcessor onStart onEnd"
-  - "InMemorySpanProcessor testing"
-  - "SpanProcessor.noop no-op"
-  - "span export pipeline"
+  - "Distributed Tracing"
+  - "Span Export"
+  - "Lifecycle Hook"
+  - "SpanProcessor"
 sidebar_label: "SpanProcessor"
 ---
 
-`SpanProcessor` is the extension point for the Tracing sub-domain's lifecycle hooks. A `TracerProvider` calls `onStart` when a new sampled span begins and `onEnd` when it finishes, passing the completed `SpanData` snapshot to exporters, in-memory buffers, or testing collectors.
+`SpanProcessor` is the extension point exporter authors implement to do something with finished spans — ship them to a backend, buffer them, or collect them for tests. A [`TracerProvider`](./tracer-provider.md) calls `onStart` when a sampled span begins and `onEnd` with the immutable [`SpanData`](./span-data.md) snapshot when it finishes. You rarely implement this directly: `SpanProcessor.noop` and the built-in in-memory collector cover development and testing, so you write one only to bridge spans to an export target such as OTLP.
 
 ```scala
 trait SpanProcessor extends AutoCloseable {
-  def onStart(span: Span): Unit           // called synchronously on the span-creation thread
-  def onEnd(spanData: SpanData): Unit     // called synchronously on the span-end thread
-  def shutdown(): Unit
-  def forceFlush(): Unit
+  def onStart(span: Span): Unit         // span still mutable; RecordOnly + RecordAndSample
+  def onEnd(spanData: SpanData): Unit   // immutable snapshot — export from here
+  def shutdown(): Unit                  // flush and release; called by TracerProvider.shutdown()
+  def forceFlush(): Unit                // flush buffered data now
   override def close(): Unit = shutdown()
 }
 
 object SpanProcessor {
-  val noop: SpanProcessor  // no-op singleton; all methods are no-ops
+  val noop: SpanProcessor  // ignores every event
 }
 ```
 
-## Creating Values
+## Implementing a Processor
 
-Three paths produce a `SpanProcessor`:
-
-- **`SpanProcessor.noop`** — the zero-overhead no-op singleton; use as a placeholder.
-- **`new InMemorySpanProcessor(capacity)`** — built-in collector that stores `SpanData` in a ring buffer. The default `trace` global uses one internally.
-- **Custom implementation** — implement the trait to forward `SpanData` to an OTLP gRPC endpoint, a file writer, or any other export target.
+A custom processor forwards each `SpanData` to an export target. Register it on the provider with `addSpanProcessor`; when several are registered, they receive callbacks in insertion order:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Built-in no-op
-val noop = SpanProcessor.noop
-
-// Custom exporter
-val custom = new SpanProcessor {
+val exporter = new SpanProcessor {
   def onStart(span: Span): Unit       = ()
   def onEnd(spanData: SpanData): Unit = println(s"[EXPORT] ${spanData.name}")
   def shutdown(): Unit                = ()
   def forceFlush(): Unit              = ()
 }
 
-val provider = TracerProvider.builder.addSpanProcessor(custom).build()
+val provider = TracerProvider.builder.addSpanProcessor(exporter).build()
 trace.install(provider)
-trace.span("checkout") { _ => () }
-// prints: [EXPORT] checkout
+trace.span("checkout") { _ => () } // prints: [EXPORT] checkout
 provider.shutdown()
 ```
 
-## Core Operations
-
-| Method | Description |
-|--------|-------------|
-| `onStart(span: Span)` | Called on span creation for `RecordOnly` and `RecordAndSample` decisions. The span is still mutable at this point. |
-| `onEnd(spanData: SpanData)` | Called after `Span#end()` with the immutable `SpanData` snapshot. Use this for export. |
-| `shutdown(): Unit` | Flush and release resources. Called by `TracerProvider.shutdown()`. |
-| `forceFlush(): Unit` | Flush buffered data immediately. Called by `TracerProvider.forceFlush()`. |
-| `close(): Unit` | Delegates to `shutdown()` — satisfies `AutoCloseable`. |
-
 ## Integration
 
-Processors are registered via `TracerProvider.builder.addSpanProcessor(processor)`. Multiple processors can be added; they receive callbacks in insertion order. The global `trace` object's default provider uses an `InMemorySpanProcessor` internally, making `trace.collectedSpans` and `trace.clearSpans` available for test assertions without any additional setup.
+The global `trace` object's default provider already registers an `InMemorySpanProcessor`, so `trace.collectedSpans` and `trace.clearSpans` are available for test assertions without any additional setup.
