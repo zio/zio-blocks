@@ -1,16 +1,14 @@
 ---
 id: span-kind
 title: "SpanKind"
-description: "The role a span plays in a trace — Internal, Server, Client, Producer, or Consumer — following the OpenTelemetry SpanKind model."
+description: "SpanKind — the sealed enumeration classifying a span's role in a trace (Internal, Server, Client, Producer, Consumer) in the telemetry Tracing sub-domain."
 keywords:
   - "SpanKind"
-  - "Span role"
-  - "Client Server span"
-  - "Producer Consumer span"
   - "OpenTelemetry SpanKind"
+sidebar_label: "SpanKind"
 ---
 
-`SpanKind` records the role a [`Span`](./span.md) plays relative to its remote peers, so tracing backends can lay out the request topology (which side called, which side served). It is a sealed trait with five case objects:
+`SpanKind` is a sealed enumeration that classifies a span by its role in a trace — internal work, the client or server side of a synchronous RPC, or the producer or consumer side of an asynchronous message. It aligns with the [OpenTelemetry SpanKind specification](https://opentelemetry.io/docs/specs/otel/trace/api/#spankind), and a [`Tracer`](./tracer.md) records it on each [`Span`](./span.md) so backends can reconstruct client↔server and producer↔consumer relationships across services.
 
 ```scala
 sealed trait SpanKind
@@ -23,14 +21,34 @@ object SpanKind {
 }
 ```
 
-| Kind | Role |
-|---|---|
-| `Internal` | Work performed inside the application — no remote peer. The default. |
-| `Server` | The server side of a synchronous RPC (handling an incoming request). |
-| `Client` | The client side of a synchronous RPC (making an outbound request). |
-| `Producer` | The producer side of asynchronous messaging (sending a message). |
-| `Consumer` | The consumer side of asynchronous messaging (receiving a message). |
+Each kind describes what the span covers and how it relates to a span in another process:
 
-Pass a kind to [`trace.span`](./index.md#choosing-a-span-kind) (or `Tracer#span`); it defaults to `Internal`.
+| Kind       | Represents                                                                                                                       | Relationship in a trace                                   |
+|------------|----------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `Internal` | Work performed internally in the application. The default when no kind is given.                                                 | No remote parent or child.                                |
+| `Server`   | The server side of a synchronous RPC — begins when the server starts processing the request and ends when it sends the response. | Usually the child of a remote `Client` span.              |
+| `Client`   | The client side of a synchronous RPC — begins when the request is sent and ends when the response arrives.                       | Usually the parent of a remote `Server` span.             |
+| `Producer` | The producer side of an asynchronous message — begins when the message is sent and ends once it is dispatched.                   | Parent that often completes before the `Consumer` begins. |
+| `Consumer` | The consumer side of an asynchronous message — begins when the message is received and ends when processing finishes.            | Child of a `Producer` span.                               |
 
-These semantics follow the OpenTelemetry specification exactly. For the authoritative definitions and guidance on choosing a kind, see the [OpenTelemetry SpanKind spec](https://opentelemetry.io/docs/specs/otel/trace/api/#spankind).
+## Usage
+
+Pass a `SpanKind` as the second argument to [`trace.span`](./index.md) (or `Tracer#span`) to classify a span; omit it to accept the `Internal` default.
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+// Server span: handling an inbound request
+trace.span("handle-order", SpanKind.Server) { _ =>
+  // Client span: an outbound call made while handling it
+  trace.span("charge-payment", SpanKind.Client)(_ => ())
+}
+```
+
+Setting the kind accurately lets a tracing backend pair a `Client` span in one service with the `Server` span it triggers in another, and a `Producer` span with the `Consumer` that eventually handles its message.
+
+## See Also
+
+- [Span](./span.md) — the unit of work a `SpanKind` classifies.
+- [Tracing](./index.md) — the sub-domain overview and the `trace` entry point.
+- [OpenTelemetry SpanKind specification](https://opentelemetry.io/docs/specs/otel/trace/api/#spankind) — the cross-language semantics this enumeration follows.
