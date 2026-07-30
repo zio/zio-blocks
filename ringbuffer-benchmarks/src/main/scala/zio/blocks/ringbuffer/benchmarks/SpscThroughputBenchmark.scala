@@ -23,6 +23,7 @@ import java.util.concurrent.{ArrayBlockingQueue, LinkedBlockingQueue, TimeUnit}
 import scala.compiletime.uninitialized
 import org.jctools.queues.SpscArrayQueue
 import zio.blocks.ringbuffer.SpscRingBuffer
+import zio.blocks.ringbuffer.benchmarks.disruptor.DisruptorSpscRingBuffer
 
 /**
  * SPSC throughput benchmark comparing non-blocking offer/poll across:
@@ -41,27 +42,29 @@ import zio.blocks.ringbuffer.SpscRingBuffer
 @State(Scope.Group)
 class SpscThroughputBenchmark {
 
-  @Param(Array("ZIO_OBJECT", "ABQ", "LBQ", "JCTOOLS_SPSC"))
+  @Param(Array("ZIO_OBJECT", "ABQ", "LBQ", "JCTOOLS_SPSC", "DISRUPTOR_SPSC"))
   var impl: String = uninitialized
 
-  @Param(Array("1024"))
+  @Param(Array("256", "512", "1024", "2048", "8192"))
   var capacity: Int = uninitialized
 
-  private var rb: SpscRingBuffer[java.lang.Integer]       = uninitialized
-  private var abq: ArrayBlockingQueue[java.lang.Integer]  = uninitialized
-  private var lbq: LinkedBlockingQueue[java.lang.Integer] = uninitialized
-  private var jcq: SpscArrayQueue[java.lang.Integer]      = uninitialized
+  private var rb: SpscRingBuffer[java.lang.Integer]                   = uninitialized
+  private var abq: ArrayBlockingQueue[java.lang.Integer]              = uninitialized
+  private var lbq: LinkedBlockingQueue[java.lang.Integer]             = uninitialized
+  private var jcq: SpscArrayQueue[java.lang.Integer]                  = uninitialized
+  private var disruptorRb: DisruptorSpscRingBuffer[java.lang.Integer] = uninitialized
 
   private val ITEM: java.lang.Integer = java.lang.Integer.valueOf(42)
 
   @Setup(Level.Iteration)
   def setup(): Unit = {
-    rb = null; abq = null; lbq = null; jcq = null
+    rb = null; abq = null; lbq = null; jcq = null; disruptorRb = null
     impl match {
-      case "ZIO_OBJECT"   => rb = new SpscRingBuffer[java.lang.Integer](capacity)
-      case "ABQ"          => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
-      case "LBQ"          => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
-      case "JCTOOLS_SPSC" => jcq = new SpscArrayQueue[java.lang.Integer](capacity)
+      case "ZIO_OBJECT"     => rb = new SpscRingBuffer[java.lang.Integer](capacity)
+      case "ABQ"            => abq = new ArrayBlockingQueue[java.lang.Integer](capacity)
+      case "LBQ"            => lbq = new LinkedBlockingQueue[java.lang.Integer](capacity)
+      case "JCTOOLS_SPSC"   => jcq = new SpscArrayQueue[java.lang.Integer](capacity)
+      case "DISRUPTOR_SPSC" => disruptorRb = new DisruptorSpscRingBuffer[java.lang.Integer](capacity)
     }
   }
 
@@ -77,6 +80,8 @@ class SpscThroughputBenchmark {
       while (!control.stopMeasurement && !lbq.offer(ITEM)) Thread.onSpinWait()
     case "JCTOOLS_SPSC" =>
       while (!control.stopMeasurement && !jcq.offer(ITEM)) Thread.onSpinWait()
+    case "DISRUPTOR_SPSC" =>
+      while (!control.stopMeasurement && !disruptorRb.offer(ITEM)) Thread.onSpinWait()
   }
 
   @Benchmark
@@ -98,6 +103,10 @@ class SpscThroughputBenchmark {
     case "JCTOOLS_SPSC" =>
       var v = jcq.poll()
       while (!control.stopMeasurement && (v eq null)) { Thread.onSpinWait(); v = jcq.poll() }
+      if (v ne null) bh.consume(v)
+    case "DISRUPTOR_SPSC" =>
+      var v = disruptorRb.take()
+      while (!control.stopMeasurement && (v eq null)) { Thread.onSpinWait(); v = disruptorRb.take() }
       if (v ne null) bh.consume(v)
   }
 }
