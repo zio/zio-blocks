@@ -172,3 +172,4 @@ All ZIO Blocks Schema primitive types are supported and mapped to their BSON equ
 -   `Option` (Null or missing)
 -   `Collections` (BSON Arrays)
 -   `Maps` (BSON Documents)
+-   `zio.blocks.schema.json.Json` (semantic BSON documents, arrays, and scalar values)
