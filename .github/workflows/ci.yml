@@ -234,12 +234,10 @@ jobs:
         with:
           jvm: temurin:25
           apps: sbt
+      - name: Cache Dependencies
+        uses: coursier/cache-action@v8
       - name: Release
-        uses: nick-fields/retry@v4
-        with:
-          timeout_minutes: 30
-          max_attempts: 3
-          command: sbt ci-release
+        run: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
