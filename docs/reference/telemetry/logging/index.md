@@ -18,6 +18,23 @@ By default those records just accumulate in memory; to actually see them you poi
 
 After the message you attach context, and this is where structured logging pays off. The common case is key/value pairs — `log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)` — which become searchable fields on that entry instead of being buried in the text, so later you can query "all logs where `orderId = ord-123`". Pass a `Throwable` and its type, message, and stack trace are captured for you. A few values are handled specially: a [`Severity`](./severity.md) overrides the entry's level, an [`Attributes`](../shared/attributes.md) set adds many fields at once, and a plain `String` replaces the message body. When you have a domain type you'd like to log directly, give it a [`LogEnrichment`](./log-enrichment.md) instance that tells `log` how to turn it into fields.
 
+
+## Example Usage
+
+Logging's core job is to **emit structured, correlated logs**. Point `log` at a writer once, then emit records inside your spans; each record carries its typed key-value context and the active trace and span IDs automatically.
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+trace.install(TracerProvider.builder.build())
+log.writer(TextLogFormatter, StdoutWriter)
+
+trace.span("checkout") { _ =>
+  log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)
+  log.warn("inventory low", "sku" -> "sku-42", "remaining" -> 3L)
+}
+```
+
 ## Emit structured, severity-leveled records
 
 Six severities — `trace`, `debug`, `info`, `warn`, `error`, `fatal` — cover the whole scale.
@@ -138,7 +155,7 @@ log.withMinSeverity(Severity.Trace) {
 
 ## Route output
 
-Send records to a console writer for simple output, or to a processor pipeline for export.
+A record isn't useful until it leaves the process. Routing decides two things: how each record becomes text — a [`LogFormatter`](./log-formatter.md), plain lines or JSON — and where those bytes go — a `LogWriter`, such as stdout, stderr, or a file. There are two ways to wire this up: a simple console writer for local development, or a processor pipeline for production.
 
 ```scala
 object log {
@@ -150,7 +167,9 @@ object log {
 }
 ```
 
-For simple console output, `log.writer(formatter, writer)` adds a formatted sink; it is additive, so each call adds another output, and `log.clearWriters()` removes them. For a full pipeline, `log.install(logger)` replaces the backend with a configured `Logger`, `log.addProcessor(processor)` appends a `LogRecordProcessor`, and `log.removeAll()` detaches everything (calls become no-ops until an output is added again).
+`log.writer(formatter, writer)` is the simple path: pair a formatter with a writer to add one console sink. It's additive — call it again to send the same records to a second destination (say, human-readable text to stdout and JSON to stderr) — and `log.clearWriters()` removes them all.
+
+For production you usually want a pipeline that batches records and ships them to a backend for storage and search. `log.install(logger)` swaps in a fully configured [`Logger`](./logger.md) (built from a `LoggerProvider` with its export processors), `log.addProcessor(processor)` appends a single [`LogRecordProcessor`](./log-record-processor.md) to the current backend, and `log.removeAll()` detaches everything — `log.*` calls become no-ops until you add an output again.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -165,22 +184,6 @@ val logger = LoggerProvider.builder
   .build()
   .get("com.example")
 log.install(logger, Severity.Info)
-```
-
-## Usage
-
-Logging's core job is to **emit structured, correlated logs**. Point `log` at a writer once, then emit records inside your spans; each record carries its typed key-value context and the active trace and span IDs automatically.
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-trace.install(TracerProvider.builder.build())
-log.writer(TextLogFormatter, StdoutWriter)
-
-trace.span("checkout") { _ =>
-  log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)
-  log.warn("inventory low", "sku" -> "sku-42", "remaining" -> 3L)
-}
 ```
 
 ## See Also
