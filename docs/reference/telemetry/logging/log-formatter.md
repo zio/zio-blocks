@@ -1,123 +1,100 @@
 ---
 id: log-formatter
-title: "LogFormatter and LogWriter"
-description: "Stateless log formatters (TextLogFormatter, JsonLogFormatter) and output sinks (StdoutWriter, StderrWriter) for the telemetry module's logging area."
+title: "LogFormatter"
+description: "How a LogRecord is rendered to text: the built-in human-readable and OTLP-JSON formatters behind log.writer."
 keywords:
   - "Structured Logging"
   - "Log Formatting"
-  - "Output Writer"
+  - "Text and JSON Output"
   - "LogFormatter"
-  - "LogWriter"
-sidebar_label: "LogFormatter / LogWriter"
+sidebar_label: "LogFormatter"
 ---
 
-`LogFormatter` and `LogWriter` are the two halves of the log output pipeline. A `LogFormatter` renders a `LogRecord` (or raw builder arrays on the fast path) into a `StringBuilder`. A `LogWriter` routes the rendered output to a destination — stdout, stderr, a file, or a custom sink.
+`LogFormatter` renders a [`LogRecord`](./log-record.md) into text; its partner, the [`LogWriter`](./log-writer.md), routes that text to a destination. You rarely name a formatter directly — you hand a formatter/writer pair to [`log.writer`](./index.md), and the two built-ins below cover the common cases. Implement the trait yourself when your pipeline expects a shape neither produces.
 
-## LogFormatter
+## Built-in formatters
+
+Two stateless singletons cover the usual output formats:
+
+| Formatter          | Output                                                                                                                                       |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `TextLogFormatter` | Human-readable — `2026-07-29T10:00:00.000Z INFO  [Svc.doWork:42] message {key=val}`                                                          |
+| `JsonLogFormatter` | OTLP-compatible JSON — `{"timeUnixNano":"...","severityNumber":9,"severityText":"INFO","body":{"stringValue":"message"},"attributes":[...]}` |
+
+Both render the record's timestamp, severity, source location (from the `code.*` attributes), message body, remaining attributes, trace/span IDs, and an attached throwable's stack trace.
+
+## Example Usage
+
+Choosing a formatter is choosing who reads your logs. In development that's you, so pick `TextLogFormatter` — one aligned line per record, easy to scan in a terminal. In production it's a log collector, so pick `JsonLogFormatter` — every attribute stays a separate field the collector can index and query. Select it once at startup, alongside a [`LogWriter`](./log-writer.md) for the destination:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val isDevelopment = sys.env.get("ENV").forall(_ != "production")
+
+if (isDevelopment) log.writer(TextLogFormatter, StdoutWriter)  // readable in a terminal
+else log.writer(JsonLogFormatter, StdoutWriter)                // queryable by a collector
+
+log.info("server ready", "port" -> 8080L)
+```
+
+You can also register both — `log.writer` is additive, so each call adds another channel and every record goes to all of them. That's how you keep readable console output while also emitting machine-readable JSON:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+log.writer(TextLogFormatter, StdoutWriter)  // for the developer watching the terminal
+log.writer(JsonLogFormatter, StderrWriter)  // for the collector tailing stderr
+
+log.info("server ready", "port" -> 8080L)   // written to both channels
+```
+
+## Custom formatter
+
+Sometimes neither built-in shape fits — an existing ingest pipeline expects logfmt, or a report wants CSV. Implement the trait yourself and pass your formatter to `log.writer` like any built-in. Two methods are abstract, but only one of them is yours to write:
 
 ```scala
 trait LogFormatter {
-  // Fast path — called by FormattedLogEmitter when the sole processor is a console writer
-  def format(sb: StringBuilder, timestamp: Long, severity: Severity, source: SourceLocation,
-             message: String, attrs: Attributes): Unit
+  def format(
+    sb: StringBuilder, timestampNanos: Long, severity: Severity, severityText: String,
+    body: String, builder: Attributes.AttributesBuilder,
+    traceIdHi: Long, traceIdLo: Long, spanId: Long, traceFlags: Byte,
+    throwable: Option[Throwable]
+  ): Unit
 
-  // Standard path — called by FormattedLogRecordProcessor
   def formatRecord(sb: StringBuilder, record: LogRecord): Unit
 }
 ```
 
-Two built-in singletons cover the common output formats:
+`formatRecord` is the one that runs: a channel registered with `log.writer` renders each finished [`LogRecord`](./log-record.md) through it. Put your format there.
 
-| Singleton | Output format |
-|-----------|--------------|
-| `TextLogFormatter` | Human-readable: `2026-07-29T10:00:00.000Z INFO  [com.example.Svc.doWork:42] message {key=val}` |
-| `JsonLogFormatter` | OTLP-compatible JSON: `{"timestamp":..., "severity":"INFO", "body":"message", "attributes":{...}}` |
+`format` serves a lower-allocation path that skips building a `LogRecord`, and the library uses it only for its own default console output — no formatter you register ever reaches it. You still have to define it to satisfy the trait, so mirror the scalar fields and move on; it cannot render attributes anyway, since the accessors for reading them off the builder are internal.
 
-## LogWriter
+Both methods receive a fresh, empty `StringBuilder` from the caller, which writes it out and discards it. Append your output and return — the caller handles writing.
 
-```scala
-trait LogWriter {
-  def write(content: CharSequence): Unit
-  def flush(): Unit = ()
-  def close(): Unit = ()
-}
-```
-
-Predefined singletons:
-
-| Singleton | Destination |
-|-----------|-------------|
-| `StdoutWriter` | Writes to `System.out` |
-| `StderrWriter` | Writes to `System.err` |
-| `NoopWriter` | Discards output (useful for benchmarks) |
-| `FileLogWriter(path)` | JVM only: appends to a file |
-
-## Usage
-
-Use `log.writer(formatter, writer)` to add a formatted output channel to the global logger. Multiple calls add multiple channels; each receives every record independently:
+A CSV formatter — three comma-separated fields in `formatRecord`, with `format` mirroring them:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Human-readable text to stdout
-log.writer(TextLogFormatter, StdoutWriter)
+object CsvFormatter extends LogFormatter {
+  def formatRecord(sb: StringBuilder, record: LogRecord): Unit =
+    sb.append(record.timestampNanos).append(',').append(record.severityText).append(',').append(record.body.value)
 
-// OTLP JSON to stderr
-log.writer(JsonLogFormatter, StderrWriter)
-
-log.info("server ready", "port" -> 8080L)
-// Writes to both channels
-```
-
-When building a `LoggerProvider` directly, use `ConsoleLogRecordProcessor` (which formats records as human-readable text and writes to stdout) or implement a custom `LogRecordProcessor` that calls the formatter explicitly:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-// Option 1: built-in ConsoleLogRecordProcessor (text format to stdout)
-val provider1 = LoggerProvider.builder
-  .addLogRecordProcessor(new ConsoleLogRecordProcessor())
-  .build()
-provider1.get("com.example").info("started")
-provider1.shutdown()
-
-// Option 2: custom processor using LogFormatter and LogWriter directly
-val provider2 = LoggerProvider.builder
-  .addLogRecordProcessor(new LogRecordProcessor {
-    private val sb = new StringBuilder
-    def onEmit(r: LogRecord): Unit = {
-      sb.clear()
-      JsonLogFormatter.formatRecord(sb, r)
-      StderrWriter.write(sb)
-    }
-    def shutdown(): Unit   = ()
-    def forceFlush(): Unit = ()
-  })
-  .build()
-provider2.get("com.example").info("started in JSON")
-provider2.shutdown()
-```
-
-## Custom Processors
-
-When neither `TextLogFormatter` nor `JsonLogFormatter` fits, implement a custom `LogRecordProcessor` that formats `LogRecord` fields directly:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-// Custom processor that emits records in CSV format
-val csvProcessor = new LogRecordProcessor {
-  def onEmit(r: LogRecord): Unit =
-    println(s"${r.timestampNanos},${r.severity.text},${r.body}")
-  def shutdown(): Unit   = ()
-  def forceFlush(): Unit = ()
+  def format(
+    sb: StringBuilder, timestampNanos: Long, severity: Severity, severityText: String,
+    body: String, builder: Attributes.AttributesBuilder,
+    traceIdHi: Long, traceIdLo: Long, spanId: Long, traceFlags: Byte,
+    throwable: Option[Throwable]
+  ): Unit = sb.append(timestampNanos).append(',').append(severityText).append(',').append(body)
 }
 
-val provider = LoggerProvider.builder.addLogRecordProcessor(csvProcessor).build()
-provider.get("com.example").info("csv test")
-provider.shutdown()
+log.writer(CsvFormatter, StdoutWriter)
+log.info("order placed")
+// 2026-07-31T13:23:25.137Z INFO  [Main$.main:20] order placed  <- default console output
+// 1785504205137002324,INFO,order placed                        <- your channel
 ```
 
-## Integration
+Two lines, because `log.writer` adds a channel rather than replacing one, and the default console output is still registered.
 
-`LogFormatter.formatRecord(sb, record)` is called by processor implementations that write formatted output via a `LogWriter`. The built-in `ConsoleLogRecordProcessor` triggers a fast-path emitter inside `Logger` that formats directly from raw builder arrays — bypassing `LogRecord` allocation — when it is the sole registered processor. Custom processors receive a fully-populated `LogRecord` and can apply any formatting or routing logic.
+To render attributes too, pass an `AttributeVisitor` to `record.attributes.accept` — it fires once per attribute with the raw unboxed value, so nothing is boxed on the way out. Only the four scalar methods are abstract; the seq variants default to no-ops. Source location arrives among those attributes as `code.filepath`, `code.namespace`, `code.function`, and `code.lineno`, so skip any key starting with `code.` — as both built-in formatters do — unless you mean to emit the file path too.
