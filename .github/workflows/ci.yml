@@ -234,6 +234,8 @@ jobs:
         with:
           jvm: temurin:25
           apps: sbt
+      - name: Cache Dependencies
+        uses: coursier/cache-action@v8
       - name: Release
         uses: nick-fields/retry@v4
         with:
