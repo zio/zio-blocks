@@ -1,7 +1,7 @@
 ---
 id: log-enrichment
 title: "LogEnrichment"
-description: "Typeclass resolved at compile time by macro-generated log.* calls to attach typed values (Throwable, attributes, key-value pairs) to LogRecords."
+description: "Typeclass that lets a log.* call accept a domain value directly"
 keywords:
   - "Structured Logging"
   - "Log Enrichment"
@@ -10,50 +10,45 @@ keywords:
 sidebar_label: "LogEnrichment"
 ---
 
-`LogEnrichment[A]` is a typeclass that macro-generated `log.*` calls resolve at compile time. When you write `log.info("msg", ex, "key" -> value, ...)`, the Scala macro expands each enrichment argument by finding an implicit `LogEnrichment[A]` for its type and calling `enrich` to attach the value to the emitted `LogRecord`.
+`LogEnrichment[A]` is what lets you pass a value of your own type straight into a [`log`](./index.md) call and have it become part of the [`LogRecord`](./log-record.md). When the macro behind `log.info("msg", value)` meets an argument whose type it does not handle natively, it looks for an implicit `LogEnrichment[A]`, calls `enrich` to fold the value into the record, and fails to compile if none is in scope. You rarely name the typeclass directly — the built-in instances below cover the everyday types — you define one only to log a domain value without unpacking it by hand at every call site.
 
 ```scala
 trait LogEnrichment[A] {
-  def enrich(builder: AttributesBuilder, record: LogRecordBuilder, value: A): Unit
+  def enrich(record: LogRecord, value: A): LogRecord
 }
 ```
 
-## Built-in Instances
+`enrich` takes the record built so far and returns a copy with the value folded in — adding attributes, replacing the body, or setting the severity, depending on `A`.
 
-| Enrichment type | Effect on `LogRecord` |
-|-----------------|----------------------|
-| `Throwable` | Adds `exception.type` and `exception.message` string attributes; stores the throwable in `LogRecord.throwable`. |
-| `Attributes` | Merges all attributes into the record's attribute set. |
-| `Severity` | Overrides the record's severity. |
-| `(String, String)` | Adds a `String`-typed attribute. |
-| `(String, Long)` | Adds a `Long`-typed attribute. |
-| `(String, Int)` | Adds a `Long`-typed attribute (Int widened to Long). |
-| `(String, Double)` | Adds a `Double`-typed attribute. |
-| `(String, Boolean)` | Adds a `Boolean`-typed attribute. |
+## Built-in instances
 
-## Usage
+| Type                                                                                               | Effect on the record                                                                                         |
+|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| `String`                                                                                           | Replaces the message body.                                                                                   |
+| `Throwable`                                                                                        | Adds `exception.type` and `exception.message` attributes and stores the throwable for stack-trace rendering. |
+| `Attributes`                                                                                       | Merges the whole set into the record's attributes.                                                           |
+| `Severity`                                                                                         | Overrides the record's severity.                                                                             |
+| `(String, String)` / `(String, Long)` / `(String, Int)` / `(String, Double)` / `(String, Boolean)` | Adds one typed key-value attribute (`Int` is widened to `Long`).                                             |
 
-The enrichment typeclass is transparent to callers — all types with built-in instances are accepted directly as vararg arguments to `log.*`:
+These common types are also recognized directly by the `log.*` macro, so passing them costs nothing at runtime:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val ex: Throwable = new RuntimeException("connection refused")
 
-log.writer(TextLogFormatter, StdoutWriter)
-
 log.error(
   "payment failed",
-  ex,                          // Throwable enrichment
-  "orderId"   -> "ord-123",   // (String, String) enrichment
-  "amount"    -> 99L,         // (String, Long) enrichment
-  "retryable" -> false        // (String, Boolean) enrichment
+  ex,                        // Throwable — attaches type, message, stack trace
+  "orderId"   -> "ord-123",  // (String, String)
+  "amount"    -> 99L,        // (String, Long)
+  "retryable" -> false       // (String, Boolean)
 )
 ```
 
-## Custom Instances
+## Custom instances
 
-Add a custom `LogEnrichment[MyType]` implicit to attach domain objects to log records:
+Define a `LogEnrichment[MyType]` in implicit scope to accept your own type at a `log.*` call. The macro resolves it at that call site and threads the record through your `enrich`:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -65,11 +60,9 @@ implicit val requestIdEnrichment: LogEnrichment[RequestId] = new LogEnrichment[R
     record.copy(attributes = record.attributes ++ Attributes.of(AttributeKey.string("request.id"), value.value))
 }
 
-log.writer(TextLogFormatter, StdoutWriter)
-log.info("handling request", RequestId("req-001"))
-// emits: ... request.id=req-001
+log.info("handling request", RequestId("req-001")) // adds request.id="req-001"
 ```
 
 ## Integration
 
-`LogEnrichment` is resolved at compile time by the macro — there is zero runtime overhead for type dispatch. The macro-generated code calls `enrich` for each vararg argument in sequence, accumulating attributes into an `AttributesBuilder` and optionally setting fields on a `LogRecordBuilder`, before the final `LogRecord` is constructed and passed to the processor pipeline. Custom instances must be in implicit scope at the `log.*` call site.
+Resolution happens entirely at compile time, so there is no runtime cost for type dispatch. An argument whose type has neither native macro handling nor an implicit `LogEnrichment[A]` is a compile error, which keeps unloggable values out of the call. A custom instance must be in implicit scope wherever the `log.*` call appears.
