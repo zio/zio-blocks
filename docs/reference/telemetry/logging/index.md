@@ -104,7 +104,7 @@ trace.span("checkout") { _ =>
 
 ## Filter by severity
 
-Drop records below a threshold, globally or per package prefix.
+Every log carries a `Severity`, and a **minimum-severity floor** decides which ones actually get recorded: anything below the floor is dropped — cheaply, before the record is even built. You use this to control noise: run production at `Info` (dropping the `trace`/`debug` chatter) and turn detail back up only where and when you need it.
 
 ```scala
 object log {
@@ -116,13 +116,20 @@ object log {
 }
 ```
 
-Set a global floor with `setMinSeverity(severity)`, or a per-package-prefix override with `setMinSeverity(prefix, severity)` (matched against the call site's namespace). Clear overrides with `clearMinSeverity(prefix)` or `clearAllOverrides()`, and lower the threshold for one block with `withMinSeverity`.
+`setMinSeverity(severity)` sets one floor for the whole application. `setMinSeverity(prefix, severity)` overrides it for a package — matched against the call site's namespace — and works both ways: raise the floor on a chatty dependency to quiet it, or lower it on the package you're debugging to see more, without touching the rest of the app. `clearMinSeverity(prefix)` removes one override and `clearAllOverrides()` removes them all, back to the global floor.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-log.setMinSeverity(Severity.Info)                     // drop trace/debug globally
-log.setMinSeverity("com.example.noisy", Severity.Warn) // stricter for one package
+log.setMinSeverity(Severity.Info)                       // drop trace/debug globally
+log.setMinSeverity("com.acme.noisy", Severity.Warn)     // quiet a chatty dependency
+log.setMinSeverity("com.example.orders", Severity.Debug) // more detail where you're debugging
+```
+
+These floors stay in effect until you change them. When you only need extra detail around a specific operation, `withMinSeverity(severity) { … }` lowers the floor for just that block and restores it afterward — no cleanup needed.
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
 
 log.withMinSeverity(Severity.Trace) {
   log.trace("visible only inside this block")
