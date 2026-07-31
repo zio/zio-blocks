@@ -53,7 +53,22 @@ logger.info("order placed", "orderId" -> AttributeValue.StringValue("ord-001"))
 provider.shutdown()
 ```
 
-Each `get` allocates a fresh `Logger`, so bind one to a `val` per component at startup rather than calling `get` per request. More often, hand a single logger to `log.install` and let the rest of the code use `log.*`, keeping provider wiring out of individual call sites:
+Note that `get` builds a logger rather than looking one up: call it twice with the same name and you get two separate `Logger` objects that behave identically. So call it once where a component is created and keep the result in a `val`, not inside a request handler that runs thousands of times a second — per-request calls produce the same log output, they just make throwaway objects for the garbage collector:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+class PaymentService(provider: LoggerProvider) {
+  private val logger = provider.get("com.example.payments")   // once, at construction
+
+  def handle(orderId: String): Unit =
+    logger.info("handling payment", "orderId" -> AttributeValue.StringValue(orderId))
+}
+```
+
+The name you pass is what identifies where a log came from, so one logger per component — a service, a module — is the usual granularity.
+
+Passing a `Logger` down through every constructor gets tedious, though. Register one on the global [`log`](./index.md) at startup instead, and the rest of your code can log without knowing a provider exists:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -70,25 +85,53 @@ log.info("server started")
 
 ## Lifecycle
 
-Call `shutdown()` once when the app exits — it shuts down every registered processor in insertion order, flushing and releasing their resources. (`close()` is an `AutoCloseable` alias, so a provider works in `scala.util.Using.resource` and Java try-with-resources.)
+Logs don't always leave your process the moment you write them. A processor that ships records to a backend usually batches them, so at any instant the most recent logs may still be sitting in a buffer — and if the process exits right then, they're gone. Those are exactly the logs you want when something went wrong at shutdown.
 
-## Trace–log correlation
-
-Logs emitted inside a span are correlated with it automatically: a `LoggerProvider` and a [`TracerProvider`](../tracing/tracer-provider.md) share the same default context storage, so every record carries that span's trace and span IDs as unboxed primitive fields, with no wiring. To take explicit control — isolating correlation in tests, or integrating with a custom runtime — create one `ContextStorage` and pass it to `setContextStorage` on both providers:
+`provider.shutdown()` prevents that. It walks the registered processors in the order you added them and shuts each one down, which is a processor's cue to flush whatever it's holding and release what it owns — a file handle, a network connection. Call it once, on the way out:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val sharedStorage = ContextStorage.create[Option[SpanContext]](None)
+val provider = LoggerProvider.builder
+  .addLogRecordProcessor(LogRecordProcessor.noop)
+  .build()
 
-val tp = TracerProvider.builder.setContextStorage(sharedStorage).build()
-val lp = LoggerProvider.builder.setContextStorage(sharedStorage).build()
-
-trace.install(tp)
-log.install(lp.get("com.example"))
-
-tp.shutdown()
-lp.shutdown()
+try log.install(provider.get("com.example"))
+finally provider.shutdown()   // last logs flushed, resources released
 ```
+
+That `finally` is the easy part to forget. So a provider implements `AutoCloseable` — the standard interface for "something that must be closed when you're done with it," the same one files and sockets use — with `close()` simply calling `shutdown()`. That lets you hand the cleanup to the language rather than writing it yourself. In Scala, `scala.util.Using.resource` does the calling:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import scala.util.Using
+
+Using.resource(LoggerProvider.builder.addLogRecordProcessor(LogRecordProcessor.noop).build()) { provider =>
+  log.install(provider.get("com.example"))
+  log.info("server started")
+}   // close() — and so shutdown() — runs here, even if the block throws
+```
+
+The block marks how long the provider lives, and cleanup happens on the way out whether the code finishes normally or raises an exception. From Java the same interface makes a provider usable in try-with-resources.
+
+## Trace–log correlation
+
+This is the part you get for free. Write a log inside a span and it carries that span's trace and span IDs — no request id to thread through your functions, no logger to pass around, nothing to configure. A `LoggerProvider` and a [`TracerProvider`](../tracing/tracer-provider.md) read the same ambient context by default, so each is aware of the span the other opened:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+trace.install(TracerProvider.builder.build())
+log.install(LoggerProvider.builder.build().get("com.example"))
+
+trace.span("checkout") { _ =>
+  log.info("order validated", "orderId" -> "ord-123")  // stamped with the checkout span's IDs
+  log.warn("inventory low", "sku" -> "sku-42")         // same trace, same span
+}
+```
+
+That stamping is what makes a log backend useful: filter on one trace id and you have every log line from that single request, in order, across every component that touched it — and from any one of those lines you can open the trace it belongs to.
+
+If you ever need to control that shared context yourself — isolating correlation between test cases, or fitting a custom runtime — pass one `ContextStorage` to `setContextStorage` on both providers.
 
 For the full picture of how `LoggerProvider`, `TracerProvider`, and `MeterProvider` interconnect, see the [Telemetry module index](../index.md).
