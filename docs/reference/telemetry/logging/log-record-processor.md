@@ -1,76 +1,56 @@
 ---
 id: log-record-processor
 title: "LogRecordProcessor"
-description: "Hook for log record lifecycle (onEmit) in the telemetry module's logging area. Implement to export, filter, or format log records."
+description: "A destination for log records — each registered processor receives every log your application emits, to print, export, or discard."
 keywords:
   - "Structured Logging"
   - "Log Export"
-  - "Lifecycle Hook"
+  - "Log Destinations"
   - "LogRecordProcessor"
 sidebar_label: "LogRecordProcessor"
 ---
 
-`LogRecordProcessor` is the extension point for the logging emit pipeline. Every `LogRecord` produced by a `Logger` is dispatched to all registered processors in insertion order; each processor's `onEmit` callback fires synchronously on the emitting thread.
+A `LogRecordProcessor` is a destination for your logs. Every time you call `log.info(...)`, the finished [`LogRecord`](./log-record.md) is handed to each registered processor, and what happens next is entirely up to that processor: print it, ship it to a backend, forward it into another logging library, or drop it.
+
+The type exists because where logs belong depends on your deployment, which the library can't know. Registering destinations is how you tell it — and you can register several, each receiving the same record, which is how logs reach your console and a remote backend at once.
+
+Most applications never implement one, because the module ships the common destinations. `ConsoleLogRecordProcessor` prints readable text to stdout — the default, and also the fastest path: when it's the only processor registered, the `Logger` skips building a `LogRecord` and formats straight from the raw values. `LogRecordProcessor.noop` accepts every record and discards it, for tests or as a placeholder. And for formatted output — JSON, a file, your own shape — [`log.writer(formatter, writer)`](./index.md) builds a processor for you out of a [`LogFormatter`](./log-formatter.md) and a [`LogWriter`](./log-writer.md), which is less code than implementing this trait.
+
+Write your own to reach somewhere the module doesn't cover — an OTLP collector, a vendor's API, or an existing logging framework you're migrating from.
 
 ```scala
 trait LogRecordProcessor extends AutoCloseable {
-  def onEmit(logRecord: LogRecord): Unit
-  def shutdown(): Unit
-  def forceFlush(): Unit
+  def onEmit(logRecord: LogRecord): Unit   // fires for every record at or above minimumLevel
+  def shutdown(): Unit                     // flush and release; called by LoggerProvider.shutdown()
+  def forceFlush(): Unit                   // flush buffered records now
   override def close(): Unit = shutdown()
 
-  // Optional severity gate — Logger caches the minimum across all processors
-  // and drops records below the threshold before constructing a LogRecord.
-  def minimumLevel: Int = 1   // default: accept everything (Severity.Trace = 1)
+  def minimumLevel: Int = 1                // lowest Severity.number accepted; default accepts all
 }
 
 object LogRecordProcessor {
-  val noop: LogRecordProcessor  // no-op singleton; all methods are no-ops
+  val noop: LogRecordProcessor  // ignores every record
 }
 ```
 
-## Predefined Implementations
+`onEmit` is the method that matters — it runs once per log, **on the thread that logged**, before your code continues. So keep it quick. If you send each record over the network from inside `onEmit`, every `log.info` in your application waits for that round trip; buffer records instead and ship them in batches from a background thread, then flush what's left when `shutdown` or `forceFlush` is called.
 
-| Type | Description |
-|------|-------------|
-| `LogRecordProcessor.noop` | No-op singleton; use as a placeholder. |
-| `ConsoleLogRecordProcessor` | Writes formatted text to stdout. When it is the sole registered processor, `Logger` uses a fast formatted path that skips `LogRecord` allocation entirely. |
-| `FormattedLogRecordProcessor(formatter, writer)` | Formats each record with a `LogFormatter` and writes the result via a `LogWriter`. Added when `log.writer(formatter, writer)` is called. |
+`minimumLevel` lets a processor say "only send me warnings and worse" as a `Severity` number. It's worth setting because the check happens early: the `Logger` takes the lowest `minimumLevel` across every registered processor and, for anything below it, doesn't even build a `LogRecord`. A debug line that no destination wants costs almost nothing.
 
-## Creating Values
-
-Implement `LogRecordProcessor` to plug in a custom export or filtering layer:
+Your own processor implements those three methods — with nothing buffered, `shutdown` and `forceFlush` can stay empty — and registers on the global [`log`](./index.md):
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val provider = LoggerProvider.builder
-  .addLogRecordProcessor(new LogRecordProcessor {
-    def onEmit(r: LogRecord): Unit = {
-      // route to an OTLP exporter, Kafka, or any sink
-      println(s"[${r.severity}] ${r.body}")
-    }
-    def shutdown(): Unit   = ()
-    def forceFlush(): Unit = ()
-  })
-  .build()
+val exporter = new LogRecordProcessor {
+  def onEmit(r: LogRecord): Unit = println(s"[EXPORT] ${r.severity.text} ${r.body.value}")
+  def shutdown(): Unit           = ()
+  def forceFlush(): Unit         = ()
+}
 
-val logger = provider.get("com.example")
-logger.info("hello from processor")
-
-provider.shutdown()
+log.addProcessor(exporter)
+log.info("checkout complete")
 ```
 
-## Core Operations
+`log.addProcessor` is the easiest route: your processor joins the destinations already registered, with nothing to rebuild — when you build a provider yourself, pass processors to `LoggerProvider.builder.addLogRecordProcessor(...)` instead. Either way, an exception your processor throws is caught and printed to stderr, and the remaining processors still receive the record, so one broken destination can't take down your logging.
 
-| Method | Description |
-|--------|-------------|
-| `onEmit(logRecord: LogRecord)` | Called for every record whose severity number meets `minimumLevel`. Called synchronously on the emitting thread. |
-| `minimumLevel: Int` | The lowest severity number this processor accepts. `Logger` caches the minimum across all processors and skips `LogRecord` construction entirely for records below the threshold. |
-| `shutdown()` | Flush and release resources. Called by `LoggerProvider.shutdown()`. |
-| `forceFlush()` | Flush any buffered records immediately. |
-| `close()` | Delegates to `shutdown()`; satisfies `AutoCloseable`. |
-
-## Integration
-
-Processors are registered via `LoggerProvider.builder.addLogRecordProcessor(processor)`. Multiple processors can be added; they receive callbacks in insertion order. Processor exceptions are caught and printed to stderr, so one failing processor does not stop the rest. The global `log` object's `addProcessor` and `writer` methods add processors to the currently installed `Logger`'s pipeline without requiring a full provider rebuild.
