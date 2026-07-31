@@ -42,16 +42,3 @@ object LogRecord {
 ```
 
 Each field mirrors what the emission recorded. The source location the macro captured arrives inside `attributes`, as the `code.filepath`, `code.namespace`, `code.function`, and `code.lineno` keys. The trace and span IDs are what tie this entry back to the request that produced it: they're filled in when the call ran inside an active span, and left as `0` when it didn't — so check `hasTraceId`/`hasSpanId` rather than comparing to zero yourself.
-
-The one time you construct a `LogRecord` yourself is bridging from another logging framework or replaying buffered records. `LogRecord.builder` provides defaults for every field and a fluent setter for each; `build` fills any unset timestamp with the current time:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val record = LogRecord.builder
-  .setSeverity(Severity.Error)
-  .setBody("disk full")
-  .build
-
-new ConsoleLogRecordProcessor().onEmit(record)
-```
