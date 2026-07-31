@@ -158,31 +158,6 @@ val logger = LoggerProvider.builder
 log.install(logger, Severity.Info)
 ```
 
-## How They Work Together
-
-The `log` object delegates to a `LoggerProvider`, which acts as a factory for `Logger` instances that emit `LogRecord` snapshots. Because the provider shares its `ContextStorage` with [`TracerProvider`](../tracing/tracer-provider.md), each record is stamped with the active span's identity — correlation is automatic.
-
-```
-  log (object)  ── macros capture file / class / method / line
-     │  delegates to
-     ▼
-  LoggerProvider ──── Resource · LogRecordProcessor[] · ContextStorage
-     │  get(scope)
-     ▼
-  Logger ──emit──▶ LogRecord ──▶ LogRecordProcessor.onEmit ──▶ writer / exporter
-     ▲                              (LogFormatter + LogWriter render text / JSON)
-     └── reads active SpanContext from shared ContextStorage (trace–log correlation)
-```
-
-**Type Relationships:**
-
-- `log` wraps a `Logger`; its methods are macros that capture source location at compile time and add rate-limiting and `annotated` scopes.
-- `LoggerProvider` holds the shared [`Resource`](../shared/resource.md) and `LogRecordProcessor` pipeline and creates `Logger` instances via `get(scope)`.
-- `Logger` builds an immutable `LogRecord` per emission and dispatches it to every `LogRecordProcessor.onEmit`.
-- A `LogRecordProcessor` renders output through a [`LogFormatter`](./log-formatter.md) + `LogWriter`, gates emission by `Severity`, or exports to an external system.
-- Because `LoggerProvider` shares its `ContextStorage` with `TracerProvider`, each `LogRecord` is stamped with the active span's trace and span IDs.
-- `Severity` classifies each record; `LogEnrichment` attaches the typed values passed at the call site.
-
 ## Usage
 
 Logging's core job is to **emit structured, correlated logs**. Point `log` at a writer once, then emit records inside your spans; each record carries its typed key-value context and the active trace and span IDs automatically.
@@ -198,16 +173,6 @@ trace.span("checkout") { _ =>
   log.warn("inventory low", "sku" -> "sku-42", "remaining" -> 3L)
 }
 ```
-
-## Type Pages
-
-- **[LoggerProvider](./logger-provider.md)** — factory for `Logger` instances; holds `Resource`, the `LogRecordProcessor` pipeline, and `ContextStorage`. Build via `LoggerProvider.builder`.
-- **[Logger](./logger.md)** — emits `LogRecord`s through configured processors; auto-correlates with the active span via `ContextStorage`.
-- **[LogRecord](./log-record.md)** — immutable snapshot of a single log emission, carrying severity, body, typed attributes, and trace-correlation fields as unboxed primitives.
-- **[LogRecordProcessor](./log-record-processor.md)** — hook for the log record lifecycle (`onEmit`); implement to export, filter, or format records.
-- **[LogFormatter / LogWriter](./log-formatter.md)** — `LogFormatter` renders a `LogRecord`; `LogWriter` routes the output. Built-in: `TextLogFormatter`, `JsonLogFormatter`, `StdoutWriter`, `StderrWriter`.
-- **[Severity](./severity.md)** — 24-level severity scale following the OpenTelemetry log data model, in six categories: Trace, Debug, Info, Warn, Error, Fatal.
-- **[LogEnrichment](./log-enrichment.md)** — typeclass resolved at compile time by macro-generated `log.*` calls; attaches typed values to records.
 
 ## See Also
 
