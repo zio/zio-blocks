@@ -1,7 +1,7 @@
 ---
 id: severity
 title: "Severity"
-description: "24-level severity scale following the OpenTelemetry log data model: Trace(1-4), Debug(5-8), Info(9-12), Warn(13-16), Error(17-20), Fatal(21-24)."
+description: "The 24-level log severity scale following the OpenTelemetry log data model: Trace, Debug, Info, Warn, Error, Fatal, four levels each."
 keywords:
   - "Structured Logging"
   - "Severity Levels"
@@ -10,89 +10,53 @@ keywords:
 sidebar_label: "Severity"
 ---
 
-`Severity` is a sealed trait with 24 case objects following the OpenTelemetry log data model. Six named categories map to four numeric levels each, allowing fine-grained severity distinctions within a category while remaining compatible with the canonical SLF4J / Java-util-logging five-level scale.
+`Severity` is the level attached to every [`LogRecord`](./log-record.md) — it says how important the message is and drives which records a severity filter keeps. It follows the OpenTelemetry log data model: 24 numeric levels grouped into six named categories with four gradations each, fine enough for detailed instrumentation yet compatible with the familiar five-level `TRACE`/`DEBUG`/`INFO`/`WARN`/`ERROR` scale. Every level shares its category's `text` (all four `Trace` levels report `"TRACE"`), so backends that expect the coarse names still work.
 
 ```scala
 sealed trait Severity {
   def number: Int    // 1 to 24
-  def text:   String // "TRACE", "TRACE2", ..., "DEBUG", ..., "FATAL4"
+  def text:   String // the category name: "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 }
 
 object Severity {
-  // Trace   1-4
-  case object Trace  extends Severity   // number = 1
-  case object Trace2 extends Severity   // number = 2
-  case object Trace3 extends Severity   // number = 3
-  case object Trace4 extends Severity   // number = 4
+  case object Trace extends Severity  // number = 1; then Trace2, Trace3, Trace4 (2-4)
+  case object Debug extends Severity  // number = 5; then Debug2, Debug3, Debug4 (6-8)
+  case object Info  extends Severity  // number = 9; then Info2, Info3, Info4 (10-12)
+  case object Warn  extends Severity  // number = 13; then Warn2, Warn3, Warn4 (14-16)
+  case object Error extends Severity  // number = 17; then Error2, Error3, Error4 (18-20)
+  case object Fatal extends Severity  // number = 21; then Fatal2, Fatal3, Fatal4 (22-24)
 
-  // Debug   5-8
-  case object Debug  extends Severity   // number = 5
-  // ... Debug2, Debug3, Debug4 ...
-
-  // Info   9-12
-  case object Info   extends Severity   // number = 9
-  // ... Info2, Info3, Info4 ...
-
-  // Warn  13-16
-  case object Warn   extends Severity   // number = 13
-  // ...
-
-  // Error 17-20
-  case object Error  extends Severity   // number = 17
-  // ...
-
-  // Fatal 21-24
-  case object Fatal  extends Severity   // number = 21
-  // ...
-
-  def fromNumber(n: Int): Option[Severity]   // Some if 1 <= n <= 24
-  def fromText(text: String): Option[Severity]  // case-insensitive match on text field
+  def fromNumber(n: Int): Option[Severity]      // Some when 1 <= n <= 24
+  def fromText(text: String): Option[Severity]  // case-insensitive; the six category names
 }
 ```
 
-## Usage
+The six category objects (`Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`) are what you name day to day; the numbered gradations exist for instrumentation that needs finer distinctions.
 
-The six named category case objects (`Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`) are the most common:
+## Filtering by severity
 
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-// Set the global minimum level to Warn — drops Trace, Debug, and Info records
-log.setMinSeverity(Severity.Warn)
-
-log.debug("this is suppressed")  // dropped
-log.warn("this is emitted")      // passes
-
-// Parse from an external string (e.g. an environment variable)
-val level = Severity.fromText("ERROR").getOrElse(Severity.Info)
-assert(level == Severity.Error)
-assert(level.number == 17)
-
-// Parse from a number (e.g. from an OTLP protobuf field)
-val numeric = Severity.fromNumber(9)
-assert(numeric == Some(Severity.Info))
-```
-
-## Severity Filtering
-
-`log.setMinSeverity(severity)` sets the global floor for the global `log` singleton. Records whose `severity.number` is below this floor are dropped before any `LogRecord` is constructed. Per-namespace overrides use `log.setMinSeverity("com.example.noisy", Severity.Warn)`, which takes precedence over the global floor for matching namespaces.
+The main use of `Severity` is to set a floor below which records are dropped before any `LogRecord` is built. Set a global floor with `log.setMinSeverity`, or a per-namespace override that takes precedence for matching call sites:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Global floor: only Warn and above
-log.setMinSeverity(Severity.Warn)
+log.setMinSeverity(Severity.Warn)              // globally drop Trace, Debug, Info
+log.setMinSeverity("com.example.db", Severity.Debug) // but keep Debug for the query layer
 
-// Namespace override: Debug and above for the query layer
-log.setMinSeverity("com.example.db", Severity.Debug)
-
-// Remove namespace override
-log.clearMinSeverity("com.example.db")
-
-// Restore uniform global filtering
-log.clearAllOverrides()
+log.debug("suppressed by the global floor")
+log.warn("emitted")
 ```
 
-## Integration
+`fromText` and `fromNumber` parse a level from an external source — an environment variable or an OTLP protobuf field — returning `None` for anything out of range:
 
-`Severity` appears in `LogRecord.severity`, `LogRecordProcessor.minimumLevel` (as an `Int` for comparison efficiency), and `log.setMinSeverity`. The `log.warn(...)` global method emits at `Severity.Warn` (number 13), and `Logger.warn(...)` does the same; numeric comparison is used on the hot path to avoid pattern-matching overhead.
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val level = Severity.fromText("ERROR").getOrElse(Severity.Info) // Severity.Error, number 17
+log.setMinSeverity(level)
+```
+
+## See Also
+
+- [LogRecord](./log-record.md) — the record whose level `Severity` sets.
+- [Logging](./index.md) — the `log.*` emit methods and the full filtering API.
