@@ -56,7 +56,7 @@ trace.span("http.request", SpanKind.Server) { span =>
 
 `trace.span` manages the lifecycle: it ends the span when the block returns, and on end the span becomes an immutable [`SpanData`](./span-data.md) snapshot that `SpanProcessor`s receive (end-user code seldom reads it via `toSpanData` directly). For the rare cases `trace.span` can't cover — a custom start timestamp, links, or crossing an async boundary — [`SpanBuilder`](./span-builder.md) starts a span you `end()` yourself; it bypasses the sampler and processors, so prefer `trace.span`.
 
-## Annotating a span
+## Annotating a Span
 
 Everything you do with a span happens inside the `trace.span` block, before it ends. Once the span ends, every `setAttribute`, `addEvent`, and `setStatus` call is silently ignored. If the sampler dropped the span you receive `Span.NoOp` — a no-op you can still call freely, so no guards are needed; check `isRecording` only to skip expensive annotation work for a dropped or ended span.
 
