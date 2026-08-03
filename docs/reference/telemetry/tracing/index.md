@@ -77,7 +77,7 @@ trace.span("checkout", SpanKind.Server) { _ =>
 
 ## Scope Spans to an Instrumentation Library
 
-`trace.get(name)` returns a `Tracer` bound to a named instrumentation scope.
+Every span records which code produced it. Spans opened with `trace.span(...)` are all attributed to one scope named `"default"`, which is fine for your own application — but in a library it means your spans arrive indistinguishable from the host application's. `trace.get(name)` returns a [`Tracer`](./tracer.md) that stamps your name on every span it opens instead, so a backend can group them, and a user debugging a slow request can see which library the time went to:
 
 ```scala
 object trace {
@@ -85,36 +85,24 @@ object trace {
 }
 ```
 
-Prefer this in library code so spans are attributed to the library that produced them.
+Use your library's package as the name. The `Tracer` behaves exactly like `trace` for opening spans, so nothing else about your instrumentation changes:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val tracer: Tracer = trace.get("com.example.orders")
-tracer.span("reserve-inventory")(_ => ())
-```
-
-## Inspect Recorded Spans in Tests
-
-Under the default in-memory provider, completed spans are readable back.
-
-```scala
-object trace {
-  def collectedSpans: List[SpanData]
-  def clearSpans(): Unit
-}
-```
-
-`trace.collectedSpans` returns every completed span as immutable [`SpanData`](./span-data.md), and `trace.clearSpans()` resets the buffer between cases.
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
 
 trace.clearSpans()
-trace.span("unit-of-work")(_ => ())
-val recorded: List[SpanData] = trace.collectedSpans
-recorded.foreach(sd => println(sd.name))
+tracer.span("reserve-inventory")(_ => ())
+trace.span("unscoped-work")(_ => ())
+
+// the scope each span was recorded under
+trace.collectedSpans.foreach(sd => println(sd.instrumentationScope.name))
+// com.example.orders
+// default
 ```
+
+Each `trace.get` builds a new `Tracer`, so hold one in a `val` per component rather than calling it per request.
 
 ## Install a Provider and Reset
 
@@ -127,32 +115,23 @@ object trace {
 }
 ```
 
-`trace.removeAll()` detaches the provider, turning subsequent spans into no-ops. The Usage example below shows a full provider build and install.
-
-## Usage
-
-Tracing's core job is to **track a request through your application** — install a provider once at startup, then wrap each unit of work in a span:
+Build the provider once at startup and install it before any span is opened — name your service in the `Resource` so exported spans can be told apart from other services, and pick a `Sampler` to decide how many spans to keep:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val tracerProvider = TracerProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
-  .setSampler(AlwaysOnSampler)
-  .build()
+trace.install(
+  TracerProvider.builder
+    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
+    .setSampler(AlwaysOnSampler)
+    .build()
+)
 
-trace.install(tracerProvider)
-
-trace.span("handle-request", SpanKind.Server) { span =>
-  span.setAttribute("http.route", "/orders")
-
-  trace.span("load-order") { child =>
-    child.setAttribute("order.id", "ord-123")
-  }
-
-  span.addEvent("request-complete")
-}
+// every trace.span in the application now records through this provider
+trace.span("handle-request", SpanKind.Server)(_.setAttribute("http.route", "/orders"))
 ```
+
+`trace.removeAll()` detaches the provider, turning subsequent spans into no-ops.
 
 ## See Also
 
