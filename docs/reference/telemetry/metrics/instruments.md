@@ -1,6 +1,6 @@
 ---
 id: instruments
-title: "Counter, UpDownCounter, Histogram, Gauge"
+title: "Metric Instruments"
 description: "The four synchronous metric instruments: monotonic Counter, bidirectional UpDownCounter, bucketed Histogram, and last-value Gauge."
 keywords:
   - "Application Metrics"
