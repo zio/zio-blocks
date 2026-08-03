@@ -1,17 +1,23 @@
 ---
 id: metric-data
 title: "MetricData"
-description: "Sealed trait for aggregated metric snapshots in the ZIO Blocks Telemetry metrics pillar — three variants covering sum, histogram, and gauge instruments."
+description: "Aggregated metric snapshot produced by MetricReader.collectAllMetrics(). Three variants: SumData, HistogramData, GaugeData."
 keywords:
+  - "Application Metrics"
+  - "Metric Export"
+  - "Aggregated Snapshot"
   - "MetricData"
-  - "SumData"
-  - "HistogramData"
-  - "GaugeData"
-  - "Metrics Export"
-  - "MetricReader"
 ---
 
-`MetricData` is the sealed trait that represents an aggregated metric snapshot collected from a single instrument. Each call to `Counter#collect`, `Histogram#collect`, `Gauge#collect`, or `MetricReader#collectAllMetrics` returns `MetricData` values. There are three variants, one per instrument family: `SumData` for counters and up-down counters, `HistogramData` for histograms, and `GaugeData` for gauges.
+`MetricData` is an immutable, aggregated snapshot of one instrument at one collect cycle — its accumulated points, keyed by label set. You rarely build it directly: it is the read-only record `MetricReader.collectAllMetrics()` returns, one value per registered instrument or for an export pipeline to serialize.
+
+Its three variants line up with the instrument that produced them:
+
+- `SumData` — from a [`Counter`](./instruments.md) or an `UpDownCounter`
+- `HistogramData` — from a `Histogram`
+- `GaugeData` — from a `Gauge`
+
+So a `match` on `MetricData` tells you both the shape of the numbers and the kind of instrument they came from.
 
 ```scala
 sealed trait MetricData
@@ -21,34 +27,29 @@ object MetricData {
   final case class HistogramData(points: List[HistogramDataPoint]) extends MetricData
   final case class GaugeData(points: List[GaugeDataPoint])         extends MetricData
 }
-```
 
-Each variant holds a list of data points, one per unique `Attributes` combination observed on the instrument since it was created.
+final case class SumDataPoint(
+  attributes:     Attributes,
+  startTimeNanos: Long,
+  timeNanos:      Long,
+  value:          Long          // cumulative sum
+)
 
-## Usage
+final case class HistogramDataPoint(
+  attributes:     Attributes,
+  startTimeNanos: Long,
+  timeNanos:      Long,
+  count:          Long,         // total number of observations
+  sum:            Double,       // sum of all observations
+  min:            Double,       // smallest observation
+  max:            Double,       // largest observation
+  bucketCounts:   Array[Long],  // count per bucket (length == boundaries.length + 1)
+  boundaries:     Array[Double] // the bucket upper boundaries
+)
 
-The following example collects all metrics from the global `MetricReader` and dispatches on each variant:
-
-```scala
-import zio.blocks.telemetry._
-
-val c = metric.counter("requests")
-c.add(3L, "method" -> "GET")
-
-val h = metric.histogram("latency")
-h.record(42.5, "endpoint" -> "/api")
-
-val g = metric.gauge("queue.depth")
-g.record(7.0)
-
-metric.reader.collectAllMetrics().foreach {
-  case MetricData.SumData(pts) =>
-    pts.foreach(p => println(s"sum ${p.value} attrs=${p.attributes}"))
-
-  case MetricData.HistogramData(pts) =>
-    pts.foreach(p => println(s"hist count=${p.count} sum=${p.sum}"))
-
-  case MetricData.GaugeData(pts) =>
-    pts.foreach(p => println(s"gauge ${p.value} at ${p.timeNanos}"))
-}
+final case class GaugeDataPoint(
+  attributes: Attributes,
+  timeNanos:  Long,
+  value:      Double            // most recently recorded value
+)
 ```
