@@ -70,6 +70,6 @@ trace.install(provider)
 
 Call `shutdown()` once when the app exits — it flushes and releases every processor. (`close()` is an `AutoCloseable` alias for it; `forceFlush()` exports buffered spans on demand.)
 
-## Trace–log correlation
+## Trace–Log Correlation
 
 Logs emitted inside a span are correlated with it automatically: a `TracerProvider` and a `LoggerProvider` share the same default context storage, so every log record carries that span's trace and span IDs with no wiring. (Override `setContextStorage` on both only to isolate correlation — e.g. in tests.) See the [Telemetry module index](./index.md).
