@@ -77,7 +77,7 @@ trace.span("checkout", SpanKind.Server) { _ =>
 
 ## Scope Spans to an Instrumentation Library
 
-Every span records which code produced it. Spans opened with `trace.span(...)` are all attributed to one scope named `"default"`, which is fine for your own application — but in a library it means your spans arrive indistinguishable from the host application's. `trace.get(name)` returns a [`Tracer`](./tracer.md) that stamps your name on every span it opens instead, so a backend can group them, and a user debugging a slow request can see which library the time went to:
+Every span records which code produced it. Spans opened with `trace.span(...)` are all attributed to one scope named `"default"`, which is fine for an application tracing its own work — but it means spans from a library you depend on arrive indistinguishable from your own. `trace.get(name)` returns a [`Tracer`](./tracer.md) that stamps a name of your choosing on every span it records instead, so a backend can group them and someone debugging a slow request can see which component the time went to:
 
 ```scala
 object trace {
@@ -85,7 +85,7 @@ object trace {
 }
 ```
 
-Use your library's package as the name. The `Tracer` behaves exactly like `trace` for opening spans, so nothing else about your instrumentation changes:
+Calling this is the application's job, at startup: name the scope after the component it's for, then pass the `Tracer` to that component as a constructor parameter. A library should accept a `Tracer` rather than reach for the global `trace` itself — that keeps it testable in isolation and free of global state. Otherwise the two behave the same for opening spans: same overloads, same automatic parent nesting, same sampler and exporters.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -102,7 +102,7 @@ trace.collectedSpans.foreach(sd => println(sd.instrumentationScope.name))
 // default
 ```
 
-Each `trace.get` builds a new `Tracer`, so hold one in a `val` per component rather than calling it per request.
+Order matters here. A `Tracer` is bound to whichever provider was installed when `trace.get` ran, while `trace.span` looks up the current provider on every call. Get your tracers *after* `trace.install(...)`, or a tracer created during startup will keep recording into the default in-memory buffer and its spans will never reach the exporter you installed afterwards.
 
 ## Install a Provider and Reset
 
