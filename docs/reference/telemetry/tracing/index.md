@@ -10,11 +10,13 @@ keywords:
 sidebar_label: "Tracing"
 ---
 
-Tracing covers the complete span lifecycle for distributed tracing. The `trace` object is the entry point; behind it, [`TracerProvider`](./tracer-provider.md) is configured once at startup and produces [`Tracer`](./tracer.md) instances, and each `Tracer` opens and closes [`Span`](./span.md) scopes, consulting a [`Sampler`](./sampler.md) and notifying [`SpanProcessor`](./span-processor.md) listeners as spans begin and end.
+Tracing follows a single request as it moves through your application — and across services — recording each step as a **span**: a timed unit of work with a name, attributes, and an outcome. Spans nest into a **trace**, a parent/child tree that shows where a request spent its time and where it failed. Because one trace can stretch across several services, it's how you answer "why was this request slow?" when the answer is three network hops away.
 
-`trace` is the zero-setup entry point and the primary tracing API. On import it delegates to an internally-managed `TracerProvider` that samples every span and buffers completed spans in memory, so `trace.span(...)` records immediately with no configuration — the default for development and tests, where `trace.collectedSpans` returns exactly what was recorded. Call `trace.install(provider)` once at application startup to route spans to real exporters.
+You create spans through the `trace` object: `trace.span("handle-request") { span => … }` wraps a block of work — it opens a span, runs the block, and closes the span automatically when the block returns. A `trace.span` opened inside another automatically becomes its child, so the tree builds itself with no manual wiring. Inside the block you annotate the span with attributes, events, and a status, and classify its role with a [`SpanKind`](./span-kind.md) when it crosses a service boundary.
 
-## Open a span and record work
+With no setup, `trace` records every span into an in-memory buffer — the default for development and tests, where `trace.collectedSpans` returns exactly what was recorded. For production, call `trace.install(provider)` once at startup to send spans to a real backend (Jaeger, OTLP, …); a [`Sampler`](./sampler.md) then decides which spans to keep so you aren't exporting everything under load. The types behind `trace` — [`TracerProvider`](./tracer-provider.md), [`Tracer`](./tracer.md), [`Span`](./span.md), and the [`SpanProcessor`](./span-processor.md)s — are configured once at startup; day to day you just call `trace.span`.
+
+## Open a Span and Record Work
 
 Wrap a unit of work in `trace.span(name) { span => … }`.
 
@@ -37,7 +39,7 @@ trace.span("handle-request") { span =>
 }
 ```
 
-## Classify a span and pre-set attributes
+## Classify a Span and Pre-Set Attributes
 
 Two overloads add a [`SpanKind`](./span-kind.md) and, optionally, initial [`Attributes`](../shared/attributes.md).
 
@@ -58,7 +60,7 @@ trace.span("db-query", SpanKind.Client, Attributes.of(AttributeKey.string("db.sy
 }
 ```
 
-## Nest spans into a trace tree
+## Nest Spans into a Trace Tree
 
 A `trace.span` opened inside another automatically attaches to the enclosing span as its parent through the shared `ContextStorage`, so nested calls build a parent/child tree with no manual context passing.
 
@@ -73,7 +75,7 @@ trace.span("checkout", SpanKind.Server) { _ =>
 }
 ```
 
-## Scope spans to an instrumentation library
+## Scope Spans to an Instrumentation Library
 
 `trace.get(name)` returns a `Tracer` bound to a named instrumentation scope.
 
@@ -92,7 +94,7 @@ val tracer: Tracer = trace.get("com.example.orders")
 tracer.span("reserve-inventory")(_ => ())
 ```
 
-## Inspect recorded spans in tests
+## Inspect Recorded Spans in Tests
 
 Under the default in-memory provider, completed spans are readable back.
 
@@ -114,7 +116,7 @@ val recorded: List[SpanData] = trace.collectedSpans
 recorded.foreach(sd => println(sd.name))
 ```
 
-## Install a provider and reset
+## Install a Provider and Reset
 
 `trace.install(provider)` swaps in a production `TracerProvider` — configured with a [`Resource`](../shared/resource.md), a `Sampler`, and one or more `SpanProcessor` exporters.
 
