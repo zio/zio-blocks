@@ -22,7 +22,7 @@ trait LogWriter {
 
 `write` receives one fully-formatted line; `flush` and `close` default to no-ops, so a simple writer overrides only `write`.
 
-## Built-in writers
+## Built-in Writers
 
 Three singletons cover the common destinations:
 
@@ -45,7 +45,7 @@ log.writer(JsonLogFormatter, StderrWriter)  // OTLP JSON to stderr
 log.info("server ready", "port" -> 8080L)   // written to both channels
 ```
 
-## Custom writer
+## Custom Writer
 
 Implement the trait to send formatted output somewhere the built-ins don't — a file, say. Override `write`, plus `flush`/`close` if the destination holds resources:
 

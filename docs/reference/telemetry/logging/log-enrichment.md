@@ -20,7 +20,7 @@ trait LogEnrichment[A] {
 
 `enrich` takes the record built so far and returns a copy with the value folded in — adding attributes, replacing the body, or setting the severity, depending on `A`.
 
-## Built-in instances
+## Built-in Instances
 
 | Type                                                                                               | Effect on the record                                                                                         |
 |----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
@@ -46,7 +46,7 @@ log.error(
 )
 ```
 
-## Custom instances
+## Custom Instances
 
 Define a `LogEnrichment[MyType]` in implicit scope to accept your own type at a `log.*` call. The macro resolves it at that call site and threads the record through your `enrich`:
 

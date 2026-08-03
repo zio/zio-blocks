@@ -12,7 +12,7 @@ sidebar_label: "LogFormatter"
 
 `LogFormatter` renders a [`LogRecord`](./log-record.md) into text; its partner, the [`LogWriter`](./log-writer.md), routes that text to a destination. You rarely name a formatter directly — you hand a formatter/writer pair to [`log.writer`](./index.md), and the two built-ins below cover the common cases. Implement the trait yourself when your pipeline expects a shape neither produces.
 
-## Built-in formatters
+## Built-in Formatters
 
 Two stateless singletons cover the usual output formats:
 
@@ -49,7 +49,7 @@ log.writer(JsonLogFormatter, StderrWriter)  // for the collector tailing stderr
 log.info("server ready", "port" -> 8080L)   // written to both channels
 ```
 
-## Custom formatter
+## Custom Formatter
 
 Sometimes neither built-in shape fits — an existing ingest pipeline expects logfmt, or a report wants CSV. Implement the trait yourself and pass your formatter to `log.writer` like any built-in. Two methods are abstract, but only one of them is yours to write:
 

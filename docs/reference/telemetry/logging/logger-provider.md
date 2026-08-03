@@ -114,7 +114,7 @@ Using.resource(LoggerProvider.builder.addLogRecordProcessor(LogRecordProcessor.n
 
 The block marks how long the provider lives, and cleanup happens on the way out whether the code finishes normally or raises an exception. From Java the same interface makes a provider usable in try-with-resources.
 
-## Trace–log correlation
+## Trace–Log Correlation
 
 This is the part you get for free. Write a log inside a span and it carries that span's trace and span IDs — no request id to thread through your functions, no logger to pass around, nothing to configure. A `LoggerProvider` and a [`TracerProvider`](../tracing/tracer-provider.md) read the same ambient context by default, so each is aware of the span the other opened:
 

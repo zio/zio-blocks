@@ -26,7 +26,7 @@ final class Logger {
 }
 ```
 
-## Emitting a log
+## Emitting a Log
 
 This is what a `Logger` is for. Pick the method matching the severity, pass a message, and add any attributes worth searching on later — the scope name and the active span's identity are attached for you:
 
@@ -48,7 +48,7 @@ provider.shutdown()
 
 Attributes must be wrapped: `AttributeValue.StringValue`, `LongValue`, `DoubleValue`, `BooleanValue`, or one of their `*SeqValue` forms for arrays. That verbosity is the cost of a bare `Logger` — the global [`log`](./index.md) accepts the same values as plain literals.
 
-## Forwarding a record you already have
+## Forwarding a Record You Already Have
 
 `emit(record)` sends a [`LogRecord`](./log-record.md) you built yourself, as-is. Where `info(...)` fills in the timestamp, scope name, and span identity, `emit` adds nothing, so a hand-built record without span identity won't correlate with any trace. Use it to forward another framework's logs into the same destinations:
 
@@ -65,7 +65,7 @@ logger.emit(
 )
 ```
 
-## Reading the active span
+## Reading the Active Span
 
 `currentSpanContext()` returns the span you're inside, or `None` if there isn't one. Correlation is automatic, so you only need this to carry trace IDs across a boundary yourself — an outgoing HTTP header, a queue message, an error response:
 

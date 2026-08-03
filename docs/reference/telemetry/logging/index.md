@@ -37,7 +37,7 @@ trace.span("checkout") { _ =>
 }
 ```
 
-## Emit structured, severity-leveled records
+## Emit Structured, Severity-Leveled Records
 
 Six severities — `trace`, `debug`, `info`, `warn`, `error`, `fatal` — cover the whole scale.
 
@@ -64,7 +64,7 @@ try throw new RuntimeException("payment declined")
 catch { case e: Throwable => log.error("charge failed", "orderId" -> "ord-123", e) }
 ```
 
-## Limit log volume at hot call sites
+## Limit Log Volume at Hot Call Sites
 
 Two rate-limiting families, each spanning all six severities, keep high-frequency sites quiet.
 
@@ -88,7 +88,7 @@ log.infoAtMost(5000L, "processing batch", "size" -> 512L)
 log.errorAtMost(1000L, "connection pool exhausted")
 ```
 
-## Attach scoped annotations
+## Attach Scoped Annotations
 
 Attach key/value pairs to every record emitted inside a block with `annotated`.
 
@@ -109,7 +109,7 @@ log.annotated("requestId" -> "req-42", "tenant" -> "acme") {
 }
 ```
 
-## Correlate logs with the active span
+## Correlate Logs with the Active Span
 
 When a `log.*` call runs inside a `trace.span`, the record is stamped with the enclosing span's trace and span IDs automatically, because logging and tracing share the same `ContextStorage`. No extra wiring is required.
 
@@ -121,7 +121,7 @@ trace.span("checkout") { _ =>
 }
 ```
 
-## Filter by severity
+## Filter by Severity
 
 Every log carries a `Severity`, and a **minimum-severity floor** decides which ones actually get recorded: anything below the floor is dropped — cheaply, before the record is even built. You use this to control noise: run production at `Info` (dropping the `trace`/`debug` chatter) and turn detail back up only where and when you need it.
 
@@ -155,7 +155,7 @@ log.withMinSeverity(Severity.Trace) {
 }
 ```
 
-## Route output
+## Route Output
 
 A record isn't useful until it leaves the process. Routing decides two things: how each record becomes text — a [`LogFormatter`](./log-formatter.md), plain lines or JSON — and where those bytes go — a `LogWriter`, such as stdout, stderr, or a file. There are two ways to wire this up: a simple console writer for local development, or a processor pipeline for production.
 

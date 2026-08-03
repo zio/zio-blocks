@@ -33,7 +33,7 @@ object Severity {
 
 The six category objects (`Trace`, `Debug`, `Info`, `Warn`, `Error`, `Fatal`) are what you name day to day; the numbered gradations exist for instrumentation that needs finer distinctions.
 
-## Filtering by severity
+## Filtering by Severity
 
 The main use of `Severity` is to set a floor below which records are dropped before any `LogRecord` is built. Set a global floor with `log.setMinSeverity`, or a per-namespace override that takes precedence for matching call sites:
 
