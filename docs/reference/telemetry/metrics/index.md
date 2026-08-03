@@ -1,208 +1,150 @@
 ---
 id: index
 title: "Metrics"
-description: "The metrics pillar of ZIO Blocks Telemetry — the global metric object for creating instruments and collecting snapshots, plus MeterProvider configuration."
+description: "Record how your application behaves over time — request rates, latencies, queue depths — as labeled counters, histograms, and gauges."
 keywords:
-  - "metrics"
-  - "Global Metrics Entry Point"
-  - "Counter Creation"
-  - "Histogram Creation"
-  - "Gauge Creation"
-  - "MeterProvider Configuration"
-  - "Zero-Setup Metrics"
+  - "Application Metrics"
+  - "Dimensional Metrics"
+  - "Metrics Overview"
+  - "MeterProvider"
+sidebar_label: "Metrics"
 ---
 
-The **metrics** pillar records measurements through instruments — counters, up/down counters, histograms, and gauges. A [`MeterProvider`](./meter-provider.md) builds [`Meter`](./meter.md)s (one per instrumentation scope, deduplicated), each `Meter` creates the instruments your code records into, and the provider's single `MetricReader` collects aggregated [`MetricData`](./metric-data.md) snapshots from all of them. Most code never touches the provider directly — it calls the global `metric` object, which wraps a default `MeterProvider`.
+Metrics are the running numbers that tell you how your application is behaving over time — request rate, error count, latency, queue depth — the data you put on dashboards and alerts. They're **dimensional**: each measurement carries labels (like `method=GET`, `status=200`), and a metric splits into a separate series per label combination, so you can break "requests" down by endpoint or status. You record through four [instruments](./instruments.md), each for a different shape of number — a `Counter` for a total that only climbs, an `UpDownCounter` for one that rises and falls, a `Histogram` for a distribution of values, and a `Gauge` for the latest reading.
 
-## Types in this pillar
+You record through the `metric` object: `metric.counter("http.requests").add(1)` works immediately, with no setup — it creates (or reuses) the named instrument and records the measurement. Pick the factory that matches what you're measuring — `metric.counter`, `metric.upDownCounter`, `metric.histogram`, or `metric.gauge` — and pass dimension labels as you record.
 
-**Producing metrics**
-- [`metric`](#the-metric-object) — global entry point; documented below.
-- [`MeterProvider`](./meter-provider.md) — builds and dedupes `Meter`s by scope; owns the shared `MetricReader`.
-- [`Meter`](./meter.md) — the instrument factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments (and their labeled variants).
+By default measurements just accumulate in memory. In development you read them back with `metric.reader.collectAllMetrics()`, which returns [`MetricData`](./metric-data.md) snapshots — handy for tests and assertions. For production, call `metric.install(provider)` once at startup to route measurements to an external exporter (Prometheus, OTLP, …).
 
-**Collected data**
-- [`MetricData`](./metric-data.md) — the aggregated snapshot a `MetricReader` collects (`SumData` / `HistogramData` / `GaugeData`).
+Day to day you only need `metric.*`, but it helps to know what sits underneath, because each piece is where you go when you want more control. A [`MeterProvider`](./meter-provider.md) is what you build at startup: it carries your service identity, so exported measurements say which service they came from, and it vends everything else. A [`Meter`](./meter.md) is a named handle you take with `metric.get("com.example.orders")` when measurements should be attributed to one component, or when you want to declare an instrument's unit and description, or pre-declare label names for a hot path.
 
-## The `metric` object
+The other two are the recording and reading ends. The four [instruments](./instruments.md) are what you actually record through, however you obtained them. And the `MetricReader` behind `metric.reader` is what turns everything recorded so far into `MetricData` snapshots — the thing you call in tests, and the thing an exporter pulls from in production.
 
-`metric` is the global metrics entry point for the ZIO Blocks Telemetry module — a singleton you import and call directly to create instruments (`Counter`, `UpDownCounter`, `Histogram`, `Gauge`), record measurements, and export them to a monitoring backend. 
+## Usage
 
-Its public API groups into four categories:
+Metrics' core job is to **record and export application metrics**. Create instruments from `metric`, record measurements with dimension labels as work happens, then read aggregated snapshots (or `metric.install(...)` a provider to export them):
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val requests = metric.counter("http.requests")
+requests.add(1, "method" -> "GET", "status" -> "200")
+
+val latency = metric.histogram("http.latency.ms")
+latency.record(12.5, "route" -> "/orders")
+
+val snapshots = metric.reader.collectAllMetrics()
+snapshots.foreach {
+  case MetricData.SumData(points)       => points.foreach(p => println(p.value))
+  case MetricData.HistogramData(points) => points.foreach(p => println(p.count))
+  case MetricData.GaugeData(points)     => points.foreach(p => println(p.value))
+}
+```
+
+## Record Measurements with the Four Instruments
+
+Each factory creates (or reuses, by name) an instrument on the default meter.
 
 ```scala
 object metric {
-  // Instrument creation — delegates to the default Meter
   def counter(name: String): Counter
   def upDownCounter(name: String): UpDownCounter
   def histogram(name: String): Histogram
   def gauge(name: String): Gauge
+}
+```
 
-  // Meter retrieval — named instrumentation scopes
+The four instruments differ by what they measure: a `Counter` sums a monotonic total, an `UpDownCounter` tracks a value that rises and falls, a `Histogram` builds a distribution of recorded values, and a `Gauge` holds the latest instantaneous reading. Every recording call accepts dimension labels as `(String, Any)*` pairs, which split the metric into separately-aggregated series.
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+metric.counter("http.requests").add(1, "method" -> "GET", "status" -> "200")
+metric.upDownCounter("queue.depth").add(-1, "queue" -> "orders")
+metric.histogram("http.latency.ms").record(12.5, "route" -> "/orders")
+metric.gauge("cache.entries").record(4096.0, "cache" -> "sessions")
+```
+
+Note the two verbs. `add(delta: Long)` takes a *change* and the instrument keeps the running total — a `Counter` ignores a negative delta, while an `UpDownCounter` accepts one, so `add(1)`/`add(-1)` tracks queue depth. `record(value: Double)` takes the *measurement itself*: a `Histogram` files each value into buckets, and a `Gauge` keeps only the newest.
+
+## Scope a Meter and Pre-Declare Labels
+
+`metric.get(name)` returns a `Meter` bound to a named instrumentation scope.
+
+```scala
+object metric {
   def get(name: String): Meter
+}
+```
 
-  // Configuration — mutate the global MeterProvider
-  def install(provider: MeterProvider): Unit
-  def removeAll(): Unit
+Its builders attach a description and unit, and its labeled variants pre-declare label names so hot paths record positionally without allocating tuples.
 
-  // Inspection — access metric readings
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val meter: Meter = metric.get("com.example.orders")
+
+val payments: Counter =
+  meter.counterBuilder("payments.total").setUnit("{payment}").setDescription("Payments processed").build()
+payments.add(1, "currency" -> "USD")
+
+val byRoute: LabeledCounter = meter.labeledCounter("http.requests", "method", "status")
+byRoute.add(1, "GET", "200")
+```
+
+`setUnit` labels what the numbers mean, so a dashboard can axis-label `http.latency` as milliseconds rather than guessing. Use the UCUM codes OpenTelemetry expects — `"ms"`, `"s"`, `"By"` for bytes — and for a plain count of things, the thing in braces: `"{payment}"`, `"{request}"`. It's metadata attached to the instrument, not part of any measurement, and it stays on the instrument: the snapshots `metric.reader` returns carry only data points, so a unit reaches a backend through an exporter, not through `MetricData`.
+
+## Read Aggregated Snapshots
+
+Read every registered instrument as an immutable `MetricData` snapshot.
+
+```scala
+object metric {
   def reader: MetricReader
 }
 ```
 
-`metric` sits at the top of the Telemetry module's metrics pillar. It wraps a `MeterProvider`, which creates `Meter` instances, which in turn build `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` instruments. The relationship looks like this:
+`metric.reader.collectAllMetrics()` aggregates them — `SumData` for counters, `HistogramData` for histograms, `GaugeData` for gauges — for inspection in tests or manual export.
 
-```
-metric
-  └── MeterProvider   (installed via metric.install)
-        └── Meter     (obtained via metric.get; used internally by shortcut methods)
-              ├── Counter          (monotonically increasing cumulative counter)
-              ├── UpDownCounter    (bidirectional counter for values that go up and down)
-              ├── Histogram        (latency and size distribution recorder)
-              └── Gauge            (point-in-time gauge for instantaneous measurements)
-```
-
-The `MeterProvider` reference is held in a `java.util.concurrent.atomic.AtomicReference`, making it safe to replace exactly once at startup. App code calls `metric` directly; library code should accept a `Meter` parameter obtained via `metric.get` so it remains independent of the global singleton.
-
-- **Zero-setup** — a default `MeterProvider` is wired before the first call; no configuration is required.
-- **Thread-safe** — the `MeterProvider` reference is stored in an `AtomicReference`.
-- **Global singleton** — `metric.install` and `metric.removeAll` mutate shared state; call each at most once at startup.
-- **Delegates lifecycle** — `metric` never manages instrument state directly; it delegates to `MeterProvider` and `Meter`.
-
-## Usage
-
-The following example shows the core workflow in one place: create instruments via `metric`, record values, then inspect accumulated data via `metric.reader`:
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Create instruments from the global singleton
-val requests = metric.counter("http.requests")
-val latency  = metric.histogram("http.request.latency")
-val active   = metric.upDownCounter("http.active.connections")
-val memory   = metric.gauge("process.memory.bytes")
-
-// Record values
-requests.add(1)
-latency.record(42.5)
-active.add(1)
-memory.record(256_000_000.0)
-active.add(-1)
-
-// Read back all accumulated data
-val snapshot: Seq[MetricData] = metric.reader.read()
-```
-
-### Named Instrumentation Scopes
-
-Library code should avoid using the global `metric` object directly. Accept a `Meter` instead, obtained from a `MeterProvider` passed through dependency injection:
-
-```scala
-import zio.blocks.telemetry._
-
-class HttpServer(meter: Meter) {
-  private val requests = meter.counterBuilder("http.requests").build()
-  private val errors   = meter.counterBuilder("http.errors").build()
-
-  def handleRequest(): Unit = {
-    requests.add(1)
-    // ... handle the request
-  }
+val snapshots: Seq[MetricData] = metric.reader.collectAllMetrics()
+snapshots.foreach {
+  case MetricData.SumData(points)       => points.foreach(p => println(p.value))
+  case MetricData.HistogramData(points) => points.foreach(p => println(p.count))
+  case MetricData.GaugeData(points)     => points.foreach(p => println(p.value))
 }
-
-// In application startup code, wire together:
-val server = new HttpServer(metric.get("com.example.http"))
 ```
 
-This pattern keeps library code testable — inject a `Meter` from a test `MeterProvider` to capture metric readings without touching the global singleton.
+## Install a Provider and Reset
 
-### Production Wiring
-
-Replace the default provider at startup to export metrics to a real backend:
+`metric.install(provider)` swaps in a production `MeterProvider` — configured with a [`Resource`](../shared/resource.md) and reachable exporters through its `MetricReader`.
 
 ```scala
+object metric {
+  def install(provider: MeterProvider): Unit
+  def removeAll(): Unit
+}
+```
+
+`metric.removeAll()` restores a fresh default provider.
+
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-// Build a provider with a custom exporter (e.g. Prometheus, OTLP)
-val provider = MeterProvider.builder
-  .withReader(MyExporterReader)
-  .build()
+metric.install(
+  MeterProvider.builder
+    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
+    .build()
+)
 
-metric.install(provider)
-
-// All subsequent metric.counter / metric.get calls route through the new provider
-val requests = metric.counter("http.requests")
-```
-
-### Labeled Metrics
-
-For metrics that vary by dimension (HTTP method, status code, endpoint), use the `Meter`-level builders to get labeled instruments:
-
-```scala
-import zio.blocks.telemetry._
-
-val meter    = metric.get("com.example.http")
-val requests = meter.labeledCounter("http.requests", "method", "status")
-val latency  = meter.labeledHistogram("http.request.latency", "endpoint")
-
-// Record values with positional label values
-requests.add(1, "GET", "200")
-requests.add(1, "POST", "500")
-latency.record(38.2, "/api/orders")
-```
-
-## API Reference
-
-### Instrument Creation
-
-All four shortcut methods create an instrument on the `"default"` `Meter`. For labeled or named-scope instruments, use `metric.get(name)` to obtain a `Meter` first.
-
-| Method | Return Type | Description |
-|---|---|---|
-| `counter(name)` | `Counter` | Monotonically increasing cumulative counter |
-| `upDownCounter(name)` | `UpDownCounter` | Bidirectional counter for values that go up and down |
-| `histogram(name)` | `Histogram` | Latency and size distribution recorder |
-| `gauge(name)` | `Gauge` | Point-in-time instantaneous measurement |
-
-### Meter Retrieval
-
-```scala
-def get(name: String): Meter
-```
-
-Returns a `Meter` for the given instrumentation scope name. The returned `Meter` is reused across calls with the same name — the `MeterProvider` is responsible for deduplicating scopes.
-
-### Configuration
-
-```scala
-def install(provider: MeterProvider): Unit
-def removeAll(): Unit
-```
-
-`install` replaces the global provider atomically. Call it exactly once at startup, before any metric instruments are created. `removeAll` restores the default provider — useful in tests to reset state between test cases.
-
-### Inspection
-
-```scala
-def reader: MetricReader
-```
-
-Returns the `MetricReader` for the current provider. Use it in tests to assert on recorded values without configuring an exporter:
-
-```scala
-import zio.blocks.telemetry._
-
-metric.removeAll() // reset to default in-memory provider
-
-val hits = metric.counter("cache.hits")
-hits.add(3)
-hits.add(7)
-
-val data = metric.reader.read()
-// data contains a MetricData entry for "cache.hits" with cumulative sum 10
+// later, at shutdown
+metric.removeAll()
 ```
 
 ## See Also
 
-- [Telemetry Reference](../index.md) — module overview and all three signal pillars.
-- [Telemetry Guide](../../../guides/telemetry-guide.md) — architecture and real-world patterns.
+- [Telemetry Guide](../../../guides/telemetry-guide.md) — metrics data flow and labeled instrument patterns
+- [Telemetry Reference](../index.md) — module overview and all three pillars
+- [Shared Vocabulary](../shared/index.md) — `Attributes` used as metric dimension labels
