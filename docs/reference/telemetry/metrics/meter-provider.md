@@ -1,277 +1,76 @@
 ---
 id: meter-provider
 title: "MeterProvider"
-description: "Entry point for the metrics pillar — creates and caches Meter instances, backs them with a shared MeterRegistry, and exposes a MetricReader."
+description: "Configure metrics once for a service: name what produced them, hand out meters per component, and read every measurement back through one reader."
 keywords:
-  - "MeterProvider Builder"
+  - "Application Metrics"
+  - "Metrics Configuration"
   - "Meter Factory"
-  - "MetricReader Collection"
-  - "Instrumentation Scope"
-  - "Metrics Lifecycle"
-  - "MeterRegistry"
-  - "Telemetry Metrics Setup"
+  - "MeterProvider"
 ---
 
-`MeterProvider` is the entry point to the metrics pillar in ZIO Blocks Telemetry: you build one, then ask it for [`Meter`](./meter.md) instances. It returns a `Meter` per instrumentation scope — reusing the same instance for a given scope — and exposes a single `MetricReader` that collects everything recorded through those meters.
+A `MeterProvider` is where metrics get configured, once, at startup. You build one, and it hands out the [`Meter`](./meter.md)s your components take.
 
-- **Thread-safe instrument registry** — `Meter` instances are stored in a `ConcurrentHashMap`, so calling `get` from concurrent threads requires no external synchronization.
-- **`AutoCloseable` lifecycle** — `close()` delegates to `shutdown()`, enabling use with `scala.util.Using.resource` or a JVM shutdown hook.
-- **Single `MetricReader` per provider** — one `MetricReader` aggregates snapshot data from all meters registered in this provider.
-- **Meters deduplicated by `InstrumentationScope`** — calling `get` with the same name and version always returns the identical `Meter` instance.
+It exists because two things can't be decided per instrument. The first is **identity**: an exported measurement has to say what produced it, or a backend shows a number with no owner — and repeating that on every counter would be both tedious and inconsistent. You set it once as a [`Resource`](../shared/resource.md), and everything the provider hands out inherits it.
 
-The full public surface of `MeterProvider`, its companion, and `MeterProviderBuilder` is:
+The second is **one place to read from**. Instruments end up scattered across components, and nothing useful happens until something collects them all together. The provider keeps the registry every meter joins, so a single `reader.collectAllMetrics()` returns every measurement from every scope beneath it — you never assemble a list of instruments yourself.
 
-```scala
-final class MeterProvider private[telemetry] (
-  val resource: Resource,
-  private val meterRegistry: MeterRegistry
-) extends AutoCloseable {
+Most applications never hold one: they hand a provider to `metric.install(...)` at startup and use the global [`metric`](./index.md) everywhere after. Build one yourself when you want a `Resource` of your own, or a scope you can collect and shut down independently of the global one.
 
-  // Collection
-  val reader: MetricReader
+## Configuring Metrics for Your Service
 
-  // Meter Access
-  def get(name: String, version: String = ""): Meter
-
-  // Lifecycle
-  def shutdown(): Unit
-  override def close(): Unit
-}
-
-object MeterProvider {
-  def builder: MeterProviderBuilder
-}
-
-final class MeterProviderBuilder private[telemetry] (private var resource: Resource) {
-  // Builder Configuration — call before build()
-  def setResource(resource: Resource): MeterProviderBuilder
-
-  def build(): MeterProvider
-}
-```
-
-`MeterProvider` sits in the Metrics group alongside `Meter`, `Counter`, `UpDownCounter`, `Histogram`, and `Gauge`. The global `metric` singleton holds an `AtomicReference[MeterProvider]` and delegates all instrument-creation calls to the currently installed provider:
-
-```
-metric (global singleton — AtomicReference[MeterProvider])
-  └── MeterProvider             ← this type
-        ├── MetricReader        (collects snapshots from all meters)
-        └── Meter               (obtained via MeterProvider#get, cached by scope)
-              └── Counter / UpDownCounter / Histogram / Gauge
-```
-
-## Motivation
-
-In a real application, many different components — your own modules and the third-party libraries you depend on — all want to record metrics, and every one of them needs a `Meter` to do so. Without a central owner, each component would have to know how metrics are collected and exported, and asking for the "same" meter twice could hand back two unrelated instances whose data never lines up.
-
-`MeterProvider` exists to be that single owner: it hands out `Meter` instances keyed by instrumentation scope and deduplicates them, so requesting the same scope always yields the identical meter, and it backs every meter with one shared `MetricReader` that collects across all of them. This lets application startup configure collection in exactly one place, while library and feature code simply calls `get` to obtain a scope-bound `Meter` and stays decoupled from how the data is ultimately read and exported. The payoff is a clear separation of concerns — instrumentation code focuses on recording measurements, and the provider owns the collection pipeline and its lifecycle.
-
-## Usage
-
-The following example shows the complete lifecycle: build a provider with a custom resource, obtain a `Meter`, record a value through a `Counter`, collect the result, then shut down:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-import scala.util.Using
-
-Using.resource(
-  MeterProvider.builder
-    .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "billing")))
-    .build()
-) { provider =>
-  val meter: Meter = provider.get("billing-service", "1.0.0")
-  val counter      = meter.counterBuilder("invoices.processed").build()
-  counter.add(1L, Attributes.empty)
-
-  val data: Seq[MetricData] = provider.reader.collectAllMetrics()
-  assert(data.nonEmpty)
-}
-```
-
-`Using.resource` guarantees that `provider.close()` — and therefore `shutdown()` — is called when the block exits, even on exception.
-
-## Construction / Creating Instances
-
-Because `MeterProvider`'s primary constructor is package-private, the builder is the only supported construction path. We start with `MeterProvider.builder`, call zero or more configuration methods on the returned `MeterProviderBuilder`, and finish with `build()`. Every configuration method returns `this`, so calls chain fluently.
-
-### `MeterProvider.builder` — Start a new builder
-
-Returns a `MeterProviderBuilder` pre-populated with `Resource.default` — which includes `service.name = "unknown_service"` and SDK identification attributes.
-
-```scala
-object MeterProvider {
-  def builder: MeterProviderBuilder
-}
-```
-
-We always begin provider construction with this call:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val builder: MeterProviderBuilder = MeterProvider.builder
-```
-
-The builder is mutable internally, but its state is not visible outside. Once `build()` is called, the resulting `MeterProvider` is immutable.
-
-### `MeterProviderBuilder.build` — Finalise configuration
-
-Constructs the `MeterProvider` from the accumulated builder state, creating a fresh `MeterRegistry` and a bound `MetricReader`. The resulting provider is immutable.
-
-```scala
-final class MeterProviderBuilder private[telemetry] (private var resource: Resource) {
-  def build(): MeterProvider
-}
-```
-
-We call `MeterProviderBuilder#build` once at the end of the chain, after all configuration methods:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider: MeterProvider = MeterProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "my-service")))
-  .build()
-
-provider.shutdown()
-```
-
-After calling `build()`, the builder instance should be discarded. Re-using or further mutating the builder after `build()` is not supported.
-
-## Core Operations
-
-The `MeterProvider` API groups into four categories: accessing `Meter` instances, collecting metric data, configuring the builder before construction, and managing the provider's lifecycle.
-
-### Meter Access
-
-The `get` method is the bridge between `MeterProvider` and the `Meter` instances that library and application code use to create and record against instruments.
-
-#### `get` — Obtain a cached meter
-
-Returns the `Meter` for the given instrumentation scope `name` and optional `version`. `Meter` instances are cached in a `ConcurrentHashMap`: calling `get` with the same arguments always returns the identical instance. The cache key is an `InstrumentationScope` derived from the name and, when non-empty, the version string.
-
-```scala
-final class MeterProvider private[telemetry] (...) {
-  def get(name: String, version: String = ""): Meter
-}
-```
-
-We call `MeterProvider#get` once per instrumentation scope at initialization and reuse the result, since the caching guarantee makes repeated calls safe and cheap:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = MeterProvider.builder.build()
-val meter    = provider.get("my-lib", "1.0.0")
-assert(meter eq provider.get("my-lib", "1.0.0")) // identical instance
-
-provider.shutdown()
-```
-
-A new `Meter` is created and registered in the `MeterRegistry` on the first call for a given scope. When `version` is the empty string (the default), no version is recorded in the `InstrumentationScope`.
-
-### Collection
-
-The `MeterProvider#reader` value exposes the `MetricReader` bound to this provider, so callers can query `MetricReader#collectAllMetrics` to retrieve a point-in-time snapshot of every instrument's data.
-
-#### `reader` — Access the metric reader
-
-The `MetricReader` bound to this provider. Calling `reader.collectAllMetrics()` traverses every registered `Meter` and aggregates their instrument data into a flat `Seq[MetricData]`.
-
-```scala
-final class MeterProvider private[telemetry] (...) {
-  val reader: MetricReader
-}
-```
-
-We use `provider.reader` to pull a snapshot of all instrument data — for example, to export metrics at a scheduled interval:
-
-```scala mdoc:compile-only
-import zio.blocks.telemetry._
-
-val provider = MeterProvider.builder.build()
-val meter    = provider.get("svc")
-val counter  = meter.counterBuilder("requests").build()
-counter.add(5L, Attributes.empty)
-
-val data: Seq[MetricData] = provider.reader.collectAllMetrics()
-
-provider.shutdown()
-```
-
-Each element in the returned `Seq` is a `MetricData` variant — `MetricData.SumData`, `MetricData.HistogramData`, or `MetricData.GaugeData` — carrying the data points recorded since the provider was created.
-
-### Builder
-
-The `MeterProviderBuilder#setResource` method is called before `build()` to describe the service producing telemetry. It returns `this` so that calls chain fluently.
-
-#### `setResource` — Identify the producing service
-
-Sets the `Resource` describing the service or component producing telemetry. A `Resource` wraps `Attributes` such as `service.name`, `service.version`, and deployment environment. If `setResource` is not called, the builder uses `Resource.default`, which includes `service.name = "unknown_service"` and SDK identification attributes.
-
-```scala
-final class MeterProviderBuilder private[telemetry] (private var resource: Resource) {
-  def setResource(resource: Resource): MeterProviderBuilder
-}
-```
-
-We build a `Resource` using `Resource.create` and `Attributes.of` with the predefined `Attributes.ServiceName` key:
+Build the provider with a `Resource` naming your service:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = MeterProvider.builder
-  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "my-svc")))
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "payments")))
   .build()
-
-provider.shutdown()
 ```
 
-The `resource` field on the resulting `MeterProvider` holds the value set here. Export backends that follow the OpenTelemetry specification attach resource attributes to every metric series they emit.
+Do set the name. Skipping it doesn't fail — the default `Resource` supplies `service.name = "unknown_service"` alongside SDK version attributes — but that placeholder is what a backend will show for every measurement you export.
 
-### Lifecycle
+## Getting a Meter per Component
 
-The lifecycle operations release resources held by the provider's `MetricReader`. We call them once when the application is shutting down or when the provider is no longer needed.
-
-#### `shutdown` — Release reader resources
-
-Shuts down the provider by delegating to `reader.shutdown()`. After `shutdown()` returns, the `MetricReader` will no longer collect data.
-
-```scala
-final class MeterProvider private[telemetry] (...) {
-  def shutdown(): Unit
-}
-```
-
-We call `MeterProvider#shutdown` once during application teardown:
+Ask for a meter by the component's name; that name is what attributes its measurements:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val provider = MeterProvider.builder.build()
-// ... application runs ...
-provider.shutdown()
+
+val meter: Meter = provider.get("com.example.payments")
 ```
 
-#### `close` — `AutoCloseable` delegation
+Asking twice for one name returns the same meter, so components take theirs independently without coordinating. See [Meter](./meter.md) for what to do with it.
 
-Implements the `AutoCloseable` contract by delegating to `shutdown()`. This allows `MeterProvider` to be managed with `scala.util.Using.resource` or a JVM shutdown hook.
+## Reading Everything Back
 
-```scala
-final class MeterProvider private[telemetry] (...) {
-  override def close(): Unit
-}
+`reader` is a single [`MetricReader`](./metric-data.md) for the provider's whole lifetime, created at `build()` — there is nothing to register, and no second reader to keep in sync:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val provider = MeterProvider.builder.build()
+provider.get("com.example").counterBuilder("ops").build().add(1L)
+
+val snapshots: Seq[MetricData] = provider.reader.collectAllMetrics()
 ```
 
-Using `scala.util.Using.resource` guarantees that `shutdown()` is called even when an exception propagates out of the block:
+Each call aggregates what has accumulated so far into [`MetricData`](./metric-data.md) — one value per registered instrument, across every meter. This is a pull: nothing is sent anywhere until you or an exporter asks.
+
+## Shutting Down
+
+A provider is `AutoCloseable`, with `close()` calling `shutdown()`, so it fits `scala.util.Using.resource`:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import scala.util.Using
 
 Using.resource(MeterProvider.builder.build()) { provider =>
-  val meter = provider.get("scope")
-  ()
+  provider.reader.collectAllMetrics()
 }
-// provider.close() — and therefore shutdown() — is called automatically here
 ```
+
+Unlike logging, there is nothing buffered here waiting to be flushed — metrics are read on demand, so the built-in reader's shutdown does no work today. Call it anyway at exit: it costs nothing, and it's what an export pipeline would hook into.
