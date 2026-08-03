@@ -9,7 +9,17 @@ keywords:
   - "Meter"
 ---
 
-`Meter` is the instrument factory for a single instrumentation scope — a named library or component. Every instrument it builds ([`Counter`](./instruments.md), `UpDownCounter`, `Histogram`, or `Gauge`) is registered behind the owning [`MeterProvider`](./meter-provider.md) the moment you call `build()`, so `provider.reader.collectAllMetrics()` sees it with no extra wiring. Library code takes a `Meter` — obtained from a `MeterProvider`, or the global `metric.get(scope)` in application code — to attribute its metrics to its own scope; a `Meter` is always produced by a provider and cannot be constructed directly.
+A `Meter` makes [instruments](./instruments.md) — the counters, histograms, and gauges you record measurements through. It's tied to one name, the component or library it belongs to, and a [`MeterProvider`](./meter-provider.md) hands you one; you never construct it yourself.
+
+Two reasons to go through a `Meter` rather than `metric.counter("…")`. The name marks which part of the system a measurement came from, so metrics from a library you depend on stay distinguishable from your own. And its builders let you say more about an instrument than its name — a unit and a description, so a dashboard can label an axis instead of guessing, or a fixed set of label names for a hot path.
+
+Building through a `Meter` is also what makes an instrument *collectable*. `build()` registers the instrument on its meter, and the provider's registry already holds that meter — so reading metrics reaches it, along with every instrument from every scope of that provider, and you needn't keep a reference for collection's sake.
+
+Three ways to lose measurements to that wiring:
+
+1. **Constructing an instrument directly.** It compiles, because the companion `apply` is public — `Counter("http.requests", "", "")` records perfectly well into an object nothing registered, so `collectAllMetrics()` never sees it.
+2. **Building the same instrument twice.** Calling `metric.counter("http.requests")` twice builds two registered counters, splitting one logical metric across two series that a consumer cannot merge. Call it once and keep the result; nothing unregisters an instrument.
+3. **Crossing providers.** An instrument reaches only the reader of the provider whose meter built it. `metric.install(...)` swaps in a provider with an empty registry, so create your instruments after installing, and don't expect `metric.reader` to see instruments built from a provider you constructed yourself.
 
 ```scala
 final class Meter private[telemetry] (val instrumentationScope: InstrumentationScope) {
