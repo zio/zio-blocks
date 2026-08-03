@@ -128,7 +128,7 @@ object metric {
 }
 ```
 
-`metric.removeAll()` restores a fresh default provider.
+Install before creating any instruments. Both calls replace the provider along with its registry, so an instrument built beforehand stays registered with the old one and won't appear in `metric.reader` snapshots. `metric.removeAll()` restores a fresh default provider.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
