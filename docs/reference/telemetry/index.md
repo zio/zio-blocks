@@ -41,13 +41,22 @@ Modern services produce three distinct kinds of observability data. Traces captu
 
 ## Installation
 
-Add the dependency to your build:
+```scala
+// Core: logging, tracing, metrics
+libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
+
+// Optional: OTLP JSON export over HTTP (JVM only)
+libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
+```
+
+For Scala.js (telemetry core only):
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
-The `%%%` operator selects the JVM or Scala.js artifact automatically. Nothing else to add: the module brings in only its zio-blocks siblings — `context` and `chunk` — and no third-party libraries. On Scala 2.13 it also uses `scala-reflect`, which the `log` macros need to capture source location.
+Supports Scala 2.13.x and 3.x.
+
 
 ## Overview
 
