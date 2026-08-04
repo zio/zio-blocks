@@ -67,7 +67,12 @@ The module is organized into three areas — tracing, logging, and metrics — t
 
 ### Signal Metadata
 
-Four types appear across all three pillars. `Attributes` is an immutable, boxing-free collection of typed key-value pairs backed by parallel primitive arrays. `AttributeKey` is the typed key used to read and write individual attribute slots. `Resource` describes the entity producing telemetry — service name, SDK version, deployment environment — and is attached to every signal. `InstrumentationScope` identifies the library or component that created a signal and is set when calling `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`.
+A span, a log record, and a measurement are different kinds of data, but they answer the same three questions: what happened, which service produced it, and which component inside that service. Four types carry those answers, and because all three pillars use the same four, whatever you learn about them applies everywhere:
+
+- [`Attributes`](./shared/attributes.md) — the detail on a signal, as typed key-value pairs: the route on a span, the order id on a log record, the labels on a measurement.
+- [`AttributeKey`](./shared/attribute-key.md) — a name paired with the type of its value, so reading an attribute back gives you a `String` or a `Long` rather than something to cast.
+- [`Resource`](./shared/resource.md) — which service produced the signal, attached to every one the provider emits. Give all three providers the same one.
+- [`InstrumentationScope`](./shared/instrumentation-scope.md) — which library or component produced it, taken from the name you pass to `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`.
 
 ## How They Work Together
 
@@ -75,23 +80,23 @@ All three pillars follow the same structural pattern: a global singleton wraps a
 
 ```
   Global entry points          Provider layer                 Scope instances
-  ┌──────────────────────┐   ┌─────────────────────────┐   ┌──────────────────┐
-  │  trace  (object)     │──▶│  TracerProvider         │──▶│  Tracer          │──▶ Span
-  └──────────────────────┘   │  · Resource             │   └──────────────────┘    │ SpanProcessor
-                             │  · Sampler              │         ContextStorage ◀╴╴┤
-  ┌──────────────────────┐   │  · SpanProcessors       │                           │ (shared)
-  │  log    (object)     │──▶│  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╯
-  └──────────────────────┘   └─────────────────────────┘   ┌──────────────────┐
-                             ┌─────────────────────────┐   │  Logger          │──▶ LogRecord
-                             │  LoggerProvider         │──▶│  (traceId+spanId │    LogRecordProcessor
-                             │  · Resource             │   │   from storage)  │
-                             │  · LogRecordProcessor   │   └──────────────────┘
-  ┌──────────────────────┐   │  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶(same instance)
-  │  metric (object)     │──▶└─────────────────────────┘
-  └──────────────────────┘   ┌─────────────────────────┐   ┌──────────────────┐
-                             │  MeterProvider          │──▶│  Meter           │──▶ Counter
-                             │  · Resource             │   │  · counterBuilder│    Histogram
-                             │  · MeterRegistry        │   │  · histogramBld. │    Gauge
+                             ┌─────────────────────────┐   ┌──────────────────┐
+                             │  TracerProvider         │──▶│  Tracer          │──▶ Span
+  ┌──────────────────────┐   │  · Resource             │   └──────────────────┘    │ SpanProcessor
+  │  trace  (object)     │──▶│  · Sampler              │         ContextStorage ◀╴╴┤
+  └──────────────────────┘   │  · SpanProcessors       │                           │ (shared)
+                             │  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╯
+                             └─────────────────────────┘   ┌──────────────────┐
+                             ┌─────────────────────────┐   │  Logger          │
+  ┌──────────────────────┐   │  LoggerProvider         │   │  (traceId+spanId │──▶ LogRecord
+  │  log    (object)     │──▶│  · Resource             │──▶│   from storage)  │    LogRecordProcessor
+  └──────────────────────┘   │  · LogRecordProcessor   │   └──────────────────┘
+                             │  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶(same instance)
+                             └─────────────────────────┘
+                             ┌─────────────────────────┐   ┌──────────────────┐
+  ┌──────────────────────┐   │  MeterProvider          │   │  Meter           │──▶ Counter
+  │  metric (object)     │──▶│  · Resource             │──▶│  · counterBuilder│    Histogram
+  └──────────────────────┘   │  · MeterRegistry        │   │  · histogramBld. │    Gauge
                              └─────────────────────────┘   └──────────────────┘    UpDownCounter
                                                                     │
                                                               MetricReader ──▶ MetricData
