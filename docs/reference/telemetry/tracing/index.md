@@ -137,4 +137,4 @@ trace.span("handle-request", SpanKind.Server)(_.setAttribute("http.route", "/ord
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — tracing data flow, sampling, and production patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Shared Vocabulary](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`
+- [Signal Metadata](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

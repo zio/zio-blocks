@@ -147,4 +147,4 @@ metric.removeAll()
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — metrics data flow and labeled instrument patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Shared Vocabulary](../shared/index.md) — `Attributes` used as metric dimension labels
+- [Signal Metadata](../shared/index.md) — `Attributes` used as metric dimension labels

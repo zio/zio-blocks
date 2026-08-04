@@ -192,4 +192,4 @@ log.install(logger, Severity.Info)
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — logging data flow, rate limiting, and production patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Shared Vocabulary](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`
+- [Signal Metadata](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

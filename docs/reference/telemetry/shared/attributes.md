@@ -114,4 +114,4 @@ Two sets holding the same pairs are equal regardless of the order they were buil
 
 - [AttributeKey](./attribute-key.md) — defining typed keys
 - [Resource](./resource.md) — service identity, itself an `Attributes` set
-- [Shared Vocabulary](./index.md) — the types every pillar uses
+- [Signal Metadata](./index.md) — the types every pillar uses
