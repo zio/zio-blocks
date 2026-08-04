@@ -235,9 +235,11 @@ const sidebars = {
                   "reference/telemetry/tracing/span",
                   "reference/telemetry/tracing/span-context",
                   "reference/telemetry/tracing/span-data",
-                  "reference/telemetry/tracing/span-kind",
+                  "reference/telemetry/tracing/span-builder",
                   "reference/telemetry/tracing/span-processor",
                   "reference/telemetry/tracing/sampler",
+                  "reference/telemetry/tracing/span-kind",
+                  "reference/telemetry/tracing/span-status",
                 ]
               },
               {
@@ -251,6 +253,7 @@ const sidebars = {
                   "reference/telemetry/logging/log-record",
                   "reference/telemetry/logging/log-record-processor",
                   "reference/telemetry/logging/log-formatter",
+                  "reference/telemetry/logging/log-writer",
                   "reference/telemetry/logging/severity",
                   "reference/telemetry/logging/log-enrichment",
                 ]
@@ -263,18 +266,21 @@ const sidebars = {
                 items: [
                   "reference/telemetry/metrics/meter-provider",
                   "reference/telemetry/metrics/meter",
+                  "reference/telemetry/metrics/instruments",
+                  "reference/telemetry/metrics/labeled-instruments",
                   "reference/telemetry/metrics/metric-data",
                 ]
               },
               {
                 type: "category",
-                label: "Shared Vocabulary",
+                label: "Signal Metadata",
+                link: { type: "doc", id: "reference/telemetry/shared/index" },
                 collapsed: false,
                 items: [
-                  "reference/telemetry/attributes",
-                  "reference/telemetry/attribute-key",
-                  "reference/telemetry/resource",
-                  "reference/telemetry/instrumentation-scope",
+                  "reference/telemetry/shared/attributes",
+                  "reference/telemetry/shared/attribute-key",
+                  "reference/telemetry/shared/resource",
+                  "reference/telemetry/shared/instrumentation-scope",
                 ]
               },
             ]
