@@ -837,11 +837,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 - [Telemetry](./reference/telemetry/index.md) - Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics
 
-**Global Entry Points**
-- [trace](./reference/telemetry/tracing/index.md) - Global tracing singleton: span creation, provider configuration, in-memory inspection
-- [log](./reference/telemetry/logging/index.md) - Global logging singleton: structured log emission with macro-captured source locations
-- [metric](./reference/telemetry/metrics/index.md) - Global metrics singleton: counter, histogram, and gauge creation
-
 **Tracing**
 - [TracerProvider](./reference/telemetry/tracing/tracer-provider.md) - Factory for `Tracer` instances, configured once at startup
 - [Tracer](./reference/telemetry/tracing/tracer.md) - Per-library scope-bound span emitter
@@ -855,11 +850,11 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [MeterProvider](./reference/telemetry/metrics/meter-provider.md) - Factory for `Meter` instances
 - [Meter](./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments
 
-**Shared Vocabulary**
-- [Attributes](./reference/telemetry/attributes.md) - Parallel-array key/value store shared across signals
-- [AttributeKey](./reference/telemetry/attribute-key.md) - Typed, interned attribute key
-- [Resource](./reference/telemetry/resource.md) - Immutable set of attributes describing the telemetry source entity
-- [InstrumentationScope](./reference/telemetry/instrumentation-scope.md) - Named and versioned scope for grouping signals
+**Signal Metadata**
+- [Attributes](./reference/telemetry/shared/attributes.md) - Parallel-array key/value store shared across signals
+- [AttributeKey](./reference/telemetry/shared/attribute-key.md) - Typed, interned attribute key
+- [Resource](./reference/telemetry/shared/resource.md) - Immutable set of attributes describing the telemetry source entity
+- [InstrumentationScope](./reference/telemetry/shared/instrumentation-scope.md) - Named and versioned scope for grouping signals
 
 **Tracing Support**
 - [SpanContext](./reference/telemetry/tracing/span-context.md) - Immutable trace and span identifiers for propagation
@@ -870,7 +865,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 **Logging Support**
 - [LogRecord](./reference/telemetry/logging/log-record.md) - Immutable structured log record
 - [LogRecordProcessor](./reference/telemetry/logging/log-record-processor.md) - Hook interface for processing emitted log records
-- [LogFormatter](./reference/telemetry/logging/log-formatter.md) - Converts log records to strings for console or file output
+- [LogFormatter](./reference/telemetry/logging/log-formatter.md) - Renders a log record to text (human-readable or OTLP JSON)
+- [LogWriter](./reference/telemetry/logging/log-writer.md) - Routes formatted log text to a destination (stdout, stderr, file)
 - [Severity](./reference/telemetry/logging/severity.md) - OpenTelemetry log severity enumeration
 - [LogEnrichment](./reference/telemetry/logging/log-enrichment.md) - Mechanism for attaching context attributes to every log record
 
