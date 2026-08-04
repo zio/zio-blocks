@@ -1,256 +1,297 @@
 ---
 id: index
 title: "Telemetry"
-description: "Module reference for the zero-dependency, OpenTelemetry-aligned tracing, logging, and metrics stack."
+description: "Module reference index for the telemetry module: tracing, logging, and metrics with a unified provider API."
 keywords:
-  - "telemetry module"
-  - "tracing spans"
-  - "structured logging"
-  - "metric instruments"
-  - "TracerProvider builder"
-  - "trace-log correlation"
-  - "Attributes parallel arrays"
+  - "Observability"
+  - "Distributed Tracing"
+  - "Structured Logging"
+  - "Application Metrics"
+  - "Trace Correlation"
 ---
 
-The telemetry module is a zero-dependency, OpenTelemetry-aligned observability stack. It covers the **three standard pillars** of observability:
+The telemetry module provides the three pillars of modern observability — distributed tracing, structured logging, and dimensional metrics — with a single coherent API aligned to the OpenTelemetry data model. 
 
-- **[Tracing](./tracing/index.md)** — the causal path of a request through your system, recorded as nested spans.
-- **[Logging](./logging/index.md)** — structured, timestamped records of discrete events.
-- **[Metrics](./metrics/index.md)** — numeric measurements aggregated over time, such as counters and latency histograms.
+Three global entry points (`trace`, `log`, `metric`) work without any configuration; each delegates to a provider (`TracerProvider`, `LoggerProvider`, `MeterProvider`) that produces scope-specific instances (`Tracer`, `Logger`, `Meter`). 
 
-"OpenTelemetry-aligned" means the data model and naming follow the [OpenTelemetry specification](https://opentelemetry.io/docs/specs/otel/), so signals map cleanly onto OTLP exporters and familiar backends — but without pulling in the OpenTelemetry SDK or any effect-system dependency.
+The same metadata types — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` — describe signals in all three pillars, and a shared `ContextStorage` enables automatic trace–log correlation out of the box.
 
-Each pillar has a **global singleton** — `trace`, `log`, and `metric` — that you import and call directly. These need no setup: by default they keep spans and records **in-memory**, so instrumentation works immediately in tests and development. When you are ready for production, the **provider/builder API** ([`TracerProvider`](./tracing/tracer-provider.md), [`LoggerProvider`](./logging/logger-provider.md), [`MeterProvider`](./metrics/meter-provider.md)) lets you wire real export pipelines — custom exporters, samplers, and processors — and install them behind the same global entry points, so instrumentation code never changes.
+The three-pillar structure mirrors the following shape:
 
-Two things are shared across all three pillars:
+```scala
+// Global entry points — work without any setup
+object trace  { /* span creation, provider install */ }
+object log    { /* structured log emission, writer config */ }
+object metric { /* instrument factories, reader access */ }
 
-1. A common **attribute vocabulary** so every span, log record, and metric is described the same way — see [Shared Vocabulary](#shared-vocabulary) below.
-2. A shared `ContextStorage[Option[`[`SpanContext`](./tracing/span-context.md)`]]` holding the currently-active span, which enables automatic **trace-log correlation**: any log record emitted inside a span is stamped with that span's trace and span IDs, so you can pivot from a log line to the trace it belongs to.
+// Provider layer — configure and install once at application startup
+final class TracerProvider private[telemetry] (...) extends AutoCloseable
+final class LoggerProvider private[telemetry] (...) extends AutoCloseable
+final class MeterProvider  private[telemetry] (...) extends AutoCloseable
+
+// Scope-specific instances — created by providers on demand
+final class Tracer private[telemetry] (...)
+final class Logger private[telemetry] (...)
+final class Meter  private[telemetry] (...)
+```
 
 ## Motivation
 
-Most Scala observability solutions require a heavy runtime (ZIO, Cats Effect, Akka) or a concrete logging backend (Logback, Log4j), and metrics registries tend to be globally mutable and framework-specific. The telemetry module addresses these constraints with a self-contained design:
-
-- It has zero library dependencies — no effect system, no SLF4J binding, no Micrometer registry.
-- It cross-compiles to Scala.js, so the same instrumentation code works in browser and server contexts.
-- Compared to the OpenTelemetry Java SDK, it mirrors the same data model but avoids boxing: trace IDs are two `Long` fields in `SpanContext`, `SpanId` and `TraceFlags` are `AnyVal` wrappers, and `Attributes` uses parallel primitive arrays with a byte discriminator.
-- Compared to SLF4J and Logback, source location (`code.filepath`, `code.namespace`, `code.function`, `code.lineno`) is captured at compile time by macros rather than at runtime by stack-walking, and every log record natively carries trace correlation fields.
-- Compared to Micrometer, instruments are built directly on a `Meter` retrieved from a `MeterProvider` — no global default registry — and the same typed `AttributeKey[A]` system used in tracing is reused for metric dimensions.
+Modern services produce three distinct kinds of observability data. Traces capture the causal shape of a request as it traverses services and threads. Logs capture structured events at discrete points in time, ideally correlated to the active trace. Metrics capture aggregated numerical measurements — request counts, latencies, queue depths — that accumulate over time. The telemetry module covers all three in one library that pulls in no third-party dependencies and cross-compiles for the JVM and Scala.js.
 
 ## Installation
 
-Add the following dependency to your build:
+Add the dependency to your build:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
-Use `%%%` for cross-platform (JVM + Scala.js) projects. For JVM-only projects, `%%` also works. No further configuration is needed to start using the global API.
+The `%%%` operator selects the JVM or Scala.js artifact automatically. Nothing else to add: the module brings in only its zio-blocks siblings — `context` and `chunk` — and no third-party libraries. On Scala 2.13 it also uses `scala-reflect`, which the `log` macros need to capture source location.
 
-To export to an OpenTelemetry backend (OTLP), add the JVM-only companion module:
+## Overview
 
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
-```
+The module is organized into three areas — tracing, logging, and metrics — that map directly to the OTel signal types, plus the metadata types all three rely on.
 
-## Shared Vocabulary
+### Tracing
 
-The whole module shares a common vocabulary of typed key-value pairs, resource descriptors, and instrumentation scope identifiers. These types are used in all three pillars to describe the entity producing telemetry, the library or component that produced a signal, and the attributes associated with each signal.
+[Tracing](./tracing/index.md) covers the full span lifecycle. `TracerProvider` is a factory that shares a `Resource`, a `Sampler`, and a set of `SpanProcessor` hooks across all `Tracer` instances it creates. A `Tracer` opens and closes `Span` scopes, consulting the `Sampler` on each new span and calling `SpanProcessor.onStart` and `SpanProcessor.onEnd` for exporting or in-memory collection. Supporting types — `SpanContext`, `SpanData`, `SpanKind`, `SpanStatus`, `SpanId`, `TraceId`, and `TraceFlags` — capture the identity and state of a span.
 
-- [**`Attributes`**](./attributes.md) is the immutable collection of typed key-value pairs shared across all three pillars. Its parallel-array implementation stores primitive values (`Long`, `Double`, `Boolean`) unboxed and uses a byte-type discriminator to select the right slot, eliminating `AttributeValue` boxing on hot paths. Merge two instances with `Attributes#++`.
-- [**`AttributeKey`**](./attribute-key.md) is the type-safe key for `Attributes` storage. Each key binds a name string to a specific value type `A`; the eight supported types are `String`, `Boolean`, `Long`, `Double`, and four `Seq` variants. Factory methods `AttributeKey.string`, `AttributeKey.long`, and so on enforce consistency between key and value at compile time.
-- [**`Resource`**](./resource.md) describes the entity producing telemetry — the service, container, or host. `Resource.default` auto-populates `service.name`, `telemetry.sdk.name`, `telemetry.sdk.language`, and `telemetry.sdk.version` from build metadata. Combine two resources with the `merge` extension method.
-- [**`InstrumentationScope`**](./instrumentation-scope.md) identifies the library or component that produced a signal. It carries a `name`, an optional `version`, and optional `Attributes`, and is stamped into every `Span`, `SpanData`, and `LogRecord` to distinguish signals from different instrumentation libraries running in the same process.
+### Logging
+
+[Logging](./logging/index.md) covers structured, severity-leveled log emission. `LoggerProvider` is a factory that shares a `Resource` and a set of `LogRecordProcessor` hooks across all `Logger` instances it creates. A `Logger` emits `LogRecord` snapshots through configured processors; processors can write formatted output via a `LogFormatter` and `LogWriter`, export records to an external system, or gate emission by `Severity`. The macro-generated methods on the global `log` object capture source location at compile time and automatically stamp the active span context into every emitted record.
+
+### Metrics
+
+[Metrics](./metrics/index.md) covers dimensional cumulative and instantaneous measurements. `MeterProvider` is a factory for `Meter` instances; each `Meter` creates and registers instruments — `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` — keyed by name and `Attributes`. A `MetricReader` collects all registered instruments into `MetricData` snapshots on demand for export or inspection.
+
+### Signal Metadata
+
+Four types appear across all three pillars. `Attributes` is an immutable, boxing-free collection of typed key-value pairs backed by parallel primitive arrays. `AttributeKey` is the typed key used to read and write individual attribute slots. `Resource` describes the entity producing telemetry — service name, SDK version, deployment environment — and is attached to every signal. `InstrumentationScope` identifies the library or component that created a signal and is set when calling `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`.
 
 ## How They Work Together
 
-The three pillars share a structural pattern — a zero-config **global singleton** wraps a **provider** (built once at startup, owning the export pipeline) that is a factory for **scope-bound signal emitters** (one per instrumentation scope, producing the actual signals):
+All three pillars follow the same structural pattern: a global singleton wraps a provider that acts as a factory for lightweight, scope-specific instances. The provider holds the shared configuration — `Resource`, processor lists, and `ContextStorage` — and creates instances on demand. Signals are enriched by `Attributes` and labeled by `InstrumentationScope`. The `ContextStorage[Option[SpanContext]]` instance that `TracerProvider` and `LoggerProvider` share is what makes trace–log correlation automatic. Give all three providers the *same* `Resource` rather than one each — identical service-identity attributes on every signal are what let a backend line up traces, logs, and metrics as one service.
 
-| Layer                                  | Tracing           | Logging                | Metrics               |
-|----------------------------------------|-------------------|------------------------|-----------------------|
-| Global singleton                       | `trace`           | `log`                  | `metric`              |
-| Provider (factory, owns pipeline)      | `TracerProvider`  | `LoggerProvider`       | `MeterProvider`       |
-| Scope-bound emitter (produces signals) | `Tracer` → `Span` | `Logger` → `LogRecord` | `Meter` → instruments |
+```
+  Global entry points          Provider layer                 Scope instances
+  ┌──────────────────────┐   ┌─────────────────────────┐   ┌──────────────────┐
+  │  trace  (object)     │──▶│  TracerProvider         │──▶│  Tracer          │──▶ Span
+  └──────────────────────┘   │  · Resource             │   └──────────────────┘    │ SpanProcessor
+                             │  · Sampler              │         ContextStorage ◀╴╴┤
+  ┌──────────────────────┐   │  · SpanProcessors       │                           │ (shared)
+  │  log    (object)     │──▶│  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╶╯
+  └──────────────────────┘   └─────────────────────────┘   ┌──────────────────┐
+                             ┌─────────────────────────┐   │  Logger          │──▶ LogRecord
+                             │  LoggerProvider         │──▶│  (traceId+spanId │    LogRecordProcessor
+                             │  · Resource             │   │   from storage)  │
+                             │  · LogRecordProcessor   │   └──────────────────┘
+  ┌──────────────────────┐   │  · ContextStorage ╶╶╶╶╶╶┼╶╶╶╶╶╶╶(same instance)
+  │  metric (object)     │──▶└─────────────────────────┘
+  └──────────────────────┘   ┌─────────────────────────┐   ┌──────────────────┐
+                             │  MeterProvider          │──▶│  Meter           │──▶ Counter
+                             │  · Resource             │   │  · counterBuilder│    Histogram
+                             │  · MeterRegistry        │   │  · histogramBld. │    Gauge
+                             └─────────────────────────┘   └──────────────────┘    UpDownCounter
+                                                                    │
+                                                              MetricReader ──▶ MetricData
 
-Two concerns cross pillar boundaries: the `Attributes`-based vocabulary describes signals in all three pillars, and a shared `ContextStorage` holding the active `SpanContext` connects tracing to logging (so log records carry the active span's IDs — metrics is not involved).
+  ──────────────── Shared across all three pillars ─────────────────────────────────
+        Attributes  ·  AttributeKey  ·  Resource  ·  InstrumentationScope
+```
 
-Out of the box you can just call `trace`, `log`, and `metric` and read the results back in memory — that is all a test or a quick script needs. To send telemetry to a real monitoring system in production, you do a little setup once at startup, and then the rest of your code stays exactly the same. There are four stages:
+The following sub-sections walk through the data flow for each pillar and explain the correlation mechanism.
 
-1. **Configure — describe your service and how telemetry leaves the process.**
-   - Create a `Resource` — a small bundle of facts about *what* is producing the telemetry: service name, version, host.
-   - Build one *provider* per pillar (`TracerProvider`, `LoggerProvider`, `MeterProvider`). A provider is the object that knows where signals should go — which exporter, sampler, and so on.
-   - Give the **same** `ContextStorage` object to the tracing and logging providers. Think of it as a small shared notepad: while a span is running the tracer writes "this span is the current one" onto it, and when a log message is created the logger reads that note. Because both use the *same* notepad, every log written during a span is automatically tagged with that span's trace ID — so from a log line you can jump straight to the trace it came from. Two separate `ContextStorage` objects would leave the logger reading an empty notepad, and the logs would not link to any trace.
-2. **Install — make those providers the global default.** At startup, hand each provider to its global object so every later `trace`/`log`/`metric` call uses your production setup instead of the in-memory default: `trace.install(provider)` and `metric.install(provider)` take the provider directly; logging installs a `Logger` you get from `loggerProvider.get(...)` via `log.install(logger)`.
-3. **Emit — instrument your code.** This is the only part most code touches: wrap work in `trace.span("...") { ... }`, write logs with `log.info(...)`/`log.error(...)`, and record measurements with `counter.add(...)`, `histogram.record(...)`, or `gauge.record(...)`. Because installation happened behind the global objects, these calls are identical whether you configured a backend or not.
-4. **Collect — get the data out.** Traces and logs are *pushed*: as each span finishes it is handed to the exporter automatically. Metrics are *pulled*: nothing leaves until something calls `metric.reader.collectAllMetrics()`, which takes a snapshot of every instrument's current values (a monitoring system typically calls this on a timer).
+### Tracing Data Flow
 
-Each pillar's internal flow — sampling and span lifecycle, the logging fast path, instrument registration and collection — is documented in that pillar's reference: [Tracing](./tracing/index.md), [Logging](./logging/index.md), [Metrics](./metrics/index.md).
+When application code calls `trace.span("operation")`, the following sequence occurs:
+
+1. The global `trace` object delegates to the active `TracerProvider`, which creates or retrieves a `Tracer` for the `"default"` instrumentation scope.
+2. The `Tracer` consults its `Sampler` via `shouldSample`. If the decision is `RecordAndSample`, a `RecordingSpan` is constructed via `SpanBuilder.startSpan` and `SpanProcessor.onStart` is called; if `Drop`, a zero-allocation `Span.NoOp` is returned with no further overhead.
+3. The active `SpanContext` is stored into `ContextStorage` for the duration of the user block so that nested spans can read it as their parent.
+4. On exit, `Span.end()` is called, `SpanData` is snapshotted, and `SpanProcessor.onEnd` fires — delivering the completed span to exporters or the in-memory test processor.
+
+The following example shows a minimal production tracing configuration:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val tracerProvider = TracerProvider.builder
+  .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "order-service")))
+  .setSampler(AlwaysOnSampler)
+  .build()
+
+trace.install(tracerProvider)
+
+trace.span("process-order", SpanKind.Server) { span =>
+  span.setAttribute("order.id", "ord-123")
+  span.addEvent("validation-passed")
+}
+```
+
+### Logging Data Flow
+
+When application code calls `log.info("message", ...)`, the macro captures the call site's source file, enclosing class, method name, and line number at compile time. At runtime the severity is compared against the configured minimum; if the call passes the threshold, the captured source-location attributes are written into an `AttributesBuilder`, the current `SpanContext` is read from the shared `ContextStorage`, and `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` are stamped into the record as unboxed primitives before being dispatched to all configured processors.
+
+The following example routes log output to standard output in human-readable text format:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+log.writer(TextLogFormatter, StdoutWriter)
+log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)
+```
+
+### Metrics Data Flow
+
+When a `Counter`, `Histogram`, `Gauge`, or `UpDownCounter` is created via `Meter.counterBuilder("name").build()`, the instrument is registered in the owning `Meter`'s internal instrument list. The `MeterProvider.reader` property returns a `MetricReader` that, on each `collectAllMetrics()` call, iterates every registered `Meter` and invokes `collect()` on each instrument, aggregating the results into a sequence of `MetricData` variants for export or inspection.
+
+The following example records request counts and then reads the aggregated snapshot:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val requests = metric.counter("http.requests")
+requests.add(1, "method" -> "GET", "status" -> "200")
+
+val snapshots = metric.reader.collectAllMetrics()
+snapshots.foreach {
+  case MetricData.SumData(points)       => points.foreach(p => println(p.value))
+  case MetricData.HistogramData(points) => points.foreach(p => println(p.count))
+  case MetricData.GaugeData(points)     => points.foreach(p => println(p.value))
+}
+```
+
+### Trace–Log Correlation
+
+`TracerProvider` and `LoggerProvider` share the same `ContextStorage[Option[SpanContext]]` instance. When a `Tracer` opens a span it stores the `SpanContext` in that storage; when `Logger` emits a record it reads the same storage and stamps `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags` into the `LogRecord` fields as primitives — no boxing, no formatting until a `LogFormatter` runs. Because both providers default to the same internal `defaultSpanContextStorage` singleton, correlation is automatic when both are installed with their default settings.
+
+To use an explicit shared `ContextStorage` — for example, to isolate correlation in tests — create one instance and pass it to both builders:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val sharedStorage = ContextStorage.create[Option[SpanContext]](None)
+
+val tp = TracerProvider.builder.setContextStorage(sharedStorage).build()
+val lp = LoggerProvider.builder.setContextStorage(sharedStorage).build()
+
+trace.install(tp)
+log.install(lp.get("com.example"))
+```
 
 ## Common Patterns
 
-The seven patterns below cover the scenarios that most teams encounter when adopting the module. We name each pattern so it can be referenced concisely in code review and architecture discussions.
+The following patterns appear consistently across services that use this module. Each fits into a shared startup and request-handling lifecycle.
 
 ### Zero-Setup Global API
 
-Import `zio.blocks.telemetry._` and use the global singletons immediately. Spans are stored in the in-memory `InMemorySpanProcessor`; log records are not emitted anywhere until you add a writer or processor. This pattern is ideal for unit tests and development, where you want no I/O side effects:
+All three global entry points work immediately after import: `trace` buffers spans in memory, `log` is a no-op until a writer or processor is added, and `metric` writes to an in-process `MeterProvider`. The following import is the only requirement for development and testing:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-trace.span("process-order", SpanKind.Server) { span =>
-  span.setAttribute("order.id", orderId)
-  log.info("processing order")
-  processOrder(orderId)
+trace.span("bootstrap") { span =>
+  span.setAttribute("step", "init")
 }
 
-val spans = trace.collectedSpans  // inspect collected spans in tests
-```
+log.writer(TextLogFormatter, StdoutWriter)
+log.info("server started", "port" -> 8080L)
 
-Call `trace.clearSpans()` between tests to reset the in-memory store.
+metric.counter("startup.count").add(1)
+```
 
 ### Production Provider Installation
 
-Build configured providers at application startup and install them into the global singletons. We use `log.writer` for the simplest case — adding a formatted console output without a full `LoggerProvider`:
+At application startup we configure all three providers once and install them before serving any requests. Sharing a common `Resource` propagates the service identity through all signals:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val myResource = Resource.default.merge(
-  Resource.create(Attributes.of(Attributes.ServiceName, "order-service"))
+val serviceResource = Resource.default.merge(
+  Resource.create(Attributes.of(Attributes.ServiceName, "payments"))
 )
 
-// Tracing: always-on sampler, custom exporter
-val tracerProvider = TracerProvider.builder
-  .setResource(myResource)
-  .setSampler(AlwaysOnSampler)
-  .addSpanProcessor(myOtlpExporter)
+val tp = TracerProvider.builder
+  .setResource(serviceResource)
+  .setSampler(ParentBasedSampler(AlwaysOnSampler))
   .build()
 
-// Logging: human-readable output to stdout
-log.writer(TextLogFormatter, StdoutWriter)
+val lp = LoggerProvider.builder.setResource(serviceResource).build()
+val mp = MeterProvider.builder.setResource(serviceResource).build()
 
-// Metrics: default provider with custom resource
-val meterProvider = MeterProvider.builder
-  .setResource(myResource)
-  .build()
-
-trace.install(tracerProvider)
-metric.install(meterProvider)
+trace.install(tp)
+log.install(lp.get("com.example.payments"))
+metric.install(mp)
 ```
 
-Call `tracerProvider.shutdown()` and `meterProvider.shutdown()` when the application exits to flush any buffered data.
+### Library Dependency-Injection Pattern
 
-### Shared ContextStorage for Trace-Log Correlation
+Library code should accept `Tracer` and `Logger` as constructor parameters rather than using the global singletons. This makes the library testable in isolation and avoids coupling to global state. The `Logger.info` method on the class itself takes `(String, AttributeValue)` pairs rather than the macro enrichment tuples used by the global `log` object:
 
-When you build both a `TracerProvider` and a `LoggerProvider`, pass the same `ContextStorage` instance to both builders. The `Logger` then reads from the same storage that `Tracer` writes to, so every log record emitted inside a span automatically carries that span's `traceIdHi`, `traceIdLo`, `spanId`, and `traceFlags`:
-
-```scala
-import zio.blocks.telemetry._
-
-val cs = ContextStorage.defaultSpanContextStorage
-
-val tracerProvider = TracerProvider.builder
-  .setContextStorage(cs)
-  .addSpanProcessor(myExporter)
-  .build()
-
-val loggerProvider = LoggerProvider.builder
-  .setContextStorage(cs)
-  .addLogRecordProcessor(myLogProcessor)
-  .build()
-
-trace.install(tracerProvider)
-log.install(loggerProvider.get("com.example"))
-
-// Inside a span, log records carry the active SpanContext automatically:
-trace.span("checkout") { _ =>
-  log.info("payment initiated")  // LogRecord.traceIdHi/Lo set from the active span
-}
-```
-
-### Library DI Pattern
-
-Library code should accept `Tracer` and/or `Logger` as constructor parameters rather than calling the global singletons directly. This keeps libraries testable and decoupled from application-level provider configuration:
-
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 final class OrderService(tracer: Tracer, logger: Logger) {
   def placeOrder(id: String): Unit =
-    tracer.span("order.place", SpanKind.Internal) { span =>
+    tracer.span("orders.place") { span =>
       span.setAttribute("order.id", id)
-      logger.info("placing order", "orderId" -> AttributeValue.StringValue(id))
+      logger.info("order placed", "orderId" -> AttributeValue.StringValue(id))
     }
 }
-
-// In application startup, supply instances from the global providers:
-val service = new OrderService(
-  tracer = trace.get("com.example.orders"),
-  logger = loggerProvider.get("com.example.orders")
-)
 ```
+
+Application startup code injects instances by calling `trace.get("com.example.orders")` and `loggerProvider.get("com.example.orders")`.
 
 ### Scoped Log Annotations
 
-`log.annotated` propagates key-value pairs to all `log.*` calls within its block. Use this to attach a request ID, tenant ID, or user ID to all log records produced during a request without threading the value through every call site:
+`log.annotated` propagates key-value pairs to every `log.*` call within the block. Annotations are scoped to the enclosing thread and do not leak outside it:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 def handleRequest(requestId: String): Unit =
-  log.annotated("requestId" -> requestId) {
-    log.info("started")   // carries requestId -> requestId
-    processRequest()
-    log.info("finished")  // carries requestId -> requestId
+  log.annotated("requestId" -> requestId, "env" -> "prod") {
+    log.info("processing started")
+    log.info("processing done")
   }
 ```
 
 ### Rate-Limited Logging
 
-`log.infoEvery` and its severity siblings suppress repeated log calls, emitting at most once every N invocations per call site. Use this for heartbeats, polling loops, and any code path where emitting on every iteration would be too noisy:
-
-```scala
-import zio.blocks.telemetry._
-
-// Emits at most once every 1000 calls — call site is the discriminator
-while (running) {
-  log.infoEvery(1000, "worker heartbeat")
-  doWork()
-}
-```
-
-### Labeled Instruments for Prometheus-style Metrics
-
-`Meter#labeledCounter`, `Meter#labeledHistogram`, and `Meter#labeledGauge` declare label names once at instrument creation and accept positional label values when recording. This mirrors the Prometheus / OpenMetrics pattern and avoids constructing `Attributes` at each record site:
+The `*Every` family of log methods emits at most once every N invocations per call site. Because the counter is keyed by call site at compile time, multiple call sites with the same interval value are independent:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val meter    = metric.get("com.example.http")
-val requests = meter.labeledCounter("http.requests", "method", "status")
-val latency  = meter.labeledHistogram("http.request.latency", "endpoint")
+def heartbeat(): Unit =
+  log.infoEvery(100, "heartbeat tick")
+```
 
-// Record values with positional label values — arity is validated at runtime:
-requests.add(1, "GET", "200")
+### Labeled Instruments
+
+`Meter.labeledCounter`, `Meter.labeledHistogram`, and `Meter.labeledGauge` declare label names once and accept positional string values at recording time, matching the Prometheus-style label pattern:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val meter    = metric.get("com.example")
+val requests = meter.labeledCounter("http.requests", "method", "status")
+
+requests.add(1, "GET",  "200")
 requests.add(1, "POST", "500")
-latency.record(42.5, "/api/orders")
 ```
 
 ## Integration Points
 
-The telemetry module integrates with the rest of the ZIO Blocks library and with external systems at the following points.
+The telemetry module depends on the `context` module — specifically [`ContextStorage`](../context.md) — for scoped, thread-safe propagation of `SpanContext` through call stacks. No other module-level dependencies exist; the telemetry module is otherwise self-contained and requires no external libraries.
 
-The module depends on the `context` module for its `ContextStorage[A]` abstraction. On the JVM, the default implementation uses a `ScopedValue`; on Scala.js, a simple mutable cell. Passing `ContextStorage.defaultSpanContextStorage` to both builders is the standard way to enable trace-log correlation without writing platform-specific code.
+`SpanProcessor` and `LogRecordProcessor` are open traits. External exporters — for example, an OpenTelemetry SDK bridge — implement these traits to receive span and log data and forward it to collection infrastructure such as OTLP endpoints. Plug a custom `SpanProcessor` into `TracerProvider.builder.addSpanProcessor(...)` or a custom `LogRecordProcessor` into `LoggerProvider.builder.addLogRecordProcessor(...)`.
 
-The `otel` sub-project (a separate artifact) provides an OpenTelemetry Java SDK bridge. Use it when you need to interoperate with the Java OTel ecosystem — for example, to reuse an existing OTLP exporter or an SDK-based sampling configuration — without taking the Java SDK as a direct dependency in the telemetry module itself.
-
-`SpanProcessor` and `LogRecordProcessor` are open traits. Implement either to ship telemetry to any backend: OTLP over gRPC or HTTP, Zipkin, Jaeger, a database, or an in-process collector. On the JVM, `FileLogWriter` is available as a platform-specific `LogWriter` implementation; on Scala.js, a compatible writer targets browser-friendly output.
-
-The `LogEnrichment` typeclass is designed for extension. Adding a `LogEnrichment[MyType]` instance makes `MyType` values passable as enrichment arguments to any `log.*` call, and the macro picks them up transparently without any change to call sites.
+`LogEnrichment` is a typeclass resolved at compile time by the macro-generated `log.*` methods. Built-in instances cover `Throwable`, `Attributes`, `Severity`, and `(String, A)` pairs for `A ∈ {String, Long, Int, Double, Boolean}`. Adding support for a custom enrichment type requires only a new `implicit val LogEnrichment[MyType]` in scope at the `log.*` call site.
 
 ## See Also
 
-- [Telemetry Guide](../../guides/telemetry-guide.md) — Architecture, design philosophy, and real-world usage patterns for this module
-- [Context Reference](../context.md) — The `ContextStorage` abstraction used for trace-log correlation
-- [Scope Reference](../resource-management/scope.md) — Resource-safe provider lifecycle management
-- [Async Reference](../async.md) — Integration with the zero-allocation async effect type
+- [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
+- [Signal Metadata](./shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
+- [Context](../context.md) — `ContextStorage` used for trace–log correlation
