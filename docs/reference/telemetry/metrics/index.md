@@ -119,7 +119,7 @@ snapshots.foreach {
 
 ## Install a Provider and Reset
 
-`metric.install(provider)` swaps in a production `MeterProvider` — configured with a [`Resource`](../shared/resource.md) and reachable exporters through its `MetricReader`.
+`metric.install(provider)` swaps in a production `MeterProvider` — configured with a [`Resource`](../common/resource.md) and reachable exporters through its `MetricReader`.
 
 ```scala
 object metric {
@@ -147,4 +147,4 @@ metric.removeAll()
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — metrics data flow and labeled instrument patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Signal Metadata](../shared/index.md) — `Attributes` used as metric dimension labels
+- [Common Types](../common/index.md) — `Attributes` used as metric dimension labels

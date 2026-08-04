@@ -1067,3 +1067,11 @@ Yes. `ContextStorage` on JDK 25+ uses `ScopedValue`, which is the JDK 25 native 
 - **Installation and quick start:** same reference doc, Installation section
 - **Context and dependency injection:** [Context Reference](../reference/context.md) for integrating `OtelContext` with the Context module
 - **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) for managing provider lifetimes with Scope
+
+## See Also
+
+- [TracerProvider](../reference/telemetry/tracing/tracer-provider.md) — configure and install the tracing pipeline
+- [LoggerProvider](../reference/telemetry/logging/logger-provider.md) — configure and install the logging pipeline
+- [MeterProvider](../reference/telemetry/metrics/meter-provider.md) — configure and install the metrics pipeline
+- [Attributes](../reference/telemetry/common/attributes.md) — the unboxed key-value type carried by every signal
+- [Common Types](../reference/telemetry/common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

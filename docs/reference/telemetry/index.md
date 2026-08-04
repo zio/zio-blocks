@@ -65,14 +65,14 @@ The module is organized into three areas — tracing, logging, and metrics — t
 
 [Metrics](./metrics/index.md) covers dimensional cumulative and instantaneous measurements. `MeterProvider` is a factory for `Meter` instances; each `Meter` creates and registers instruments — `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` — keyed by name and `Attributes`. A `MetricReader` collects all registered instruments into `MetricData` snapshots on demand for export or inspection.
 
-### Signal Metadata
+### Common Types
 
 A span, a log record, and a measurement are different kinds of data, but they answer the same three questions: what happened, which service produced it, and which component inside that service. Four types carry those answers, and because all three pillars use the same four, whatever you learn about them applies everywhere:
 
-- [`Attributes`](./shared/attributes.md) — the detail on a signal, as typed key-value pairs: the route on a span, the order id on a log record, the labels on a measurement.
-- [`AttributeKey`](./shared/attribute-key.md) — a name paired with the type of its value, so reading an attribute back gives you a `String` or a `Long` rather than something to cast.
-- [`Resource`](./shared/resource.md) — which service produced the signal, attached to every one the provider emits. Give all three providers the same one.
-- [`InstrumentationScope`](./shared/instrumentation-scope.md) — which library or component produced it, taken from the name you pass to `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`.
+- [`Attributes`](./common/attributes.md) — the detail on a signal, as typed key-value pairs: the route on a span, the order id on a log record, the labels on a measurement.
+- [`AttributeKey`](./common/attribute-key.md) — a name paired with the type of its value, so reading an attribute back gives you a `String` or a `Long` rather than something to cast.
+- [`Resource`](./common/resource.md) — which service produced the signal, attached to every one the provider emits. Give all three providers the same one.
+- [`InstrumentationScope`](./common/instrumentation-scope.md) — which library or component produced it, taken from the name you pass to `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`.
 
 ## How They Work Together
 
@@ -298,5 +298,5 @@ The telemetry module depends on the `context` module — specifically [`ContextS
 ## See Also
 
 - [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
-- [Signal Metadata](./shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
+- [Common Types](./common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
 - [Context](../context.md) — `ContextStorage` used for trace–log correlation

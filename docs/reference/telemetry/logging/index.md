@@ -18,7 +18,7 @@ By default those records just accumulate in memory; to actually see them you poi
 
 After the message you attach context, and this is where structured logging pays off. The common case is key/value pairs — `log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)` — which become searchable fields on that entry instead of being buried in the text, so later you can query "all logs where `orderId = ord-123`". Pass a `Throwable` and its type, message, and stack trace are captured for you.
 
-A few other values mean something specific rather than becoming a field: a [`Severity`](./severity.md) overrides the entry's level, an [`Attributes`](../shared/attributes.md) set adds many fields at once, and a plain `String` replaces the message body. And when you want to log one of your own types directly, give it a [`LogEnrichment`](./log-enrichment.md) instance that tells `log` how to turn it into fields.
+A few other values mean something specific rather than becoming a field: a [`Severity`](./severity.md) overrides the entry's level, an [`Attributes`](../common/attributes.md) set adds many fields at once, and a plain `String` replaces the message body. And when you want to log one of your own types directly, give it a [`LogEnrichment`](./log-enrichment.md) instance that tells `log` how to turn it into fields.
 
 
 ## Example Usage
@@ -192,4 +192,4 @@ log.install(logger, Severity.Info)
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — logging data flow, rate limiting, and production patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Signal Metadata](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`
+- [Common Types](../common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

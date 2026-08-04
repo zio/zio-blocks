@@ -41,7 +41,7 @@ trace.span("handle-request") { span =>
 
 ## Classify a Span and Pre-Set Attributes
 
-Two overloads add a [`SpanKind`](./span-kind.md) and, optionally, initial [`Attributes`](../shared/attributes.md).
+Two overloads add a [`SpanKind`](./span-kind.md) and, optionally, initial [`Attributes`](../common/attributes.md).
 
 ```scala
 object trace {
@@ -106,7 +106,7 @@ Order matters here. A `Tracer` is bound to whichever provider was installed when
 
 ## Install a Provider and Reset
 
-`trace.install(provider)` swaps in a production `TracerProvider` — configured with a [`Resource`](../shared/resource.md), a `Sampler`, and one or more `SpanProcessor` exporters.
+`trace.install(provider)` swaps in a production `TracerProvider` — configured with a [`Resource`](../common/resource.md), a `Sampler`, and one or more `SpanProcessor` exporters.
 
 ```scala
 object trace {
@@ -137,4 +137,4 @@ trace.span("handle-request", SpanKind.Server)(_.setAttribute("http.route", "/ord
 
 - [Telemetry Guide](../../../guides/telemetry-guide.md) — tracing data flow, sampling, and production patterns
 - [Telemetry Reference](../index.md) — module overview and all three pillars
-- [Signal Metadata](../shared/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`
+- [Common Types](../common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

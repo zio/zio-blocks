@@ -9,7 +9,7 @@ keywords:
   - "TracerProvider"
 ---
 
-`TracerProvider` exists so tracing is configured once, in a single place. You set the service identity ([`Resource`](../shared/resource.md)), the sampling policy ([`Sampler`](./sampler.md)), and where finished spans go ([`SpanProcessor`](./span-processor.md)s) when you build it at startup; from then on every [`Tracer`](./tracer.md) it hands out — and every span they create — shares that one configuration, so all your telemetry carries a consistent identity and policy. You build it once, install it, and rarely touch it again.
+`TracerProvider` exists so tracing is configured once, in a single place. You set the service identity ([`Resource`](../common/resource.md)), the sampling policy ([`Sampler`](./sampler.md)), and where finished spans go ([`SpanProcessor`](./span-processor.md)s) when you build it at startup; from then on every [`Tracer`](./tracer.md) it hands out — and every span they create — shares that one configuration, so all your telemetry carries a consistent identity and policy. You build it once, install it, and rarely touch it again.
 
 ```scala
 final class TracerProvider private[telemetry] (...) extends AutoCloseable {

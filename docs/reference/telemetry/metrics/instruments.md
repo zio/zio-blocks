@@ -12,7 +12,7 @@ sidebar_label: "Instruments"
 
 The four synchronous instruments are what application code actually calls to record measurements. They differ by what they measure: a `Counter` sums a monotonic total, an `UpDownCounter` tracks a value that rises and falls, a `Histogram` builds a distribution of observations, and a `Gauge` holds the latest reading. Reach for them through [`metric`](./index.md) (`metric.counter("…")`) or a [`Meter`](./meter.md) builder — either path registers the instrument so `MetricReader.collectAllMetrics()` collects it into a [`MetricData`](./metric-data.md) snapshot.
 
-All four share the same recording shape: `add` (counters) or `record` (histogram, gauge) takes a value plus optional dimension labels, either as an [`Attributes`](../shared/attributes.md) set or as `(String, Any)*` tuples; `bind` pre-attaches a label set for hot-path reuse; and `collect` snapshots the accumulated data into a [`MetricData`](./metric-data.md) variant.
+All four share the same recording shape: `add` (counters) or `record` (histogram, gauge) takes a value plus optional dimension labels, either as an [`Attributes`](../common/attributes.md) set or as `(String, Any)*` tuples; `bind` pre-attaches a label set for hot-path reuse; and `collect` snapshots the accumulated data into a [`MetricData`](./metric-data.md) variant.
 
 ## Counter
 

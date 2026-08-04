@@ -11,7 +11,7 @@ keywords:
 
 A `LoggerProvider` is what makes [`Logger`](./logger.md)s. You build one at startup, and it hands out every logger your application uses.
 
-It exists so that two questions get answered once instead of at every call site: *who is logging* — your service's identity, a [`Resource`](../shared/resource.md) — and *where the logs go* — the [`LogRecordProcessor`](./log-record-processor.md)s that render or ship each record. Every logger the provider creates inherits both, so pointing your whole application at a different destination is a one-line change at startup rather than an edit everywhere you log.
+It exists so that two questions get answered once instead of at every call site: *who is logging* — your service's identity, a [`Resource`](../common/resource.md) — and *where the logs go* — the [`LogRecordProcessor`](./log-record-processor.md)s that render or ship each record. Every logger the provider creates inherits both, so pointing your whole application at a different destination is a one-line change at startup rather than an edit everywhere you log.
 
 Most applications never hold a provider directly: build one, hand a logger from it to `log.install(...)`, and use the global [`log`](./index.md) from then on. Reach for the provider itself when you need that startup configuration under your own control.
 

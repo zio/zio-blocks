@@ -273,14 +273,14 @@ const sidebars = {
               },
               {
                 type: "category",
-                label: "Signal Metadata",
-                link: { type: "doc", id: "reference/telemetry/shared/index" },
+                label: "Common Types",
+                link: { type: "doc", id: "reference/telemetry/common/index" },
                 collapsed: false,
                 items: [
-                  "reference/telemetry/shared/attributes",
-                  "reference/telemetry/shared/attribute-key",
-                  "reference/telemetry/shared/resource",
-                  "reference/telemetry/shared/instrumentation-scope",
+                  "reference/telemetry/common/attributes",
+                  "reference/telemetry/common/attribute-key",
+                  "reference/telemetry/common/resource",
+                  "reference/telemetry/common/instrumentation-scope",
                 ]
               },
             ]
