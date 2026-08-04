@@ -1,12 +1,12 @@
 ---
 id: index
 title: "Common Types"
-description: "Shared telemetry types: Attributes, AttributeKey, Resource, and InstrumentationScope — the common building blocks used across tracing, logging, and metrics."
+description: "The four types every signal carries — Attributes and AttributeKey for its detail, Resource and InstrumentationScope for what produced it."
 keywords:
   - "Telemetry Metadata"
+  - "Signal Attributes"
+  - "Service Identity"
   - "Common Types"
-  - "Common Building Blocks"
-  - "Attributes"
 sidebar_label: "Common Types"
 ---
 
