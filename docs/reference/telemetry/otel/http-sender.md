@@ -5,9 +5,7 @@ description: "The transport an exporter sends through — a JDK HTTP client by d
 keywords:
   - "Telemetry Export"
   - "Http Transport"
-  - "Test Double"
   - "HttpSender"
-sidebar_label: "HttpSender"
 ---
 
 `HttpSender` is the one piece of the export path that actually touches the network. An exporter hands it a URL, headers, and a body of OTLP bytes; it performs the request and returns the response.
@@ -56,7 +54,7 @@ final case class HttpResponse(
 
 ## Writing Your Own
 
-Implement the two methods. Return a `2xx` status for a send the exporter should treat as delivered, and anything else to mark it failed. Most custom senders aren't replacements but wrappers: do your own work — sign the request, pick a proxy, count attempts — then delegate to `HttpSender.jdk(...)` and pass its response back. A test double is the exception, returning `HttpResponse(200, Array.emptyByteArray, Map.empty)` without touching the network.
+Implement the two methods. Return a `2xx` status for a send the exporter should treat as delivered, and anything else to mark it failed. Most custom senders aren't replacements but wrappers: do your own work — sign the request, pick a proxy, count attempts — then delegate to `HttpSender.jdk(...)` and pass its response back. 
 
 ## See Also
 
