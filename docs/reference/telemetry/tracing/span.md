@@ -107,3 +107,9 @@ trace.span("charge") { span =>
 A span's `name`, `kind`, and [`spanContext`](./span-context.md) are set at creation and never change. `spanContext` is the span's identity — the trace and span IDs that let all the telemetry from one request be tied together.
 
 You rarely touch it. Correlation happens for you: logging stamps the active span's IDs onto every record automatically, and request instrumentation propagates them to downstream services. Reach for `span.spanContext.traceIdHex` directly only in the low-level case — correlating with a system that isn't wired in, or crossing a boundary the instrumentation doesn't cover.
+
+## Ending a Span
+
+`trace.span` ends the span for you, including when the block throws — the span is closed on the way out and the exception propagates. Nothing sets an error status for you, though: a span whose block threw still reports `SpanStatus.Unset` unless you call `setStatus(SpanStatus.Error(...))` yourself.
+
+Ending is idempotent. The first `end()` wins and any later call is silently ignored, so a `finally` block that ends a span already ended by `trace.span` is harmless. The `end(endTimeNanos)` overload exists for when you are replaying or bridging spans and need to state the finish time rather than take the clock's.

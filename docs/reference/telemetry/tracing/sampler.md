@@ -83,3 +83,7 @@ object TenantSampler extends Sampler {
 val provider = TracerProvider.builder.setSampler(TenantSampler).build()
 provider.shutdown()
 ```
+
+The `attributes` your sampler sees are only the ones passed at creation — `trace.span(name, kind, attributes)` or a builder's `setAttribute` before `startSpan()`. Anything you set on the span *inside* the block happens after the decision, so a sampler can never route on it.
+
+A dropped span is not nothing. The block still runs with a no-op span, and a valid trace id is still put in scope with the sampled bit cleared — so a nested `trace.span` under `ParentBasedSampler` is dropped too, and an outgoing request still carries the trace with flags `00`. That's what lets a downstream service honor the decision you made at the edge.

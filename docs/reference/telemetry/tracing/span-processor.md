@@ -28,7 +28,9 @@ object SpanProcessor {
 
 ## Implementing a Processor
 
-A custom processor forwards each `SpanData` to an export target. Register it on the provider with `addSpanProcessor`; when several are registered, they receive callbacks in insertion order:
+A custom processor forwards each `SpanData` to an export target. Register it on the provider with `addSpanProcessor`; when several are registered, they receive callbacks in insertion order.
+
+`onEnd` runs synchronously, on the thread that just ended the span — so whatever it does lands in that request's latency. Keep it to handing the snapshot off to a queue or buffer, and let a background thread do the network call:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._

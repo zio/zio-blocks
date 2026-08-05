@@ -23,7 +23,7 @@ final case class SpanContext(
   traceState:  String,      // W3C tracestate header value
   isRemote:    Boolean      // true when extracted from an incoming request
 ) {
-  def isValid:    Boolean   // true when traceId or spanId is non-zero
+  def isValid:    Boolean   // true only when BOTH the trace ID and span ID are non-zero
   def isSampled:  Boolean   // true when the sampled bit of traceFlags is set
   def traceIdHex: String    // 32-char lowercase hex trace ID
 }

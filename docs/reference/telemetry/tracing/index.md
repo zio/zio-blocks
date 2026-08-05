@@ -14,7 +14,7 @@ Tracing follows a single request as it moves through your application — and ac
 
 You create spans through the `trace` object: `trace.span("handle-request") { span => … }` wraps a block of work — it opens a span, runs the block, and closes the span automatically when the block returns. A `trace.span` opened inside another automatically becomes its child, so the tree builds itself with no manual wiring. Inside the block you annotate the span with attributes, events, and a status, and classify its role with a [`SpanKind`](./span-kind.md) when it crosses a service boundary.
 
-With no setup, `trace` records every span into an in-memory buffer — the default for development and tests, where `trace.collectedSpans` returns exactly what was recorded. For production, call `trace.install(provider)` once at startup to send spans to a real backend (Jaeger, OTLP, …); a [`Sampler`](./sampler.md) then decides which spans to keep so you aren't exporting everything under load. The types behind `trace` — [`TracerProvider`](./tracer-provider.md), [`Tracer`](./tracer.md), [`Span`](./span.md), and the [`SpanProcessor`](./span-processor.md)s — are configured once at startup; day to day you just call `trace.span`.
+With no setup, `trace` records every span into an in-memory buffer — the default for development and tests, where `trace.collectedSpans` hands back what was recorded. For production, call `trace.install(provider)` once at startup to send spans to a real backend (Jaeger, OTLP, …); a [`Sampler`](./sampler.md) then decides which spans to keep so you aren't exporting everything under load. The types behind `trace` — [`TracerProvider`](./tracer-provider.md), [`Tracer`](./tracer.md), [`Span`](./span.md), and the [`SpanProcessor`](./span-processor.md)s — are configured once at startup; day to day you just call `trace.span`.
 
 ## Open a Span and Record Work
 
@@ -104,6 +104,21 @@ trace.collectedSpans.foreach(sd => println(sd.instrumentationScope.name))
 
 Order matters here. A `Tracer` is bound to whichever provider was installed when `trace.get` ran, while `trace.span` looks up the current provider on every call. Get your tracers *after* `trace.install(...)`, or a tracer created during startup will keep recording into the default in-memory buffer and its spans will never reach the exporter you installed afterwards.
 
+## Inspect Recorded Spans
+
+Until you install a provider, finished spans stay in memory where a test can read them back:
+
+```scala
+object trace {
+  def collectedSpans: List[SpanData]
+  def clearSpans(): Unit
+}
+```
+
+`collectedSpans` returns each completed span as [`SpanData`](./span-data.md), oldest first, and `clearSpans()` empties the buffer — call it at the start of a test so you assert on that test's spans alone.
+
+Two limits are worth knowing before you rely on this. The buffer is a ring of 1024 spans, so a long run silently overwrites its oldest entries; assert as you go rather than at the end of a large suite. And both methods read the buffer belonging to the **default** provider, so once you call `trace.install(...)`, they stop seeing new spans — a test that installs a provider has to collect through that provider's own processors instead.
+
 ## Install a Provider and Reset
 
 `trace.install(provider)` swaps in a production `TracerProvider` — configured with a [`Resource`](../common/resource.md), a `Sampler`, and one or more `SpanProcessor` exporters.
@@ -131,7 +146,7 @@ trace.install(
 trace.span("handle-request", SpanKind.Server)(_.setAttribute("http.route", "/orders"))
 ```
 
-`trace.removeAll()` detaches the provider, turning subsequent spans into no-ops.
+`trace.removeAll()` swaps in a provider whose sampler drops everything. Your `trace.span` blocks still run — they just receive a no-op `Span` that records nothing — so removing tracing never changes what your code does, only what it reports. Note that it leaves the in-memory buffer untouched; use `clearSpans()` to empty that.
 
 ## See Also
 

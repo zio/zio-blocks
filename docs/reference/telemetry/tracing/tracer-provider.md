@@ -35,7 +35,9 @@ final class TracerProviderBuilder private[telemetry] (...) {
 
 ## Usage
 
-Build a provider once at startup, set only what you need — a `Resource` for your service identity, a `Sampler`, and the `SpanProcessor`s that export your spans — then `get` a `Tracer` from it. Anything you leave unset takes a sensible default (record every span; keep spans in memory until you add a processor):
+Build a provider once at startup, set only what you need — a `Resource` for your service identity, a `Sampler`, and the `SpanProcessor`s that export your spans — then `get` a `Tracer` from it. Unset fields take defaults: `Resource.default` (whose `service.name` is the placeholder `unknown_service`) and `AlwaysOnSampler`, which records every span.
+
+Do add a processor, though. The default processor list is **empty**, so a provider you build yourself samples spans and then discards them — nothing keeps or exports them. The in-memory buffer behind `trace.collectedSpans` belongs to the global `trace` object's own provider, not to yours:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -65,6 +67,8 @@ val provider = TracerProvider.builder
 
 trace.install(provider)
 ```
+
+Each `get` builds a new `Tracer` — there is no caching — so take one per component at startup and hold it, rather than calling `get` inside a request. Passing a `version` alongside the name records it on the scope, which is how you tell spans from two releases of the same library apart.
 
 ## Lifecycle
 
