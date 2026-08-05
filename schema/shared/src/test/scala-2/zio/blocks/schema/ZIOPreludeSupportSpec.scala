@@ -86,6 +86,19 @@ object ZIOPreludeSupportSpec extends SchemaBaseSpec {
       )
       val schema = Schema.derived[NRecord]
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+    },
+    test("implicit Either schemas preserve primitive layouts for newtypes") {
+      implicit val intSchema: Schema[NInt.Type]   = Schema.derived[NInt.Type]
+      implicit val longSchema: Schema[NLong.Type] = Schema.derived[NLong.Type]
+
+      def eitherSchema[A: Schema, B: Schema]: Schema[Either[A, B]] = Schema[Either[A, B]]
+
+      val schema = eitherSchema[NInt.Type, NLong.Type]
+      val left   = Left(NInt(1)): Either[NInt.Type, NLong.Type]
+      val right  = Right(NLong(2L)): Either[NInt.Type, NLong.Type]
+
+      assert(schema.fromDynamicValue(schema.toDynamicValue(left)))(isRight(equalTo(left))) &&
+      assert(schema.fromDynamicValue(schema.toDynamicValue(right)))(isRight(equalTo(right)))
     }
   )
 

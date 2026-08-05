@@ -456,7 +456,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.1" % Test,
       "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
   )
@@ -564,7 +564,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.0" % Test
         )
     })
   )
@@ -585,7 +585,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.0" % Test
         )
     })
   )
@@ -983,7 +983,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.0" % Test
         )
     }),
     coverageMinimumStmtTotal   := 96,
@@ -1026,7 +1026,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.9.0",
+      "org.mongodb" % "bson"         % "5.9.1",
       "dev.zio"    %% "zio-test"     % "2.1.26" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.26" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -1034,7 +1034,7 @@ lazy val `schema-bson` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.0" % Test
         )
     }),
     coverageMinimumStmtTotal   := 66,
@@ -1113,7 +1113,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.0" % Test
         )
     })
   )
@@ -1126,7 +1126,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.0" % Test
         )
     })
   )
@@ -1481,7 +1481,7 @@ lazy val zioGolemBuildCodegen = project
     organization   := "dev.zio",
     scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.17.2",
+      "org.scalameta" %% "scalameta" % "4.17.3",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
@@ -1553,10 +1553,10 @@ lazy val `streams-benchmark` = project
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.5.0",
       // Kyo — algebraic effect streams (Scala 3 only)
-      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC5",
-      "io.getkyo" %% "kyo-core"    % "1.0.0-RC5",
+      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC6",
+      "io.getkyo" %% "kyo-core"    % "1.0.0-RC6",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.5"
+      "com.softwaremill.ox" %% "core" % "1.0.6"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
@@ -1582,7 +1582,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1610,7 +1610,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"     %% "zio-sbt-source" % "0.6.1"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1646,8 +1646,9 @@ lazy val docs = project
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-prelude"    % "1.0.0-RC47",
-      "dev.zio" %% "zio-sbt-source" % "0.6.0"
+      "dev.zio"   %% "zio-prelude"    % "1.0.0-RC47",
+      "dev.zio"   %% "zio-sbt-source" % "0.6.1",
+      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
     mdocVariables ++= Map(
@@ -1657,7 +1658,8 @@ lazy val docs = project
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
     ),
-    mdocOut := (ThisBuild / baseDirectory).value / "website" / "docs"
+    websiteDir := (ThisBuild / baseDirectory).value.toPath.resolve("website"),
+    mdocOut    := (ThisBuild / baseDirectory).value / "website" / "docs"
   )
   .dependsOn(
     schema.jvm,
@@ -1686,6 +1688,7 @@ lazy val docs = project
     htmx.jvm,
     mux.jvm,
     async.jvm,
+    sql.jvm,
     telemetry.jvm,
     otel
   )
@@ -1841,7 +1844,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     // compatibility.
     libraryDependencies ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.3")
+        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.4")
         case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       }
     },

@@ -7,6 +7,12 @@ title: "SQL — ZIO Integration"
 core JDBC transactor so ZIO applications can use the same SQL layer without
 changing the underlying database API.
 
+This guide covers two integration styles: `ZLayer`-based dependency injection
+for the plain synchronous `Transactor` (via `JdbcTransactor.postgresLayer` /
+`sqliteLayer`), and the `TransactorZIO` wrapper class for ZIO-native blocking
+and effect-aware methods. For a full method-by-method reference on
+`TransactorZIO`, see [TransactorZIO](./sql/transactor-zio.md).
+
 ## Installation
 
 ```scala

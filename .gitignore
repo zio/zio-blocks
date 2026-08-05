@@ -74,3 +74,4 @@ website/build/*
 website/.docusaurus
 *.class
 *.tasty
+.flowrite/
