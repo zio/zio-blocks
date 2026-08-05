@@ -14,7 +14,7 @@ Logging records what your application did as it runs, so you can understand its 
 
 You write logs through the `log` object: call `log.info("order placed")` (or `debug`, `warn`, `error`, …) anywhere in your code and it works immediately, with no setup. Behind each call, `log` automatically records where the log came from — the file, class, method, and line — and stamps it with the trace and span of whatever [`trace.span`](../tracing/index.md) you happen to be inside. That stamping is what lets logs and traces line up later: no need to thread a request id through your code by hand.
 
-By default those records just accumulate in memory; to actually see them you point `log` at a destination once, at application startup. For local development, `log.writer(...)` prints human-readable (or JSON) lines to the console through a [`LogWriter`](./log-writer.md). For production, `log.install(...)` or `log.addProcessor(...)` wires up a full pipeline that ships records to a backend for storage and search. You do this once; every `log.*` call in the app then flows through it.
+Out of the box those records print to stdout as readable text, so `log.info(...)` shows up on your console with nothing configured. When you want a different destination you add one once, at application startup: `log.writer(...)` adds a channel with a formatter of your choosing — JSON, say — through a [`LogWriter`](./log-writer.md), while `log.install(...)` or `log.addProcessor(...)` wires up a pipeline that ships records to a backend for storage and search. Both are additive, so the default console output stays until you replace the backend outright.
 
 After the message you attach context, and this is where structured logging pays off. The common case is key/value pairs — `log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)` — which become searchable fields on that entry instead of being buried in the text, so later you can query "all logs where `orderId = ord-123`". Pass a `Throwable` and its type, message, and stack trace are captured for you.
 
@@ -75,7 +75,7 @@ object log {
 }
 ```
 
-The `Every` family is count-based — `<level>Every(every, msg, ctx*)` emits on every Nth call at that site. The `AtMost` family is time-based — `<level>AtMost(intervalMillis, msg, ctx*)` emits at most once per interval at that site. Each call site tracks its own counter/clock independently.
+The `Every` family is count-based — `<level>Every(every, msg, ctx*)` emits on every Nth call at that site. The `AtMost` family is time-based — `<level>AtMost(intervalMillis, msg, ctx*)` emits at most once per interval at that site. Each site gets its own counter and clock, keyed by its file and line into a fixed table of 4096 slots; two distant sites can land in the same slot, in which case they share a counter and one of them logs less often than its `every` suggests.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -123,7 +123,7 @@ trace.span("checkout") { _ =>
 
 ## Filter by Severity
 
-Every log carries a `Severity`, and a **minimum-severity floor** decides which ones actually get recorded: anything below the floor is dropped — cheaply, before the record is even built. You use this to control noise: run production at `Info` (dropping the `trace`/`debug` chatter) and turn detail back up only where and when you need it.
+Every log carries a `Severity`, and a **minimum-severity floor** decides which ones actually get recorded: anything below the floor is dropped — cheaply, before the record is even built. The floor starts at `Trace`, so everything passes until you raise it. You use this to control noise: run production at `Info` (dropping the `trace`/`debug` chatter) and turn detail back up only where and when you need it.
 
 ```scala
 object log {
@@ -136,6 +136,8 @@ object log {
 ```
 
 `setMinSeverity(severity)` sets one floor for the whole application. `setMinSeverity(prefix, severity)` overrides it for a package — matched against the call site's namespace — and works both ways: raise the floor on a chatty dependency to quiet it, or lower it on the package you're debugging to see more, without touching the rest of the app. `clearMinSeverity(prefix)` removes one override and `clearAllOverrides()` removes them all, back to the global floor.
+
+When several prefixes match a call site, the longest one wins — so `"com.example"` at `Warn` plus `"com.example.orders"` at `Debug` gives you debug logs from the orders package and warnings from everything else under `com.example`. Matching is a plain string prefix on the enclosing class name, not a package-boundary check, so `"com.acme"` also matches `com.acmecorp`.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
