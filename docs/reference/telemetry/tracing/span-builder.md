@@ -54,3 +54,4 @@ try span.setAttribute("message.id", "msg-456")
 finally span.end()
 ```
 
+`SpanBuilder(name)` also builds one standalone, without a tracer. It is rarely what you want — the span it produces is attributed to `Resource.empty` and the scope name `"default"` rather than to your service and component, on top of reaching no sampler or processor. Reach for it only where no tracer exists yet, such as bridging a span in from another system. Note also that `startSpan()` marks the span sampled whenever there is no valid parent, so a standalone span always claims the sampled bit.

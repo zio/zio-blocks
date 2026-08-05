@@ -58,7 +58,9 @@ trace.span("http.request", SpanKind.Server) { span =>
 
 ## Annotating a Span
 
-Everything you do with a span happens inside the `trace.span` block, before it ends. Once the span ends, every `setAttribute`, `addEvent`, and `setStatus` call is silently ignored. If the sampler dropped the span you receive `Span.NoOp` — a no-op you can still call freely, so no guards are needed; check `isRecording` only to skip expensive annotation work for a dropped or ended span.
+The four convenience overloads cover the common value types; the typed `setAttribute[A](key, value)` form accepts any [`AttributeKey`](../common/attribute-key.md), including the sequence-valued ones (`AttributeKey.stringSeq` and friends) that have no shorthand.
+
+Everything you do with a span happens inside the `trace.span` block, before it ends. Once the span ends, every `setAttribute`, `addEvent`, and `setStatus` call is silently ignored. If the sampler dropped the span you receive `Span.NoOp` — a no-op you can still call freely, so no guards are needed; check `isRecording` only to skip expensive annotation work for a dropped or ended span. Reading from a `NoOp` gives you blanks rather than errors: an invalid `spanContext`, an empty `name`, `SpanKind.Internal`, and `isRecording = false`.
 
 ### Attributes
 

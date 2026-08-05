@@ -72,7 +72,18 @@ Each `get` builds a new `Tracer` — there is no caching — so take one per com
 
 ## Lifecycle
 
-Call `shutdown()` once when the app exits — it flushes and releases every processor. (`close()` is an `AutoCloseable` alias for it; `forceFlush()` exports buffered spans on demand.)
+Call `shutdown()` once when the app exits — it forwards to every registered processor so each can flush what it is holding and release its resources. `forceFlush()` does the flushing without the release, for when you want buffered spans exported now.
+
+`shutdown()` does not disable the provider: it still hands out tracers and still records spans afterwards, they just reach processors that have already been shut down. Treat it as the last thing you call, not a switch you can toggle. Since a provider is `AutoCloseable` — `close()` is an alias for `shutdown()` — you can also let the language make that call:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import scala.util.Using
+
+Using.resource(TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build()) { provider =>
+  provider.get("com.example").span("startup")(_ => ())
+}
+```
 
 ## Trace–Log Correlation
 
