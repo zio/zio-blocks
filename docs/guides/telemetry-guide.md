@@ -108,7 +108,7 @@ The global singletons are intentionally not safe to use across threads during `i
 
 The simplest possible start:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 log.info("server started")
@@ -118,7 +118,7 @@ No imports beyond the package. No provider setup. Output goes to stdout as human
 
 Moving to a more realistic setup:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 // Structured attributes alongside the message
@@ -127,29 +127,40 @@ log.info("user signed in", "user_id" -> "u-7890", "method" -> "oauth2")
 // Numbers are unboxed on the fast path
 log.info("payment processed", "amount_cents" -> 4999L, "currency" -> "EUR")
 
-// Exceptions get type, message, and stacktrace automatically
-log.error("payment failed", new IllegalStateException("card declined"))
+// Exceptions get type, message, and stacktrace automatically.
+// Bind to a Throwable-typed val; an inline `new SomeException(...)` does not resolve.
+val declined: Throwable = new IllegalStateException("card declined")
+log.error("payment failed", declined)
 
 // Mix freely
+val timeout: Throwable = new RuntimeException("timeout")
 log.warn(
   "upstream degraded",
   "service" -> "inventory",
   "latency_ms" -> 850L,
-  new RuntimeException("timeout")
+  timeout
 )
 ```
 
-Adding a file output at startup:
+Adding a file output at startup. The module ships stdout, stderr, and no-op writers; a file destination is a few lines of your own:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import java.io.PrintWriter
+
+final class AppFileWriter(path: String) extends LogWriter {
+  private val out = new PrintWriter(path)
+  def write(content: CharSequence): Unit = out.println(content)
+  override def flush(): Unit             = out.flush()
+  override def close(): Unit             = out.close()
+}
 
 // Human-readable text to one file, OTLP JSON to another
-log.writer(TextLogFormatter, FileLogWriter("logs/app.log"))
-log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+log.writer(TextLogFormatter, new AppFileWriter("logs/app.log"))
+log.writer(JsonLogFormatter, new AppFileWriter("logs/app.jsonl"))
 ```
 
-Both outputs are active simultaneously. `writer()` is additive.
+Both outputs are active simultaneously, alongside the default console output — `writer()` is additive.
 
 ### Macro mechanics explained
 
@@ -214,7 +225,7 @@ The `LogEnrichment[A]` typeclass lets the macro delegate argument resolution to 
 
 Say you want to log `UUID` values directly:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.util.UUID
 
@@ -236,7 +247,7 @@ log.info("request started", "request_id" -> requestId)
 
 For `java.time.Instant`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.time.Instant
 
@@ -259,12 +270,20 @@ log.info("event occurred", "timestamp" -> Instant.now())
 
 Every call to `log.writer(formatter, writer)` adds another output. The state is maintained inside the `log` object and composited into the active logger:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import java.io.PrintWriter
+
+final class AppFileWriter(path: String) extends LogWriter {
+  private val out = new PrintWriter(path)
+  def write(content: CharSequence): Unit = out.println(content)
+  override def flush(): Unit             = out.flush()
+  override def close(): Unit             = out.close()
+}
 
 // Setup at startup; all three are active simultaneously
-log.writer(TextLogFormatter, FileLogWriter("logs/app.log"))
-log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+log.writer(TextLogFormatter, new AppFileWriter("logs/app.log"))
+log.writer(JsonLogFormatter, new AppFileWriter("logs/app.jsonl"))
 // The OTEL exporter is a LogRecordProcessor, added via LoggerProvider (see Part 5)
 ```
 
@@ -272,7 +291,9 @@ Internally, `log.writer(...)` creates a `FormattedLogRecordProcessor` (which pai
 
 To remove all file writers:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 log.clearWriters()
 ```
 
@@ -282,7 +303,9 @@ This shuts down each `FormattedLogRecordProcessor` cleanly and reverts to proces
 
 The same call:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 ```
 
@@ -338,8 +361,10 @@ assert(warns.exists(_.body.value.contains("payment")))
 
 Don't forget to restore state between tests:
 
-```scala
-log.uninstall()  // reverts to default console logger
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+log.removeAll()  // drops every writer and processor; log.* becomes a no-op
 ```
 
 ---
@@ -404,12 +429,12 @@ tracer.span("checkout") { span =>
 
 This is the right choice for most production services. The gateway or entry service decides sampling, and all downstream services follow automatically. Configure it with `AlwaysOnSampler` as the root if you want the gateway to sample everything, or with a `RateLimitedSampler` (if you implement one) for head-based sampling:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val tracerProvider = TracerProvider.builder
   .setSampler(ParentBasedSampler(root = AlwaysOnSampler))
-  .addSpanProcessor(yourExporter)
+  .addSpanProcessor(SpanProcessor.noop)  // your exporter here
   .build()
 
 trace.install(tracerProvider)
@@ -442,10 +467,9 @@ Here's a complete round trip. The server receives an HTTP request with W3C `trac
 
 **HTTP server (receiving a trace):**
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 // Simulate incoming HTTP headers
 val incomingHeaders = Map(
@@ -459,29 +483,31 @@ val parentCtx: Option[SpanContext] =
 val tracer = trace.get("api-service")
 
 // Wire the extracted context as the parent by scoping it in ContextStorage
+// A provider's own contextStorage is internal, so create one and pass it in
+val contextStorage = ContextStorage.create[Option[SpanContext]](None)
+
 val tracerProvider = TracerProvider.builder
-  .addSpanProcessor(yourExporter)
+  .addSpanProcessor(SpanProcessor.noop)  // your exporter here
+  .setContextStorage(contextStorage)
   .build()
 
-// Use the provider's context storage to set the remote parent
-val contextStorage = tracerProvider.contextStorage
+trace.install(tracerProvider)
 
 contextStorage.scoped(parentCtx) {
   tracer.span("handle-checkout", SpanKind.Server) { span =>
     span.setAttribute("http.method", "POST")
     span.setAttribute("http.route", "/checkout")
     // Your handler logic here
-    processCheckout()
+    ()  // your handler logic here
   }
 }
 ```
 
 **HTTP client (injecting trace into outbound call):**
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 val tracer = trace.get("api-service")
 
@@ -494,7 +520,7 @@ tracer.span("call-inventory", SpanKind.Client) { span =>
   )
 
   // headers now contains: "traceparent" -> "00-<traceId>-<spanId>-01"
-  httpClient.post("http://inventory-service/check", headers)
+  headers  // hand these to your HTTP client
 }
 ```
 
@@ -506,7 +532,7 @@ For Zipkin/B3 compatibility, swap `W3CTraceContextPropagator` for `B3Propagator.
 
 The default `trace` provider stores spans in an in-memory processor:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 // Reset before each test
@@ -575,7 +601,7 @@ More specifically:
 - Use **`Histogram`** when you care about the distribution, not just the total: latency percentiles (p50, p95, p99), request sizes. Histograms record min, max, sum, count, and configurable bucket counts.
 - Use **`Gauge`** when you're sampling the current value of something external: a JVM heap usage check, a pool size read from a connection pool object. Last-write wins.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests     = metric.counter("http.requests.total")
@@ -601,7 +627,7 @@ heapUsed.record(Runtime.getRuntime.totalMemory() - Runtime.getRuntime.freeMemory
 
 When you record against the same label combination at high frequency, pre-binding avoids the `Attributes` lookup on every call:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests = metric.counter("http.requests.total")
@@ -621,7 +647,7 @@ A `BoundCounter` holds a direct reference to the `LongAdder` for that attribute 
 
 The same pattern works for histograms and gauges:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val latency    = metric.histogram("http.request.duration_ms")
@@ -639,7 +665,7 @@ def updatePrimaryPoolSize(n: Double): Unit = primaryPool.record(n)
 
 `Counter.collect()`, `Histogram.collect()`, and `Gauge.collect()` snapshot the current state of the instrument without resetting it:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests = metric.counter("http.requests.total")
@@ -656,7 +682,10 @@ val data = requests.collect()
 Each `SumDataPoint` contains the full attribute set plus the accumulated value. The OTLP exporter's `collectFn` calls `.collect()` on each instrument you register:
 
 ```scala
-package zio.blocks.telemetry.otel
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+
 
 val metricExporter = new OtlpJsonMetricExporter(
   config, resource, scope, sender,
@@ -692,7 +721,9 @@ The `collectFn` is called by the `BatchProcessor`'s flush task on the configured
 The OTEL exporters live in `package zio.blocks.telemetry.otel` and are `private[otel]`. Your bootstrap code must be in the same package (or a class in that package):
 
 ```scala
-package zio.blocks.telemetry.otel
+import zio.blocks.telemetry.otel._
+
+
 
 import zio.blocks.telemetry._
 import java.util.concurrent.TimeUnit
@@ -747,8 +778,8 @@ object Telemetry {
 
     log.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
 
-    // Optional: also write to a local file as backup
-    log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+    // Optional: also emit JSON on stderr (a file needs your own LogWriter, see Part 2)
+    log.writer(JsonLogFormatter, StderrWriter)
 
     // --- Metrics ---
     val meterProvider = MeterProvider.builder
@@ -815,7 +846,10 @@ object Main {
 The default values work for most services. Here's when to change them:
 
 **High-throughput services (>1000 RPS):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 8192,   // larger buffer for spikes
   maxBatchSize        = 1024,   // send bigger payloads less often
@@ -824,7 +858,10 @@ ExporterConfig(
 ```
 
 **Low-latency services (real-time data required):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 1024,
   maxBatchSize        = 128,    // smaller batches = lower end-to-end latency
@@ -833,7 +870,10 @@ ExporterConfig(
 ```
 
 **Development / debugging:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 256,
   maxBatchSize        = 32,
@@ -874,7 +914,10 @@ Don't shut down the executor before the providers; the batch processor's retry t
 
 The standard OTLP environment variables map naturally:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 val config = ExporterConfig(
   endpoint = sys.env.getOrElse("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
   headers  = sys.env.get("OTEL_EXPORTER_OTLP_HEADERS")
@@ -897,7 +940,9 @@ def parseOtlpHeaders(raw: String): Map[String, String] =
 
 For minimum log level:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 val minLevel = sys.env.get("LOG_LEVEL").flatMap {
   case "TRACE" => Some(Severity.Trace)
   case "DEBUG" => Some(Severity.Debug)
@@ -907,7 +952,7 @@ val minLevel = sys.env.get("LOG_LEVEL").flatMap {
   case _       => None
 }.getOrElse(Severity.Info)
 
-log.install(logger, minSeverity = minLevel)
+log.install(LoggerProvider.builder.build().get("my-service"), minSeverity = minLevel)
 ```
 
 ---
@@ -918,10 +963,9 @@ log.install(logger, minSeverity = minLevel)
 
 A typical middleware pattern extracts incoming trace context, starts a server span, and injects context into outbound calls. Here's the conceptual shape (adapting to your specific HTTP library):
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 // Incoming request middleware
 def traceIncoming[Req, Resp](
@@ -975,7 +1019,7 @@ The core telemetry module (`zio-blocks-telemetry`) compiles for JVM and Scala.js
 - All the in-memory processors and default providers
 
 JVM-only:
-- `FileLogWriter`: uses `FileChannel`, not available in JS
+- File output: a custom `LogWriter` backed by `java.io` or `FileChannel` works on the JVM only
 - `ContextStorage` using `ScopedValue`: JDK 25+ specific; on Scala.js, a simpler mutable-variable implementation is used
 - `PlatformExecutor`: uses `ScheduledExecutorService` with virtual threads
 - The entire `zio-blocks-telemetry-otel` module (OTLP HTTP export, `BatchProcessor`)
@@ -993,7 +1037,7 @@ Two common causes:
 1. The global minimum level is filtering it out. Check `log.globalMinLevel`. Default is `Severity.Trace.number` (1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
-   ```scala
+```scala
    LoggerProvider.builder
      .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // don't forget this
      .build()
@@ -1015,7 +1059,7 @@ The compiler error will say something like `no implicit value for LogEnrichment[
 
 Define an implicit in your package object or companion:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.util.UUID
 
