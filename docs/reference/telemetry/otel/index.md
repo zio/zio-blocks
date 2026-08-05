@@ -13,7 +13,9 @@ The core telemetry module records signals inside your process. This module gets 
 
 It also carries trace context *between* processes. A trace that stops at your service boundary isn't much use, so a propagator reads and writes the standard headers that let two services contribute spans to the same trace.
 
-This is a separate artifact, JVM-only:
+## Installation
+
+Add the module to your build file:
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
