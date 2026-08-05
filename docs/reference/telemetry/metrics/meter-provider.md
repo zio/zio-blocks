@@ -43,7 +43,7 @@ val provider = MeterProvider.builder.build()
 val meter: Meter = provider.get("com.example.payments")
 ```
 
-Asking twice for one name returns the same meter, so components take theirs independently without coordinating. See [Meter](./meter.md) for what to do with it.
+The full signature is `get(name: String, version: String = "")`; passing a version records it on the scope, which is how you tell measurements from two releases of the same library apart. Asking twice for the same name *and* version returns the same meter, so components take theirs independently without coordinating. The provider also exposes the `Resource` you built it with as `provider.resource`. See [Meter](./meter.md) for what to do with a meter.
 
 ## Reading Everything Back
 

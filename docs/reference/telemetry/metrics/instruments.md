@@ -12,7 +12,7 @@ sidebar_label: "Instruments"
 
 The four synchronous instruments are what application code actually calls to record measurements. They differ by what they measure: a `Counter` sums a monotonic total, an `UpDownCounter` tracks a value that rises and falls, a `Histogram` builds a distribution of observations, and a `Gauge` holds the latest reading. Reach for them through [`metric`](./index.md) (`metric.counter("…")`) or a [`Meter`](./meter.md) builder — either path registers the instrument so `MetricReader.collectAllMetrics()` collects it into a [`MetricData`](./metric-data.md) snapshot.
 
-All four share the same recording shape: `add` (counters) or `record` (histogram, gauge) takes a value plus optional dimension labels, either as an [`Attributes`](../common/attributes.md) set or as `(String, Any)*` tuples; `bind` pre-attaches a label set for hot-path reuse; and `collect` snapshots the accumulated data into a [`MetricData`](./metric-data.md) variant.
+All four share the same recording shape: `add` (counters) or `record` (histogram, gauge) takes a value plus optional dimension labels, either as an [`Attributes`](../common/attributes.md) set or as `(String, Any)*` tuples — a label value may be a `String`, `Long`, `Int` (widened to `Long`), `Double`, or `Boolean`, and anything else is recorded as its `toString`; `bind` pre-attaches a label set for hot-path reuse; and `collect` snapshots the accumulated data into a [`MetricData`](./metric-data.md) variant.
 
 ## Counter
 
@@ -79,6 +79,21 @@ metric.reader.collectAllMetrics().foreach {
 ## Histogram
 
 A `Histogram` distributes `Double` observations into buckets and accumulates their count, sum, min, and max per label set. Use it for value distributions like request latency or payload size. Observations fall into a fixed set of bucket boundaries, defaulting to `[0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000]`.
+
+Each boundary is the **inclusive** upper bound of its bucket, so with boundaries `[5, 10]` a value of exactly `5` lands in the first bucket, not the second, and anything above the last boundary falls into one final overflow bucket. Note that the default set starts at `0`, so its first bucket holds only values at or below zero.
+
+For different boundaries, construct the histogram directly — the builder has no setter for them:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+val latency = Histogram("http.latency.ms", "Request latency", "ms", Array(10.0, 50.0, 100.0, 500.0))
+latency.record(42.0, "route" -> "/orders")
+
+val snapshot = latency.collect()
+```
+
+That path trades away registration: an instrument you build yourself belongs to no meter, so `collectAllMetrics()` never returns it and you have to call `collect()` on the instrument yourself.
 
 ```scala
 final class Histogram private[telemetry] (
@@ -158,6 +173,8 @@ val bound = metric.counter("rpc.calls").bind(Attributes.of(AttributeKey.string("
 bound.add(1L)
 bound.add(1L)  // no Attributes construction per call
 ```
+
+One caveat on a histogram: `bind` creates the per-label state immediately, so a label set you bind but never record collects as `count = 0` with `min` and `max` at their sentinel extremes (`Double.MaxValue` and `Double.MinValue`). Skip zero-count points when plotting, or bind only where you will record.
 
 For a name-based label API — declare label names once, then pass values positionally — see [Labeled Instruments](./labeled-instruments.md).
 

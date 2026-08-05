@@ -80,13 +80,15 @@ meter.gaugeBuilder("cache.entries").buildWithCallback { observer =>
 
 The block doesn't run when you build it — it runs once per collection, reading `cache.size` fresh each time, so the value can't go stale and you need no hook at every mutation. Keep it cheap and side-effect-free; it runs on the collecting thread. Nothing keeps the returned instrument: the meter registered it, and there's nothing left to call.
 
-Histograms have no callback form, since a distribution has to see every observation as it happens.
+`buildWithCallback` returns an `ObservableCounter`, `ObservableUpDownCounter`, or `ObservableGauge` depending on the builder, and hands your block an `ObservableCallback` to record through. Histograms have no callback form, since a distribution has to see every observation as it happens.
+
+Watch the type on the counters: both observable counters round what you report to a whole number, so a callback recording `1.5` is collected as `2`. Only `ObservableGauge` keeps the `Double` as given.
 
 ## Two Ways to Lose Measurements
 
 Both come from an instrument that records into nothing:
 
-1. **Constructing an instrument directly.** `Counter("http.requests", "", "")` compiles, because the companion `apply` is public. It records perfectly well into an object no meter registered, so `collectAllMetrics()` never sees it. Always go through a meter or `metric.*`.
+1. **Constructing an instrument directly.** `Counter("http.requests", "", "")` compiles, because the companion `apply` is public. It records perfectly well into an object no meter registered, so `collectAllMetrics()` never sees it. Go through a meter or `metric.*` — the one case that justifies direct construction is a [histogram with custom bucket boundaries](./instruments.md), where you accept the loss of registration and call `collect()` yourself.
 2. **Crossing providers.** An instrument reaches only the reader of the provider whose meter built it. `metric.install(...)` swaps in a provider with an empty registry, so take your meters and build your instruments *after* installing.
 
 ## See Also

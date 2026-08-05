@@ -72,7 +72,7 @@ The module is organized into three areas — tracing, logging, and metrics — t
 
 ### Metrics
 
-[Metrics](./metrics/index.md) covers dimensional cumulative and instantaneous measurements. `MeterProvider` is a factory for `Meter` instances; each `Meter` creates and registers instruments — `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` — keyed by name and `Attributes`. A `MetricReader` collects all registered instruments into `MetricData` snapshots on demand for export or inspection.
+[Metrics](./metrics/index.md) covers dimensional cumulative and instantaneous measurements. `MeterProvider` is a factory for `Meter` instances; each `Meter` creates and registers instruments — `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` — and each instrument keeps one series per `Attributes` set it sees. Instruments themselves are not cached by name; build each once and hold it. A `MetricReader` collects all registered instruments into `MetricData` snapshots on demand for export or inspection.
 
 ### Common Types
 

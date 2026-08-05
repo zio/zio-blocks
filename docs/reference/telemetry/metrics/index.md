@@ -12,7 +12,7 @@ sidebar_label: "Metrics"
 
 Metrics are the running numbers that tell you how your application is behaving over time — request rate, error count, latency, queue depth — the data you put on dashboards and alerts. They're **dimensional**: each measurement carries labels (like `method=GET`, `status=200`), and a metric splits into a separate series per label combination, so you can break "requests" down by endpoint or status. You record through four [instruments](./instruments.md), each for a different shape of number — a `Counter` for a total that only climbs, an `UpDownCounter` for one that rises and falls, a `Histogram` for a distribution of values, and a `Gauge` for the latest reading.
 
-You record through the `metric` object: `metric.counter("http.requests").add(1)` works immediately, with no setup — it creates (or reuses) the named instrument and records the measurement. Pick the factory that matches what you're measuring — `metric.counter`, `metric.upDownCounter`, `metric.histogram`, or `metric.gauge` — and pass dimension labels as you record.
+You record through the `metric` object: `metric.counter("http.requests").add(1)` works immediately, with no setup — it creates the named instrument and records the measurement. Pick the factory that matches what you're measuring — `metric.counter`, `metric.upDownCounter`, `metric.histogram`, or `metric.gauge` — and pass dimension labels as you record.
 
 By default measurements just accumulate in memory. In development you read them back with `metric.reader.collectAllMetrics()`, which returns [`MetricData`](./metric-data.md) snapshots — handy for tests and assertions. For production, call `metric.install(provider)` once at startup to route measurements to an external exporter (Prometheus, OTLP, …).
 
@@ -43,7 +43,7 @@ snapshots.foreach {
 
 ## Record Measurements with the Four Instruments
 
-Each factory creates (or reuses, by name) an instrument on the default meter.
+Each factory creates a new instrument on the default meter. Nothing is cached by name, so build each one once and hold it — calling `metric.counter("http.requests")` twice gives you two independent counters and two entries in the collected snapshot.
 
 ```scala
 object metric {

@@ -11,6 +11,8 @@ keywords:
 
 `MetricData` is an immutable, aggregated snapshot of one instrument at one collect cycle — its accumulated points, keyed by label set. You rarely build it directly: it is the read-only record `MetricReader.collectAllMetrics()` returns, one value per registered instrument or for an export pipeline to serialize.
 
+One thing it does *not* carry is the instrument's name, description, or unit — a snapshot is only points and their label sets. So `collectAllMetrics()` hands back a `Seq[MetricData]` with no way to tell which instrument each entry came from, which is why an export pipeline pairs them with names of its own before serializing. In a test, collect from a single instrument with its own `collect()` when you need to know the source.
+
 Its three variants line up with the instrument that produced them:
 
 - `SumData` — from a [`Counter`](./instruments.md) or an `UpDownCounter`
