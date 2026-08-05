@@ -283,17 +283,7 @@ const sidebars = {
                   "reference/telemetry/common/instrumentation-scope",
                 ]
               },
-              {
-                type: "category",
-                label: "OTLP Export",
-                link: { type: "doc", id: "reference/telemetry/otel/index" },
-                collapsed: false,
-                items: [
-                  "reference/telemetry/otel/exporter-config",
-                  "reference/telemetry/otel/http-sender",
-                  "reference/telemetry/otel/propagators",
-                ]
-              },
+              "reference/telemetry/otel/index",
             ]
           },
         ]
