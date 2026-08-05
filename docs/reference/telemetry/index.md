@@ -200,7 +200,7 @@ The following patterns appear consistently across services that use this module.
 
 ### Zero-Setup Global API
 
-All three global entry points work immediately after import: `trace` buffers spans in memory, `log` is a no-op until a writer or processor is added, and `metric` writes to an in-process `MeterProvider`. The following import is the only requirement for development and testing:
+All three global entry points work immediately after import: `trace` buffers spans in memory, `log` prints readable text to stdout, and `metric` writes to an in-process `MeterProvider`. The following import is the only requirement for development and testing:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -273,7 +273,7 @@ def handleRequest(requestId: String): Unit =
 
 ### Rate-Limited Logging
 
-The `*Every` family of log methods emits at most once every N invocations per call site. Because the counter is keyed by call site at compile time, multiple call sites with the same interval value are independent:
+The `*Every` family of log methods emits at most once every N invocations per call site. The counter is keyed by the call site's file and line, so sites with the same interval value are normally independent — though the keys index a fixed 4096-slot table, so two sites can collide and share one counter:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
