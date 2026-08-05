@@ -549,5 +549,5 @@ sbt "schema-examples/runMain context.ContextModificationExample"
 
 ## See Also
 
-- [Telemetry Reference](./telemetry/index.md) — Uses `ContextStorage` from this module for trace-log correlation across all three signal pillars
-- [Telemetry Guide](../guides/telemetry-guide.md) — Architecture and patterns for the telemetry module built on top of `Context`
+- [Telemetry Reference](./telemetry/index.md) — Its `OtelContext` bridge snapshots the active `SpanContext` into a `Context[R & OtelContext]`
+- [Telemetry Guide](../guides/telemetry-guide.md) — Architecture and patterns for the telemetry module, including where `Context` fits in

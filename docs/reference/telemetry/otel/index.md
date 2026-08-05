@@ -51,7 +51,7 @@ val config = ExporterConfig(
 
 Headers are treated as sensitive: `toString` prints their count, never their contents, so a config logged at startup can't leak a token.
 
-The three batching fields trade latency against overhead. `flushIntervalMillis` is how long a partial batch waits before going out anyway — lower it to see data sooner, raise it to send fewer, larger requests. `maxBatchSize` is how many records go in one request; a batch is sent as soon as it fills, without waiting for the interval. `maxQueueSize` is how many records may be waiting at once, which is your backpressure limit: once the queue is full, further records are dropped rather than allowed to grow without bound. The defaults suit a service with steady moderate traffic; a high-throughput one should raise `maxQueueSize` before it starts dropping.
+The three batching fields trade latency against overhead. `flushIntervalMillis` is how long a partial batch waits before going out anyway — lower it to see data sooner, raise it to send fewer, larger requests. `maxBatchSize` is how many records go in one request; filling a batch does not trigger a send, it only chunks what the next flush drains, so the interval is what determines when data leaves. `maxQueueSize` is how many records may be waiting at once: once the queue is over that limit each new record evicts the oldest one still queued, so recording never blocks and the queue never grows without bound. The defaults suit a service with steady moderate traffic; a high-throughput one should raise `maxQueueSize` before it starts dropping.
 
 ## Sending the Bytes
 
@@ -70,7 +70,7 @@ object HttpSender {
 }
 ```
 
-`HttpSender.jdk` wraps `java.net.http.HttpClient`, which ships with the JVM, so nothing is added to your dependencies. The timeout applies to both connecting and completing a request, and `shutdown()` releases the client's resources at exit:
+`HttpSender.jdk` wraps `java.net.http.HttpClient`, which ships with the JVM, so nothing is added to your dependencies. The timeout applies to both connecting and completing a request. `shutdown()` is where a sender releases what it holds — the JDK one holds nothing that needs closing, so its implementation does nothing:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry.otel._
@@ -79,7 +79,7 @@ import java.time.Duration
 val sender = HttpSender.jdk(Duration.ofSeconds(10))
 ```
 
-`send` returns an `HttpResponse` rather than throwing, so an exporter can decide whether a failure is worth retrying. Its `firstHeader(name)` looks a header up case-insensitively, which is what you need for a `Retry-After` on a `429` or `503`.
+`send` reports a rejected export as an `HttpResponse` with a non-`2xx` status rather than as an exception, so an exporter can decide whether a failure is worth retrying. A connection that never completes still throws — `HttpSender.jdk` lets `IOException` out — and the batching layer treats such a throw as a retryable failure. Its `firstHeader(name)` looks a header up case-insensitively, which is what you need for a `Retry-After` on a `429` or `503`.
 
 To write your own, implement the two methods: return a `2xx` status for a send the exporter should treat as delivered, anything else to mark it failed. Most custom senders are wrappers rather than replacements — sign the request, pick a proxy, count attempts, then delegate to `HttpSender.jdk(...)` and pass its response back.
 
@@ -101,7 +101,7 @@ trait Propagator {
 
 The carrier is whatever holds your headers — a `Map`, your framework's request type — and you supply the accessor, so no HTTP library is assumed. `fields` names the headers a propagator touches, which is what you pass to a CORS or header-allowlist configuration.
 
-Use `W3CTraceContextPropagator` unless something upstream requires otherwise: it implements the W3C `traceparent` standard, which is what OpenTelemetry emits by default and what most backends expect. `B3Propagator` covers Zipkin's format in two shapes — `B3Propagator.single` puts everything in one `b3` header, `B3Propagator.multi` splits it across `X-B3-TraceId`, `X-B3-SpanId`, and `X-B3-Sampled`.
+Use `W3CTraceContextPropagator` unless something upstream requires otherwise: it implements the W3C `traceparent` standard, which is what OpenTelemetry emits by default and what most backends expect. `B3Propagator` covers Zipkin's format in two shapes — `B3Propagator.single` puts everything in one `b3` header, `B3Propagator.multi` splits it across `X-B3-TraceId`, `X-B3-SpanId`, `X-B3-Sampled`, `X-B3-ParentSpanId`, and `X-B3-Flags`.
 
 On the way out, take the active span's context and write it into a header map:
 

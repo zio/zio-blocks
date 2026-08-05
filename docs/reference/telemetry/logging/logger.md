@@ -55,7 +55,10 @@ Attributes must be wrapped: `AttributeValue.StringValue`, `LongValue`, `DoubleVa
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
-val logger = LoggerProvider.builder.build().get("com.example.Bridge")
+val logger = LoggerProvider.builder
+  .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // a provider with no processor emits nothing
+  .build()
+  .get("com.example.Bridge")
 
 logger.emit(
   LogRecord.builder

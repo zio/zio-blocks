@@ -12,7 +12,7 @@ keywords:
 
 The telemetry module provides the three pillars of modern observability — distributed tracing, structured logging, and dimensional metrics — with a single coherent API aligned to the OpenTelemetry data model. 
 
-Three global entry points (`trace`, `log`, `metric`) work without any configuration; each delegates to a provider (`TracerProvider`, `LoggerProvider`, `MeterProvider`) that produces scope-specific instances (`Tracer`, `Logger`, `Meter`). 
+Three global entry points (`trace`, `log`, `metric`) work without any configuration. `trace` and `metric` delegate to an installed provider (`TracerProvider`, `MeterProvider`) that produces scope-specific instances (`Tracer`, `Meter`); `log` holds an installed `Logger` directly, which a `LoggerProvider` is one way to build. 
 
 The same metadata types — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` — describe signals in all three pillars, and a shared `ContextStorage` enables automatic trace–log correlation out of the box.
 
@@ -121,7 +121,7 @@ The following sub-sections walk through the data flow for each pillar and explai
 When application code calls `trace.span("operation")`, the following sequence occurs:
 
 1. The global `trace` object delegates to the active `TracerProvider`, which creates or retrieves a `Tracer` for the `"default"` instrumentation scope.
-2. The `Tracer` consults its `Sampler` via `shouldSample`. If the decision is `RecordAndSample`, a `RecordingSpan` is constructed via `SpanBuilder.startSpan` and `SpanProcessor.onStart` is called; if `Drop`, a zero-allocation `Span.NoOp` is returned with no further overhead.
+2. The `Tracer` consults its `Sampler` via `shouldSample`. If the decision is `RecordAndSample`, a `RecordingSpan` is constructed via `SpanBuilder.startSpan` and `SpanProcessor.onStart` is called; if `Drop`, a `Span.NoOp` is returned — the span records nothing and reaches no processor, though a `SpanContext` is still allocated and scoped so nested spans and log records stay on the same trace.
 3. The active `SpanContext` is stored into `ContextStorage` for the duration of the user block so that nested spans can read it as their parent.
 4. On exit, `Span.end()` is called, `SpanData` is snapshotted, and `SpanProcessor.onEnd` fires — delivering the completed span to exporters or the in-memory test processor.
 
@@ -298,7 +298,7 @@ requests.add(1, "POST", "500")
 
 ## Integration Points
 
-The telemetry module depends on the `context` module — specifically [`ContextStorage`](../context.md) — for scoped, thread-safe propagation of `SpanContext` through call stacks. No other module-level dependencies exist; the telemetry module is otherwise self-contained and requires no external libraries.
+Scoped, thread-safe propagation of `SpanContext` through call stacks is handled by the module's own `ContextStorage`, which is backed by JDK `ScopedValue` on the JVM and by a saved-and-restored variable on Scala.js. At the build level the module depends only on the `context` and `chunk` blocks and requires no external libraries.
 
 `SpanProcessor` and `LogRecordProcessor` are open traits. External exporters — for example, an OpenTelemetry SDK bridge — implement these traits to receive span and log data and forward it to collection infrastructure such as OTLP endpoints. Plug a custom `SpanProcessor` into `TracerProvider.builder.addSpanProcessor(...)` or a custom `LogRecordProcessor` into `LoggerProvider.builder.addLogRecordProcessor(...)`.
 
@@ -308,4 +308,4 @@ The telemetry module depends on the `context` module — specifically [`ContextS
 
 - [Telemetry Guide](../../guides/telemetry-guide.md) — architecture, design trade-offs, and real-world usage patterns
 - [Common Types](./common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope` shared across all three pillars
-- [Context](../context.md) — `ContextStorage` used for trace–log correlation
+- [Context](../context.md) — `Context[R]`, which the otel module's `OtelContext` carries an active `SpanContext` through

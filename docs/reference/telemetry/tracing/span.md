@@ -108,7 +108,7 @@ trace.span("charge") { span =>
 
 A span's `name`, `kind`, and [`spanContext`](./span-context.md) are set at creation and never change. `spanContext` is the span's identity — the trace and span IDs that let all the telemetry from one request be tied together.
 
-You rarely touch it. Correlation happens for you: logging stamps the active span's IDs onto every record automatically, and request instrumentation propagates them to downstream services. Reach for `span.spanContext.traceIdHex` directly only in the low-level case — correlating with a system that isn't wired in, or crossing a boundary the instrumentation doesn't cover.
+You rarely touch it. Log correlation happens for you: logging stamps the active span's IDs onto every record automatically. Carrying the identity to another service is an explicit step — a `Propagator` from the otel module writes it into outgoing headers. Reach for `span.spanContext.traceIdHex` directly only in the low-level case — correlating with a system that isn't wired in, or crossing a boundary the instrumentation doesn't cover.
 
 ## Ending a Span
 

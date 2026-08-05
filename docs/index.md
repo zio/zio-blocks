@@ -848,11 +848,13 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 **Metrics**
 - [MeterProvider](./reference/telemetry/metrics/meter-provider.md) - Factory for `Meter` instances
-- [Meter](./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory; documents the Counter, UpDownCounter, Histogram, and Gauge instruments
+- [Meter](./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory
+- [Instruments](./reference/telemetry/metrics/instruments.md) - The `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` recording APIs
+- [Labeled Instruments](./reference/telemetry/metrics/labeled-instruments.md) - Instruments whose label names are fixed up front and recorded positionally
 
 **Common Types**
 - [Attributes](./reference/telemetry/common/attributes.md) - Parallel-array key/value store shared across signals
-- [AttributeKey](./reference/telemetry/common/attribute-key.md) - Typed, interned attribute key
+- [AttributeKey](./reference/telemetry/common/attribute-key.md) - Typed attribute key
 - [Resource](./reference/telemetry/common/resource.md) - Immutable set of attributes describing the telemetry source entity
 - [InstrumentationScope](./reference/telemetry/common/instrumentation-scope.md) - Named and versioned scope for grouping signals
 

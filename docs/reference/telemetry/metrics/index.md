@@ -14,9 +14,9 @@ Metrics are the running numbers that tell you how your application is behaving o
 
 You record through the `metric` object: `metric.counter("http.requests").add(1)` works immediately, with no setup — it creates the named instrument and records the measurement. Pick the factory that matches what you're measuring — `metric.counter`, `metric.upDownCounter`, `metric.histogram`, or `metric.gauge` — and pass dimension labels as you record.
 
-By default measurements just accumulate in memory. In development you read them back with `metric.reader.collectAllMetrics()`, which returns [`MetricData`](./metric-data.md) snapshots — handy for tests and assertions. For production, call `metric.install(provider)` once at startup to route measurements to an external exporter (Prometheus, OTLP, …).
+Measurements accumulate in memory, and reading them out is a pull: `metric.reader.collectAllMetrics()` returns [`MetricData`](./metric-data.md) snapshots — handy for tests and assertions, and the same call an exporter makes. Metrics have no push pipeline the way tracing and logging do: there is no processor hook on `MeterProvider`, so shipping them means scheduling that pull yourself and handing the snapshots to your backend. `metric.install(provider)` swaps in a provider configured with your own `Resource`.
 
-Day to day you only need `metric.*`, but it helps to know what sits underneath, because each piece is where you go when you want more control. A [`MeterProvider`](./meter-provider.md) is what you build at startup: it carries your service identity, so exported measurements say which service they came from, and it vends everything else. A [`Meter`](./meter.md) is a named handle you take with `metric.get("com.example.orders")` when measurements should be attributed to one component, or when you want to declare an instrument's unit and description, or pre-declare label names for a hot path.
+Day to day you only need `metric.*`, but it helps to know what sits underneath, because each piece is where you go when you want more control. A [`MeterProvider`](./meter-provider.md) is what you build at startup: it holds your service identity as a `Resource` and vends everything else. (Unlike spans and log records, collected metric data does not carry that `Resource`, so an exporter has to attach the service identity itself.) A [`Meter`](./meter.md) is a named handle you take with `metric.get("com.example.orders")` when measurements should be attributed to one component, or when you want to declare an instrument's unit and description, or pre-declare label names for a hot path.
 
 The other two are the recording and reading ends. The four [instruments](./instruments.md) are what you actually record through, however you obtained them. And the `MetricReader` behind `metric.reader` is what turns everything recorded so far into `MetricData` snapshots — the thing you call in tests, and the thing an exporter pulls from in production.
 
@@ -77,7 +77,7 @@ object metric {
 }
 ```
 
-Its builders attach a description and unit, and its labeled variants pre-declare label names so hot paths record positionally without allocating tuples.
+Its builders attach a description and unit, and its labeled variants pre-declare label names so a hot path records positionally instead of naming a key at every call.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -96,7 +96,7 @@ byRoute.add(1, "GET", "200")
 
 ## Read Aggregated Snapshots
 
-Read every registered instrument as an immutable `MetricData` snapshot.
+Read every registered instrument as a `MetricData` snapshot — a fresh value each call, though a histogram point hands you its `boundaries` and `bucketCounts` arrays directly, so treat them as read-only.
 
 ```scala
 object metric {
@@ -119,7 +119,7 @@ snapshots.foreach {
 
 ## Install a Provider and Reset
 
-`metric.install(provider)` swaps in a production `MeterProvider` — configured with a [`Resource`](../common/resource.md) and reachable exporters through its `MetricReader`.
+`metric.install(provider)` swaps in a `MeterProvider` configured with your own [`Resource`](../common/resource.md). The builder takes nothing else — there is no exporter or reader hook — so instruments created after the swap register on the new provider's meters and are read back through `metric.reader`.
 
 ```scala
 object metric {

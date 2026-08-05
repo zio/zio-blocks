@@ -14,7 +14,7 @@ Logging records what your application did as it runs, so you can understand its 
 
 You write logs through the `log` object: call `log.info("order placed")` (or `debug`, `warn`, `error`, …) anywhere in your code and it works immediately, with no setup. Behind each call, `log` automatically records where the log came from — the file, class, method, and line — and stamps it with the trace and span of whatever [`trace.span`](../tracing/index.md) you happen to be inside. That stamping is what lets logs and traces line up later: no need to thread a request id through your code by hand.
 
-Out of the box those records print to stdout as readable text, so `log.info(...)` shows up on your console with nothing configured. When you want a different destination you add one once, at application startup: `log.writer(...)` adds a channel with a formatter of your choosing — JSON, say — through a [`LogWriter`](./log-writer.md), while `log.install(...)` or `log.addProcessor(...)` wires up a pipeline that ships records to a backend for storage and search. Both are additive, so the default console output stays until you replace the backend outright.
+Out of the box those records print to stdout as readable text, so `log.info(...)` shows up on your console with nothing configured. When you want a different destination you add one once, at application startup: `log.writer(...)` adds a channel with a formatter of your choosing — JSON, say — through a [`LogWriter`](./log-writer.md), while `log.addProcessor(...)` wires up a pipeline that ships records to a backend for storage and search. Those two are additive, so the default console output stays alongside whatever you add. `log.install(...)` is the replacing move: it swaps in a whole logger, dropping the default console processor, any writers added earlier, and any per-package severity overrides.
 
 After the message you attach context, and this is where structured logging pays off. The common case is key/value pairs — `log.info("order placed", "orderId" -> "ord-123", "amount" -> 99L)` — which become searchable fields on that entry instead of being buried in the text, so later you can query "all logs where `orderId = ord-123`". Pass a `Throwable` and its type, message, and stack trace are captured for you.
 
@@ -43,12 +43,12 @@ Six severities — `trace`, `debug`, `info`, `warn`, `error`, `fatal` — cover 
 
 ```scala
 object log {
-  def trace(msg: String, ctx: Any*): Unit
-  def debug(msg: String, ctx: Any*): Unit
-  def info(msg: String, ctx: Any*): Unit
-  def warn(msg: String, ctx: Any*): Unit
-  def error(msg: String, ctx: Any*): Unit
-  def fatal(msg: String, ctx: Any*): Unit
+  def trace(message: String, enrichments: Any*): Unit
+  def debug(message: String, enrichments: Any*): Unit
+  def info(message: String, enrichments: Any*): Unit
+  def warn(message: String, enrichments: Any*): Unit
+  def error(message: String, enrichments: Any*): Unit
+  def fatal(message: String, enrichments: Any*): Unit
 }
 ```
 
@@ -70,12 +70,12 @@ Two rate-limiting families, each spanning all six severities, keep high-frequenc
 
 ```scala
 object log {
-  def <level>Every(every: Int, msg: String, ctx: Any*): Unit
-  def <level>AtMost(intervalMillis: Long, msg: String, ctx: Any*): Unit
+  def <level>Every(every: Int, message: String, enrichments: Any*): Unit
+  def <level>AtMost(intervalMillis: Long, message: String, enrichments: Any*): Unit
 }
 ```
 
-The `Every` family is count-based — `<level>Every(every, msg, ctx*)` emits on every Nth call at that site. The `AtMost` family is time-based — `<level>AtMost(intervalMillis, msg, ctx*)` emits at most once per interval at that site. Each site gets its own counter and clock, keyed by its file and line into a fixed table of 4096 slots; two distant sites can land in the same slot, in which case they share a counter and one of them logs less often than its `every` suggests.
+The `Every` family is count-based — `<level>Every(every, message, enrichments*)` emits on every Nth call at that site. The `AtMost` family is time-based — `<level>AtMost(intervalMillis, message, enrichments*)` emits at most once per interval at that site. Each site gets its own counter and clock, keyed by its file and line into a fixed table of 4096 slots; two distant sites can land in the same slot, in which case they share a counter and one of them logs less often than its `every` suggests.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -135,7 +135,7 @@ object log {
 }
 ```
 
-`setMinSeverity(severity)` sets one floor for the whole application. `setMinSeverity(prefix, severity)` overrides it for a package — matched against the call site's namespace — and works both ways: raise the floor on a chatty dependency to quiet it, or lower it on the package you're debugging to see more, without touching the rest of the app. `clearMinSeverity(prefix)` removes one override and `clearAllOverrides()` removes them all, back to the global floor.
+`setMinSeverity(severity)` sets one floor for the whole application. `setMinSeverity(prefix, severity)` overrides it for a package — matched against the call site's namespace — and works both ways: raise the floor on a chatty dependency to quiet it, or lower it on the package you're debugging to see more, without touching the rest of the app. `clearMinSeverity(prefix)` removes one override and `clearAllOverrides()` removes them all, back to the global floor. Set the global floor first: `setMinSeverity(severity)` also discards every prefix override, so calling it after the overrides silently wipes them.
 
 When several prefixes match a call site, the longest one wins — so `"com.example"` at `Warn` plus `"com.example.orders"` at `Debug` gives you debug logs from the orders package and warnings from everything else under `com.example`. Matching is a plain string prefix on the enclosing class name, not a package-boundary check, so `"com.acme"` also matches `com.acmecorp`.
 
@@ -173,7 +173,7 @@ object log {
 
 `log.writer(formatter, writer)` is the simple path: pair a formatter with a writer to add one console sink. It's additive — call it again to send the same records to a second destination (say, human-readable text to stdout and JSON to stderr) — and `log.clearWriters()` removes them all.
 
-For production you usually want a pipeline that batches records and ships them to a backend for storage and search. `log.install(logger)` swaps in a fully configured [`Logger`](./logger.md) (built from a `LoggerProvider` with its export processors), `log.addProcessor(processor)` appends a single [`LogRecordProcessor`](./log-record-processor.md) to the current backend, and `log.removeAll()` detaches everything — `log.*` calls become no-ops until you add an output again.
+For production you usually want a pipeline that batches records and ships them to a backend for storage and search. `log.install(logger)` swaps in a fully configured [`Logger`](./logger.md) (built from a `LoggerProvider` with its export processors) in place of whatever was registered before — including the default console output, any writers, and any prefix overrides — `log.addProcessor(processor)` appends a single [`LogRecordProcessor`](./log-record-processor.md) to the current backend without disturbing the rest, and `log.removeAll()` detaches everything — `log.*` calls become no-ops until you add an output again.
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._

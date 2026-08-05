@@ -11,7 +11,7 @@ keywords:
 
 A `MeterProvider` is where metrics get configured, once, at startup. You build one, and it hands out the [`Meter`](./meter.md)s your components take.
 
-It exists because two things can't be decided per instrument. The first is **identity**: an exported measurement has to say what produced it, or a backend shows a number with no owner — and repeating that on every counter would be both tedious and inconsistent. You set it once as a [`Resource`](../common/resource.md), and everything the provider hands out inherits it.
+It exists because two things can't be decided per instrument. The first is **identity**: an exported measurement has to say what produced it, or a backend shows a number with no owner — and repeating that on every counter would be both tedious and inconsistent. You set it once as a [`Resource`](../common/resource.md) on the provider. Unlike spans and log records, collected metric data does not carry it, so read `provider.resource` when you export and attach it there.
 
 The second is **one place to read from**. Instruments end up scattered across components, and nothing useful happens until something collects them all together. The provider keeps the registry every meter joins, so a single `reader.collectAllMetrics()` returns every measurement from every scope beneath it — you never assemble a list of instruments yourself.
 

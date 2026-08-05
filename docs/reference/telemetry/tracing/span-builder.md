@@ -30,7 +30,7 @@ final class SpanBuilder {
   def setInstrumentationScope(scope: InstrumentationScope): SpanBuilder
 
   // Finalization
-  def startSpan(): Span                                  // random trace ID
+  def startSpan(): Span                                  // parent's trace ID, or a random one at the root
   def startSpan(traceIdHi: Long, traceIdLo: Long): Span  // explicit trace ID
 }
 ```

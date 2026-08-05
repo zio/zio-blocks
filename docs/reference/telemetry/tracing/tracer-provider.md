@@ -87,4 +87,4 @@ Using.resource(TracerProvider.builder.addSpanProcessor(SpanProcessor.noop).build
 
 ## Trace–Log Correlation
 
-Logs emitted inside a span are correlated with it automatically: a `TracerProvider` and a `LoggerProvider` share the same default context storage, so every log record carries that span's trace and span IDs with no wiring. (Override `setContextStorage` on both only to isolate correlation — e.g. in tests.) See the [Telemetry module index](./index.md).
+Logs emitted inside a span are correlated with it automatically: a `TracerProvider` and a `LoggerProvider` share the same default context storage, so every log record carries that span's trace and span IDs with no wiring. (Override `setContextStorage` on both only to isolate correlation — e.g. in tests.) See the [Telemetry module index](../index.md).

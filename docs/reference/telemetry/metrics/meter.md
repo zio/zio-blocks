@@ -11,7 +11,7 @@ keywords:
 
 A `Meter` is where one component's [instruments](./instruments.md) come from. You take a meter under your component's name, create counters and histograms from it, and record through those.
 
-It exists to answer a question a bare instrument name can't: *whose measurement is this?* `metric.counter("requests")` is fine until you and a library you depend on both count something called `requests` — then one series holds two unrelated things. A meter carries a scope name, so everything built from it stays attributed to that component and the two never collide.
+It exists to answer a question a bare instrument name can't: *whose measurement is this?* A meter carries a scope name, so the instruments one component builds are grouped under it, and a reader can tell your `requests` counter from the one a library you depend on registered. (The two were never merged into one series — each instrument aggregates on its own — but without scopes there is nothing in the code that says which is which.)
 
 The second problem it solves is reachability. Recording a number is useless if nothing can read it back, and an instrument only reaches collection if something registered it. A meter is that something: it is registered with its [`MeterProvider`](./meter-provider.md) when you obtain it, and it registers every instrument you build from it, so a measurement's path to `reader.collectAllMetrics()` is complete the moment you call `build()` — with no wiring step you could forget.
 
@@ -46,11 +46,11 @@ val latency = meter.histogramBuilder("request.latency").setUnit("ms").build()
 latency.record(42.5, "route" -> "/api/orders")
 ```
 
-The description and unit travel with the instrument to your metrics backend, which is what lets a dashboard label an axis in milliseconds instead of showing bare numbers. Build each instrument once and hold the result — a `val` on the component that records through it. Building the same name twice gives you two registered instruments, which splits one logical metric into two series that no consumer can merge back together.
+The description and unit stay on the instrument — `collect()` returns data points only — so they reach a dashboard through whatever exporter reads the instrument, which is what lets it label an axis in milliseconds instead of showing bare numbers. Build each instrument once and hold the result — a `val` on the component that records through it. Building the same name twice gives you two registered instruments, which splits one logical metric into two series that no consumer can merge back together.
 
 ## Recording on a Hot Path
 
-When the same label *names* repeat on every call, declaring them once avoids rebuilding a label set per measurement. `labeledCounter`, `labeledHistogram`, and `labeledGauge` fix the names at construction so callers pass just the values, positionally:
+When the same label *names* repeat on every call, declaring them once keeps every call site consistent and short. `labeledCounter`, `labeledHistogram`, and `labeledGauge` fix the names at construction so callers pass just the values, positionally:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -78,7 +78,7 @@ meter.gaugeBuilder("cache.entries").buildWithCallback { observer =>
 }
 ```
 
-The block doesn't run when you build it — it runs once per collection, reading `cache.size` fresh each time, so the value can't go stale and you need no hook at every mutation. Keep it cheap and side-effect-free; it runs on the collecting thread. Nothing keeps the returned instrument: the meter registered it, and there's nothing left to call.
+The block doesn't run when you build it — it runs once per collection, reading `cache.size` fresh each time, so the value can't go stale and you need no hook at every mutation. Keep it cheap and side-effect-free; it runs on the collecting thread. You can discard the returned instrument — the meter registered it, so collection finds it — and hold it only if you want to call its own `collect()` directly.
 
 `buildWithCallback` returns an `ObservableCounter`, `ObservableUpDownCounter`, or `ObservableGauge` depending on the builder, and hands your block an `ObservableCallback` to record through. Histograms have no callback form, since a distribution has to see every observation as it happens.
 

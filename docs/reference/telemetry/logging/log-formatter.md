@@ -14,14 +14,14 @@ sidebar_label: "LogFormatter"
 
 ## Built-in Formatters
 
-Two stateless singletons cover the usual output formats:
+Two singletons cover the usual output formats — both safe to share across threads, with `TextLogFormatter` caching its timestamp prefix for the current second:
 
 | Formatter          | Output                                                                                                                                       |
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
 | `TextLogFormatter` | Human-readable — `2026-07-29T10:00:00.000Z INFO  [Svc.doWork:42] message {key=val}`                                                          |
 | `JsonLogFormatter` | OTLP-compatible JSON — `{"timeUnixNano":"...","severityNumber":9,"severityText":"INFO","body":{"stringValue":"message"},"attributes":[...]}` |
 
-Both render the record's timestamp, severity, source location (from the `code.*` attributes), message body, remaining attributes, trace/span IDs, and an attached throwable's stack trace.
+Both render the record's timestamp, severity, source location (from the `code.*` attributes), message body, and an attached throwable's stack trace. They differ in what else they carry: `TextLogFormatter` prints the remaining attributes as a compact `{key=value}` list and drops the trace and span IDs, while `JsonLogFormatter` emits every attribute — including the four `code.*` entries — plus `traceId` and `spanId` when the record was written inside a span.
 
 ## Example Usage
 
@@ -97,4 +97,4 @@ log.info("order placed")
 
 Two lines, because `log.writer` adds a channel rather than replacing one, and the default console output is still registered.
 
-To render attributes too, pass an `AttributeVisitor` to `record.attributes.accept` — it fires once per attribute with the raw unboxed value, so nothing is boxed on the way out. Only the four scalar methods are abstract; the seq variants default to no-ops. Source location arrives among those attributes as `code.filepath`, `code.namespace`, `code.function`, and `code.lineno`, so skip any key starting with `code.` — as both built-in formatters do — unless you mean to emit the file path too.
+To render attributes too, pass an `AttributeVisitor` to `record.attributes.accept` — it fires once per attribute with the raw unboxed value, so nothing is boxed on the way out. Only the four scalar methods are abstract; the seq variants default to no-ops. Source location arrives among those attributes as `code.filepath`, `code.namespace`, `code.function`, and `code.lineno`. Decide which convention you want: `TextLogFormatter` lifts them into its `[Svc.doWork:42]` prefix and then skips those keys, while `JsonLogFormatter` emits them as ordinary attributes. Skip any key starting with `code.` if you render the location separately.

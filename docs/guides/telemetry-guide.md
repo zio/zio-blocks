@@ -10,11 +10,17 @@ If you're looking for API signatures and quick copy-paste snippets, the [Telemet
 ## Installation
 
 ```scala
-// Core: logging, tracing, metrics (JVM + JS)
+// Core: logging, tracing, metrics
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 
 // OTLP JSON export over HTTP (JVM only)
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
+```
+
+The core module also cross-builds for Scala.js:
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
 ---
@@ -73,10 +79,10 @@ Two separate things must both be cheap: the fast path when a level is disabled, 
 **Disabled level fast path.** The first check in every `log.*` call is:
 
 ```scala
-if (severity.number >= log.globalMinLevel) { ... }
+if (severity.number >= GlobalLogState.globalMinLevel) { ... }
 ```
 
-`globalMinLevel` is a `@volatile Int`. Reading it costs roughly one memory fence. If the level is disabled, the compiler has already eliminated all argument evaluation (the arguments are passed by-name or inlined via macro). No string is built, no object is allocated.
+`globalMinLevel` is a `@volatile Int` held inside the library-private `GlobalLogState` (you set it through `log.install`, `log.setMinSeverity`, and `log.withMinSeverity` rather than reading it directly). Reading it costs roughly one memory fence. If the level is disabled, the compiler has already eliminated all argument evaluation (the arguments are passed by-name or inlined via macro). No string is built, no object is allocated.
 
 **Enabled level slow path.** When a level is enabled, attribute pairs need to be assembled into a `LogRecord`. The library uses a pooled `AttributeBuilder` (one per thread, reused), backed by parallel primitive arrays. Primitive values (Long, Double, Boolean) are stored as unboxed longs using type discriminator bytes. A `(String, Long)` attribute doesn't box the Long.
 
@@ -171,7 +177,7 @@ Conceptual expansion of:
   log.info("request received", "user_id" -> userId, "attempt" -> 3)
 
 Expands to (pseudocode):
-  if (Severity.Info.number >= log.globalMinLevel) {
+  if (Severity.Info.number >= GlobalLogState.globalMinLevel) {
     val state = log.getState()
     if (state != null && Severity.Info.number >= state.effectiveLevel(<current class name>)) {
       val now = EpochClock.epochNanos()
@@ -197,27 +203,27 @@ Expands to (pseudocode):
 The important things the macro does:
 - Captures `code.filepath`, `code.namespace`, `code.function`, `code.lineno` at compile time
 - Resolves each enrichment argument type at compile time and calls the specific builder method (no runtime dispatch on the fast path)
-- For rate-limited variants (`infoEvery`, `warnAtMost`), synthesizes a `val counter` or `val lastEmit` at the call site so each call site has independent state
+- For rate-limited variants (`infoEvery`, `warnAtMost`), hashes the source position into a `siteId` constant so each call site gets its own rate-limit slot
 
-For `*Every(N, msg)`, the macro synthesizes:
-
-```scala
-// Synthesized at call site by the macro
-val _counter_42 = new java.util.concurrent.atomic.AtomicLong(0L)
-
-// At each call:
-if (_counter_42.getAndIncrement() % N == 0) { log.emit(...) }
-```
-
-For `*AtMost(windowMs, msg)`, it's:
+For `*Every(N, msg)`, the macro emits a guard against a shared global table:
 
 ```scala
-val _lastEmit_77 = new java.util.concurrent.atomic.AtomicLong(0L)
+// siteId is a compile-time constant: (sourcePath + ":" + line).hashCode
+if (LogRateLimit.shouldLogEvery(siteId, N)) { log.emit(...) }
 
-val now = System.currentTimeMillis()
-val last = _lastEmit_77.get()
-if (now - last >= windowMs && _lastEmit_77.compareAndSet(last, now)) { log.emit(...) }
+// LogRateLimit keeps one AtomicLongArray of 4096 counters:
+//   counters.incrementAndGet(siteId & 4095) % N == 0
 ```
+
+For `*AtMost(windowMs, msg)`, it's the same shape against a parallel timestamp array:
+
+```scala
+if (LogRateLimit.shouldLogAtMost(siteId, windowMs)) { log.emit(...) }
+
+// timestamps.get(idx); if (now - last >= windowMs) timestamps.compareAndSet(idx, last, now)
+```
+
+Two consequences of the shared table: `*Every(N, …)` emits on the *Nth* call rather than the first (the counter is incremented before the modulo), and two call sites whose `siteId` collides modulo 4096 share one slot.
 
 ### Custom enrichment types
 
@@ -316,7 +322,7 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 
 **JsonLogFormatter output:**
 ```json
-{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
+{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
 
 The JSON format follows the OTLP log data model directly, making it compatible with any OTLP-aware log processor (Grafana Loki, OpenTelemetry Collector, etc.).
@@ -379,7 +385,7 @@ When you call `tracer.span("name") { span => ... }`, here's the complete sequenc
 
 2. **Sampler decision.** `sampler.shouldSample(...)` is called with the parent context, new trace ID bits, span name, and kind. The result is one of `Drop`, `RecordOnly`, or `RecordAndSample`.
 
-3. **Drop path.** If `Drop`, your block runs with `Span.NoOp`. All `setAttribute`, `addEvent`, `setStatus` calls are no-ops. Zero allocation.
+3. **Drop path.** If `Drop`, your block runs with `Span.NoOp`. All `setAttribute`, `addEvent`, `setStatus` calls are no-ops, and no processor is notified. A dropped span is still cheap but not free: a fresh `SpanId` and `SpanContext` are allocated and scoped so that nested spans and log records stay on the same trace.
 
 4. **Record path.** A `RecordingSpan` is built with a new `SpanContext`. The span gets:
    - The parent's `traceIdHi`/`traceIdLo` if a valid parent exists, or a fresh random pair
@@ -412,7 +418,7 @@ tracer.span("checkout") { span =>
               |
               +-- BatchProcessor.enqueue(spanData)
                    |
-                   (background flush every 5s or at maxBatchSize)
+                   (background flush every 5s, draining maxBatchSize per request)
                    |
                    +-- HTTP POST /v1/traces to OTLP collector
 ```
@@ -567,7 +573,8 @@ When you log inside an active span, the logger automatically attaches `traceId` 
 At provider creation time:
 
 ```scala
-// TracerProvider.builder.build() creates a ContextStorage
+// TracerProvider.builder.build() falls back to ContextStorage.defaultSpanContextStorage
+// unless you pass one; here we create an explicit instance to share
 val cs = ContextStorage.create[Option[SpanContext]](None)
 val tracerProvider = new TracerProvider(resource, sampler, processors, cs)
 
@@ -674,9 +681,10 @@ requests.add(7,  "method" -> "POST", "status" -> "201")
 
 val data = requests.collect()
 // data: MetricData.SumData(List(
-//   SumDataPoint(Attributes{method="GET",status="200"}, startNanos, nowNanos, 42),
-//   SumDataPoint(Attributes{method="POST",status="201"}, startNanos, nowNanos, 7)
+//   SumDataPoint(Attributes{method="GET",status="200"}, 0L, nowNanos, 42),
+//   SumDataPoint(Attributes{method="POST",status="201"}, 0L, nowNanos, 7)
 // ))
+// startTimeNanos is always 0 — the instruments do not track a start time.
 ```
 
 Each `SumDataPoint` contains the full attribute set plus the accumulated value. The OTLP exporter's `collectFn` calls `.collect()` on each instrument you register:
@@ -697,7 +705,7 @@ val metricExporter = new OtlpJsonMetricExporter(
 )
 ```
 
-The `collectFn` is called by the `BatchProcessor`'s flush task on the configured interval.
+Unlike the trace and log exporters, the metric exporter has no `BatchProcessor` and no background thread: `collectFn` runs only when you ask for a snapshot, via `exportMetrics()` or `collectAllMetrics()`. Schedule those calls yourself — for example on the same `PlatformExecutor` you use for the other signals.
 
 ### Thread safety internals
 
@@ -887,15 +895,16 @@ The `maxQueueSize` and `maxBatchSize` interact: if records arrive faster than yo
 
 ### BatchProcessor behavior
 
-`BatchProcessor` runs inside the `PlatformExecutor`, which uses a virtual-thread-per-task executor for export tasks. This means:
+`BatchProcessor` schedules its flush on the `ScheduledExecutorService` it is handed — `PlatformExecutor.create()` supplies a single-threaded scheduled pool whose threads are virtual (`Executors.newScheduledThreadPool(1, Thread.ofVirtual()…factory())`). This means:
 
 - The scheduled flush (every `flushIntervalMillis`) runs on a virtual thread
-- Export HTTP calls and their retries run on virtual threads, so sleeping during retry backoff doesn't pin a platform thread
+- Export HTTP calls and their retry sleeps run on that same virtual thread, so backoff doesn't pin a platform thread — but the pool has one thread, so a retrying export delays every other flush sharing the executor. Give a high-volume signal its own `PlatformExecutor` if that matters.
+- A full batch does not trigger a send: `maxBatchSize` only chunks what a flush drains. Data leaves on the interval, on `forceFlush()`, or on `shutdown()`.
 - Queue overflow drops the oldest item, prints to stderr, and continues
 
-The retry schedule uses exponential backoff: attempt 0 waits 1s, attempt 1 waits 2s, attempt 2 waits 4s... up to 30s maximum, for `maxRetries` (default 5) total attempts. Non-retryable failures (e.g., 400 Bad Request from the collector) are dropped immediately.
+The retry schedule uses exponential backoff: attempt 0 waits 1s, attempt 1 waits 2s, attempt 2 waits 4s... up to 30s maximum. `maxRetries` (default 5) counts retries, so a permanently failing batch is attempted 6 times before it is dropped. Non-retryable failures (e.g., 400 Bad Request from the collector) are dropped immediately.
 
-On `shutdown()`, `BatchProcessor` cancels the periodic flush, does a final synchronous flush of all pending items, then shuts down the export executor. Retries still happen during shutdown.
+On `shutdown()`, `BatchProcessor` cancels the periodic flush and does a final synchronous flush of all pending items. Retries are skipped once shutdown has started — a failing batch is dropped with a message on stderr rather than delaying exit. The executor is not owned by the processor; shut down the `PlatformExecutor` yourself, after the providers.
 
 ### Graceful shutdown order
 
@@ -1002,7 +1011,7 @@ def traceOutgoing[Resp](
 }
 ```
 
-For the incoming case, propagating the remote parent into the tracer's `ContextStorage` before starting the span requires access to the `TracerProvider`'s `contextStorage` field. This is why `contextStorage` is exposed on `TracerProvider`.
+For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`.
 
 ### With existing Java logging (SLF4J/JUL)
 
@@ -1034,7 +1043,7 @@ If you're writing cross-platform code that uses telemetry, keep your call sites 
 
 Two common causes:
 
-1. The global minimum level is filtering it out. Check `log.globalMinLevel`. Default is `Severity.Trace.number` (1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)`, then trace and debug calls are suppressed.
+1. The global minimum level is filtering it out. The default floor is `Severity.Trace` (severity number 1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)` or `log.setMinSeverity(Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
 ```scala
@@ -1073,7 +1082,7 @@ Then `log.info("action", "id" -> someUuid)` compiles and works.
 
 **"What's the overhead of a disabled log level?"**
 
-Exactly one volatile read (`globalMinLevel`) plus, if the level passes that check, one array scan through the namespace overrides (usually empty, so O(1)). Both happen before any argument is evaluated. No string formatting, no object allocation, no method calls on your arguments.
+Exactly one volatile read (the global minimum level) plus, if the level passes that check, one array scan through the namespace overrides (usually empty, so O(1)). Both happen before any argument is evaluated. No string formatting, no object allocation, no method calls on your arguments.
 
 **"Can I use this with ZIO, Cats Effect, or any other effect system?"**
 
@@ -1091,7 +1100,7 @@ For tracing: use `trace.collectedSpans` and `trace.clearSpans()`. The default in
 
 **"What happens when the export queue fills up?"**
 
-When `queueSize` exceeds `maxQueueSize`, `BatchProcessor.dropOldestIfOverCapacity()` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
+When `queueSize` exceeds `maxQueueSize`, `enqueue` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
 
 ```
 [zio-blocks-telemetry] BatchProcessor queue full (2048). Dropping oldest item.
@@ -1101,7 +1110,7 @@ The new item is still enqueued. This is a best-effort, head-dropping strategy. Y
 
 **"Is this virtual-thread safe?"**
 
-Yes. `ContextStorage` on JDK 25+ uses `ScopedValue`, which is the JDK 25 native mechanism for per-virtual-thread context propagation. Each virtual thread inherits its `ScopedValue` bindings from the thread that spawns it, so if you start a virtual thread inside a span's block, the child thread sees the same span context. The `BatchProcessor` export threads also use virtual threads via `Executors.newVirtualThreadPerTaskExecutor()`, so retry sleeps don't pin platform threads.
+Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on JDK 25+ uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
 
 ---
 
@@ -1110,7 +1119,7 @@ Yes. `ContextStorage` on JDK 25+ uses `ScopedValue`, which is the JDK 25 native 
 - **Complete API reference:** [Telemetry Reference](../reference/telemetry/index.md) for all types, methods, and parameter documentation
 - **Installation and quick start:** same reference doc, Installation section
 - **Context and dependency injection:** [Context Reference](../reference/context.md) for integrating `OtelContext` with the Context module
-- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) for managing provider lifetimes with Scope
+- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
 
 ## See Also
 

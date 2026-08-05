@@ -11,7 +11,7 @@ keywords:
 sidebar_label: "Sampler"
 ---
 
-`Sampler` is the policy that decides, for every new span, whether to record and export it (`RecordAndSample`), record it without exporting (`RecordOnly`), or drop it (`Drop`). It exists to keep tracing volume under control: the sampler runs once per span in the hot path, before any recording work happens. You rarely implement one — the three built-ins cover the common strategies — and you configure a sampler once on the [`TracerProvider`](./tracer-provider.md) rather than calling it yourself. When the decision is `Drop`, [`Tracer`](./tracer.md) hands your block a zero-allocation `Span.NoOp`.
+`Sampler` is the policy that decides, for every new span, whether to record it with the sampled flag set (`RecordAndSample`), record it with the flag cleared (`RecordOnly`), or drop it (`Drop`). Both recording decisions reach every `SpanProcessor` identically; `RecordOnly` differs only in the cleared flag, which is the signal a downstream exporter or service uses to leave the span unexported. It exists to keep tracing volume under control: the sampler runs once per span in the hot path, before any recording work happens. You rarely implement one — the three built-ins cover the common strategies — and you configure a sampler once on the [`TracerProvider`](./tracer-provider.md) rather than calling it yourself. When the decision is `Drop`, [`Tracer`](./tracer.md) hands your block a `Span.NoOp` that records nothing and reaches no processor.
 
 ```scala
 trait Sampler {
@@ -42,7 +42,7 @@ Three built-in samplers cover the strategies most services need, so a custom imp
 | Sampler                             | Behaviour                                                                          |
 |-------------------------------------|------------------------------------------------------------------------------------|
 | `AlwaysOnSampler`                   | Always returns `RecordAndSample`. Default for `TracerProvider.builder`.            |
-| `AlwaysOffSampler`                  | Always returns `Drop`. No allocation on any span path.                             |
+| `AlwaysOffSampler`                  | Always returns `Drop`, reusing one cached `SamplingResult`.                        |
 | `ParentBasedSampler(root: Sampler)` | Follows the parent span's sampled flag; delegates to `root` when no parent exists. |
 
 Set one on the provider at startup — this configures OpenTelemetry-compatible head sampling:
@@ -84,6 +84,6 @@ val provider = TracerProvider.builder.setSampler(TenantSampler).build()
 provider.shutdown()
 ```
 
-The `attributes` your sampler sees are only the ones passed at creation — `trace.span(name, kind, attributes)` or a builder's `setAttribute` before `startSpan()`. Anything you set on the span *inside* the block happens after the decision, so a sampler can never route on it.
+The `attributes` your sampler sees are only the ones passed at creation — `trace.span(name, kind, attributes)` or `tracer.span(name, kind, attributes)`. Anything you set on the span *inside* the block happens after the decision, so a sampler can never route on it. A span started through [`SpanBuilder`](./span-builder.md) never consults a sampler at all.
 
 A dropped span is not nothing. The block still runs with a no-op span, and a valid trace id is still put in scope with the sampled bit cleared — so a nested `trace.span` under `ParentBasedSampler` is dropped too, and an outgoing request still carries the trace with flags `00`. That's what lets a downstream service honor the decision you made at the edge.

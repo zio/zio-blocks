@@ -12,24 +12,27 @@ sidebar_label: "Labeled Instruments"
 
 A labeled instrument is an ordinary counter, histogram, or gauge that already knows its label *names*. You declare them once — `"method"`, `"status"` — and then pass only values: `add(1, "GET", "200")`.
 
-It exists to save work on a hot path. Recording with `add(1, "method" -> "GET", "status" -> "200")` builds a fresh set of label pairs every single call, and on a path that runs thousands of times a second that's steady work for the garbage collector — all to describe names that never change. Fixing the names up front removes that per-call cost.
+It exists to keep call sites short and consistent: the names live in one place, so every recording site is guaranteed to use the same label keys in the same order, and reading `add(1, "GET", "200")` is quicker than reading a line of repeated pairs.
 
-The trade is safety for speed. Passing the wrong *number* of values throws right at the recording call, but passing them in the wrong *order* records silently — swap two and you get a plausible-looking series that's simply wrong. So reach for these only where you've measured the allocation and it matters. Everywhere else, the plain [instruments](./instruments.md) with named pairs are simpler and harder to get wrong. A [`Meter`](./meter.md) creates them, through `labeledCounter`, `labeledHistogram`, and `labeledGauge`.
+Do not reach for it as an optimization. The pair form (`add(1, "method" -> "GET", …)`) builds its `Attributes` through a pooled, thread-local builder, while the labeled form allocates a fresh builder and a fresh `Attributes` on every call — so labeled recording allocates more, not less. What you give up is safety: passing the wrong *number* of values throws right at the recording call, but passing them in the wrong *order* records silently — swap two and you get a plausible-looking series that's simply wrong. When a label combination really is hot, `bind` is the answer: it resolves the attribute set once and hands back a `Bound*` that writes straight to the accumulator. A [`Meter`](./meter.md) creates labeled instruments, through `labeledCounter`, `labeledHistogram`, and `labeledGauge`.
 
 ```scala
 final class LabeledCounter private[telemetry] (...) {
+  val labelNames: Array[String]
   def add(value: Long, labelValues: Any*): Unit
   def bind(labelValues: Any*): BoundCounter
   def collect(): MetricData
 }
 
 final class LabeledHistogram private[telemetry] (...) {
+  val labelNames: Array[String]
   def record(value: Double, labelValues: Any*): Unit
   def bind(labelValues: Any*): BoundHistogram
   def collect(): MetricData
 }
 
 final class LabeledGauge private[telemetry] (...) {
+  val labelNames: Array[String]
   def record(value: Double, labelValues: Any*): Unit
   def bind(labelValues: Any*): BoundGauge
   def collect(): MetricData

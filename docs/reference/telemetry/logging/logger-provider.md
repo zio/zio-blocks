@@ -122,7 +122,12 @@ This is the part you get for free. Write a log inside a span and it carries that
 import zio.blocks.telemetry._
 
 trace.install(TracerProvider.builder.build())
-log.install(LoggerProvider.builder.build().get("com.example"))
+log.install(
+  LoggerProvider.builder
+    .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // a provider with no processor emits nothing
+    .build()
+    .get("com.example")
+)
 
 trace.span("checkout") { _ =>
   log.info("order validated", "orderId" -> "ord-123")  // stamped with the checkout span's IDs

@@ -12,7 +12,7 @@ sidebar_label: "SpanContext"
 
 `SpanContext` is the propagatable identity of a span — the 128-bit trace ID (split into two `Long` fields to avoid boxing), the `SpanId`, the `TraceFlags`, a W3C trace-state string, and an `isRemote` flag that marks contexts extracted from an upstream request. It exists so telemetry from one request can be correlated across services and signals.
 
-You rarely touch it directly: [`Tracer`](./tracer.md) generates one per span, logging stamps the active context onto every record automatically, and request instrumentation propagates it downstream. Reach for it only at a boundary the instrumentation does not cover. `SpanContext.invalid` is the sentinel for "no active span".
+You rarely touch it directly: [`Tracer`](./tracer.md) generates one per span and logging stamps the active context onto every record automatically. Crossing a process boundary is explicit — a `Propagator` from the otel module injects it into outgoing headers and extracts it on the way in — so reach for it when you cross a boundary yourself. `SpanContext.invalid` is the sentinel for "no active span".
 
 ```scala
 final case class SpanContext(

@@ -997,5 +997,5 @@ For complete API documentation, see the [Scope Reference](../reference/resource-
 
 ## See Also
 
-- [Telemetry Reference](../reference/telemetry/index.md) — Apply Scope-based resource safety to manage `TracerProvider`, `LoggerProvider`, and `MeterProvider` lifetimes
-- [Telemetry Guide](./telemetry-guide.md) — Real-world patterns for provider lifecycle management using Scope
+- [Telemetry Reference](../reference/telemetry/index.md) — `TracerProvider`, `LoggerProvider`, and `MeterProvider` are `AutoCloseable`, so the ownership rules here carry over to their lifetimes
+- [Telemetry Guide](./telemetry-guide.md) — Provider startup and shutdown ordering, done with plain `AutoCloseable` shutdown rather than `Scope`

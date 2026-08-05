@@ -20,7 +20,7 @@ Write your own to reach somewhere the module doesn't cover — an OTLP collector
 
 ```scala
 trait LogRecordProcessor extends AutoCloseable {
-  def onEmit(logRecord: LogRecord): Unit   // fires for every record at or above minimumLevel
+  def onEmit(logRecord: LogRecord): Unit   // fires for every record the Logger lets through
   def shutdown(): Unit                     // flush and release; called by LoggerProvider.shutdown()
   def forceFlush(): Unit                   // flush buffered records now
   override def close(): Unit = shutdown()
@@ -35,7 +35,7 @@ object LogRecordProcessor {
 
 `onEmit` is the method that matters — it runs once per log, **on the thread that logged**, before your code continues. So keep it quick. If you send each record over the network from inside `onEmit`, every `log.info` in your application waits for that round trip; buffer records instead and ship them in batches from a background thread, then flush what's left when `shutdown` or `forceFlush` is called.
 
-`minimumLevel` lets a processor say "only send me warnings and worse" as a `Severity` number. It's worth setting because the check happens early: the `Logger` takes the lowest `minimumLevel` across every registered processor and, for anything below it, doesn't even build a `LogRecord`. A debug line that no destination wants costs almost nothing.
+`minimumLevel` lets a processor say "only send me warnings and worse" as a `Severity` number. It's a volume hint, not a filter applied per processor: the `Logger` takes the lowest `minimumLevel` across every registered processor and, for anything below it, doesn't even build a `LogRecord` — so a debug line no destination wants costs almost nothing. Anything above that shared floor is delivered to every processor, including ones whose own `minimumLevel` is higher, so a processor that must not see debug records has to re-check `record.severity` in `onEmit`.
 
 Your own processor implements those three methods — with nothing buffered, `shutdown` and `forceFlush` can stay empty — and registers on the global [`log`](./index.md):
 
