@@ -626,7 +626,7 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
     Compile / scalacOptions  := {
       val base = (Compile / scalacOptions).value
       base.zipWithIndex.flatMap { case (opt, i) =>
-        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("21")
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("25")
         else Seq(opt)
       }
     }
@@ -657,7 +657,7 @@ lazy val otel = project
     Compile / scalacOptions := {
       val base = (Compile / scalacOptions).value
       base.zipWithIndex.flatMap { case (opt, i) =>
-        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("21")
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("25")
         else Seq(opt)
       }
     }
