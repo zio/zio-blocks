@@ -27,7 +27,7 @@ trait LogEnrichment[A] {
 | `String`                                                                                           | Replaces the message body.                                                                                   |
 | `Throwable`                                                                                        | Adds `exception.type` and `exception.message` attributes and stores the throwable for stack-trace rendering. |
 | `Attributes`                                                                                       | Merges the whole set into the record's attributes.                                                           |
-| `Severity`                                                                                         | Overrides the record's severity.                                                                             |
+| `Severity`                                                                                         | Overrides the recorded severity — but not the one used for filtering (see below).                            |
 | `(String, String)` / `(String, Long)` / `(String, Int)` / `(String, Double)` / `(String, Boolean)` | Adds one typed key-value attribute (`Int` is widened to `Long`).                                             |
 
 These common types are also recognized directly by the `log.*` macro, so passing them costs nothing at runtime:
@@ -45,6 +45,10 @@ log.error(
   "retryable" -> false       // (String, Boolean)
 )
 ```
+
+Passing a `Severity` is the one case that behaves unexpectedly. It changes the severity written into the record, but filtering already happened using the severity of the method you called — so `log.warn("slow query", Severity.Debug)` is recorded as DEBUG even under an `Info` floor, and `log.info("charge failed", Severity.Error)` is dropped by a `Warn` floor despite arriving as an error. Call the method matching the level you want filtered on.
+
+Types outside the table are rejected at compile time, which is what a missing `LogEnrichment` error means. `Float`, `Short`, `Byte`, `Char`, `UUID`, and `Instant` are the ones people hit first: convert them at the call site (`.toDouble`, `.toLong`, `.toString`) or give the type an instance of its own.
 
 ## Custom Instances
 
