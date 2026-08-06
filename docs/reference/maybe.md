@@ -5,6 +5,8 @@ title: "Maybe"
 
 `Maybe[A]` is a **low-allocation alternative to `Option[A]`** that uses `null` to represent the absence of a value. It is an opaque type alias for `A | Null`, allowing you to write nullable-like code with the safety and ergonomics of an Option-style API. Core types: `Maybe[A]`.
 
+> **Scala 3 only:** `Maybe.apply` and `Maybe.present` require a `MaybeSafe[A]` compile-time implicit, which prevents constructing `Maybe[Null]`, `Maybe[Any]`, `Maybe[AnyRef]`, `Maybe` with union element types (e.g. `String | Null`), and nested `Maybe[Maybe[_]]`. Use `Maybe.fromOption` to bypass the guard when needed (e.g., in generic code where the type parameter is abstract).
+
 Here's the type definition and basic construction:
 
 ```scala
@@ -219,9 +221,11 @@ Wraps a value in `Maybe`, treating `null` as `Maybe.absent`:
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
-val present = Maybe(42)                  // Maybe[Int] containing 42
-val absent: Maybe[String] = Maybe(null)  // Maybe[String] absent
+val present: Maybe[Int]    = Maybe(42)                         // Maybe[Int] containing 42
+val absent: Maybe[String]  = Maybe(null.asInstanceOf[String])  // null.asInstanceOf[String] avoids inferring A = Null (rejected by MaybeSafe)
 ```
+
+> **Note (Scala 3):** `Maybe.apply` requires a `MaybeSafe[A]` implicit at the call site. Unsound types like `Null`, `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time. Use `Maybe.fromOption` as a bypass for generic code.
 
 #### Maybe.present
 
@@ -232,6 +236,8 @@ import zio.blocks.maybe._
 
 val value: Maybe[Int] = Maybe.present(100)
 ```
+
+> **Note (Scala 3):** `Maybe.present` requires a `MaybeSafe[A]` implicit at the call site. Unsound types like `Null`, `Any`, `AnyRef`, union types (e.g. `String | Null`), and nested `Maybe[_]` are rejected at compile time. Use `Maybe.fromOption` as a bypass for generic code.
 
 #### Maybe.absent
 
@@ -393,7 +399,7 @@ Unwraps a nested `Maybe`:
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
-val nested: Maybe[Maybe[Int]] = Maybe.present(Maybe.present(42))
+val nested: Maybe[Maybe[Int]] = Maybe.fromOption(Some(Maybe.fromOption(Some(42))))
 val flat: Maybe[Int]          = nested.flatten
 println(flat.get)  // 42
 ```

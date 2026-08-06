@@ -22,13 +22,32 @@ import scala.language.implicitConversions
 opaque type Maybe[+A] = A | Null
 
 object Maybe {
-  inline def apply[A](a: A): Maybe[A] =
-    if (a == null) null else a
 
-  inline def present[A](a: A): Maybe[A] = a
-  inline def absent[A]: Maybe[A]        = null
-  inline def empty[A]: Maybe[A]         = null
-  def Absent: Maybe[Nothing]            = null
+  /**
+   * Wraps a value in `Maybe`, treating `null` as absent.
+   *
+   * On Scala 3 this method requires a `MaybeSafe[A]` implicit, which is
+   * available only for sound `Maybe` element types. In particular `Null`,
+   * `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time.
+   */
+  inline def apply[A](a: A)(using MaybeSafe[A]): Maybe[A] =
+    if (a == null) null else a.asInstanceOf[Maybe[A]]
+
+  /**
+   * Wraps a value in `Maybe`.
+   *
+   * Unlike `apply`, this method does not treat `null` as absent — passing
+   * `null` produces `Maybe.absent` without an explicit null check. Prefer
+   * `apply` when the value might be null.
+   *
+   * On Scala 3 this method requires a `MaybeSafe[A]` implicit, which is
+   * available only for sound `Maybe` element types. In particular `Null`,
+   * `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time.
+   */
+  inline def present[A](a: A)(using MaybeSafe[A]): Maybe[A] = a.asInstanceOf[Maybe[A]]
+  inline def absent[A]: Maybe[A]                            = null
+  inline def empty[A]: Maybe[A]                             = null
+  def Absent: Maybe[Nothing]                                = null
 
   def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
     case Some(a) => a
