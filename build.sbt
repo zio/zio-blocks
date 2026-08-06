@@ -1688,7 +1688,9 @@ lazy val docs = project
     htmx.jvm,
     mux.jvm,
     async.jvm,
-    sql.jvm
+    sql.jvm,
+    telemetry.jvm,
+    otel
   )
   .enablePlugins(WebsitePlugin)
   .settings(

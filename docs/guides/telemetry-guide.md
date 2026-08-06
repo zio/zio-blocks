@@ -5,16 +5,22 @@ title: "Telemetry: Architecture, Patterns, and Real-World Usage"
 
 `zio-blocks-telemetry` is an effect-free, zero-allocation observability library that gives you structured logging, distributed tracing, and metrics without pulling in the OpenTelemetry SDK or any effect system. This guide explains why it works the way it does, shows what happens inside each operation, and walks through patterns for production systems.
 
-If you're looking for API signatures and quick copy-paste snippets, the [Telemetry Reference](../reference/telemetry.md) has those. This guide focuses on the "how" and "why": architecture, design trade-offs, and the kind of understanding that helps when things go wrong at 3 AM.
+If you're looking for API signatures and quick copy-paste snippets, the [Telemetry Reference](../reference/telemetry/index.md) has those. This guide focuses on the "how" and "why": architecture, design trade-offs, and the kind of understanding that helps when things go wrong at 3 AM.
 
 ## Installation
 
 ```scala
-// Core: logging, tracing, metrics (JVM + JS)
+// Core: logging, tracing, metrics
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry" % "@VERSION@"
 
 // OTLP JSON export over HTTP (JVM only)
 libraryDependencies += "dev.zio" %% "zio-blocks-telemetry-otel" % "@VERSION@"
+```
+
+The core module also cross-builds for Scala.js:
+
+```scala
+libraryDependencies += "dev.zio" %%% "zio-blocks-telemetry" % "@VERSION@"
 ```
 
 ---
@@ -73,10 +79,10 @@ Two separate things must both be cheap: the fast path when a level is disabled, 
 **Disabled level fast path.** The first check in every `log.*` call is:
 
 ```scala
-if (severity.number >= log.globalMinLevel) { ... }
+if (severity.number >= GlobalLogState.globalMinLevel) { ... }
 ```
 
-`globalMinLevel` is a `@volatile Int`. Reading it costs roughly one memory fence. If the level is disabled, the compiler has already eliminated all argument evaluation (the arguments are passed by-name or inlined via macro). No string is built, no object is allocated.
+`globalMinLevel` is a `@volatile Int` held inside the library-private `GlobalLogState` (you set it through `log.install`, `log.setMinSeverity`, and `log.withMinSeverity` rather than reading it directly). Reading it costs roughly one memory fence. If the level is disabled, the compiler has already eliminated all argument evaluation (the arguments are passed by-name or inlined via macro). No string is built, no object is allocated.
 
 **Enabled level slow path.** When a level is enabled, attribute pairs need to be assembled into a `LogRecord`. The library uses a pooled `AttributeBuilder` (one per thread, reused), backed by parallel primitive arrays. Primitive values (Long, Double, Boolean) are stored as unboxed longs using type discriminator bytes. A `(String, Long)` attribute doesn't box the Long.
 
@@ -108,7 +114,7 @@ The global singletons are intentionally not safe to use across threads during `i
 
 The simplest possible start:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 log.info("server started")
@@ -118,7 +124,7 @@ No imports beyond the package. No provider setup. Output goes to stdout as human
 
 Moving to a more realistic setup:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 // Structured attributes alongside the message
@@ -127,29 +133,40 @@ log.info("user signed in", "user_id" -> "u-7890", "method" -> "oauth2")
 // Numbers are unboxed on the fast path
 log.info("payment processed", "amount_cents" -> 4999L, "currency" -> "EUR")
 
-// Exceptions get type, message, and stacktrace automatically
-log.error("payment failed", new IllegalStateException("card declined"))
+// Exceptions get type, message, and stacktrace automatically.
+// Bind to a Throwable-typed val; an inline `new SomeException(...)` does not resolve.
+val declined: Throwable = new IllegalStateException("card declined")
+log.error("payment failed", declined)
 
 // Mix freely
+val timeout: Throwable = new RuntimeException("timeout")
 log.warn(
   "upstream degraded",
   "service" -> "inventory",
   "latency_ms" -> 850L,
-  new RuntimeException("timeout")
+  timeout
 )
 ```
 
-Adding a file output at startup:
+Adding a file output at startup. The module ships stdout, stderr, and no-op writers; a file destination is a few lines of your own:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import java.io.PrintWriter
+
+final class AppFileWriter(path: String) extends LogWriter {
+  private val out = new PrintWriter(path)
+  def write(content: CharSequence): Unit = out.println(content)
+  override def flush(): Unit             = out.flush()
+  override def close(): Unit             = out.close()
+}
 
 // Human-readable text to one file, OTLP JSON to another
-log.writer(TextLogFormatter, FileLogWriter("logs/app.log"))
-log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+log.writer(TextLogFormatter, new AppFileWriter("logs/app.log"))
+log.writer(JsonLogFormatter, new AppFileWriter("logs/app.jsonl"))
 ```
 
-Both outputs are active simultaneously. `writer()` is additive.
+Both outputs are active simultaneously, alongside the default console output — `writer()` is additive.
 
 ### Macro mechanics explained
 
@@ -160,7 +177,7 @@ Conceptual expansion of:
   log.info("request received", "user_id" -> userId, "attempt" -> 3)
 
 Expands to (pseudocode):
-  if (Severity.Info.number >= log.globalMinLevel) {
+  if (Severity.Info.number >= GlobalLogState.globalMinLevel) {
     val state = log.getState()
     if (state != null && Severity.Info.number >= state.effectiveLevel(<current class name>)) {
       val now = EpochClock.epochNanos()
@@ -186,27 +203,27 @@ Expands to (pseudocode):
 The important things the macro does:
 - Captures `code.filepath`, `code.namespace`, `code.function`, `code.lineno` at compile time
 - Resolves each enrichment argument type at compile time and calls the specific builder method (no runtime dispatch on the fast path)
-- For rate-limited variants (`infoEvery`, `warnAtMost`), synthesizes a `val counter` or `val lastEmit` at the call site so each call site has independent state
+- For rate-limited variants (`infoEvery`, `warnAtMost`), hashes the source position into a `siteId` constant so each call site gets its own rate-limit slot
 
-For `*Every(N, msg)`, the macro synthesizes:
-
-```scala
-// Synthesized at call site by the macro
-val _counter_42 = new java.util.concurrent.atomic.AtomicLong(0L)
-
-// At each call:
-if (_counter_42.getAndIncrement() % N == 0) { log.emit(...) }
-```
-
-For `*AtMost(windowMs, msg)`, it's:
+For `*Every(N, msg)`, the macro emits a guard against a shared global table:
 
 ```scala
-val _lastEmit_77 = new java.util.concurrent.atomic.AtomicLong(0L)
+// siteId is a compile-time constant: (sourcePath + ":" + line).hashCode
+if (LogRateLimit.shouldLogEvery(siteId, N)) { log.emit(...) }
 
-val now = System.currentTimeMillis()
-val last = _lastEmit_77.get()
-if (now - last >= windowMs && _lastEmit_77.compareAndSet(last, now)) { log.emit(...) }
+// LogRateLimit keeps one AtomicLongArray of 4096 counters:
+//   counters.incrementAndGet(siteId & 4095) % N == 0
 ```
+
+For `*AtMost(windowMs, msg)`, it's the same shape against a parallel timestamp array:
+
+```scala
+if (LogRateLimit.shouldLogAtMost(siteId, windowMs)) { log.emit(...) }
+
+// timestamps.get(idx); if (now - last >= windowMs) timestamps.compareAndSet(idx, last, now)
+```
+
+Two consequences of the shared table: `*Every(N, …)` emits on the *Nth* call rather than the first (the counter is incremented before the modulo), and two call sites whose `siteId` collides modulo 4096 share one slot.
 
 ### Custom enrichment types
 
@@ -214,7 +231,7 @@ The `LogEnrichment[A]` typeclass lets the macro delegate argument resolution to 
 
 Say you want to log `UUID` values directly:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.util.UUID
 
@@ -236,7 +253,7 @@ log.info("request started", "request_id" -> requestId)
 
 For `java.time.Instant`:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.time.Instant
 
@@ -259,12 +276,20 @@ log.info("event occurred", "timestamp" -> Instant.now())
 
 Every call to `log.writer(formatter, writer)` adds another output. The state is maintained inside the `log` object and composited into the active logger:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import java.io.PrintWriter
+
+final class AppFileWriter(path: String) extends LogWriter {
+  private val out = new PrintWriter(path)
+  def write(content: CharSequence): Unit = out.println(content)
+  override def flush(): Unit             = out.flush()
+  override def close(): Unit             = out.close()
+}
 
 // Setup at startup; all three are active simultaneously
-log.writer(TextLogFormatter, FileLogWriter("logs/app.log"))
-log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+log.writer(TextLogFormatter, new AppFileWriter("logs/app.log"))
+log.writer(JsonLogFormatter, new AppFileWriter("logs/app.jsonl"))
 // The OTEL exporter is a LogRecordProcessor, added via LoggerProvider (see Part 5)
 ```
 
@@ -272,7 +297,9 @@ Internally, `log.writer(...)` creates a `FormattedLogRecordProcessor` (which pai
 
 To remove all file writers:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 log.clearWriters()
 ```
 
@@ -282,7 +309,9 @@ This shuts down each `FormattedLogRecordProcessor` cleanly and reverts to proces
 
 The same call:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 ```
 
@@ -293,7 +322,7 @@ log.warn("slow query", "table" -> "orders", "duration_ms" -> 450L)
 
 **JsonLogFormatter output:**
 ```json
-{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
+{"timeUnixNano":"1747216200123000000","severityNumber":13,"severityText":"WARN","body":{"stringValue":"slow query"},"attributes":[{"key":"code.filepath","value":{"stringValue":"src/main/scala/com/example/PaymentService.scala"}},{"key":"code.namespace","value":{"stringValue":"com.example.PaymentService"}},{"key":"code.function","value":{"stringValue":"handleRequest"}},{"key":"code.lineno","value":{"intValue":"87"}},{"key":"table","value":{"stringValue":"orders"}},{"key":"duration_ms","value":{"intValue":"450"}}]}
 ```
 
 The JSON format follows the OTLP log data model directly, making it compatible with any OTLP-aware log processor (Grafana Loki, OpenTelemetry Collector, etc.).
@@ -338,8 +367,10 @@ assert(warns.exists(_.body.value.contains("payment")))
 
 Don't forget to restore state between tests:
 
-```scala
-log.uninstall()  // reverts to default console logger
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
+log.removeAll()  // drops every writer and processor; log.* becomes a no-op
 ```
 
 ---
@@ -354,7 +385,7 @@ When you call `tracer.span("name") { span => ... }`, here's the complete sequenc
 
 2. **Sampler decision.** `sampler.shouldSample(...)` is called with the parent context, new trace ID bits, span name, and kind. The result is one of `Drop`, `RecordOnly`, or `RecordAndSample`.
 
-3. **Drop path.** If `Drop`, your block runs with `Span.NoOp`. All `setAttribute`, `addEvent`, `setStatus` calls are no-ops. Zero allocation.
+3. **Drop path.** If `Drop`, your block runs with `Span.NoOp`. All `setAttribute`, `addEvent`, `setStatus` calls are no-ops, and no processor is notified. A dropped span is still cheap but not free: a fresh `SpanId` and `SpanContext` are allocated and scoped so that nested spans and log records stay on the same trace.
 
 4. **Record path.** A `RecordingSpan` is built with a new `SpanContext`. The span gets:
    - The parent's `traceIdHi`/`traceIdLo` if a valid parent exists, or a fresh random pair
@@ -387,7 +418,7 @@ tracer.span("checkout") { span =>
               |
               +-- BatchProcessor.enqueue(spanData)
                    |
-                   (background flush every 5s or at maxBatchSize)
+                   (background flush every 5s, draining maxBatchSize per request)
                    |
                    +-- HTTP POST /v1/traces to OTLP collector
 ```
@@ -404,12 +435,12 @@ tracer.span("checkout") { span =>
 
 This is the right choice for most production services. The gateway or entry service decides sampling, and all downstream services follow automatically. Configure it with `AlwaysOnSampler` as the root if you want the gateway to sample everything, or with a `RateLimitedSampler` (if you implement one) for head-based sampling:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val tracerProvider = TracerProvider.builder
   .setSampler(ParentBasedSampler(root = AlwaysOnSampler))
-  .addSpanProcessor(yourExporter)
+  .addSpanProcessor(SpanProcessor.noop)  // your exporter here
   .build()
 
 trace.install(tracerProvider)
@@ -430,9 +461,9 @@ final case class SpanContext(
 
 The 128-bit trace ID is stored as two `Long` fields rather than a `UUID` object. A `UUID` would be 32 bytes of heap allocation per span, plus GC pressure. Two `Long` fields on a case class cost nothing beyond the case class itself, and they're JIT-friendly (no dereference).
 
-A fresh trace ID is generated by `TraceId.random()`, which calls `ThreadLocalRandom.current().nextLong()` twice. `ThreadLocalRandom` is faster than `Random` in concurrent scenarios because it doesn't share state between threads.
+A fresh trace ID is generated by `TraceId.random()`, which draws two `Long`s from `scala.util.Random`, retrying in the vanishingly unlikely case that both come out zero (an all-zero trace ID is invalid by the spec).
 
-`SpanId` is an `AnyVal` wrapping a single `Long`, similarly generated by `ThreadLocalRandom.current().nextLong()`. At runtime on the JVM, `AnyVal`s are unboxed wherever possible, so a `SpanId` in a `SpanContext` field costs nothing extra.
+`SpanId` is an `AnyVal` wrapping a single `Long`, generated the same way and likewise retried if it comes out zero. At runtime on the JVM, `AnyVal`s are unboxed wherever possible, so a `SpanId` in a `SpanContext` field costs nothing extra.
 
 `traceIdHex` is computed on demand by `TraceId.toHex(traceIdHi, traceIdLo)`, which formats the two longs into 32 hex characters. No caching: hex formatting is only needed when building headers or log output.
 
@@ -442,10 +473,9 @@ Here's a complete round trip. The server receives an HTTP request with W3C `trac
 
 **HTTP server (receiving a trace):**
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 // Simulate incoming HTTP headers
 val incomingHeaders = Map(
@@ -459,29 +489,31 @@ val parentCtx: Option[SpanContext] =
 val tracer = trace.get("api-service")
 
 // Wire the extracted context as the parent by scoping it in ContextStorage
+// A provider's own contextStorage is internal, so create one and pass it in
+val contextStorage = ContextStorage.create[Option[SpanContext]](None)
+
 val tracerProvider = TracerProvider.builder
-  .addSpanProcessor(yourExporter)
+  .addSpanProcessor(SpanProcessor.noop)  // your exporter here
+  .setContextStorage(contextStorage)
   .build()
 
-// Use the provider's context storage to set the remote parent
-val contextStorage = tracerProvider.contextStorage
+trace.install(tracerProvider)
 
 contextStorage.scoped(parentCtx) {
   tracer.span("handle-checkout", SpanKind.Server) { span =>
     span.setAttribute("http.method", "POST")
     span.setAttribute("http.route", "/checkout")
     // Your handler logic here
-    processCheckout()
+    ()  // your handler logic here
   }
 }
 ```
 
 **HTTP client (injecting trace into outbound call):**
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 val tracer = trace.get("api-service")
 
@@ -494,7 +526,7 @@ tracer.span("call-inventory", SpanKind.Client) { span =>
   )
 
   // headers now contains: "traceparent" -> "00-<traceId>-<spanId>-01"
-  httpClient.post("http://inventory-service/check", headers)
+  headers  // hand these to your HTTP client
 }
 ```
 
@@ -506,7 +538,7 @@ For Zipkin/B3 compatibility, swap `W3CTraceContextPropagator` for `B3Propagator.
 
 The default `trace` provider stores spans in an in-memory processor:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 // Reset before each test
@@ -541,7 +573,8 @@ When you log inside an active span, the logger automatically attaches `traceId` 
 At provider creation time:
 
 ```scala
-// TracerProvider.builder.build() creates a ContextStorage
+// TracerProvider.builder.build() falls back to ContextStorage.defaultSpanContextStorage
+// unless you pass one; here we create an explicit instance to share
 val cs = ContextStorage.create[Option[SpanContext]](None)
 val tracerProvider = new TracerProvider(resource, sampler, processors, cs)
 
@@ -551,9 +584,9 @@ val loggerProvider = LoggerProvider.builder
   .build()
 ```
 
-When `tracer.span(...)` runs, it calls `contextStorage.scoped(Some(span.spanContext)) { ... }`. This scopes the span context for the duration of the block using `ScopedValue` (on JDK 25+) or `ThreadLocal`. Inside that block, `logger.currentSpanContext()` reads from the same storage and sees the active span. No explicit linkage code at the call site.
+When `tracer.span(...)` runs, it calls `contextStorage.scoped(Some(span.spanContext)) { ... }`. This scopes the span context for the duration of the block using `ScopedValue` on the JVM. On Scala.js there are no threads, so the storage is a plain mutable variable saved and restored around the block. Inside that block, `logger.currentSpanContext()` reads from the same storage and sees the active span. No explicit linkage code at the call site.
 
-If you use the global singletons without explicitly sharing a `ContextStorage`, the default logger gets its own context storage, separate from the default tracer's. Span-log correlation only works automatically when you wire them to share one. The OTEL module's production setup example (Part 5) shows how to do this correctly.
+This works out of the box with the global singletons: a provider built without an explicit `ContextStorage` falls back to the same `ContextStorage.defaultSpanContextStorage` singleton, so the default tracer and the default logger already read and write the same storage. You only need to pass one explicitly when you want the opposite — isolating correlation between test cases, or fitting a custom runtime.
 
 ---
 
@@ -575,7 +608,7 @@ More specifically:
 - Use **`Histogram`** when you care about the distribution, not just the total: latency percentiles (p50, p95, p99), request sizes. Histograms record min, max, sum, count, and configurable bucket counts.
 - Use **`Gauge`** when you're sampling the current value of something external: a JVM heap usage check, a pool size read from a connection pool object. Last-write wins.
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests     = metric.counter("http.requests.total")
@@ -601,7 +634,7 @@ heapUsed.record(Runtime.getRuntime.totalMemory() - Runtime.getRuntime.freeMemory
 
 When you record against the same label combination at high frequency, pre-binding avoids the `Attributes` lookup on every call:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests = metric.counter("http.requests.total")
@@ -621,7 +654,7 @@ A `BoundCounter` holds a direct reference to the `LongAdder` for that attribute 
 
 The same pattern works for histograms and gauges:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val latency    = metric.histogram("http.request.duration_ms")
@@ -639,7 +672,7 @@ def updatePrimaryPoolSize(n: Double): Unit = primaryPool.record(n)
 
 `Counter.collect()`, `Histogram.collect()`, and `Gauge.collect()` snapshot the current state of the instrument without resetting it:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 
 val requests = metric.counter("http.requests.total")
@@ -648,15 +681,19 @@ requests.add(7,  "method" -> "POST", "status" -> "201")
 
 val data = requests.collect()
 // data: MetricData.SumData(List(
-//   SumDataPoint(Attributes{method="GET",status="200"}, startNanos, nowNanos, 42),
-//   SumDataPoint(Attributes{method="POST",status="201"}, startNanos, nowNanos, 7)
+//   SumDataPoint(Attributes{method="GET",status="200"}, 0L, nowNanos, 42),
+//   SumDataPoint(Attributes{method="POST",status="201"}, 0L, nowNanos, 7)
 // ))
+// startTimeNanos is always 0 — the instruments do not track a start time.
 ```
 
 Each `SumDataPoint` contains the full attribute set plus the accumulated value. The OTLP exporter's `collectFn` calls `.collect()` on each instrument you register:
 
 ```scala
-package zio.blocks.telemetry.otel
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+
 
 val metricExporter = new OtlpJsonMetricExporter(
   config, resource, scope, sender,
@@ -668,7 +705,7 @@ val metricExporter = new OtlpJsonMetricExporter(
 )
 ```
 
-The `collectFn` is called by the `BatchProcessor`'s flush task on the configured interval.
+Unlike the trace and log exporters, the metric exporter has no `BatchProcessor` and no background thread: `collectFn` runs only when you ask for a snapshot, via `exportMetrics()` or `collectAllMetrics()`. Schedule those calls yourself — for example on the same `PlatformExecutor` you use for the other signals.
 
 ### Thread safety internals
 
@@ -692,7 +729,9 @@ The `collectFn` is called by the `BatchProcessor`'s flush task on the configured
 The OTEL exporters live in `package zio.blocks.telemetry.otel` and are `private[otel]`. Your bootstrap code must be in the same package (or a class in that package):
 
 ```scala
-package zio.blocks.telemetry.otel
+import zio.blocks.telemetry.otel._
+
+
 
 import zio.blocks.telemetry._
 import java.util.concurrent.TimeUnit
@@ -747,8 +786,8 @@ object Telemetry {
 
     log.install(loggerProvider.get("my-service"), minSeverity = Severity.Info)
 
-    // Optional: also write to a local file as backup
-    log.writer(JsonLogFormatter, FileLogWriter("logs/app.jsonl"))
+    // Optional: also emit JSON on stderr (a file needs your own LogWriter, see Part 2)
+    log.writer(JsonLogFormatter, StderrWriter)
 
     // --- Metrics ---
     val meterProvider = MeterProvider.builder
@@ -815,7 +854,10 @@ object Main {
 The default values work for most services. Here's when to change them:
 
 **High-throughput services (>1000 RPS):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 8192,   // larger buffer for spikes
   maxBatchSize        = 1024,   // send bigger payloads less often
@@ -824,7 +866,10 @@ ExporterConfig(
 ```
 
 **Low-latency services (real-time data required):**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 1024,
   maxBatchSize        = 128,    // smaller batches = lower end-to-end latency
@@ -833,7 +878,10 @@ ExporterConfig(
 ```
 
 **Development / debugging:**
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 ExporterConfig(
   maxQueueSize        = 256,
   maxBatchSize        = 32,
@@ -847,15 +895,16 @@ The `maxQueueSize` and `maxBatchSize` interact: if records arrive faster than yo
 
 ### BatchProcessor behavior
 
-`BatchProcessor` runs inside the `PlatformExecutor`, which uses a virtual-thread-per-task executor for export tasks. This means:
+`BatchProcessor` schedules its flush on the `ScheduledExecutorService` it is handed — `PlatformExecutor.create()` supplies a single-threaded scheduled pool whose threads are virtual (`Executors.newScheduledThreadPool(1, Thread.ofVirtual()…factory())`). This means:
 
 - The scheduled flush (every `flushIntervalMillis`) runs on a virtual thread
-- Export HTTP calls and their retries run on virtual threads, so sleeping during retry backoff doesn't pin a platform thread
+- Export HTTP calls and their retry sleeps run on that same virtual thread, so backoff doesn't pin a platform thread — but the pool has one thread, so a retrying export delays every other flush sharing the executor. Give a high-volume signal its own `PlatformExecutor` if that matters.
+- A full batch does not trigger a send: `maxBatchSize` only chunks what a flush drains. Data leaves on the interval, on `forceFlush()`, or on `shutdown()`.
 - Queue overflow drops the oldest item, prints to stderr, and continues
 
-The retry schedule uses exponential backoff: attempt 0 waits 1s, attempt 1 waits 2s, attempt 2 waits 4s... up to 30s maximum, for `maxRetries` (default 5) total attempts. Non-retryable failures (e.g., 400 Bad Request from the collector) are dropped immediately.
+The retry schedule uses exponential backoff: attempt 0 waits 1s, attempt 1 waits 2s, attempt 2 waits 4s... up to 30s maximum. `maxRetries` (default 5) counts retries, so a permanently failing batch is attempted 6 times before it is dropped. Non-retryable failures (e.g., 400 Bad Request from the collector) are dropped immediately.
 
-On `shutdown()`, `BatchProcessor` cancels the periodic flush, does a final synchronous flush of all pending items, then shuts down the export executor. Retries still happen during shutdown.
+On `shutdown()`, `BatchProcessor` cancels the periodic flush and does a final synchronous flush of all pending items. Retries are skipped once shutdown has started — a failing batch is dropped with a message on stderr rather than delaying exit. The executor is not owned by the processor; shut down the `PlatformExecutor` yourself, after the providers.
 
 ### Graceful shutdown order
 
@@ -874,7 +923,10 @@ Don't shut down the executor before the providers; the batch processor's retry t
 
 The standard OTLP environment variables map naturally:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
 val config = ExporterConfig(
   endpoint = sys.env.getOrElse("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
   headers  = sys.env.get("OTEL_EXPORTER_OTLP_HEADERS")
@@ -897,7 +949,9 @@ def parseOtlpHeaders(raw: String): Map[String, String] =
 
 For minimum log level:
 
-```scala
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+
 val minLevel = sys.env.get("LOG_LEVEL").flatMap {
   case "TRACE" => Some(Severity.Trace)
   case "DEBUG" => Some(Severity.Debug)
@@ -907,7 +961,7 @@ val minLevel = sys.env.get("LOG_LEVEL").flatMap {
   case _       => None
 }.getOrElse(Severity.Info)
 
-log.install(logger, minSeverity = minLevel)
+log.install(LoggerProvider.builder.build().get("my-service"), minSeverity = minLevel)
 ```
 
 ---
@@ -918,10 +972,9 @@ log.install(logger, minSeverity = minLevel)
 
 A typical middleware pattern extracts incoming trace context, starts a server span, and injects context into outbound calls. Here's the conceptual shape (adapting to your specific HTTP library):
 
-```scala
-package zio.blocks.telemetry.otel
-
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
 
 // Incoming request middleware
 def traceIncoming[Req, Resp](
@@ -958,7 +1011,7 @@ def traceOutgoing[Resp](
 }
 ```
 
-For the incoming case, propagating the remote parent into the tracer's `ContextStorage` before starting the span requires access to the `TracerProvider`'s `contextStorage` field. This is why `contextStorage` is exposed on `TracerProvider`.
+For the incoming case, the remote parent has to be scoped in the same `ContextStorage` the tracer reads. A provider's own `contextStorage` field is library-private, so build one with `ContextStorage.create` and hand it to the builder via `setContextStorage` — as the server example above does — then wrap the handler in `contextStorage.scoped(parentCtx) { … }`.
 
 ### With existing Java logging (SLF4J/JUL)
 
@@ -975,7 +1028,7 @@ The core telemetry module (`zio-blocks-telemetry`) compiles for JVM and Scala.js
 - All the in-memory processors and default providers
 
 JVM-only:
-- `FileLogWriter`: uses `FileChannel`, not available in JS
+- File output: a custom `LogWriter` backed by `java.io` or `FileChannel` works on the JVM only
 - `ContextStorage` using `ScopedValue`: JDK 25+ specific; on Scala.js, a simpler mutable-variable implementation is used
 - `PlatformExecutor`: uses `ScheduledExecutorService` with virtual threads
 - The entire `zio-blocks-telemetry-otel` module (OTLP HTTP export, `BatchProcessor`)
@@ -990,10 +1043,10 @@ If you're writing cross-platform code that uses telemetry, keep your call sites 
 
 Two common causes:
 
-1. The global minimum level is filtering it out. Check `log.globalMinLevel`. Default is `Severity.Trace.number` (1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)`, then trace and debug calls are suppressed.
+1. The global minimum level is filtering it out. The default floor is `Severity.Trace` (severity number 1), so everything passes. If you called `log.install(logger, minSeverity = Severity.Info)` or `log.setMinSeverity(Severity.Info)`, then trace and debug calls are suppressed.
 
 2. The logger was installed but the processor chain is empty. Verify your `LoggerProvider` builder has at least one processor:
-   ```scala
+```scala
    LoggerProvider.builder
      .addLogRecordProcessor(new ConsoleLogRecordProcessor)  // don't forget this
      .build()
@@ -1015,7 +1068,7 @@ The compiler error will say something like `no implicit value for LogEnrichment[
 
 Define an implicit in your package object or companion:
 
-```scala
+```scala mdoc:compile-only
 import zio.blocks.telemetry._
 import java.util.UUID
 
@@ -1029,7 +1082,7 @@ Then `log.info("action", "id" -> someUuid)` compiles and works.
 
 **"What's the overhead of a disabled log level?"**
 
-Exactly one volatile read (`globalMinLevel`) plus, if the level passes that check, one array scan through the namespace overrides (usually empty, so O(1)). Both happen before any argument is evaluated. No string formatting, no object allocation, no method calls on your arguments.
+Exactly one volatile read (the global minimum level) plus, if the level passes that check, one array scan through the namespace overrides (usually empty, so O(1)). Both happen before any argument is evaluated. No string formatting, no object allocation, no method calls on your arguments.
 
 **"Can I use this with ZIO, Cats Effect, or any other effect system?"**
 
@@ -1047,7 +1100,7 @@ For tracing: use `trace.collectedSpans` and `trace.clearSpans()`. The default in
 
 **"What happens when the export queue fills up?"**
 
-When `queueSize` exceeds `maxQueueSize`, `BatchProcessor.dropOldestIfOverCapacity()` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
+When `queueSize` exceeds `maxQueueSize`, `enqueue` polls the head of the queue (the oldest item), decrements the size, and prints a warning to stderr:
 
 ```
 [zio-blocks-telemetry] BatchProcessor queue full (2048). Dropping oldest item.
@@ -1057,13 +1110,21 @@ The new item is still enqueued. This is a best-effort, head-dropping strategy. Y
 
 **"Is this virtual-thread safe?"**
 
-Yes. `ContextStorage` on JDK 25+ uses `ScopedValue`, which is the JDK 25 native mechanism for per-virtual-thread context propagation. Each virtual thread inherits its `ScopedValue` bindings from the thread that spawns it, so if you start a virtual thread inside a span's block, the child thread sees the same span context. The `BatchProcessor` export threads also use virtual threads via `Executors.newVirtualThreadPerTaskExecutor()`, so retry sleeps don't pin platform threads.
+Yes, in the sense that a span's context is bound to the current call stack whether that stack belongs to a platform or a virtual thread: `ContextStorage` on JDK 25+ uses `ScopedValue`, and reads and writes from the running thread are safe. Inheritance is narrower than an `InheritableThreadLocal`, though — a `ScopedValue` binding reaches a child thread only when the child is forked from a `StructuredTaskScope`. A plain `Thread.ofVirtual().start(...)` inside a span's block sees no span context, so records logged there are not correlated; open the span inside the child, or pass the `SpanContext` across explicitly. The `PlatformExecutor` that drives OTLP export runs its tasks on virtual threads, so retry sleeps don't pin platform threads.
 
 ---
 
 ## Where to Go Next
 
-- **Complete API reference:** [Telemetry Reference](../reference/telemetry.md) for all types, methods, and parameter documentation
+- **Complete API reference:** [Telemetry Reference](../reference/telemetry/index.md) for all types, methods, and parameter documentation
 - **Installation and quick start:** same reference doc, Installation section
 - **Context and dependency injection:** [Context Reference](../reference/context.md) for integrating `OtelContext` with the Context module
-- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) for managing provider lifetimes with Scope
+- **Resource management:** [Compile-Time Resource Safety with Scope](compile-time-resource-safety-with-scope.md) — the telemetry module has no dependency on `Scope`; the providers are plain `AutoCloseable`s you shut down yourself, as in the wiring recipe above
+
+## See Also
+
+- [TracerProvider](../reference/telemetry/tracing/tracer-provider.md) — configure and install the tracing pipeline
+- [LoggerProvider](../reference/telemetry/logging/logger-provider.md) — configure and install the logging pipeline
+- [MeterProvider](../reference/telemetry/metrics/meter-provider.md) — configure and install the metrics pipeline
+- [Attributes](../reference/telemetry/common/attributes.md) — the unboxed key-value type carried by every signal
+- [Common Types](../reference/telemetry/common/index.md) — `Attributes`, `AttributeKey`, `Resource`, and `InstrumentationScope`

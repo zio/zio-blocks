@@ -258,6 +258,73 @@ const sidebars = {
             ],
           },
           "reference/sql-zio",
+          {
+            type: "category",
+            label: "Telemetry",
+            link: { type: "doc", id: "reference/telemetry/index" },
+            items: [
+              {
+                type: "category",
+                label: "Tracing",
+                link: { type: "doc", id: "reference/telemetry/tracing/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/tracing/tracer-provider",
+                  "reference/telemetry/tracing/tracer",
+                  "reference/telemetry/tracing/span",
+                  "reference/telemetry/tracing/span-context",
+                  "reference/telemetry/tracing/span-data",
+                  "reference/telemetry/tracing/span-builder",
+                  "reference/telemetry/tracing/span-processor",
+                  "reference/telemetry/tracing/sampler",
+                  "reference/telemetry/tracing/span-kind",
+                  "reference/telemetry/tracing/span-status",
+                ]
+              },
+              {
+                type: "category",
+                label: "Logging",
+                link: { type: "doc", id: "reference/telemetry/logging/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/logging/logger-provider",
+                  "reference/telemetry/logging/logger",
+                  "reference/telemetry/logging/log-record",
+                  "reference/telemetry/logging/log-record-processor",
+                  "reference/telemetry/logging/log-formatter",
+                  "reference/telemetry/logging/log-writer",
+                  "reference/telemetry/logging/severity",
+                  "reference/telemetry/logging/log-enrichment",
+                ]
+              },
+              {
+                type: "category",
+                label: "Metrics",
+                link: { type: "doc", id: "reference/telemetry/metrics/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/metrics/meter-provider",
+                  "reference/telemetry/metrics/meter",
+                  "reference/telemetry/metrics/instruments",
+                  "reference/telemetry/metrics/labeled-instruments",
+                  "reference/telemetry/metrics/metric-data",
+                ]
+              },
+              {
+                type: "category",
+                label: "Common Types",
+                link: { type: "doc", id: "reference/telemetry/common/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/common/attributes",
+                  "reference/telemetry/common/attribute-key",
+                  "reference/telemetry/common/resource",
+                  "reference/telemetry/common/instrumentation-scope",
+                ]
+              },
+              "reference/telemetry/otel/index",
+            ]
+          },
         ]
       },
     {
@@ -271,6 +338,7 @@ const sidebars = {
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
         "guides/zio-schema-migration",
+        "guides/telemetry-guide",
       ]
     }
   ]

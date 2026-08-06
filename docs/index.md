@@ -833,6 +833,48 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
   - [Into](reference/schema/schema-evolution/into.md) - One-way conversion with validation
   - [As](reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
 
+### Telemetry
+
+- [Telemetry](./reference/telemetry/index.md) - Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics
+
+**Tracing**
+- [TracerProvider](./reference/telemetry/tracing/tracer-provider.md) - Factory for `Tracer` instances, configured once at startup
+- [Tracer](./reference/telemetry/tracing/tracer.md) - Per-library scope-bound span emitter
+- [Span](./reference/telemetry/tracing/span.md) - Active trace unit with attributes, events, and status
+
+**Logging**
+- [LoggerProvider](./reference/telemetry/logging/logger-provider.md) - Factory for `Logger` instances
+- [Logger](./reference/telemetry/logging/logger.md) - Per-library scope-bound structured log emitter
+
+**Metrics**
+- [MeterProvider](./reference/telemetry/metrics/meter-provider.md) - Factory for `Meter` instances
+- [Meter](./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory
+- [Instruments](./reference/telemetry/metrics/instruments.md) - The `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` recording APIs
+- [Labeled Instruments](./reference/telemetry/metrics/labeled-instruments.md) - Instruments whose label names are fixed up front and recorded positionally
+
+**Common Types**
+- [Attributes](./reference/telemetry/common/attributes.md) - Parallel-array key/value store shared across signals
+- [AttributeKey](./reference/telemetry/common/attribute-key.md) - Typed attribute key
+- [Resource](./reference/telemetry/common/resource.md) - Immutable set of attributes describing the telemetry source entity
+- [InstrumentationScope](./reference/telemetry/common/instrumentation-scope.md) - Named and versioned scope for grouping signals
+
+**Tracing Support**
+- [SpanContext](./reference/telemetry/tracing/span-context.md) - Immutable trace and span identifiers for propagation
+- [SpanData](./reference/telemetry/tracing/span-data.md) - Completed span snapshot used by exporters
+- [SpanProcessor](./reference/telemetry/tracing/span-processor.md) - Hook interface for span start/end events
+- [Sampler](./reference/telemetry/tracing/sampler.md) - Decision interface for whether to record and export a span
+
+**Logging Support**
+- [LogRecord](./reference/telemetry/logging/log-record.md) - Immutable structured log record
+- [LogRecordProcessor](./reference/telemetry/logging/log-record-processor.md) - Hook interface for processing emitted log records
+- [LogFormatter](./reference/telemetry/logging/log-formatter.md) - Renders a log record to text (human-readable or OTLP JSON)
+- [LogWriter](./reference/telemetry/logging/log-writer.md) - Routes formatted log text to a destination (stdout, stderr, file)
+- [Severity](./reference/telemetry/logging/severity.md) - OpenTelemetry log severity enumeration
+- [LogEnrichment](./reference/telemetry/logging/log-enrichment.md) - Mechanism for attaching context attributes to every log record
+
+**Metrics Support**
+- [MetricData](./reference/telemetry/metrics/metric-data.md) - Snapshot of a metric instrument's collected data
+
 ### Other Blocks
 
 - [Chunk](./reference/chunk.md) - High-performance immutable sequences
