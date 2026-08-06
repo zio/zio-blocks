@@ -273,7 +273,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: corretto
-          java-version: '17'
+          java-version: '25'
           check-latest: true
       - name: Setup SBT
         uses: sbt/setup-sbt@v1

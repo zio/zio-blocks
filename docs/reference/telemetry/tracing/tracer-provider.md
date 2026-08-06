@@ -63,6 +63,7 @@ import zio.blocks.telemetry._
 
 val provider = TracerProvider.builder
   .setResource(Resource.create(Attributes.of(Attributes.ServiceName, "catalog")))
+  .addSpanProcessor(SpanProcessor.noop) // replace with your exporter
   .build()
 
 trace.install(provider)
