@@ -67,16 +67,19 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val fromHtml = html"<br/>"
         val fromDsl  = br
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == "<br/>")
       },
       test("void element without slash matches DSL") {
         val fromHtml = html"<br>"
         val fromDsl  = br
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == "<br/>")
       },
       test("input with attributes matches DSL") {
         val fromHtml = html"""<input type="text"/>"""
         val fromDsl  = input(`type` := "text")
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == """<input type="text"/>""")
       },
       test("script element matches DSL") {
         val fromHtml = html"<script>alert('hi')</script>"
@@ -102,6 +105,7 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val fromHtml = html"<input disabled/>"
         val fromDsl  = input(disabled)
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("mixed text and elements match DSL") {
         val fromHtml = html"<p>hello <strong>world</strong></p>"
@@ -112,11 +116,13 @@ object HtmlInterpolatorSpec extends ZIOSpecDefault {
         val fromHtml = html"""<meta charset="utf-8">"""
         val fromDsl  = meta(charset := "utf-8")
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("img void element matches DSL") {
         val fromHtml = html"""<img src="photo.jpg" alt="Photo">"""
         val fromDsl  = img(src := "photo.jpg", alt := "Photo")
         assertTrue(fromHtml == fromDsl)
+        assertTrue(fromHtml.render == fromDsl.render)
       },
       test("deeply nested matches DSL") {
         val fromHtml = html"<div><ul><li>item</li></ul></div>"

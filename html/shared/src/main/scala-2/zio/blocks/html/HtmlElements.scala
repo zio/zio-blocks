@@ -141,7 +141,6 @@ trait HtmlElements {
   val kbd: Dom.Element        = Dom.Element.Generic("kbd", Chunk.empty, Chunk.empty)
   val label: Dom.Element      = Dom.Element.Generic("label", Chunk.empty, Chunk.empty)
   val legend: Dom.Element     = Dom.Element.Generic("legend", Chunk.empty, Chunk.empty)
-  val li: Dom.Element         = Dom.Element.Generic("li", Chunk.empty, Chunk.empty)
   val link: Dom.Element       = Dom.Element.Generic("link", Chunk.empty, Chunk.empty)
   val main: Dom.Element       = Dom.Element.Generic("main", Chunk.empty, Chunk.empty)
   val menu: Dom.Element       = Dom.Element.Generic("menu", Chunk.empty, Chunk.empty)
@@ -154,9 +153,6 @@ trait HtmlElements {
   val noscript: Dom.Element   = Dom.Element.Generic("noscript", Chunk.empty, Chunk.empty)
   val `object`: Dom.Element   = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
   val objectTag: Dom.Element  = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
-  val ol: Dom.Element         = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
-  val optgroup: Dom.Element   = Dom.Element.Generic("optgroup", Chunk.empty, Chunk.empty)
-  val option: Dom.Element     = Dom.Element.Generic("option", Chunk.empty, Chunk.empty)
   val output: Dom.Element     = Dom.Element.Generic("output", Chunk.empty, Chunk.empty)
   val param: Dom.Element      = Dom.Element.Generic("param", Chunk.empty, Chunk.empty)
   val picture: Dom.Element    = Dom.Element.Generic("picture", Chunk.empty, Chunk.empty)
@@ -183,7 +179,6 @@ trait HtmlElements {
   def script(effect: ScriptArg, effects: ScriptArg*): Dom.Element.Script = elScript(effect +: effects)
   val search: Dom.Element                                                = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
   val section: Dom.Element                                               = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
-  val select: Dom.Element                                                = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
   val slot: Dom.Element                                                  = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
   val small: Dom.Element                                                 = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
   val source: Dom.Element                                                = Dom.Element.Generic("source", Chunk.empty, Chunk.empty)
@@ -206,25 +201,108 @@ trait HtmlElements {
   val summary: Dom.Element                                           = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
   val sup: Dom.Element                                               = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
   val svg: Dom.Element                                               = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
-  val table: Dom.Element                                             = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
   val tbody: Dom.Element                                             = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
-  val td: Dom.Element                                                = Dom.Element.Generic("td", Chunk.empty, Chunk.empty)
   val `template`: Dom.Element                                        = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
   val templateTag: Dom.Element                                       = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
   val textarea: Dom.Element                                          = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
   val tfoot: Dom.Element                                             = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
-  val th: Dom.Element                                                = Dom.Element.Generic("th", Chunk.empty, Chunk.empty)
   val thead: Dom.Element                                             = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
   val time: Dom.Element                                              = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
-  val tr: Dom.Element                                                = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
   val track: Dom.Element                                             = Dom.Element.Generic("track", Chunk.empty, Chunk.empty)
   val u: Dom.Element                                                 = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
-  val ul: Dom.Element                                                = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
   val `var`: Dom.Element                                             = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val varTag: Dom.Element                                            = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val video: Dom.Element                                             = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
   val wbr: Dom.Element                                               = Dom.Element.Generic("wbr", Chunk.empty, Chunk.empty)
   def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+
+  /** Creates a `<li>` element with optional attributes and children. */
+  def li(effects: DomModifier*): Dom.Element.Li = {
+    val base = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base
+    else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates a `<ul>` element with optional attributes and children. */
+  def ul(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates a `<ul>` element from an iterable of list items. */
+  def ul(lis: Iterable[Dom.Element.Li]): Dom.Element =
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+
+  /** Creates an `<ol>` element with optional attributes and children. */
+  def ol(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates an `<ol>` element from an iterable of list items. */
+  def ol(lis: Iterable[Dom.Element.Li]): Dom.Element =
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+
+  /** Creates a `<th>` element with optional attributes and children. */
+  def th(effects: DomModifier*): Dom.Element.Th = {
+    val base = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base
+    else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates a `<td>` element with optional attributes and children. */
+  def td(effects: DomModifier*): Dom.Element.Td = {
+    val base = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base
+    else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates a `<tr>` element with optional attributes and children. */
+  def tr(effects: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates a `<tr>` element from an iterable of header/data cells. */
+  def tr(cells: Iterable[Dom.Element.Cell]): Dom.Element =
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
+
+  /**
+   * Creates a `<table>` element with optional attributes and children (caption,
+   * colgroup, thead, tbody, tfoot, tr).
+   */
+  def table(parts: DomModifier*): Dom.Element = {
+    val base = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
+    if (parts.isEmpty) base
+    else base(parts.head, parts.tail: _*)
+  }
+
+  /** Creates an `<option>` element with optional attributes and children. */
+  def option(effects: DomModifier*): Dom.Element.Opt = {
+    val base = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base
+    else base(effects.head, effects.tail: _*)
+  }
+
+  /** Creates an `<optgroup>` element with optional attributes and children. */
+  def optgroup(effects: DomModifier*): Dom.Element.Optgroup = {
+    val base = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
+    if (effects.isEmpty) base
+    else base(effects.head, effects.tail: _*)
+  }
+
+  /**
+   * Creates a `<select>` element containing the given `<option>` and/or
+   * `<optgroup>` children.
+   */
+  def select(children: Dom.Element.SelectChild*): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
+
+  /**
+   * Creates a `<select>` element from an iterable of option/optgroup children.
+   */
+  def select(children: Iterable[Dom.Element.SelectChild]): Dom.Element =
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
 
   // --- Attribute helpers ---
 

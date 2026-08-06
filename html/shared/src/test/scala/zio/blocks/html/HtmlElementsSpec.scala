@@ -43,6 +43,23 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val result = ul(li("one"), li("two")).render
         assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
       },
+      test("ul from vararg children") {
+        val result = ul(li("one"), li("two")).render
+        assertTrue(result == "<ul><li>one</li><li>two</li></ul>")
+      },
+      test("ol from vararg children") {
+        val result = ol(li("a"), li("b")).render
+        assertTrue(result == "<ol><li>a</li><li>b</li></ol>")
+      },
+      test("tr from vararg cells") {
+        val result = tr(th("h"), td("d")).render
+        assertTrue(result == "<tr><th>h</th><td>d</td></tr>")
+      },
+      test("select from Iterable of options") {
+        val opts   = List(option("x"), option("y"))
+        val result = select(opts).render
+        assertTrue(result == "<select><option>x</option><option>y</option></select>")
+      },
       test("void elements self-close") {
         assertTrue(
           br.render == "<br/>",
@@ -139,9 +156,8 @@ object HtmlElementsSpec extends ZIOSpecDefault {
       test("Char as modifier renders as text") {
         assertTrue(div('x').render == "<div>x</div>")
       },
-      test("Array as modifier renders children") {
-        val items = Array("a", "b", "c")
-        assertTrue(ul(items.map(i => li(i))).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
+      test("vararg children renders children") {
+        assertTrue(ul(li("a"), li("b"), li("c")).render == "<ul><li>a</li><li>b</li><li>c</li></ul>")
       },
       test("empty iterable renders nothing") {
         assertTrue(div(List.empty[String]).render == "<div></div>")
@@ -310,7 +326,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           rFigcaption == "<figcaption>x</figcaption>",
           rKbd == "<kbd>x</kbd>",
           rMeter == "<meter>x</meter>",
-          optgroup.render == "<optgroup></optgroup>",
+          optgroup().render == "<optgroup></optgroup>",
           rOutput == "<output>x</output>",
           rProgress == "<progress>x</progress>",
           rRuby == "<ruby>x</ruby>",
@@ -537,7 +553,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rTextareaWrap    = textarea(wrap := "hard").render
         val rScriptIntegrity = script(integrity := "sha384-xxx").render
         val rImgReferrer     = img(referrerpolicy := "no-referrer").render
-        val rOlReversed      = ol(reversed).render
+        val rOlReversed      = ol().when(true)(reversed).render
         val rIframeSandbox   = iframe(sandbox := "allow-scripts").render
         val rDivSpellcheck   = div(spellcheck := "true").render
         val rDivTranslate    = div(translate := "yes").render
