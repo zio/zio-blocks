@@ -1,6 +1,7 @@
 import BuildHelper.*
 import MimaSettings.mimaSettings
 import org.scalajs.linker.interface.ModuleKind
+import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition}
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -31,6 +32,36 @@ inThisBuild(
 
 Global / excludeLintKeys ++= Set(
   zioGolemTestAgents / testFrameworks
+)
+
+// CI workflow. The job definitions live in project/CiWorkflow.scala; `sbt ciGenerateGithubWorkflow`
+// renders them to .github/workflows/ci.yml, which is committed and must not be hand-edited.
+inThisBuild(
+  List(
+    ciEnabledBranches := Seq("main"),
+    // JVM flags go through SBT_OPTS rather than JDK_JAVA_OPTIONS: the latter makes `java -version`
+    // print a NOTE containing commas, which breaks cache key validation in setup-sbt and
+    // coursier/cache-action.
+    ciWorkflowEnv := Map(
+      "SBT_OPTS" -> "-XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE"
+    ),
+    // Cancel superseded pull request runs, but never cancel a push or release run.
+    ciConcurrency := Some(
+      Concurrency(
+        group = "ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}",
+        cancelInProgress = CancelInProgress.When(Condition.Expression("github.event_name == 'pull_request'"))
+      )
+    ),
+    ciBuildJobs := Seq(CiWorkflow.buildDocs.value),
+    ciLintJobs  := Seq(CiWorkflow.lint.value),
+    ciTestJobs  := Seq(CiWorkflow.testJVM.value, CiWorkflow.testJS.value, CiWorkflow.testGolem.value),
+    // README.md is generated locally via `sbt docs/generateReadme` and has hand-maintained sections
+    // that the generator would drop, so CI must not regenerate it.
+    ciUpdateReadmeJobs        := Seq.empty,
+    ciReleaseJobs             := Seq(CiWorkflow.release.value),
+    ciPostReleaseJobs         := Seq(CiWorkflow.releaseDocs.value),
+    ciPullRequestApprovalJobs := Seq("lint", "testJVM", "testJS", "testGolem", "buildDocs")
+  )
 )
 
 com.github.sbt.git.SbtGit.useReadableConsoleGit
