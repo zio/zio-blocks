@@ -158,11 +158,20 @@ object CiWorkflow {
   // Lint
   // ---------------------------------------------------------------------------------------------
 
+  /**
+   * Ten minutes, as the previous workflow set, is not enough on a cold coursier
+   * cache: observed 10m03s twice against 3m13s warm, the cold runs timing out
+   * inside the cache restore before `Lint code` even started.
+   *
+   * Cold restores are not rare here. coursier/cache-action hashes the Scala
+   * sources under `project` along with the sbt files, and that set cannot be
+   * narrowed, so editing this very file invalidates the cache for every job.
+   */
   lazy val lint: Def.Initialize[Job] = Def.setting(
     Job(
       id = "lint",
       name = "lint",
-      jobTimeout = Some(10),
+      jobTimeout = Some(20),
       steps = Seq(
         InstallLocaleData,
         CheckoutCurrentBranch,
