@@ -101,6 +101,8 @@ jobs:
         apps: sbt
     - name: Cache scala dependencies
       uses: coursier/cache-action@v8
+    - name: Check if the workflows are up to date
+      run: sbt ciCheckGithubWorkflow
     - name: Lint code
       run: sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"
   testJVM:

@@ -10,9 +10,9 @@ import zio.sbt.githubactions._
  * The CI workflow, as data.
  *
  * `sbt ciGenerateGithubWorkflow` renders this to .github/workflows/ci.yml,
- * which is committed and must not be edited by hand. Nothing enforces that yet:
- * adding `sbt ciCheckGithubWorkflow` to the lint job, so the two cannot drift,
- * is a follow-up.
+ * which is committed and must not be edited by hand. The lint job runs
+ * `sbt ciCheckGithubWorkflow`, which regenerates the workflows and fails if the
+ * result differs from what is committed, so the two cannot drift.
  *
  * The jobs below are a direct port of the workflow that was previously
  * maintained by hand. The toolchain is deliberately unchanged -
@@ -177,6 +177,12 @@ object CiWorkflow {
         CheckoutCurrentBranch,
         SetupCoursier("17", pinJvmIndex = false),
         CacheScalaDependencies,
+        // Regenerates the workflows and fails if the result differs from what is committed, so the
+        // generated YAML cannot be hand-edited or left behind when this file changes.
+        SingleStep(
+          name = "Check if the workflows are up to date",
+          run = Some("sbt ciCheckGithubWorkflow")
+        ),
         SingleStep(
           name = "Lint code",
           run = Some("""sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"""")
