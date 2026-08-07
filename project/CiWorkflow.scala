@@ -10,15 +10,17 @@ import zio.sbt.githubactions._
  * The CI workflow, as data.
  *
  * `sbt ciGenerateGithubWorkflow` renders this to .github/workflows/ci.yml,
- * which is committed and must not be edited by hand. The lint job runs
- * `sbt ciCheckGithubWorkflow`, so the two cannot drift.
+ * which is committed and must not be edited by hand. Nothing enforces that yet:
+ * adding `sbt ciCheckGithubWorkflow` to the lint job, so the two cannot drift,
+ * is a follow-up.
  *
  * The jobs below are a direct port of the workflow that was previously
  * maintained by hand. The toolchain is deliberately unchanged -
- * coursier/setup-action with a pinned jvm-index for the test and release jobs,
- * actions/setup-java for the docs jobs - so that a CI regression after this
- * migration can only be a porting mistake, not a change of runner image or
- * cache key.
+ * coursier/setup-action for the test and release jobs, with a pinned jvm-index
+ * on the test jobs so `temurin:<version>` resolves JDKs newer than the action's
+ * bundled index, and actions/setup-java for the docs jobs - so that a CI
+ * regression after this migration can only be a porting mistake, not a change
+ * of runner image or cache key.
  *
  * Workflows NOT generated from here, because their triggers cannot be expressed
  * by the plugin: deploy-preview.yml (workflow_run), scala-steward.yml
@@ -84,8 +86,10 @@ object CiWorkflow {
    * Builds the docusaurus site and uploads it for deploy-preview.yml to publish
    * to Netlify.
    *
-   * Every website step is guarded on the yarn lockfile existing, so the job
-   * stays green in a checkout that has no website.
+   * The install, mdoc and build steps are guarded on the yarn lockfile
+   * existing. The closing `find` is not, matching the workflow this replaces -
+   * it would fail in a checkout with no website. Left as-is to keep the port
+   * faithful; worth guarding separately.
    */
   lazy val buildDocs: Def.Initialize[Job] = Def.setting(
     Job(
