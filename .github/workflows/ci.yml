@@ -235,7 +235,11 @@ jobs:
     - testJS
     - testGolem
     - buildDocs
+    if: always()
     steps:
+    - name: Report Failed CI
+      if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+      run: 'echo "ci failed: one or more required jobs did not succeed"; exit 1'
     - name: Report Successful CI
       run: echo "ci passed"
   release:

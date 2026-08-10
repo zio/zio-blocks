@@ -4,7 +4,7 @@ addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.6.3")
 // land in a release. Snapshots are published from zio-sbt's main branch on every push, so the
 // version below is a specific commit and is expected to move.
 resolvers += "central-snapshots" at "https://central.sonatype.com/repository/maven-snapshots/"
-addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.6.3+11-d8c08c0f-SNAPSHOT")
+addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.6.3+22-5bfde5fd-SNAPSHOT")
 addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.0")
 addSbtPlugin("pl.project13.scala" % "sbt-jmh"                  % "0.4.8")
 addSbtPlugin("com.eed3si9n"       % "sbt-assembly"             % "2.4.1")
