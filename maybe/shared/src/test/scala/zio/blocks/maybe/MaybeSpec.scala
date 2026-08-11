@@ -123,8 +123,25 @@ object MaybeSpec extends ZIOSpecDefault {
 
       assertTrue(
         someValue.flatten.contains(42),
+        noneValue.isPresent,
         noneValue.flatten.isAbsent,
         absent.flatten.isAbsent
+      )
+    },
+    test("present(null) and present(absent) are present-of-absent") {
+      val presentNull: Maybe[String]       = Maybe.present(null: String)
+      val presentAbsent: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+      val fromOptionNull: Maybe[String]    = Maybe.fromOption(Some(null: String))
+      val fromOptionNone: Maybe[String]    = Maybe.fromOption(None)
+
+      assertTrue(
+        presentNull.isPresent,
+        !presentNull.isAbsent,
+        presentNull.get == null,
+        presentAbsent.isPresent,
+        presentAbsent.flatten.isAbsent,
+        fromOptionNull.isPresent,
+        fromOptionNone.isAbsent
       )
     },
     test("zip and Option conversion helpers work") {
