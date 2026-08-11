@@ -50,6 +50,26 @@ object MaybeScala3Spec extends ZIOSpecDefault {
         pair.unzip == (Maybe.present(1), Maybe.present("one")),
         triple.unzip3 == (Maybe.present(1), Maybe.present("one"), Maybe.present(2L))
       )
+    },
+    test("present(null) and fromOption(Some(null)) are present-of-absent") {
+      val presentNull: Maybe[String] = Maybe.present(null: String)
+
+      assertTrue(
+        // 1. Present(null) is distinguishable from Maybe.absent
+        presentNull.isPresent,
+        presentNull != Maybe.absent[String],
+        !presentNull.isAbsent,
+        // 2. present(null) matches Present(null)
+        (presentNull match { case Present(v) => v == null; case _ => false }),
+        // 3. fromOption(Some(null)) is present-of-absent
+        Maybe.fromOption(Some(null: String)).isPresent,
+        Maybe.fromOption(Some(null: String)).get == null,
+        // 4. nested present-of-absent
+        (Maybe.present(Maybe.absent[Int]) match { case Present(v) => v == null; case _ => false }),
+        Maybe.present(Maybe.absent[Int]).flatten.isAbsent,
+        // 5. zero-alloc flat case: raw value, no Present wrapper
+        (Maybe.present(1) match { case _: Present[?] => false; case _ => true })
+      )
     }
   )
 }
