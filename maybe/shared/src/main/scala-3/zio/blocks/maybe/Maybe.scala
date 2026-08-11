@@ -19,38 +19,48 @@ package zio.blocks.maybe
 import scala.Conversion
 import scala.language.implicitConversions
 
-opaque type Maybe[+A] = A | Null
+/**
+ * A wrapper that marks a value as definitely present, even when the value
+ * itself is `null`.
+ *
+ * `Maybe[+A]` is an opaque type alias for `A | Null | Present[A]`. A plain
+ * non-null value of type `A` is a present `Maybe[A]` with zero allocation;
+ * `null` is `Maybe.absent`; and `Present(a)` is a present `Maybe[A]` whose
+ * value is `a` — used to represent "present of absent" in nested `Maybe`s
+ * (e.g. `Maybe.present(Maybe.absent)`), which a bare `null` cannot express.
+ */
+final case class Present[+A](value: A)
+
+opaque type Maybe[+A] = A | Null | Present[A]
 
 object Maybe {
 
   /**
    * Wraps a value in `Maybe`, treating `null` as absent.
    *
-   * On Scala 3 this method requires a `MaybeSafe[A]` implicit, which is
-   * available only for sound `Maybe` element types. In particular `Null`,
-   * `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time.
+   * Unlike `present`, `apply` collapses `null` to `Maybe.absent`. Use
+   * `present` when the value being wrapped is itself a `Maybe` that may be
+   * absent.
    */
-  inline def apply[A](a: A)(using MaybeSafe[A]): Maybe[A] =
+  inline def apply[A](a: A): Maybe[A] =
     if (a == null) null else a.asInstanceOf[Maybe[A]]
 
   /**
-   * Wraps a value in `Maybe`.
+   * Wraps a value in `Maybe`, preserving present-ness even for `null`.
    *
-   * Unlike `apply`, this method does not treat `null` as absent — passing
-   * `null` produces `Maybe.absent` without an explicit null check. Prefer
-   * `apply` when the value might be null.
-   *
-   * On Scala 3 this method requires a `MaybeSafe[A]` implicit, which is
-   * available only for sound `Maybe` element types. In particular `Null`,
-   * `Any`, `AnyRef`, and nested `Maybe[_]` are rejected at compile time.
+   * A non-null value is returned as-is (zero allocation). A `null` value is
+   * wrapped in `Present(null)`, which is distinguishable from `Maybe.absent`
+   * (`null`). This is what makes nested `Maybe`s sound: `Maybe.present(Maybe.absent)`
+   * is `Present(null)`, not `Maybe.absent`.
    */
-  inline def present[A](a: A)(using MaybeSafe[A]): Maybe[A] = a.asInstanceOf[Maybe[A]]
+  inline def present[A](a: A): Maybe[A] =
+    if (a == null) Present(null).asInstanceOf[Maybe[A]] else a.asInstanceOf[Maybe[A]]
   inline def absent[A]: Maybe[A]                            = null
   inline def empty[A]: Maybe[A]                             = null
   def Absent: Maybe[Nothing]                                = null
 
   def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
-    case Some(a) => a
+    case Some(a) => present(a)
     case None    => null
   }
 
@@ -72,7 +82,10 @@ object Maybe {
    * Low-level unwrap used by schema codecs. Returns the inner value or null if
    * absent.
    */
-  private[blocks] def unsafeGet(x: Maybe[Any]): Any = x
+  private[blocks] def unsafeGet(x: Maybe[Any]): Any = x match {
+    case p: Present[?] => p.value
+    case _             => x
+  }
 
   /**
    * Low-level wrap used by schema codecs. Wraps a value (or null for absent)
@@ -89,70 +102,70 @@ object Maybe {
     inline def nonEmpty: Boolean  = self != null
     inline def get: A             =
       if (self == null) throw new NoSuchElementException("Maybe.absent.get")
-      else self.asInstanceOf[A]
-    inline def getOrNull: A | Null                 = self
+      else unsafeGet(self).asInstanceOf[A]
+    inline def getOrNull: A | Null                 = unsafeGet(self).asInstanceOf[A | Null]
     inline def getOrElse[B >: A](default: => B): B =
-      if (self == null) default else self.asInstanceOf[A]
+      if (self == null) default else unsafeGet(self).asInstanceOf[A]
     inline def orElse[B >: A](alternative: => Maybe[B]): Maybe[B] =
       if (self == null) alternative else self
     inline def orNull[B >: A](using ev: Null <:< B): B =
-      if (self == null) ev(null) else self.asInstanceOf[A]
+      if (self == null) ev(null) else unsafeGet(self).asInstanceOf[A]
     inline def fold[B](ifAbsent: => B)(ifPresent: A => B): B =
-      if (self == null) ifAbsent else ifPresent(self.asInstanceOf[A])
+      if (self == null) ifAbsent else ifPresent(unsafeGet(self).asInstanceOf[A])
     inline def toOption: Option[A] =
-      if (self == null) None else Some(self.asInstanceOf[A])
+      if (self == null) None else Some(unsafeGet(self).asInstanceOf[A])
     inline def toList: List[A] =
-      if (self == null) Nil else self.asInstanceOf[A] :: Nil
+      if (self == null) Nil else unsafeGet(self).asInstanceOf[A] :: Nil
     inline def toSeq: Seq[A] =
-      if (self == null) Seq.empty else Seq(self.asInstanceOf[A])
+      if (self == null) Seq.empty else Seq(unsafeGet(self).asInstanceOf[A])
     inline def iterator: Iterator[A] =
-      if (self == null) Iterator.empty else Iterator.single(self.asInstanceOf[A])
+      if (self == null) Iterator.empty else Iterator.single(unsafeGet(self).asInstanceOf[A])
     inline def map[B](f: A => B): Maybe[B] =
-      if (self == null) null else f(self.asInstanceOf[A])
+      if (self == null) null else present(f(unsafeGet(self).asInstanceOf[A]))
     inline def flatMap[B](f: A => Maybe[B]): Maybe[B] =
-      if (self == null) null else f(self.asInstanceOf[A])
+      if (self == null) null else f(unsafeGet(self).asInstanceOf[A])
     inline def flatten[B](using ev: A <:< Maybe[B]): Maybe[B] =
-      if (self == null) null else ev(self.asInstanceOf[A])
+      if (self == null) null else ev(unsafeGet(self).asInstanceOf[A])
     inline def foreach[U](f: A => U): Unit =
       if (self != null) {
-        f(self.asInstanceOf[A])
+        f(unsafeGet(self).asInstanceOf[A])
         ()
       }
     inline def contains[A1 >: A](elem: A1): Boolean =
-      if (self == null) false else self.asInstanceOf[A] == elem
+      if (self == null) false else unsafeGet(self).asInstanceOf[A] == elem
     inline def exists(p: A => Boolean): Boolean =
-      if (self == null) false else p(self.asInstanceOf[A])
+      if (self == null) false else p(unsafeGet(self).asInstanceOf[A])
     inline def forall(p: A => Boolean): Boolean =
-      if (self == null) true else p(self.asInstanceOf[A])
+      if (self == null) true else p(unsafeGet(self).asInstanceOf[A])
     inline def filter(p: A => Boolean): Maybe[A] =
-      if (self == null) null else if (p(self.asInstanceOf[A])) self else null
+      if (self == null) null else if (p(unsafeGet(self).asInstanceOf[A])) self else null
     inline def filterNot(p: A => Boolean): Maybe[A] =
-      if (self == null) null else if (p(self.asInstanceOf[A])) null else self
+      if (self == null) null else if (p(unsafeGet(self).asInstanceOf[A])) null else self
     inline def collect[B](pf: PartialFunction[A, B]): Maybe[B] =
       if (self == null) null
       else {
-        val value = self.asInstanceOf[A]
-        if (pf.isDefinedAt(value)) pf(value) else null
+        val value = unsafeGet(self).asInstanceOf[A]
+        if (pf.isDefinedAt(value)) present(pf(value)) else null
       }
     def withFilter(p: A => Boolean): WithFilter[A] =
       new WithFilter(self, p)
     inline def toRight[X](left: => X): Either[X, A] =
-      if (self == null) Left(left) else Right(self.asInstanceOf[A])
+      if (self == null) Left(left) else Right(unsafeGet(self).asInstanceOf[A])
     inline def toLeft[X](right: => X): Either[A, X] =
-      if (self == null) Right(right) else Left(self.asInstanceOf[A])
+      if (self == null) Right(right) else Left(unsafeGet(self).asInstanceOf[A])
     inline def zip[B](that: Maybe[B]): Maybe[(A, B)] =
-      if (self == null || that == null) null else (self.asInstanceOf[A], that.asInstanceOf[B])
+      if (self == null || that == null) null else present((unsafeGet(self).asInstanceOf[A], unsafeGet(that).asInstanceOf[B]))
     inline def unzip[A1, A2](using ev: A <:< (A1, A2)): (Maybe[A1], Maybe[A2]) =
       if (self == null) (null, null)
       else {
-        val value = ev(self.asInstanceOf[A])
-        (value._1, value._2)
+        val value = ev(unsafeGet(self).asInstanceOf[A])
+        (present(value._1), present(value._2))
       }
     inline def unzip3[A1, A2, A3](using ev: A <:< (A1, A2, A3)): (Maybe[A1], Maybe[A2], Maybe[A3]) =
       if (self == null) (null, null, null)
       else {
-        val value = ev(self.asInstanceOf[A])
-        (value._1, value._2, value._3)
+        val value = ev(unsafeGet(self).asInstanceOf[A])
+        (present(value._1), present(value._2), present(value._3))
       }
   }
 }
