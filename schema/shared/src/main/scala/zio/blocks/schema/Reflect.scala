@@ -2039,17 +2039,19 @@ object Reflect {
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
-    if (reflect.isWrapper) {
-      val wrapper = reflect.asWrapperUnknown.get.wrapper
-      wrapper.underlyingPrimitiveType.orElse {
-        // An opaque wrapper has the same runtime representation as its wrapped
-        // schema. Its TypeId can lack that representation when the schema was
-        // built with `transform`, so fall back to the wrapped primitive type.
-        if (wrapper.typeId.isOpaque)
-          unwrapToPrimitiveTypeOption(wrapper.wrapped).asInstanceOf[Option[PrimitiveType[A]]]
-        else None
-      }.asInstanceOf[Option[PrimitiveType[A]]]
-    } else reflect.asPrimitive.map(_.primitiveType)
+    reflect.asWrapperUnknown match {
+      case Some(unknown) =>
+        val wrapper = unknown.wrapper
+        wrapper.underlyingPrimitiveType.orElse {
+          // An opaque wrapper has the same runtime representation as its wrapped
+          // schema. Its TypeId can lack that representation when the schema was
+          // built with `transform`, so fall back to the wrapped primitive type.
+          if (wrapper.typeId.isOpaque)
+            unwrapToPrimitiveTypeOption(wrapper.wrapped).asInstanceOf[Option[PrimitiveType[A]]]
+          else None
+        }.asInstanceOf[Option[PrimitiveType[A]]]
+      case None => reflect.asPrimitive.map(_.primitiveType)
+    }
 
   private[blocks] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
     unwrapToPrimitiveTypeOption(reflect) match {

@@ -26,8 +26,8 @@ object ExternalOpaqueInt {
 
   extension (value: ExternalOpaqueInt) def toInt: Int = value
 
-  // Models opaque types such as Iron's `:|`: its TypeId representation does
-  // not directly identify the primitive runtime representation.
+  // Models an opaque wrapper whose TypeId representation does not directly
+  // identify its primitive runtime representation.
   given TypeId[ExternalOpaqueInt] = TypeId.opaque(
     "ExternalOpaqueInt",
     Owner.Root,
