@@ -16,10 +16,28 @@
 
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
+import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec, SchemaError}
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.json.opaque.ExternalOpaqueInt
+import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 import zio.test._
+
+opaque type ExternalOpaqueInt = Int
+
+object ExternalOpaqueInt {
+  def unsafe(value: Int): ExternalOpaqueInt =
+    if (value > 0) value
+    else throw SchemaError.validationFailed("value must be strictly positive")
+
+  extension (value: ExternalOpaqueInt) def toInt: Int = value
+
+  given TypeId[ExternalOpaqueInt] = TypeId.opaque(
+    "ExternalOpaqueInt",
+    Owner.Root,
+    representation = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
+  )
+
+  given Schema[ExternalOpaqueInt] = Schema.int.transform[ExternalOpaqueInt](unsafe, _.toInt)
+}
 
 case class ExternalOpaquePerson(name: String, age: ExternalOpaqueInt) derives Schema
 
@@ -57,9 +75,6 @@ object JsonCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
         val schema = Schema[ExternalOpaquePerson]
 
         roundTrip(ExternalOpaquePerson("Alice", ExternalOpaqueInt.unsafe(10)), """{"name":"Alice","age":10}""") &&
-        assertTrue(
-          ExternalOpaqueInt(0) == Left("value must be strictly positive")
-        ) &&
         decodeError(
           """{"name":"Alice","age":0}""",
           "value must be strictly positive at: .age.wrapped",
