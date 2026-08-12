@@ -2043,9 +2043,6 @@ object Reflect {
       case Some(unknown) =>
         val wrapper = unknown.wrapper
         wrapper.underlyingPrimitiveType.orElse {
-          // An opaque wrapper has the same runtime representation as its wrapped
-          // schema. Its TypeId can lack that representation when the schema was
-          // built with `transform`, so fall back to the wrapped primitive type.
           if (wrapper.typeId.isOpaque)
             unwrapToPrimitiveTypeOption(wrapper.wrapped).asInstanceOf[Option[PrimitiveType[A]]]
           else None
