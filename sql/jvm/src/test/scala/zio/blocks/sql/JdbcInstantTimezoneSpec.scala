@@ -32,7 +32,7 @@ object JdbcInstantTimezoneSpec extends ZIOSpecDefault {
   private def withPostgresConnection[A](f: java.sql.Connection => A): A = {
     Class.forName("org.postgresql.Driver")
     val url =
-      sys.env.getOrElse("DB_URL", "jdbc:postgresql://localhost:32886/postgres")
+      sys.env.getOrElse("DB_URL", "jdbc:postgresql://localhost:15432/postgres")
     val user     = sys.env.getOrElse("DB_USERNAME", "postgres")
     val password = sys.env.getOrElse("DB_PASSWORD", "postgres")
     val conn     = java.sql.DriverManager.getConnection(url, user, password)

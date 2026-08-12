@@ -202,6 +202,13 @@ object CiWorkflow {
    * scala3#24183 makes it fail; docs are compiled on JDK 17 instead. Postgres
    * backs the sql modules and carries a health check so steps cannot start
    * before it accepts connections.
+   *
+   * The published host port must stay below 32768, outside Linux's ephemeral
+   * range (`net.ipv4.ip_local_port_range`, 32768-60999 on the runners). A port
+   * inside that range is intermittently stolen as the source port of an
+   * outbound connection made while the image is still being pulled, and Docker
+   * then fails the whole job with "address already in use". It must also match
+   * the `DB_URL` fallback in JdbcInstantTimezoneSpec.
    */
   lazy val testJVM: Def.Initialize[Job] = Def.setting(
     Job(
@@ -223,7 +230,7 @@ object CiWorkflow {
             "POSTGRES_PASSWORD" -> "postgres",
             "POSTGRES_DB"       -> "postgres"
           ),
-          ports = Chunk(ServicePort(32886, 5432)),
+          ports = Chunk(ServicePort(15432, 5432)),
           options = Some(
             "--health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5"
           )
