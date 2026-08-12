@@ -1,4 +1,4 @@
-addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.6.3")
+addSbtPlugin("dev.zio" % "zio-sbt-website" % "0.7.0")
 
 addSbtPlugin("dev.zio"            % "zio-sbt-ci"               % "0.7.0")
 addSbtPlugin("com.timushev.sbt"   % "sbt-updates"              % "0.7.0")

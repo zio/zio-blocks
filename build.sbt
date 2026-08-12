@@ -1613,7 +1613,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1641,7 +1641,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.6.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.0"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1678,14 +1678,23 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
-      "dev.zio"   %% "zio-sbt-source" % "0.6.3",
+      "dev.zio"   %% "zio-sbt-source" % "0.7.0",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
-    // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
+    // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
+    // Sonatype Snapshot badges on the "zio-blocks-config" artifact instead of "zio-blocks-schema".
+    // A malformed "0.017" version was once published for zio-blocks-schema_3 (and several other
+    // modules); Maven Central is immutable, and Maven's version comparator ranks "0.017" (=[0,17])
+    // above every real "0.0.x" release (=[0,0,x]), so any badge keyed off zio-blocks-schema_3 would
+    // show "v0.017" forever. zio-blocks-config_3 was added after that bad publish and was never
+    // poisoned, so it accurately reflects the project's real version (all modules in this monorepo
+    // are released together under one version). Do not repoint these badges back at zio-blocks-schema_3.
     mdocVariables ++= Map(
       "PROJECT_BADGES" -> (
         "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+          "[![Maven Central](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Maven%20Central)](https://central.sonatype.com/artifact/dev.zio/zio-blocks-config_3) " +
+          "[![Sonatype Snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Sonatype%20Snapshot)](https://central.sonatype.com/repository/maven-snapshots/dev/zio/zio-blocks-config_3/) " +
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
     ),
@@ -1729,9 +1738,12 @@ lazy val docs = project
       val docsIndex   = baseDirectory.value / "docs" / "index.md"
       val readmeFile  = baseDirectory.value / "README.md"
       val versionText = version.value
-      val badges      =
+      // Keep in sync with the PROJECT_BADGES mdocVariable above.
+      val badges =
         "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+          "[![Maven Central](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Maven%20Central)](https://central.sonatype.com/artifact/dev.zio/zio-blocks-config_3) " +
+          "[![Sonatype Snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Sonatype%20Snapshot)](https://central.sonatype.com/repository/maven-snapshots/dev/zio/zio-blocks-config_3/) " +
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
 
       val rendered = IO
