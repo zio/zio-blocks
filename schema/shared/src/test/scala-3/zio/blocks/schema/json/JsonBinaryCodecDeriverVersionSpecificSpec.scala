@@ -24,9 +24,12 @@ import zio.test._
 opaque type ExternalOpaqueInt = Int
 
 object ExternalOpaqueInt {
+  def refineEither(value: Int): Either[String, ExternalOpaqueInt] =
+    if (value > 0) Right(value)
+    else Left("value must be strictly positive")
+
   def unsafe(value: Int): ExternalOpaqueInt =
-    if (value > 0) value
-    else throw SchemaError.validationFailed("value must be strictly positive")
+    refineEither(value).fold(message => throw new IllegalArgumentException(message), identity)
 
   extension (value: ExternalOpaqueInt) def toInt: Int = value
 
@@ -36,7 +39,10 @@ object ExternalOpaqueInt {
     representation = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
   )
 
-  given Schema[ExternalOpaqueInt] = Schema.int.transform[ExternalOpaqueInt](unsafe, _.toInt)
+  given Schema[ExternalOpaqueInt] = Schema.int.transform[ExternalOpaqueInt](
+    refineEither(_).fold(message => throw SchemaError.validationFailed(message), identity),
+    _.toInt
+  )
 }
 
 case class ExternalOpaquePerson(name: String, age: ExternalOpaqueInt) derives Schema
