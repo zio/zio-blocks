@@ -53,8 +53,18 @@ object JsonCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
         roundTrip(Arrays(IArray()), """{}""") &&
         roundTrip(Arrays(IArray("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
       },
-      test("record with an opaque wrapper whose type representation is not primitive") {
-        roundTrip(ExternalOpaquePerson("Alice", ExternalOpaqueInt(10)), """{"name":"Alice","age":10}""")
+      test("record with a constrained opaque wrapper whose type representation is not primitive") {
+        val schema = Schema[ExternalOpaquePerson]
+
+        roundTrip(ExternalOpaquePerson("Alice", ExternalOpaqueInt.unsafe(10)), """{"name":"Alice","age":10}""") &&
+        assertTrue(
+          ExternalOpaqueInt(0) == Left("value must be strictly positive")
+        ) &&
+        decodeError(
+          """{"name":"Alice","age":0}""",
+          "value must be strictly positive at: .age.wrapped",
+          schema.jsonCodec
+        )
       }
     ),
     suite("variants")(

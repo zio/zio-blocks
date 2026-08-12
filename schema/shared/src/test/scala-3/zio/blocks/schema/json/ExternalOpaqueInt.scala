@@ -16,13 +16,18 @@
 
 package zio.blocks.schema.json.opaque
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Schema, SchemaError}
 import zio.blocks.typeid.{Owner, TypeId, TypeRepr}
 
 opaque type ExternalOpaqueInt = Int
 
 object ExternalOpaqueInt {
-  def apply(value: Int): ExternalOpaqueInt = value
+  def apply(value: Int): Either[String, ExternalOpaqueInt] =
+    if (value > 0) Right(value)
+    else Left("value must be strictly positive")
+
+  def unsafe(value: Int): ExternalOpaqueInt =
+    apply(value).fold(message => throw new IllegalArgumentException(message), identity)
 
   extension (value: ExternalOpaqueInt) def toInt: Int = value
 
@@ -34,5 +39,8 @@ object ExternalOpaqueInt {
     representation = TypeRepr.Applied(TypeRepr.Ref(TypeId.option), List(TypeRepr.Ref(TypeId.int)))
   )
 
-  given Schema[ExternalOpaqueInt] = Schema.int.transform[ExternalOpaqueInt](ExternalOpaqueInt.apply, _.toInt)
+  given Schema[ExternalOpaqueInt] = Schema.int.transform[ExternalOpaqueInt](
+    apply(_).fold(message => throw SchemaError.validationFailed(message), identity),
+    _.toInt
+  )
 }
