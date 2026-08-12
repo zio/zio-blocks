@@ -20,6 +20,18 @@ import zio.blocks.schema.{Modifier, Schema, SchemaBaseSpec}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
+// Must stay top-level: nested opaque types are dealiased during record derivation.
+opaque type DerivedOpaqueInt = Int
+object DerivedOpaqueInt {
+  def apply(value: Int): DerivedOpaqueInt = value
+
+  extension (value: DerivedOpaqueInt) def toInt: Int = value
+
+  given Schema[DerivedOpaqueInt] = Schema.int.transform[DerivedOpaqueInt](DerivedOpaqueInt.apply, _.toInt)
+}
+
+case class DerivedOpaquePerson(name: String, age: DerivedOpaqueInt) derives Schema
+
 object JsonCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
   def spec: Spec[TestEnvironment, Any] = suite("JsonCodecDeriverVersionSpecificSpec")(
     suite("records")(
@@ -49,6 +61,9 @@ object JsonCodecDeriverVersionSpecificSpec extends SchemaBaseSpec {
       test("record with array field") {
         roundTrip(Arrays(IArray()), """{}""") &&
         roundTrip(Arrays(IArray("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
+      },
+      test("record with an automatically typed opaque wrapper field") {
+        roundTrip(DerivedOpaquePerson("Alice", DerivedOpaqueInt(10)), """{"name":"Alice","age":10}""")
       }
     ),
     suite("variants")(
