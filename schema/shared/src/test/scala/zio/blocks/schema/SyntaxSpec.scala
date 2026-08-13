@@ -32,6 +32,11 @@ object SyntaxSpec extends SchemaBaseSpec {
     implicit val schema: Schema[Address] = Schema.derived
   }
 
+  case class JsonField(a: Int, b: String, c: Json)
+  object JsonField {
+    implicit val schema: Schema[JsonField] = Schema.derived
+  }
+
   override def spec: Spec[TestEnvironment, Any] = suite("SyntaxSpec")(
     suite("diff")(
       test("computes difference between two values") {
@@ -80,6 +85,16 @@ object SyntaxSpec extends SchemaBaseSpec {
           json.get("street").as[String] == Right("456 Oak Ave"),
           json.get("city").as[String] == Right("Metropolis")
         )
+      },
+      test("embeds Json fields without structural ADT tags") {
+        val value = JsonField(2, "test", Json.Object("f" -> Json.Number(36)))
+        assertTrue(
+          value.toJson == Json.Object(
+            "a" -> Json.Number(2),
+            "b" -> Json.String("test"),
+            "c" -> Json.Object("f" -> Json.Number(36))
+          )
+        )
       }
     ),
     suite("toJsonString")(
@@ -97,6 +112,14 @@ object SyntaxSpec extends SchemaBaseSpec {
         val p      = Person("Eve", 35)
         val result = p.toJsonString
         assertTrue(Json.parse(result).isRight)
+      },
+      test("round-trips embedded Json fields in their native representation") {
+        val value   = JsonField(2, "test", Json.Object("f" -> Json.Number(36)))
+        val encoded = value.toJsonString
+        assertTrue(
+          encoded == """{"a":2,"b":"test","c":{"f":36}}""",
+          encoded.fromJson[JsonField] == Right(value)
+        )
       }
     ),
     suite("toJsonBytes")(

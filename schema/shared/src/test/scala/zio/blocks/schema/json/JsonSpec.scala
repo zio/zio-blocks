@@ -2301,13 +2301,13 @@ object JsonSpec extends SchemaBaseSpec {
           JsonTestUtils.roundTrip(Json.String("hello"), """{"value":"hello"}""")
         },
         test("Json.Array serializes to JSON") {
-          JsonTestUtils.roundTrip(Json.Array(Json.Number(1)), """{"value":[{"Number":{"value":1}}]}""")
+          JsonTestUtils.roundTrip(Json.Array(Json.Number(1)), """{"value":[1]}""")
         },
         test("Json (variant) serializes to JSON") {
-          JsonTestUtils.roundTrip(Json.Null: Json, """{"Null":{}}""") &&
-          JsonTestUtils.roundTrip(Json.Boolean(true): Json, """{"Boolean":{"value":true}}""") &&
-          JsonTestUtils.roundTrip(Json.Number(1): Json, """{"Number":{"value":1}}""") &&
-          JsonTestUtils.roundTrip(Json.String("x"): Json, """{"String":{"value":"x"}}""")
+          JsonTestUtils.roundTrip(Json.Null: Json, "null") &&
+          JsonTestUtils.roundTrip(Json.Boolean(true): Json, "true") &&
+          JsonTestUtils.roundTrip(Json.Number(1): Json, "1") &&
+          JsonTestUtils.roundTrip(Json.String("x"): Json, """"x"""")
         }
       ),
       suite("Schema roundtrip")(
