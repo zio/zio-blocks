@@ -167,54 +167,76 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
     new DbCodec[A] {
       val columns: IndexedSeq[String] = allColumns
 
+      // Per-schema pool: each derived record codec gets its own ThreadLocal so
+      // nested (inlined) record decodes reuse distinct registers. If a decode
+      // ever re-enters this codec (recursive schema), the pooled instance is in
+      // use and a fresh one is allocated instead.
+      private val regsPool: ThreadLocal[Registers] = new ThreadLocal[Registers] {
+        override def initialValue(): Registers = Registers(constructor.usedRegisters)
+      }
+
       override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
-        val regs     = Registers(constructor.usedRegisters)
-        var labelIdx = 0
-        var fi       = 0
-        while (fi < activeFieldIndices.length) {
-          val i          = activeFieldIndices(fi)
-          val codec      = fieldCodecs(i)
-          val fieldValue = codec.readValue(reader, columnLabels.slice(labelIdx, labelIdx + codec.columnCount))
-          registers(i).set(regs, 0, fieldValue)
-          labelIdx += codec.columnCount
-          fi += 1
-        }
-        var ti = 0
-        while (ti < len) {
-          if (fieldTransient(ti)) {
-            fields(ti).value.getDefaultValue(F) match {
-              case Some(dv) => registers(ti).set(regs, 0, dv)
-              case None     =>
-            }
+        val regs = borrowRegs()
+        try {
+          var labelIdx = 0
+          var fi       = 0
+          while (fi < activeFieldIndices.length) {
+            val i          = activeFieldIndices(fi)
+            val codec      = fieldCodecs(i)
+            val fieldValue = codec.readValue(reader, columnLabels.slice(labelIdx, labelIdx + codec.columnCount))
+            registers(i).set(regs, 0, fieldValue)
+            labelIdx += codec.columnCount
+            fi += 1
           }
-          ti += 1
-        }
-        constructor.construct(regs, 0)
+          var ti = 0
+          while (ti < len) {
+            if (fieldTransient(ti)) {
+              fields(ti).value.getDefaultValue(F) match {
+                case Some(dv) => registers(ti).set(regs, 0, dv)
+                case None     =>
+              }
+            }
+            ti += 1
+          }
+          constructor.construct(regs, 0)
+        } finally regs.endUse()
       }
 
       override def readValue(reader: DbResultReader, startIndex: Int): A = {
-        val regs   = Registers(constructor.usedRegisters)
-        var colIdx = startIndex
-        var fi     = 0
-        while (fi < activeFieldIndices.length) {
-          val i          = activeFieldIndices(fi)
-          val codec      = fieldCodecs(i)
-          val fieldValue = codec.readValue(reader, colIdx)
-          registers(i).set(regs, 0, fieldValue)
-          colIdx += codec.columnCount
-          fi += 1
-        }
-        var ti = 0
-        while (ti < len) {
-          if (fieldTransient(ti)) {
-            fields(ti).value.getDefaultValue(F) match {
-              case Some(dv) => registers(ti).set(regs, 0, dv)
-              case None     =>
-            }
+        val regs = borrowRegs()
+        try {
+          var colIdx = startIndex
+          var fi     = 0
+          while (fi < activeFieldIndices.length) {
+            val i          = activeFieldIndices(fi)
+            val codec      = fieldCodecs(i)
+            val fieldValue = codec.readValue(reader, colIdx)
+            registers(i).set(regs, 0, fieldValue)
+            colIdx += codec.columnCount
+            fi += 1
           }
-          ti += 1
+          var ti = 0
+          while (ti < len) {
+            if (fieldTransient(ti)) {
+              fields(ti).value.getDefaultValue(F) match {
+                case Some(dv) => registers(ti).set(regs, 0, dv)
+                case None     =>
+              }
+            }
+            ti += 1
+          }
+          constructor.construct(regs, 0)
+        } finally regs.endUse()
+      }
+
+      @inline
+      private def borrowRegs(): Registers = {
+        val pooled = regsPool.get()
+        if (pooled.isInUse) Registers(constructor.usedRegisters)
+        else {
+          pooled.startUse()
+          pooled
         }
-        constructor.construct(regs, 0)
       }
 
       def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit = {
