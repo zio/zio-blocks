@@ -122,9 +122,21 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
     if (s == null) null else UUID.fromString(s)
   }
 
-  override def getArray(index: Int): java.sql.Array = underlying.getArray(index)
+  override def getArray(index: Int): Array[String] = {
+    val sqlArray = underlying.getArray(index)
+    if (sqlArray == null) null
+    else
+      try sqlArray.getArray().asInstanceOf[Array[String]]
+      finally sqlArray.free()
+  }
 
-  override def getArray(label: String): java.sql.Array = underlying.getArray(label)
+  override def getArray(label: String): Array[String] = {
+    val sqlArray = underlying.getArray(label)
+    if (sqlArray == null) null
+    else
+      try sqlArray.getArray().asInstanceOf[Array[String]]
+      finally sqlArray.free()
+  }
 
   def columnLabel(index: Int): String = underlying.getMetaData.getColumnLabel(index)
 
