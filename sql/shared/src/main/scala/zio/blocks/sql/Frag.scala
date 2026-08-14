@@ -16,6 +16,7 @@
 
 package zio.blocks.sql
 
+import scala.collection.mutable
 import zio.blocks.maybe.Maybe
 
 /**
@@ -51,8 +52,19 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
   /**
    * Renders the fragment to a SQL string using the given dialect's placeholder
    * syntax.
+   *
+   * The rendered SQL depends only on the fragment's literal `parts`, the number
+   * of params, and the dialect — param *values* are bound separately — so the
+   * result is memoized per shape in [[Frag.renderedSql]] and reused across
+   * executions. Repeated execution of the same fragment therefore returns the
+   * cached `String` instead of rebuilding it with a `StringBuilder` each time.
    */
-  def sql(dialect: SqlDialect): String = {
+  def sql(dialect: SqlDialect): String =
+    Frag.synchronized {
+      Frag.renderedSql.getOrElseUpdate((parts, params.length, dialect), renderSql(dialect))
+    }
+
+  private def renderSql(dialect: SqlDialect): String = {
     val sb       = new StringBuilder
     var paramIdx = 1
     var i        = 0
@@ -73,6 +85,21 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 }
 
 object Frag {
+
+  /**
+   * Memoized rendered SQL, keyed by the fragment's shape — its literal `parts`,
+   * param count, and dialect. The rendered SQL does not depend on param values
+   * (they bind separately), so every execution of a fragment with the same
+   * shape reuses the same `String` instead of rebuilding it with a
+   * `StringBuilder`.
+   *
+   * A plain `HashMap` guarded by `synchronized` is used instead of a concurrent
+   * map because `scala.collection.concurrent.TrieMap` cannot be linked by
+   * Scala.js (its internal node classes do not exist on that platform). The
+   * critical section is a single map lookup, so contention is negligible.
+   */
+  private val renderedSql: mutable.HashMap[(IndexedSeq[String], Int, SqlDialect), String] =
+    mutable.HashMap.empty
 
   /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
