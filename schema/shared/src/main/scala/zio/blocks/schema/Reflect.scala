@@ -2039,9 +2039,16 @@ object Reflect {
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
-    if (reflect.isWrapper) {
-      reflect.asWrapperUnknown.get.wrapper.underlyingPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
-    } else reflect.asPrimitive.map(_.primitiveType)
+    reflect.asWrapperUnknown match {
+      case Some(unknown) =>
+        val wrapper = unknown.wrapper
+        wrapper.underlyingPrimitiveType.orElse {
+          if (wrapper.typeId.isOpaque)
+            unwrapToPrimitiveTypeOption(wrapper.wrapped).asInstanceOf[Option[PrimitiveType[A]]]
+          else None
+        }.asInstanceOf[Option[PrimitiveType[A]]]
+      case None => reflect.asPrimitive.map(_.primitiveType)
+    }
 
   private[blocks] def registerOffset[F[_, _], A](reflect: Reflect[F, A]): RegisterOffset.RegisterOffset =
     unwrapToPrimitiveTypeOption(reflect) match {
