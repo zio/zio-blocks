@@ -98,7 +98,7 @@ private[sql] trait DbCodecOpaquePriority {
 }
 
 object DbCodec extends DbCodecOpaquePriority {
-  private val SqlNullType = java.sql.Types.NULL
+  private val SqlNullType = 0
 
   private def decodeJsonb[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): A =
     jsonCodec.decode(input) match {
@@ -378,10 +378,10 @@ trait DbResultReader {
   def getDuration(label: String): java.time.Duration
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
-  def getArray(index: Int): java.sql.Array =
-    throw new UnsupportedOperationException("DbResultReader does not support getArray(index)")
-  def getArray(label: String): java.sql.Array =
-    throw new UnsupportedOperationException("DbResultReader does not support getArray(label)")
+  def getArray(index: Int): Array[String] =
+    throw new NoSuchElementException("DbResultReader does not support getArray(index)")
+  def getArray(label: String): Array[String] =
+    throw new NoSuchElementException("DbResultReader does not support getArray(label)")
   def columnLabel(index: Int): String
   def hasColumn(label: String): Boolean
   def wasNull: Boolean

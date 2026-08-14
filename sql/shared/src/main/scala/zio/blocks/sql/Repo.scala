@@ -83,6 +83,12 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   private val allCols: String = table.columns.mkString(", ")
   private val tbl: String     = table.name
 
+  /**
+   * `Statement.SUCCESS_NO_INFO` constant (-2), kept local to de-JDBC the shared
+   * source set.
+   */
+  private val SuccessNoInfo = -2
+
   /** The entity codec, exposed for internal Frag operations. */
   private given codec: DbCodec[E] = table.codec
 
@@ -176,7 +182,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
         val counts = ps.executeBatch()
         val total  = counts.map { count =>
           if (count >= 0) count
-          else if (count == java.sql.Statement.SUCCESS_NO_INFO) 1
+          else if (count == SuccessNoInfo) 1
           else 0
         }.sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
