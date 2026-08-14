@@ -701,7 +701,7 @@ object TypeIdMacros {
 
     val tpe = TypeRepr.of[A]
     Option(typeIdCache.get(tpe)) match {
-      case Some(cached) => typeIdToExpr(cached).asInstanceOf[Expr[TypeId[A]]]
+      case Some(cached) => '{ ${ typeIdToExpr(cached) }.asInstanceOf[TypeId[A]] }
       case None         => deriveTypeIdCore[A](tpe)
     }
   }
@@ -1067,7 +1067,7 @@ object TypeIdMacros {
         annotationsValue
       )
       typeIdCache.put(tpe, typeIdValue)
-      typeIdToExpr(typeIdValue).asInstanceOf[Expr[TypeId[A]]]
+      '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
     } else if (hasSelfType(typeSymbol)) {
       val selfTypeExpr = extractSelfType(typeSymbol)
       '{
@@ -1099,7 +1099,7 @@ object TypeIdMacros {
         annotationsValue
       )
       typeIdCache.put(tpe, typeIdValue)
-      typeIdToExpr(typeIdValue).asInstanceOf[Expr[TypeId[A]]]
+      '{ ${ typeIdToExpr(typeIdValue) }.asInstanceOf[TypeId[A]] }
     }
   }
 
