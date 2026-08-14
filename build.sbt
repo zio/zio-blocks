@@ -470,7 +470,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
 
 lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .dependsOn(schema, scope)
+  .dependsOn(schema, scope, streams)
   .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.sql"))

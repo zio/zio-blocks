@@ -17,7 +17,11 @@
 package zio.blocks.sql
 
 import scala.collection.mutable
+import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
+import zio.blocks.streams.Stream
+import zio.blocks.streams.internal.StreamError
+import zio.blocks.streams.io.Reader
 
 /**
  * A SQL fragment composed of literal text interleaved with typed parameter
@@ -103,6 +107,9 @@ object Frag {
 
   /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
+
+  /** Default chunk size for [[queryStream]] batch emission. */
+  private val DefaultQueryChunkSize = 64
 
   /** Wraps a parameter-free SQL string as a fragment. */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
@@ -249,6 +256,77 @@ object Frag {
           val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
           con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
           throw e
+      }
+    }
+
+    /**
+     * Executes this fragment as a SELECT and returns rows as a chunked stream.
+     */
+    def queryStream[A](using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] =
+      queryChunked[A](DefaultQueryChunkSize)
+
+    /**
+     * Executes this fragment as a SELECT and returns the decoded rows as a
+     * stream of `Chunk`s, each holding up to `chunkSize` rows.
+     *
+     * The statement and result set are acquired lazily on the first pull and
+     * released when the stream is closed or fully drained (via
+     * `Stream.fromAcquireRelease`). Rows are batched by the streams layer's
+     * `Reader.readN` inside `Stream.chunked` rather than a manual
+     * `List.newBuilder` loop. SQL failures surface as typed errors (`Left`)
+     * from terminal operations such as `runCollect`.
+     */
+    def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
+      require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
+      val sqlStr = frag.sql(con.dialect)
+      val start  = System.nanoTime()
+      Stream.fromAcquireRelease(
+        acquire = {
+          try {
+            val ps = con.connection.prepareStatement(sqlStr)
+            writeParams(ps.paramWriter, frag.queryParams)
+            val rs = ps.executeQuery()
+            (ps, rs)
+          } catch {
+            case e: Throwable =>
+              val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+              con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+              throw new StreamError(e)
+          }
+        },
+        release = { case (ps, rs) =>
+          try rs.close()
+          finally ps.close()
+        }
+      ) { case (_, rs) =>
+        val reader = rs.reader
+        val decode = rowDecoder(reader, codec)
+        var count  = 0
+        Stream
+          .fromReader[Throwable, A](new Reader[A] {
+            private var done                    = false
+            def isClosed: Boolean               = done
+            def read[A1 >: A](sentinel: A1): A1 =
+              if (done) sentinel
+              else
+                try {
+                  if (rs.next()) { count += 1; decode(reader).asInstanceOf[A1] }
+                  else {
+                    done = true
+                    val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+                    con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+                    sentinel
+                  }
+                } catch {
+                  case e: Throwable =>
+                    done = true
+                    val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+                    con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+                    throw new StreamError(e)
+                }
+            def close(): Unit = done = true
+          })
+          .chunked(chunkSize)
       }
     }
 
