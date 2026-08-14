@@ -176,6 +176,21 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       }
 
       override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+        // When the supplied labels sit at result positions 1..columnCount in
+        // order, decode positionally via the index-based overload — no per-row
+        // label slicing. Falls back to label-based field decoding when the
+        // caller supplied reordered or renamed labels, which is the only path
+        // that still slices.
+        var aligned = columnLabels.length == columnCount
+        var i       = 0
+        while (aligned && i < columnCount) {
+          aligned = reader.hasColumn(columnLabels(i)) && reader.columnLabel(i + 1) == columnLabels(i)
+          i += 1
+        }
+        if (aligned) readValue(reader, 1) else readByLabels(reader, columnLabels)
+      }
+
+      private def readByLabels(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
         val regs = borrowRegs()
         try {
           var labelIdx = 0

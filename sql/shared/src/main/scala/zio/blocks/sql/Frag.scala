@@ -112,6 +112,29 @@ object Frag {
         else reader.columnLabel(offset + 1)
       }
 
+    /**
+     * Resolves how each result row is decoded ONCE per statement rather than
+     * once per row.
+     *
+     * When the result set exposes the codec's columns in codec order starting
+     * at position 1 (the common case for `SELECT` matching the derived column
+     * order), every row is decoded through the cheaper index-based
+     * `readValue(reader, 1)` overload, which performs no per-row label lookup
+     * and no label slicing. Otherwise the column labels are resolved once via
+     * [[selectLabels]] and shared by every row through the label-based
+     * overload.
+     */
+    private def rowDecoder[A](reader: DbResultReader, codec: DbCodec[A]): DbResultReader => A = {
+      val columns = codec.columns
+      var i       = 0
+      while (i < columns.length && reader.hasColumn(columns(i)) && reader.columnLabel(i + 1) == columns(i)) i += 1
+      if (i == columns.length) r => codec.readValue(r, 1)
+      else {
+        val labels = selectLabels(reader, codec)
+        r => codec.readValue(r, labels)
+      }
+    }
+
     /** Executes this fragment as a SELECT and returns all decoded rows. */
     def query[A](using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
@@ -123,10 +146,11 @@ object Frag {
           val rs = ps.executeQuery()
           try {
             val reader  = rs.reader
+            val decode  = rowDecoder(reader, codec)
             val builder = List.newBuilder[A]
             var count   = 0
             while (rs.next()) {
-              builder += codec.readValue(reader, selectLabels(reader, codec))
+              builder += decode(reader)
               count += 1
             }
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -152,8 +176,10 @@ object Frag {
           writeParams(ps.paramWriter, frag.queryParams)
           val rs = ps.executeQuery()
           try {
+            val reader = rs.reader
+            val decode = rowDecoder(reader, codec)
             val result =
-              if (rs.next()) Maybe(codec.readValue(rs.reader, selectLabels(rs.reader, codec))) else Maybe.absent
+              if (rs.next()) Maybe(decode(reader)) else Maybe.absent
             val count    = if (result.isPresent) 1 else 0
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
             con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
@@ -179,10 +205,11 @@ object Frag {
           val rs = ps.executeQuery()
           try {
             val reader  = rs.reader
+            val decode  = rowDecoder(reader, codec)
             val builder = List.newBuilder[A]
             var count   = 0
             while (count < limit && rs.next()) {
-              builder += codec.readValue(reader, selectLabels(reader, codec))
+              builder += decode(reader)
               count += 1
             }
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
