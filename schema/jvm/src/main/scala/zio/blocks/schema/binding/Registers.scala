@@ -26,6 +26,7 @@ import java.util
  * fiber locals, or pools to ensure zero-allocation during encoding / decoding.
  */
 class Registers private (userRegister: RegisterOffset) {
+  private[this] var inUse: Boolean     = false
   private[this] var bytes: Array[Byte] = {
     val bytes = RegisterOffset.getBytes(userRegister)
     if (bytes == 0) Array.emptyByteArray else new Array[Byte](bytes)
@@ -155,6 +156,33 @@ class Registers private (userRegister: RegisterOffset) {
   @noinline
   private[this] def growObjects(idx: Int): Unit =
     objects = util.Arrays.copyOf(objects, Math.max(objects.length << 1, idx + 1))
+
+  /**
+   * Indicates whether this instance is currently borrowed from a pool and must
+   * not be reused concurrently. Callers should allocate a fresh instance
+   * instead when this is true.
+   */
+  private[blocks] def isInUse: Boolean = inUse
+
+  /**
+   * Marks this instance as in use and clears all previously stored values so it
+   * can be safely reused for the next encoding or decoding operation.
+   */
+  private[blocks] def startUse(): Unit = {
+    inUse = true
+    clear()
+  }
+
+  /**
+   * Marks this instance as no longer in use so it can be returned to its pool.
+   */
+  private[blocks] def endUse(): Unit =
+    inUse = false
+
+  private[this] def clear(): Unit = {
+    java.util.Arrays.fill(bytes, 0, bytes.length, (0: Byte))
+    java.util.Arrays.fill(objects, 0, objects.length, null)
+  }
 }
 
 object Registers {
