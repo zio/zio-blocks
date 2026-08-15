@@ -18,3 +18,8 @@ package zio.blocks.endpoint
 
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
+
+extension (prefix: String) {
+  transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V])(using nv: NestPrefix[V]): NamedTuple.NamedTuple[N, V] =
+    nv.nest(nt.asInstanceOf[V], prefix).asInstanceOf[NamedTuple.NamedTuple[N, V]]
+}

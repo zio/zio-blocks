@@ -16,6 +16,7 @@
 
 package zio.blocks.endpoint
 
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import zio.test.*
@@ -91,6 +92,40 @@ object EndpointGroupSpec extends ZIOSpecDefault {
           "endpoints { Endpoint(Method.GET / \"dup\"); Endpoint(Method.GET / \"dup\") }"
         )
         assertTrue(errors.nonEmpty)
+      }
+    ),
+    suite("endpoints macro M3 nesting")(
+      test("\"api\" / endpoints { val a = Endpoint(Method.GET / \"a\") }") {
+        val group = "api" / endpoints {
+          val a = Endpoint(Method.GET / "a")
+        }
+        assertTrue(group.a.route.render == "GET /api/a")
+      },
+      test("nested \"api\" / endpoints { \"v1\" / endpoints { val users = Endpoint(Method.GET / \"users\") } }") {
+        val group = "api" / endpoints {
+          "v1" / endpoints {
+            val users = Endpoint(Method.GET / "users")
+          }
+        }
+        assertTrue(group.v1.users.route.render == "GET /api/v1/users")
+      },
+      test("nested + auto-named inner Endpoint(Method.POST / \"users\")") {
+        val group = "api" / endpoints {
+          "v1" / endpoints {
+            Endpoint(Method.POST / "users")
+          }
+        }
+        assertTrue(group.v1.`POST /users`.route.render == "POST /api/v1/users")
+      },
+      test("deep 3-level nesting") {
+        val group = "a" / endpoints {
+          "b" / endpoints {
+            "c" / endpoints {
+              val x = Endpoint(Method.GET / "x")
+            }
+          }
+        }
+        assertTrue(group.b.c.x.route.render == "GET /a/b/c/x")
       }
     )
   )
