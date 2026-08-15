@@ -1283,8 +1283,8 @@ lazy val benchmarks = project
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.40.1",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
       "dev.zio"                               %% "zio-json"              % "0.9.2",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
-      "dev.zio"                               %% "zio-schema-json"       % "1.8.2",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.6",
       "io.github.arainko"                     %% "chanterelle"           % "0.1.6", // the last version that depends on Scala 3.7.x
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.15",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
