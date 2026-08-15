@@ -23,8 +23,12 @@ object EndpointGroupMacro {
     import quotes.reflect.*
 
     def unwrap(term: Term): Term = term match {
+      case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)     => unwrap(b)
+      case Inlined(Some(Apply(Select(_, "endpoints"), List(b))), _, _) => unwrap(b)
       case Inlined(_, _, inner) => unwrap(inner)
       case Typed(inner, _)      => unwrap(inner)
+      case Apply(Ident("endpoints"), List(b))     => unwrap(b)
+      case Apply(Select(_, "endpoints"), List(b)) => unwrap(b)
       case _ => term
     }
 
@@ -33,26 +37,58 @@ object EndpointGroupMacro {
     def isEndpoint(tpe: TypeRepr): Boolean =
       tpe <:< TypeRepr.of[Endpoint[?, ?, ?, ?, ?]]
 
-    def collectMembers(stats: List[Statement]): List[(String, Term)] = {
+    def isNestedSubgroupStmt(t: Term): Option[(String, Term)] = t match {
+      case Inlined(Some(call: Term), _, _) =>
+        slashPrefix(call) match {
+          case Some(p) => Some((p, t))
+          case None    => isNestedSubgroupStmt(call)
+        }
+      case Inlined(_, _, inner) => isNestedSubgroupStmt(inner)
+      case Typed(inner, _)      => isNestedSubgroupStmt(inner)
+      case Apply(Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), _), List(_)) => Some((p, t))
+      case Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), List(_)) => Some((p, t))
+      case Apply(Apply(Ident("/"), List(Literal(StringConstant(p)))), List(_)) => Some((p, t))
+      case Apply(Select(Literal(StringConstant(p)), "/"), List(_)) => Some((p, t))
+      case Apply(TypeApply(Select(Literal(StringConstant(p)), "/"), _), List(_)) => Some((p, t))
+      case _ => None
+    }
+
+    def slashPrefix(t: Term): Option[String] = t match {
+      case Apply(Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), _), List(_)) => Some(p)
+      case Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), List(_)) => Some(p)
+      case Apply(Apply(Ident("/"), List(Literal(StringConstant(p)))), List(_)) => Some(p)
+      case Apply(Ident("/"), List(Literal(StringConstant(p)))) => Some(p)
+      case Apply(Select(Literal(StringConstant(p)), "/"), List(_)) => Some(p)
+      case Apply(TypeApply(Select(Literal(StringConstant(p)), "/"), _), List(_)) => Some(p)
+      case _ => None
+    }
+
+    def collectMembers(stats: List[Statement]): List[(String, Term, Boolean)] = {
       val raw = stats.flatMap {
         case vd: ValDef if vd.rhs.nonEmpty =>
-          val rhsTerm = vd.rhs.get
-          if (isEndpoint(rhsTerm.tpe)) {
-            Some((vd.name, rhsTerm))
+          val rhs = vd.rhs.get
+          if (isEndpoint(rhs.tpe)) {
+            Some((vd.name, rhs, false))
           } else {
             report.errorAndAbort(s"endpoints { ... } only accepts `val name = Endpoint(...)` statements; found non-Endpoint val ${vd.name}")
           }
         case app: Term if isEndpoint(app.tpe) =>
           val name = autoName(app)
-          Some((name, app))
-        case other if !other.isInstanceOf[ValDef @unchecked] && !other.toString.trim.isEmpty =>
-          report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements or bare `Endpoint(...)` expressions")
+          Some((name, app, false))
+        case other: Term =>
+          isNestedSubgroupStmt(other) match {
+            case Some((name, wholeSlashTerm)) =>
+              Some((name, wholeSlashTerm, true))
+            case None if !other.isInstanceOf[ValDef @unchecked] && !other.toString.trim.isEmpty =>
+              report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`")
+            case _ => None
+          }
         case _ => None
       }
       val nameToTerms = raw.groupBy(_._1)
       nameToTerms.foreach { case (n, list) =>
         if (list.size > 1) {
-          val locs = list.map { case (_, t) => s"${t.pos.sourceFile.name}:${t.pos.startLine}" }.mkString(", ")
+          val locs = list.map { case (_, t, _) => s"${t.pos.sourceFile.name}:${t.pos.startLine}" }.mkString(", ")
           report.error(s"duplicate endpoint name `$n` from: $locs")
         }
       }
@@ -169,7 +205,7 @@ object EndpointGroupMacro {
     unwrapped match {
       case Block(stats, expr) =>
         val memberStats: List[Statement] =
-          if (isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked]) stats :+ expr
+          if (isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked] || isNestedSubgroupStmt(expr).isDefined) stats :+ expr
           else if (expr match { case Literal(UnitConstant()) => true; case _ => false }) stats
           else stats
         if (memberStats.isEmpty) {
@@ -179,8 +215,10 @@ object EndpointGroupMacro {
           if (members.isEmpty) {
             '{ NamedTuple(EmptyTuple) }
           } else {
-            val (names, terms) = members.unzip
-            val exprs = terms.map(_.asExprOf[Endpoint[?, ?, ?, ?, ?]])
+            val (names, terms, isSubgroups) = members.unzip3
+            val exprs: List[Expr[Any]] = terms.zip(isSubgroups).map { case (t, isSub) =>
+              if (isSub) t.asExpr else t.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+            }
             val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
             val namesTypeRepr: TypeRepr = namesTupleExpr.asTerm.tpe
             val valuesTuple: Expr[Tuple] = Expr.ofTupleFromSeq(exprs)
@@ -190,11 +228,13 @@ object EndpointGroupMacro {
             ntType.asType match {
               case '[nt] =>
                 '{ $valuesTuple.asInstanceOf[nt] }
+              case _ =>
+                report.errorAndAbort("failed to construct NamedTuple type for group")
             }
           }
         }
 
-      case vd: ValDef if vd.rhs.nonEmpty => // single-val no outer Block
+      case vd: ValDef if vd.rhs.nonEmpty =>
         val rhsTerm = vd.rhs.get
         if (isEndpoint(rhsTerm.tpe)) {
           val expr = rhsTerm.asExprOf[Endpoint[?, ?, ?, ?, ?]]
@@ -207,12 +247,31 @@ object EndpointGroupMacro {
           ntType.asType match {
             case '[nt] =>
               '{ $valuesTuple.asInstanceOf[nt] }
+            case _ =>
+              report.errorAndAbort("failed to construct NamedTuple type for group")
           }
         } else {
           report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements")
         }
 
-      case Block(Nil, _) | _ => '{ NamedTuple(EmptyTuple) }
+      case t: Term =>
+        isNestedSubgroupStmt(t) match {
+          case Some((name, whole)) =>
+            val members = List((name, whole, true))
+            val (names, terms, isSubgroups) = members.unzip3
+            val exprs: List[Expr[Any]] = terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else tt.asExprOf[Endpoint[?, ?, ?, ?, ?]] }
+            val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
+            val namesTypeRepr: TypeRepr = namesTupleExpr.asTerm.tpe
+            val valuesTuple: Expr[Tuple] = Expr.ofTupleFromSeq(exprs)
+            val valuesTypeRepr: TypeRepr = valuesTuple.asTerm.tpe
+            val ntType: TypeRepr = AppliedType(TypeRepr.of[scala.NamedTuple.NamedTuple], List(namesTypeRepr, valuesTypeRepr))
+            ntType.asType match {
+              case '[nt] => '{ $valuesTuple.asInstanceOf[nt] }
+              case _ => report.errorAndAbort("failed to construct NamedTuple type for single-subgroup group")
+            }
+          case None =>
+            '{ NamedTuple(EmptyTuple) }
+        }
     }
   }
 }
