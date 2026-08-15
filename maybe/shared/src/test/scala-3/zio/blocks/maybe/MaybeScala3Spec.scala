@@ -65,7 +65,9 @@ object MaybeScala3Spec extends ZIOSpecDefault {
         Maybe.fromOption(Some(null: String)).isPresent,
         Maybe.fromOption(Some(null: String)).get == null,
         // 4. nested present-of-absent
-        (Maybe.present(Maybe.absent[Int]) match { case Present(v) => v.asInstanceOf[Maybe[Int]].isAbsent; case _ => false }),
+        (Maybe.present(Maybe.absent[Int]) match {
+          case Present(v) => v.asInstanceOf[Maybe[Int]].isAbsent; case _ => false
+        }),
         Maybe.present(Maybe.absent[Int]).flatten.isAbsent,
         // 5. zero-alloc flat case: raw value, no Present wrapper
         (Maybe.present(1) match { case _: Present[?] => false; case _ => true })
