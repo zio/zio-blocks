@@ -210,13 +210,17 @@ object DbCodec extends DbCodecOpaquePriority {
       if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
     }
 
-    def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit =
-      if (value.isAbsent) writer.setNull(startIndex, SqlNullType)
-      else inner.writeValue(writer, startIndex, value.asInstanceOf[A])
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit = {
+      val v = Maybe.unsafeGet(value)
+      if (v == null) writer.setNull(startIndex, SqlNullType)
+      else inner.writeValue(writer, startIndex, v.asInstanceOf[A])
+    }
 
-    def toDbValues(value: Maybe[A]): IndexedSeq[DbValue] =
-      if (value.isAbsent) IndexedSeq(DbValue.DbNull)
-      else inner.toDbValues(value.asInstanceOf[A])
+    def toDbValues(value: Maybe[A]): IndexedSeq[DbValue] = {
+      val v = Maybe.unsafeGet(value)
+      if (v == null) IndexedSeq(DbValue.DbNull)
+      else inner.toDbValues(v.asInstanceOf[A])
+    }
   }
 
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
