@@ -20,6 +20,7 @@ import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import zio.test.*
 import scala.language.implicitConversions
+import scala.compiletime.testing.typeCheckErrors
 
 object EndpointGroupSpec extends ZIOSpecDefault {
 
@@ -44,6 +45,52 @@ object EndpointGroupSpec extends ZIOSpecDefault {
           val only = Endpoint(Method.GET / "only")
         }
         assertTrue(group.only.route.render == "GET /only")
+      }
+    ),
+    suite("endpoints macro M2 auto-naming")(
+      test("bare Endpoint(Method.GET / \"health\") auto-names to `GET /health`") {
+        val group = endpoints {
+          Endpoint(Method.GET / "health")
+        }
+        assertTrue(group.`GET /health`.route.render == "GET /health")
+      },
+      test("path var Endpoint(Method.GET / \"user\" / PathCodec.int(\"userId\")) names `GET /user/{userId}`") {
+        val group = endpoints {
+          Endpoint(Method.GET / "user" / PathCodec.int("userId"))
+        }
+        assertTrue(group.`GET /user/{userId}`.route.render == "GET /user/{userId}")
+      },
+      test("multi-method Endpoint(Method.GET #| Method.POST / \"orders\") names `GET#|POST /orders`") {
+        val group = endpoints {
+          Endpoint(Method.GET #| Method.POST / "orders")
+        }
+        assertTrue(group.`GET#|POST /orders`.route.render == "GET#|POST /orders")
+      },
+      test("same path different method coexist: GET /users and POST /users") {
+        val group = endpoints {
+          Endpoint(Method.GET / "users")
+          Endpoint(Method.POST / "users")
+        }
+        assertTrue(
+          group.`GET /users`.route.render == "GET /users",
+          group.`POST /users`.route.render == "POST /users"
+        )
+      },
+      test("mixed val-named + bare auto-named in one block") {
+        val group = endpoints {
+          val mine = Endpoint(Method.GET / "mine")
+          Endpoint(Method.GET / "auto")
+        }
+        assertTrue(
+          group.mine.route.render == "GET /mine",
+          group.`GET /auto`.route.render == "GET /auto"
+        )
+      },
+      test("collision on identical bare endpoints reports error") {
+        val errors = typeCheckErrors(
+          "endpoints { Endpoint(Method.GET / \"dup\"); Endpoint(Method.GET / \"dup\") }"
+        )
+        assertTrue(errors.nonEmpty)
       }
     )
   )
