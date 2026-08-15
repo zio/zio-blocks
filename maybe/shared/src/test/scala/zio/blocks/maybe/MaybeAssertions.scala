@@ -19,12 +19,13 @@ package zio.blocks.maybe
 import zio.test._
 
 /**
- * ZIO Test assertions for `Maybe`, mirroring `isSome`/`isSome(assertion)` for `Option`.
+ * ZIO Test assertions for `Maybe`, mirroring `isSome`/`isSome(assertion)` for
+ * `Option`.
  *
- * Implementations use only the version-agnostic public API (`isAbsent`, `isPresent`,
- * `get`) and allocate nothing: no `Option`, `Some`/`None`, or `Present` wrapper is
- * constructed by the matchers themselves. The only cost is the inner `Assertion`
- * invocation in `isPresent(assertion)`.
+ * Implementations use only the version-agnostic public API (`isAbsent`,
+ * `isPresent`, `get`) and allocate nothing: no `Option`, `Some`/`None`, or
+ * `Present` wrapper is constructed by the matchers themselves. The only cost is
+ * the inner `Assertion` invocation in `isPresent(assertion)`.
  */
 object MaybeAssertions {
 
@@ -36,7 +37,10 @@ object MaybeAssertions {
   def isPresent: Assertion[Maybe[Any]] =
     Assertion.assertion("isPresent")(_.isPresent)
 
-  /** Asserts that the `Maybe` is present and its value satisfies the specified assertion. */
+  /**
+   * Asserts that the `Maybe` is present and its value satisfies the specified
+   * assertion.
+   */
   def isPresent[A](assertion: Assertion[A]): Assertion[Maybe[A]] =
     Assertion.assertion("isPresent(" + assertion + ")")(m => m.isPresent && assertion.test(m.get))
 }

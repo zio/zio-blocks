@@ -22,35 +22,44 @@ import scala.language.implicitConversions
 /**
  * Wraps a value so that "present of absent" is distinguishable from absent.
  *
- * `Maybe[+A]` is an opaque type alias for `A | Absent.type | Present[A]`. A plain
- * non-absent value of type `A` is a present `Maybe[A]` with zero allocation;
- * the `Absent` singleton is `Maybe.absent`; and `Present(a)` is a present `Maybe[A]` whose
- * value is `a` — used to represent "present of absent" in nested `Maybe`s
- * (e.g. `Maybe.present(Maybe.absent)`), which a bare `Absent` cannot express.
+ * `Maybe[+A]` is an opaque type alias for `A | Absent.type | Present[A]`. A
+ * plain non-absent value of type `A` is a present `Maybe[A]` with zero
+ * allocation; the `Absent` singleton is `Maybe.absent`; and `Present(a)` is a
+ * present `Maybe[A]` whose value is `a` — used to represent "present of absent"
+ * in nested `Maybe`s (e.g. `Maybe.present(Maybe.absent)`), which a bare
+ * `Absent` cannot express.
  *
- * NOTE on soundness: `Maybe.present` (and only `present`) wraps a user-supplied `Present[_]`
- * argument in an *extra* `Present` layer (`present(Present(x))` == `Present(Present(x))`).
- * This ensures `unsafeGet` (used by codecs) returns the correct inner `Present(x)` without
- * double-unwrapping. The public `case Present(v)` / `case Absent` matching idiom is unaffected.
+ * NOTE on soundness: `Maybe.present` (and only `present`) wraps a user-supplied
+ * `Present[_]` argument in an *extra* `Present` layer (`present(Present(x))` ==
+ * `Present(Present(x))`). This ensures `unsafeGet` (used by codecs) returns the
+ * correct inner `Present(x)` without double-unwrapping. The public
+ * `case Present(v)` / `case Absent` matching idiom is unaffected.
  */
 final class Present[+A](val value: A) {
   override def equals(other: Any): Boolean = other match {
     case p: Present[?] => value == p.value
     case _             => false
   }
-  override def hashCode: Int = if (value == null) 0 else value.hashCode // value CAN be null (Present(null))
+  override def hashCode: Int    = if (value == null) 0 else value.hashCode // value CAN be null (Present(null))
   override def toString: String = s"Present($value)"
 }
 
 object Present {
   def apply[A](value: A): Present[A] = new Present(value)
-  /** Matches BOTH present shapes: a raw non-Absent value and a Present(...) wrapper. */
+
+  /**
+   * Matches BOTH present shapes: a raw non-Absent value and a Present(...)
+   * wrapper.
+   */
   def unapply[A](maybe: Maybe[A]): Option[A] =
     if (maybe.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) None
     else Some(Maybe.unsafeGet(maybe).asInstanceOf[A])
 }
 
-/** Plain object (NOT case object) — enables `case Absent` as a stable-identifier pattern. */
+/**
+ * Plain object (NOT case object) — enables `case Absent` as a stable-identifier
+ * pattern.
+ */
 object Absent
 
 opaque type Maybe[+A] = A | Absent.type | Present[A]
@@ -58,7 +67,8 @@ opaque type Maybe[+A] = A | Absent.type | Present[A]
 object Maybe {
 
   /**
-   * Wraps a value in `Maybe`, treating `null` (and the Absent sentinel) as absent.
+   * Wraps a value in `Maybe`, treating `null` (and the Absent sentinel) as
+   * absent.
    *
    * Unlike `present`, `apply` collapses `null`/`Absent` to `Maybe.absent`. Use
    * `present` when the value being wrapped is itself a `Maybe` that may be
@@ -68,20 +78,25 @@ object Maybe {
     if (a == null) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else a.asInstanceOf[Maybe[A]]
 
   /**
-    * Wraps a value in `Maybe`, preserving present-ness even for `null` or `Absent`.
-    *
-    * A non-null/non-Absent value is returned as-is (zero allocation). A `null` value or the
-    * `Absent` sentinel is wrapped in `Present(Absent)`, which is distinguishable from `Maybe.absent`
-    * (the `Absent` singleton). This is what makes nested `Maybe`s sound: `Maybe.present(Maybe.absent)`
-    * is `Present(Absent)`, not `Maybe.absent`.
-    *
-    * Special case for soundness (see Present scaladoc): if the argument is itself a `Present[_]`,
-    * it is wrapped in an extra `Present` layer so that `unsafeGet` returns the original `Present`
-    * (preventing CCE when `A = Present[T]`). Normal `present(v)` for non-Present v remains zero-alloc.
-    */
+   * Wraps a value in `Maybe`, preserving present-ness even for `null` or
+   * `Absent`.
+   *
+   * A non-null/non-Absent value is returned as-is (zero allocation). A `null`
+   * value or the `Absent` sentinel is wrapped in `Present(Absent)`, which is
+   * distinguishable from `Maybe.absent` (the `Absent` singleton). This is what
+   * makes nested `Maybe`s sound: `Maybe.present(Maybe.absent)` is
+   * `Present(Absent)`, not `Maybe.absent`.
+   *
+   * Special case for soundness (see Present scaladoc): if the argument is
+   * itself a `Present[_]`, it is wrapped in an extra `Present` layer so that
+   * `unsafeGet` returns the original `Present` (preventing CCE when
+   * `A = Present[T]`). Normal `present(v)` for non-Present v remains
+   * zero-alloc.
+   */
   inline def present[A](a: A): Maybe[A] =
     if (a == null) zio.blocks.maybe.Present(null).asInstanceOf[Maybe[A]]
-    else if (a.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Present(zio.blocks.maybe.Absent).asInstanceOf[Maybe[A]]
+    else if (a.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
+      zio.blocks.maybe.Present(zio.blocks.maybe.Absent).asInstanceOf[Maybe[A]]
     else
       a.asInstanceOf[AnyRef] match {
         case p: zio.blocks.maybe.Present[?] => zio.blocks.maybe.Present(p).asInstanceOf[Maybe[A]]
@@ -116,9 +131,9 @@ object Maybe {
    * absent (Absent maps to null for codec compatibility).
    */
   private[blocks] def unsafeGet(x: Maybe[Any]): Any = x match {
-    case zio.blocks.maybe.Absent          => null
+    case zio.blocks.maybe.Absent        => null
     case p: zio.blocks.maybe.Present[?] => p.value
-    case _                                => x
+    case _                              => x
   }
 
   /**
@@ -134,7 +149,7 @@ object Maybe {
     inline def isEmpty: Boolean   = self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent
     inline def isDefined: Boolean = !(self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
     inline def nonEmpty: Boolean  = !(self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
-    inline def get: A =
+    inline def get: A             =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) throw new NoSuchElementException("Maybe.absent.get")
       else unsafeGet(self).asInstanceOf[A]
     inline def getOrNull: A | Null                 = unsafeGet(self).asInstanceOf[A | Null]
@@ -153,13 +168,17 @@ object Maybe {
     inline def toSeq: Seq[A] =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) Seq.empty else Seq(unsafeGet(self).asInstanceOf[A])
     inline def iterator: Iterator[A] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) Iterator.empty else Iterator.single(unsafeGet(self).asInstanceOf[A])
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) Iterator.empty
+      else Iterator.single(unsafeGet(self).asInstanceOf[A])
     inline def map[B](f: A => B): Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]] else present(f(unsafeGet(self).asInstanceOf[A]))
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]]
+      else present(f(unsafeGet(self).asInstanceOf[A]))
     inline def flatMap[B](f: A => Maybe[B]): Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]] else f(unsafeGet(self).asInstanceOf[A])
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]]
+      else f(unsafeGet(self).asInstanceOf[A])
     inline def flatten[B](using ev: A <:< Maybe[B]): Maybe[B] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]] else ev(unsafeGet(self).asInstanceOf[A])
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]]
+      else ev(unsafeGet(self).asInstanceOf[A])
     inline def foreach[U](f: A => U): Unit =
       if (!(self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)) {
         f(unsafeGet(self).asInstanceOf[A])
@@ -172,9 +191,13 @@ object Maybe {
     inline def forall(p: A => Boolean): Boolean =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) true else p(unsafeGet(self).asInstanceOf[A])
     inline def filter(p: A => Boolean): Maybe[A] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else if (p(unsafeGet(self).asInstanceOf[A])) self else zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
+      else if (p(unsafeGet(self).asInstanceOf[A])) self
+      else zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
     inline def filterNot(p: A => Boolean): Maybe[A] =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else if (p(unsafeGet(self).asInstanceOf[A])) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]] else self
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
+      else if (p(unsafeGet(self).asInstanceOf[A])) zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
+      else self
     inline def collect[B](pf: PartialFunction[A, B]): Maybe[B] =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) zio.blocks.maybe.Absent.asInstanceOf[Maybe[B]]
       else {
@@ -188,15 +211,24 @@ object Maybe {
     inline def toLeft[X](right: => X): Either[A, X] =
       if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) Right(right) else Left(unsafeGet(self).asInstanceOf[A])
     inline def zip[B](that: Maybe[B]): Maybe[(A, B)] =
-      if ((self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) || (that.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)) zio.blocks.maybe.Absent.asInstanceOf[Maybe[(A, B)]] else present((unsafeGet(self).asInstanceOf[A], unsafeGet(that).asInstanceOf[B]))
+      if (
+        (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) || (that.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
+      ) zio.blocks.maybe.Absent.asInstanceOf[Maybe[(A, B)]]
+      else present((unsafeGet(self).asInstanceOf[A], unsafeGet(that).asInstanceOf[B]))
     inline def unzip[A1, A2](using ev: A <:< (A1, A2)): (Maybe[A1], Maybe[A2]) =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) (zio.blocks.maybe.Absent.asInstanceOf[Maybe[A1]], zio.blocks.maybe.Absent.asInstanceOf[Maybe[A2]])
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
+        (zio.blocks.maybe.Absent.asInstanceOf[Maybe[A1]], zio.blocks.maybe.Absent.asInstanceOf[Maybe[A2]])
       else {
         val value = ev(unsafeGet(self).asInstanceOf[A])
         (present(value._1), present(value._2))
       }
     inline def unzip3[A1, A2, A3](using ev: A <:< (A1, A2, A3)): (Maybe[A1], Maybe[A2], Maybe[A3]) =
-      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent) (zio.blocks.maybe.Absent.asInstanceOf[Maybe[A1]], zio.blocks.maybe.Absent.asInstanceOf[Maybe[A2]], zio.blocks.maybe.Absent.asInstanceOf[Maybe[A3]])
+      if (self.asInstanceOf[AnyRef] eq zio.blocks.maybe.Absent)
+        (
+          zio.blocks.maybe.Absent.asInstanceOf[Maybe[A1]],
+          zio.blocks.maybe.Absent.asInstanceOf[Maybe[A2]],
+          zio.blocks.maybe.Absent.asInstanceOf[Maybe[A3]]
+        )
       else {
         val value = ev(unsafeGet(self).asInstanceOf[A])
         (present(value._1), present(value._2), present(value._3))
