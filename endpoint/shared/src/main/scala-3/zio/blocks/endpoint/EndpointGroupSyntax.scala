@@ -16,10 +16,17 @@
 
 package zio.blocks.endpoint
 
+import zio.blocks.endpoint.PathCodec
+
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
 
 extension (prefix: String) {
   transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V])(using nv: NestPrefix[V]): NamedTuple.NamedTuple[N, V] =
     nv.nest(nt.asInstanceOf[V], prefix).asInstanceOf[NamedTuple.NamedTuple[N, V]]
+}
+
+extension [A](codec: PathCodec[A]) {
+  transparent inline def /[NT <: Tuple](inline nt: NT): Any =
+    ${ EndpointGroupMacro.prefixGroup('codec, 'nt) }
 }
