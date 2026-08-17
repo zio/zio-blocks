@@ -414,15 +414,73 @@ Conversions go in both directions, and none of them blocks a thread:
 | `CompletionStage[A]` (JVM) | `Async.fromCompletionStage(cs)` | `CompletableFuture[A]` (JVM) | `fa.toCompletableFuture` |
 | `js.Promise[A]` (Scala.js) | `Async.fromJsPromise(p)`        | `js.Promise[A]` (Scala.js)   | `fa.toJsPromise`         |
 
+A round trip through `Future` looks like this — take what an existing service hands you, work with it as an `Async`, and give a `Future` back to a caller who still expects one:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+// The service you already have.
+def loadUserName(id: Int): Future[String] = Future.successful("sam")
+
+// Bring it in, work with it as an Async, hand a Future back out.
+def greet(id: Int): Future[String] =
+  Async
+    .fromFuture(loadUserName(id))
+    .map(name => s"hello, $name")
+    .catchAll(_ => Async.succeed("hello, guest"))
+    .toFuture
+```
+
+Java's `CompletionStage` works the same way:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.util.concurrent.{CompletableFuture, CompletionStage}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+def fetchToken(): CompletionStage[String] = CompletableFuture.completedFuture("t-123")
+
+val token: Async[String]                 = Async.fromCompletionStage(fetchToken())
+val backToJava: CompletableFuture[String] = token.map(_.toUpperCase).toCompletableFuture
+```
+
+On Scala.js the pair is `fromJsPromise` and `toJsPromise`:
+
+```scala
+import zio.blocks.async._
+import scala.scalajs.js
+
+def fetchJson(url: String): js.Promise[String] = js.native
+
+val parsed: Async[String]       = Async.fromJsPromise(fetchJson("/api/config"))
+val handedBack: js.Promise[String] = parsed.map(_.trim).toJsPromise
+```
+
 Two details are worth knowing before you use them.
 
-Handing a value out to `Future` or `CompletableFuture` needs an `ExecutionContext` in scope, exactly as ordinary `Future` code does — usually `import scala.concurrent.ExecutionContext.Implicits.global`, or whichever one your application already provides. `toJsPromise` needs nothing, because JavaScript has a single built-in event loop to run the callback on.
+Handing a value out to `Future` or `CompletableFuture` needs an `ExecutionContext` in scope, exactly as ordinary `Future` code does — usually `import scala.concurrent.ExecutionContext.Implicits.global`, as above, or whichever one your application already provides. `toJsPromise` needs nothing, because JavaScript has a single built-in event loop to run the callback on.
 
 Failures survive the trip. That takes some care on the Java side: when a `CompletionStage` fails, Java wraps your exception in a `CompletionException` before handing it over. `fromCompletionStage` unwraps it, so the `Async` fails with the exception you actually threw rather than with Java's wrapper — which means `catchAll` sees what you expect.
 
 Two further integration points are worth knowing about:
 
-**Cancelling with `Using`.** `Async.Running` is an `AutoCloseable` — `Cancelable` extends it — so `scala.util.Using` (or Java's try-with-resources) cancels the work automatically when the block ends, the same way it closes a file handle. The [Scope reference](resource-management/scope.md) covers the wider resource-management model.
+**Cancelling with `Using`.** `Async.Running` is an `AutoCloseable` — `Cancelable` extends it — so `scala.util.Using` (or Java's try-with-resources) cancels the work automatically when the block ends, the same way it closes a file handle:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import scala.util.Using
+
+def pollForUpdates(): Nothing = { while (true) Thread.sleep(100); ??? }
+
+Using(Async.start(pollForUpdates())) { running =>
+  // Do other work while the poller runs.
+  Thread.sleep(500)
+} // leaving the block cancels the poller, whether or not the body threw
+```
+
+The [Scope reference](resource-management/scope.md) covers the wider resource-management model.
 
 **Feeding [streams](streams/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
 
