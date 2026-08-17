@@ -172,15 +172,21 @@ object DbCodec extends DbCodecOpaquePriority {
 
     val columns: IndexedSeq[String] = inner.columns
 
-    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] = {
-      val value = inner.readValue(reader, columnLabels)
-      if (reader.wasNull) None else Some(value)
-    }
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Option[A] =
+      if (reader.isNull(columnLabels.head)) None
+      else {
+        val value = inner.readValue(reader, columnLabels)
+        // Post-read fallback: readers without a null bitmap (default isNull)
+        // preserve the historical decode-then-wasNull behavior.
+        if (reader.wasNull) None else Some(value)
+      }
 
-    override def readValue(reader: DbResultReader, startIndex: Int): Option[A] = {
-      val value = inner.readValue(reader, startIndex)
-      if (reader.wasNull) None else Some(value)
-    }
+    override def readValue(reader: DbResultReader, startIndex: Int): Option[A] =
+      if (reader.isNull(startIndex)) None
+      else {
+        val value = inner.readValue(reader, startIndex)
+        if (reader.wasNull) None else Some(value)
+      }
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Option[A]): Unit =
       value match {
@@ -200,15 +206,19 @@ object DbCodec extends DbCodecOpaquePriority {
 
     val columns: IndexedSeq[String] = inner.columns
 
-    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Maybe[A] = {
-      val value = inner.readValue(reader, columnLabels)
-      if (reader.wasNull) Maybe.absent else Maybe.present(value)
-    }
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Maybe[A] =
+      if (reader.isNull(columnLabels.head)) Maybe.absent
+      else {
+        val value = inner.readValue(reader, columnLabels)
+        if (reader.wasNull) Maybe.absent else Maybe.present(value)
+      }
 
-    override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] = {
-      val value = inner.readValue(reader, startIndex)
-      if (reader.wasNull) Maybe.absent else Maybe.present(value)
-    }
+    override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] =
+      if (reader.isNull(startIndex)) Maybe.absent
+      else {
+        val value = inner.readValue(reader, startIndex)
+        if (reader.wasNull) Maybe.absent else Maybe.present(value)
+      }
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit =
       if (value.isAbsent) writer.setNull(startIndex, SqlNullType)
@@ -381,6 +391,24 @@ trait DbResultReader {
   def columnLabel(index: Int): String
   def hasColumn(label: String): Boolean
   def wasNull: Boolean
+
+  /**
+   * Returns `true` if the column at the given 1-based `index` contains SQL NULL
+   * in the current row, without decoding the column value.
+   *
+   * Backends that carry a per-row column null bitmap override this (the JDBC
+   * backend records `wasNull` per column as it reads; the wire-protocol backend
+   * will populate it from the wire format) so Option/Maybe codecs can skip the
+   * inner decode entirely for NULL columns. The default reports `false`, which
+   * preserves the historical behavior: Option/Maybe codecs then fall back to
+   * the post-read `wasNull` check and decode the inner value as before.
+   */
+  def isNull(index: Int): Boolean = false
+
+  /**
+   * Label-based variant of [[isNull]].
+   */
+  def isNull(label: String): Boolean = false
 }
 
 /**
