@@ -115,7 +115,7 @@ Pollable[A]   —  "a result that is not here yet"
 
 That shared parent is what lets all three be used interchangeably. Wherever an `Async[A]` is expected, you can supply any of them, and every combinator — `map`, `flatMap`, `zipWith`, and the rest — works on the result without knowing or caring which one it is.
 
-`Failure` is on the list because failing is just another way of being finished. Once a computation has failed, `map` and `flatMap` stop doing work and pass the error straight through, so the failure travels to the end of your chain untouched.
+`Failure` is on the list because failing is just another way of being finished — a computation that has failed is not waiting for anything. [`Failure`](#failure) describes what that means for the combinators downstream of it.
 
 You will use `Completer` and `Async.Running` constantly, and `Failure` mostly without naming it. Writing your own `Pollable` is the rare case, reserved for teaching the module about a new source of delayed results.
 
@@ -236,7 +236,7 @@ val result: String = async.block  // blocks until the callback fires
 
 The two lines inside `legacyApi` are the whole bridge: whichever callback fires, it completes `c`, and completing `c` completes the `Async[String]`. Note what has been gained — `async` is an ordinary value. You can return it, store it, or chain `map` and `flatMap` onto it, and the callback API is no longer visible to anything downstream.
 
-The first call to `Completer#succeed` or `Completer#fail` wins; later calls do nothing. That makes the bridge safe against callbacks that fire twice or APIs that retry internally — a common hazard when wrapping code you do not control.
+The bridge is also safe against a callback that fires more than once: the first call to `succeed` or `fail` decides the outcome and later calls do nothing. [`Completer`](#completer) covers that guarantee and when it saves you.
 
 ### Direct Style
 
@@ -486,7 +486,7 @@ The [Scope reference](resource-management/scope.md) covers the wider resource-ma
 
 ## The Async[A] Type
 
-`Async[A]` is the module's central type — a lazy description of a possibly-suspended computation that either yields an `A` or fails with a `Throwable`. Its runtime encoding is `Any`, so on the ready-value fast path every combinator is a plain function application with zero boxing. The type is covariant: `Async[Nothing]` is a valid `Async[A]` for any `A`, letting `Async.fail` and `Async.never` fit anywhere without a cast.
+This section is the API reference for `Async[A]`; what the type means and how it is encoded are covered at the top of this page. One property is worth having in mind while reading the signatures below: `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, letting `Async.fail` and `Async.never` fit anywhere without a cast.
 
 ### Creating Values
 
@@ -497,7 +497,7 @@ object Async {
   def succeed[A](a: A): Async[A]
   def fail(cause: Throwable): Async[Nothing]
   def attempt[A](body: => A): Async[A]
-  def promise[A](body: Completer[A] => Unit): Async[A]  // Scala 2; Completer[A] ?=> Unit on Scala 3
+  def promise[A](body: Completer[A] => Unit): Async[A]  // shape differs on Scala 3; see Completer
   def start[A](body: => A): Async.Running[A]
   val never: Async[Nothing]
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
@@ -518,7 +518,7 @@ val ready: Async[Int] = Async.succeed(42)
 val result: Int = ready.block  // => 42
 ```
 
-`Async.fail` creates a terminal failure that short-circuits every downstream `map` and `flatMap` without invoking continuations:
+`Async.fail` creates a terminal failure; [`Failure`](#failure) covers how it short-circuits the rest of a chain:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -537,16 +537,9 @@ val bad: Async[Int]    = Async.attempt("nope".toInt)  // => Async.fail(NumberFor
 val result: Int        = bad.catchAll(_ => Async.succeed(0)).block  // => 0
 ```
 
-`Async.never` is a permanently-suspended `Async[Nothing]` useful for testing cancellation or as a placeholder where an `Async[A]` is required but no value should arrive:
+`Async.never` is a permanently-suspended `Async[Nothing]` — a placeholder where an `Async[A]` is required but no value should ever arrive, and the usual way to test cancellation, as shown under [`Async.Running`](#asyncrunning).
 
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val running: Async.Running[Nothing] = Async.never.start
-running.cancel()  // stop the driver immediately; nothing will be delivered
-```
-
-`Async.start(body: => A)` runs a synchronous body in the background and returns an `Async.Running[A]` without requiring an existing `Async[A]` description:
+`Async.start(body: => A)` runs a body on a background worker and hands back an `Async.Running[A]`; [Concurrent Fan-Out](#concurrent-fan-out-via-running) covers when to reach for it and the trap to avoid:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -957,15 +950,7 @@ val running: Async.Running[Nothing] = Async.never.start
 running.cancel()  // stops immediately; the driver never delivers a value
 ```
 
-Because `Async.Running` extends `AutoCloseable`, it works as a managed resource in `scala.util.Using`:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-import scala.util.Using
-
-// Using calls close() = cancel() on any exit from the block:
-val _: scala.util.Try[String] = Using(Async.never.start) { _ => "done" }
-```
+Because `Async.Running` extends `AutoCloseable`, it also works as a managed resource in `scala.util.Using`, which calls `close()` — and therefore `cancel()` — on any exit from the block. [Integration Points](#integration-points) shows that in use.
 
 ### Cancelable
 
@@ -1004,16 +989,7 @@ The structural declaration is:
 final class Failure(val cause: Throwable) extends Pollable[Nothing]
 ```
 
-To observe a failure without re-throwing, use `either`:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val failed: Async[Int]             = Async.fail(new RuntimeException("boom"))
-val result: Either[Throwable, Int] = failed.either.block  // => Left(RuntimeException("boom"))
-```
-
-When `block` encounters a `Failure`, it re-throws `cause` on the calling thread. When `catchAll` matches one, it passes the original `Throwable` to the recovery function without any unwrapping.
+When `block` encounters a `Failure`, it re-throws `cause` on the calling thread. When `catchAll` matches one, it passes the original `Throwable` to the recovery function without any unwrapping. To observe a failure without re-throwing it at all, use [`either`](#error-handling).
 
 ### AsyncEncoding.WrappedPollable
 
