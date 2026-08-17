@@ -101,7 +101,23 @@ Async.async {
 
 The practical consequence is that you cannot find the pause by counting `await`s. A block whose values are all ready pauses nowhere and finishes as you construct it; a block whose *first* `await` is a network call has run none of the lines below it by the time `Async.async { … }` hands you a value.
 
-The one genuinely deferred primitive is a custom [`Pollable`](#pollable), whose `poll` runs only when a driver asks. Suspension exists downstream of an unresolved `poll`, and nowhere else.
+So where does waiting come from at all? From exactly one place: a [`Pollable`](#pollable) that was asked for its value and answered *not yet*. That is the only thing in the module that can make a computation pending. Everything else already has its answer — `succeed` has a value, `fail` has a cause, `attempt` has run, `map` merely applies a function.
+
+Waiting then spreads in one direction only: to the combinators stacked on top of that pending value, which cannot produce a result until it does.
+
+```scala
+val c = new Completer[Int]                    // a Pollable; not completed yet
+val a = c.peek.map(_ + 1)                     // above a pending value → deferred
+val b = a.flatMap(n => Async.succeed(n * 2))  // still above it → deferred
+
+val d = Async.succeed(1).map(_ + 1)           // no pending value anywhere → already ran
+```
+
+`a` and `b` wait only because they sit on top of a `Completer` nobody has completed. `d` shares none of that history, so it is simply the number `2` — the `+ 1` happened as the line was evaluated.
+
+The "only one place" part is what distinguishes `Async` from a lazy effect type. `map`, `flatMap` and `zipWith` do not themselves defer anything, and building a chain does not create a plan to be executed later. If you cannot point at a value still waiting to be completed, nothing in your chain is pending: it has all already run.
+
+Two things follow. Any pending computation can be traced to the thing it is waiting on — a `Completer` for a callback bridge, an [`Async.Running`](#asyncrunning) for started work, or your own `Pollable`. And the waiting is temporary and forward-only: when that value is completed, everything above it becomes ready, and nothing below it was ever held up, because that code had already run.
 
 This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk, none of the wrapper objects most effect types build — and that is where the throughput comes from. It is also why `Async[A]` costs close to nothing on a mostly-synchronous path: when there is nothing to wait for, chaining operations onto a value just runs them. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
 
