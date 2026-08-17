@@ -133,7 +133,33 @@ val running = Async.start(uploadHugeFile())
 // ability to watch it or stop it.
 ```
 
-Stopping requires asking, through [`Cancelable#cancel`](#cancelable) — and even that reaches only as far as the driver. So keep the handle for anything you might want to stop; once it is gone, the work runs to completion whether or not anyone still cares about the result.
+Stopping requires asking, through [`Cancelable#cancel`](#cancelable) — and even that reaches only as far as the driver.
+
+The handle is your only route to that request. There is no registry of running computations to consult and no supervisor to ask, so a handle you have dropped cannot be recovered: that work becomes unstoppable for the rest of the process, and it finishes on its own schedule, holding its thread and its socket until it does. Nothing counts how many observers are left, so nothing notices when the last one goes away.
+
+The rule that falls out is to decide at `start` time whether this work might ever need stopping. If it might, give the handle somewhere to live:
+
+```scala
+import java.util.concurrent.atomic.AtomicReference
+
+class Uploader {
+  private val current = new AtomicReference[Async.Running[Unit]]()
+
+  def begin(): Unit = {
+    val previous = current.getAndSet(Async.start(uploadHugeFile()))
+    if (previous ne null) previous.cancel()  // never overwrite a live handle
+  }
+
+  def abort(): Unit = {
+    val running = current.getAndSet(null)
+    if (running ne null) running.cancel()    // possible only because it was kept
+  }
+}
+```
+
+Note what `begin` has to do on the way past: replacing a handle means cancelling the one it displaces, or that upload becomes unstoppable while still running. The `AtomicReference` is there because the field is reachable from more than one thread — `abort` may well be called while `begin` is assigning.
+
+A [`Using`](#integration-points) block does the same job when the work is confined to a scope. And if the answer is that it never needs stopping, dropping the handle is fine — that is fire-and-forget, chosen deliberately rather than by accident.
 
 In all of this `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
 
