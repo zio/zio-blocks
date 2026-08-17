@@ -43,11 +43,19 @@ Suspension is where the other types enter. A `Pollable[A]` is the extension poin
 
 ## Installation
 
-To add the module to your build:
+Add the module to your build:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
+```
+
+In a cross-built project, use `%%%` so the same line resolves for both JVM and Scala.js:
 
 ```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 ```
+
+The module publishes for JVM and Scala.js, on Scala 2.13 and Scala 3, and pulls in no dependencies of its own.
 
 ## Overview
 
@@ -502,7 +510,9 @@ So `await` is not a method that blocks or waits. It is a marker the rewrite remo
 
 One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, so the call survives to runtime and throws.
 
-The rewrite is performed by `dotty-cps-async` on Scala 3 — or by native `js.async` and `js.await` on Scala.js 3.8 and later — and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither needs an extra dependency.
+The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither needs an extra dependency.
+
+Scala.js 3.8 and later takes a hybrid route, decided per call site. An `await` in direct position compiles to JavaScript's own `async`/`await`, which is the fastest path available; an `await` sitting under a lambda, a by-name argument, or a nested method falls back to the `dotty-cps-async` transform, because the native primitive is not legal in those positions. Nothing about this is yours to configure — the wider `Async.async` surface works either way.
 
 ### Bracket / Ensuring
 
