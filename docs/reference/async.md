@@ -176,6 +176,225 @@ val results: List[Int] = ordered.block  // => List(1, 2, 3)
 
 Without that guarantee you would have to tag each computation and re-sort the results yourself. Because `collectAll` keeps the positions, you can zip the output against the input list — or pattern-match on it positionally — and trust that element *n* belongs to computation *n*.
 
+## The Async[A] Type
+
+This section is the API reference for `Async[A]`; what the type means and how it is encoded are covered at the top of this page. One property is worth having in mind while reading the signatures below: `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, letting `Async.fail` and `Async.never` fit anywhere without a cast.
+
+### Creating Values
+
+The companion object provides factories for constructing leaf `Async[A]` values:
+
+```scala
+object Async {
+  def succeed[A](a: A): Async[A]
+  def fail(cause: Throwable): Async[Nothing]
+  def attempt[A](body: => A): Async[A]
+  def promise[A](body: Completer[A] => Unit): Async[A]  // shape differs on Scala 3; see Completer
+  def start[A](body: => A): Async.Running[A]
+  val never: Async[Nothing]
+  def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
+  def async[A](body: => A): Async[A]                    // Scala 3 macro; see the Direct Style pattern
+
+  // JVM only
+  def fromFuture[A](future: scala.concurrent.Future[A]): Async[A]
+  def fromCompletionStage[A](cs: java.util.concurrent.CompletionStage[A]): Async[A]
+}
+```
+
+`Async.succeed` lifts a pure, immediately-available value into an `Async[A]`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val ready: Async[Int] = Async.succeed(42)
+val result: Int = ready.block  // => 42
+```
+
+`Async.fail` creates a terminal failure; [`Failure`](#failure) covers how it short-circuits the rest of a chain:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val boom: Async[Int] = Async.fail(new RuntimeException("boom"))
+val result: Int = boom.catchAll(_ => Async.succeed(-1)).block  // => -1
+```
+
+`Async.attempt` captures a by-name expression and converts any thrown `Throwable` into a failure:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val parsed: Async[Int] = Async.attempt("42".toInt)
+val bad: Async[Int]    = Async.attempt("nope".toInt)  // => Async.fail(NumberFormatException)
+val result: Int        = bad.catchAll(_ => Async.succeed(0)).block  // => 0
+```
+
+`Async.never` is a permanently-suspended `Async[Nothing]` — a placeholder where an `Async[A]` is required but no value should ever arrive, and the usual way to test cancellation, as shown under [`Async.Running`](#asyncrunning).
+
+`Async.start(body: => A)` runs a body on a background worker and hands back an `Async.Running[A]`; [Concurrent Fan-Out](#concurrent-fan-out-via-running) covers when to reach for it and the trap to avoid:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running: Async.Running[Int] = Async.start { 42 }
+val result: Int = running.block  // => 42
+```
+
+### Transformation
+
+Pure transformations apply a function to the success value and return a new `Async`:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def map[B](f: A => B): Async[B]
+  def flatMap[B](f: A => Async[B]): Async[B]
+  def as[B](b: B): Async[B]
+  def unit: Async[Unit]
+  def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
+}
+```
+
+`map` applies a pure function and `flatMap` sequences a dependent second computation:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val result: Async[String] =
+  Async.succeed(21)
+    .map(_ * 2)
+    .flatMap(n => Async.succeed(s"value: $n"))
+val out: String = result.block  // => "value: 42"
+```
+
+### Composition
+
+Compositional operators combine independent or dependent `Async` values:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
+  def zip[B](that: Async[B]): Async[(A, B)]
+  def tap(f: A => Async[Any]): Async[A]
+  def ensuring(finalizer: Async[Any]): Async[A]
+  def *>[B](that: Async[B]): Async[B]
+  def <*[B](that: Async[B]): Async[A]
+  def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
+}
+```
+
+`zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val combined: Async[Int] =
+  Async.succeed(3).zipWith(Async.succeed(4))(_ + _)
+val tapped: Async[Int] =
+  combined.tap(v => Async.attempt(println(s"sum is $v")))
+val result: Int = tapped.block  // => 7, prints "sum is 7"
+```
+
+`*>` and `<*` sequence two effects and discard the left or right result respectively:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val logged: Async[Int] =
+  Async.attempt(println("starting")).*>(Async.succeed(42))
+val result: Int = logged.block  // => 42
+```
+
+### Error Handling
+
+`Async` represents failure as a `Throwable` and provides dedicated recovery operators:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
+  def mapError(f: Throwable => Throwable): Async[A]
+  def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
+  def either: Async[Either[Throwable, A]]
+}
+```
+
+`catchAll` recovers from any failure by supplying a replacement `Async[A]`; `either` converts the outcome to an `Either` so the failure surface is visible in the return type:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val safe: Async[Either[Throwable, Int]] =
+  Async.fail(new Exception("oops")).either
+val result: Either[Throwable, Int] = safe.block  // => Left(Exception("oops"))
+```
+
+`foldCause` handles both the success and failure branches in a single call without allocating a recovery `Async`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val message: Async[String] =
+  Async.attempt("42".toInt).foldCause(
+    (err: Throwable) => s"failed: ${err.getMessage}"
+  )(
+    (n: Int) => s"parsed: $n"
+  )
+val result: String = message.block  // => "parsed: 42"
+```
+
+### Driving
+
+Driving executes the `Async[A]` description and delivers the result through one of three mechanisms:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def block: A                                        // parks calling thread; re-throws on failure
+  def await: A                                        // Scala 3 macro; inside Async.async { } only
+  def start: Async.Running[A]
+  def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
+  def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
+    : java.util.concurrent.CompletableFuture[A]       // JVM only
+}
+```
+
+`block` parks the calling thread until the computation settles, then returns the value or re-throws the underlying `Throwable`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val result: Int = Async.succeed(42).map(_ + 1).block  // => 43
+```
+
+`start` dispatches the description to a background worker and returns an `Async.Running[A]` immediately, without blocking:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running: Async.Running[Int] = Async.attempt(42).start
+val result: Int = running.block  // join when ready
+```
+
+`toFuture` hands off to a `scala.concurrent.Future`, bridging into any code that already expects the standard-library async type:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import scala.concurrent.ExecutionContext.Implicits.global
+
+val future: scala.concurrent.Future[Int] =
+  Async.succeed(99).toFuture
+```
+
+### Conditional Execution
+
+`when` and `unless` are package-level functions (brought in by `import zio.blocks.async._`) that conditionally evaluate an `Async[Any]` based on a `Boolean` condition. The unevaluated branch is passed by name so no `Async` is constructed when the condition is false:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val flag = true
+val logged:  Async[Unit] = when(flag)(Async.attempt(println("running")))
+val skipped: Async[Unit] = unless(flag)(Async.attempt(println("skipped")))
+```
+
 ## Common Patterns
 
 The five patterns below address the most frequent tasks: bridging callbacks, writing sequential-looking code, guaranteeing cleanup, sharing in-flight computations, and collecting parallel results.
@@ -484,225 +703,6 @@ The [Scope reference](resource-management/scope.md) covers the wider resource-ma
 
 **Feeding [streams](streams/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
 
-## The Async[A] Type
-
-This section is the API reference for `Async[A]`; what the type means and how it is encoded are covered at the top of this page. One property is worth having in mind while reading the signatures below: `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, letting `Async.fail` and `Async.never` fit anywhere without a cast.
-
-### Creating Values
-
-The companion object provides factories for constructing leaf `Async[A]` values:
-
-```scala
-object Async {
-  def succeed[A](a: A): Async[A]
-  def fail(cause: Throwable): Async[Nothing]
-  def attempt[A](body: => A): Async[A]
-  def promise[A](body: Completer[A] => Unit): Async[A]  // shape differs on Scala 3; see Completer
-  def start[A](body: => A): Async.Running[A]
-  val never: Async[Nothing]
-  def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
-  def async[A](body: => A): Async[A]                    // Scala 3 macro; see the Direct Style pattern
-
-  // JVM only
-  def fromFuture[A](future: scala.concurrent.Future[A]): Async[A]
-  def fromCompletionStage[A](cs: java.util.concurrent.CompletionStage[A]): Async[A]
-}
-```
-
-`Async.succeed` lifts a pure, immediately-available value into an `Async[A]`:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val ready: Async[Int] = Async.succeed(42)
-val result: Int = ready.block  // => 42
-```
-
-`Async.fail` creates a terminal failure; [`Failure`](#failure) covers how it short-circuits the rest of a chain:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val boom: Async[Int] = Async.fail(new RuntimeException("boom"))
-val result: Int = boom.catchAll(_ => Async.succeed(-1)).block  // => -1
-```
-
-`Async.attempt` captures a by-name expression and converts any thrown `Throwable` into a failure:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val parsed: Async[Int] = Async.attempt("42".toInt)
-val bad: Async[Int]    = Async.attempt("nope".toInt)  // => Async.fail(NumberFormatException)
-val result: Int        = bad.catchAll(_ => Async.succeed(0)).block  // => 0
-```
-
-`Async.never` is a permanently-suspended `Async[Nothing]` — a placeholder where an `Async[A]` is required but no value should ever arrive, and the usual way to test cancellation, as shown under [`Async.Running`](#asyncrunning).
-
-`Async.start(body: => A)` runs a body on a background worker and hands back an `Async.Running[A]`; [Concurrent Fan-Out](#concurrent-fan-out-via-running) covers when to reach for it and the trap to avoid:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val running: Async.Running[Int] = Async.start { 42 }
-val result: Int = running.block  // => 42
-```
-
-### Transformation
-
-Pure transformations apply a function to the success value and return a new `Async`:
-
-```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def map[B](f: A => B): Async[B]
-  def flatMap[B](f: A => Async[B]): Async[B]
-  def as[B](b: B): Async[B]
-  def unit: Async[Unit]
-  def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
-}
-```
-
-`map` applies a pure function and `flatMap` sequences a dependent second computation:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val result: Async[String] =
-  Async.succeed(21)
-    .map(_ * 2)
-    .flatMap(n => Async.succeed(s"value: $n"))
-val out: String = result.block  // => "value: 42"
-```
-
-### Composition
-
-Compositional operators combine independent or dependent `Async` values:
-
-```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
-  def zip[B](that: Async[B]): Async[(A, B)]
-  def tap(f: A => Async[Any]): Async[A]
-  def ensuring(finalizer: Async[Any]): Async[A]
-  def *>[B](that: Async[B]): Async[B]
-  def <*[B](that: Async[B]): Async[A]
-  def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
-}
-```
-
-`zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val combined: Async[Int] =
-  Async.succeed(3).zipWith(Async.succeed(4))(_ + _)
-val tapped: Async[Int] =
-  combined.tap(v => Async.attempt(println(s"sum is $v")))
-val result: Int = tapped.block  // => 7, prints "sum is 7"
-```
-
-`*>` and `<*` sequence two effects and discard the left or right result respectively:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val logged: Async[Int] =
-  Async.attempt(println("starting")).*>(Async.succeed(42))
-val result: Int = logged.block  // => 42
-```
-
-### Error Handling
-
-`Async` represents failure as a `Throwable` and provides dedicated recovery operators:
-
-```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
-  def mapError(f: Throwable => Throwable): Async[A]
-  def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
-  def either: Async[Either[Throwable, A]]
-}
-```
-
-`catchAll` recovers from any failure by supplying a replacement `Async[A]`; `either` converts the outcome to an `Either` so the failure surface is visible in the return type:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val safe: Async[Either[Throwable, Int]] =
-  Async.fail(new Exception("oops")).either
-val result: Either[Throwable, Int] = safe.block  // => Left(Exception("oops"))
-```
-
-`foldCause` handles both the success and failure branches in a single call without allocating a recovery `Async`:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val message: Async[String] =
-  Async.attempt("42".toInt).foldCause(
-    (err: Throwable) => s"failed: ${err.getMessage}"
-  )(
-    (n: Int) => s"parsed: $n"
-  )
-val result: String = message.block  // => "parsed: 42"
-```
-
-### Driving
-
-Driving executes the `Async[A]` description and delivers the result through one of three mechanisms:
-
-```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def block: A                                        // parks calling thread; re-throws on failure
-  def await: A                                        // Scala 3 macro; inside Async.async { } only
-  def start: Async.Running[A]
-  def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
-  def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
-    : java.util.concurrent.CompletableFuture[A]       // JVM only
-}
-```
-
-`block` parks the calling thread until the computation settles, then returns the value or re-throws the underlying `Throwable`:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val result: Int = Async.succeed(42).map(_ + 1).block  // => 43
-```
-
-`start` dispatches the description to a background worker and returns an `Async.Running[A]` immediately, without blocking:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val running: Async.Running[Int] = Async.attempt(42).start
-val result: Int = running.block  // join when ready
-```
-
-`toFuture` hands off to a `scala.concurrent.Future`, bridging into any code that already expects the standard-library async type:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-import scala.concurrent.ExecutionContext.Implicits.global
-
-val future: scala.concurrent.Future[Int] =
-  Async.succeed(99).toFuture
-```
-
-### Conditional Execution
-
-`when` and `unless` are package-level functions (brought in by `import zio.blocks.async._`) that conditionally evaluate an `Async[Any]` based on a `Boolean` condition. The unevaluated branch is passed by name so no `Async` is constructed when the condition is false:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val flag = true
-val logged:  Async[Unit] = when(flag)(Async.attempt(println("running")))
-val skipped: Async[Unit] = unless(flag)(Async.attempt(println("skipped")))
-```
-
 ## Custom Suspension
 
 A result that is not here yet arrives in one of two ways: either something tells you when it is ready, or you have to keep asking. This module has a type for each. `Completer[A]` covers being told, and it is the one you will almost always want. `Pollable[A]` covers having to ask, and exists for the sources that leave you no choice.
@@ -916,9 +916,9 @@ The once-only guarantee earns its keep in code like this. You are trusting a thi
 
 `Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `realAsync` helper in "How They Work Together."
 
-## Concurrency and Cancellation
+## Controlling In-Flight Work
 
-`Async.Running[A]` and `Cancelable` work together to give you control over in-flight computations. `Async.Running` is the concrete handle returned by `start`; `Cancelable` is the interface that makes it possible to stop the driver loop.
+Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle itself, and `Cancelable` is the ability to stop what it refers to.
 
 ### Async.Running
 
@@ -975,13 +975,9 @@ c.cancel()  // no-op
 c.close()   // no-op; delegates to cancel()
 ```
 
-## Internal Encoding
+## Failure
 
-`Failure` is part of the `Async[A]` encoding rather than something you construct. You will not name it in your own code — `Async.fail` produces it and `catchAll` consumes it — but knowing it exists explains why a failure travels through a chain untouched.
-
-### Failure
-
-`Failure` is the terminal-failure representation inside the encoding. It extends `Pollable[Nothing]` and short-circuits `map` and `flatMap` by returning itself without invoking continuations. `Async.fail` and `Completer#fail` produce `Failure` values; `catchAll` and `either` recover from them.
+`Failure` is part of the `Async[A]` encoding rather than something you construct: `Async.fail` and `Completer#fail` produce it, and `catchAll` and `either` recover from it. You will not name it in your own code, but knowing it exists explains why a failure travels through a chain untouched — it extends `Pollable[Nothing]` and short-circuits `map` and `flatMap` by returning itself instead of invoking their continuations.
 
 The structural declaration is:
 
