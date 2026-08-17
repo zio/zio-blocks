@@ -404,23 +404,27 @@ The first failure short-circuits and remaining elements are not driven. Already-
 
 ## Integration Points
 
-The `async` module interoperates with platform-native async primitives without any additional dependencies.
+You are unlikely to be starting from scratch. Your codebase probably already returns `Future`s, calls a Java library that returns a `CompletionStage`, or talks to a JavaScript API that returns a `Promise`. `Async` is built to sit next to those, so you can adopt it in one part of a program without rewriting everything around it.
 
-**JVM — `scala.concurrent.Future` and `CompletionStage`:**
+Conversions go in both directions, and none of them blocks a thread:
 
-- Ingress: `Async.fromFuture(f: Future[A])` and `Async.fromCompletionStage(cs: CompletionStage[A])`. Failures are preserved; `CompletionException` wrappers are unwrapped on ingress.
-- Egress: `toFuture` and `toCompletableFuture` (both require an implicit `ExecutionContext`).
+| You have                   | Bring it in with                | You need                     | Hand it out with         |
+|:---------------------------|:--------------------------------|:-----------------------------|:-------------------------|
+| `Future[A]`                | `Async.fromFuture(f)`           | `Future[A]`                  | `fa.toFuture`            |
+| `CompletionStage[A]` (JVM) | `Async.fromCompletionStage(cs)` | `CompletableFuture[A]` (JVM) | `fa.toCompletableFuture` |
+| `js.Promise[A]` (Scala.js) | `Async.fromJsPromise(p)`        | `js.Promise[A]` (Scala.js)   | `fa.toJsPromise`         |
 
-**Scala.js — `js.Promise`:**
+Two details are worth knowing before you use them.
 
-- Ingress: `Async.fromJsPromise(p: js.Promise[A])`.
-- Egress: `toFuture` and `toJsPromise`. All conversions are non-blocking.
+Handing a value out to `Future` or `CompletableFuture` needs an `ExecutionContext` in scope, exactly as ordinary `Future` code does — usually `import scala.concurrent.ExecutionContext.Implicits.global`, or whichever one your application already provides. `toJsPromise` needs nothing, because JavaScript has a single built-in event loop to run the callback on.
 
-**Direct-style macro:** `Async.async { body }` rewrites `await` call-sites into continuation-passing style on Scala 3 JVM, or into native `js.async`/`js.await` on Scala.js 3.8+.
+Failures survive the trip. That takes some care on the Java side: when a `CompletionStage` fails, Java wraps your exception in a `CompletionException` before handing it over. `fromCompletionStage` unwraps it, so the `Async` fails with the exception you actually threw rather than with Java's wrapper — which means `catchAll` sees what you expect.
 
-**Scope and resource management:** `Async.Running` extends `AutoCloseable`, so it integrates with `scala.util.Using` and Java try-with-resources for scoped cancellation. See the [Scope reference](resource-management/scope.md) for the broader resource-management model.
+Two further integration points are worth knowing about:
 
-**[ZIO Blocks streams](streams/stream.md):** `Async` values bridge into stream sources via `Async.promise` and `Completer` for back-pressure-aware push.
+**Cancelling with `Using`.** `Async.Running` is an `AutoCloseable` — `Cancelable` extends it — so `scala.util.Using` (or Java's try-with-resources) cancels the work automatically when the block ends, the same way it closes a file handle. The [Scope reference](resource-management/scope.md) covers the wider resource-management model.
+
+**Feeding [streams](streams/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
 
 ## The Async[A] Type
 
