@@ -165,7 +165,22 @@ In all of this `Async` sits beside `scala.concurrent.Future`, which is also eage
 
 ### How long a combinator chain may be
 
-Combinator continuations poll their children recursively, with no trampoline — part of the same bargain that keeps the poll path free of allocation and indirection. The consequence is a depth limit, and it depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
+Call `map` on a value that is still waiting and you get back a wrapper: it remembers the original value and the function you gave it. Ask that wrapper for a result and it has to ask the original first, because until the original produces something there is nothing to apply the function to. That question is an ordinary method call, so the wrapper is left part-way through its own work — holding its place on the call stack — while the value underneath answers.
+
+Stack several and each repeats the pattern. Take `c.peek.map(f).flatMap(g).map(h)`, where `c` is a `Completer` nobody has completed yet. Asking the outermost wrapper sets off a chain of questions inward, and every one of them waits where it stands:
+
+```
+map h asks …                  still waiting
+ └─ flatMap g asks …          still waiting
+     └─ map f asks …          still waiting
+         └─ c answers "not yet" — and that travels back out through all three
+```
+
+None of them can finish until the innermost one answers, so all of them are held open at the same time. A chain written N deep costs N held-open calls, every single time it is asked.
+
+Most effect systems avoid that with a trampoline: rather than calling its child directly, each step returns a small object meaning *"do this next"* to a loop that keeps running steps until one produces a value. One loop frame serves any depth. The price is paid on every step of every poll — an object allocated to describe the step, and a dispatch through the loop instead of a direct call. `Async` declines that price, which is why the poll path allocates nothing, and accepts a bound on depth in exchange.
+
+Where that bound bites depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
 
 - **Over a ready source, chains are safe to any length.** Each step resolves as you build it and collapses, retaining no `Pollable`, so `var fa = …; while (…) fa = fa.flatMap(g)` runs in constant stack — verified into the millions.
 - **Over a pending source, a long receiver-position chain is not safe.** Each `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the previous pending value, so driving descends one stack frame per level before anything settles, and overflows at default JVM stack sizes somewhere around 50,000–100,000. The shape you wrote it in makes no difference: a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` both build the same pending spine.
