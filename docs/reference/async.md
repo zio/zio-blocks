@@ -712,13 +712,13 @@ val skipped: Async[Unit] = unless(flag)(Async.attempt(println("skipped")))
 
 ## Custom Suspension
 
-`Pollable[A]` and `Completer[A]` are the two building blocks for custom suspended leaves. `Pollable` defines the polling contract the driver uses to re-visit a suspended computation; `Completer` implements that contract specifically for one-shot callback bridging.
+A result that is not here yet arrives in one of two ways: either something tells you when it is ready, or you have to keep asking. This module has a type for each. `Completer[A]` covers being told, and it is the one you will almost always want. `Pollable[A]` covers having to ask, and exists for the sources that leave you no choice.
 
 ### Pollable
 
-You rarely subclass `Pollable` directly — prefer `Async.promise` with a `Completer` for callback APIs or `Async.attempt` for blocking I/O. `Pollable` is the right choice when you need fine-grained polling semantics: for example, a timer that decrements a tick counter each time the driver visits it.
+Imagine waiting on something that never calls you back — a non-blocking socket that answers "no data yet" when you read it, a hardware timer you have to check, a native handle that reports progress only when asked. There is no callback to hand a `Completer` to. The only way to learn whether the result has arrived is to *ask*, and to keep asking. The module cannot know how to ask your particular source; only your code knows that.
 
-The structural declaration is:
+`Pollable[A]` is where you supply that knowledge. It is a single method:
 
 ```scala
 abstract class Pollable[+A] {
@@ -726,7 +726,16 @@ abstract class Pollable[+A] {
 }
 ```
 
-When the driver calls `poll`, the `Pollable` either returns `Async.succeed(a)` to signal readiness or re-registers `onComplete` and returns `this` (or another `Async[A]`) to indicate it should be revisited. The following example implements a countdown before delivery:
+The driver calls `poll` whenever it gets the chance, and what you return tells it what to do next:
+
+- **Ready?** Return `Async.succeed(a)`. The driver takes the value and stops asking.
+- **Not yet?** Return `this`. The driver will come back and ask again.
+
+The `onComplete` argument keeps that from becoming a wasteful spin: it is a callback meaning *"there is a reason to check again now."* Run it when something has changed, and the driver revisits you promptly instead of on its own schedule.
+
+Most programs never need any of this. For a callback-based API, `Async.promise` with a `Completer` is simpler and already correct; for blocking I/O, `Async.attempt` on a worker via `Async.start` fits better. Reach for `Pollable` only when the result genuinely has to be checked rather than delivered.
+
+Here is the smallest thing that behaves like a real suspension — a value that refuses to be ready for its first two visits:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -740,11 +749,66 @@ class Delayed[A](v: A, var ticks: Int) extends Pollable[A] {
 val result: String = new Delayed("done", ticks = 2).block  // => "done"
 ```
 
-Because `Pollable[A]` is a subtype of `Async[A]` in the module's encoding, this value flows directly into any `Async[A]` position and composes with all combinators.
+Follow it one visit at a time:
+
+| Visit | `ticks` | `poll` returns        | Driver's reaction    |
+|:------|:--------|:----------------------|:---------------------|
+| 1st   | 2       | `this`                | not ready — ask again |
+| 2nd   | 1       | `this`                | not ready — ask again |
+| 3rd   | 0       | `Async.succeed("done")` | takes the value, stops asking |
+
+Returning `this` means "still me, still waiting." Returning `Async.succeed(v)` means "here it is." And `onComplete.run()` is the nudge that tells the driver to come back soon rather than in its own time. The toy above runs it immediately, which just asks for another visit right away; real code instead hands `onComplete` to whatever it is waiting on — a socket selector, a timer callback — and lets that source run it when something actually happens. The driver can then stay asleep in between, rather than burning a thread asking a question whose answer has not changed. Meanwhile `.block` waits through all three visits and hands you `"done"` at the end.
+
+A real implementation replaces the counter with the actual question — has the socket got bytes, has the timer expired — but the shape does not change.
+
+Here is a case you are likely to meet. A service starts a long job — rendering a report, transcoding a video, restoring an archive — and gives you back a job id. There is no webhook and no callback: the only way to find out whether it has finished is to call `GET /jobs/{id}` and look at the status. That is a `Pollable`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+sealed trait JobStatus
+case object Pending                 extends JobStatus
+case class  Done(url: String)       extends JobStatus
+case class  Failed(reason: String)  extends JobStatus
+
+// The API you are given: you can ask it, it will never tell you.
+def checkJob(id: String): JobStatus = Done("https://example.invalid/report.pdf")
+
+def download(url: String): Unit = ()
+
+// Run `task` once, later, without holding on to a thread in the meantime.
+def scheduleIn(ms: Long, task: Runnable): Unit = {
+  val t = new Thread(() => { Thread.sleep(ms); task.run() })
+  t.setDaemon(true)
+  t.start()
+}
+
+final class JobPollable(id: String) extends Pollable[String] {
+  def poll(onComplete: Runnable): Async[String] =
+    checkJob(id) match {
+      case Done(url)      => Async.succeed(url)
+      case Failed(reason) => Async.fail(new RuntimeException(s"job $id failed: $reason"))
+      case Pending        =>
+        // Nothing will announce the change, so arrange our own next look.
+        scheduleIn(2000, onComplete)
+        this
+    }
+}
+
+// From here on it is an ordinary Async: compose it, start it, cancel it.
+val reportUrl: Async[String] = new JobPollable("job-42")
+val saved: Async[Unit]       = reportUrl.map(url => download(url))
+```
+
+Three things to notice. The status check happens inside `poll`, so it runs only when the driver visits — you are not running a loop of your own. The `Pending` branch schedules the next visit two seconds out, which is what stops this from hammering the service. And a failed job becomes `Async.fail`, so the error travels the same path as every other failure and `catchAll` can recover it.
+
+Note also what is *not* in the example: no blocking wait, no lock, no shared mutable state. Polling puts you in charge of when the check happens, which is the reason to choose it. Because a `Pollable[A]` can be used wherever an `Async[A]` is expected, the value drops straight into any composition and works with every combinator.
 
 ### Completer
 
-`Completer[A]` extends `Pollable[A]` to bridge a single callback completion into the `Async` world. It is thread-safe and one-shot: the first call to `Completer#succeed` or `Completer#fail` wins and all subsequent calls are no-ops.
+Polling is the awkward case. Far more often the source does call you back — that is what `Completer[A]` is for, and why you will reach for it and not `Pollable`.
+
+`Completer[A]` is a `Pollable[A]` that is already written: instead of implementing "is it ready?", you hold a value someone else completes exactly once. It is thread-safe, and the first call to `Completer#succeed` or `Completer#fail` wins while every later call does nothing — so a callback that fires twice cannot corrupt the result.
 
 The structural declaration is:
 
@@ -757,7 +821,17 @@ final class Completer[A] extends Pollable[A] {
 }
 ```
 
-`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. The body syntax differs between Scala 2 and Scala 3: on Scala 3 the parameter type is `Completer[A] ?=> Unit` (a context function), while on Scala 2 it is `Completer[A] => Unit`:
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. Its signature is the one place the two Scala versions differ:
+
+```scala
+// Scala 3 — the completer is a context parameter of the body
+inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
+
+// Scala 2 — the completer is an ordinary function parameter
+def promise[A](body: Completer[A] => Unit): Async[A]
+```
+
+The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2:
 
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
@@ -785,6 +859,67 @@ val result: Int = async.block  // => 42
 
 </TabItem>
 </Tabs>
+
+Now a case from the JDK rather than a sleeping thread. `AsynchronousFileChannel` reads a file without blocking, and reports the outcome through a `CompletionHandler` with two methods: `completed` when the bytes arrive, `failed` when the read goes wrong. Those two are exactly `succeed` and `fail`, so the bridge is almost mechanical:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.nio.ByteBuffer
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.file.{Path, StandardOpenOption}
+
+def readChunk(path: Path, size: Int): Async[ByteBuffer] = {
+  val completer = new Completer[ByteBuffer]
+  val channel   = AsynchronousFileChannel.open(path, StandardOpenOption.READ)
+  val buffer    = ByteBuffer.allocate(size)
+
+  channel.read(buffer, 0L, buffer, new CompletionHandler[Integer, ByteBuffer] {
+    def completed(bytesRead: Integer, buf: ByteBuffer): Unit = {
+      buf.flip()
+      completer.succeed(buf)   // the read finished
+    }
+    def failed(cause: Throwable, buf: ByteBuffer): Unit =
+      completer.fail(cause)    // the read went wrong
+  })
+
+  completer.peek               // hand the pending result to the caller
+}
+
+// An ordinary Async from here on.
+val firstBytes: Async[Int] = readChunk(Path.of("data.bin"), 1024).map(_.remaining)
+```
+
+This is the same bridge as `Async.promise`, written out by hand: create the `Completer`, give its two methods to the callback, and return `completer.peek` as the `Async[ByteBuffer]` the caller waits on. `Async.promise` packages exactly those three steps, so the same function written with it is shorter:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.nio.ByteBuffer
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.file.{Path, StandardOpenOption}
+
+def readChunk(path: Path, size: Int): Async[ByteBuffer] =
+  Async.promise[ByteBuffer] { c ?=>
+    val channel = AsynchronousFileChannel.open(path, StandardOpenOption.READ)
+    val buffer  = ByteBuffer.allocate(size)
+
+    channel.read(buffer, 0L, buffer, new CompletionHandler[Integer, ByteBuffer] {
+      def completed(bytesRead: Integer, buf: ByteBuffer): Unit = {
+        buf.flip()
+        c.succeed(buf)
+      }
+      def failed(cause: Throwable, buf: ByteBuffer): Unit =
+        c.fail(cause)
+    })
+  }
+```
+
+The completer is created for you and named `c`, and there is no `peek` at the end — `promise` returns the `Async` itself. (This is the Scala 3 form; on Scala 2 the body starts `{ c =>`, as in the tabs above.)
+
+Prefer this version. Write the completer out by hand when the registration does not fit neatly in a single block, when you need to keep the completer around to complete it from elsewhere, or when you want identical source on Scala 2 and Scala 3 — `new Completer[A]` has no context-function syntax to differ over.
+
+`readChunk` returns before a single byte has been read. Nothing blocks, no thread waits, and the caller receives an `Async[ByteBuffer]` that behaves like any other — `map` it, `zipWith` another read, recover it with `catchAll`, or `block` on it at the edge of the program.
+
+The once-only guarantee earns its keep in code like this. You are trusting a third-party library to call your handler correctly; if a buggy or retrying implementation calls `completed` twice, or calls both `completed` and `failed`, the first call still decides the outcome and the rest are ignored. You do not have to defend against it yourself.
 
 `Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `realAsync` helper in "How They Work Together."
 
