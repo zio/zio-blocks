@@ -119,7 +119,23 @@ The "only one place" part is what distinguishes `Async` from a lazy effect type.
 
 Two things follow. Any pending computation can be traced to the thing it is waiting on — a `Completer` for a callback bridge, an [`Async.Running`](#asyncrunning) for started work, or your own `Pollable`. And the waiting is temporary and forward-only: when that value is completed, everything above it becomes ready, and nothing below it was ever held up, because that code had already run.
 
-This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk, none of the wrapper objects most effect types build — and that is where the throughput comes from. It is also why `Async[A]` costs close to nothing on a mostly-synchronous path: when there is nothing to wait for, chaining operations onto a value just runs them. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
+This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk, none of the wrapper objects most effect types build — and that is where the throughput comes from. It is also why `Async[A]` costs close to nothing on a mostly-synchronous path: when there is nothing to wait for, chaining operations onto a value just runs them.
+
+The costs are real too. Building a value has effects, so `Async` is not referentially transparent: you cannot move a construction around, or replace a value with the expression that produced it, and be sure the program still means the same thing.
+
+And letting go of a value does not stop it. With a lazy effect type, discarding an unused effect discards the work with it, because none of it had happened yet. Here the work is already under way:
+
+```scala
+val running = Async.start(uploadHugeFile())
+
+// Reassigning or forgetting `running` does not stop the upload. The worker
+// keeps going and the bytes keep moving; you have only thrown away your
+// ability to watch it or stop it.
+```
+
+Stopping requires asking, through [`Cancelable#cancel`](#cancelable) — and even that reaches only as far as the driver. So keep the handle for anything you might want to stop; once it is gone, the work runs to completion whether or not anyone still cares about the result.
+
+In all of this `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
 
 ### How long a combinator chain may be
 
