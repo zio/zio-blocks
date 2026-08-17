@@ -814,17 +814,17 @@ final class Completer[A] extends Pollable[A] {
 }
 ```
 
-`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. Its signature is the one place the two Scala versions differ:
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
 
 ```scala
-// Scala 3 — the completer is a context parameter of the body
-inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
-
 // Scala 2 — the completer is an ordinary function parameter
 def promise[A](body: Completer[A] => Unit): Async[A]
+
+// Scala 3 — the completer is a context parameter of the body
+inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
 ```
 
-The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2:
+The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free claim in [Motivation](#motivation).)
 
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
@@ -906,7 +906,7 @@ def readChunk(path: Path, size: Int): Async[ByteBuffer] =
   }
 ```
 
-The completer is created for you and named `c`, and there is no `peek` at the end — `promise` returns the `Async` itself. (This is the Scala 3 form; on Scala 2 the body starts `{ c =>`, as in the tabs above.)
+The completer is created for you and named `c`, and there is no `peek` at the end — `promise` returns the `Async` itself.
 
 Prefer this version. Write the completer out by hand when the registration does not fit neatly in a single block, when you need to keep the completer around to complete it from elsewhere, or when you want identical source on Scala 2 and Scala 3 — `new Completer[A]` has no context-function syntax to differ over.
 
@@ -935,9 +935,9 @@ Because `Async.Running[A]` is itself an `Async[A]`, you can join the result, com
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Int] = Async.attempt(42).start
+val running: Async.Running[Int] = Async.start(42)
 // Compose the running handle as an Async[Int]:
-val doubled: Async[Int] = running.flatMap(n => Async.succeed(n * 2))
+val doubled: Async[Int] = running.map(_ * 2)
 val result: Int = doubled.block  // joins and transforms
 ```
 
