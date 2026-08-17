@@ -88,7 +88,18 @@ Async.async {
 }
 ```
 
-An `await` whose value happens to be ready already does not count as a wait — it resolves on the spot and the block carries on running. So the dividing line is not the first `await` you wrote, but the first one that actually has to wait for something.
+An `await` whose value is ready before it is asked does not count as a wait. It hands the value over on the spot and the block carries straight on, so the dividing line is not the first `await` you wrote — it is the first one that has nothing to give yet:
+
+```scala
+Async.async {
+  val a = Async.succeed(1).await   // already a value: no wait, keep going
+  val b = compute(a).await         // also ready: no wait, keep going
+  val c = fetchFromNetwork().await // nothing yet — the block stops here
+  a + b + c                        // deferred, along with everything below
+}
+```
+
+The practical consequence is that you cannot find the pause by counting `await`s. A block whose values are all ready pauses nowhere and finishes as you construct it; a block whose *first* `await` is a network call has run none of the lines below it by the time `Async.async { … }` hands you a value.
 
 The one genuinely deferred primitive is a custom [`Pollable`](#pollable), whose `poll` runs only when a driver asks. Suspension exists downstream of an unresolved `poll`, and nowhere else.
 
