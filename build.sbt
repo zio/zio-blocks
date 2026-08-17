@@ -305,6 +305,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `sql-benchmarks`,
     `streams-benchmark`,
     docs,
     `schema-examples`,
@@ -1304,6 +1305,31 @@ lazy val benchmarks = project
     coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
     coverageMinimumStmtTotal   := 30,
     coverageMinimumBranchTotal := 42
+  )
+
+lazy val `sql-benchmarks` = project
+  .in(file("sql-benchmarks"))
+  .settings(stdSettings("zio-blocks-sql-benchmarks", Seq("3.8.3")))
+  .dependsOn(sql.jvm % "compile->compile;test->test")
+  .enablePlugins(JmhPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      // In-memory SQLite table for the decode fixture; sql.jvm only has it as a
+      // Test dep, so the benchmark (main sources) declares it directly.
+      "org.xerial" % "sqlite-jdbc" % "3.53.2.1"
+    ),
+    assembly / assemblyJarName       := "sql-benchmarks.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 // ---------------------------------------------------------------------------
