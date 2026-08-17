@@ -70,7 +70,7 @@ object EndpointGroupMacro {
           if (isEndpoint(rhs.tpe)) {
             Some((vd.name, rhs, false))
           } else {
-            report.errorAndAbort(s"endpoints { ... } only accepts `val name = Endpoint(...)` statements; found non-Endpoint val ${vd.name}")
+            report.errorAndAbort(s"endpoints { ... } only accepts `val name = Endpoint(...)` statements; found non-Endpoint val ${vd.name} of type ${rhs.tpe.show}")
           }
         case app: Term if isEndpoint(app.tpe) =>
           val name = autoName(app)
@@ -89,7 +89,7 @@ object EndpointGroupMacro {
       nameToTerms.foreach { case (n, list) =>
         if (list.size > 1) {
           val locs = list.map { case (_, t, _) => s"${t.pos.sourceFile.name}:${t.pos.startLine}" }.mkString(", ")
-          report.error(s"duplicate endpoint name `$n` from: $locs")
+          report.error(s"duplicate endpoint name `$n` from: $locs; rename one or assign to an explicit `val`")
         }
       }
       raw
@@ -143,7 +143,7 @@ object EndpointGroupMacro {
         case Apply(Select(left, "#|"), List(right)) =>
           val ms = collectMethods(left) ++ collectMethods(right)
           ms.toList.sortBy(identity).mkString("#|")
-        case _ => report.errorAndAbort(s"cannot auto-name: unsupported method tree ${Printer.TreeStructure.show(m)}")
+        case _ => report.errorAndAbort(s"cannot auto-name: unsupported method tree ${Printer.TreeStructure.show(m)} ; assign to val instead")
       }
       def collectMethods(m: Term): Set[String] = m match {
         case Select(_, name) if Set("GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS","TRACE","CONNECT").contains(name) => Set(name)
