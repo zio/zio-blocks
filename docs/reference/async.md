@@ -32,14 +32,7 @@ The real definition is a type alias whose runtime representation is `Any`. That 
 
 Suspension is where the other types enter. A `Pollable[A]` is the extension point that produces a not-yet-available result, [`Completer`](#completer) is the ready-made `Pollable` for bridging callbacks, [`Async.Running`](#asyncrunning) is a `Pollable` you can also cancel, and [`Cancelable`](#cancelable) is that cancellation interface on its own.
 
-## Motivation
-
-`Async[A]` targets infrastructure-level code that needs a first-class asynchronous value with zero external dependencies. Several properties distinguish it from heavier alternatives:
-
-- It is **eager up to suspension** — synchronous work runs as you build the value, and only genuine waiting is deferred. That is what keeps the ready path free of the effect tree and per-step thunks that a lazy type allocates.
-- It **stays cheap when there is nothing to wait for** — chaining operations onto an already-available value runs them directly, with none of the wrapper objects most effect types allocate. Using `Async[A]` on a mostly-synchronous path costs close to nothing.
-- It gives you **a cancellation handle** — `Async.Running` carries a synchronous, idempotent `Cancelable`. It stops the driver rather than the work it was waiting on; [`Cancelable`](#cancelable) draws that line.
-- It runs on both **JVM and Scala.js** with platform-appropriate interop for `Future`, `CompletionStage`, and `js.Promise`.
+The type is aimed at infrastructure-level code: places that need a first-class asynchronous value, on both the JVM and Scala.js, without taking on an ecosystem to get one. Where a fuller effect system offers an environment type, a typed error channel and fibers, `Async` offers a computation, a `Throwable`, and a handle you can cancel — and in exchange stays cheap enough to use on paths that are usually synchronous.
 
 ## Installation
 
@@ -81,11 +74,25 @@ val fa: Async[Int] = Async.attempt { println("computing"); 42 }
 val n: Int         = fa.block  // the value was already there; nothing more runs
 ```
 
-The same is true across the module. `Async.promise` runs its setup block when you call it. `Async.async { … }` runs its synchronous prefix, and any `await` whose value is already available, on the spot. `Async.succeed(x).map(f)` applies `f` immediately, because `x` is right there. Only a combinator applied to a value that is *already suspended* defers: then the function is kept and runs when a driver settles the value.
+The same is true across the module. `Async.promise` runs its setup block when you call it, and `Async.succeed(x).map(f)` applies `f` immediately, because `x` is right there. Only a combinator applied to a value that is *already suspended* defers: then the function is kept and runs when a driver settles the value.
+
+A direct-style block splits the same way, at its first genuine wait. Everything above that line runs as you build the value; everything below it is kept for later:
+
+```scala
+Async.async {
+  val cfg  = loadConfig()             // ┐
+  logger.info("starting")             // ├ runs now, as this value is built
+  val base = compute(cfg)             // ┘
+  val row  = fetchRow(base).await     // the first genuine wait
+  transform(row)                      // runs later, when a driver settles it
+}
+```
+
+An `await` whose value happens to be ready already does not count as a wait — it resolves on the spot and the block carries on running. So the dividing line is not the first `await` you wrote, but the first one that actually has to wait for something.
 
 The one genuinely deferred primitive is a custom [`Pollable`](#pollable), whose `poll` runs only when a driver asks. Suspension exists downstream of an unresolved `poll`, and nowhere else.
 
-This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk — and that is where the throughput comes from. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
+This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk, none of the wrapper objects most effect types build — and that is where the throughput comes from. It is also why `Async[A]` costs close to nothing on a mostly-synchronous path: when there is nothing to wait for, chaining operations onto a value just runs them. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
 
 ### How long a combinator chain may be
 
@@ -894,7 +901,7 @@ def promise[A](body: Completer[A] => Unit): Async[A]
 inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
 ```
 
-The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free claim in [Motivation](#motivation).)
+The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free ready path described under [Evaluation Model](#evaluation-model).)
 
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
@@ -988,7 +995,7 @@ The once-only guarantee earns its keep in code like this. You are trusting a thi
 
 ## Controlling In-Flight Work
 
-Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle itself, and `Cancelable` is the ability to stop what it refers to.
+Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle itself, and `Cancelable` is the ability to stop what it refers to — synchronous and idempotent, and narrower than the name suggests, as [`Cancelable`](#cancelable) explains.
 
 ### Async.Running
 
