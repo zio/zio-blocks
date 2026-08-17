@@ -238,7 +238,7 @@ The two lines inside `legacyApi` are the whole bridge: whichever callback fires,
 
 The first call to `Completer#succeed` or `Completer#fail` wins; later calls do nothing. That makes the bridge safe against callbacks that fire twice or APIs that retry internally — a common hazard when wrapping code you do not control.
 
-### Direct Style (Scala 3)
+### Direct Style
 
 Inside `Async.async { ... }`, use `await` to extract values from `Async` computations in sequential-looking code without explicit `flatMap` chains:
 
@@ -263,7 +263,27 @@ def fulfillOrGuest(orderId: Int): Async[String] = Async.async {
 val result: String = fulfillOrGuest(9001).block
 ```
 
-Awaits run in source order; a failed `Async[A]` under `await` propagates as `Async.fail`. This pattern requires Scala 3 (or Scala 2 with the `async-reflect` companion macro).
+Awaits run in source order; a failed `Async[A]` under `await` propagates as `Async.fail`.
+
+Nothing new happens at runtime here. `Async.async` rewrites its body at compile time: the block is split at each `await` and reassembled into the `flatMap` chain you would have written by hand. The example above compiles to roughly this:
+
+```scala
+fetchOrder(orderId).catchAll(_ => fetchOrder(9001)).flatMap { order =>
+  fetchUser(order.userId)
+    .catchAll(_ => Async.succeed(User(0, "guest", "bronze")))
+    .flatMap { user =>
+      fulfill(order.id).map { shipment =>
+        s"shipped ${shipment.orderId} for ${user.name} via ${shipment.carrier}"
+      }
+    }
+}
+```
+
+So `await` is not a method that blocks or waits. It is a marker the rewrite removes, and everything after it becomes the continuation that runs once the value arrives. Direct style therefore costs nothing over writing the chain yourself — by the time the code runs, it *is* that chain. Choose whichever reads better.
+
+One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, so the call survives to runtime and throws.
+
+The rewrite is performed by `dotty-cps-async` on Scala 3 — or by native `js.async` and `js.await` on Scala.js 3.8 and later — and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither needs an extra dependency.
 
 ### Bracket / Ensuring
 
