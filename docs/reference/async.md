@@ -287,7 +287,7 @@ The rewrite is performed by `dotty-cps-async` on Scala 3 — or by native `js.as
 
 ### Bracket / Ensuring
 
-Use `ensuring` to guarantee a finalizer runs after a computation completes — success or failure — while preserving the original outcome:
+Some work has to happen no matter what: closing a file, releasing a connection, deleting a temporary directory. In ordinary code you write that in a `finally` block. `ensuring` is the same idea for `Async` — you attach a cleanup step, and it runs once the computation settles, whether it produced a value or failed:
 
 ```scala
 import zio.blocks.async._
@@ -298,7 +298,46 @@ val result: Async[String] =
   }
 ```
 
-Finalizer failures are suppressed and attached as suppressed exceptions on any primary failure.
+Here `res.close()` runs after `res.read()` finishes, and the value of `result` is whatever the read produced. That is the rule worth remembering: **the cleanup never changes the answer.** It cannot turn a failure into a success, and it cannot turn a success into a failure.
+
+That last part raises an obvious question — what if the cleanup itself fails? Closing a file can throw too. The answer depends on how the main computation ended, so it is worth seeing both cases:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+// Both fail: reading the resource, and then closing it.
+val bothFail: Async[String] =
+  Async
+    .attempt[String](throw new RuntimeException("read failed"))
+    .ensuring(Async.attempt(throw new IllegalStateException("close failed")))
+
+bothFail.either.block match {
+  case Left(e) =>
+    println(e.getMessage)                     // read failed   <- the original failure
+    println(e.getSuppressed()(0).getMessage)  // close failed  <- attached to it
+  case Right(_) => ()
+}
+
+// Only the cleanup fails.
+val readOk: Async[String] =
+  Async
+    .succeed("contents")
+    .ensuring(Async.attempt(throw new IllegalStateException("close failed")))
+
+val value: String = readOk.block  // "contents" — the close failure is gone
+```
+
+In the first case the read had already failed, so you get the read's exception — the one that explains what actually went wrong. The close error is not thrown away, though: it is carried along inside that exception, in a list the JVM keeps for exactly this purpose. `getSuppressed` returns that list. Your logging framework almost certainly prints it, usually under a line beginning `Suppressed:`, so both problems end up on the page.
+
+The second case is the one to watch. The read succeeded, so there is no exception to carry the close error, and it is simply dropped — `readOk.block` returns `"contents"` and you never hear that closing failed. If a cleanup error matters to you on the success path, catch it inside the cleanup step itself and log it there:
+
+```scala
+Async
+  .attempt(res.read())
+  .ensuring(Async.attempt(res.close()).catchAll { t =>
+    Async.succeed(logger.warn("close failed", t))
+  })
+```
 
 ### Concurrent Fan-Out via Running
 
