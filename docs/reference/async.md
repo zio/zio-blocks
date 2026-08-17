@@ -178,9 +178,20 @@ map h asks …                  still waiting
 
 None of them can finish until the innermost one answers, so all of them are held open at the same time. A chain written N deep costs N held-open calls, every single time it is asked.
 
-Most effect systems avoid that with a trampoline: rather than calling its child directly, each step returns a small object meaning *"do this next"* to a loop that keeps running steps until one produces a value. One loop frame serves any depth. The price is paid on every step of every poll — an object allocated to describe the step, and a dispatch through the loop instead of a direct call. `Async` declines that price, which is why the poll path allocates nothing, and accepts a bound on depth in exchange.
+Most effect systems avoid that with a trampoline: rather than calling its child directly, each step returns a small object meaning *"do this next"* to a loop that keeps running steps until one produces a value. One loop frame serves any depth. The price is paid on every step of every poll — an object allocated to describe the step, and a dispatch through the loop instead of a direct call.
 
-Where that bound bites depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
+There is no third option, so the choice was between the two:
+
+| | Depth | Cost per step |
+|:---|:---|:---|
+| Trampoline | unlimited | an object allocated, and a dispatch, on every poll |
+| Direct calls | limited by the call stack | nothing |
+
+`Async` takes the second. That is why nothing is allocated while polling, and it is also why a long enough chain over a waiting value ends in a `StackOverflowError` rather than a slowdown — the ceiling is the bill for the speed, not an oversight.
+
+You are unlikely to meet it by hand. A handful of `map` and `flatMap` calls around a network request is nowhere near the limit. It becomes a real risk when the length of the chain is decided by *data* — one `flatMap` per row, per file, per retry — because then the depth is however large the input happens to be, and code that is comfortable in a test can overflow in production on a bigger batch.
+
+Where the limit bites depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
 
 - **Over a ready source, chains are safe to any length.** Each step resolves as you build it and collapses, retaining no `Pollable`, so `var fa = …; while (…) fa = fa.flatMap(g)` runs in constant stack — verified into the millions.
 - **Over a pending source, a long receiver-position chain is not safe.** Each `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the previous pending value, so driving descends one stack frame per level before anything settles, and overflows at default JVM stack sizes somewhere around 50,000–100,000. The shape you wrote it in makes no difference: a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` both build the same pending spine.
