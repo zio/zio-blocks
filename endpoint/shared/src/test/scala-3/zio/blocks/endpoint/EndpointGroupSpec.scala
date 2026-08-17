@@ -163,6 +163,26 @@ object EndpointGroupSpec extends ZIOSpecDefault {
         }
         assertTrue(group.`type`.route.render == "GET /t")
       }
+    ),
+    suite("endpoints macro M4 path-variable prefixes")(
+      test("int(\"id\") / endpoints { val get = Endpoint(Method.GET / \"orders\") }") {
+        val byId = PathCodec.int("id") / endpoints { val get = Endpoint(Method.GET / "orders") }
+        assertTrue(byId.get.route.render == "GET /{id}/orders")
+      },
+      test("bare Endpoint under path-var prefix") {
+        val byId2 = PathCodec.int("id") / endpoints { Endpoint(Method.GET / "orders") }
+        assertTrue(byId2.`GET /orders`.route.render == "GET /{id}/orders")
+      },
+      test("child endpoint with own var composes PathVars") {
+        val byId3 = PathCodec.int("id") / endpoints { val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId")) }
+        assertTrue(byId3.o.route.render == "GET /{id}/orders/{orderId}")
+      },
+      test("path-var prefix preserves static PathInput type") {
+        val byId = PathCodec.int("id") / endpoints { val get = Endpoint(Method.GET / "orders") }
+        val get = byId.get
+        val _: RoutePattern[Int] = get.route   // compile-time: PathInput must be Int
+        assertTrue(byId.get.route.render == "GET /{id}/orders")
+      }
     )
   )
 }

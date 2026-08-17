@@ -17,10 +17,36 @@
 package zio.blocks.endpoint
 
 import scala.quoted.* // used for Expr/Quotes in build
+import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
 object EndpointGroupMacro {
-  def build(body: Expr[Any])(using Quotes): Expr[Any] = {
+  def build(body: Expr[Any])(using Quotes): Expr[Any] = buildGroup(body, None)
+
+  def prefixGroup(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
     import quotes.reflect.*
+
+    def recoverBlock(t: Term): Term = t match {
+      case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)     => b
+      case Inlined(Some(Apply(Select(_, "endpoints"), List(b))), _, _) => b
+      case Inlined(_, _, inner) => recoverBlock(inner)
+      case Typed(inner, _)      => recoverBlock(inner)
+      case Apply(Select(Ident("NamedTuple"), "toTuple"), List(inner)) => recoverBlock(inner)
+      case Apply(Select(_, "toTuple"), List(inner)) => recoverBlock(inner)
+      case Apply(TypeApply(Select(Ident("NamedTuple"), "toTuple"), _), List(inner)) => recoverBlock(inner)
+      case Apply(TypeApply(Select(_, "toTuple"), _), List(inner)) => recoverBlock(inner)
+      case Apply(Ident("endpoints"), List(b))     => b
+      case Apply(Select(_, "endpoints"), List(b)) => b
+      case other => other
+    }
+    val block = recoverBlock(ntExpr.asTerm)
+    buildGroup(block.asExpr, Some(codecExpr))
+  }
+
+  private def buildGroup(bodyExpr: Expr[Any], captureCodecExpr: Option[Expr[Any]])(using Quotes): Expr[Any] = {
+    import quotes.reflect.*
+
+    val bodyTerm: Term = bodyExpr.asTerm
+    val captureCodec: Option[Term] = captureCodecExpr.map(_.asTerm)
 
     def unwrap(term: Term): Term = term match {
       case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)     => unwrap(b)
@@ -32,7 +58,7 @@ object EndpointGroupMacro {
       case _ => term
     }
 
-    val unwrapped = unwrap(body.asTerm)
+    val unwrapped = unwrap(bodyTerm)
 
     def isEndpoint(tpe: TypeRepr): Boolean =
       tpe <:< TypeRepr.of[Endpoint[?, ?, ?, ?, ?]]
@@ -202,6 +228,36 @@ object EndpointGroupMacro {
       case other      => isEndpoint(other.tpe)
     }
 
+    def wrapLeaf(term: Term): Expr[Any] = captureCodec match {
+      case Some(codecTerm) =>
+        val codec = codecTerm.asExprOf[PathCodec[?]]
+        val epTpe = term.tpe
+        val (pi, i, e, o, a) = epTpe match {
+          case AppliedType(_, List(pi, i, e, o, a)) => (pi, i, e, o, a)
+          case _ => report.errorAndAbort(s"cannot read Endpoint type: ${epTpe.show}")
+        }
+        val codecA = codecTerm.tpe.dealias.widen match {
+          case AppliedType(_, List(a)) => a
+          case _ => report.errorAndAbort(s"cannot read PathCodec type: ${codecTerm.tpe.dealias.widen.show}")
+        }
+        val composedPI: TypeRepr =
+          if (pi =:= TypeRepr.of[Unit]) codecA
+          else if (pi <:< TypeRepr.of[Tuple]) TypeRepr.of[*:].appliedTo(List(codecA, pi))
+          else TypeRepr.of[*:].appliedTo(List(codecA, TypeRepr.of[*:].appliedTo(List(pi, TypeRepr.of[EmptyTuple]))))
+        val composedEndpoint: TypeRepr =
+          TypeRepr.of[Endpoint].appliedTo(List(composedPI, i, e, o, a))
+        (codecA.asType, pi.asType, composedEndpoint.asType) match {
+          case ('[ca], '[cp], '[ce]) =>
+            val ep = term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+            '{ $ep.copy(route = $ep.route.copy(pathCodec = $codec.asInstanceOf[PathCodec[ca]] ++ $ep.route.pathCodec.asInstanceOf[PathCodec[cp]])).asInstanceOf[ce] }
+        }
+      case None => term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+    }
+
+    def wrapSubgroupError(): Nothing =
+      if (captureCodec.isDefined) report.errorAndAbort("nested constant groups under a path-variable prefix are not yet supported; use a flat block")
+      else sys.error("internal: subgroup under capture without error")
+
     unwrapped match {
       case Block(stats, expr) =>
         val memberStats: List[Statement] =
@@ -217,7 +273,11 @@ object EndpointGroupMacro {
           } else {
             val (names, terms, isSubgroups) = members.unzip3
             val exprs: List[Expr[Any]] = terms.zip(isSubgroups).map { case (t, isSub) =>
-              if (isSub) t.asExpr else t.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+              if (isSub) {
+                if (captureCodec.isDefined) wrapSubgroupError() else t.asExpr
+              } else {
+                wrapLeaf(t)
+              }
             }
             val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
             val namesTypeRepr: TypeRepr = namesTupleExpr.asTerm.tpe
@@ -237,7 +297,7 @@ object EndpointGroupMacro {
       case vd: ValDef if vd.rhs.nonEmpty =>
         val rhsTerm = vd.rhs.get
         if (isEndpoint(rhsTerm.tpe)) {
-          val expr = rhsTerm.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+          val expr = wrapLeaf(rhsTerm)
           val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(List(Expr(vd.name)))
           val namesTypeRepr: TypeRepr = namesTupleExpr.asTerm.tpe
           val valuesTuple: Expr[Tuple] = Expr.ofTupleFromSeq(Seq(expr))
@@ -257,9 +317,10 @@ object EndpointGroupMacro {
       case t: Term =>
         isNestedSubgroupStmt(t) match {
           case Some((name, whole)) =>
+            if (captureCodec.isDefined) wrapSubgroupError()
             val members = List((name, whole, true))
             val (names, terms, isSubgroups) = members.unzip3
-            val exprs: List[Expr[Any]] = terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else tt.asExprOf[Endpoint[?, ?, ?, ?, ?]] }
+            val exprs: List[Expr[Any]] = terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else wrapLeaf(tt) }
             val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
             val namesTypeRepr: TypeRepr = namesTupleExpr.asTerm.tpe
             val valuesTuple: Expr[Tuple] = Expr.ofTupleFromSeq(exprs)
