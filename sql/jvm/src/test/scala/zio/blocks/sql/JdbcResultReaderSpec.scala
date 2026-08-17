@@ -19,12 +19,13 @@ package zio.blocks.sql
 import zio.test.*
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
-import java.sql.ResultSet
+import java.sql.{DriverManager, ResultSet}
 import java.time.Instant
 import java.util.Calendar
 import scala.collection.mutable.ArrayBuffer
 
 object JdbcResultReaderSpec extends ZIOSpecDefault {
+  private val _ = Class.forName("org.sqlite.JDBC")
 
   def spec: Spec[TestEnvironment, Any] = suite("JdbcResultReaderSpec")(
     test("getInstant(index) reads via getTimestamp with UTC Calendar") {
@@ -66,8 +67,82 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
         utcCals(0) eq utcCals(1), // same calendar instance (cached)
         utcCals(0).getTimeZone.getID == "UTC"
       )
+    },
+    test("isNull(index) records wasNull per column and resets per row") {
+      withSqlite { conn =>
+        val stmt = conn.createStatement()
+        stmt.executeUpdate("CREATE TABLE null_bitmap_rt (a INTEGER, b TEXT)")
+        stmt.executeUpdate("INSERT INTO null_bitmap_rt (a, b) VALUES (NULL, 'x')")
+        stmt.executeUpdate("INSERT INTO null_bitmap_rt (a, b) VALUES (7, NULL)")
+        val rs = new JdbcResultSet(stmt.executeQuery("SELECT a, b FROM null_bitmap_rt ORDER BY rowid"))
+        try {
+          val hasRow1   = rs.next()
+          val reader    = rs.reader
+          val unread1_1 = reader.isNull(1)
+          val unread1_2 = reader.isNull(2)
+          val int1      = reader.getInt(1)
+          val null1     = reader.isNull(1)
+          val str1      = reader.getString(2)
+          val nonNull2  = reader.isNull(2)
+          val hasRow2   = rs.next()
+          val reset1_1  = reader.isNull(1)
+          val reset1_2  = reader.isNull(2)
+          val int2      = reader.getInt(1)
+          val null2     = reader.isNull(1)
+          val str2      = reader.getString(2)
+          val null22    = reader.isNull(2)
+          assertTrue(
+            hasRow1 && hasRow2,
+            !unread1_1,
+            !unread1_2,
+            int1 == 0,
+            null1,
+            str1 == "x",
+            !nonNull2,
+            !reset1_1,
+            !reset1_2,
+            int2 == 7,
+            !null2,
+            str2 == null,
+            null22
+          )
+        } finally rs.close()
+      }
+    },
+    test("isNull(label) records wasNull for label-based reads") {
+      withSqlite { conn =>
+        val stmt = conn.createStatement()
+        stmt.executeUpdate("CREATE TABLE null_bitmap_label_rt (a INTEGER, b TEXT)")
+        stmt.executeUpdate("INSERT INTO null_bitmap_label_rt (a, b) VALUES (NULL, 'x')")
+        val rs = new JdbcResultSet(stmt.executeQuery("SELECT a, b FROM null_bitmap_label_rt"))
+        try {
+          val hasRow   = rs.next()
+          val reader   = rs.reader
+          val unreadA  = reader.isNull("a")
+          val unreadB  = reader.isNull("b")
+          val intA     = reader.getInt("a")
+          val nullA    = reader.isNull("a")
+          val strB     = reader.getString("b")
+          val nonNullB = reader.isNull("b")
+          assertTrue(
+            hasRow,
+            !unreadA,
+            !unreadB,
+            intA == 0,
+            nullA,
+            strB == "x",
+            !nonNullB
+          )
+        } finally rs.close()
+      }
     }
   )
+
+  private def withSqlite[A](f: java.sql.Connection => A): A = {
+    val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
+    try f(conn)
+    finally conn.close()
+  }
 
   private def resultSetProxy(calls: ArrayBuffer[(String, List[AnyRef])], instant: Instant): ResultSet = {
     val handler = new InvocationHandler {
