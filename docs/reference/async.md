@@ -4,7 +4,7 @@ title: "Async"
 description: "Reference for the ZIO Blocks async module: Async[A], Pollable, Completer, Async.Running, and Cancelable."
 keywords:
   - "Asynchronous Effects"
-  - "Lazy Computation"
+  - "Eager Evaluation"
   - "Callback Bridge"
   - "Structured Cancellation"
   - "Async"
@@ -14,9 +14,9 @@ keywords:
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-The `async` module provides `Async[A]` — a lazy, zero-dependency asynchronous effect type for Scala 2.13 and Scala 3, targeting both JVM and Scala.js. 
+The `async` module provides `Async[A]` — a zero-dependency asynchronous effect type for Scala 2.13 and Scala 3, targeting both JVM and Scala.js.
 
-An `Async[A]` value is a *description* of a computation that either yields an `A` or fails with a `Throwable`; nothing executes until you drive it with `Async#block`, `Async#start`, or a platform interop converter. 
+An `Async[A]` value is a computation that either yields an `A` or fails with a `Throwable`. Unlike a lazy effect type, building one *runs* it: the synchronous work happens as you construct it, and only a computation that genuinely has to wait for something is left pending. [Evaluation model](#evaluation-model) explains where that line falls.
 
 Conceptually, an `Async[A]` is one of three things — a value that is already available, a failure that has already happened, or a computation that will complete later:
 
@@ -34,9 +34,9 @@ Suspension is where the other types enter. A `Pollable[A]` is the extension poin
 
 ## Motivation
 
-`Async[A]` targets infrastructure-level code that needs a first-class, lazy async description with zero external dependencies. Several properties distinguish it from heavier alternatives:
+`Async[A]` targets infrastructure-level code that needs a first-class asynchronous value with zero external dependencies. Several properties distinguish it from heavier alternatives:
 
-- It is **lazy** — constructing an `Async[A]` produces only a description; execution begins only when you explicitly drive it.
+- It is **eager up to suspension** — synchronous work runs as you build the value, and only genuine waiting is deferred. That is what keeps the ready path free of the effect tree and per-step thunks that a lazy type allocates.
 - It **stays cheap when there is nothing to wait for** — chaining operations onto an already-available value runs them directly, with none of the wrapper objects most effect types allocate. Using `Async[A]` on a mostly-synchronous path costs close to nothing.
 - It provides **structured cancellation** — `Async.Running` carries a synchronous, idempotent `Cancelable` handle.
 - It runs on both **JVM and Scala.js** with platform-appropriate interop for `Future`, `CompletionStage`, and `js.Promise`.
@@ -69,32 +69,60 @@ The module publishes for JVM and Scala.js, on Scala 2.13 and Scala 3, and pulls 
 
 `Pollable[A]` is the one type most programs never touch. It is the extension point for teaching the module about a brand-new source of delayed results — a timer, a socket read, a platform-specific callback. Implementing one makes your source usable anywhere an `Async[A]` is expected. Reach for it only when you are wiring up something genuinely new; for ordinary callback bridging, `Async.promise` and a `Completer` are the right tools.
 
+## Evaluation Model
+
+`Async[A]` is **eager**, not a lazy `IO`. Building one performs its synchronous work straight away — constructing the value *runs* it, up to the first point where it genuinely has to wait:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+// "computing" is printed by this line, not by the one below it.
+val fa: Async[Int] = Async.attempt { println("computing"); 42 }
+val n: Int         = fa.block  // the value was already there; nothing more runs
+```
+
+The same is true across the module. `Async.promise` runs its setup block when you call it. `Async.async { … }` runs its synchronous prefix, and any `await` whose value is already available, on the spot. `Async.succeed(x).map(f)` applies `f` immediately, because `x` is right there. Only a combinator applied to a value that is *already suspended* defers: then the function is kept and runs when a driver settles the value.
+
+The one genuinely deferred primitive is a custom [`Pollable`](#pollable), whose `poll` runs only when a driver asks. Suspension exists downstream of an unresolved `poll`, and nowhere else.
+
+This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk — and that is where the throughput comes from. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
+
+### Pending suspensions differ by platform
+
+Once a computation reaches a suspension that is genuinely pending, what advances it follows each platform's fastest mechanism, so the two diverge:
+
+- **JVM, plus Scala.js on Scala 2 and Scala 3 before 3.8** — the value is a poll-driven `Pollable` with no ambient driver. The continuation runs only when something polls it: `.block`, `.start`, or an interop converter. A value that is built and never driven leaves its continuation un-run.
+- **Scala.js on Scala 3.8 and later** — `Async.async`/`await` compile to a real JavaScript async function, and its driver is the event loop. Once the awaited value settles, the continuation resumes itself from the microtask queue even if nothing polls the `Async`.
+
+In practice the difference is invisible, because you drive the values you build, and the resulting *value* is identical on every platform. It is observable only by a block that is constructed, has its awaited value settle, and is then never driven at all.
+
 ## How They Work Together
 
 A computation moves through four phases: construct leaf values, compose them, drive the result, then observe or cancel, as shown in the following flow diagram:
 
 ```
-┌─ 1. CONSTRUCT — describe the work ─────────────────────────────┐
+┌─ 1. CONSTRUCT — the synchronous part runs now ─────────────────┐
 │   Async.succeed(a)       a value you already have              │
 │   Async.fail(t)          a failure you already have            │
-│   Async.attempt { … }    a block that might throw              │
-│   Async.promise { … }    gives you a Completer to call later   │
-│   new Pollable[A] { … }  your own source of results (rare)     │
+│   Async.attempt { … }    runs the block, here, on this thread  │
+│   Async.promise { … }    runs its setup block now              │
+│   new Pollable[A] { … }  the one genuinely deferred leaf       │
 └────────────────────────────────────────────────────────────────┘
                           │
                           ▼
-            Async[A]  ──  a description; nothing has run yet
+        Async[A]  ──  ready, failed, or waiting on something
                           │
                           ▼
-┌─ 2. COMPOSE — build a bigger description ──────────────────────┐
+┌─ 2. COMPOSE — runs now if ready, defers if not ────────────────┐
 │   map    flatMap    zipWith    tap                             │
 │   catchAll    ensuring    collectAll                           │
 │                                                                │
-│   each returns a new Async[A] — still nothing has run          │
+│   on a ready value the function runs immediately;              │
+│   on a pending one it is kept for the driver to run            │
 └────────────────────────────────────────────────────────────────┘
                           │
                           ▼
-┌─ 3. DRIVE — now it runs ───────────────────────────────────────┐
+┌─ 3. DRIVE — settle whatever is still pending ──────────────────┐
 │   .block             .start            .toFuture               │
 │   wait right here    run in the        .toJsPromise            │
 │                      background        hand it to the          │
