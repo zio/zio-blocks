@@ -38,7 +38,7 @@ Suspension is where the other types enter. A `Pollable[A]` is the extension poin
 
 - It is **eager up to suspension** — synchronous work runs as you build the value, and only genuine waiting is deferred. That is what keeps the ready path free of the effect tree and per-step thunks that a lazy type allocates.
 - It **stays cheap when there is nothing to wait for** — chaining operations onto an already-available value runs them directly, with none of the wrapper objects most effect types allocate. Using `Async[A]` on a mostly-synchronous path costs close to nothing.
-- It provides **structured cancellation** — `Async.Running` carries a synchronous, idempotent `Cancelable` handle.
+- It gives you **a cancellation handle** — `Async.Running` carries a synchronous, idempotent `Cancelable`. It stops the driver rather than the work it was waiting on; [`Cancelable`](#cancelable) draws that line.
 - It runs on both **JVM and Scala.js** with platform-appropriate interop for `Future`, `CompletionStage`, and `js.Promise`.
 
 ## Installation
@@ -86,6 +86,16 @@ The same is true across the module. `Async.promise` runs its setup block when yo
 The one genuinely deferred primitive is a custom [`Pollable`](#pollable), whose `poll` runs only when a driver asks. Suspension exists downstream of an unresolved `poll`, and nowhere else.
 
 This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk — and that is where the throughput comes from. The costs are real too: building a value has effects, so `Async` is not referentially transparent, and dropping a reference does not cancel anything — use [`Cancelable#cancel`](#cancelable) for that. In this respect `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
+
+### How long a combinator chain may be
+
+Combinator continuations poll their children recursively, with no trampoline — part of the same bargain that keeps the poll path free of allocation and indirection. The consequence is a depth limit, and it depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
+
+- **Over a ready source, chains are safe to any length.** Each step resolves as you build it and collapses, retaining no `Pollable`, so `var fa = …; while (…) fa = fa.flatMap(g)` runs in constant stack — verified into the millions.
+- **Over a pending source, a long receiver-position chain is not safe.** Each `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the previous pending value, so driving descends one stack frame per level before anything settles, and overflows at default JVM stack sizes somewhere around 50,000–100,000. The shape you wrote it in makes no difference: a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` both build the same pending spine.
+- **`Async.collectAll` and `while` loops inside `Async.async` are safe even over pending sources** — both verified past 200,000 steps. `collectAll` is a single `Pollable` that walks its elements internally, with no receiver spine at all, and the direct-style loop advances one iteration per poll instead of pre-building a chain.
+
+So for a large, suspension-heavy workload, reach for `collectAll` or an `Async.async` `while` loop rather than a hand-built tower of `flatMap` over a pending value. `Future` avoids this bound for every shape only because it bounces each `flatMap` through an `ExecutionContext`; `Async` skips that hop for speed and takes the depth limit instead.
 
 ### Pending suspensions differ by platform
 
@@ -318,7 +328,7 @@ implicit class AsyncOps[A](fa: Async[A]) {
 }
 ```
 
-`zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through:
+`zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through. `zip` pairs the two results, and chains of it stay flat rather than nesting — `a zip b zip c` yields `Async[(A, B, C)]`, not `Async[((A, B), C)]` — because it combines through the `Tuples` instances described in the [combinators reference](combinators.md):
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -399,6 +409,10 @@ import zio.blocks.async._
 
 val result: Int = Async.succeed(42).map(_ + 1).block  // => 43
 ```
+
+Two limits apply. On the JVM, never call `block` from inside a `poll` — you would be putting to sleep the very thread that has to deliver your result, which deadlocks the loop. Keep it at the edge of your program: `main`, a test, the boundary with synchronous code.
+
+On Scala.js there is no thread to park at all. A ready value returns as usual, but a *pending* one gets a single chance to complete synchronously, and if it has not, `block` throws `IllegalStateException`. Scala.js code should reach for `toFuture` or `toJsPromise` and let the event loop deliver the result, or stay inside `Async.async { … }` and use `await`.
 
 `start` dispatches the description to a background worker and returns an `Async.Running[A]` immediately, without blocking:
 
@@ -538,11 +552,25 @@ So `await` is not a method that blocks or waits. It is a marker the rewrite remo
 
 One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, so the call survives to runtime and throws.
 
+Within the block, `await` is not restricted to statement position. It also works inside the closures you pass to the strict collections — `List`, `Option`, `Vector`, `Set`, `Map`, `Array`, `Queue`, `ArraySeq` — for `map`, `foreach`, `flatMap`, `filter`, `collect`, the `fold` and `reduce` families, `takeWhile`, `dropWhile`, `find`, `exists` and `forall`, and in for-comprehensions over them:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetchName(id: Int): Async[String] = Async.succeed(s"user-$id")
+
+val names: Async[List[String]] = Async.async {
+  List(1, 2, 3).map(id => fetchName(id).await)
+}
+```
+
+Two exceptions are worth knowing before you rely on it: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported on every platform. Lazy collections are outside the supported set — force them to a strict collection first.
+
 The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither needs an extra dependency.
 
 Scala.js 3.8 and later takes a hybrid route, decided per call site. An `await` in direct position compiles to JavaScript's own `async`/`await`, which is the fastest path available; an `await` sitting under a lambda, a by-name argument, or a nested method falls back to the `dotty-cps-async` transform, because the native primitive is not legal in those positions. Nothing about this is yours to configure — the wider `Async.async` surface works either way.
 
-### Bracket / Ensuring
+### Bracket and Ensuring
 
 Some work has to happen no matter what: closing a file, releasing a connection, deleting a temporary directory. In ordinary code you write that in a `finally` block. `ensuring` is the same idea for `Async` — you attach a cleanup step, and it runs once the computation settles, whether it produced a value or failed:
 
@@ -618,7 +646,11 @@ val a: Int    = doubled.block   // 84
 val b: String = labelled.block  // "got 42" — heavyComputation ran once, not twice
 ```
 
-Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the work early — a no-op if it has already finished.
+Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the driver — a no-op if the computation has already finished, and, as [`Cancelable`](#cancelable) explains, not the same thing as aborting work already in flight.
+
+Sharing the handle is not merely tidier than the alternative — the alternative is unsafe. Driving the same raw `Async` from two places at once is **undefined behaviour**: two `fa.start` calls on the same `fa`, or an `fa.start` racing an `fa.block`. On the JVM that polls the same combinator concurrently, so a function you passed to `map`, `flatMap`, or `tap` may run more than once, and a `collectAll` may read its drain buffer mid-update. Start once, share the `Running`.
+
+Sequential re-use is fine — polling or composing a value again after an earlier drive has settled is well defined. Only *concurrent* driving of the same raw value is not, and single-threaded Scala.js cannot hit it at all.
 
 Take care to start the work the right way round, because the wrong version looks almost identical:
 
@@ -968,7 +1000,9 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
-Because `Async.Running[A]` is itself an `Async[A]`, you can join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
+Compose *before* you start, when you can: operators applied ahead of `start` — `either`, `tap`, `foldCause` and the rest — observe the outcome as it settles. On an `Async` that is already ready, those observers run synchronously on the calling thread rather than on a worker.
+
+Because `Async.Running[A]` is itself an `Async[A]`, you can also join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -993,6 +1027,10 @@ Because `Async.Running` extends `AutoCloseable`, it also works as a managed reso
 ### Cancelable
 
 `Cancelable` is the minimal cancellation interface: a single `cancel()` method that stops a driver loop synchronously and idempotently. `close()` delegates to `cancel()`, satisfying the `AutoCloseable` contract.
+
+Be precise about what it stops, because the name promises more than it delivers. Cancellation is **driver-level**: it halts the poll loop and suppresses publication of a terminal value, and on the JVM it interrupts the worker thread. It does **not** reach into the thing you were waiting on. A socket read stays outstanding, a timer still fires, a `js.Promise` still settles — cancelling means you stop listening, not that the work stops happening.
+
+That distinction matters when the leaf holds a resource. If a cancelled computation would otherwise leave a socket or a file handle open, close it yourself — pair the cancellation with [`ensuring`](#bracket-and-ensuring), or hold the resource in a `Using` block, rather than assuming `cancel()` released it.
 
 The structural declaration is:
 
@@ -1024,6 +1062,22 @@ final class Failure(val cause: Throwable) extends Pollable[Nothing]
 ```
 
 When `block` encounters a `Failure`, it re-throws `cause` on the calling thread. When `catchAll` matches one, it passes the original `Throwable` to the recovery function without any unwrapping. To observe a failure without re-throwing it at all, use [`either`](#error-handling).
+
+## Platform Support
+
+The core API behaves identically everywhere by design, and the cross-platform test suite fails if any user-visible core behaviour diverges. What varies is the interop surface, which is deliberately platform-specific, and the two operations that depend on having a thread:
+
+| Feature | JVM | Scala.js | Notes |
+|:---|:---:|:---:|:---|
+| Constructors and combinators | ✅ | ✅ | Identical behaviour on both |
+| `Async.async` / `await` | ✅ | ✅ | See [Direct Style](#direct-style) for the backend on each |
+| `block` on a pending value | ✅ | ❌ | Throws on Scala.js, which cannot block a thread |
+| `Async.start` / `Async.Running` | ✅ | ✅ | Worker thread on the JVM, microtasks on Scala.js |
+| `Future` interop | ✅ | ✅ | `Async.fromFuture` / `fa.toFuture` |
+| `CompletionStage` interop | ✅ | ❌ | JVM only: `fromCompletionStage` / `toCompletableFuture` |
+| `js.Promise` interop | ❌ | ✅ | Scala.js only: `fromJsPromise` / `toJsPromise` |
+
+All of it works on Scala 2.13 and Scala 3.
 
 ## Running the Examples
 
