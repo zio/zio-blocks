@@ -341,19 +341,49 @@ Async
 
 ### Concurrent Fan-Out via Running
 
-Call `start` once to obtain an `Async.Running[A]`, then share the handle with multiple consumers; the underlying computation runs exactly once:
+Suppose one expensive computation feeds several parts of your program — a report that is both summarised and emailed, say. The obvious approach is to describe the work once and use that description in both places, but a description is a recipe, not a result: each place that drives it cooks the meal again. You want the work to happen once, in the background, with everyone reading the same outcome.
 
-```scala
+`Async.start` does that. It hands the body to a background worker and returns immediately with an `Async.Running[A]` — a handle to work already in flight:
+
+```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Int] = Async.attempt(heavyComputation()).start
-// The Running handle is itself an Async[Int] — compose it freely:
-val doubled: Async[Int] = running.flatMap(n => Async.succeed(n * 2))
-running.cancel()         // no-op if the computation already settled
-val result: Int = doubled.block
+def heavyComputation(): Int = { Thread.sleep(50); 42 }
+
+// Returns straight away; the work proceeds on a background worker.
+val running: Async.Running[Int] = Async.start(heavyComputation())
+
+// The handle is itself an Async[Int], so it composes like anything else.
+val doubled: Async[Int]    = running.map(_ * 2)
+val labelled: Async[String] = running.map(n => s"got $n")
+
+val a: Int    = doubled.block   // 84
+val b: String = labelled.block  // "got 42" — heavyComputation ran once, not twice
 ```
 
-All consumers observe the same settled outcome. Because `Async.Running[A]` is a subtype of `Async[A]`, it composes with `map`, `flatMap`, and `zipWith` without any conversion.
+Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the work early — a no-op if it has already finished.
+
+Take care to start the work the right way round, because the wrong version looks almost identical:
+
+```scala
+Async.start(heavyComputation())            // ✅ the worker evaluates it
+Async.attempt(heavyComputation()).start    // ❌ already evaluated, on this thread
+```
+
+Both lines compile, and both hand you an `Async.Running[Int]`. Only the first one runs anything in the background.
+
+The difference is *when the argument gets evaluated*. Scala normally evaluates an argument before passing it, so in `Async.attempt(heavyComputation())` the computation runs first — on your own thread, right at that line — and `attempt` merely wraps the answer it produced. Tacking `.start` on afterwards cannot un-run it; there is nothing left to move to a worker.
+
+`Async.start` is declared differently. Its parameter is `body: => A`, and that `=>` means "don't evaluate this yet — hand me the code and I will run it when I am ready." It passes the code to a worker thread, which is why the call returns immediately.
+
+The clock shows it plainly:
+
+```scala
+Async.start(heavyComputation())            // returns in about 0 ms
+Async.attempt(heavyComputation()).start    // returns in about 50 ms — you waited for it
+```
+
+So: use `Async.start` for work you want moved off the calling thread. Use `fa.start` when `fa` is an `Async` you have already built and composed and now want driven.
 
 ### Batch Collection
 
