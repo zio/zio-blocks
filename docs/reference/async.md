@@ -977,7 +977,7 @@ c.close()   // no-op; delegates to cancel()
 
 ## Internal Encoding
 
-The two types below are implementation details of the `Async[A]` encoding. You never construct or inspect them directly; understanding them explains how the runtime distinguishes user data from suspended computations.
+`Failure` is part of the `Async[A]` encoding rather than something you construct. You will not name it in your own code — `Async.fail` produces it and `catchAll` consumes it — but knowing it exists explains why a failure travels through a chain untouched.
 
 ### Failure
 
@@ -990,47 +990,6 @@ final class Failure(val cause: Throwable) extends Pollable[Nothing]
 ```
 
 When `block` encounters a `Failure`, it re-throws `cause` on the calling thread. When `catchAll` matches one, it passes the original `Throwable` to the recovery function without any unwrapping. To observe a failure without re-throwing it at all, use [`either`](#error-handling).
-
-### AsyncEncoding.WrappedPollable
-
-`AsyncEncoding.WrappedPollable` is an internal carrier that disambiguates a `Pollable` stored as a *success value* from one stored as a *suspended computation*. It does **not** extend `Pollable`; it instead tracks a nesting `depth` that the driver increments on each `Async.succeed` wrapping layer and decrements during result delivery, preserving the user's `Pollable` as data rather than treating it as a suspension point.
-
-The structural declaration is:
-
-```scala
-final case class WrappedPollable(value: Pollable[?], depth: Int)
-```
-
-This type is completely transparent to users. When you write `Async.succeed(somePollable)`, the runtime wraps it in a `WrappedPollable` so the driver does not mistake it for a pending computation. To observe this, settle the `Completer` first so `block` can deliver it as data:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-// Settle the Completer first so block delivers it as data rather than waiting on it:
-val c: Completer[Int] = new Completer[Int]
-c.succeed(42)
-
-val asData: Async[Completer[Int]] = Async.succeed(c)  // c is wrapped as data, not driven
-val extracted: Completer[Int]     = asData.block       // => the same Completer instance
-```
-
-## Comparisons
-
-The table below situates `Async[A]` among common alternatives:
-
-| Aspect                   | `Async[A]`                                      | `scala.concurrent.Future`         | ZIO effect type                    | cats-effect `IO`                    |
-|--------------------------|-------------------------------------------------|-----------------------------------|------------------------------------|-------------------------------------|
-| Evaluation               | Lazy — description only until driven            | Eager — starts at construction    | Lazy                               | Lazy                                |
-| Dependencies             | Zero (single module)                            | Scala stdlib only                 | Full ZIO ecosystem                 | Cats Effect typeclass tower         |
-| Error type               | `Throwable` (untyped)                           | `Throwable` (untyped)             | Typed (`E`)                        | `Throwable` (untyped)               |
-| Environment              | None                                            | Implicit `ExecutionContext`        | Typed (`R`)                        | Implicit runtime                    |
-| Cancellation             | Synchronous, concrete `Cancelable`              | Not supported                     | Fiber-based, structured            | Fiber-based (`IO.canceled`)         |
-| Ready-value overhead     | Zero — `Any` encoding, inline fast path         | `Promise` + callback allocation   | Varies by operator                 | Allocates `IOFiber` on each run     |
-| Custom suspension        | `Pollable` subclass                             | Not supported                     | `ZIO.async` callback DSL           | `IO.async` callback DSL             |
-| Scala 2.13 support       | Yes                                             | Yes                               | Yes                                | Yes                                 |
-| Direct style             | `Async.async { … }` (Scala 3 macro)             | Not applicable                    | Yes (ZIO direct)                   | Yes (CE direct)                     |
-
-`Async[A]` is intentionally narrower than ZIO or cats-effect `IO`: no environment type, no typed error channel, no fiber abstraction, no typeclass tower. It is the right choice for infrastructure-level code where full ZIO or cats-effect would introduce more machinery than the problem requires.
 
 ## Running the Examples
 
