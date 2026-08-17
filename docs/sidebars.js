@@ -176,6 +176,7 @@ const sidebars = {
             link: { type: "doc", id: "reference/endpoint/index" },
             items: [
               "reference/endpoint/endpoint",
+              "reference/endpoint/bulk-creation",
               "reference/endpoint/http-codec",
               "reference/endpoint/route-pattern",
               "reference/endpoint/path-codec",
