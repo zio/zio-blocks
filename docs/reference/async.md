@@ -1179,7 +1179,21 @@ The second version is not a compile error and not a lost value, which is what ma
 
 `either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
 
-One caveat from the [evaluation model](#evaluation-model): if the value was ready to begin with, there is nothing to hand to a driver. `start` returns an already-settled handle, no worker is involved, and an observer attached beforehand ran as you built the value.
+All of that assumes there was something to wait for. If the value already holds its answer, none of the machinery appears: `start` has nothing to hand to a driver, so it wraps the finished value and returns, spawning no worker at all.
+
+```scala
+fetchRow().start           // pending: a real driver, doing real waiting
+Async.succeed(42).start    // ready:   a handle around a value you already had
+```
+
+An observer attached to such a value has also already run — by the time you reach `.start`, it is history:
+
+```scala
+Async.succeed(42).tap(n => Async.attempt(log(n))).start
+//                    ↑ log(42) happens on this line, before .start is reached
+```
+
+This is the [evaluation model](#evaluation-model) showing through, and it costs you nothing: the observer still runs, still sees the value, still runs once. Only *when* and *on whose thread* differ — immediately, on yours, rather than later on a worker's.
 
 ### Cancelable
 
