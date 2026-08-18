@@ -1115,11 +1115,11 @@ The once-only guarantee earns its keep in code like this. You are trusting a thi
 
 ## Controlling In-Flight Work
 
-Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle itself, and `Cancelable` is the ability to stop what it refers to — synchronous and idempotent, and narrower than the name suggests, as [`Cancelable`](#cancelable) explains.
+Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
 
 ### Async.Running
 
-`Async.Running[A]` is the handle returned by `start`. It extends both `Pollable[A]` — making it a first-class `Async[A]` that composes with every combinator — and `Cancelable`, giving you synchronous, idempotent cancellation.
+`Async.Running[A]` is the handle returned by `start`. It extends `Pollable[A]`, which makes it an `Async[A]` in its own right, and [`Cancelable`](#cancelable), which is what lets you stop it.
 
 The structural declaration is:
 
@@ -1129,7 +1129,7 @@ abstract class Running[+A] extends Pollable[A] with Cancelable
 
 Add what you want to observe *before* calling `start`, not after. An `either`, a `tap` or a `foldCause` attached to the value first will see the result as it arrives; attach it to the handle afterwards and you are looking at work that may already be finished. If the value was ready to begin with, those observers simply run on your own thread instead of a worker.
 
-Because `Async.Running[A]` is itself an `Async[A]`, you can also join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
+So you can join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -1140,7 +1140,7 @@ val doubled: Async[Int] = running.map(_ * 2)
 val result: Int = doubled.block  // joins and transforms
 ```
 
-Calling `cancel` stops the driver loop. If the computation has already settled, `cancel` is a no-op:
+Calling `cancel` stops the run, and does nothing if it has already finished:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -1149,11 +1149,11 @@ val running: Async.Running[Nothing] = Async.never.start
 running.cancel()  // stops immediately; the driver never delivers a value
 ```
 
-Because `Async.Running` extends `AutoCloseable`, it also works as a managed resource in `scala.util.Using`, which calls `close()` — and therefore `cancel()` — on any exit from the block. [Integration Points](#integration-points) shows that in use.
+A `Running` is also an `AutoCloseable`, so `scala.util.Using` cancels it on any exit from the block. [Integration Points](#integration-points) shows that in use.
 
 ### Cancelable
 
-`Cancelable` is the minimal cancellation interface: a single `cancel()` method that stops a driver loop synchronously and idempotently. `close()` delegates to `cancel()`, satisfying the `AutoCloseable` contract.
+`Cancelable` is the minimal cancellation interface: one `cancel()` method, safe to call from any thread and safe to call twice.
 
 Be precise about what it stops, because the name promises more than it delivers. Cancellation is **driver-level**: it halts the poll loop and suppresses publication of a terminal value, and on the JVM it interrupts the worker thread. It does **not** reach into the thing you were waiting on. A socket read stays outstanding, a timer still fires, a `js.Promise` still settles — cancelling means you stop listening, not that the work stops happening.
 
