@@ -163,7 +163,7 @@ A [`Using`](#integration-points) block does the same job when the work is confin
 
 In all of this `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
 
-### How long a combinator chain may be
+### Depth Limits on Waiting Values
 
 Call `map` on a value that is still waiting and you get back a wrapper: it remembers the original value and the function you gave it. Ask that wrapper for a result and it has to ask the original first, because until the original produces something there is nothing to apply the function to. That question is an ordinary method call, so the wrapper is left part-way through its own work — holding its place on the call stack — while the value underneath answers.
 
@@ -182,24 +182,24 @@ Most effect systems avoid that with a trampoline: rather than calling its child 
 
 There is no third option, so the choice was between the two:
 
-| | Depth | Cost per step |
-|:---|:---|:---|
-| Trampoline | unlimited | an object allocated, and a dispatch, on every poll |
-| Direct calls | limited by the call stack | nothing |
+| Approach     | Depth                     | Cost per step                                      |
+|--------------|---------------------------|----------------------------------------------------|
+| Trampoline   | Unlimited                 | An object allocated, and a dispatch, on every poll |
+| Direct calls | Limited by the call stack | Nothing                                            |
 
 `Async` takes the second. That is why nothing is allocated while polling, and it is also why a long enough chain over a waiting value ends in a `StackOverflowError` rather than a slowdown — the ceiling is the bill for the speed, not an oversight.
 
 You are unlikely to meet it by hand. A handful of `map` and `flatMap` calls around a network request is nowhere near the limit. It becomes a real risk when the length of the chain is decided by *data* — one `flatMap` per row, per file, per retry — because then the depth is however large the input happens to be, and code that is comfortable in a test can overflow in production on a bigger batch.
 
-Where the limit bites depends on one thing: whether driving has to unwind a long chain of combinators in *receiver position* over a value that is still **pending**.
+Whether you are anywhere near the limit comes down to a single question: is the chain being built on top of a value that is still waiting?
 
-- **Over a ready source, chains are safe to any length.** Each step resolves as you build it and collapses, retaining no `Pollable`, so `var fa = …; while (…) fa = fa.flatMap(g)` runs in constant stack — verified into the millions.
-- **Over a pending source, a long receiver-position chain is not safe.** Each `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the previous pending value, so driving descends one stack frame per level before anything settles, and overflows at default JVM stack sizes somewhere around 50,000–100,000. The shape you wrote it in makes no difference: a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` both build the same pending spine.
-- **`Async.collectAll` and `while` loops inside `Async.async` are safe even over pending sources** — both verified past 200,000 steps. `collectAll` is a single `Pollable` that walks its elements internally, with no receiver spine at all, and the direct-style loop advances one iteration per poll instead of pre-building a chain.
+- **On a value that is already there, chains are safe at any length.** Each step runs as you write it and gives back a plain value again, so nothing is left holding anything open. A loop like `var fa = …; while (…) fa = fa.flatMap(g)` stays flat no matter how many times it goes round — verified into the millions.
+- **On a value that is still waiting, a long chain is not safe.** Every `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the one before it, so asking for the result opens one call per wrapper before anything can answer, and the program runs out of stack somewhere around 50,000–100,000 on a default JVM. How you wrote the loop makes no difference — a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` build the same stack of wrappers.
+- **`Async.collectAll` and a `while` loop inside `Async.async` stay safe even when the values are still waiting** — both verified past 200,000 steps. `collectAll` is a single step that walks the collection itself, stacking no wrappers at all, and the direct-style loop runs one turn each time it is asked rather than building the whole chain in advance.
 
-So for a large, suspension-heavy workload, reach for `collectAll` or an `Async.async` `while` loop rather than a hand-built tower of `flatMap` over a pending value. `Future` avoids this bound for every shape only because it bounces each `flatMap` through an `ExecutionContext`; `Async` skips that hop for speed and takes the depth limit instead.
+So for long, wait-heavy work, reach for `collectAll` or an `Async.async` `while` loop instead of a hand-built tower of `flatMap`. `Future` never runs into this, but only because it sends every `flatMap` through an `ExecutionContext`; `Async` skips that hop to stay fast and takes the depth limit instead.
 
-### Pending suspensions differ by platform
+### Pending Suspensions Differ by Platform
 
 Once a computation reaches a suspension that is genuinely pending, what advances it follows each platform's fastest mechanism, so the two diverge:
 
@@ -800,7 +800,7 @@ You are unlikely to be starting from scratch. Your codebase probably already ret
 Conversions go in both directions, and none of them blocks a thread:
 
 | You have                   | Bring it in with                | You need                     | Hand it out with         |
-|:---------------------------|:--------------------------------|:-----------------------------|:-------------------------|
+|----------------------------|---------------------------------|------------------------------|--------------------------|
 | `Future[A]`                | `Async.fromFuture(f)`           | `Future[A]`                  | `fa.toFuture`            |
 | `CompletionStage[A]` (JVM) | `Async.fromCompletionStage(cs)` | `CompletableFuture[A]` (JVM) | `fa.toCompletableFuture` |
 | `js.Promise[A]` (Scala.js) | `Async.fromJsPromise(p)`        | `js.Promise[A]` (Scala.js)   | `fa.toJsPromise`         |
@@ -916,11 +916,11 @@ val result: String = new Delayed("done", ticks = 2).block  // => "done"
 
 Follow it one visit at a time:
 
-| Visit | `ticks` | `poll` returns        | Driver's reaction    |
-|:------|:--------|:----------------------|:---------------------|
-| 1st   | 2       | `this`                | not ready — ask again |
-| 2nd   | 1       | `this`                | not ready — ask again |
-| 3rd   | 0       | `Async.succeed("done")` | takes the value, stops asking |
+| Visit | `ticks` | What `poll` returns     | What the driver does          |
+|-------|--------:|-------------------------|-------------------------------|
+| 1st   |       2 | `this`                  | Not ready — asks again        |
+| 2nd   |       1 | `this`                  | Not ready — asks again        |
+| 3rd   |       0 | `Async.succeed("done")` | Takes the value, stops asking |
 
 Returning `this` means "still me, still waiting." Returning `Async.succeed(v)` means "here it is." And `onComplete.run()` is the nudge that tells the driver to come back soon rather than in its own time. The toy above runs it immediately, which just asks for another visit right away; real code instead hands `onComplete` to whatever it is waiting on — a socket selector, a timer callback — and lets that source run it when something actually happens. The driver can then stay asleep in between, rather than burning a thread asking a question whose answer has not changed. Meanwhile `.block` waits through all three visits and hands you `"done"` at the end.
 
@@ -1169,15 +1169,15 @@ When `block` encounters a `Failure`, it re-throws `cause` on the calling thread.
 
 The core API behaves identically everywhere by design, and the cross-platform test suite fails if any user-visible core behaviour diverges. What varies is the interop surface, which is deliberately platform-specific, and the two operations that depend on having a thread:
 
-| Feature | JVM | Scala.js | Notes |
-|:---|:---:|:---:|:---|
-| Constructors and combinators | ✅ | ✅ | Identical behaviour on both |
-| `Async.async` / `await` | ✅ | ✅ | See [Direct Style](#direct-style) for the backend on each |
-| `block` on a pending value | ✅ | ❌ | Throws on Scala.js, which cannot block a thread |
-| `Async.start` / `Async.Running` | ✅ | ✅ | Worker thread on the JVM, microtasks on Scala.js |
-| `Future` interop | ✅ | ✅ | `Async.fromFuture` / `fa.toFuture` |
-| `CompletionStage` interop | ✅ | ❌ | JVM only: `fromCompletionStage` / `toCompletableFuture` |
-| `js.Promise` interop | ❌ | ✅ | Scala.js only: `fromJsPromise` / `toJsPromise` |
+| Feature                         | JVM | Scala.js | How it differs                                                     |
+|---------------------------------|:---:|:--------:|--------------------------------------------------------------------|
+| Constructors and combinators    | yes |   yes    | Identical on both                                                  |
+| `Async.async` / `await`         | yes |   yes    | Different backend per platform — see [Direct Style](#direct-style) |
+| `block` on a pending value      | yes |    no    | Throws on Scala.js: no thread to park                              |
+| `Async.start` / `Async.Running` | yes |   yes    | Worker thread on the JVM, microtasks on Scala.js                   |
+| `Future` interop                | yes |   yes    | Same API on both                                                   |
+| `CompletionStage` interop       | yes |    no    | JVM only                                                           |
+| `js.Promise` interop            |  no |   yes    | Scala.js only                                                      |
 
 All of it works on Scala 2.13 and Scala 3.
 
