@@ -201,12 +201,21 @@ So for long, wait-heavy work, reach for `collectAll` or an `Async.async` `while`
 
 ### Pending Suspensions Differ by Platform
 
-Once a computation reaches a suspension that is genuinely pending, what advances it follows each platform's fastest mechanism, so the two diverge:
+Say a computation has hit a real wait. When the thing it waits for finally arrives, what makes the rest of the block run? Each platform answers with whatever its own runtime does fastest, so the answers differ:
 
-- **JVM, plus Scala.js on Scala 2 and Scala 3 before 3.8** — the value is a poll-driven `Pollable` with no ambient driver. The continuation runs only when something polls it: `.block`, `.start`, or an interop converter. A value that is built and never driven leaves its continuation un-run.
-- **Scala.js on Scala 3.8 and later** — `Async.async`/`await` compile to a real JavaScript async function, and its driver is the event loop. Once the awaited value settles, the continuation resumes itself from the microtask queue even if nothing polls the `Async`.
+- **JVM, and Scala.js on Scala 2 or Scala 3 before 3.8** — nothing runs it for you. The value sits there until something asks it for a result: `.block`, `.start`, or an interop converter. Build a value and never drive it, and the code after the wait does not run late — it never runs at all.
+- **Scala.js on Scala 3.8 and later** — the block compiles into a real JavaScript async function, and JavaScript already has something whose job is resuming those: the event loop. It is always running, you did not start it, and you cannot opt out of it. So once the awaited value arrives, your code carries on by itself, whether or not anyone is watching.
 
-In practice the difference is invisible, because you drive the values you build, and the resulting *value* is identical on every platform. It is observable only by a block that is constructed, has its awaited value settle, and is then never driven at all.
+```scala
+val fa = Async.async { record(fetchRow().await) }
+
+// JVM: fetchRow may well finish, but `record` has not run — nothing drove fa.
+// Scala.js 3.8+: once fetchRow finishes, `record` runs anyway.
+```
+
+You are unlikely ever to see this. Values get built in order to be used, and the moment you `block` on one, `start` it, or hand it to a `Future`, both platforms behave identically and produce the same result. Noticing the difference takes a peculiar shape: build a block, let the thing it waits for arrive, then never drive it — a program that has already gone wrong, since it constructed work and then discarded it.
+
+It is worth documenting because it changes *when side effects happen*. If the code after a wait prints, writes a file, or bumps a counter, Scala.js may do that without you driving anything, while the JVM will not. Cross-platform code that leans on "this has not run yet" is leaning on something true in only one of the two.
 
 ## How They Work Together
 
