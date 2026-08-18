@@ -283,7 +283,7 @@ The four phases in detail:
 3. **Drive** — consume with `block` (park the calling thread), `start` (dispatch to a background worker; returns `Async.Running[A]`), or an interop converter (`toFuture`, `toJsPromise`).
 4. **Observe or cancel** — the `Async.Running[A]` returned by `start` can be polled for fan-out, cancelled with `Cancelable#cancel`, or composed further with `flatMap` and `zipWith`.
 
-The following snippet grounds all four phases in a real test: two off-thread `Completer` completions are composed with `zipWith` and driven by `block`:
+The following snippet grounds all four phases in an example: two off-thread `Completer` completions are composed with `zipWith` and driven by `block`:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -333,9 +333,11 @@ val results: List[Int] = ordered.block  // => List(1, 2, 3)
 
 Without that guarantee you would have to tag each computation and re-sort the results yourself. Because `collectAll` keeps the positions, you can zip the output against the input list — or pattern-match on it positionally — and trust that element *n* belongs to computation *n*.
 
-## The Async[A] Type
+## Operations
 
-This section is the API reference for `Async[A]`; what the type means and how it is encoded are covered at the top of this page. One property is worth having in mind while reading the signatures below: `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, letting `Async.fail` and `Async.never` fit anywhere without a cast.
+Everything you can do with an `Async[A]`: make one, transform it, combine it with another, recover from a failure, and eventually run it. 
+
+One property is worth carrying into the signatures below — `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, which is what lets `Async.fail` and `Async.never` fit anywhere without a cast.
 
 ### Creating Values
 
