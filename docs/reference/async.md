@@ -337,7 +337,21 @@ Without that guarantee you would have to tag each computation and re-sort the re
 
 Everything you can do with an `Async[A]`: make one, transform it, combine it with another, recover from a failure, and eventually run it. 
 
-One property is worth carrying into the signatures below — `Async[A]` is covariant, so `Async[Nothing]` is a valid `Async[A]` for any `A`, which is what lets `Async.fail` and `Async.never` fit anywhere without a cast.
+One property is worth carrying into the signatures below. `Async[A]` is declared `Async[+A]`, which makes it *covariant*: whenever `B` is a subtype of `A`, an `Async[B]` counts as an `Async[A]`. That matters because `Async.fail` and `Async.never` have no value to offer, so their type is `Async[Nothing]` — and `Nothing` is a subtype of every type in Scala. An `Async[Nothing]` is therefore an `Async[String]`, an `Async[User]`, an `Async` of anything at all:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+case class User(id: Int, name: String)
+
+def fetchUser(id: Int): Async[User] =
+  if (id < 0) Async.fail(new IllegalArgumentException("bad id"))  // Async[Nothing]
+  else Async.succeed(User(id, "sam"))                             // Async[User]
+
+val forever: Async[User] = Async.never                            // Async[Nothing] fits too
+```
+
+Without covariance neither of those would compile against the declared `Async[User]`, and you would be writing `Async.fail[User](…)` or a cast at every failure. This is a property you notice only through the errors it saves you from.
 
 ### Creating Values
 
