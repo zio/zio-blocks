@@ -1129,7 +1129,7 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
-Because a `Running` is an `Async[A]`, you can wait for its result with `block`, compose it further with `map` or `flatMap`, or pass it anywhere an `Async[A]` is expected — [Concurrent Fan-Out via Running](#concurrent-fan-out-via-running) works through that pattern, and the reason to share one handle rather than start twice.
+Because a `Running` is an `Async[A]`, you can wait for its result with `block`, compose it further with `map` or `flatMap`, or pass it anywhere an `Async[A]` is expected. [Concurrent Fan-Out via Running](#concurrent-fan-out-via-running) walks through that pattern, and why several consumers should share one handle rather than each starting the work themselves.
 
 What you should not do is call `poll` yourself. It is there for drivers, and its contract — stop at a terminal value, never re-poll a settled one — is easy to violate by hand. Drive a `Running` the same way you drive any other `Async`: `block`, `toFuture`, or composition. There is no `isCompleted`; if you want to know whether it has finished without waiting, keep that flag yourself where you complete the work.
 
@@ -1177,7 +1177,7 @@ val bolted: Async[String] =
 
 The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a description that nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
 
-`either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start,, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
+`either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
 
 One caveat from the [evaluation model](#evaluation-model): if the value was ready to begin with, there is nothing to hand to a driver. `start` returns an already-settled handle, no worker is involved, and an observer attached beforehand ran as you built the value.
 
