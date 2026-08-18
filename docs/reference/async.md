@@ -1145,7 +1145,21 @@ val bolted: Async[String] =
   fetchRow().start.tap(row => Async.attempt(log(s"got $row")))
 ```
 
-Both compile and both see the value, so the second is not broken — but if you are timing something, logging progress, or want to react the moment a failure appears, only the first is doing that. The same goes for `either` and `foldCause`: put them inside the computation you start, rather than onto a handle whose failure has already been published.
+Both compile, and in both the `tap` receives the row, so the second version is not wrong — you get the same value. What differs is *when* your code runs relative to the work, which timing makes obvious:
+
+```scala
+val t0 = System.currentTimeMillis()
+
+// Inside: the clock is read as the row arrives — "took 250ms".
+fetchRow().tap(_ => Async.attempt(log(s"took ${System.currentTimeMillis() - t0}ms"))).start
+
+// Outside: the fetch has been running while you did other things, and this
+// reads the clock whenever you got round to attaching — it measures you.
+val running = fetchRow().start
+running.tap(_ => Async.attempt(log(s"took ${System.currentTimeMillis() - t0}ms")))
+```
+
+`either` and `foldCause` raise the stakes, because they decide whether the run counts as failed at all. Convert inside — `fa.either.start` — and the run always settles successfully, carrying a `Left` or a `Right`. Convert afterwards — `fa.start.either` — and the run has already settled as a failure; you have wrapped it for yourself, but the handle stays failed for everyone else holding it. Decide the shape you want the outcome to have, build that, and start it.
 
 If the value was ready to begin with, no worker is involved at all and those observers simply run on your own thread.
 
