@@ -1006,7 +1006,7 @@ lazy val `schema-avro` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.avro" % "avro"         % "1.12.1",
+      "org.apache.avro" % "avro"         % "1.12.2",
       "dev.zio"        %% "zio-test"     % "2.1.26" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.26" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
