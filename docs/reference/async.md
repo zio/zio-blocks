@@ -140,7 +140,7 @@ val running = Async.start(uploadHugeFile())
 // ability to watch it or stop it.
 ```
 
-Stopping requires asking, through [`Cancelable#cancel`](#cancelable) — and even that reaches only as far as the driver.
+Stopping requires asking, through [`Cancelable#cancel`](#cancelable), and that reaches less far than you might expect.
 
 The handle is your only route to that request. There is no registry of running computations to consult and no supervisor to ask, so a handle you have dropped cannot be recovered: that work becomes unstoppable for the rest of the process, and it finishes on its own schedule, holding its thread and its socket until it does. Nothing counts how many observers are left, so nothing notices when the last one goes away.
 
@@ -283,19 +283,14 @@ That shared parent is what lets all three be used interchangeably. Wherever an `
 
 You will use `Completer` and `Async.Running` constantly, and `Failure` mostly without naming it. Writing your own `Pollable` is the rare case, reserved for teaching the module about a new source of delayed results.
 
-The four phases in detail:
-
-1. **Construct** — create leaf values with `Async.succeed`, `Async.fail`, `Async.attempt`, or `Async.promise` (which supplies a `Completer[A]` to a callback body). Custom `Pollable` subclasses handle timers and socket reads.
-2. **Compose** — chain with `map`, `flatMap`, `catchAll`, `zipWith`, `tap`, `ensuring`, and `collectAll`. On the ready path these are allocation-free; on the suspended path they allocate a `Pollable` continuation that the driver traverses poll by poll.
-3. **Drive** — consume with `block` (park the calling thread), `start` (dispatch to a background worker; returns `Async.Running[A]`), or an interop converter (`toFuture`, `toJsPromise`).
-4. **Observe or cancel** — the `Async.Running[A]` returned by `start` can be polled for fan-out, cancelled with `Cancelable#cancel`, or composed further with `flatMap` and `zipWith`.
+Two details the diagram leaves out. Composing over a ready value is allocation-free, while composing over a waiting one allocates a `Pollable` that the driver walks poll by poll. And the handle from phase 3 is itself an `Async`, which is what makes phase 4 ordinary composition rather than a separate API.
 
 The following snippet grounds all four phases in an example: two off-thread `Completer` completions are composed with `zipWith` and driven by `block`:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-def realAsync[A](value: A, ms: Long): Async[A] = {
+def delayed[A](value: A, ms: Long): Async[A] = {
   val c = new Completer[A]
   val t = new Thread(new Runnable {
     def run(): Unit = { Thread.sleep(ms); c.succeed(value) }
@@ -306,7 +301,7 @@ def realAsync[A](value: A, ms: Long): Async[A] = {
 }
 
 // Phase 1 and 2: construct two off-thread leaves and compose with zipWith
-val r: Async[Int] = (realAsync(3, 30): Async[Int]).zipWith(realAsync(4, 5): Async[Int])(_ + _)
+val r: Async[Int] = delayed(3, 30).zipWith(delayed(4, 5))(_ + _)
 
 // Phase 3: drive — parks the calling thread until both off-thread wakers fire
 val result: Int = r.block  // => 7
@@ -425,13 +420,12 @@ val result: Int = running.block  // => 42
 Pure transformations apply a function to the success value and return a new `Async`:
 
 ```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def map[B](f: A => B): Async[B]
-  def flatMap[B](f: A => Async[B]): Async[B]
-  def as[B](b: B): Async[B]
-  def unit: Async[Unit]
-  def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
-}
+// on any Async[A]:
+def map[B](f: A => B): Async[B]
+def flatMap[B](f: A => Async[B]): Async[B]
+def as[B](b: B): Async[B]
+def unit: Async[Unit]
+def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
 ```
 
 `map` applies a pure function and `flatMap` sequences a dependent second computation:
@@ -451,15 +445,14 @@ val out: String = result.block  // => "value: 42"
 Compositional operators combine independent or dependent `Async` values:
 
 ```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
-  def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out]  // flattens; see below
-  def tap(f: A => Async[Any]): Async[A]
-  def ensuring(finalizer: Async[Any]): Async[A]
-  def *>[B](that: Async[B]): Async[B]
-  def <*[B](that: Async[B]): Async[A]
-  def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
-}
+// on any Async[A]:
+def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
+def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out]  // flattens; see below
+def tap(f: A => Async[Any]): Async[A]
+def ensuring(finalizer: Async[Any]): Async[A]
+def *>[B](that: Async[B]): Async[B]
+def <*[B](that: Async[B]): Async[A]
+def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
 ```
 
 `zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through. `zip` pairs the two results, and chains of it stay flat rather than nesting — `a zip b zip c` yields `Async[(A, B, C)]`, not `Async[((A, B), C)]` — because it combines through the `Tuples` instances described in the [combinators reference](combinators.md):
@@ -489,12 +482,11 @@ val result: Int = logged.block  // => 42
 `Async` represents failure as a `Throwable` and provides dedicated recovery operators:
 
 ```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
-  def mapError(f: Throwable => Throwable): Async[A]
-  def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
-  def either: Async[Either[Throwable, A]]
-}
+// on any Async[A]:
+def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
+def mapError(f: Throwable => Throwable): Async[A]
+def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
+def either: Async[Either[Throwable, A]]
 ```
 
 `catchAll` recovers from any failure by supplying a replacement `Async[A]`; `either` converts the outcome to an `Either` so the failure surface is visible in the return type:
@@ -523,17 +515,16 @@ val result: String = message.block  // => "parsed: 42"
 
 ### Driving
 
-Driving executes the `Async[A]` description and delivers the result through one of three mechanisms:
+Driving settles whatever part of an `Async[A]` is still waiting, and delivers the result through one of three mechanisms:
 
 ```scala
-implicit class AsyncOps[A](fa: Async[A]) {
-  def block: A                                        // parks calling thread; re-throws on failure
-  def await: A                                        // Scala 3 macro; inside Async.async { } only
-  def start: Async.Running[A]
-  def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
-  def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
-    : java.util.concurrent.CompletableFuture[A]       // JVM only
-}
+// on any Async[A]:
+def block: A                                        // parks calling thread; re-throws on failure
+def await: A                                        // Scala 3 macro; inside Async.async { } only
+def start: Async.Running[A]
+def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
+def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
+  : java.util.concurrent.CompletableFuture[A]       // JVM only
 ```
 
 `block` parks the calling thread until the computation settles, then returns the value or re-throws the underlying `Throwable`:
@@ -641,7 +632,7 @@ val result: String = async.block  // waits for the callback; this stub already f
 
 The two lines inside `legacyApi` are the whole bridge: whichever callback fires, it completes `c`, and completing `c` completes the `Async[String]`. Note what has been gained — `async` is an ordinary value. You can return it, store it, or chain `map` and `flatMap` onto it, and the callback API is no longer visible to anything downstream.
 
-The bridge is also safe against a callback that fires more than once: the first call to `succeed` or `fail` decides the outcome and later calls do nothing. [`Completer`](#completer) covers that guarantee and when it saves you.
+The bridge is also safe against a callback that fires more than once — see [`Completer`](#completer).
 
 ### Direct Style
 
@@ -776,7 +767,7 @@ Async
 
 ### Concurrent Fan-Out via Running
 
-Suppose one expensive computation feeds several parts of your program — a report that is both summarised and emailed, say. The obvious approach is to describe the work once and use that description in both places, but a description is a recipe, not a result: each place that drives it cooks the meal again. You want the work to happen once, in the background, with everyone reading the same outcome.
+Suppose one expensive computation feeds several parts of your program — a report that is both summarised and emailed, say. The obvious approach is to build the work once and use that value in both places — but driving it is what produces the result, so each place that drives it does the work again. You want the work to happen once, in the background, with everyone reading the same outcome.
 
 `Async.start` does that. It hands the body to a background worker and returns immediately with an `Async.Running[A]` — a handle to work already in flight:
 
@@ -796,7 +787,7 @@ val a: Int    = doubled.block   // 84
 val b: String = labelled.block  // "got 42" — heavyComputation ran once, not twice
 ```
 
-Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the driver — a no-op if the computation has already finished, and, as [`Cancelable`](#cancelable) explains, not the same thing as aborting work already in flight.
+Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the driver, which is [less than it sounds](#cancelable).
 
 Sharing the handle is not merely tidier than the alternative — the alternative is unsafe. Driving the same raw `Async` from two places at once is **undefined behaviour**: two `fa.start` calls on the same `fa`, or an `fa.start` racing an `fa.block`. On the JVM that polls the same combinator concurrently, so a function you passed to `map`, `flatMap`, or `tap` may run more than once, and a `collectAll` may read its drain buffer mid-update. Start once, share the `Running`.
 
@@ -1136,7 +1127,7 @@ Prefer this version. Write the completer out by hand when the registration does 
 
 The once-only guarantee earns its keep in code like this. You are trusting a third-party library to call your handler correctly; if a buggy or retrying implementation calls `completed` twice, or calls both `completed` and `failed`, the first call still decides the outcome and the rest are ignored. You do not have to defend against it yourself.
 
-`Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `realAsync` helper in "How They Work Together."
+`Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `delayed` helper under [How They Work Together](#how-they-work-together).
 
 ## Controlling In-Flight Work
 
@@ -1169,7 +1160,7 @@ A cancelled run never settles at all — it does not fail, it simply stops. So a
 
 And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
 
-A `Running` is also an `AutoCloseable`, so `scala.util.Using` cancels it on any exit from the block. [Integration Points](#integration-points) shows that in use.
+A `Running` is also an `AutoCloseable`, so [`scala.util.Using`](#integration-points) cancels it on leaving a block.
 
 All of the above describes the JVM, where the driver is a background thread. On Scala.js it is the microtask queue instead, and `block` is unavailable on a pending value — see [Platform Support](#platform-support).
 
@@ -1198,7 +1189,7 @@ val bolted: Async[String] =
   fetchRow().start.tap(row => Async.attempt(log(s"got $row")))
 ```
 
-The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a description that nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
+The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a value nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
 
 `either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
 
@@ -1239,7 +1230,7 @@ c.close()   // no-op; delegates to cancel()
 final class Failure(val cause: Throwable) extends Pollable[Nothing]
 ```
 
-`block` re-throws `cause` on the calling thread; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
+[`block`](#driving) re-throws `cause`; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
 
 ## Platform Support
 
@@ -1259,21 +1250,7 @@ All of it works on Scala 2.13 and Scala 3.
 
 ## Running the Examples
 
-The `async-examples` module ships `AsyncShowcaseExample`, which exercises the full cross-type workflow — `Completer`-backed callback bridges, the `Async.async` direct-style DSL, `catchAll` recovery, and a final `block` drive — in a single runnable pipeline. The `fulfillOrGuest` function from that file, shown below, uses helper functions defined in the same example to demonstrate composition across all four phases:
-
-```scala
-import zio.blocks.async._
-
-def fulfillOrGuest(orderId: Int): Async[String] = Async.async {
-  val order    = fetchOrder(orderId).catchAll(_ => fetchOrder(9001)).await
-  val user     = fetchUser(order.userId)
-                   .catchAll(_ => Async.succeed(User(0, "guest", "bronze"))).await
-  val shipment = fulfill(order.id).await
-  s"shipped ${shipment.orderId} for ${user.name} via ${shipment.carrier}"
-}
-
-println(fulfillOrGuest(9001).block)
-```
+The `async-examples` module ships `AsyncShowcaseExample`, a single runnable pipeline exercising the whole module: `Completer`-backed callback bridges, the `Async.async` direct-style DSL, `catchAll` recovery, and a final `block`. Its `fulfillOrGuest` function is the one shown under [Direct Style](#direct-style); the file also carries the helpers it calls, which is what makes it runnable as it stands.
 
 To run the full example, clone the repository and execute:
 
