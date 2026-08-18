@@ -1210,15 +1210,13 @@ c.close()   // no-op; delegates to cancel()
 
 ## Failure
 
-`Failure` is part of the `Async[A]` encoding rather than something you construct: `Async.fail` and `Completer#fail` produce it, and `catchAll` and `either` recover from it. You will not name it in your own code, but knowing it exists explains why a failure travels through a chain untouched — it extends `Pollable[Nothing]` and short-circuits `map` and `flatMap` by returning itself instead of invoking their continuations.
-
-The structural declaration is:
+`Failure` is how a failed `Async` is represented. You never construct one — `Async.fail` and `Completer#fail` produce it, `catchAll` and `either` recover from it — but it explains why a failure travels through a chain untouched: it extends `Pollable[Nothing]`, and `map` and `flatMap` return it unchanged instead of running their functions.
 
 ```scala
 final class Failure(val cause: Throwable) extends Pollable[Nothing]
 ```
 
-When `block` encounters a `Failure`, it re-throws `cause` on the calling thread. When `catchAll` matches one, it passes the original `Throwable` to the recovery function without any unwrapping. To observe a failure without re-throwing it at all, use [`either`](#error-handling).
+`block` re-throws `cause` on the calling thread; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
 
 ## Platform Support
 
