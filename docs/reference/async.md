@@ -1127,7 +1127,27 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
-Add what you want to observe *before* calling `start`, not after. An `either`, a `tap` or a `foldCause` attached to the value first will see the result as it arrives; attach it to the handle afterwards and you are looking at work that may already be finished. If the value was ready to begin with, those observers simply run on your own thread instead of a worker.
+Attach what you want to observe *before* calling `start`, not after. `start` begins the work at once, so anything you add to the value first becomes part of what the worker runs:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetchRow(): Async[String] = Async.succeed("row-1")
+def log(msg: String): Unit   = ()
+
+// Before: the tap is part of the computation, and fires as the result arrives.
+val watched: Async.Running[String] =
+  fetchRow().tap(row => Async.attempt(log(s"got $row"))).start
+
+// After: the work was already under way — possibly already over — so the tap
+// is inspecting an outcome rather than watching it happen.
+val bolted: Async[String] =
+  fetchRow().start.tap(row => Async.attempt(log(s"got $row")))
+```
+
+Both compile and both see the value, so the second is not broken — but if you are timing something, logging progress, or want to react the moment a failure appears, only the first is doing that. The same goes for `either` and `foldCause`: put them inside the computation you start, rather than onto a handle whose failure has already been published.
+
+If the value was ready to begin with, no worker is involved at all and those observers simply run on your own thread.
 
 So you can join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
 
