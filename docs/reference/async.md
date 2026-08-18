@@ -1127,7 +1127,7 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
-Compose *before* you start, when you can: operators applied ahead of `start` — `either`, `tap`, `foldCause` and the rest — observe the outcome as it settles. On an `Async` that is already ready, those observers run synchronously on the calling thread rather than on a worker.
+Add what you want to observe *before* calling `start`, not after. An `either`, a `tap` or a `foldCause` attached to the value first will see the result as it arrives; attach it to the handle afterwards and you are looking at work that may already be finished. If the value was ready to begin with, those observers simply run on your own thread instead of a worker.
 
 Because `Async.Running[A]` is itself an `Async[A]`, you can also join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
 
