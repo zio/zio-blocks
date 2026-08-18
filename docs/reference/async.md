@@ -541,13 +541,15 @@ Two limits apply. On the JVM, never call `block` from inside a `poll` — you wo
 
 On Scala.js there is no thread to park at all. A ready value returns as usual, but a *pending* one gets a single chance to complete synchronously, and if it has not, `block` throws `IllegalStateException`. Scala.js code should reach for `toFuture` or `toJsPromise` and let the event loop deliver the result, or stay inside `Async.async { … }` and use `await`.
 
-`start` dispatches the description to a background worker and returns an `Async.Running[A]` immediately, without blocking:
+`start` hands whatever is still waiting to a background worker and returns an `Async.Running[A]` immediately, without blocking. That worker — or, on Scala.js, the microtask queue — is what the rest of this page calls the *driver*: the thing that keeps asking a pending value for its result:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Int] = Async.attempt(42).start
-val result: Int = running.block  // join when ready
+def compute(): Int = 42
+
+val running: Async.Running[Int] = Async.start { compute() }
+val result: Int = running.block  // wait here for the result
 ```
 
 `toFuture` hands off to a `scala.concurrent.Future`, bridging into any code that already expects the standard-library async type:
@@ -1127,6 +1129,28 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
+Because a `Running` is an `Async[A]`, you can wait for its result with `block`, compose it further with `map` or `flatMap`, or pass it anywhere an `Async[A]` is expected — [Concurrent Fan-Out via Running](#concurrent-fan-out-via-running) works through that pattern, and the reason to share one handle rather than start twice.
+
+What you should not do is call `poll` yourself. It is there for drivers, and its contract — stop at a terminal value, never re-poll a settled one — is easy to violate by hand. Drive a `Running` the same way you drive any other `Async`: `block`, `toFuture`, or composition. There is no `isCompleted`; if you want to know whether it has finished without waiting, keep that flag yourself where you complete the work.
+
+Calling `cancel` stops the *driver*, and does nothing if the run has already settled. [`Cancelable`](#cancelable) covers how far that reaches; two consequences belong here:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running: Async.Running[Nothing] = Async.never.start
+running.cancel()  // the driver stops polling; no value is ever published
+```
+
+A cancelled run never settles at all — it does not fail, it simply stops. So anything still holding that handle and calling `block` on it waits forever on the JVM, and gets an `IllegalStateException` on Scala.js. Cancel only when you own every consumer of the handle.
+
+And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
+
+A `Running` is also an `AutoCloseable`, so `scala.util.Using` cancels it on any exit from the block. [Integration Points](#integration-points) shows that in use.
+
+All of the above describes the JVM, where the driver is a background thread. On Scala.js it is the microtask queue instead, and `block` is unavailable on a pending value — see [Platform Support](#platform-support).
+
+
 Attach what you want to observe *before* calling `start`, not after. `start` hands the still-waiting part of the value to a driver, and whatever you composed onto it beforehand is part of what that driver runs:
 
 ```scala mdoc:compile-only
@@ -1153,35 +1177,9 @@ val bolted: Async[String] =
 
 The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a description that nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
 
-`either` and `foldCause` raise the stakes further, because they decide whether the run counts as failed at all. Convert inside — `fa.either.start` — and the run always settles successfully, carrying a `Left` or a `Right`. Convert afterwards — `fa.start.either` — and the run has already settled as a failure; you have wrapped it for yourself, but the handle stays failed for everyone else holding it.
+`either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start,, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
 
 One caveat from the [evaluation model](#evaluation-model): if the value was ready to begin with, there is nothing to hand to a driver. `start` returns an already-settled handle, no worker is involved, and an observer attached beforehand ran as you built the value.
-
-Because a `Running` is an `Async[A]`, you can wait for the result, compose it further, or pass it anywhere an `Async[A]` is expected:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val running: Async.Running[Int] = Async.start(42)
-// Compose the running handle as an Async[Int]:
-val doubled: Async[Int] = running.map(_ * 2)
-val result: Int = doubled.block  // joins and transforms
-```
-
-Calling `cancel` stops the *driver*, and does nothing if the run has already settled. [`Cancelable`](#cancelable) covers how far that reaches; two consequences belong here:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val running: Async.Running[Nothing] = Async.never.start
-running.cancel()  // the driver stops polling; no value is ever published
-```
-
-A cancelled run never settles at all — it does not fail, it simply stops. So anything still holding that handle and calling `block` on it waits forever on the JVM, and gets an `IllegalStateException` on Scala.js. Cancel only when you own every consumer of the handle.
-
-And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
-
-A `Running` is also an `AutoCloseable`, so `scala.util.Using` cancels it on any exit from the block. [Integration Points](#integration-points) shows that in use.
 
 ### Cancelable
 
