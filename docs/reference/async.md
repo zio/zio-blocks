@@ -147,7 +147,7 @@ class Uploader {
 
   def begin(): Unit = {
     val previous = current.getAndSet(Async.start(uploadHugeFile()))
-    if (previous ne null) previous.cancel()  // never overwrite a live handle
+    if (previous ne null) previous.cancel()  // stop watching the one displaced
   }
 
   def abort(): Unit = {
@@ -1115,7 +1115,7 @@ The once-only guarantee earns its keep in code like this. You are trusting a thi
 
 ## Controlling In-Flight Work
 
-Once `start` has handed you an `Async.Running[A]`, the computation is out of your hands and into a worker's. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
+Once `start` has handed you an `Async.Running[A]`, the computation is being driven for you — on a background worker if it still has waiting to do, and already settled if it does not. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
 
 ### Async.Running
 
@@ -1127,43 +1127,37 @@ The structural declaration is:
 abstract class Running[+A] extends Pollable[A] with Cancelable
 ```
 
-Attach what you want to observe *before* calling `start`, not after. `start` begins the work at once, so anything you add to the value first becomes part of what the worker runs:
+Attach what you want to observe *before* calling `start`, not after. `start` hands the still-waiting part of the value to a driver, and whatever you composed onto it beforehand is part of what that driver runs:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-def fetchRow(): Async[String] = Async.succeed("row-1")
-def log(msg: String): Unit   = ()
+// A row that arrives a moment from now, on another thread.
+def fetchRow(): Async[String] = Async.promise[String] { c ?=>
+  val t = new Thread(() => { Thread.sleep(250); c.succeed("row-1") })
+  t.setDaemon(true)
+  t.start()
+}
+def log(msg: String): Unit = ()
 
-// Before: the tap is part of the computation, and fires as the result arrives.
+// Before start: the tap is part of what the driver runs, and fires when the
+// row arrives.
 val watched: Async.Running[String] =
   fetchRow().tap(row => Async.attempt(log(s"got $row"))).start
 
-// After: the work was already under way — possibly already over — so the tap
-// is inspecting an outcome rather than watching it happen.
+// After start: this builds a *new* Async that nobody is driving. The tap runs
+// only if you drive this one too — by blocking on it, or starting it.
 val bolted: Async[String] =
   fetchRow().start.tap(row => Async.attempt(log(s"got $row")))
 ```
 
-Both compile, and in both the `tap` receives the row, so the second version is not wrong — you get the same value. What differs is *when* your code runs relative to the work, which timing makes obvious:
+The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a description that nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
 
-```scala
-val t0 = System.currentTimeMillis()
+`either` and `foldCause` raise the stakes further, because they decide whether the run counts as failed at all. Convert inside — `fa.either.start` — and the run always settles successfully, carrying a `Left` or a `Right`. Convert afterwards — `fa.start.either` — and the run has already settled as a failure; you have wrapped it for yourself, but the handle stays failed for everyone else holding it.
 
-// Inside: the clock is read as the row arrives — "took 250ms".
-fetchRow().tap(_ => Async.attempt(log(s"took ${System.currentTimeMillis() - t0}ms"))).start
+One caveat from the [evaluation model](#evaluation-model): if the value was ready to begin with, there is nothing to hand to a driver. `start` returns an already-settled handle, no worker is involved, and an observer attached beforehand ran as you built the value.
 
-// Outside: the fetch has been running while you did other things, and this
-// reads the clock whenever you got round to attaching — it measures you.
-val running = fetchRow().start
-running.tap(_ => Async.attempt(log(s"took ${System.currentTimeMillis() - t0}ms")))
-```
-
-`either` and `foldCause` raise the stakes, because they decide whether the run counts as failed at all. Convert inside — `fa.either.start` — and the run always settles successfully, carrying a `Left` or a `Right`. Convert afterwards — `fa.start.either` — and the run has already settled as a failure; you have wrapped it for yourself, but the handle stays failed for everyone else holding it. Decide the shape you want the outcome to have, build that, and start it.
-
-If the value was ready to begin with, no worker is involved at all and those observers simply run on your own thread.
-
-So you can join the result, compose it further, or pass it anywhere an `Async[A]` is expected:
+Because a `Running` is an `Async[A]`, you can wait for the result, compose it further, or pass it anywhere an `Async[A]` is expected:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -1174,14 +1168,18 @@ val doubled: Async[Int] = running.map(_ * 2)
 val result: Int = doubled.block  // joins and transforms
 ```
 
-Calling `cancel` stops the run, and does nothing if it has already finished:
+Calling `cancel` stops the *driver*, and does nothing if the run has already settled. [`Cancelable`](#cancelable) covers how far that reaches; two consequences belong here:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
 val running: Async.Running[Nothing] = Async.never.start
-running.cancel()  // stops immediately; the driver never delivers a value
+running.cancel()  // the driver stops polling; no value is ever published
 ```
+
+A cancelled run never settles at all — it does not fail, it simply stops. So anything still holding that handle and calling `block` on it waits forever on the JVM, and gets an `IllegalStateException` on Scala.js. Cancel only when you own every consumer of the handle.
+
+And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
 
 A `Running` is also an `AutoCloseable`, so `scala.util.Using` cancels it on any exit from the block. [Integration Points](#integration-points) shows that in use.
 
