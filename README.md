@@ -2,6 +2,8 @@
 [//]: # (So please do not edit it manually. Instead, change "docs/index.md" file or sbt setting keys)
 [//]: # (e.g. "readmeDocumentation" and "readmeSupport".)
 
+![ZIO Blocks](https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-social-github.svg)
+
 # ZIO Blocks
 
 **Modular, zero-dependency building blocks for modern Scala applications.**
@@ -29,6 +31,7 @@ The philosophy is simple: **use what you need, nothing more**. Each block is ind
 | **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
 | **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
 | **Streams** | Pull-based streaming primitives | ✅ Available |
+| **SQL** | Type-safe JDBC wrapper with schema-derived codecs and CRUD repository | ✅ Available |
 | **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
 
 ## Config
@@ -49,10 +52,10 @@ See the [Config reference](docs/reference/config.md) for the full API surface, s
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-config" % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-config" % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "0.0.51"
 ```
 
 ### Quick Start: StaticFlag
@@ -188,14 +191,14 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.51"
 
 // Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "0.0.41"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "0.0.51"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "0.0.51"
 ```
 
 ### Example: Optics
@@ -250,7 +253,7 @@ Chunk is designed for:
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "0.0.51"
 ```
 
 ### Example
@@ -339,7 +342,7 @@ Scope.global.scoped { scope =>
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "0.0.51"
 ```
 
 ### Example: Basic Resource Management
@@ -382,13 +385,7 @@ val serviceResource: Resource[UserService] = Resource.from[UserService](
   Wire(Config("jdbc:postgresql://localhost/mydb"))
 )
 
-Scope.global.scoped { scope =>
-  import scope.*
-
-  val service = allocate(serviceResource)
-
-  $(service)(_.createUser("Alice"))
-}
+serviceResource.use(_.createUser("Alice"))
 // Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
 ```
 
@@ -448,7 +445,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "0.0.51"
 ```
 
 ### Example
@@ -532,7 +529,7 @@ Compile-time type identity with rich metadata. TypeId captures comprehensive inf
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "0.0.51"
 ```
 
 ### Example
@@ -575,7 +572,7 @@ A type-indexed heterogeneous collection that stores values by their types with c
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-context" % "0.0.51"
 ```
 
 ### Example
@@ -627,7 +624,7 @@ Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQue
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.41"
+libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "0.0.51"
 ```
 
 ### Example
@@ -644,6 +641,75 @@ spsc.take()          // "hello"
 val mpmc = MpmcRingBuffer[String](1024)
 mpmc.offer("hello") // false if full
 mpmc.take()          // null if empty
+```
+
+---
+
+## SQL
+
+A thin, type-safe JDBC wrapper that maps Scala case classes to database tables using the same `Schema` you use for JSON and Avro codecs. No ORM runtime, no code generation — just composable SQL fragments, a derived repository abstraction, and a direct ZIO integration.
+
+### The Problem
+
+JDBC is powerful but tedious: manual `ResultSet` traversal, index-based parameter binding, and repetitive CRUD boilerplate make even simple database access error-prone. ORMs solve the boilerplate but add heavy runtimes, hidden queries, and opaque magic.
+
+### The Solution
+
+ZIO Blocks SQL derives everything from a single `Schema[A]`:
+
+```scala
+case class User(id: Long, name: String, email: String)
+object User:
+  given Schema[User] = Schema.derived
+
+// Derive the table, codec, and repository in one line
+val repo = Repo.derived[User, Long]
+
+// Use the sql"..." interpolator for custom queries
+val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
+```
+
+### Key Features
+
+- **Schema-derived codecs**: `DbCodec[A]` is auto-derived from `Schema[A]` — column names, types, and nullability come for free.
+- **Composable fragments**: The `sql"..."` interpolator creates `Frag` values that compose safely with `++`. SQL injection is structurally impossible.
+- **CRUD repository**: `Repo[E, ID]` provides `all`, `find`, `findAll`, `insert`, `insertAll`, `update`, `delete`, `deleteAll`, and `clear` out of the box.
+- **DDL generation**: `Table.createTable(dialect)` generates type-accurate `CREATE TABLE IF NOT EXISTS` SQL from the schema.
+- **ZIO integration**: `TransactorZIO` lifts blocking JDBC calls into `Task` (or `ZIO`) with proper bracketing and rollback.
+- **Effect-system agnostic core**: The `zio-blocks-sql` module has no ZIO dependency — use it with any effect system or plain Scala.
+
+### Installation
+
+```scala
+// Core module (Scala 3, JVM + Scala.js)
+libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "0.0.51"
+
+// ZIO integration (Scala 3, JVM only)
+libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "0.0.51"
+```
+
+### Example
+
+```scala
+import zio.blocks.schema._
+import zio.blocks.sql._
+import zio.blocks.sql.zio._
+
+case class Product(id: Long, name: String, price: Double)
+object Product:
+  given Schema[Product] = Schema.derived
+  given DbCodec[Product] = summon[Schema[Product]].deriving(DbCodecDeriver).derive
+
+val repo        = Repo.derived[Product, Long]
+val transactor  = TransactorZIO.fromUrl("jdbc:postgresql://localhost/shop", SqlDialect.PostgreSQL)
+
+// Batch insert, then query with a custom filter
+val program = transactor.transact:
+  repo.insertAll(List(
+    Product(1L, "Widget", 9.99),
+    Product(2L, "Gadget", 29.99)
+  ))
+  sql"SELECT * FROM product WHERE price < ${15.0}".query[Product]
 ```
 
 ---
@@ -696,6 +762,9 @@ See the [Async reference](docs/./reference/async.md) for the full API, including
 `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
 `Future` / `CompletionStage` interop.
 
+**Runnable tour:** the [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
+module is a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`).
+
 ---
 
 ## Compatibility
@@ -717,10 +786,10 @@ Each block has zero dependencies on effect systems. Use the blocks directly, or 
 
 ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
 
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | Async |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|-------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ |
+| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL | Async |
+|----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|-------|
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 
 ## Documentation
 
@@ -768,10 +837,53 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
   - [Into](docs/reference/schema/schema-evolution/into.md) - One-way conversion with validation
   - [As](docs/reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
 
+### Telemetry
+
+- [Telemetry](docs/./reference/telemetry/index.md) - Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics
+
+**Tracing**
+- [TracerProvider](docs/./reference/telemetry/tracing/tracer-provider.md) - Factory for `Tracer` instances, configured once at startup
+- [Tracer](docs/./reference/telemetry/tracing/tracer.md) - Per-library scope-bound span emitter
+- [Span](docs/./reference/telemetry/tracing/span.md) - Active trace unit with attributes, events, and status
+
+**Logging**
+- [LoggerProvider](docs/./reference/telemetry/logging/logger-provider.md) - Factory for `Logger` instances
+- [Logger](docs/./reference/telemetry/logging/logger.md) - Per-library scope-bound structured log emitter
+
+**Metrics**
+- [MeterProvider](docs/./reference/telemetry/metrics/meter-provider.md) - Factory for `Meter` instances
+- [Meter](docs/./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory
+- [Instruments](docs/./reference/telemetry/metrics/instruments.md) - The `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` recording APIs
+- [Labeled Instruments](docs/./reference/telemetry/metrics/labeled-instruments.md) - Instruments whose label names are fixed up front and recorded positionally
+
+**Common Types**
+- [Attributes](docs/./reference/telemetry/common/attributes.md) - Parallel-array key/value store shared across signals
+- [AttributeKey](docs/./reference/telemetry/common/attribute-key.md) - Typed attribute key
+- [Resource](docs/./reference/telemetry/common/resource.md) - Immutable set of attributes describing the telemetry source entity
+- [InstrumentationScope](docs/./reference/telemetry/common/instrumentation-scope.md) - Named and versioned scope for grouping signals
+
+**Tracing Support**
+- [SpanContext](docs/./reference/telemetry/tracing/span-context.md) - Immutable trace and span identifiers for propagation
+- [SpanData](docs/./reference/telemetry/tracing/span-data.md) - Completed span snapshot used by exporters
+- [SpanProcessor](docs/./reference/telemetry/tracing/span-processor.md) - Hook interface for span start/end events
+- [Sampler](docs/./reference/telemetry/tracing/sampler.md) - Decision interface for whether to record and export a span
+
+**Logging Support**
+- [LogRecord](docs/./reference/telemetry/logging/log-record.md) - Immutable structured log record
+- [LogRecordProcessor](docs/./reference/telemetry/logging/log-record-processor.md) - Hook interface for processing emitted log records
+- [LogFormatter](docs/./reference/telemetry/logging/log-formatter.md) - Renders a log record to text (human-readable or OTLP JSON)
+- [LogWriter](docs/./reference/telemetry/logging/log-writer.md) - Routes formatted log text to a destination (stdout, stderr, file)
+- [Severity](docs/./reference/telemetry/logging/severity.md) - OpenTelemetry log severity enumeration
+- [LogEnrichment](docs/./reference/telemetry/logging/log-enrichment.md) - Mechanism for attaching context attributes to every log record
+
+**Metrics Support**
+- [MetricData](docs/./reference/telemetry/metrics/metric-data.md) - Snapshot of a metric instrument's collected data
+
 ### Other Blocks
 
 - [Chunk](docs/./reference/chunk.md) - High-performance immutable sequences
 - [Maybe](docs/./reference/maybe.md) - Low-allocation optional values using null
+- [Mux](docs/./reference/mux.mdx) - Thread-safe multiplexer for ID-multiplexed protocols (HTTP/2, QUIC, WebSockets) with lock-free per-stream queues
 - [Scope](docs/./reference/resource-management/scope.md) - Compile-time safe resource management and DI
 - [Wire](docs/./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
 - [TypeId](docs/./reference/typeid.md) - Type identity and metadata
@@ -780,21 +892,33 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 - [Docs (docs/Markdown)](./reference/docs.md) - Markdown parsing and rendering
 - [HTML](docs/./reference/html.md) - Type-safe HTML templating with XSS protection
 - [HTMX](docs/./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model) - Pure HTTP data model with URL parsing, headers, cookies, and forms
+- [HTTP Model](docs/./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
 - [Endpoint](docs/./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
 - [MediaType](docs/./reference/media-type.md) - Type-safe IANA media types
 - [Smithy](docs/./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
 - [OpenAPI](docs/./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
+- [Ring Buffer](docs/./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
 - [Stream](docs/./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
 - [Pipeline](docs/./reference/streams/pipeline.md) - Reusable, composable stream transformations
 - [Sink](docs/./reference/streams/sink.md) - Stream consumers that produce typed results
 - [Reader](docs/./reference/streams/reader.md) - Low-level pull-based sources for streaming
 - [Writer](docs/./reference/streams/writer.md) - Low-level push-based sinks for streaming
+- [SQL](docs/./reference/sql/index.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
+  - [DbCodec](docs/./reference/sql/db-codec.md) - Bidirectional codec between Scala values and database columns
+  - [Frag](docs/./reference/sql/frag.md) - Immutable SQL fragment with safe parameterization via `sql"..."` interpolator
+  - [Table](docs/./reference/sql/table.md) - Schema-derived table metadata binding Scala types to database tables
+  - [Repo](docs/./reference/sql/repo.md) - Type-safe CRUD repository with pre-built SQL operations
+  - [Transactor](docs/./reference/sql/transactor.md) - Connection lifecycle and transaction management
+  - [DbCon](docs/./reference/sql/db-con.md) - Implicit context carrying connection, dialect, and logger
+  - [DbTx](docs/./reference/sql/db-tx.md) - Transactional scope marker extending `DbCon`
+  - [SqlDialect](docs/./reference/sql/sql-dialect.md) - Database-specific SQL rendering (PostgreSQL, SQLite)
+  - [TransactorZIO](docs/./reference/sql/transactor-zio.md) - ZIO integration with `ZIO.attemptBlocking` and `ZLayer`
 - [Async](docs/./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 
+- [Getting Started with Async](docs/./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
+- [Getting Started with Mux](docs/./guides/getting-started-with-mux.md) - Learn how to manage multiplexed bidirectional message streams with capacity limits
 - [Migrating from ZIO Schema](docs/./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
 - [Query DSL Part 1: Expressions](docs/./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](docs/./guides/query-dsl-sql.md) - Translate query expressions into SQL
