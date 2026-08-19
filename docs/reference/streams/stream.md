@@ -1823,3 +1823,8 @@ Run this example:
 ```bash
 sbt "streams-examples/runMain stream.StreamWindowingExample"
 ```
+
+## See Also
+
+- [Async Reference](../async.md) — `Async.promise` and `Completer` bridge callback-based APIs into async values that can feed stream sources; `Async.Running` carries a synchronous cancellation handle that complements stream resource management
+- [Scope Reference](../resource-management/scope.md) — compile-time resource safety for stream acquisition and release; `fromAcquireRelease` follows the same ownership rules as Scope-managed resources

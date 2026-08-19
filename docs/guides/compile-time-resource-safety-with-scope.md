@@ -999,3 +999,4 @@ For complete API documentation, see the [Scope Reference](../reference/resource-
 
 - [Telemetry Reference](../reference/telemetry/index.md) — `TracerProvider`, `LoggerProvider`, and `MeterProvider` are `AutoCloseable`, so the ownership rules here carry over to their lifetimes
 - [Telemetry Guide](./telemetry-guide.md) — Provider startup and shutdown ordering, done with plain `AutoCloseable` shutdown rather than `Scope`
+- [Async Reference](../reference/async.md) — `Async.Running` extends `AutoCloseable` and integrates with `scala.util.Using` for scoped cancellation; the same resource-ownership mental model used by Scope applies to in-flight async computations

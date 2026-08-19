@@ -1,634 +1,1291 @@
 ---
 id: async
 title: "Async"
+description: "Reference for the ZIO Blocks async module: Async[A], Pollable, Completer, Async.Running, and Cancelable."
+keywords:
+  - "Asynchronous Effects"
+  - "Eager Evaluation"
+  - "Callback Bridge"
+  - "Structured Cancellation"
+  - "Async"
+  - "Pollable"
 ---
 
-The `async` module provides `Async[A]`, a lightweight, zero-dependency
-asynchronous effect type for modern Scala. It is designed around a single idea:
-**a ready `Async[A]` is just an `A`**. The happy path allocates nothing — no
-effect tree, no wrapper, no boxing beyond what a generic JVM method already
-requires — so synchronous code composed with `map` / `flatMap` runs at
-hand-written speed while still being able to suspend on genuinely asynchronous
-work.
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
-## Overview
+The `async` module provides `Async[A]` — a small asynchronous effect type for Scala 2.13 and Scala 3, targeting both JVM and Scala.js.
 
-`Async[A]` is an opaque type whose ready representation is the value itself and
-whose pending representation is a `Pollable[A]`. You never construct it
-directly; you enter the type through constructors and transform it through
-extension methods:
+An `Async[A]` value is a computation that either yields an `A` or fails with a `Throwable`. Unlike a lazy effect type, building one *runs* it: the synchronous work happens as you construct it, and only a computation that genuinely has to wait for something is left pending. [Evaluation model](#evaluation-model) explains where that line falls.
 
-- **Constructors** — `Async.succeed`, `Async.fail`, `Async.attempt`,
-  `Async.never`, `Async.collectAll`, and the callback bridge `Async.promise`.
-- **Transformers** — `map`, `flatMap`, `zip`, `zipWith`, `catchAll`,
-  `mapError`, `orElse`, `foldCause`, `either`, `tap`, `ensuring`, `as`, `unit`,
-  `*>`, `<*`, `flatten`, and the conditional helpers `when` / `unless`.
-- **Direct style** — `Async.async { ... .await ... }` lets you write
-  straight-line code with `.await`, rewritten at compile time into a
-  non-blocking `flatMap` chain.
-- **Running** — `.block` drives an `Async` to its value (blocking on the JVM,
-  throwing on a genuinely pending value on JS).
-- **Interop** — conversions to and from `scala.concurrent.Future` on every
-  platform, Java's `CompletionStage` / `CompletableFuture` on the JVM, and
-  `js.Promise` on Scala.js.
-
-On Scala 3 the transformers are zero-cost `inline` extension methods (the ready
-path applies your function directly to the underlying value with no `Function1`
-allocation). On Scala 2 they are methods on an implicit `AsyncOps` class. The
-raw-value representation — a ready `Async[A]` *is* an `A` — holds identically on
-both.
-
-## Runnable example
-
-The [`async-examples`](https://github.com/zio/zio-blocks/tree/main/async-examples)
-module contains a single self-contained program that walks through the major
-features in one file — ready-path composition, direct-style `Async.async` /
-`.await`, `zip` / `collectAll`, error handling, `Async.promise`, a custom
-[[Pollable]] leaf, `tap` / `ensuring`, cancellable `Async.start` /
-`Async.Running`, and JVM `Future` interop.
-
-```bash
-sbt "++3.8.3; async-examples/run"
-```
-
-The program models a small order-fulfillment pipeline: fetch a user and order,
-check warehouse stock, pack a shipment, and audit the steps. The structure is
-intentionally linear so you can read it top-to-bottom as a tutorial.
-
-### Direct-style fulfillment
-
-The heart of the demo is straight-line code over suspending steps — no
-callback nesting, no manual `flatMap` chains:
+Conceptually, an `Async[A]` is one of three things — a value that is already available, a failure that has already happened, or a computation that will complete later:
 
 ```scala
-def fulfill(orderId: Int): Async[Shipment] = Async.async {
-  val order = fetchOrder(orderId).await
-  val lines = order.items.map { item =>
-    val stock = stockFor(item.sku).await
-    if (stock.onHand < item.qty)
-      throw new IllegalStateException(s"short ${item.sku}")
-    (item.sku, item.qty)
-  }
-  Shipment(orderId, lines, carrier = "zio-blocks-express")
-}
+// The mental model, not the real encoding.
+enum Async[+A]:
+  case Ready(value: A)                 // already available
+  case Failed(cause: Throwable)        // already failed
+  case Suspended(source: Pollable[A])  // completes later, via a callback
 ```
 
-A failure from any `.await` short-circuits the block as a failed `Async`, the
-same as throwing inside synchronous code.
+The real definition is a type alias whose runtime representation is `Any`. That is a performance decision, not a modelling one: a ready value *is* its own `Async`, so the common path allocates nothing and boxes nothing. Reach for the three cases above when reasoning about behaviour, and let the encoding stay invisible — no combinator in this module requires you to know it.
 
-### Callback bridge
+Suspension is where the other types enter. A `Pollable[A]` is the extension point that produces a not-yet-available result, [`Completer`](#completer) is the ready-made `Pollable` for bridging callbacks, [`Async.Running`](#asyncrunning) is a `Pollable` you can also cancel, and [`Cancelable`](#cancelable) is that cancellation interface on its own.
 
-Legacy APIs that take success/error callbacks lift cleanly through
-`Async.promise` (Scala 3 context-function style):
-
-```scala
-val json: Async[String] =
-  Async.promise[String] {
-    // Capture the completer — nested callbacks do not inherit the `?=>` context.
-    val completer = summon[Completer[String]]
-    legacyHttpGet("/users/42", completer)
-  }
-```
-
-### Custom asynchronous leaves
-
-When you need a bespoke source of suspension — a socket read, a timer, a
-foreign runtime — implement [[Pollable]] and return it from `flatMap` to
-**sequence** it, or store it via `Async.succeed` / `map` to keep it as a
-**value** (the runtime wraps pollable success values so combinators never
-mistake them for suspended computations; note that the top-level drivers —
-`.block`, `Async.start`, and the interop converters — do drive a directly
-stored pollable for its effects at delivery, settling to the pollable itself).
-The showcase includes a `Delayed` pollable that becomes ready after a few
-scheduler ticks.
-
-See
-[`AsyncShowcaseExample.scala`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
-for the full program.
+The type is aimed at infrastructure-level code: places that need a first-class asynchronous value, on both the JVM and Scala.js, without taking on an ecosystem to get one. Where a fuller effect system offers an environment type, a typed error channel and fibers, `Async` offers a computation, a `Throwable`, and a handle you can cancel — and in exchange stays cheap enough to use on paths that are usually synchronous.
 
 ## Installation
 
-Add the following to your `build.sbt`:
+Add the module to your build:
 
-```sbt
+```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
 ```
 
-For cross-platform projects (Scala.js):
+In a cross-built project, use `%%%` so the same line resolves for both JVM and Scala.js:
 
-```sbt
+```scala
 libraryDependencies += "dev.zio" %%% "zio-blocks-async" % "@VERSION@"
 ```
 
-Supported platforms: JVM and Scala.js, Scala 2.13 and Scala 3.x. The
-direct-style `Async.async` block is rewritten by dotty-cps-async on Scala 3
-(JVM and older Scala 3 JS), by a hybrid backend on Scala 3.8+ JS (native
-`js.async` / `js.await` for direct-position awaits, with the dotty-cps-async
-transform as fallback for awaits inside closures, by-name arguments, or nested
-methods), and by a hand-written macro on Scala 2.
+The module publishes for JVM and Scala.js, on Scala 2.13 and Scala 3. That single coordinate is all you add: it brings `zio-blocks-combinators` with it, along with `dotty-cps-async` on Scala 3 or `scala-reflect` on Scala 2, both of which power the direct-style rewrite.
 
-## Constructors
+## Overview
 
-`Async.succeed` lifts a pure value; `Async.fail` lifts an error; `Async.attempt`
-catches a thrown exception and turns it into a failure.
+`Async[A]` is the type you will spend nearly all your time with. Every way of creating a value, every way of transforming one, and every way of running one produces or consumes an `Async[A]`. If you only learn this type, you can already write complete programs — the rest of the module exists to feed values into it or to control one that is already running.
 
-```scala mdoc
+`Completer[A]` is the type you reach for next, and the reason is a problem you have almost certainly hit: some library hands you a result through a callback rather than returning it. `Async.promise` gives you a `Completer`, you pass that to the callback, and you get back an `Async[A]` that completes when the callback fires. From that point on it behaves like any other `Async[A]`, so the callback-based API disappears into ordinary code.
+
+`Async.Running[A]` appears when you start work without waiting for it. Calling `.start` on an `Async[A]` begins the computation immediately and hands you a `Running` as a receipt. Keep it, and you can wait for the result later, run several pieces of work at once and collect them all, or stop the work early.
+
+`Cancelable` is that last ability on its own — a single way to say "stop this." `Async.Running` provides it, and so can anything else you write that needs to be stoppable.
+
+`Pollable[A]` is the one type most programs never touch. It is the extension point for teaching the module about a brand-new source of delayed results — a timer, a socket read, a platform-specific callback. Implementing one makes your source usable anywhere an `Async[A]` is expected. Reach for it only when you are wiring up something genuinely new; for ordinary callback bridging, `Async.promise` and a `Completer` are the right tools.
+
+## Evaluation Model
+
+`Async[A]` is **eager**, not a lazy `IO`. Building one performs its synchronous work straight away — constructing the value *runs* it, up to the first point where it genuinely has to wait:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+// "computing" is printed by this line, not by the one below it.
+val fa: Async[Int] = Async.attempt { println("computing"); 42 }
+val n: Int         = fa.block  // the value was already there; nothing more runs
+```
+
+The same is true across the module. `Async.promise` runs its setup block when you call it, and `Async.succeed(x).map(f)` applies `f` immediately, because `x` is right there. Only a combinator applied to a value that is *already suspended* defers: then the function is kept and runs when a driver settles the value.
+
+A direct-style block splits the same way, at its first genuine wait. Everything above that line runs as you build the value; everything below it is kept for later:
+
+```scala
+Async.async {
+  val cfg  = loadConfig()             // ┐
+  logger.info("starting")             // ├ runs now, as this value is built
+  val base = compute(cfg)             // ┘
+  val row  = fetchRow(base).await     // the first genuine wait
+  transform(row)                      // runs later, when a driver settles it
+}
+```
+
+An `await` whose value is ready before it is asked does not count as a wait. It hands the value over on the spot and the block carries straight on, so the dividing line is not the first `await` you wrote — it is the first one that has nothing to give yet:
+
+```scala
+Async.async {
+  val a = Async.succeed(1).await   // already a value: no wait, keep going
+  val b = compute(a).await         // also ready: no wait, keep going
+  val c = fetchFromNetwork().await // nothing yet — the block stops here
+  a + b + c                        // deferred, along with everything below
+}
+```
+
+The practical consequence is that you cannot find the pause by counting `await`s. A block whose values are all ready pauses nowhere and finishes as you construct it; a block whose *first* `await` is a network call has run none of the lines below it by the time `Async.async { … }` hands you a value.
+
+So where does waiting come from at all? From exactly one place: a [`Pollable`](#pollable) that was asked for its value and answered *not yet*. That is the only thing in the module that can make a computation pending. Everything else already has its answer — `succeed` has a value, `fail` has a cause, `attempt` has run, `map` merely applies a function.
+
+Waiting then spreads in one direction only: to the combinators stacked on top of that pending value, which cannot produce a result until it does.
+
+```scala
+val c = new Completer[Int]                    // a Pollable; not completed yet
+val a = c.peek.map(_ + 1)                     // above a pending value → deferred
+val b = a.flatMap(n => Async.succeed(n * 2))  // still above it → deferred
+
+val d = Async.succeed(1).map(_ + 1)           // no pending value anywhere → already ran
+```
+
+`a` and `b` wait only because they sit on top of a `Completer` nobody has completed. `d` shares none of that history, so it is simply the number `2` — the `+ 1` happened as the line was evaluated.
+
+One consequence catches people out. If a function you pass to `map`, `flatMap` or `tap` throws, and the value it is applied to is *ready*, that function runs as you build the value — so the exception escapes at that line rather than becoming a failed `Async` you can `catchAll`. Only `Async.attempt` turns a throw into a `Failure`; the combinators do not:
+
+```scala
+Async.succeed(text).map(_.toInt)                          // throws here if text is not a number
+Async.succeed(text).flatMap(s => Async.attempt(s.toInt))  // fails as an Async instead
+```
+
+The "only one place" part is what distinguishes `Async` from a lazy effect type. `map`, `flatMap` and `zipWith` do not themselves defer anything, and building a chain does not create a plan to be executed later. If you cannot point at a value still waiting to be completed, nothing in your chain is pending: it has all already run.
+
+Two things follow. Any pending computation can be traced to the thing it is waiting on — a `Completer` for a callback bridge, an [`Async.Running`](#asyncrunning) for started work, or your own `Pollable`. And the waiting is temporary and forward-only: when that value is completed, everything above it becomes ready, and nothing below it was ever held up, because that code had already run.
+
+This is a deliberate trade. Eager evaluation is what keeps the ready path allocation-free — no effect tree, no per-step thunk, none of the wrapper objects most effect types build — and that is where the throughput comes from. It is also why `Async[A]` costs close to nothing on a mostly-synchronous path: when there is nothing to wait for, chaining operations onto a value just runs them.
+
+The costs are real too. Building a value has effects, so `Async` is not referentially transparent: you cannot move a construction around, or replace a value with the expression that produced it, and be sure the program still means the same thing.
+
+And letting go of a value does not stop it. With a lazy effect type, discarding an unused effect discards the work with it, because none of it had happened yet. Here the work is already under way:
+
+```scala
+val running = Async.start(uploadHugeFile())
+
+// Reassigning or forgetting `running` does not stop the upload. The worker
+// keeps going and the bytes keep moving; you have only thrown away your
+// ability to watch it or stop it.
+```
+
+Stopping requires asking, through [`Cancelable#cancel`](#cancelable), and that reaches less far than you might expect.
+
+The handle is your only route to that request. There is no registry of running computations to consult and no supervisor to ask, so a handle you have dropped cannot be recovered: that work becomes unstoppable for the rest of the process, and it finishes on its own schedule, holding its thread and its socket until it does. Nothing counts how many observers are left, so nothing notices when the last one goes away.
+
+The rule that falls out is to decide at `start` time whether this work might ever need stopping. If it might, give the handle somewhere to live:
+
+```scala
+import java.util.concurrent.atomic.AtomicReference
+
+class Uploader {
+  private val current = new AtomicReference[Async.Running[Unit]]()
+
+  def begin(): Unit = {
+    val previous = current.getAndSet(Async.start(uploadHugeFile()))
+    if (previous ne null) previous.cancel()  // stop watching the one displaced
+  }
+
+  def abort(): Unit = {
+    val running = current.getAndSet(null)
+    if (running ne null) running.cancel()    // possible only because it was kept
+  }
+}
+```
+
+Note what `begin` has to do on the way past: replacing a handle means cancelling the one it displaces, or that upload becomes unstoppable while still running. The `AtomicReference` is there because the field is reachable from more than one thread — `abort` may well be called while `begin` is assigning.
+
+A [`Using`](#integration-points) block does the same job when the work is confined to a scope. And if the answer is that it never needs stopping, dropping the handle is fine — that is fire-and-forget, chosen deliberately rather than by accident.
+
+In all of this `Async` sits beside `scala.concurrent.Future`, which is also eager, rather than beside cats-effect `IO` or ZIO.
+
+### Depth Limits on Waiting Values
+
+Call `map` on a value that is still waiting and you get back a wrapper: it remembers the original value and the function you gave it. Ask that wrapper for a result and it has to ask the original first, because until the original produces something there is nothing to apply the function to. That question is an ordinary method call, so the wrapper is left part-way through its own work — holding its place on the call stack — while the value underneath answers.
+
+Stack several and each repeats the pattern. Take `c.peek.map(f).flatMap(g).map(h)`, where `c` is a `Completer` nobody has completed yet. Asking the outermost wrapper sets off a chain of questions inward, and every one of them waits where it stands:
+
+```
+map h asks …                  still waiting
+ └─ flatMap g asks …          still waiting
+     └─ map f asks …          still waiting
+         └─ c answers "not yet" — and that travels back out through all three
+```
+
+None of them can finish until the innermost one answers, so all of them are held open at the same time. A chain written N deep costs N held-open calls, every single time it is asked.
+
+Most effect systems avoid that with a trampoline: rather than calling its child directly, each step returns a small object meaning *"do this next"* to a loop that keeps running steps until one produces a value. One loop frame serves any depth. The price is paid on every step of every poll — an object allocated to describe the step, and a dispatch through the loop instead of a direct call.
+
+There is no third option, so the choice was between the two:
+
+| Approach     | Depth                     | Cost per step                                      |
+|--------------|---------------------------|----------------------------------------------------|
+| Trampoline   | Unlimited                 | An object allocated, and a dispatch, on every poll |
+| Direct calls | Limited by the call stack | Nothing                                            |
+
+`Async` takes the second. That is why nothing is allocated while polling, and it is also why a long enough chain over a waiting value ends in a `StackOverflowError` rather than a slowdown — the ceiling is the bill for the speed, not an oversight.
+
+You are unlikely to meet it by hand. A handful of `map` and `flatMap` calls around a network request is nowhere near the limit. It becomes a real risk when the length of the chain is decided by *data* — one `flatMap` per row, per file, per retry — because then the depth is however large the input happens to be, and code that is comfortable in a test can overflow in production on a bigger batch.
+
+Whether you are anywhere near the limit comes down to a single question: is the chain being built on top of a value that is still waiting?
+
+- **On a value that is already there, chains are safe at any length.** Each step runs as you write it and gives back a plain value again, so nothing is left holding anything open. A loop like `var fa = …; while (…) fa = fa.flatMap(g)` stays flat no matter how many times it goes round — the suite takes it to a million.
+- **On a value that is still waiting, a long chain is not safe.** Every `fa.flatMap(g)`, `fa.map(g)` or `fa.zipWith(…)` wraps the one before it, so asking for the result opens one call per wrapper before anything can answer, and the program runs out of stack somewhere around 50,000–100,000 on a default JVM. How you wrote the loop makes no difference — a recursive `def loop(n) = src.flatMap(_ => loop(n - 1))` and an iterative `fa = fa.flatMap(_ => src.flatMap(…))` build the same stack of wrappers.
+- **`Async.collectAll` and a `while` loop inside `Async.async` stay safe even when the values are still waiting** — both are tested at 50,000 such steps. `collectAll` is a single step that walks the collection itself, stacking no wrappers at all, and the direct-style loop runs one turn each time it is asked rather than building the whole chain in advance.
+
+So for long, wait-heavy work, reach for `collectAll` or an `Async.async` `while` loop instead of a hand-built tower of `flatMap`. `Future` never runs into this, but only because it sends every `flatMap` through an `ExecutionContext`; `Async` skips that hop to stay fast and takes the depth limit instead.
+
+### Pending Suspensions Differ by Platform
+
+Say a computation has hit a real wait. When the thing it waits for finally arrives, what makes the rest of the block run? Each platform answers with whatever its own runtime does fastest, so the answers differ:
+
+- **JVM, and Scala.js on Scala 2 or Scala 3 before 3.8** — nothing runs it for you. The value sits there until something asks it for a result: `.block`, `.start`, or an interop converter. Build a value and never drive it, and the code after the wait does not run late — it never runs at all.
+- **Scala.js on Scala 3.8 and later** — the block compiles into a real JavaScript async function, and JavaScript already has something whose job is resuming those: the event loop. It is always running, you did not start it, and you cannot opt out of it. So once the awaited value arrives, your code carries on by itself, whether or not anyone is watching.
+
+```scala
+val fa = Async.async { record(fetchRow().await) }
+
+// JVM: fetchRow may well finish, but `record` has not run — nothing drove fa.
+// Scala.js 3.8+: once fetchRow finishes, `record` runs anyway.
+```
+
+You are unlikely ever to see this. Values get built in order to be used, and the moment you `block` on one, `start` it, or hand it to a `Future`, both platforms behave identically and produce the same result. Noticing the difference takes a peculiar shape: build a block, let the thing it waits for arrive, then never drive it — a program that has already gone wrong, since it constructed work and then discarded it.
+
+It is worth documenting because it changes *when side effects happen*. If the code after a wait prints, writes a file, or bumps a counter, Scala.js may do that without you driving anything, while the JVM will not. Cross-platform code that leans on "this has not run yet" is leaning on something true in only one of the two.
+
+## How They Work Together
+
+A computation moves through four phases: construct leaf values, compose them, drive the result, then observe or cancel, as shown in the following flow diagram:
+
+```
+┌─ 1. CONSTRUCT — the synchronous part runs now ─────────────────┐
+│   Async.succeed(a)       a value you already have              │
+│   Async.fail(t)          a failure you already have            │
+│   Async.attempt { … }    runs the block, here, on this thread  │
+│   Async.promise { … }    runs its setup block now              │
+│   new Pollable[A] { … }  the one genuinely deferred leaf       │
+└────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+        Async[A]  ──  ready, failed, or waiting on something
+                          │
+                          ▼
+┌─ 2. COMPOSE — runs now if ready, defers if not ────────────────┐
+│   map    flatMap    zipWith    tap                             │
+│   catchAll    ensuring    collectAll                           │
+│                                                                │
+│   on a ready value the function runs immediately;              │
+│   on a pending one it is kept for the driver to run            │
+└────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─ 3. DRIVE — settle whatever is still pending ──────────────────┐
+│   .block             .start            .toFuture               │
+│   wait right here    run in the        .toJsPromise            │
+│                      background        hand it to the          │
+│        │                  │            platform                │
+│        ▼                  ▼                                    │
+│   the A, or          Async.Running[A]                          │
+│   the Throwable      — your receipt                            │
+└────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─ 4. OBSERVE or CANCEL — using the receipt ─────────────────────┐
+│   .block  .flatMap  .zipWith    wait for it, or compose more   │
+│   .cancel()                     stop it (via Cancelable)       │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Three of these types are closely related, and seeing why makes the module much smaller than it first looks. `Pollable[A]` answers one question — *is the result ready yet?* — and anything that can answer it is a `Pollable`:
+
+```
+Pollable[A]   —  "a result that is not here yet"
+   │
+   ├── Completer[A]       you complete it yourself, once, from a callback
+   ├── Async.Running[A]   work that is already running; can also be stopped
+   └── Failure            a computation that has already failed
+```
+
+That shared parent is what lets all three be used interchangeably. Wherever an `Async[A]` is expected, you can supply any of them, and every combinator — `map`, `flatMap`, `zipWith`, and the rest — works on the result without knowing or caring which one it is.
+
+`Failure` is on the list because failing is just another way of being finished — a computation that has failed is not waiting for anything. [`Failure`](#failure) describes what that means for the combinators downstream of it.
+
+You will use `Completer` and `Async.Running` constantly, and `Failure` mostly without naming it. Writing your own `Pollable` is the rare case, reserved for teaching the module about a new source of delayed results.
+
+Two details the diagram leaves out. Composing over a ready value is allocation-free, while composing over a waiting one allocates a `Pollable` that the driver walks poll by poll. And the handle from phase 3 is itself an `Async`, which is what makes phase 4 ordinary composition rather than a separate API.
+
+The following snippet grounds all four phases in an example: two off-thread `Completer` completions are composed with `zipWith` and driven by `block`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def delayed[A](value: A, ms: Long): Async[A] = {
+  val c = new Completer[A]
+  val t = new Thread(new Runnable {
+    def run(): Unit = { Thread.sleep(ms); c.succeed(value) }
+  })
+  t.setDaemon(true)
+  t.start()
+  c.peek  // the Completer is itself an Async[A]
+}
+
+// Phase 1 and 2: construct two off-thread leaves and compose with zipWith
+val r: Async[Int] = delayed(3, 30).zipWith(delayed(4, 5))(_ + _)
+
+// Phase 3: drive — parks the calling thread until both off-thread wakers fire
+val result: Int = r.block  // => 7
+```
+
+A second example shows what `Async.collectAll` guarantees: the results come back in the order you listed the computations, not the order they happened to finish. To make that visible, the delays below are deliberately reversed — the first element takes the longest, the last finishes almost immediately:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+// Completes with `value` after `ms`, on another thread.
+def delayed[A](value: A, ms: Long): Async[A] = {
+  val c = new Completer[A]
+  val t = new Thread(new Runnable {
+    def run(): Unit = { Thread.sleep(ms); c.succeed(value) }
+  })
+  t.setDaemon(true)
+  t.start()
+  c.peek
+}
+
+val ordered: Async[List[Int]] = Async.collectAll(List[Async[Int]](
+  delayed(1, 90),  // finishes third
+  delayed(2, 45),  // finishes second
+  delayed(3, 5)    // finishes first
+))
+
+// Completion order is 3, 2, 1 — the list is still 1, 2, 3.
+val results: List[Int] = ordered.block  // => List(1, 2, 3)
+```
+
+Without that guarantee you would have to tag each computation and re-sort the results yourself. Because `collectAll` keeps the positions, you can zip the output against the input list — or pattern-match on it positionally — and trust that element *n* belongs to computation *n*.
+
+## Operations
+
+Everything you can do with an `Async[A]`: make one, transform it, combine it with another, recover from a failure, and eventually run it. 
+
+One property is worth carrying into the signatures below. `Async[A]` is declared `Async[+A]`, which makes it *covariant*: whenever `B` is a subtype of `A`, an `Async[B]` counts as an `Async[A]`. That matters because `Async.fail` and `Async.never` have no value to offer, so their type is `Async[Nothing]` — and `Nothing` is a subtype of every type in Scala. An `Async[Nothing]` is therefore an `Async[String]`, an `Async[User]`, an `Async` of anything at all:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+case class User(id: Int, name: String)
+
+def fetchUser(id: Int): Async[User] =
+  if (id < 0) Async.fail(new IllegalArgumentException("bad id"))  // Async[Nothing]
+  else Async.succeed(User(id, "sam"))                             // Async[User]
+
+val forever: Async[User] = Async.never                            // Async[Nothing] fits too
+```
+
+Without covariance neither of those would compile against the declared `Async[User]`, and you would be writing `Async.fail[User](…)` or a cast at every failure. This is a property you notice only through the errors it saves you from.
+
+### Creating Values
+
+The companion object provides factories for constructing leaf `Async[A]` values:
+
+```scala
+object Async {
+  def succeed[A](a: A): Async[A]
+  def fail(cause: Throwable): Async[Nothing]
+  def attempt[A](body: => A): Async[A]
+  def promise[A](body: Completer[A] => Unit): Async[A]  // shape differs on Scala 3; see Completer
+  def start[A](body: => A): Async.Running[A]
+  val never: Async[Nothing]
+  def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
+  def async[A](body: A): Async[A]                       // rewritten in place: a macro on Scala 2,
+                                                        // a transparent inline def on Scala 3.
+                                                        // See the Direct Style pattern
+
+  // JVM only
+  def fromFuture[A](future: scala.concurrent.Future[A]): Async[A]
+  def fromCompletionStage[A](cs: java.util.concurrent.CompletionStage[A]): Async[A]
+}
+```
+
+`Async.succeed` lifts a pure, immediately-available value into an `Async[A]`:
+
+```scala mdoc:compile-only
 import zio.blocks.async._
 
 val ready: Async[Int] = Async.succeed(42)
-
-val failed: Async[Nothing] = Async.fail(new RuntimeException("boom"))
-
-val caught: Async[Int] = Async.attempt(Integer.parseInt("123"))
+val result: Int = ready.block  // => 42
 ```
 
-`Async.collectAll` sequences a collection of `Async` values, short-circuiting on
-the first failure:
+`Async.fail` creates a terminal failure; [`Failure`](#failure) covers how it short-circuits the rest of a chain:
 
-```scala mdoc
-val all: Async[List[Int]] =
-  Async.collectAll(List(Async.succeed(1), Async.succeed(2), Async.succeed(3)))
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val boom: Async[Int] = Async.fail(new RuntimeException("boom"))
+val result: Int = boom.catchAll(_ => Async.succeed(-1)).block  // => -1
 ```
 
-## Evaluation model: eager up to suspension
+`Async.attempt` captures a by-name expression and converts any thrown `Throwable` into a failure:
 
-`Async` is **eager**, not a lazy `IO`. Constructing an `Async` performs all of
-its synchronous work immediately — building the value *runs* it, up to the first
-point where it genuinely has to wait:
+```scala mdoc:compile-only
+import zio.blocks.async._
 
-- `Async.attempt(body)` runs `body` now (on the calling thread); `Async.promise`
-  runs its setup block now; `Async.async { ... }` runs its synchronous prefix
-  (and any **ready** `.await`s) now; `succeed(x).map(f)` runs `f` now. Only a
-  combinator applied to an **already-suspended** value defers — its function
-  runs when the value is later driven.
-- The single genuinely-lazy primitive is a custom [`Pollable`](#low-level-building-blocks-pollable):
-  its `poll` runs only when a driver asks for the value. Suspension exists only
-  *downstream of* an unresolved `poll`.
-
-This makes the success/ready path allocation-free (no effect tree, no per-step
-thunk) — the source of its throughput — at the cost of referential transparency
-(building has effects) and cancel-by-drop (use [`Cancelable.cancel`](#eager-cancellable-running-asyncstart-and-asyncrunning)
-instead). It sits next to `scala.concurrent.Future` (also eager) rather than
-cats-effect `IO` / ZIO (lazy).
-
-### What happens at a pending suspension differs by platform — by design
-
-Once an `Async` hits a genuinely **pending** suspension (an await of a
-not-yet-complete value), what advances it follows each platform's *fastest*
-suspension mechanism, so the two platforms diverge:
-
-- **JVM (and Scala.js on Scala 3 < 3.8, and Scala 2):** the value is a
-  poll-driven `Pollable` with no ambient driver. The continuation after the
-  pending suspension runs only when an external driver polls it — `.block`,
-  `fa.start`, or an interop runner (`toFuture` / `unsafeRunAsync`). A built-but-
-  never-driven block leaves that continuation un-run.
-- **Scala.js on Scala 3.8+:** `Async.async`/`.await` compile to native
-  `js.async` / `js.await` — a real JavaScript async function whose driver *is*
-  the event loop. Once the awaited value settles, the continuation self-resumes
-  off the microtask queue even if nothing polls the `Async`. This is the same
-  event-loop driving that makes await-heavy direct-style blocks substantially
-  faster than the dotty-cps-async backend, so the behavior is intentional, not a
-  defect: it is the zero-cost default of the fastest JS suspension primitive.
-
-In practice this is invisible — you always drive an `Async` you build — and the
-*value* is identical on every cell. The divergence is observable only by a block
-that is constructed, has its awaited value settle, and is then never driven.
-
-## Transforming values
-
-On the ready path the transformers apply your function directly to the
-underlying value; only a genuinely pending `Async` takes the suspended slow
-path.
-
-```scala mdoc
-val mapped: Async[Int] = Async.succeed(20).map(_ + 1)
-
-val chained: Async[Int] = Async.succeed(20).flatMap(n => Async.succeed(n * 2))
-
-val recovered: Async[Int] =
-  Async.fail(new RuntimeException("nope")).catchAll(_ => Async.succeed(-1))
+val parsed: Async[Int] = Async.attempt("42".toInt)
+val bad: Async[Int]    = Async.attempt("nope".toInt)  // => Async.fail(NumberFormatException)
+val result: Int        = bad.catchAll(_ => Async.succeed(0)).block  // => 0
 ```
 
-### Combining with `zip`
+`Async.never` is a permanently-suspended `Async[Nothing]` — a placeholder where an `Async[A]` is required but no value should ever arrive, and the usual way to test cancellation, as shown under [`Async.Running`](#asyncrunning).
 
-`zip` fuses two `Async` values into a tuple using the `combinators` module's
-`Tuples` combiner, so chained zips flatten automatically (`a zip b zip c`
-yields `Async[(A, B, C)]`, not `Async[((A, B), C)]`). Use `zipWith` to combine
-with an explicit function:
+`Async.start(body: => A)` runs a body on a background worker and hands back an `Async.Running[A]`; [Concurrent Fan-Out](#concurrent-fan-out-via-running) covers when to reach for it and the trap to avoid:
 
-```scala mdoc
-val zipped: Async[(Int, String)] =
-  Async.succeed(1).zip(Async.succeed("two"))
+```scala mdoc:compile-only
+import zio.blocks.async._
 
-val summed: Async[Int] =
+val running: Async.Running[Int] = Async.start { 42 }
+val result: Int = running.block  // => 42
+```
+
+### Transformation
+
+Pure transformations apply a function to the success value and return a new `Async`:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def map[B](f: A => B): Async[B]
+  def flatMap[B](f: A => Async[B]): Async[B]
+  def as[B](b: B): Async[B]
+  def unit: Async[Unit]
+}
+
+// flatten is a separate extension, on a nested Async:
+implicit class AsyncNestedOps[A](ffa: Async[Async[A]]) {
+  def flatten: Async[A]  // collapses one nesting level
+}
+```
+
+`map` applies a pure function and `flatMap` sequences a dependent second computation:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val result: Async[String] =
+  Async.succeed(21)
+    .map(_ * 2)
+    .flatMap(n => Async.succeed(s"value: $n"))
+val out: String = result.block  // => "value: 42"
+```
+
+### Composition
+
+Compositional operators combine independent or dependent `Async` values:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
+  def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out]  // flattens; see below
+  def tap(f: A => Async[Any]): Async[A]
+  def ensuring(finalizer: Async[Any]): Async[A]
+  def *>[B](that: Async[B]): Async[B]
+  def <*[B](that: Async[B]): Async[A]
+  def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
+}
+```
+
+`zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through. `zip` pairs the two results, and chains of it stay flat rather than nesting — `a zip b zip c` yields `Async[(A, B, C)]`, not `Async[((A, B), C)]` — because it combines through the `Tuples` instances described in the [combinators reference](combinators.md):
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val combined: Async[Int] =
   Async.succeed(3).zipWith(Async.succeed(4))(_ + _)
+val tapped: Async[Int] =
+  combined.tap(v => Async.attempt(println(s"sum is $v")))
+val result: Int = tapped.block  // => 7; "sum is 7" was printed by the line above
 ```
 
-### Error handling
-
-`catchAll` recovers a failure, `mapError` transforms the cause, `orElse`
-falls back to another `Async`, and `either` reifies the outcome:
-
-```scala mdoc
-val asEither: Async[Either[Throwable, Int]] =
-  Async.fail(new RuntimeException("x")).either
-
-val fallback: Async[Int] =
-  Async.fail(new RuntimeException("x")).orElse(Async.succeed(0))
-```
-
-### Conditional effects
-
-`when` / `unless` run an `Async` only when a condition holds, discarding its
-value. `Async.never` is an `Async` that never completes — useful as a sentinel:
-
-```scala mdoc
-val maybe: Async[Unit] = when(1 < 2)(Async.succeed(()))
-
-val skipped: Async[Unit] = unless(1 < 2)(Async.succeed(()))
-
-val forever: Async[Nothing] = Async.never
-```
-
-## Direct style: `Async.async` and `.await`
-
-Inside an `Async.async { ... }` block you can write straight-line code and use
-`.await` to extract the value of any `Async`. The block is rewritten at compile
-time into a non-blocking `flatMap` / `map` chain — there is no thread blocking
-on the happy path. `.await` is **lexically restricted** to `Async.async`
-blocks; using it elsewhere is a compile error.
+`*>` and `<*` sequence two effects and discard the left or right result respectively:
 
 ```scala mdoc:compile-only
-def loadUser(id: Int): Async[String] = Async.succeed(s"user-$id")
-def loadOrders(user: String): Async[List[String]] = Async.succeed(List(s"$user-order"))
+import zio.blocks.async._
 
-val program: Async[Int] =
-  Async.async {
-    val user   = loadUser(1).await
-    val orders = loadOrders(user).await
-    orders.size
+val logged: Async[Int] =
+  Async.attempt(println("starting")).*>(Async.succeed(42))
+val result: Int = logged.block  // => 42
+```
+
+### Error Handling
+
+`Async` represents failure as a `Throwable` and provides dedicated recovery operators:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
+  def mapError(f: Throwable => Throwable): Async[A]
+  def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
+  def either: Async[Either[Throwable, A]]
+}
+```
+
+`catchAll` recovers from any failure by supplying a replacement `Async[A]`; `either` converts the outcome to an `Either` so the failure surface is visible in the return type:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val safe: Async[Either[Throwable, Int]] =
+  Async.fail(new Exception("oops")).either
+val result: Either[Throwable, Int] = safe.block  // => Left(Exception("oops"))
+```
+
+`foldCause` handles both the success and failure branches in a single call without allocating a recovery `Async`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val message: Async[String] =
+  Async.attempt("42".toInt).foldCause(
+    (err: Throwable) => s"failed: ${err.getMessage}"
+  )(
+    (n: Int) => s"parsed: $n"
+  )
+val result: String = message.block  // => "parsed: 42"
+```
+
+### Driving
+
+Driving settles whatever part of an `Async[A]` is still waiting, and delivers the result through one of three mechanisms:
+
+```scala
+implicit class AsyncOps[A](fa: Async[A]) {
+  def block: A                                        // parks calling thread; re-throws on failure
+  def await: A                                        // inside Async.async { } only; the rewrite
+                                                      // removes it. Using it elsewhere does not compile
+  def start: Async.Running[A]
+  def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
+  def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
+    : java.util.concurrent.CompletableFuture[A]       // JVM only
+}
+```
+
+`block` parks the calling thread until the computation settles, then returns the value or re-throws the underlying `Throwable`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val result: Int = Async.succeed(42).map(_ + 1).block  // => 43
+```
+
+Two limits apply. On the JVM, never call `block` from inside a `poll` — you would be putting to sleep the very thread that has to deliver your result, which deadlocks the loop. Keep it at the edge of your program: `main`, a test, the boundary with synchronous code.
+
+On Scala.js there is no thread to park at all. A ready value returns as usual, but a *pending* one gets a single chance to complete synchronously, and if it has not, `block` throws `IllegalStateException`. Scala.js code should reach for `toFuture` or `toJsPromise` and let the event loop deliver the result, or stay inside `Async.async { … }` and use `await`.
+
+`start` hands whatever is still waiting to a background worker and returns an `Async.Running[A]` immediately, without blocking. That worker — or, on Scala.js, the microtask queue — is what the rest of this page calls the *driver*: the thing that keeps asking a pending value for its result:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def compute(): Int = 42
+
+val running: Async.Running[Int] = Async.start { compute() }
+val result: Int = running.block  // wait here for the result
+```
+
+`toFuture` hands off to a `scala.concurrent.Future`, bridging into any code that already expects the standard-library async type:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import scala.concurrent.ExecutionContext.Implicits.global
+
+val future: scala.concurrent.Future[Int] =
+  Async.succeed(99).toFuture
+```
+
+### Conditional Execution
+
+`when` and `unless` are package-level functions (brought in by `import zio.blocks.async._`) that conditionally evaluate an `Async[Any]` based on a `Boolean` condition. The unevaluated branch is passed by name so no `Async` is constructed when the condition is false:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val flag = true
+val logged:  Async[Unit] = when(flag)(Async.attempt(println("running")))
+val skipped: Async[Unit] = unless(flag)(Async.attempt(println("skipped")))
+```
+
+## Common Patterns
+
+The five patterns below address the most frequent tasks: bridging callbacks, writing sequential-looking code, guaranteeing cleanup, sharing in-flight computations, and collecting parallel results.
+
+### Callback Bridge
+
+Callback-based APIs all share one shape. Instead of returning the result, they return `Unit` immediately and call one of two functions you hand them once the work is done:
+
+```scala mdoc:compile-only
+// The API you are stuck with. A real one calls back later, from
+// another thread; the shape is what matters here.
+def legacyApi(onSuccess: String => Unit, onError: Throwable => Unit): Unit =
+  onSuccess("done")
+```
+
+That signature is the problem. Because `legacyApi` returns `Unit`, there is no value to return from your own function, nothing to pass to another function, and no way to say "do this, then that" — the result only ever appears inside a callback body, so the rest of your program has to be written in there too.
+
+`Async.promise` inverts it. It gives you a `Completer[A]`, which is a value that can be completed later, and hands you back an `Async[A]` representing the eventual result. You pass the completer's two methods where `legacyApi` expects its two functions. The body is written slightly differently on each Scala version — `c =>` on Scala 2, `c ?=>` on Scala 3, for the reason explained under [`Completer`](#completer):
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+<TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.async._
+
+def legacyApi(onSuccess: String => Unit, onError: Throwable => Unit): Unit =
+  onSuccess("done")
+
+val async: Async[String] = Async.promise[String] { c =>
+  legacyApi(
+    result => c.succeed(result),
+    err    => c.fail(err)
+  )
+}
+val result: String = async.block  // waits for the callback; this stub already fired
+```
+
+</TabItem>
+<TabItem value="scala3" label="Scala 3">
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def legacyApi(onSuccess: String => Unit, onError: Throwable => Unit): Unit =
+  onSuccess("done")
+
+val async: Async[String] = Async.promise[String] { c ?=>
+  legacyApi(
+    result => c.succeed(result),
+    err    => c.fail(err)
+  )
+}
+val result: String = async.block  // waits for the callback; this stub already fired
+```
+
+</TabItem>
+</Tabs>
+
+The two lines inside `legacyApi` are the whole bridge: whichever callback fires, it completes `c`, and completing `c` completes the `Async[String]`. Note what has been gained — `async` is an ordinary value. You can return it, store it, or chain `map` and `flatMap` onto it, and the callback API is no longer visible to anything downstream.
+
+The bridge is also safe against a callback that fires more than once — see [`Completer`](#completer).
+
+### Direct Style
+
+Inside `Async.async { ... }`, use `await` to extract values from `Async` computations in sequential-looking code without explicit `flatMap` chains:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+case class Order(id: Int, userId: Int)
+case class User(id: Int, name: String, tier: String)
+case class Shipment(orderId: Int, carrier: String)
+
+def fetchOrder(id: Int): Async[Order]      = Async.succeed(Order(id, 1))
+def fetchUser(id: Int): Async[User]        = Async.succeed(User(id, "sam", "gold"))
+def fulfill(orderId: Int): Async[Shipment] = Async.succeed(Shipment(orderId, "express"))
+
+def fulfillOrGuest(orderId: Int): Async[String] = Async.async {
+  val order    = fetchOrder(orderId).catchAll(_ => fetchOrder(9001)).await
+  val user     = fetchUser(order.userId)
+                   .catchAll(_ => Async.succeed(User(0, "guest", "bronze"))).await
+  val shipment = fulfill(order.id).await
+  s"shipped ${shipment.orderId} for ${user.name} via ${shipment.carrier}"
+}
+val result: String = fulfillOrGuest(9001).block
+```
+
+Awaits run in source order; a failed `Async[A]` under `await` propagates as `Async.fail`.
+
+Nothing new happens at runtime here. `Async.async` rewrites its body at compile time: the block is split at each `await` and reassembled into the `flatMap` chain you would have written by hand. The example above compiles to roughly this:
+
+```scala
+fetchOrder(orderId).catchAll(_ => fetchOrder(9001)).flatMap { order =>
+  fetchUser(order.userId)
+    .catchAll(_ => Async.succeed(User(0, "guest", "bronze")))
+    .flatMap { user =>
+      fulfill(order.id).map { shipment =>
+        s"shipped ${shipment.orderId} for ${user.name} via ${shipment.carrier}"
+      }
+    }
+}
+```
+
+So `await` is not a method that blocks or waits. It is a marker the rewrite removes, and everything after it becomes the continuation that runs once the value arrives. Direct style therefore costs nothing over writing the chain yourself — by the time the code runs, it *is* that chain. Choose whichever reads better.
+
+One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, and both Scala versions reject it at compile time — Scala 2 through `@compileTimeOnly`, Scala 3 by aborting the macro expansion. You will not ship this mistake.
+
+Within the block, `await` is not restricted to statement position. It also works inside the closures you pass to the strict collections — `List`, `Option`, `Vector`, `Set`, `Map`, `Array`, `Queue`, `ArraySeq` — for `map`, `foreach`, `flatMap`, `filter`, `filterNot`, `collect`, `find`, `exists`, `forall`, `foldLeft`, `foldRight`, `reduce` and `reduceLeft`, and in for-comprehensions over them:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetchName(id: Int): Async[String] = Async.succeed(s"user-$id")
+
+val names: Async[List[String]] = Async.async {
+  List(1, 2, 3).map(id => fetchName(id).await)
+}
+```
+
+Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported everywhere. Lazy collections are outside the set entirely — force them to a strict collection first.
+
+The semantics are uniform across all of them. Each is lazy and sequential: the closure for element *n+1* runs only after element *n*'s `await` has completed, so a `List(a, b, c).map(fetch(_).await)` performs three fetches one after another rather than at once — use `Async.collectAll` when you want them overlapped. A failed `await` short-circuits the remainder, and the result keeps the receiver's collection type.
+
+Where a collection method would throw on its own, it still does: `reduce` over an empty receiver fails with `UnsupportedOperationException`, which arrives as an ordinary `Async` failure you can `catchAll`.
+
+The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither asks you to add anything to your build.
+
+Scala.js 3.8 and later takes a hybrid route, decided per call site. An `await` in direct position compiles to JavaScript's own `async`/`await`, which is the fastest path available; an `await` sitting under a lambda, a by-name argument, or a nested method falls back to the `dotty-cps-async` transform, because the native primitive is not legal in those positions. Nothing about this is yours to configure — the wider `Async.async` surface works either way.
+
+### Bracket and Ensuring
+
+Some work has to happen no matter what: closing a file, releasing a connection, deleting a temporary directory. In ordinary code you write that in a `finally` block. `ensuring` is the same idea for `Async`: you attach a cleanup value, and its *outcome* is applied once the computation settles, whether that produced a value or a failure. Note "value", not "thunk" — `ensuring` takes an `Async`, and under the [evaluation model](#evaluation-model) building one runs its synchronous part immediately:
+
+```scala
+import zio.blocks.async._
+
+val result: Async[String] =
+  Async.attempt(openResource()).flatMap { res =>
+    Async.attempt(res.read()).ensuring(Async.attempt(res.close()))
   }
 ```
 
-A failure encountered by `.await` short-circuits the block and surfaces as a
-failed `Async`, exactly as if you had thrown — `Async.async { Async.fail(t).await }`
-is equivalent to `Async.fail(t)`.
-
-`.await` is also supported inside the higher-order-function closures of the
-standard strict collections — `List`, `Option`, `Vector`, immutable `Set`,
-immutable `Map`, `Array`, immutable `Queue`, and immutable `ArraySeq` — across a
-broad set of methods (`map` / `foreach` / `flatMap`, the predicate scans
-`find` / `exists` / `forall` / `filter` / `filterNot`, the folds
-`foldLeft` / `foldRight` / `reduce` / `reduceLeft`, the prefix scans
-`takeWhile` / `dropWhile`, and `collect`). Each is detailed below, with semantics
-that match the method's natural meaning (and the Scala 3 backends exactly). A few
-positions diverge between Scala 2 and Scala 3 — those are called out explicitly as
-**Divergence** notes:
-
-- **`List.map`** is **eager**: strict `map` applies the closure to every element
-  first — running all construction-time side effects — producing a
-  `List[Async[B]]`, and the awaits are then sequenced left-to-right via
-  `Async.collectAll` (fail-fast on the first failure). This mirrors how
-  `Array.map(async ...)` composes in JavaScript.
-- **`List.foreach`** is **lazy / sequential**: the closure for element `n+1` runs
-  only after element `n`'s `.await` completes successfully, and a failed await
-  short-circuits the remaining elements. The result is `Unit`.
-- **`List.flatMap`** is **lazy / sequential** like `foreach`, but accumulates each
-  closure's `IterableOnce` into the result `List`.
-- **`Option.map` / `Option.flatMap` / `Option.foreach`**: an `Option` holds at
-  most one element, so the eager/lazy distinction collapses to a single
-  `Some`/`None` branch — `None` short-circuits (the closure never runs), `Some(x)`
-  runs the closure and (for `map`/`flatMap`) rewraps the result; a failed await
-  propagates.
-- **`Vector` / immutable `Set` / immutable `Queue` / immutable `ArraySeq`**
-  (`map` / `flatMap` / `foreach`, plus the builder-backed methods below): **lazy
-  / sequential** like `List.foreach` (the closure for element `n+1` runs only
-  after element `n`'s await completes; a failure short-circuits the rest). Note
-  that `Vector.map` / `Queue.map` / `ArraySeq.map` are lazy — only `List.map` is
-  eager (it is the special case backed by dotty-cps-async's `ListAsyncShift`).
-  The result **collection type is preserved** (`Vector.map` → `Vector`,
-  `Queue.map` → `Queue`, `ArraySeq.map` → `ArraySeq`, `Set.map` → `Set`); for
-  `Set`, the *awaited* values are deduplicated.
-- **`Array`** (`map` / `flatMap` / `foreach` / `filter` / `takeWhile` /
-  `dropWhile` / `foldLeft` / `collect` / `find` / `exists` / `forall`): the
-  result is always an `Array[B]` with the **element type preserved, including
-  primitives** (e.g. `Array[Int].map(_.toLong)` → a primitive `Array[Long]`).
-  `Array.map` is **eager** like `List.map` (a failing await still runs every
-  preceding closure); `Array.flatMap` and the rest are **lazy / sequential**.
-  The result-building HOFs (`map` / `flatMap` / `filter` / `takeWhile` /
-  `collect`) rebuild via `Array.newBuilder`, which needs a `ClassTag[B]` — the
-  same one the user's own `Array` HOF already required, so it resolves for any
-  concrete element type (an abstract/path-dependent `B` without a `ClassTag` in
-  scope is not supported, exactly as the standard-library call would not be).
-- **immutable `Map`** (`map` / `flatMap` / `foreach`): **lazy / sequential** over
-  the map's `(K, V)` entries. A pair-returning `map`/`flatMap` rebuilds a
-  `Map[K2, V2]` (later entries with the same key win); a non-pair `map`/`flatMap`
-  widens the result to an `Iterable`, matching the standard library's overload
-  choice. `foreach` runs the closure for each entry, returning `Unit`.
-- **Short-circuiting predicate scans** (`find` / `exists` / `forall`, predicate
-  `A => Boolean`): **lazy / sequential** over any whitelisted receiver — the
-  predicate for element `n+1` runs only after element `n`'s await completes, and
-  the scan stops at the first decisive element (`exists` → first `true`; `forall`
-  → first `false`; `find` → first matching element as `Some`, else `None`).
-  `Option.find` is covered on every cell too — on Scala 2 it resolves via the
-  `Option`→`Iterable` implicit conversion, which the macro recognizes specifically
-  for `find`.
-- **`foldLeft`** (op `(B, A) => B`): **lazy / sequential** over any whitelisted
-  receiver via `.iterator` — a left fold is inherently sequential (element
-  `n+1`'s op needs `n`'s accumulator), so the op for element `n+1` runs only
-  after element `n`'s await completes, and a failed await short-circuits the
-  rest. The accumulator is threaded through and `foldLeft[B]` returns `B`
-  directly (it may differ from the element type), so awaits in the initial
-  accumulator are sequenced before the fold.
-- **`reduce` / `reduceLeft`** (op `(B, A) => B`): **lazy / sequential** over any
-  whitelisted receiver via `.iterator` — `foldLeft` seeded by the FIRST element
-  instead of an initial value, so the op for element `n+1` runs only after
-  element `n`'s await completes and a failed await short-circuits the rest. A
-  single-element receiver returns that element without running the op; an EMPTY
-  receiver fails with `UnsupportedOperationException` (catchable via `catchAll`,
-  rethrown by `.block`).
-- **`foldRight`** (op `(A, B) => B`): **lazy / sequential** but
-  **right-associative** — `op(x1, op(x2, ..., op(xn, z)))` — so the op for the
-  RIGHTMOST element runs first (the receiver is materialized and drained in
-  reverse to keep the await-ordering correct). An empty receiver yields the
-  initial accumulator (the op never runs); a failed await short-circuits the
-  remaining (right-to-left) elements.
-- **`filter` / `filterNot`** (predicate `A => Boolean`): **lazy / sequential**
-  over a `List` / `Vector` / `Array` / immutable `Set` / immutable `Queue` /
-  immutable `ArraySeq` / `Option` — the predicate for element `n+1` runs only
-  after element `n`'s await completes, and a failed await short-circuits the
-  rest. The result **collection type is preserved** (`filter` keeps elements
-  whose predicate is `true`, `filterNot` those whose predicate is `false`).
-  **Divergence:** `Map.filter` / `Map.filterNot` with `.await` is a
-  **Scala-2-only superset** — dotty-cps-async has no working `MapOpsAsyncShift.filter`
-  and rejects it on Scala 3.
-- **`takeWhile` / `dropWhile`** (predicate `A => Boolean`): **lazy / sequential**
-  over an ordered receiver (`List` / `Vector` / immutable `Queue` / immutable
-  `ArraySeq` / `Array`) — these are **prefix-ordered**, so the predicate for
-  element `n+1` runs only after element `n`'s await completes, and the FIRST
-  element whose predicate is `false` decides the boundary (`takeWhile` keeps the
-  leading run and discards it and the rest; `dropWhile` drops the leading run and
-  keeps it and the rest **unconditionally**, never re-evaluating the predicate).
-  A failed await short-circuits the rest. The result **collection type is
-  preserved**. They are restricted to ordered receivers because a leading-prefix
-  predicate is ill-defined on an unordered `Set` / `Map` (and `Option` does not
-  provide them); the Scala 2 macro rejects those with an actionable compile
-  error.
-- **`collect`** (partial function `{ case ... }`): **lazy / sequential** over a
-  `List` / `Vector` / `Array` / immutable `Set` / immutable `Queue` / immutable
-  `ArraySeq` — keeps the elements the partial function is defined at, mapping
-  each through its (awaiting) case body; the case for element `n+1` runs only
-  after element `n`'s await completes, and a failed await short-circuits the
-  rest. The result **collection type is preserved**. An `Option` receiver is
-  supported too: `None` short-circuits without evaluating the partial function,
-  `Some(a)` yields `Some(b)` if a case matches, else `None`. A **non-pair
-  `Map.collect`** (whose case bodies yield a `B`, so the result is an
-  `Iterable[B]`) is supported on every cell. The case guard runs exactly once per
-  element (Scala 2). A `.await` in a case GUARD is rejected.
-  **Divergence:** a **pair-yielding `Map.collect`** (whose case bodies yield
-  `(K2, V2)` pairs, so the result is a `Map[K2, V2]`) is **unsupported on every
-  cell** — dotty-cps-async has only an `IterableOpsAsyncShift.collect[F, B]`
-  shift (no Map-specific one), so the `Map`-returning overload is a compile error
-  on Scala 3, and the Scala 2 macro rejects it to stay at parity. Rewrite it as
-  `m.toVector.collect { case ... => k -> v.await }.toMap`.
-
-These behave identically across Scala 2/3 and JVM/JS **except** for the handful of
-positions flagged **Divergence** above (`Map.filter` / `filterNot` is a
-Scala-2-only superset; a pair-yielding `Map.collect` is unsupported everywhere).
-Because Scala desugars
-for-comprehensions over a `List` / `Option` / `Vector` / `Set` / `Map` into these
-methods,
-single- and multi-generator `for` comprehensions with `.await` work too
-(`for ... yield` → `map`; nested generators → `flatMap`/`map`; `for { ... }`
-without `yield` → `foreach`; a guard `if` → `withFilter`):
+That example is safe only because `Async.attempt(res.read())` is already finished by the time `ensuring` is reached. Written over something that genuinely waits, the same shape closes the resource while the read is still in flight:
 
 ```scala
-val pairs: Async[List[Int]] = Async.async {
-  for {
-    i <- List(1, 2)
-    j <- List(10, 20)
-  } yield Async.succeed(i + j).await
-} // List(11, 21, 12, 22)
+// WRONG: res.close() runs here, as the argument is built —
+// not after the read completes.
+readAsync(res).ensuring(Async.attempt(res.close()))
 ```
 
-> **Scala 2 limitation (current):** the Scala 2 macro supports `.await` in
-> sequential statements, `if` / `match` / `while` / `try`-`catch`-`finally`,
-> `throw`, assignments, `List` / `Option` / `Vector` / `Array` / immutable `Set` /
-> immutable `Queue` / immutable `ArraySeq` / immutable
-> `Map` `map` / `foreach` / `flatMap` closures, the short-circuiting predicate
-> scans `find` / `exists` / `forall`, `filter` / `filterNot`, `foldLeft`,
-> `foldRight`, and `reduce` / `reduceLeft` over
-> those receivers, the prefix-ordered `takeWhile` / `dropWhile` over ordered
-> receivers (`List` / `Vector` / immutable `Queue` / immutable `ArraySeq` /
-> `Array`), `collect` over builder-backed receivers (`List` / `Vector` / `Array`
-> / immutable `Set` / immutable `Queue` / immutable `ArraySeq`), and the
-> for-comprehensions that desugar to the former (including guards), but **rejects**
-> `.await` inside other function
-> literals / higher-order-function arguments (and HOFs over collections other than
-> those whitelisted families), with an actionable compile error. Those positions
-> are supported on Scala 3. The whitelisted set above is the **final, stable**
-> Scala 2 contract for the standard strict collections; positions outside it are
-> intentionally unsupported on Scala 2 (a custom collection, or `.await` inside an
-> arbitrary user lambda passed to a third-party HOF, cannot be rewritten without a
-> shift typeclass the Scala 2 macro deliberately does not depend on).
->
-> Conversely, the Scala 2 macro is a strict superset for some guard shapes that
-> dotty-cps-async on Scala 3 currently rejects: *multiple* `List`
-> for-comprehension guards (chained `withFilter`), and *any* `Option`
-> for-comprehension guard (DCA has no `AsyncShift[Option#WithFilter]`). Single
-> `List` guards behave identically on every cell.
-
-## The callback bridge: `Async.promise`
-
-`Async.promise` builds an `Async` from a callback-style API. You receive a
-`Completer` and call `succeed` / `fail` when the result arrives. Completion is
-one-shot — the first `succeed` or `fail` wins; later calls are silent no-ops. If
-the body completes the completer synchronously, the result collapses to a bare
-value with no `Pollable` allocation.
-
-On Scala 3 the completer is supplied via a context function, so you can call the
-top-level `succeed` / `fail` helpers directly:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-val fromCallback: Async[Int] =
-  Async.promise[Int] {
-    // register a callback with some external system, then:
-    succeed(42)
-  }
-```
-
-On Scala 2 the body receives the `Completer` explicitly; mark it `implicit` to
-use the same top-level `succeed` / `fail` helpers, or call its methods directly:
+To defer the effect itself, put it somewhere that is only run when driven — a `flatMap` or `tap` closure, or a finalizer that is genuinely suspended:
 
 ```scala
-// Scala 2
-Async.promise[Int] { implicit c => succeed(42) }
-Async.promise[Int] { c => c.succeed(42) }
+readAsync(res).flatMap(v => Async.attempt(res.close()).as(v))
 ```
 
-## Running an `Async`
+What `ensuring` does guarantee is the rule worth remembering: **the cleanup never changes the answer.** It cannot turn a failure into a success, and it cannot turn a success into a failure.
 
-`.block` drives an `Async` to its value. A ready value returns immediately. A
-pending value blocks the calling thread on the JVM (Loom-friendly) and throws
-on JS, where the platform cannot block. Use `.block` only at the edge of your
-program, never on a scheduler/reactor thread.
-
-```scala mdoc
-val result: Int = Async.succeed(20).map(_ + 1).block
-```
-
-### Eager, cancellable running: `Async.start` and `Async.Running`
-
-The `fa.start` extension eagerly drives an already-built `Async` without
-blocking and returns a `Running[A]` handle — itself an `Async[A]` you can poll,
-compose, or cancel. Compose with `either`, `tap`, `foldCause`, and the other
-operators **before** `start` to observe or transform the outcome:
+That last part raises an obvious question — what if the cleanup itself fails? Closing a file can throw too. The answer depends on how the main computation ended, so it is worth seeing both cases:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val running: Async.Running[Either[Throwable, Int]] =
-  Async.succeed(1).map(_ + 1).either.tap {
-    case Right(value) => Async.succeed(println(s"done: $value"))
-    case Left(cause)  => Async.succeed(println(s"failed: $cause"))
-  }.start
+// Both fail: reading the resource, and then closing it.
+val bothFail: Async[String] =
+  Async
+    .attempt[String](throw new RuntimeException("read failed"))
+    .ensuring(Async.attempt(throw new IllegalStateException("close failed")))
 
-running.cancel() // idempotent; no-op once the run has completed
+bothFail.either.block match {
+  case Left(e) =>
+    println(e.getMessage)                     // read failed   <- the original failure
+    println(e.getSuppressed()(0).getMessage)  // close failed  <- attached to it
+  case Right(_) => ()
+}
+
+// Only the cleanup fails.
+val readOk: Async[String] =
+  Async
+    .succeed("contents")
+    .ensuring(Async.attempt(throw new IllegalStateException("close failed")))
+
+val value: String = readOk.block  // "contents" — the close failure is gone
 ```
 
-The companion `Async.start(body)` is a single by-name method that evaluates
-`body` on a background worker (JVM) or microtask (JS) and returns a `Running`
-for the result — the `Async` analogue of `Future.apply`. It captures a throwing
-body (even a statically `Nothing`-typed one such as `Async.start(sys.error(...))`)
-as a failed run rather than letting it escape at the call site. (Driving an
-existing `Async` value is the `fa.start` extension above, not `Async.start(fa)`,
-which would treat `fa` as a by-name body to evaluate.)
+In the first case the read had already failed, so you get the read's exception — the one that explains what actually went wrong. The close error is not thrown away, though: it is carried along inside that exception, in a list the JVM keeps for exactly this purpose. `getSuppressed` returns that list. Your logging framework almost certainly prints it, usually under a line beginning `Suppressed:`, so both problems end up on the page.
 
-For an already-ready `Async`, observers composed before `start` run synchronously
-on the calling thread. For a suspended `Async`, driving proceeds on a daemon
-worker thread on the JVM, or via microtasks on Scala.js. `cancel()` is
-driver-level only: it stops the poll loop and suppresses publishing a terminal
-value, but does not abort an in-flight leaf (socket, timer, JS promise).
+The second case is the one to watch. The read succeeded, so there is no exception to carry the close error, and it is simply dropped — `readOk.block` returns `"contents"` and you never hear that closing failed. If a cleanup error matters to you on the success path, catch it inside the cleanup step itself and log it there:
 
-#### Fanning one `Async` out to several consumers
+```scala
+Async
+  .attempt(res.read())
+  .ensuring(Async.attempt(res.close()).catchAll { t =>
+    Async.succeed(logger.warn("close failed", t))
+  })
+```
 
-To deliver one `Async`'s result to multiple consumers, **start it once and share
-the `Running` handle** — `Running` publishes its outcome through an atomic, so
-the underlying `Async` (and any side effects in `map`/`flatMap`/`tap`) is driven
-exactly once no matter how many consumers poll, block, or compose on the handle:
+### Concurrent Fan-Out via Running
+
+Suppose one expensive computation feeds several parts of your program — a report that is both summarised and emailed, say. The obvious approach is to build the work once and use that value in both places — but driving it is what produces the result, so each place that drives it does the work again. You want the work to happen once, in the background, with everyone reading the same outcome.
+
+`Async.start` does that. It hands the body to a background worker and returns immediately with an `Async.Running[A]` — a handle to work already in flight:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 
-val shared: Async.Running[Int] = Async.succeed(1).map(_ + 1).start
-val a: Int = shared.block // both observe the one result;
-val b: Int = shared.block // the `+ 1` ran once, on the worker
+def heavyComputation(): Int = { Thread.sleep(50); 42 }
+
+// Returns straight away; the work proceeds on a background worker.
+val running: Async.Running[Int] = Async.start(heavyComputation())
+
+// The handle is itself an Async[Int], so it composes like anything else.
+val doubled: Async[Int]    = running.map(_ * 2)
+val labelled: Async[String] = running.map(n => s"got $n")
+
+val a: Int    = doubled.block   // 84
+val b: String = labelled.block  // "got 42" — heavyComputation ran once, not twice
 ```
 
-Do **not** instead drive the same raw `Async` from two places at once (two
-separate `fa.start`s on the same `fa`, or `fa.start` racing `fa.block`). On the
-JVM that polls the same combinator concurrently, which is **undefined**: a
-`map`/`flatMap`/`tap` function may run more than once, and a `collectAll` batch
-may observe its drain buffer mid-update. This matches `Pollable`'s contract that
-re-polling a settled value is undefined and platform-specific — it cannot arise
-on single-threaded Scala.js. Sequential re-use (re-polling or composing after an
-earlier drive has settled) is fine; only *concurrent* re-driving of the raw
-value is not.
+Both consumers see the same settled outcome, because they share one running computation rather than one recipe. `Async.Running[A]` is a subtype of `Async[A]`, so it works with `map`, `flatMap`, and `zipWith` without conversion, and `running.cancel()` stops the driver, which is [less than it sounds](#cancelable).
 
-## Interop
+Sharing the handle is not merely tidier than the alternative — the alternative is unsafe. Driving the same raw `Async` from two places at once is **undefined behaviour**: two `fa.start` calls on the same `fa`, or an `fa.start` racing an `fa.block`. On the JVM that polls the same combinator concurrently, so a function you passed to `map`, `flatMap`, or `tap` may run more than once, and a `collectAll` may read its drain buffer mid-update. Start once, share the `Running`.
 
-`Async` converts to and from the platform's standard async types, preserving
-both success and failure. Ingress lives on the `Async` companion
-(`Async.fromFuture`, `Async.fromCompletionStage`, `Async.fromJsPromise`) and
-egress lives on extension methods (`fa.toFuture`, `fa.toCompletableFuture`,
-`fa.toJsPromise`). `scala.concurrent.Future` conversion is available on both
-platforms; the JVM additionally offers Java `CompletionStage` /
-`CompletableFuture`, and Scala.js offers `js.Promise`.
+Sequential re-use is fine — polling or composing a value again after an earlier drive has settled is well defined. Only *concurrent* driving of the same raw value is not, and single-threaded Scala.js cannot hit it at all.
 
-On the JVM:
+Take care to start the work the right way round, because the wrong version looks almost identical:
+
+```scala
+Async.start(heavyComputation())            // ✅ the worker evaluates it
+Async.attempt(heavyComputation()).start    // ❌ already evaluated, on this thread
+```
+
+Both lines compile, and both hand you an `Async.Running[Int]`. Only the first one runs anything in the background.
+
+The difference is *when the argument gets evaluated*. Scala normally evaluates an argument before passing it, so in `Async.attempt(heavyComputation())` the computation runs first — on your own thread, right at that line — and `attempt` merely wraps the answer it produced. Tacking `.start` on afterwards cannot un-run it; there is nothing left to move to a worker.
+
+`Async.start` is declared differently. Its parameter is `body: => A`, and that `=>` means "don't evaluate this yet — hand me the code and I will run it when I am ready." It passes the code to a worker thread, which is why the call returns immediately.
+
+The clock shows it plainly:
+
+```scala
+Async.start(heavyComputation())            // returns in about 0 ms
+Async.attempt(heavyComputation()).start    // returns in about 50 ms — you waited for it
+```
+
+So: use `Async.start` for work you want moved off the calling thread. Use `fa.start` when `fa` is an `Async` you have already built and composed and now want driven.
+
+### Batch Collection
+
+Use `Async.collectAll` to sequence a list of `Async` values and gather results into a `List[A]` in input order:
+
+```scala
+import zio.blocks.async._
+
+val batch: Async[List[Int]] = Async.collectAll(List(
+  Async.attempt(compute(1)),
+  Async.attempt(compute(2)),
+  Async.attempt(compute(3))
+))
+val results: List[Int] = batch.block  // => List(r1, r2, r3) in input order
+```
+
+The first failure short-circuits and remaining elements are not driven. Already-ready lists take an optimized path that skips allocating a sequencing continuation.
+
+## Integration Points
+
+You are unlikely to be starting from scratch. Your codebase probably already returns `Future`s, calls a Java library that returns a `CompletionStage`, or talks to a JavaScript API that returns a `Promise`. `Async` is built to sit next to those, so you can adopt it in one part of a program without rewriting everything around it.
+
+Conversions go in both directions, and none of them blocks a thread:
+
+| You have                   | Bring it in with                | You need                     | Hand it out with         |
+|----------------------------|---------------------------------|------------------------------|--------------------------|
+| `Future[A]`                | `Async.fromFuture(f)`           | `Future[A]`                  | `fa.toFuture`            |
+| `CompletionStage[A]` (JVM) | `Async.fromCompletionStage(cs)` | `CompletableFuture[A]` (JVM) | `fa.toCompletableFuture` |
+| `js.Promise[A]` (Scala.js) | `Async.fromJsPromise(p)`        | `js.Promise[A]` (Scala.js)   | `fa.toJsPromise`         |
+
+A round trip through `Future` looks like this — take what an existing service hands you, work with it as an `Async`, and give a `Future` back to a caller who still expects one:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
 import scala.concurrent.{ExecutionContext, Future}
-import java.util.concurrent.CompletableFuture
+import scala.concurrent.ExecutionContext.Implicits.global
 
-implicit val ec: ExecutionContext = ExecutionContext.global
+// The service you already have.
+def loadUserName(id: Int): Future[String] = Future.successful("sam")
 
-val fromFut: Async[Int]             = Async.fromFuture(Future.successful(1))
-val toFut: Future[Int]              = Async.succeed(1).toFuture
-val fromStage: Async[Int]           = Async.fromCompletionStage(CompletableFuture.completedFuture(1))
-val toStage: CompletableFuture[Int] = Async.succeed(1).toCompletableFuture
+// Bring it in, work with it as an Async, hand a Future back out.
+def greet(id: Int): Future[String] =
+  Async
+    .fromFuture(loadUserName(id))
+    .map(name => s"hello, $name")
+    .catchAll(_ => Async.succeed("hello, guest"))
+    .toFuture
 ```
 
-On Scala.js, the companion provides `Async.fromFuture` / `Async.fromJsPromise`
-and the egress extensions provide `fa.toFuture` / `fa.toJsPromise` for native
-`scala.scalajs.js.Promise` interop.
+Java's `CompletionStage` works the same way:
 
-## Low-level building blocks: `Pollable`
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.util.concurrent.{CompletableFuture, CompletionStage}
+import scala.concurrent.ExecutionContext.Implicits.global
 
-Most code should use the constructors and `Async.promise`. For custom
-asynchronous leaves you can implement a `Pollable[A]` directly. `poll(onComplete)`
-returns the ready value (or a `Failure`) when available, or a `Pollable`
-(commonly `this`, optionally a replacement representing the rest of the
-computation — drivers and combinators direct their next poll at whichever
-pollable was returned) when still pending; a pending pollable must arrange to
-call `onComplete.run()` once progress can be made, prompting the scheduler to
-re-poll.
+def fetchToken(): CompletionStage[String] = CompletableFuture.completedFuture("t-123")
 
-### Combinator chain depth
+val token: Async[String]                 = Async.fromCompletionStage(fetchToken())
+val backToJava: CompletableFuture[String] = token.map(_.toUpperCase).toCompletableFuture
+```
 
-Combinator continuations poll their children recursively without a trampoline
-(a deliberate trade: the poll path stays allocation- and indirection-free). The
-determinant of depth-safety is whether driving has to unwind a deep chain of
-combinators in **receiver position** over a value that is still **pending** —
-not whether the chain was written iteratively or recursively:
+On Scala.js the pair is `fromJsPromise` and `toJsPromise`:
 
-- **Over a ready source, `flatMap` / `map` / `zipWith` chains are depth-safe to
-  any length.** When the receiver is already a value, each step resolves
-  eagerly and collapses — no `Pollable` is retained — so `var fa = …;
-  while (…) fa = fa.flatMap(g)` (and the `.map` form) consume constant stack
-  regardless of length (verified into the millions).
-- **Over a pending source, a deep receiver-position chain is NOT depth-safe.**
-  When the receiver stays pending, each `fa.flatMap(g)` / `fa.map(g)` /
-  `fa.zipWith(...)` wraps the previous pending value, so driving descends one
-  stack frame per level before anything settles and overflows around
-  default-JVM-stack depths of a few tens of thousands (~50–100k). This is true
-  for **both** a recursive shape (`def loop(n) = src.flatMap(_ => loop(n-1))`)
-  **and** an iterative accumulation (`fa = fa.flatMap(_ => src.flatMap(...))`) —
-  the syntax doesn't matter, the pending receiver spine does.
-- **`Async.collectAll` and direct-style `Async.async` `while` loops are
-  depth-safe even over pending sources.** `collectAll` is a single `Pollable`
-  that iterates its elements internally (no receiver spine), and the
-  `Async.async` loop rewrite advances one iteration per driver poll rather than
-  pre-building a deep chain — both verified at 200k+ pending steps.
+```scala
+import zio.blocks.async._
+import scala.scalajs.js
 
-So: to sequence a large, *pending-heavy* workload, reach for `collectAll` or an
-`Async.async` `while` loop, not a hand-built `flatMap`/`map`/`zipWith` tower over
-a pending value. (`Future` avoids this overflow for any shape only because it
-bounces every `flatMap` through its `ExecutionContext`; `Async` skips that hop
-for speed and accepts the depth bound instead.)
+def fetchJson(url: String): js.Promise[String] = js.native
 
-## Cross-platform and cross-version notes
+val parsed: Async[String]       = Async.fromJsPromise(fetchJson("/api/config"))
+val handedBack: js.Promise[String] = parsed.map(_.trim).toJsPromise
+```
 
-| Feature                          | JVM | JS | Scala 2.13 | Scala 3.x | Notes                                                   |
-|----------------------------------|-----|----|------------|-----------|---------------------------------------------------------|
-| Constructors & transformers      | ✅  | ✅ | ✅         | ✅        | Identical behavior everywhere                           |
-| `Async.async` / `.await`         | ✅  | ✅ | ✅         | ✅        | DCA (Scala 3), native `js.async`/`js.await` for direct-position awaits with DCA fallback for closure/by-name awaits (3.8+ JS), macro (Scala 2); `.await` in the standard strict-collection HOF closures (`List` / `Option` / `Vector` / `Set` / `Map` / `Array` / `Queue` / `ArraySeq`: `map`/`foreach`/`flatMap`/`filter`/`collect`/`fold*`/`reduce*`/`takeWhile`/`dropWhile`/`find`/`exists`/`forall`) and their for-comprehensions is supported on every cell, except a few explicitly-noted divergences (`Map.filter` Scala-2-only; a pair-yielding `Map.collect` unsupported everywhere) — see the HOF section above |
-| `.block` on a pending value      | ✅  | ❌ | ✅         | ✅        | Blocks on JVM; throws on JS (cannot block)              |
-| `Async.start` / `Async.Running`       | ✅ | ✅ | ✅        | ✅        | Eager non-blocking runner; worker thread (JVM) / microtask (JS) |
-| `Future` interop                 | ✅  | ✅ | ✅         | ✅        | `Async.fromFuture` / `fa.toFuture` on both platforms |
-| `CompletionStage` interop        | ✅  | ❌ | ✅         | ✅        | JVM-only (`fromCompletionStage` / `toCompletableFuture`) |
-| `js.Promise` interop             | ❌  | ✅ | ✅         | ✅        | JS-only (`fromJsPromise` / `toJsPromise`)              |
+Two details are worth knowing before you use them.
 
-The core `Async` API is identical across all platforms and Scala versions by
-design; platform interop APIs are intentionally platform-specific as shown
-above. The cross-platform test suite fails if any user-visible core behavior
-diverges.
+Handing a value out to `Future` or `CompletableFuture` needs an `ExecutionContext` in scope, exactly as ordinary `Future` code does — usually `import scala.concurrent.ExecutionContext.Implicits.global`, as above, or whichever one your application already provides. `toJsPromise` needs nothing, because JavaScript has a single built-in event loop to run the callback on.
+
+Failures survive the trip. That takes some care on the Java side: when a `CompletionStage` fails, Java wraps your exception in a `CompletionException` before handing it over. `fromCompletionStage` unwraps it, so the `Async` fails with the exception you actually threw rather than with Java's wrapper — which means `catchAll` sees what you expect.
+
+Two further integration points are worth knowing about:
+
+**Cancelling with `Using`.** `Async.Running` is an `AutoCloseable` — `Cancelable` extends it — so `scala.util.Using` (or Java's try-with-resources) cancels the work automatically when the block ends, the same way it closes a file handle:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import scala.util.Using
+
+def pollForUpdates(): Nothing = { while (true) Thread.sleep(100); ??? }
+
+Using(Async.start(pollForUpdates())) { running =>
+  // Do other work while the poller runs.
+  Thread.sleep(500)
+} // leaving the block cancels the driver, whether or not the body threw —
+  // the loop itself keeps running; see Cancelable
+```
+
+The [Scope reference](resource-management/scope.md) covers the wider resource-management model.
+
+**Feeding [streams](streams/stream.md).** A callback-based source can be turned into a stream with `Async.promise` and a `Completer`. Because a stream pulls values as it is ready for them, a source that produces faster than the consumer can handle will not overwhelm it.
+
+## Custom Suspension
+
+A result that is not here yet arrives in one of two ways: either something tells you when it is ready, or you have to keep asking. This module has a type for each. `Completer[A]` covers being told, and it is the one you will almost always want. `Pollable[A]` covers having to ask, and exists for the sources that leave you no choice.
+
+### Pollable
+
+Imagine waiting on something that never calls you back — a non-blocking socket that answers "no data yet" when you read it, a hardware timer you have to check, a native handle that reports progress only when asked. There is no callback to hand a `Completer` to. The only way to learn whether the result has arrived is to *ask*, and to keep asking. The module cannot know how to ask your particular source; only your code knows that.
+
+`Pollable[A]` is where you supply that knowledge. It is a single method:
+
+```scala
+abstract class Pollable[+A] {
+  def poll(onComplete: Runnable): Async[A]
+}
+```
+
+The driver calls `poll` whenever it gets the chance, and what you return tells it what to do next:
+
+- **Ready?** Return `Async.succeed(a)`. The driver takes the value and stops asking.
+- **Not yet?** Return `this` — *and make sure `onComplete` will be run*. The driver does not come back on its own.
+- **Failed?** Return `Async.fail(t)`. The driver takes the failure and stops asking, and it travels downstream like any other failure.
+
+`onComplete` is not an optimisation — it is the only thing that gets you polled again. After a `poll` returns `this`, the driver parks and waits for that callback; if nothing ever runs it, a `block` waits forever on the JVM and throws `IllegalStateException` on Scala.js. `Async.never` is precisely a `poll` that returns `this` and never arms it. Either run `onComplete` before returning, or hand it to whatever will know when to check again.
+
+Most programs never need any of this. For a callback-based API, `Async.promise` with a `Completer` is simpler and already correct; for blocking I/O, `Async.attempt` on a worker via `Async.start` fits better. Reach for `Pollable` only when the result genuinely has to be checked rather than delivered.
+
+Here is the smallest thing that behaves like a real suspension — a value that refuses to be ready for its first two visits:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+class Delayed[A](v: A, var ticks: Int) extends Pollable[A] {
+  def poll(onComplete: Runnable): Async[A] =
+    if (ticks <= 0) Async.succeed(v)
+    else { ticks -= 1; onComplete.run(); this }
+}
+
+val result: String = new Delayed("done", ticks = 2).block  // => "done"
+```
+
+Follow it one visit at a time:
+
+| Visit | `ticks` | What `poll` returns     | What the driver does          |
+|-------|--------:|-------------------------|-------------------------------|
+| 1st   |       2 | `this`                  | Not ready — asks again        |
+| 2nd   |       1 | `this`                  | Not ready — asks again        |
+| 3rd   |       0 | `Async.succeed("done")` | Takes the value, stops asking |
+
+Returning `this` means "still me, still waiting." Returning `Async.succeed(v)` means "here it is." And `onComplete.run()` is the nudge that tells the driver to come back soon rather than in its own time. The toy above runs it immediately, which just asks for another visit right away; real code instead hands `onComplete` to whatever it is waiting on — a socket selector, a timer callback — and lets that source run it when something actually happens. The driver can then stay asleep in between, rather than burning a thread asking a question whose answer has not changed. Meanwhile `.block` waits through all three visits and hands you `"done"` at the end.
+
+A real implementation replaces the counter with the actual question — has the socket got bytes, has the timer expired — but the shape does not change.
+
+Here is a case you are likely to meet. A service starts a long job — rendering a report, transcoding a video, restoring an archive — and gives you back a job id. There is no webhook and no callback: the only way to find out whether it has finished is to call `GET /jobs/{id}` and look at the status. That is a `Pollable`:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+sealed trait JobStatus
+case object Pending                 extends JobStatus
+case class  Done(url: String)       extends JobStatus
+case class  Failed(reason: String)  extends JobStatus
+
+// The API you are given: you can ask it, it will never tell you.
+def checkJob(id: String): JobStatus = Done("https://example.invalid/report.pdf")
+
+def download(url: String): Unit = ()
+
+// Run `task` once, later, without holding on to a thread in the meantime.
+def scheduleIn(ms: Long, task: Runnable): Unit = {
+  val t = new Thread(() => { Thread.sleep(ms); task.run() })
+  t.setDaemon(true)
+  t.start()
+}
+
+final class JobPollable(id: String) extends Pollable[String] {
+  def poll(onComplete: Runnable): Async[String] =
+    checkJob(id) match {
+      case Done(url)      => Async.succeed(url)
+      case Failed(reason) => Async.fail(new RuntimeException(s"job $id failed: $reason"))
+      case Pending        =>
+        // Nothing will announce the change, so arrange our own next look.
+        scheduleIn(2000, onComplete)
+        this
+    }
+}
+
+// From here on it is an ordinary Async: compose it, start it, cancel it.
+val reportUrl: Async[String] = new JobPollable("job-42")
+val saved: Async[Unit]       = reportUrl.map(url => download(url))
+```
+
+Three things to notice. The status check happens inside `poll`, so it runs only when the driver visits — you are not running a loop of your own. The `Pending` branch schedules the next visit two seconds out, which is what stops this from hammering the service. And a failed job becomes `Async.fail`, so the error travels the same path as every other failure and `catchAll` can recover it.
+
+Note also what is *not* in the example: no blocking wait, no lock, no shared mutable state. Polling puts you in charge of when the check happens, which is the reason to choose it. Because a `Pollable[A]` can be used wherever an `Async[A]` is expected, the value drops straight into any composition and works with every combinator.
+
+### Completer
+
+Polling is the awkward case. Far more often the source does call you back — that is what `Completer[A]` is for, and why you will reach for it and not `Pollable`.
+
+`Completer[A]` is a `Pollable[A]` that is already written: instead of implementing "is it ready?", you hold a value someone else completes exactly once. It is thread-safe, and the first call to `Completer#succeed` or `Completer#fail` wins while every later call does nothing — so a callback that fires twice cannot corrupt the result.
+
+The structural declaration is:
+
+```scala
+final class Completer[A] extends Pollable[A] {
+  def succeed(a: A): Unit
+  def fail(cause: Throwable): Unit
+  def peek: Async[A]
+  def poll(onComplete: Runnable): Async[A]
+}
+```
+
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result collapses to a plain ready value and no `Pollable` is allocated at all. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
+
+```scala
+// Scala 2 — the completer is an ordinary function parameter
+def promise[A](body: Completer[A] => Unit): Async[A]
+
+// Scala 3 — the completer is a context parameter of the body
+inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
+```
+
+The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free ready path described under [Evaluation Model](#evaluation-model).)
+
+Being a given is not just bookkeeping: it buys you top-level `succeed` and `fail` helpers that find the completer themselves, so on Scala 3 the bridge need not name it at all.
+
+```scala
+// Scala 3 only — `succeed` and `fail` take the Completer as a given.
+val fetched: Async[Int] = Async.promise[Int] { c ?=>
+  legacyLookup(onOk = value => succeed(value), onErr = cause => fail(cause))
+}
+```
+
+Naming it, as the examples below do, is equally valid and reads better when the callback is registered several lines away from where it fires.
+
+<Tabs groupId="scala-version" defaultValue="scala2">
+<TabItem value="scala2" label="Scala 2">
+
+```scala
+import zio.blocks.async._
+
+val async: Async[Int] = Async.promise[Int] { c =>
+  new Thread(() => { Thread.sleep(20); c.succeed(42) }).start()
+}
+val result: Int = async.block  // => 42
+```
+
+</TabItem>
+<TabItem value="scala3" label="Scala 3">
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val async: Async[Int] = Async.promise[Int] { c ?=>
+  new Thread(() => { Thread.sleep(20); c.succeed(42) }).start()
+}
+val result: Int = async.block  // => 42
+```
+
+</TabItem>
+</Tabs>
+
+Now a case from the JDK rather than a sleeping thread. `AsynchronousFileChannel` reads a file without blocking, and reports the outcome through a `CompletionHandler` with two methods: `completed` when the bytes arrive, `failed` when the read goes wrong. Those two are exactly `succeed` and `fail`, so the bridge is almost mechanical:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.nio.ByteBuffer
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.file.{Path, StandardOpenOption}
+
+def readChunk(path: Path, size: Int): Async[ByteBuffer] = {
+  val completer = new Completer[ByteBuffer]
+  val channel   = AsynchronousFileChannel.open(path, StandardOpenOption.READ)
+  val buffer    = ByteBuffer.allocate(size)
+
+  channel.read(buffer, 0L, buffer, new CompletionHandler[Integer, ByteBuffer] {
+    def completed(bytesRead: Integer, buf: ByteBuffer): Unit = {
+      buf.flip()
+      completer.succeed(buf)   // the read finished
+    }
+    def failed(cause: Throwable, buf: ByteBuffer): Unit =
+      completer.fail(cause)    // the read went wrong
+  })
+
+  completer.peek               // hand the pending result to the caller
+}
+
+// An ordinary Async from here on.
+val firstBytes: Async[Int] = readChunk(Path.of("data.bin"), 1024).map(_.remaining)
+```
+
+This is the same bridge as `Async.promise`, written out by hand: create the `Completer`, give its two methods to the callback, and return `completer.peek` as the `Async[ByteBuffer]` the caller waits on. `Async.promise` packages exactly those three steps, so the same function written with it is shorter:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+import java.nio.ByteBuffer
+import java.nio.channels.{AsynchronousFileChannel, CompletionHandler}
+import java.nio.file.{Path, StandardOpenOption}
+
+def readChunk(path: Path, size: Int): Async[ByteBuffer] =
+  Async.promise[ByteBuffer] { c ?=>
+    val channel = AsynchronousFileChannel.open(path, StandardOpenOption.READ)
+    val buffer  = ByteBuffer.allocate(size)
+
+    channel.read(buffer, 0L, buffer, new CompletionHandler[Integer, ByteBuffer] {
+      def completed(bytesRead: Integer, buf: ByteBuffer): Unit = {
+        buf.flip()
+        c.succeed(buf)
+      }
+      def failed(cause: Throwable, buf: ByteBuffer): Unit =
+        c.fail(cause)
+    })
+  }
+```
+
+The completer is created for you and named `c`, and there is no `peek` at the end — `promise` returns the `Async` itself.
+
+Prefer this version. Write the completer out by hand when the registration does not fit neatly in a single block, when you need to keep the completer around to complete it from elsewhere, or when you want identical source on Scala 2 and Scala 3 — `new Completer[A]` has no context-function syntax to differ over.
+
+`readChunk` returns before a single byte has been read. Nothing blocks, no thread waits, and the caller receives an `Async[ByteBuffer]` that behaves like any other — `map` it, `zipWith` another read, recover it with `catchAll`, or `block` on it at the edge of the program.
+
+The once-only guarantee earns its keep in code like this. You are trusting a third-party library to call your handler correctly; if a buggy or retrying implementation calls `completed` twice, or calls both `completed` and `failed`, the first call still decides the outcome and the rest are ignored. You do not have to defend against it yourself.
+
+`Completer#peek` returns the `Completer` itself as an `Async[A]`, bypassing the `Async.promise` body — useful when managing scheduling manually, as shown in the `delayed` helper under [How They Work Together](#how-they-work-together).
+
+## Controlling In-Flight Work
+
+Once `start` has handed you an `Async.Running[A]`, the computation is being driven for you — on a background worker if it still has waiting to do, and already settled if it does not. These two types are how you keep a grip on it: `Async.Running` is the handle, and `Cancelable` is the ability to stop what it refers to.
+
+### Async.Running
+
+`Async.Running[A]` is the handle returned by `start`. It extends `Pollable[A]`, which makes it an `Async[A]` in its own right, and [`Cancelable`](#cancelable), which is what lets you stop it.
+
+The structural declaration is:
+
+```scala
+abstract class Running[+A] extends Pollable[A] with Cancelable
+```
+
+Because a `Running` is an `Async[A]`, you can wait for its result with `block`, compose it further with `map` or `flatMap`, or pass it anywhere an `Async[A]` is expected. [Concurrent Fan-Out via Running](#concurrent-fan-out-via-running) walks through that pattern, and why several consumers should share one handle rather than each starting the work themselves.
+
+What you should not do is call `poll` yourself. It is there for drivers, and its contract — stop at a terminal value, never re-poll a settled one — is easy to violate by hand. Drive a `Running` the same way you drive any other `Async`: `block`, `toFuture`, or composition. There is no `isCompleted`; if you want to know whether it has finished without waiting, keep that flag yourself where you complete the work.
+
+Calling `cancel` stops the *driver*, and does nothing if the run has already settled. [`Cancelable`](#cancelable) covers how far that reaches; two consequences belong here:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val running: Async.Running[Nothing] = Async.never.start
+running.cancel()  // the driver stops polling; no value is ever published
+```
+
+A cancelled run never settles at all — it does not fail, it simply stops. So anything still holding that handle and calling `block` on it waits forever on the JVM, and gets an `IllegalStateException` on Scala.js. Cancel only when you own every consumer of the handle.
+
+And with `Async.start(body)`, `cancel` stops the driver, not the thread evaluating `body`. That thread runs to completion regardless, so cancelling a `Running` means you have stopped waiting for the result — not that the work behind it has stopped.
+
+A `Running` is also an `AutoCloseable`, so [`scala.util.Using`](#integration-points) cancels it on leaving a block.
+
+All of the above describes the JVM, where the driver is a background thread. On Scala.js it is the microtask queue instead, and `block` is unavailable on a pending value — see [Platform Support](#platform-support).
+
+
+Attach what you want to observe *before* calling `start`, not after. `start` hands the still-waiting part of the value to a driver, and whatever you composed onto it beforehand is part of what that driver runs:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+// A row that arrives a moment from now, on another thread.
+def fetchRow(): Async[String] = Async.promise[String] { c ?=>
+  val t = new Thread(() => { Thread.sleep(250); c.succeed("row-1") })
+  t.setDaemon(true)
+  t.start()
+}
+def log(msg: String): Unit = ()
+
+// Before start: the tap is part of what the driver runs, and fires when the
+// row arrives.
+val watched: Async.Running[String] =
+  fetchRow().tap(row => Async.attempt(log(s"got $row"))).start
+
+// After start: this builds a *new* Async that nobody is driving. The tap runs
+// only if you drive this one too — by blocking on it, or starting it.
+val bolted: Async[String] =
+  fetchRow().start.tap(row => Async.attempt(log(s"got $row")))
+```
+
+The second version is not a compile error and not a lost value, which is what makes it easy to write by mistake: `bolted` is simply a value nobody has driven, so its `tap` has not run and will not until something asks `bolted` for a result. So if you want to time the fetch, log its progress, or react the moment it fails, the observer has to be inside the value you hand to `start`.
+
+`either` and `foldCause` matter more, because they decide whether the run counts as failed. Written `fa.either.start`, where `fa` is the value you are about to start, the run always succeeds, carrying a `Left` or a `Right`. Written `fa.start.either`, the run has already failed; you get your `Either`, but everyone else holding that handle still gets the exception.
+
+All of that assumes there was something to wait for. If the value already holds its answer there is nothing to hand to a driver: `start` wraps it and returns, spawning no worker, and anything you attached ran while you were building the value — see [Evaluation Model](#evaluation-model).
+
+### Cancelable
+
+`Cancelable` is the minimal cancellation interface: one `cancel()` method, safe to call from any thread and safe to call twice.
+
+Be precise about what it stops, because the name promises more than it delivers. Cancellation is **driver-level**: it halts the poll loop and suppresses publication of a terminal value, and on the JVM it interrupts the worker thread. It does **not** reach into the thing you were waiting on. A socket read stays outstanding, a timer still fires, a `js.Promise` still settles — cancelling means you stop listening, not that the work stops happening.
+
+That distinction matters when the leaf holds a resource. If a cancelled computation would otherwise leave a socket or a file handle open, close it yourself — pair the cancellation with [`ensuring`](#bracket-and-ensuring), or hold the resource in a `Using` block, rather than assuming `cancel()` released it.
+
+The structural declaration is:
+
+```scala
+trait Cancelable extends AutoCloseable {
+  def cancel(): Unit
+  final def close(): Unit = cancel()
+}
+```
+
+`Cancelable.noop` is the predefined no-op instance, useful as a placeholder when no real cancellation is needed:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+val c: Cancelable = Cancelable.noop
+c.cancel()  // no-op
+c.close()   // no-op; delegates to cancel()
+```
+
+## Failure
+
+`Failure` is how a failed `Async` is represented. You never construct one — `Async.fail` and `Completer#fail` produce it, `catchAll` and `either` recover from it — but it explains why a failure travels through a chain untouched: it extends `Pollable[Nothing]`, and `map` and `flatMap` return it unchanged instead of running their functions.
+
+```scala
+final class Failure(val cause: Throwable) extends Pollable[Nothing]
+```
+
+[`block`](#driving) re-throws `cause`; `catchAll` hands your recovery function the original `Throwable`, unwrapped; [`either`](#error-handling) turns it into a `Left` instead.
+
+## Platform Support
+
+The core API behaves identically everywhere by design, and the cross-platform test suite fails if any user-visible core behaviour diverges. What varies is the interop surface, which is deliberately platform-specific, and the two operations that depend on having a thread:
+
+| Feature                         | JVM | Scala.js | How it differs                                                     |
+|---------------------------------|:---:|:--------:|--------------------------------------------------------------------|
+| Constructors and combinators    | yes |   yes    | Identical on both                                                  |
+| `Async.async` / `await`         | yes |   yes    | Different backend per platform — see [Direct Style](#direct-style) |
+| `block` on a pending value      | yes |    no    | Throws on Scala.js: no thread to park                              |
+| `Async.start` / `Async.Running` | yes |   yes    | Worker thread on the JVM, microtasks on Scala.js                   |
+| `Future` interop                | yes |   yes    | Same API on both                                                   |
+| `CompletionStage` interop       | yes |    no    | JVM only                                                           |
+| `js.Promise` interop            |  no |   yes    | Scala.js only                                                      |
+
+All of it works on Scala 2.13 and Scala 3.
+
+## Running the Examples
+
+The `async-examples` module ships `AsyncShowcaseExample`, a single runnable pipeline exercising the whole module: `Completer`-backed callback bridges, the `Async.async` direct-style DSL, `catchAll` recovery, and a final `block`. Its `fulfillOrGuest` function is the one shown under [Direct Style](#direct-style); the file also carries the helpers it calls, which is what makes it runnable as it stands.
+
+To run the full example, clone the repository and execute:
+
+```
+sbt "async-examples/run"
+```
 
 ## See Also
 
-- [Runnable example](#runnable-example) — `async-examples` single-file showcase
-- [Combinators](./combinators.md) — `Async#zip` uses the `Tuples` combiner for
-  automatic tuple flattening.
+- [Stream Reference](streams/stream.md) — pull-based streaming with resource safety; use `Async.promise` and `Completer` to bridge callback-based push sources into the pull-based stream model
+- [Scope Reference](resource-management/scope.md) — compile-time resource safety; `Async.Running` extends `AutoCloseable` and can be used inside `scala.util.Using` or any Scope-managed context for structured cancellation
+- [Compile-Time Resource Safety with Scope](../guides/compile-time-resource-safety-with-scope.md) — step-by-step tutorial on resource ownership that applies equally to `Async.Running` handles
