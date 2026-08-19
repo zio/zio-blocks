@@ -683,7 +683,7 @@ So `await` is not a method that blocks or waits. It is a marker the rewrite remo
 
 One consequence is worth remembering: `await` only means something inside an `Async.async` block. Elsewhere there is no rewrite to remove it, and both Scala versions reject it at compile time — Scala 2 through `@compileTimeOnly`, Scala 3 by aborting the macro expansion. You will not ship this mistake.
 
-Within the block, `await` is not restricted to statement position. It also works inside the closures you pass to the strict collections — `List`, `Option`, `Vector`, `Set`, `Map`, `Array`, `Queue`, `ArraySeq` — for `map`, `foreach`, `flatMap`, `filter`, `collect`, the `fold` and `reduce` families, `takeWhile`, `dropWhile`, `find`, `exists` and `forall`, and in for-comprehensions over them:
+Within the block, `await` is not restricted to statement position. It also works inside the closures you pass to the strict collections — `List`, `Option`, `Vector`, `Set`, `Map`, `Array`, `Queue`, `ArraySeq` — for `map`, `foreach`, `flatMap`, `filter`, `filterNot`, `collect`, `find`, `exists`, `forall`, `foldLeft`, `foldRight`, `reduce` and `reduceLeft`, and in for-comprehensions over them:
 
 ```scala mdoc:compile-only
 import zio.blocks.async._
@@ -695,7 +695,9 @@ val names: Async[List[String]] = Async.async {
 }
 ```
 
-Two exceptions are worth knowing before you rely on it: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported on every platform. Lazy collections are outside the supported set — force them to a strict collection first.
+Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported everywhere. Lazy collections are outside the set entirely — force them to a strict collection first.
+
+Where a collection method would throw on its own, it still does: `reduce` over an empty receiver fails with `UnsupportedOperationException`, which arrives as an ordinary `Async` failure you can `catchAll`.
 
 The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither asks you to add anything to your build.
 
