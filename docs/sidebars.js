@@ -331,6 +331,7 @@ const sidebars = {
       type: "category",
       label: "Guides",
       items: [
+        "guides/async-getting-started",
         "guides/compile-time-resource-safety-with-scope",
         "guides/getting-started-with-mux",
         "guides/query-dsl-extending",
