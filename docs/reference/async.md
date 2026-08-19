@@ -368,7 +368,9 @@ object Async {
   def start[A](body: => A): Async.Running[A]
   val never: Async[Nothing]
   def collectAll[A](as: IterableOnce[Async[A]]): Async[List[A]]
-  def async[A](body: => A): Async[A]                    // Scala 3 macro; see the Direct Style pattern
+  def async[A](body: A): Async[A]                       // rewritten in place: a macro on Scala 2,
+                                                        // a transparent inline def on Scala 3.
+                                                        // See the Direct Style pattern
 
   // JVM only
   def fromFuture[A](future: scala.concurrent.Future[A]): Async[A]
@@ -425,7 +427,11 @@ implicit class AsyncOps[A](fa: Async[A]) {
   def flatMap[B](f: A => Async[B]): Async[B]
   def as[B](b: B): Async[B]
   def unit: Async[Unit]
-  def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
+}
+
+// flatten is a separate extension, on a nested Async:
+implicit class AsyncNestedOps[A](ffa: Async[Async[A]]) {
+  def flatten: Async[A]  // collapses one nesting level
 }
 ```
 
@@ -523,7 +529,8 @@ Driving settles whatever part of an `Async[A]` is still waiting, and delivers th
 ```scala
 implicit class AsyncOps[A](fa: Async[A]) {
   def block: A                                        // parks calling thread; re-throws on failure
-  def await: A                                        // Scala 3 macro; inside Async.async { } only
+  def await: A                                        // inside Async.async { } only; the rewrite
+                                                      // removes it. Using it elsewhere does not compile
   def start: Async.Running[A]
   def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
   def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
