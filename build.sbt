@@ -657,7 +657,7 @@ lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
     // Thread.ofVirtual() (used in PlatformExecutor) is a Java 21 API, so this
     // module raises the default -release. Cap at 21: scalac rejects 25 as a
     // -java-output-version regardless of the JDK it is running on.
-    Compile / scalacOptions  := {
+    Compile / scalacOptions := {
       val base = (Compile / scalacOptions).value
       base.zipWithIndex.flatMap { case (opt, i) =>
         if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("21")
