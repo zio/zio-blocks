@@ -420,12 +420,13 @@ val result: Int = running.block  // => 42
 Pure transformations apply a function to the success value and return a new `Async`:
 
 ```scala
-// on any Async[A]:
-def map[B](f: A => B): Async[B]
-def flatMap[B](f: A => Async[B]): Async[B]
-def as[B](b: B): Async[B]
-def unit: Async[Unit]
-def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
+implicit class AsyncOps[A](fa: Async[A]) {
+  def map[B](f: A => B): Async[B]
+  def flatMap[B](f: A => Async[B]): Async[B]
+  def as[B](b: B): Async[B]
+  def unit: Async[Unit]
+  def flatten: Async[A]  // available when fa: Async[Async[A]]; collapses one nesting level
+}
 ```
 
 `map` applies a pure function and `flatMap` sequences a dependent second computation:
@@ -445,14 +446,15 @@ val out: String = result.block  // => "value: 42"
 Compositional operators combine independent or dependent `Async` values:
 
 ```scala
-// on any Async[A]:
-def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
-def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out]  // flattens; see below
-def tap(f: A => Async[Any]): Async[A]
-def ensuring(finalizer: Async[Any]): Async[A]
-def *>[B](that: Async[B]): Async[B]
-def <*[B](that: Async[B]): Async[A]
-def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
+implicit class AsyncOps[A](fa: Async[A]) {
+  def zipWith[B, C](that: Async[B])(f: (A, B) => C): Async[C]
+  def zip[B](that: Async[B])(implicit t: Tuples[A, B]): Async[t.Out]  // flattens; see below
+  def tap(f: A => Async[Any]): Async[A]
+  def ensuring(finalizer: Async[Any]): Async[A]
+  def *>[B](that: Async[B]): Async[B]
+  def <*[B](that: Async[B]): Async[A]
+  def orElse[B](that: => Async[B]): Async[_]  // result type merges A and B via Concat typeclass
+}
 ```
 
 `zipWith` waits for both sides and combines their results; `tap` runs a side-effecting action while passing the original value through. `zip` pairs the two results, and chains of it stay flat rather than nesting — `a zip b zip c` yields `Async[(A, B, C)]`, not `Async[((A, B), C)]` — because it combines through the `Tuples` instances described in the [combinators reference](combinators.md):
@@ -482,11 +484,12 @@ val result: Int = logged.block  // => 42
 `Async` represents failure as a `Throwable` and provides dedicated recovery operators:
 
 ```scala
-// on any Async[A]:
-def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
-def mapError(f: Throwable => Throwable): Async[A]
-def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
-def either: Async[Either[Throwable, A]]
+implicit class AsyncOps[A](fa: Async[A]) {
+  def catchAll[A1 >: A](f: Throwable => Async[A1]): Async[A1]
+  def mapError(f: Throwable => Throwable): Async[A]
+  def foldCause[B](onFailure: Throwable => B)(onSuccess: A => B): Async[B]
+  def either: Async[Either[Throwable, A]]
+}
 ```
 
 `catchAll` recovers from any failure by supplying a replacement `Async[A]`; `either` converts the outcome to an `Either` so the failure surface is visible in the return type:
@@ -518,13 +521,14 @@ val result: String = message.block  // => "parsed: 42"
 Driving settles whatever part of an `Async[A]` is still waiting, and delivers the result through one of three mechanisms:
 
 ```scala
-// on any Async[A]:
-def block: A                                        // parks calling thread; re-throws on failure
-def await: A                                        // Scala 3 macro; inside Async.async { } only
-def start: Async.Running[A]
-def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
-def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
-  : java.util.concurrent.CompletableFuture[A]       // JVM only
+implicit class AsyncOps[A](fa: Async[A]) {
+  def block: A                                        // parks calling thread; re-throws on failure
+  def await: A                                        // Scala 3 macro; inside Async.async { } only
+  def start: Async.Running[A]
+  def toFuture(implicit ec: scala.concurrent.ExecutionContext): scala.concurrent.Future[A]
+  def toCompletableFuture(implicit ec: scala.concurrent.ExecutionContext)
+    : java.util.concurrent.CompletableFuture[A]       // JVM only
+}
 ```
 
 `block` parks the calling thread until the computation settles, then returns the value or re-throws the underlying `Throwable`:
