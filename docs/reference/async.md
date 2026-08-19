@@ -697,6 +697,8 @@ val names: Async[List[String]] = Async.async {
 
 Read that list literally; the near neighbours are not all included. `reduceRight` and `reduceOption` are not, and neither is the two-argument `fold`. `takeWhile` and `dropWhile` are, but only over an ordered receiver — `List`, `Vector`, `Queue`, `ArraySeq` or `Array` — because the prefix they compute is meaningless on a `Set` or a `Map`. And two cases surprise people: `Map.filter` with an `await` inside works on Scala 2 only, and a `Map.collect` whose closure yields a pair is unsupported everywhere. Lazy collections are outside the set entirely — force them to a strict collection first.
 
+The semantics are uniform across all of them. Each is lazy and sequential: the closure for element *n+1* runs only after element *n*'s `await` has completed, so a `List(a, b, c).map(fetch(_).await)` performs three fetches one after another rather than at once — use `Async.collectAll` when you want them overlapped. A failed `await` short-circuits the remainder, and the result keeps the receiver's collection type.
+
 Where a collection method would throw on its own, it still does: `reduce` over an empty receiver fails with `UnsupportedOperationException`, which arrives as an ordinary `Async` failure you can `catchAll`.
 
 The rewrite is performed by `dotty-cps-async` on Scala 3 and by a built-in `scala-reflect` macro on Scala 2.13. Both Scala versions support direct style, and neither asks you to add anything to your build.
@@ -1033,7 +1035,7 @@ final class Completer[A] extends Pollable[A] {
 }
 ```
 
-`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
+`Async.promise` creates a new `Completer[A]`, passes it to the body, and returns the `Completer` as an `Async[A]` that the driver polls until the callback fires. If the body happens to complete it before returning — a cache hit, a callback that fires inline — the result collapses to a plain ready value and no `Pollable` is allocated at all. It is the only place in the module where the *code you write* differs between Scala versions — elsewhere the signatures differ but the call sites are identical:
 
 ```scala
 // Scala 2 — the completer is an ordinary function parameter
@@ -1044,6 +1046,17 @@ inline def promise[A](inline body: Completer[A] ?=> Unit): Async[A]
 ```
 
 The `?=>` on Scala 3 makes the `Completer` a given inside the body rather than a plain argument, which is why the body is written `{ c ?=> ... }` there and `{ c => ... }` on Scala 2. (The two `inline` keywords are what splice the body into the call site instead of allocating a function object — the same technique behind the allocation-free ready path described under [Evaluation Model](#evaluation-model).)
+
+Being a given is not just bookkeeping: it buys you top-level `succeed` and `fail` helpers that find the completer themselves, so on Scala 3 the bridge need not name it at all.
+
+```scala
+// Scala 3 only — `succeed` and `fail` take the Completer as a given.
+val fetched: Async[Int] = Async.promise[Int] { c ?=>
+  legacyLookup(onOk = value => succeed(value), onErr = cause => fail(cause))
+}
+```
+
+Naming it, as the examples below do, is equally valid and reads better when the callback is registered several lines away from where it fires.
 
 <Tabs groupId="scala-version" defaultValue="scala2">
 <TabItem value="scala2" label="Scala 2">
