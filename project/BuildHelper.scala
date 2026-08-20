@@ -1,3 +1,4 @@
+import sbtheader.HeaderPlugin.autoImport.*
 import sbt.Keys.*
 import sbt.{Def, *}
 import sbtbuildinfo.*
@@ -252,7 +253,13 @@ object BuildHelper {
       coverageMinimumStmtTotal   := 95,
       coverageMinimumBranchTotal := 90,
       coverageExcludedFiles      := ".*BuildInfo.*"
-    )
+    ) ++ {
+      // Example projects are embedded verbatim into the documentation via `mdoc:embed`, so they carry
+      // no license header. An empty mapping leaves sbt-header with no file types to process, which
+      // makes both `headerCreate` and `headerCheck` no-ops for these projects.
+      if (prjName.endsWith("-examples")) Seq(headerMappings := Map.empty)
+      else Seq.empty
+    }
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
     crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),
