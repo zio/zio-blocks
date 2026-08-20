@@ -148,27 +148,32 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     suite("OtlpJsonTraceExporter")(
       test("onStart is a no-op") {
         val (sender, _) = mockHttpSender()
+        val pe          = PlatformExecutor.create()
         val exporter    = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           // onStart should not throw or do anything
           // We can't easily construct a Span trait instance so we test it doesn't error
           assertTrue(true)
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("onEnd enqueues span and forceFlush sends via HttpSender") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -179,42 +184,54 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               calls.head._1.endsWith("/v1/traces") &&
               calls.head._3.nonEmpty
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("sends to correct endpoint URL") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(endpoint = "http://my-collector:4318", flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
           exporter.forceFlush()
           val calls = captured.get()
           assertTrue(calls.head._1 == "http://my-collector:4318/v1/traces")
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("sends correct Content-Type header") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
           exporter.forceFlush()
           val calls = captured.get()
           assertTrue(calls.head._2.get("Content-Type").contains("application/json"))
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("includes custom headers from config") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(
             headers = Map("Authorization" -> "Bearer secret"),
@@ -223,23 +240,27 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
           exporter.forceFlush()
           val calls = captured.get()
           assertTrue(calls.head._2.get("Authorization").contains("Bearer secret"))
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("encodes span data as valid OTLP JSON") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -250,16 +271,20 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               body.contains("test-span") &&
               body.contains("0af7651916cd43dd8448eb211c80319c")
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("batches multiple spans together") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEnd(sampleSpanData())
@@ -272,18 +297,22 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               body.contains("test-span") &&
               body.contains("span-2")
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       }
     ),
     suite("OtlpJsonLogExporter")(
       test("onEmit enqueues log and forceFlush sends via HttpSender") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonLogExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -294,32 +323,40 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               calls.head._1.endsWith("/v1/logs") &&
               calls.head._3.nonEmpty
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("sends to correct endpoint URL") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonLogExporter(
           ExporterConfig(endpoint = "http://my-collector:4318", flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEmit(sampleLogRecord())
           exporter.forceFlush()
           val calls = captured.get()
           assertTrue(calls.head._1 == "http://my-collector:4318/v1/logs")
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("encodes log data as valid OTLP JSON") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonLogExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -330,16 +367,20 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               body.contains("test log message") &&
               body.contains("INFO")
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       },
       test("batches multiple logs together") {
         val (sender, captured) = mockHttpSender()
+        val pe                 = PlatformExecutor.create()
         val exporter           = new OtlpJsonLogExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           exporter.onEmit(sampleLogRecord())
@@ -352,7 +393,10 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
               body.contains("test log message") &&
               body.contains("second log")
           )
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       }
     ),
     suite("OtlpJsonMetricExporter")(
@@ -481,12 +525,13 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
     suite("Trace exporter with response mapping integration")(
       test("retryable status code triggers retry in batch processor") {
         val sender   = mockHttpSenderWithStatus(429)
+        val pe       = PlatformExecutor.create()
         val exporter = new OtlpJsonTraceExporter(
           ExporterConfig(flushIntervalMillis = 600000L),
           testResource,
           testScope,
           sender,
-          PlatformExecutor.create()
+          pe
         )
         try {
           // This will enqueue and flush — the 429 will cause retries in BatchProcessor
@@ -494,7 +539,10 @@ object OtlpJsonExporterSpec extends ZIOSpecDefault {
           exporter.onEnd(sampleSpanData())
           exporter.forceFlush()
           assertTrue(true)
-        } finally exporter.shutdown()
+        } finally {
+          exporter.shutdown()
+          pe.shutdown()
+        }
       }
     )
   ) @@ TestAspect.sequential
