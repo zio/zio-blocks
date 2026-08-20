@@ -1675,8 +1675,17 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     scalacOptions += "-experimental",
     projectName  := (ThisBuild / name).value,
-    readmeBanner :=
-      "\n![ZIO Blocks](https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-social-github.svg)\n",
+    readmeBanner := {
+      val logoBase = "https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo"
+      // <picture> lets GitHub swap the lockup per theme: the wordmark is near-black ink, which
+      // would be invisible on GitHub's dark canvas without the on-dark variant.
+      s"""|
+          |<picture>
+          |  <source media="(prefers-color-scheme: dark)" srcset="$logoBase/zio-blocks-logo-on-dark.svg">
+          |  <img alt="ZIO Blocks" src="$logoBase/zio-blocks-logo.svg" width="520">
+          |</picture>
+          |""".stripMargin
+    },
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
@@ -1797,10 +1806,15 @@ lazy val docs = project
         |""".stripMargin
 
     // Section order matches WebsiteUtils.generateReadme; empty settings render nothing.
+    //
+    // One deliberate departure from the plugin: no "# ${projectName}" heading. The banner is the
+    // logo lockup, which already carries the wordmark, so the heading would render the project
+    // name twice in a row. The image's alt text supplies the accessible name in its place. Running
+    // the plugin's own `generateReadme` instead of this task would put the heading back.
     val rendered =
       header +
         readmeBanner.value +
-        "\n# " + projectName.value + "\n\n" + introduction + "\n" +
+        "\n" + introduction + "\n" +
         section("Documentation", readmeDocumentation.value) +
         section("Contributing", readmeContribution.value) +
         section("Code of Conduct", readmeCodeOfConduct.value) +
