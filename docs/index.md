@@ -463,100 +463,32 @@ ZIO Blocks works with any Scala stack:
 
 Each block has zero dependencies on effect systems. Use the blocks directly, or integrate them with your effect system of choice.
 
-## Documentation
-
-### Core Schema Concepts
-
-- [Schema](./reference/schema/schema.md) - Core schema definitions and derivation
-- [Allows](./reference/schema/allows.md) - Compile-time structural grammar constraints
-- [Reflect](./reference/schema/reflect.md) - Structural reflection API
-- [Binding](./reference/schema/binding.md) - Runtime constructors and deconstructors
-- [BindingResolver](reference/schema/binding-resolver.md) - Binding lookup and schema rebinding
-- [Registers](./reference/schema/registers.md) - Register-based primitive storage
-
-### Optics & Navigation
-
-- [Optics](./reference/schema/optics.md) - Lenses, prisms, and traversals
-- [SchemaExpr](./reference/schema/schema-expr.md) - Schema-aware expressions for queries and validation
-- [Path Interpolator](./reference/schema/path-interpolator.md) - Type-safe path construction
-- [DynamicValue](./reference/schema/dynamic-value.md) - Schema-less dynamic values
-- [DynamicSchema](./reference/schema/dynamic-schema.md) - Type-erased schemas for validation and cross-process transport
-
-### Serialization
-
-- [Codec & Format](./reference/schema/codec.md) - Codec, Format, BinaryCodec & TextCodec
-- [JSON](./reference/schema/built-in-codecs/json/index.md) - JSON codec and parsing
-- [JsonPatch](./reference/schema/built-in-codecs/json/json-patch.md) - Diff and patch JSON values
-- [JsonDiffer](./reference/schema/built-in-codecs/json/json-differ.md) - Compute minimal diffs between JSON values
-- [JSON Schema](./reference/schema/built-in-codecs/json/json-schema.md) - JSON Schema generation and validation
-- [XML Codec](./reference/schema/built-in-codecs/xml.md) - Zero-dependency XML serialization with fluent navigation and patching
-- [CSV Codec](./reference/schema/built-in-codecs/csv.md) - RFC 4180-compliant CSV serialization with schema-driven derivation
-- [BSON Codec](./reference/schema/built-in-codecs/bson.md) - MongoDB-compatible BSON serialization with native type support
-- [Avro Codec](./reference/schema/built-in-codecs/avro.md) - Apache Avro binary serialization with automatic schema generation
-- [MessagePack Codec](./reference/schema/built-in-codecs/messagepack.md) - Compact binary serialization with optimized streaming
-- [Thrift Codec](./reference/schema/built-in-codecs/thrift.md) - Apache Thrift binary serialization with TBinaryProtocol
-- [YAML Codec](./reference/schema/built-in-codecs/yaml.md) - Human-readable YAML serialization with JSON interop
-- [TOON Codec](./reference/schema/built-in-codecs/toon.md) - Compact token-oriented notation 30-60% smaller than JSON, optimized for LLM prompts
-- [Built-in Codecs](./reference/schema/built-in-codecs/index.md) - Overview of all supported serialization formats
-- [Extension Syntax](./reference/schema/syntax.md) - `.toJson`, `.fromJson`, and more
-
-### Data Operations
-
-- [Patching](./reference/schema/patch.md) - Serializable data transformations
-- [SchemaError](./reference/schema/schema-error.md) - Structured error type for schema operations
-- [Validation](./reference/schema/validation.md) - Data validation and error handling
-- [Schema Evolution](reference/schema/schema-evolution/index.md) - One-way and bidirectional type-safe conversions
-  - [Into](reference/schema/schema-evolution/into.md) - One-way conversion with validation
-  - [As](reference/schema/schema-evolution/as.md) - Bidirectional round-trip conversion
-
-### Telemetry
-
-- [Telemetry](./reference/telemetry/index.md) - Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics
-
-**Tracing**
-- [TracerProvider](./reference/telemetry/tracing/tracer-provider.md) - Factory for `Tracer` instances, configured once at startup
-- [Tracer](./reference/telemetry/tracing/tracer.md) - Per-library scope-bound span emitter
-- [Span](./reference/telemetry/tracing/span.md) - Active trace unit with attributes, events, and status
-
-**Logging**
-- [LoggerProvider](./reference/telemetry/logging/logger-provider.md) - Factory for `Logger` instances
-- [Logger](./reference/telemetry/logging/logger.md) - Per-library scope-bound structured log emitter
-
-**Metrics**
-- [MeterProvider](./reference/telemetry/metrics/meter-provider.md) - Factory for `Meter` instances
-- [Meter](./reference/telemetry/metrics/meter.md) - Per-library scope-bound metric factory
-- [Instruments](./reference/telemetry/metrics/instruments.md) - The `Counter`, `UpDownCounter`, `Histogram`, and `Gauge` recording APIs
-- [Labeled Instruments](./reference/telemetry/metrics/labeled-instruments.md) - Instruments whose label names are fixed up front and recorded positionally
-
-**Common Types**
-- [Attributes](./reference/telemetry/common/attributes.md) - Parallel-array key/value store shared across signals
-- [AttributeKey](./reference/telemetry/common/attribute-key.md) - Typed attribute key
-- [Resource](./reference/telemetry/common/resource.md) - Immutable set of attributes describing the telemetry source entity
-- [InstrumentationScope](./reference/telemetry/common/instrumentation-scope.md) - Named and versioned scope for grouping signals
-
-**Tracing Support**
-- [SpanContext](./reference/telemetry/tracing/span-context.md) - Immutable trace and span identifiers for propagation
-- [SpanData](./reference/telemetry/tracing/span-data.md) - Completed span snapshot used by exporters
-- [SpanProcessor](./reference/telemetry/tracing/span-processor.md) - Hook interface for span start/end events
-- [Sampler](./reference/telemetry/tracing/sampler.md) - Decision interface for whether to record and export a span
-
-**Logging Support**
-- [LogRecord](./reference/telemetry/logging/log-record.md) - Immutable structured log record
-- [LogRecordProcessor](./reference/telemetry/logging/log-record-processor.md) - Hook interface for processing emitted log records
-- [LogFormatter](./reference/telemetry/logging/log-formatter.md) - Renders a log record to text (human-readable or OTLP JSON)
-- [LogWriter](./reference/telemetry/logging/log-writer.md) - Routes formatted log text to a destination (stdout, stderr, file)
-- [Severity](./reference/telemetry/logging/severity.md) - OpenTelemetry log severity enumeration
-- [LogEnrichment](./reference/telemetry/logging/log-enrichment.md) - Mechanism for attaching context attributes to every log record
-
-**Metrics Support**
-- [MetricData](./reference/telemetry/metrics/metric-data.md) - Snapshot of a metric instrument's collected data
-
-### Guides
+## Guides
 
 - [Getting Started with Async](./guides/async-getting-started.md) - Create, compose, and run zero-allocation async effects with the `Async[A]` type
-- [Getting Started with Mux](./guides/getting-started-with-mux.md) - Learn how to manage multiplexed bidirectional message streams with capacity limits
-- [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step guide to migrating from ZIO Schema 1.x to ZIO Blocks Schema
+- [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) - Resource management and dependency injection, from first principles
+- [Getting Started with Mux](./guides/getting-started-with-mux.md) - Manage multiplexed bidirectional message streams with capacity limits
+- [Telemetry: Architecture, Patterns, and Real-World Usage](./guides/telemetry-guide.md) - Wire tracing, logging, and metrics into a running application
+- [Migrating from ZIO Schema](./guides/zio-schema-migration.md) - Step-by-step migration from ZIO Schema 1.x to ZIO Blocks Schema
 - [Query DSL Part 1: Expressions](./guides/query-dsl-reified-optics.md) - Build type-safe, composable query expressions
 - [Query DSL Part 2: SQL Generation](./guides/query-dsl-sql.md) - Translate query expressions into SQL
-- [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond SchemaExpr
-- [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, DELETE statements
+- [Query DSL Part 3: Extending the Expression Language](./guides/query-dsl-extending.md) - Add custom operators beyond `SchemaExpr`
+- [Query DSL Part 4: A Fluent SQL Builder](./guides/query-dsl-fluent-builder.md) - Build type-safe SELECT, UPDATE, INSERT, and DELETE statements
+
+## Full API Reference
+
+Every block in the catalog above links to its own reference page. The blocks
+large enough to have several pages start from an overview:
+
+- [Schema](./reference/schema/index.md) - core type system, dynamic values, optics, validation, and schema evolution
+  - [Built-in Codecs](./reference/schema/built-in-codecs/index.md) - JSON, Avro, BSON, CSV, MessagePack, Thrift, TOON, XML, and YAML
+  - [Schema Evolution](./reference/schema/schema-evolution/index.md) - one-way and bidirectional type-safe conversions
+- [Telemetry](./reference/telemetry/index.md) - tracing, logging, metrics, and OTLP export
+- [SQL](./reference/sql/index.md) - codecs, fragments, tables, repositories, transactors, and dialects
+- [Resource Management & DI](./reference/resource-management/index.md) - `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization
+- [Streams](./reference/streams/index.md) - `Stream`, `Pipeline`, `Sink`, and the low-level readers and writers
+- [Endpoint](./reference/endpoint/index.md) - endpoint descriptors, HTTP codecs, route patterns, and typed auth
+- [HTTP Model](./reference/http-model/index.md) - the pure HTTP data model and its schema-based typed access
+- [HTMX](./reference/htmx/index.md) - the typed HTMX attribute DSL
+- [Ring Buffer](./reference/ringbuffer/index.mdx) - the SPSC, SPMC, MPSC, and MPMC variants
+- [Code Generation](./reference/codegen/index.md) - the Scala code generation IR and emitter
