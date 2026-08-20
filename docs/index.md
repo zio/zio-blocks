@@ -13,23 +13,92 @@ ZIO Blocks is a **family of type-safe, modular building blocks** for Scala appli
 
 The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS), and designed to compose with other blocks or your existing code.
 
-## The Blocks
+## All Blocks
 
-| Block | Description | Status |
-|-------|-------------|--------|
-| **Schema** | Type-safe schemas with automatic codec derivation | ✅ Available |
-| **Chunk** | High-performance immutable indexed sequences | ✅ Available |
-| **Scope** | Compile-time safe resource management and DI | ✅ Available |
-| **Docs** | GitHub Flavored Markdown parsing and rendering | ✅ Available |
-| **Codegen** | Generic Scala code generation IR and emitter | ✅ Available |
-| **TypeId** | Compile-time type identity with rich metadata | ✅ Available |
-| **Context** | Type-indexed heterogeneous collections | ✅ Available |
-| **MediaType** | Type-safe IANA media types with 2,600+ predefined types | ✅ Available |
-| **OpenAPI** | Type-safe OpenAPI 3.1 specification generation | ✅ Available |
-| **Ring Buffer** | High-performance bounded ring buffers (SPSC, MPSC, SPMC, MPMC) | ✅ Available |
-| **Streams** | Pull-based streaming primitives | ✅ Available |
-| **SQL** | Type-safe JDBC wrapper with schema-derived codecs and CRUD repository | ✅ Available |
-| **Async** | Zero-allocation asynchronous effect type with direct-style `await` | ✅ Available |
+Every block is published under the `dev.zio` organization. Most cross-build for
+**Scala 2.13 and 3.x** on both **JVM and Scala.js** with full source compatibility —
+adopt Scala 3 on your timeline, not ours. The handful of modules that are narrower
+say so in their own row.
+
+### Schema & Serialization
+
+JSON support is built into `zio-blocks-schema`; the modules below add further formats.
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Schema](./reference/schema/index.md) | `zio-blocks-schema` | JVM · JS | 2.13 · 3.x | Type-safe schemas with automatic codec, optic, and validator derivation |
+| [Avro Codec](./reference/schema/built-in-codecs/avro.md) | `zio-blocks-schema-avro` | JVM | 2.13 · 3.x | Apache Avro binary serialization with automatic schema generation |
+| [BSON Codec](./reference/schema/built-in-codecs/bson.md) | `zio-blocks-schema-bson` | JVM | 2.13 · 3.x | MongoDB-compatible BSON serialization with native type support |
+| [CSV Codec](./reference/schema/built-in-codecs/csv.md) | `zio-blocks-schema-csv` | JVM · JS | 2.13 · 3.x | RFC 4180-compliant CSV serialization |
+| [MessagePack Codec](./reference/schema/built-in-codecs/messagepack.md) | `zio-blocks-schema-messagepack` | JVM · JS | 2.13 · 3.x | Compact binary serialization with optimized streaming |
+| [Thrift Codec](./reference/schema/built-in-codecs/thrift.md) | `zio-blocks-schema-thrift` | JVM | 2.13 · 3.x | Apache Thrift binary serialization with TBinaryProtocol |
+| [TOON Codec](./reference/schema/built-in-codecs/toon.md) | `zio-blocks-schema-toon` | JVM · JS | 2.13 · 3.x | Token-oriented notation 30–60% smaller than JSON, tuned for LLM prompts |
+| [XML Codec](./reference/schema/built-in-codecs/xml.md) | `zio-blocks-schema-xml` | JVM · JS | 2.13 · 3.x | Zero-dependency XML serialization with fluent navigation and patching |
+| [YAML Codec](./reference/schema/built-in-codecs/yaml.md) | `zio-blocks-schema-yaml` | JVM · JS | 2.13 · 3.x | Human-readable YAML serialization with JSON interop |
+
+### Core Data Types
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Chunk](./reference/chunk.md) | `zio-blocks-chunk` | JVM · JS | 2.13 · 3.x | High-performance immutable indexed sequences with zero-boxing builders |
+| [Maybe](./reference/maybe.md) | `zio-blocks-maybe` | JVM · JS | 2.13 · 3.x | Low-allocation optional values backed by `null` |
+| [Combinators](./reference/combinators.md) | `zio-blocks-combinators` | JVM · JS | 2.13 · 3.x | Compile-time composition and decomposition of tuples, eithers, and unions |
+| [TypeId](./reference/typeid.md) | `zio-blocks-typeid` | JVM · JS | 2.13 · 3.x | Compile-time type identity with rich metadata |
+| [Context](./reference/context.md) | `zio-blocks-context` | JVM · JS | 2.13 · 3.x | Type-indexed heterogeneous collections |
+| [MediaType](./reference/media-type.md) | `zio-blocks-mediatype` | JVM · JS | 2.13 · 3.x | Type-safe IANA media types with 2,600+ predefined types |
+
+### Concurrency & Streaming
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Async](./reference/async.md) | `zio-blocks-async` | JVM · JS | 2.13 · 3.x | Zero-allocation asynchronous effect type with direct-style `await` |
+| [Streams](./reference/streams/index.md) | `zio-blocks-streams` | JVM · JS | 2.13 · 3.x | Synchronous pull-based streaming with typed errors and zero boxing |
+| [Ring Buffer](./reference/ringbuffer/index.mdx) | `zio-blocks-ringbuffer` | JVM · JS | 2.13 · 3.x | Lock-free bounded ring buffers (SPSC, SPMC, MPSC, MPMC) |
+| [Mux](./reference/mux.mdx) | `zio-blocks-mux` | JVM · JS | 2.13 · 3.x | Thread-safe multiplexer for HTTP/2, QUIC, and WebSocket-style protocols |
+
+### Resources & Configuration
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Scope](./reference/resource-management/index.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Compile-time safe resource management and dependency injection |
+| [Config](./reference/config.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
+| [Config YAML](./reference/config.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
+| [Config JSON](./reference/config.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
+| [Config HOCON](./reference/config.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
+
+### Web & HTTP
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [HTTP Model](./reference/http-model/index.md) | `zio-blocks-http-model` | JVM · JS | 2.13 · 3.x | Pure HTTP data model with URL parsing, headers, cookies, and forms |
+| [HTTP Model Schema](./reference/http-model/schema.md) | `zio-blocks-http-model-schema` | JVM · JS | 2.13 · 3.x | Schema-based typed access to the HTTP model |
+| [Endpoint](./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 2.13 · 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
+| [HTML](./reference/html.md) | `zio-blocks-html` | JVM · JS | 2.13 · 3.x | Type-safe HTML templating with XSS protection |
+| [HTMX](./reference/htmx/index.md) | `zio-blocks-http-htmx` | JVM · JS | 3.x | Typed HTMX DSL for compile-time-checked HTMX attributes |
+| [Datastar](./reference/datastar.md) | `zio-blocks-datastar` | JVM · JS | 3.x | Typed Datastar attribute and signal DSL |
+| [OpenAPI](./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 2.13 · 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
+
+### Persistence
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [SQL](./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
+| [SQL — ZIO](./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
+
+### Observability
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Telemetry](./reference/telemetry/index.md) | `zio-blocks-telemetry` | JVM · JS | 2.13 · 3.x | Zero-dependency OpenTelemetry-aligned tracing, logging, and metrics |
+| [OTLP Export](./reference/telemetry/otel/index.md) | `zio-blocks-telemetry-otel` | JVM | 2.13 · 3.x | OTLP exporters bridging telemetry signals to an OpenTelemetry collector |
+
+### Tooling & Codegen
+
+| Block | Artifact | Platform | Scala | Description |
+|-------|----------|----------|-------|-------------|
+| [Codegen](./reference/codegen/index.md) | `zio-blocks-codegen` | JVM | 2.13 · 3.x | Generic Scala code generation IR and emitter |
+| [Docs](./reference/docs.md) | `zio-blocks-markdown` | JVM · JS | 2.13 · 3.x | GitHub Flavored Markdown parsing, rendering, and programmatic construction |
+| [Smithy](./reference/smithy.md) | `zio-blocks-smithy` | JVM | 2.13 · 3.x | Smithy IDL parser and AST library for API modeling |
 
 ## Config
 
@@ -785,15 +854,6 @@ ZIO Blocks works with any Scala stack:
 
 Each block has zero dependencies on effect systems. Use the blocks directly, or integrate them with your effect system of choice.
 
-## Scala & Platform Support
-
-ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibility. Write your code once and compile it against either version—migrate to Scala 3 when your team is ready, not when your dependencies force you.
-
-| Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL | Async |
-|----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|-------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-
 ## Documentation
 
 ### Core Schema Concepts
@@ -881,42 +941,6 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 **Metrics Support**
 - [MetricData](./reference/telemetry/metrics/metric-data.md) - Snapshot of a metric instrument's collected data
-
-### Other Blocks
-
-- [Chunk](./reference/chunk.md) - High-performance immutable sequences
-- [Maybe](./reference/maybe.md) - Low-allocation optional values using null
-- [Mux](./reference/mux.mdx) - Thread-safe multiplexer for ID-multiplexed protocols (HTTP/2, QUIC, WebSockets) with lock-free per-stream queues
-- [Scope](./reference/resource-management/scope.md) - Compile-time safe resource management and DI
-- [Wire](./reference/resource-management/wire.md) - Recipes for constructing services and dependencies
-- [TypeId](./reference/typeid.md) - Type identity and metadata
-- [Context](./reference/context.md) - Type-indexed heterogeneous collections
-- [Combinators](./reference/combinators.md) - Compile-time composition and decomposition of values (Tuples, Eithers, Unions)
-- [Docs (Markdown)](./reference/docs.md) - Markdown parsing and rendering
-- [HTML](./reference/html.md) - Type-safe HTML templating with XSS protection
-- [HTMX](./reference/htmx/index.md) - Typed HTMX DSL for safe, compile-time HTMX attribute declarations
-- [HTTP Model](./reference/http-model/index.md) - Pure HTTP data model with URL parsing, headers, cookies, and forms
-- [Endpoint](./reference/endpoint/index.md) - Pure, type-safe HTTP endpoint descriptors with composable codecs and typed auth
-- [MediaType](./reference/media-type.md) - Type-safe IANA media types
-- [Smithy](./reference/smithy.md) - Smithy IDL parser and AST library for API modeling
-- [OpenAPI](./reference/openapi.md) - Type-safe OpenAPI 3.1 specification generation and rendering
-- [Ring Buffer](./reference/ringbuffer/index.mdx) - High-performance bounded ring buffers
-- [Stream](./reference/streams/stream.md) - Lazy, pull-based, type-safe streaming with resource safety
-- [Pipeline](./reference/streams/pipeline.md) - Reusable, composable stream transformations
-- [Sink](./reference/streams/sink.md) - Stream consumers that produce typed results
-- [Reader](./reference/streams/reader.md) - Low-level pull-based sources for streaming
-- [Writer](./reference/streams/writer.md) - Low-level push-based sinks for streaming
-- [SQL](./reference/sql/index.md) - Type-safe JDBC wrapper with schema-derived codecs and repository
-  - [DbCodec](./reference/sql/db-codec.md) - Bidirectional codec between Scala values and database columns
-  - [Frag](./reference/sql/frag.md) - Immutable SQL fragment with safe parameterization via `sql"..."` interpolator
-  - [Table](./reference/sql/table.md) - Schema-derived table metadata binding Scala types to database tables
-  - [Repo](./reference/sql/repo.md) - Type-safe CRUD repository with pre-built SQL operations
-  - [Transactor](./reference/sql/transactor.md) - Connection lifecycle and transaction management
-  - [DbCon](./reference/sql/db-con.md) - Implicit context carrying connection, dialect, and logger
-  - [DbTx](./reference/sql/db-tx.md) - Transactional scope marker extending `DbCon`
-  - [SqlDialect](./reference/sql/sql-dialect.md) - Database-specific SQL rendering (PostgreSQL, SQLite)
-  - [TransactorZIO](./reference/sql/transactor-zio.md) - ZIO integration with `ZIO.attemptBlocking` and `ZLayer`
-- [Async](./reference/async.md) - Zero-allocation asynchronous effect type with direct-style `await`
 
 ### Guides
 
