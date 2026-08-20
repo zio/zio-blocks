@@ -442,7 +442,7 @@ Generating documentation, README files, or any Markdown content programmatically
 ### Installation
 
 ```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-docs" % "@VERSION@"
+libraryDependencies += "dev.zio" %% "zio-blocks-markdown" % "@VERSION@"
 ```
 
 ### Example
@@ -711,16 +711,23 @@ val program = transactor.transact:
 
 ---
 
-## Streams (In Development)
+## Streams
 
-A pull-based streaming library for composable, backpressure-aware data processing.
+A synchronous, pull-based streaming library with typed errors, resource safety, and
+primitive specialization. Streams are lazy descriptions—nothing runs until a terminal
+operation is called, and every result comes back as an explicit `Either[E, Z]`.
 
 ```scala
 import zio.blocks.streams._
 
-// Coming soon: efficient pull-based streams
-// that compose with any effect system
+val stream = Stream.range(1, 100).filter(_ % 2 == 0).map(_ * 3)
+
+val result = stream.take(5).runCollect
+// Right(Chunk(6, 12, 18, 24, 30))
 ```
+
+See the [Streams reference](./reference/streams/index.md) for `Pipeline`, `Sink`, the
+zero-boxing readers, and the comparison against fs2, Kyo, Ox, and Pekko.
 
 ---
 
@@ -784,8 +791,8 @@ ZIO Blocks supports **Scala 2.13** and **Scala 3.x** with full source compatibil
 
 | Platform | Schema | Chunk | Scope | Docs | TypeId | Context | Ring Buffer | Streams | SQL | Async |
 |----------|--------|-------|-------|------|--------|---------|-------------|---------|-----|-------|
-| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| JVM | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Scala.js | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Documentation
 
