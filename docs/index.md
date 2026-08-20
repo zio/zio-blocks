@@ -13,6 +13,43 @@ ZIO Blocks is a **family of type-safe, modular building blocks** for Scala appli
 
 The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS), and designed to compose with other blocks or your existing code.
 
+## Core Principles
+
+- **Zero Lock-In**: No dependency on ZIO, Cats Effect, or any other effect system. Use a block with whatever stack you already have.
+- **Modular**: Each block is a separate artifact. Depend on exactly what you need.
+- **Cross-Platform**: Most blocks cross-build for JVM and Scala.js, and for Scala 2.13 and 3.x with source compatibility—adopt Scala 3 on your timeline, not ours. The catalog below records the exceptions per block.
+- **High Performance**: Implementations that avoid boxing, minimize allocations, and use platform-specific features where they pay off.
+- **Type Safety**: Scala's type system carries the correctness guarantees, without runtime overhead.
+
+## Getting Started
+
+Add a block and use it. Nothing else to wire up—no runtime to install, no effect
+type to adopt:
+
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
+```
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+
+val alice = Person("Alice", 30)
+
+// One schema, every format
+val jsonStr = alice.toJsonString                      // {"name":"Alice","age":30}
+val parsed  = """{"name":"Bob","age":25}""".fromJson[Person]
+```
+
+The four blocks below get a full walkthrough because they have no close
+equivalent elsewhere in Scala. Every other block is one row away in the catalog,
+and each row links to its own reference page.
+
 ## All Blocks
 
 Every block is published under the `dev.zio` organization. Most cross-build for
@@ -100,117 +137,6 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | [Docs](./reference/docs.md) | `zio-blocks-markdown` | JVM · JS | 2.13 · 3.x | GitHub Flavored Markdown parsing, rendering, and programmatic construction |
 | [Smithy](./reference/smithy.md) | `zio-blocks-smithy` | JVM | 2.13 · 3.x | Smithy IDL parser and AST library for API modeling |
 
-## Config
-
-Type-safe configuration loading, feature flags, rollout logic, and source adapters for YAML, JSON, and HOCON.
-
-See the [Config reference](reference/config.md) for the full API surface, supported rollout syntax, and format-adapter entry points.
-
-### Key Features
-
-- **Static flags**: Resolve once at class load with `StaticFlag[A]`
-- **Typed config loading**: Decode case classes with `Config.load[A]`
-- **Flag sources**: Register custom flag sources in `FlagSource.Registry`
-- **Source composition**: Combine sources with `orElse` and keep provenance
-- **Rollout DSL**: Select values with path and percentage rules
-- **File adapters**: Parse YAML, JSON, and HOCON into `ConfigSource`
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-config" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-yaml" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-json" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-config-hocon" % "@VERSION@"
-```
-
-### Quick Start: StaticFlag
-
-```scala
-import zio.blocks.config._
-
-object poolSize extends StaticFlag[Int](10)
-
-val size: Int = poolSize()
-```
-
-### Quick Start: Config.load[A]
-
-The snippet below uses Scala 3 syntax.
-
-```scala
-import zio.blocks.config._
-import zio.blocks.scope.Unscoped
-
-final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
-
-val cfg = Config.load[AppConfig](ConfigSource.fromMap(Map("host" -> "localhost", "port" -> "8080")))
-```
-
-### Example: FlagSource Plugin
-
-```scala
-package myapp
-
-import zio.blocks.config._
-
-object poolSize extends StaticFlag[Int](10)
-
-FlagSource.Registry.register(
-  FlagSource.fromMap(Map("myapp.poolSize" -> "20"), "demo")
-)
-
-val size = poolSize()
-```
-
-:::note
-Register a `FlagSource` before the first reference to a `StaticFlag` object. `StaticFlag` resolves during object initialization, so a source registered later will not change a flag that has already been loaded. The lookup key is the flag object's fully qualified name (`myapp.poolSize` in this example).
-:::
-
-### Example: ConfigSource Composition with Provenance
-
-The snippet below uses Scala 3 syntax.
-
-```scala
-import zio.blocks.config._
-import zio.blocks.scope.Unscoped
-
-val defaults = ConfigSource.fromMap(Map("app.host" -> "localhost"), "defaults")
-val env      = ConfigSource.fromMap(Map("app.port" -> "8080"), "env")
-val source   = env.orElse(defaults).prefix("app")
-
-final case class AppConfig(host: String, port: Int) derives Schema, Unscoped
-
-val loaded   = Config.loadWithProvenance[AppConfig](source)
-val hostProv = loaded.map(_.provenanceOf("host"))
-```
-
-### Example: Rollout DSL
-
-```scala
-import zio.blocks.config._
-
-val bucket = Rollout.bucketFor("user-123")
-val choice = Rollout.select("true@prod/50%;false", "prod", bucket)
-```
-
-`prod/50%` applies the choice to the `prod` path and enables it for roughly half of the `prod` buckets. The trailing `false` entry is the catch-all fallback for every non-matching case.
-
-### File Format Adapters
-
-- **YAML**: `ConfigSource.fromYaml(...)` (requires `config-yaml` dependency and `import zio.blocks.config.yaml._`)
-- **JSON**: `ConfigSource.fromJson(...)` (requires `config-json` dependency and `import zio.blocks.config.json._`)
-- **HOCON**: `ConfigSource.fromHocon(...)` (requires `config-hocon` dependency and `import zio.blocks.config.hocon._`)
-
-## Core Principles
-
-- **Zero Lock-In**: No dependencies on ZIO, Cats Effect, or any effect system. Use with whatever stack you prefer.
-- **Modular**: Each block is a separate artifact. Import only what you need.
-- **Cross-Platform**: Full support for JVM and Scala.js.
-- **Cross-Version**: Full support for Scala 2.13 and Scala 3.x with source compatibility—adopt Scala 3 on your timeline, not ours.
-- **High Performance**: Optimized implementations that avoid boxing, minimize allocations, and leverage platform-specific features.
-- **Type Safety**: Leverage Scala's type system for correctness without runtime overhead.
-
 ---
 
 ## Schema
@@ -249,7 +175,7 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 
 ### Key Features
 
-- **Universal Data Formats**: JSON, Avro, TOON (compact LLM-optimized format), MessagePack, Thrift, and BSON, with Protobuf planned.
+- **Universal Data Formats**: JSON built in, plus Avro, BSON, CSV, MessagePack, Thrift, TOON, XML, and YAML as separate modules, with Protobuf planned.
 - **High Performance**: Register-based design stores primitives directly in byte arrays, enabling zero-allocation serialization.
 - **Reflective Optics**: Type-safe lenses, prisms, and traversals with embedded structural metadata.
 - **Automatic Derivation**: Derive type class instances for any type with a schema.
@@ -258,16 +184,11 @@ val thriftCodec  = Schema[Person].derive(ThriftFormat)      // Thrift
 
 ```scala
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "@VERSION@"
-
-// Optional format modules:
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro"        % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-toon"        % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-messagepack" % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-thrift"      % "@VERSION@"
-libraryDependencies += "dev.zio" %% "zio-blocks-schema-bson"        % "@VERSION@"
 ```
 
-### Example: Optics
+See the [Schema & Serialization](#schema--serialization) rows above for the optional format modules.
+
+### Example
 
 ```scala
 import zio.blocks.schema._
@@ -287,64 +208,10 @@ val person = Person("Alice", 30, Address("123 Main St", "Springfield"))
 val updated = Person.age.replace(person, 31)
 ```
 
----
+### Learn More
 
-## Chunk
-
-A high-performance, immutable indexed sequence optimized for the patterns common in streaming, parsing, and data processing. Think of it as `Vector` but faster for the operations that matter most.
-
-### Why Chunk?
-
-Standard library collections make trade-offs that aren't ideal for streaming and binary data processing:
-
-- `Vector` is general-purpose but not optimized for concatenation patterns
-- `Array` is mutable and boxes primitives when used generically
-- `List` has O(n) random access
-
-Chunk is designed for:
-
-- **Fast concatenation** via balanced trees (Conc-Trees)
-- **Zero-boxing** for primitive types with specialized builders
-- **Efficient slicing** without copying
-- **Seamless interop** with `ByteBuffer`, `Array`, and standard collections
-
-### Key Features
-
-- **Specialized Builders**: Dedicated builders for `Byte`, `Int`, `Long`, `Double`, etc. avoid boxing overhead.
-- **Balanced Concatenation**: Based on Conc-Trees for O(log n) concatenation while maintaining O(1) indexed access.
-- **Bit Operations**: First-class support for bit-level operations, bit chunks backed by `Byte`, `Int`, or `Long` arrays.
-- **NonEmptyChunk**: A statically-guaranteed non-empty variant for APIs that require at least one element.
-- **Full Scala Collection Integration**: Implements `IndexedSeq` for seamless interop.
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-chunk" % "@VERSION@"
-```
-
-### Example
-
-```scala
-import zio.blocks.chunk._
-
-// Create chunks
-val bytes = Chunk[Byte](1, 2, 3, 4, 5)
-val moreBytes = Chunk.fromArray(Array[Byte](6, 7, 8))
-
-// Efficient concatenation (O(log n))
-val combined = bytes ++ moreBytes
-
-// Zero-copy slicing
-val slice = combined.slice(2, 6)
-
-// Bit operations
-val bits = bytes.asBitsByte
-val masked = bits & Chunk.fill(bits.length)(true)
-
-// NonEmptyChunk for type-safe non-emptiness
-val nonEmpty = NonEmptyChunk(1, 2, 3)
-val head: Int = nonEmpty.head  // Always safe, no Option needed
-```
+- [Schema reference](./reference/schema/index.md) — the full API surface, from `Reflect` and `Binding` through optics, validation, and schema evolution
+- [Migrating from ZIO Schema](./guides/zio-schema-migration.md) — a step-by-step port from ZIO Schema 1.x
 
 ---
 
@@ -411,7 +278,7 @@ Scope.global.scoped { scope =>
 libraryDependencies += "dev.zio" %% "zio-blocks-scope" % "@VERSION@"
 ```
 
-### Example: Basic Resource Management
+### Example
 
 ```scala
 import zio.blocks.scope.*
@@ -435,279 +302,76 @@ Scope.global.scoped { scope =>
 //         Database closed
 ```
 
-### Example: Dependency Injection
+### Learn More
 
-```scala
-import zio.blocks.scope.*
+- [Compile-Time Resource Safety with Scope](./guides/compile-time-resource-safety-with-scope.md) — the step-by-step tutorial, from basic resource management through dependency injection
+- [Resource Management & DI reference](./reference/resource-management/index.md) — `Scope`, `Resource`, `Wire`, `Unscoped`, and finalization order
 
-case class Config(dbUrl: String)
-class Database(config: Config) extends AutoCloseable { ... }
-class UserRepo(db: Database) { ... }
-class UserService(repo: UserRepo) extends AutoCloseable { ... }
+---
 
-// Resource.from auto-wires the dependency graph
-// Only provide leaf values - concrete classes are auto-wired
-val serviceResource: Resource[UserService] = Resource.from[UserService](
-  Wire(Config("jdbc:postgresql://localhost/mydb"))
-)
+## Async
 
-serviceResource.use(_.createUser("Alice"))
-// Cleanup runs LIFO: UserService → Database (UserRepo has no cleanup)
+A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
+an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
+the happy path while still suspending on genuinely asynchronous work.
+
+### The Problem
+
+Asynchronous Scala forces a choice between two costs. `Future` allocates for
+every combinator and needs an `ExecutionContext` threaded everywhere, even when
+the value is already available. Full effect systems avoid that but ask you to
+adopt a runtime, a set of type classes, and a programming model across your
+whole codebase—a heavy price for a library that only occasionally suspends.
+
+### The Solution
+
+`Async[A]` is a value, not a wrapper. When the result is already known, the
+representation *is* the result, so composing ready values costs nothing:
+
+```scala mdoc
+import zio.blocks.async._
+
+// Constructors collapse to bare values; transformers inline with no allocation
+val computed: Int =
+  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
 ```
 
-### Example: Nested Scopes with Transactions
+### Key Features
+
+- **Zero Allocation on the Happy Path**: A completed `Async[A]` is represented as the `A` itself; `map` and `flatMap` over ready values allocate nothing.
+- **Direct-Style `await`**: `Async.async { ... }` rewrites `.await` calls at compile time into a non-blocking `flatMap` chain—straight-line code, asynchronous execution.
+- **No Runtime to Adopt**: No `ExecutionContext` to thread, no type class hierarchy, no effect system dependency.
+- **Interop Built In**: Bridges to `Future` and `CompletionStage`, plus `Async.promise` for callback-based APIs.
+
+### Installation
 
 ```scala
-Scope.global.scoped { connScope =>
-  import connScope.*
+libraryDependencies += "dev.zio" %% "zio-blocks-async" % "@VERSION@"
+```
 
-  val conn = allocate(Resource.fromAutoCloseable(new Connection))
+### Example
 
-  // Transaction lives in child scope - cleaned up before connection
-  val result: String = scoped { txScope =>
-    import txScope.*
-    val c  = lower(conn)
-    val tx = $(c)(_.beginTransaction()).allocate
-    $(tx)(_.execute("INSERT INTO users VALUES (1, 'Alice')"))
-    $(tx)(_.commit())
-    "success"
+Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
+at compile time into a non-blocking `flatMap` chain:
+
+```scala mdoc:compile-only
+import zio.blocks.async._
+
+def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
+
+val program: Async[Int] =
+  Async.async {
+    val a = fetch(1).await
+    val b = fetch(2).await
+    (a + b).length
   }
-  // Transaction closed here, connection still open
-
-  println(result)
-}
-// Connection closed here
 ```
 
-### Getting Started
-
-New to Scope? Check out the [Scope Tutorial](./guides/compile-time-resource-safety-with-scope.md) for a comprehensive step-by-step guide that walks you through the concepts, patterns, and real-world examples. The tutorial is designed for newcomers and covers everything from basic resource management to advanced dependency injection.
-
-For detailed API documentation, see the [Scope Reference](./reference/resource-management/scope.md).
-
----
-
-## Docs
-
-A zero-dependency GitHub Flavored Markdown library for parsing, rendering, and programmatic construction of Markdown documents.
-
-### Why Docs?
-
-Generating documentation, README files, or any Markdown content programmatically is common but error-prone with string concatenation. Docs provides:
-
-- **Type-safe AST**: Build Markdown documents with compile-time guarantees
-- **Compile-time validation**: The `md"..."` interpolator validates syntax at compile time
-- **Multiple renderers**: Output to Markdown, HTML, or ANSI terminal
-- **Round-trip parsing**: Parse Markdown to AST and render back to Markdown
-
-### Key Features
-
-- **GFM Compliant**: Tables, strikethrough, autolinks, task lists, fenced code blocks
-- **Zero Dependencies**: Only depends on zio-blocks-chunk
-- **Cross-Platform**: Full support for JVM and Scala.js
-- **Type-Safe Interpolator**: `md"# Hello $name"` with compile-time validation
-- **Multiple Renderers**: Markdown, HTML (full document or fragment), ANSI terminal
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-markdown" % "@VERSION@"
-```
-
-### Example
-
-```scala
-import zio.blocks.docs._
-
-// Parse Markdown
-val doc = Parser.parse("# Hello\n\nThis is **bold** text.")
-// Right(Doc(Chunk(Heading(H1, "Hello"), Paragraph(...))))
-
-// Render to HTML
-val html = doc.map(_.toHtml)
-// Full HTML5 document with <html>, <head>, <body>
-
-// Render to HTML fragment (just the content)
-val fragment = doc.map(_.toHtmlFragment)
-// "<h1>Hello</h1><p>This is <strong>bold</strong> text.</p>"
-
-// Render to terminal with ANSI colors
-val terminal = doc.map(_.toTerminal)
-
-// Use the type-safe interpolator
-val name = "World"
-val greeting = md"# Hello $name"
-// Doc containing: Heading(H1, Chunk(Text("Hello World")))
-
-// Build documents programmatically
-import zio.blocks.chunk.Chunk
-
-val manual = Doc(Chunk(
-  Block.Heading(HeadingLevel.H1, Chunk(Inline.Text("API Reference"))),
-  Block.Paragraph(Chunk(
-    Inline.Text("See "),
-    Inline.Link(Chunk(Inline.Text("docs")), "/docs", None),
-    Inline.Text(" for details.")
-  ))
-))
-
-// Render back to Markdown
-val markdown = Renderer.render(manual)
-```
-
-### Supported GFM Features
-
-| Feature | Supported |
-|---------|-----------|
-| Headings (ATX) | ✅ |
-| Paragraphs | ✅ |
-| Emphasis/Strong | ✅ |
-| Code (inline & fenced) | ✅ |
-| Links & Images | ✅ |
-| Lists (bullet, ordered, task) | ✅ |
-| Blockquotes | ✅ |
-| Tables | ✅ |
-| Strikethrough | ✅ |
-| Autolinks | ✅ |
-| Hard/Soft breaks | ✅ |
-| HTML (passthrough) | ✅ |
-
-### Limitations
-
-- **No frontmatter**: YAML/TOML headers are not parsed
-- **No HTML entity decoding**: `&amp;` stays as-is
-- **No footnotes**: GFM footnote extension not supported
-- **No emoji shortcodes**: `:smile:` not converted to emoji
-
----
-
-## TypeId
-
-Compile-time type identity with rich metadata. TypeId captures comprehensive information about Scala types including name, owner, type parameters, variance, parent types, and annotations.
-
-### Key Features
-
-- **Rich Metadata**: Captures type name, owner, kind (class/trait/object/enum), parent types, and annotations
-- **Higher-Kinded Support**: Works with proper types and type constructors via `AnyKind`
-- **Subtype Checking**: Runtime subtype/supertype relationship checks using compile-time extracted information
-- **Cross-Platform**: Works identically on JVM and Scala.js
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-typeid" % "@VERSION@"
-```
-
-### Example
-
-```scala
-import zio.blocks.typeid._
-
-// Get TypeId for any type
-val listId = TypeId.of[List[Int]]
-println(listId.name)       // "List"
-println(listId.fullName)   // "scala.collection.immutable.List"
-println(listId.arity)      // 1 (type constructor)
-
-// Check type relationships
-trait Animal
-case class Dog(name: String) extends Animal
-
-val dogId = TypeId.of[Dog]
-val animalId = TypeId.of[Animal]
-dogId.isSubtypeOf(animalId)  // true
-
-// Access structural information
-dogId.isCaseClass  // true
-dogId.isSealed     // false
-```
-
----
-
-## Context
-
-A type-indexed heterogeneous collection that stores values by their types with compile-time type safety.
-
-### Key Features
-
-- **Type-Safe Lookup**: Retrieve values by type with compile-time guarantees
-- **Covariant**: `Context[Specific]` is a subtype of `Context[General]`
-- **Subtype Matching**: Lookup by supertype finds matching subtypes
-- **Cached Access**: O(1) subsequent lookups after first retrieval
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-context" % "@VERSION@"
-```
-
-### Example
-
-```scala
-import zio.blocks.context._
-
-case class Config(debug: Boolean)
-case class Metrics(count: Int)
-
-// Create a context with multiple values
-val ctx: Context[Config & Metrics] = Context(
-  Config(debug = true),
-  Metrics(count = 42)
-)
-
-// Retrieve values by type
-val config: Config = ctx.get[Config]
-val metrics: Metrics = ctx.get[Metrics]
-
-// Add or update values
-val updated = ctx.update[Metrics](m => m.copy(count = m.count + 1))
-
-// Combine contexts
-val ctx1 = Context(Config(false))
-val ctx2 = Context(Metrics(0))
-val merged: Context[Config & Metrics] = ctx1 ++ ctx2
-```
-
----
-
-## Ring Buffer
-
-High-performance, bounded ring buffers for inter-thread communication. Four lock-free variants cover every producer/consumer pattern (SPSC, MPSC, SPMC, MPMC).
-
-### Why Ring Buffer?
-
-Standard `java.util.concurrent` queues use node allocation (`ConcurrentLinkedQueue`) or coarse locking (`ArrayBlockingQueue`). Ring buffers avoid both:
-
-- **Zero allocation** on the hot path—pre-allocated circular array
-- **Lock-free** on the fast path—CAS or release/acquire semantics only
-- **Cache-friendly**—sequential memory access with 128-byte padding between producer/consumer fields
-
-### Key Features
-
-- **Four concurrency patterns**: SPSC, SPMC, MPSC, MPMC—pick the most constrained variant for your use case
-- **Cross-platform**: Same API on JVM and Scala.js (JS uses sequential implementations)
-
-### Installation
-
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-ringbuffer" % "@VERSION@"
-```
-
-### Example
-
-```scala
-import zio.blocks.ringbuffer._
-
-// SPSC: fastest, for dedicated producer-consumer pairs
-val spsc = SpscRingBuffer[String](1024)
-spsc.offer("hello") // true
-spsc.take()          // "hello"
-
-// MPMC: general-purpose, any number of threads
-val mpmc = MpmcRingBuffer[String](1024)
-mpmc.offer("hello") // false if full
-mpmc.take()          // null if empty
-```
+### Learn More
+
+- [Getting Started with Async](./guides/async-getting-started.md) — create, compose, and run async effects
+- [Async reference](./reference/async.md) — the full API, including `zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and `Future` / `CompletionStage` interop
+- [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala) — a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`)
 
 ---
 
@@ -747,10 +411,9 @@ val frag = sql"SELECT * FROM user WHERE email = ${"alice@example.com"}"
 ### Installation
 
 ```scala
-// Core module (Scala 3, JVM + Scala.js)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
 
-// ZIO integration (Scala 3, JVM only)
+// Optional ZIO integration
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
 ```
 
@@ -778,64 +441,10 @@ val program = transactor.transact:
   sql"SELECT * FROM product WHERE price < ${15.0}".query[Product]
 ```
 
----
+### Learn More
 
-## Streams
-
-A synchronous, pull-based streaming library with typed errors, resource safety, and
-primitive specialization. Streams are lazy descriptions—nothing runs until a terminal
-operation is called, and every result comes back as an explicit `Either[E, Z]`.
-
-```scala
-import zio.blocks.streams._
-
-val stream = Stream.range(1, 100).filter(_ % 2 == 0).map(_ * 3)
-
-val result = stream.take(5).runCollect
-// Right(Chunk(6, 12, 18, 24, 30))
-```
-
-See the [Streams reference](./reference/streams/index.md) for `Pipeline`, `Sink`, the
-zero-boxing readers, and the comparison against fs2, Kyo, Ox, and Pekko.
-
----
-
-## Async
-
-A lightweight, zero-dependency asynchronous effect type. A ready `Async[A]` *is*
-an `A`, so synchronous code composed with `map` / `flatMap` allocates nothing on
-the happy path while still suspending on genuinely asynchronous work.
-
-```scala mdoc
-import zio.blocks.async._
-
-// Constructors collapse to bare values; transformers inline with no allocation
-val computed: Int =
-  Async.succeed(20).map(_ + 1).flatMap(n => Async.succeed(n * 2)).block
-```
-
-Write straight-line asynchronous code with `Async.async` and `.await`, rewritten
-at compile time into a non-blocking `flatMap` chain:
-
-```scala mdoc:compile-only
-import zio.blocks.async._
-
-def fetch(id: Int): Async[String] = Async.succeed(s"item-$id")
-
-val program: Async[Int] =
-  Async.async {
-    val a = fetch(1).await
-    val b = fetch(2).await
-    (a + b).length
-  }
-```
-
-See the [Async reference](./reference/async.md) for the full API, including
-`zip`, `catchAll`, `collectAll`, the `Async.promise` callback bridge, and
-`Future` / `CompletionStage` interop.
-
-**Runnable tour:** the [`async-examples`](https://github.com/zio/zio-blocks/blob/main/async-examples/src/main/scala/async/AsyncShowcaseExample.scala)
-module is a single-file order-fulfillment demo (`sbt "++3.8.3; async-examples/run"`).
+- [SQL reference](./reference/sql/index.md) — `DbCodec`, `Frag`, `Table`, `Repo`, `Transactor`, dialects, and DDL generation
+- [Query DSL guide](./guides/query-dsl-reified-optics.md) — a four-part series building a type-safe query language on reified optics
 
 ---
 
