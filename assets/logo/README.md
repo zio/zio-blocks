@@ -11,7 +11,7 @@ singled out.
 | --- | --- |
 | `zio-blocks-logo.svg` | Primary horizontal lockup, light backgrounds |
 | `zio-blocks-logo-on-dark.svg` | Same lockup, ground lifted to read on dark surfaces |
-| `zio-blocks-logo-stacked.svg` | Square-ish spaces: cards, posters, slide title pages |
+| `zio-blocks-logo-stacked.svg` | Two lines — badge + IO over Blocks — for square-ish spaces |
 | `zio-blocks-logo-bare.svg` | No tile — for wide headers and footers |
 | `zio-blocks-mark.svg` | Badge alone: GitHub org avatar, Discord icon, app icon |
 | `zio-blocks-mark-favicon.svg` | Same grid, tighter ground — for 16–32 px |
@@ -72,12 +72,9 @@ aligned. Don't re-space the two.
 Ink ground, headline upper left, with the module pattern enlarged and bleeding
 off the right edge at low contrast.
 
-The Z in "ZIO" is the badge itself, set inline: the Z's modules are scaled to the
-cap height of the type, so the ultramarine ground overhangs the cap line and the
-baseline by exactly one module. The tile's left edge — not the Z's first module —
-sits on the text column, and the space after it is opened to 0.10 em so the "I"
-clears the ground. No separate badge appears on these cards; the headline carries
-the mark. Upload the PNG — GitHub's
+The headline uses the standard lockup, so the badge carries the Z here as it does
+everywhere else. The tile's left edge — not the Z's first module — sits on the
+text column. Upload the PNG — GitHub's
 **Settings → General → Social preview** field does not accept SVG, and neither do
 most link unfurlers.
 
