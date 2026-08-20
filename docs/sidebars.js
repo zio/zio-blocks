@@ -187,6 +187,7 @@ const sidebars = {
           },
           "reference/html",
           "reference/smithy",
+          "reference/openapi",
           "reference/datastar",
           {
             type: "category",
@@ -215,6 +216,7 @@ const sidebars = {
               "reference/streams/writer",
               "reference/streams/concurrent-operators",
               "reference/streams/zero-boxing",
+              "reference/streams/scala-2-compatibility",
             ]
           },
           {
