@@ -90,15 +90,20 @@ object CiWorkflow {
    * existing. The closing `find` is not, matching the workflow this replaces -
    * it would fail in a checkout with no website. Left as-is to keep the port
    * faithful; worth guarding separately.
+   *
+   * `SetupLibuv`, which zio-sbt-ci puts in every job template, is deliberately
+   * omitted: libuv1-dev is only needed to link Scala Native binaries and this
+   * build cross-compiles to JVM and JS only. It made the job depend on an apt
+   * mirror, which stalled for eight minutes and consumed the whole timeout in
+   * run 32234167683.
    */
   lazy val buildDocs: Def.Initialize[Job] = Def.setting(
     Job(
       id = "buildDocs",
       name = "Build Docs",
-      jobTimeout = Some(10),
+      jobTimeout = Some(20),
       steps = Seq(
         Checkout.value,
-        SetupLibuv,
         SetupJava("25"),
         SetupSBT,
         CacheDependencies,
@@ -202,12 +207,19 @@ object CiWorkflow {
    * scala3#24183 makes it fail; docs are compiled on JDK 17 instead. Postgres
    * backs the sql modules and carries a health check so steps cannot start
    * before it accepts connections.
+   *
+   * The timeout is sized for the JDK 25 / 3.8.x cell, the only one that runs
+   * instrumented tests, the Scala Next suite and the example compile in
+   * sequence. The coverage step alone has measured anywhere from 10 to 20
+   * minutes on unchanged sources, because only dependencies are cached and
+   * every run recompiles from scratch on whatever runner it draws, so the cap
+   * has to clear the slow end of that spread rather than its median.
    */
   lazy val testJVM: Def.Initialize[Job] = Def.setting(
     Job(
       id = "testJVM",
       name = "testJVM",
-      jobTimeout = Some(25),
+      jobTimeout = Some(40),
       strategy = Some(
         Strategy(
           matrix = Map("java" -> List("17", "25"), "platform" -> List("JVM"), "scala" -> Scalas),
@@ -395,7 +407,6 @@ object CiWorkflow {
       ),
       steps = Seq(
         Checkout.value,
-        SetupLibuv,
         SetupJava("25"),
         SetupSBT,
         CacheDependencies,
