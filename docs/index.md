@@ -3,7 +3,7 @@ id: index
 title: "ZIO Blocks"
 ---
 
-**Modular, zero-dependency building blocks for modern Scala applications.**
+**Modular building blocks for modern Scala applications—no effect system required.**
 
 @PROJECT_BADGES@
 
@@ -11,7 +11,7 @@ title: "ZIO Blocks"
 
 ZIO Blocks is a **family of type-safe, modular building blocks** for Scala applications. Each block is a standalone library with zero or minimal dependencies, designed to work with *any* Scala stack—ZIO, Cats Effect, Kyo, Ox, Akka, or plain Scala.
 
-The philosophy is simple: **use what you need, nothing more**. Each block is independently useful, cross-platform (JVM, JS), and designed to compose with other blocks or your existing code.
+The philosophy is simple: **use what you need, nothing more**. Each block is independently useful and designed to compose with other blocks or your existing code.
 
 ## Core Principles
 
