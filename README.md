@@ -4,10 +4,8 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-logo-on-dark.svg">
-  <img alt="ZIO Blocks" src="https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-logo.svg" width="420">
+  <img alt="ZIO Blocks" src="https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-logo.svg" width="520">
 </picture>
-
-# ZIO Blocks
 
 **Modular, zero-dependency building blocks for modern Scala applications.**
 
