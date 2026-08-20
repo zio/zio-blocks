@@ -684,7 +684,12 @@ lazy val otel = project
         Seq()
     }),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    // The exporter specs create scheduled executors backed by virtual threads and leave retry
+    // workers running past the end of a test. In-process those outlive the suite and have taken
+    // sbt itself down on JDK 25 (silent exit 1 right after "tests passed"). Fork so that any
+    // such crash is confined to the test JVM, and reported instead of killing the build.
+    Test / fork := true
   )
   .settings(
     mimaSettings(failOnProblem = false),
