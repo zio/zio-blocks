@@ -1675,8 +1675,17 @@ lazy val docs = project
     scalacOptions -= "-Xfatal-warnings",
     scalacOptions += "-experimental",
     projectName  := (ThisBuild / name).value,
-    readmeBanner :=
-      "\n![ZIO Blocks](https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-social-github.svg)\n",
+    readmeBanner := {
+      val logoBase = "https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo"
+      // <picture> lets GitHub swap the lockup per theme: the wordmark is near-black ink, which
+      // would be invisible on GitHub's dark canvas without the on-dark variant.
+      s"""|
+          |<picture>
+          |  <source media="(prefers-color-scheme: dark)" srcset="$logoBase/zio-blocks-logo-on-dark.svg">
+          |  <img alt="ZIO Blocks" src="$logoBase/zio-blocks-logo.svg" width="420">
+          |</picture>
+          |""".stripMargin
+    },
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),

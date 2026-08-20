@@ -2,7 +2,10 @@
 [//]: # (So please do not edit it manually. Instead, change "docs/index.md" file or sbt setting keys)
 [//]: # (e.g. "readmeDocumentation" and "readmeSupport".)
 
-![ZIO Blocks](https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-social-github.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-logo-on-dark.svg">
+  <img alt="ZIO Blocks" src="https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo/zio-blocks-logo.svg" width="420">
+</picture>
 
 # ZIO Blocks
 
