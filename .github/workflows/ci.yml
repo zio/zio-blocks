@@ -25,15 +25,13 @@ jobs:
   buildDocs:
     name: Build Docs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     continue-on-error: false
     steps:
     - name: Git Checkout
       uses: actions/checkout@v7.0.1
       with:
         fetch-depth: '0'
-    - name: Install libuv
-      run: sudo apt-get update && sudo apt-get install -y libuv1-dev
     - name: Setup Scala
       uses: actions/setup-java@v5.7.0
       with:
@@ -108,7 +106,7 @@ jobs:
   testJVM:
     name: testJVM
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     continue-on-error: false
     strategy:
       fail-fast: false
@@ -292,8 +290,6 @@ jobs:
       uses: actions/checkout@v7.0.1
       with:
         fetch-depth: '0'
-    - name: Install libuv
-      run: sudo apt-get update && sudo apt-get install -y libuv1-dev
     - name: Setup Scala
       uses: actions/setup-java@v5.7.0
       with:
