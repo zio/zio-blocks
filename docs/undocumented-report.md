@@ -7,7 +7,9 @@ title: "Documentation Coverage Report"
 
 Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
 
-**What changed since the last report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
+**Progress since this report was generated:** the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
+
+**What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
 ## Summary
 
@@ -18,17 +20,17 @@ Full re-scan of documentation coverage across every library module aggregated by
 | Reference pages | 164 |
 | Guides | 9 |
 | Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
-| Types never named anywhere in `docs/` | **610** |
-| Types with no prose or heading reference | **881** |
-| Name-mention coverage | **67%** |
-| Explained-type coverage | **52%** |
+| Types never named anywhere in `docs/` | **568** |
+| Types with no prose or heading reference | **847** |
+| Name-mention coverage | **68%** |
+| Explained-type coverage | **53%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 610 types — is the set that is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 881 types — additionally captures the 271 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 568 types — is the set that is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 847 types — additionally captures the 279 types that appear only as tokens inside examples and are never explained.
 
-This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 604 absent. Both figures are name-based lower bounds; see *Methodology*.
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 564 absent. Both figures are name-based lower bounds; see *Methodology*.
 
 ---
 
@@ -39,7 +41,6 @@ This report file is excluded from the scan, so listing a type here does not make
 | Module | types | absent | unexplained | explained cov | src LOC | doc LOC | ratio | Primary page |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | **http-model** | 191 | 101 | 132 | **31%** | 4,712 | 1,528 | 0.32 | `reference/http-model/model.md` |
-| **config** (+ `-yaml`/`-json`/`-hocon`) | 77 | 43 | 53 | **31%** | 3,914 | 158 | **0.04** | `reference/config.md` |
 | **http-model-schema** | 18 | 14 | 14 | **22%** | 1,249 | 607 | 0.49 | `reference/http-model/schema.md` |
 | **smithy** | 42 | 16 | 32 | 24% | 2,585 | 533 | 0.21 | `reference/smithy.md` |
 | **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
@@ -57,6 +58,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | streams | 29 | 9 | 10 | 66% | 18,434 | 5,725 | 0.31 | `reference/streams/` |
 | combinators | 6 | 2 | 2 | 67% | 1,132 | 524 | 0.46 | `reference/combinators.md` |
 | endpoint | 58 | 16 | 18 | 69% | 2,805 | 1,757 | 0.63 | `reference/endpoint/` |
+| config (+ `-yaml`/`-json`/`-hocon`) | 77 | 3 | 21 | 72% | 3,914 | 2,212 | 0.57 | `reference/config/index.md` |
 | schema-yaml | 28 | 6 | 8 | 71% | 2,753 | 552 | 0.20 | `built-in-codecs/yaml.md` |
 | chunk | 20 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 | `reference/chunk.md` |
 | markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
@@ -76,7 +78,7 @@ This report file is excluded from the scan, so listing a type here does not make
 
 Notes on reading this table:
 
-- The four `config*` modules share one page, so the family is shown as one row (`config` 65/34/43, `config-hocon` 11/8/9, `config-yaml` 1/1/1, `config-json` 0/0/0).
+- The four `config*` modules share one page directory, so the family is shown as one row (`config` 65/1/14, `config-hocon` 11/2/7, `config-yaml` 1/0/0, `config-json` 0/0/0).
 - `mediatype`'s 0.04 ratio and 31% explained coverage are both artifacts: 12,332 of its 12,676 source lines are the generated `MediaTypes.scala` lookup table, and the 11 unexplained types are generated media-type groupings. Its hand-written surface is ~340 lines and is adequately covered.
 - `maybe`, `htmx`, `codegen`, and `sql` have ratios above 1.0 — more documentation than implementation. They are the model to aim for.
 - `async`'s low coverage is mostly benign: the unnamed types are CPS-transform internals (see *Deliberately Undocumented*). Its 0.20 ratio is the real signal.
@@ -88,26 +90,32 @@ Notes on reading this table:
 
 Type names below are **unexplained**: no prose reference, no heading. Names marked ✗ are **absent** — they never appear in `docs/` at all, not even inside an example.
 
-### 1. `config` — 158 lines for four modules
+### 1. `config` — RESOLVED
 
-The worst gap in the repository by a wide margin. One 158-line page covers `config`, `config-yaml`, `config-json`, and `config-hocon` (3,914 source lines combined); 53 of 77 public types are unexplained and 43 are absent.
+Was the worst gap in the repository: one 158-line page covering `config`, `config-yaml`, `config-json`, and `config-hocon` (3,914 source lines combined), with 53 of 77 public types unexplained and 43 absent.
 
-- **Decoding**: `ConfigDecoder` ✗, `ConfigDecoderDeriver` ✗ (458 lines — the whole derivation mechanism), `KeyMapper` ✗, `KeyFormat` ✗, `UpperSnakeCase` ✗, `Displayable` ✗, `DisplayableLowPriority` ✗
-- **Errors**: `ConfigError` ✗, `ConfigParseError` ✗, `ConfigSourceError` ✗, `ConfigValidationError` ✗, `ConfigDerivationError` ✗, `ConfigLoadException` ✗, `InvalidValue` ✗, `DuplicateKey` ✗, `MissingDiscriminatorKey` ✗, `UnknownDiscriminator` ✗
-- **Flags**: `FlagReader` ✗ (305 lines), `FlagException` ✗, `FlagNameException` ✗, `FlagValueParseException` ✗, `FlagExpressionParseException` ✗, `FlagDuplicateNameException` ✗, `FlagSourceValue` ✗, `Selector` ✗, `Flag`, `DynamicFlag`, `Wildcard`, `CatchAll` ✗
-- **Sources**: `EnvSource` ✗, `SysPropSource` ✗, `MapSource` ✗, `NoSource` ✗, `EnvironmentVariable` ✗, `SystemProperty` ✗, `Composite`
-- **Reload**: `ReloadResult` ✗, `Updated`, `Unchanged` ✗, `UpdateRecord` ✗, `Resolved`
-- **HOCON**: `HoconParser` ✗ (646 lines), `HoconValue` ✗, `HoconError` ✗, `ConfigSourceHoconSyntax` ✗, `HoconConfigSource` ✗
-- **YAML / JSON**: `YamlConfigSource` ✗, `JsonConfigSource` ✗
+`docs/reference/config.md` is now `docs/reference/config/`, seven pages totalling 2,212 lines with every code block mdoc-verified:
 
-Actions:
+| Page                | Covers                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| `index.md`          | Module narrative, installation, data flow, the four `Config` entry points, integration points |
+| `config-source.md`  | `ConfigSource`, `MapSource`, `EnvSource`, `SysPropSource`, composition, `KeyMapper`, `KeyFormat`, `SourceValue`, `Provenance`, `ProvenanceMap`, `Secret`, `Displayable` |
+| `config-decoder.md` | `ConfigDecoder`, `ConfigDecoderDeriver`, one mapping rule per schema shape, the primitive parsing table, discriminators, error accumulation |
+| `errors.md`         | `ConfigError` and its four category traits, every constructor, `ConfigLoadException`        |
+| `flags.md`          | `FlagSource`, `Registry`, `StaticFlag`, `DynamicFlag`, `Flag.Reader`, `Flag.Source`, `FlagException`, `Flag.dump` |
+| `rollout.md`        | Rollout grammar, `Choice`/`Selector`/`Segment`, bucketing, `Flag.ReloadResult`, `UpdateRecord`, counters |
+| `formats.md`        | YAML, JSON, and HOCON adapters, flattening rules, substitutions, includes, `HoconValue`, JVM file loading |
 
-- [ ] Split `reference/config.md` into a `reference/config/` directory: `index.md`, `config-decoder.md`, `config-source.md`, `flags.md`, `errors.md`, `reload.md`
-- [ ] Document the error ADT — every listed error type, with the failure that produces it
-- [ ] Document `ConfigDecoderDeriver`: how `Schema[A]` becomes a decoder, and how to override an instance
-- [ ] Document `KeyMapper` / `KeyFormat` / `UpperSnakeCase` — the env-var naming contract
-- [ ] Give `config-yaml`, `config-json`, and `config-hocon` their own sections with the `ConfigSource.fromX` entry points, parse-error behaviour, and HOCON substitution semantics
-- [ ] Document `ReloadResult` and the reload / `UpdateRecord` lifecycle
+The family is now at 72% explained coverage with 3 absent types. Writing the pages required adding the four config modules to the `docs` project in `build.sbt` — they were absent from its classpath, which is why no config code block had ever been compiled.
+
+Three behaviours that the source made non-obvious and the new pages now state explicitly: a rollout selector must match a path's segment count **exactly** (the bucketing key is itself the first segment); flag durations use a `30s` suffix grammar while config durations require ISO-8601 `PT30S`; and a flattened `null` is indistinguishable from an absent key, so it cannot be used to unset a lower-priority layer.
+
+What remains, all minor:
+
+- [ ] Name `ConfigSourceHoconSyntax` and `ConfigSourceHoconPlatformSyntax` in `formats.md`, or make them private — the mechanism is described but the traits are not named
+- [ ] `DisplayableLowPriority` is an implicit-priority helper and is deliberately skipped; consider tightening its visibility
+- [ ] `ConfigError.DuplicateKey` and `ConfigError.Unauthorized` are documented as unused by the module; decide whether they should exist at all
+- [ ] `ConfigValidationError` is sealed with zero implementations, so matching on it can never match; either give it a constructor or remove it
 
 ### 2. `http-model` — typed headers entirely undocumented
 
@@ -347,7 +355,7 @@ Ordered by user impact per unit of writing effort.
 **Tier 1 — new pages for missing subsystems**
 
 1. - [ ] `reference/http-model/headers.md` — typed header catalog (~100 types, 1,861 source lines undocumented)
-2. - [ ] Split `reference/config.md` into `reference/config/` with six pages (53 unexplained types, 3,914 source lines behind 158 doc lines)
+2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
 3. - [ ] Split `reference/telemetry/otel/` into four pages
 4. - [ ] `reference/htmx/response-headers.md`
 5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
@@ -452,6 +460,7 @@ Known limitations:
 
 - Matching is name-based, so a type whose name collides with an ordinary English word (`Default`, `Private`, `Public`, `Wildcard`, `Flag`, `Origin`, `Date`, `Host`) can be scored as covered when the page never discusses it. Both gap counts are therefore lower bounds.
 - Nested types are counted individually, which inflates ADT-heavy modules such as `http-model` and `schema`. This is intentional: each variant is something a user can pattern match on.
+- The `unexplained` column under-counts on well-written pages. The writing-style rules require method references to be qualified (`ConfigSource#orElse`, `Flag.Reader.scalar`), and nested types read naturally as `Provenance.Resolved` or `KeyFormat.KebabCase` — none of which the bare-name match sees. A page that follows the style guide will therefore show unexplained types it actually explains.
 - Method-level coverage is not measured. The `ratio` column (doc LOC / src LOC) is the proxy used instead.
 - The `ratio` column is meaningless for modules dominated by generated code — `mediatype` is the clearest case.
 
