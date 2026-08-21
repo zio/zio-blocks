@@ -98,10 +98,10 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Scope](./reference/resource-management/index.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Compile-time safe resource management and dependency injection |
-| [Config](./reference/config.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
-| [Config YAML](./reference/config.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
-| [Config JSON](./reference/config.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
-| [Config HOCON](./reference/config.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
+| [Config](./reference/config/index.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
+| [Config YAML](./reference/config/formats.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
+| [Config JSON](./reference/config/formats.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
+| [Config HOCON](./reference/config/formats.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
 
 ### Web & HTTP
 

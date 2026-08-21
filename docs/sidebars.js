@@ -128,7 +128,19 @@ const sidebars = {
           },
           "reference/combinators",
           "reference/docs",
-          "reference/config",
+         {
+           type: "category",
+           label: "Config",
+           link: { type: "doc", id: "reference/config/index" },
+           items: [
+             "reference/config/config-source",
+             "reference/config/config-decoder",
+             "reference/config/errors",
+             "reference/config/flags",
+             "reference/config/rollout",
+             "reference/config/formats",
+           ]
+         },
           "reference/media-type",
          {
            type: "category",
