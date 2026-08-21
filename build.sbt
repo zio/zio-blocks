@@ -821,7 +821,13 @@ lazy val config = crossProject(JSPlatform, JVMPlatform)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.config"))
   .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // Specs share FlagSource.Registry (mutable singleton); parallel specs cause race
+    // conditions. TestAspect.sequential only orders tests within a spec, so it does not
+    // help here. jsSettings already sets this; the JVM inherits `true` from stdSettings.
+    Test / parallelExecution := false
+  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
