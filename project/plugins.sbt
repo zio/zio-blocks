@@ -14,6 +14,10 @@ addSbtPlugin("org.scalameta"      % "sbt-scalafmt"             % "2.6.2")
 addSbtPlugin("org.scoverage"      % "sbt-scoverage"            % "2.4.4")
 addSbtPlugin("com.eed3si9n"       % "sbt-salad-days"           % "0.2.0")
 
+// `build.sbt` calls `SbtGit.useReadableConsoleGit` so sbt can start inside a git worktree (#1139).
+// sbt-git used to arrive transitively via sbt-ci-release, which dropped that dependency in 1.12.0.
+addSbtPlugin("com.github.sbt" % "sbt-git" % "2.1.0")
+
 addDependencyTreePlugin
 
 // Use the following command to find updates for dependencies and sbt-plugins:
