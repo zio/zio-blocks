@@ -164,6 +164,7 @@ lazy val root = project
     `http-model-schema`.jvm,
     `http-model-schema`.js,
     `http-model-examples`,
+    `endpoint-examples`,
     markdown.jvm,
     markdown.js,
     html.jvm,
@@ -589,6 +590,20 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
       }
     }
   )
+
+lazy val `endpoint-examples` = project
+  .in(file("endpoint-examples"))
+  .settings(stdSettings("zio-blocks-endpoint-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    // endpoints { val name = Endpoint(...) } re-splices RHS trees, so named vals
+    // look "unused" to the compiler in main sources (test-only Wconf doesn't apply)
+    scalacOptions -= "-Werror"
+  )
+  .dependsOn(endpoint.jvm)
 
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)

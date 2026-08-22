@@ -3,10 +3,9 @@ package endpointexamples
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
-import zio.blocks.schema.Schema
-import zio.http.Status
+import scala.language.implicitConversions
 
-@main def runBulkEndpointsExample(): Unit =
+@main def runBulkEndpointsExample(): Unit = {
   val api = "api" / endpoints {
     val customer = Endpoint(Method.GET / "customers")
     Endpoint(Method.GET / "health")
@@ -20,3 +19,4 @@ import zio.http.Status
   assert(h.route.render == "GET /health")
 
   println("BulkEndpointsExample OK")
+}
