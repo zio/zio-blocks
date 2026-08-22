@@ -989,6 +989,11 @@ object DbCodecSpec extends ZIOSpecDefault {
             DbValue.DbString("LA")
           )
         )
+      },
+      test("maybeCodec handles Present(null) without CCE (unsafeGet null check)") {
+        val mcodec = summon[DbCodec[Maybe[String]]]
+        val values = mcodec.toDbValues(Maybe.present(null))
+        assertTrue(values == IndexedSeq(DbValue.DbNull))
       }
     )
   )
