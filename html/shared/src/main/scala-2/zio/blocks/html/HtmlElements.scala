@@ -216,93 +216,41 @@ trait HtmlElements {
   val wbr: Dom.Element                                               = Dom.Element.Generic("wbr", Chunk.empty, Chunk.empty)
   def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
-  /** Creates a `<li>` element with optional attributes and children. */
-  def li(effects: DomModifier*): Dom.Element.Li = {
-    val base = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base
-    else base(effects.head, effects.tail: _*)
-  }
+  /** Empty `<li>` element; apply attributes/children via `li(...)`, returning `Li`. */
+  val li: Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
 
-  /** Creates a `<ul>` element with optional attributes and children. */
-  def ul(effects: DomModifier*): Dom.Element = {
-    val base = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
-  }
+  /** Empty `<ul>` element; apply attributes/children via `ul(...)`. */
+  val ul: Dom.Element = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
 
-  /** Creates a `<ul>` element from an iterable of list items. */
-  def ul(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
+  /** Empty `<ol>` element; apply attributes/children via `ol(...)`. */
+  val ol: Dom.Element = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
 
-  /** Creates an `<ol>` element with optional attributes and children. */
-  def ol(effects: DomModifier*): Dom.Element = {
-    val base = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
-  }
+  /** Empty `<th>` element; apply attributes/children via `th(...)`, returning `Th`. */
+  val th: Dom.Element.Th = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
 
-  /** Creates an `<ol>` element from an iterable of list items. */
-  def ol(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
+  /** Empty `<td>` element; apply attributes/children via `td(...)`, returning `Td`. */
+  val td: Dom.Element.Td = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
 
-  /** Creates a `<th>` element with optional attributes and children. */
-  def th(effects: DomModifier*): Dom.Element.Th = {
-    val base = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base
-    else base(effects.head, effects.tail: _*)
-  }
-
-  /** Creates a `<td>` element with optional attributes and children. */
-  def td(effects: DomModifier*): Dom.Element.Td = {
-    val base = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base
-    else base(effects.head, effects.tail: _*)
-  }
-
-  /** Creates a `<tr>` element with optional attributes and children. */
-  def tr(effects: DomModifier*): Dom.Element = {
-    val base = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base else base(effects.head, effects.tail: _*)
-  }
-
-  /** Creates a `<tr>` element from an iterable of header/data cells. */
-  def tr(cells: Iterable[Dom.Element.Cell]): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
+  /** Empty `<tr>` element; apply attributes/children via `tr(...)`. */
+  val tr: Dom.Element = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<table>` element with optional attributes and children (caption,
+   * Empty `<table>` element; apply attributes/children via `table(...)` (caption,
    * colgroup, thead, tbody, tfoot, tr).
    */
-  def table(parts: DomModifier*): Dom.Element = {
-    val base = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
-    if (parts.isEmpty) base
-    else base(parts.head, parts.tail: _*)
-  }
+  val table: Dom.Element = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
 
-  /** Creates an `<option>` element with optional attributes and children. */
-  def option(effects: DomModifier*): Dom.Element.Opt = {
-    val base = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base
-    else base(effects.head, effects.tail: _*)
-  }
+  /** Empty `<option>` element; apply attributes/children via `option(...)`, returning `Opt`. */
+  val option: Dom.Element.Opt = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
 
-  /** Creates an `<optgroup>` element with optional attributes and children. */
-  def optgroup(effects: DomModifier*): Dom.Element.Optgroup = {
-    val base = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
-    if (effects.isEmpty) base
-    else base(effects.head, effects.tail: _*)
-  }
+  /** Empty `<optgroup>` element; apply options/attributes via `optgroup(...)`, returning `Optgroup`. */
+  val optgroup: Dom.Element.Optgroup = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Creates a `<select>` element containing the given `<option>` and/or
-   * `<optgroup>` children.
+   * Empty `<select>` element; apply `<option>`/`<optgroup>` children and
+   * attributes via `select(...)`.
    */
-  def select(children: Dom.Element.SelectChild*): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
-
-  /**
-   * Creates a `<select>` element from an iterable of option/optgroup children.
-   */
-  def select(children: Iterable[Dom.Element.SelectChild]): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
+  val select: Dom.Element = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
 
   // --- Attribute helpers ---
 
