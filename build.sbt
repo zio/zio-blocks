@@ -991,6 +991,7 @@ lazy val `endpoint-examples` = project
   )
   .dependsOn(endpoint.jvm)
 
+
 lazy val markdown = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-markdown"))
