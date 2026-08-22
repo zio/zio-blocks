@@ -179,10 +179,11 @@ sealed trait Dom extends Product with Serializable {
    *   true if this node produces no output when rendered
    */
   def isEmpty: Boolean = this match {
-    case Dom.Empty      => true
-    case Dom.Text(c)    => c.isEmpty
-    case _: Dom.Element => false
-    case _: Dom.Doctype => false
+    case Dom.Empty           => true
+    case Dom.Text(c)         => c.isEmpty
+    case _: Dom.Element      => false
+    case _: Dom.Element.Void => false
+    case _: Dom.Doctype      => false
   }
 }
 
@@ -376,6 +377,69 @@ object Dom {
 
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))
+    }
+
+    /**
+     * A sealed trait for void HTML elements that cannot have children.
+     *
+     * Void elements accept attributes but reject children at compile time. They
+     * self-close when rendered (e.g., `<br/>`, `<img src="..."/>`).
+     *
+     * Unlike [[Element]], this trait does not extend [[Dom.Element]] so it does
+     * not inherit `apply(DomModifier*)` — only attributes can be applied via
+     * `apply(Attribute, Attribute*)`.
+     *
+     * Subtypes include:
+     *   - [[Dom.Element.VoidGeneric]] — generic void elements
+     */
+    sealed trait Void extends Dom with CssSelectable {
+      def tag: String
+      def attributes: Chunk[Attribute]
+      val selector: CssSelector = CssSelector.Element(tag)
+      def withAttributes(attrs: Chunk[Attribute]): Void
+
+      def apply(attr: Attribute, attrs: Attribute*): Void
+
+      private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
+        sb.append('<')
+        sb.append(tag)
+        renderAttributes(resolveOrPassthrough(attributes), sb)
+        sb.append("/>")
+      }
+
+      private[html] def renderMinifiedTo(sb: java.lang.StringBuilder): Unit = renderTo(sb)
+
+      private[html] def renderIndented(sb: java.lang.StringBuilder, level: Int, indent: Int): Unit = renderTo(sb)
+    }
+
+    /**
+     * A generic void HTML element.
+     *
+     * Represents any void HTML tag (e.g., "br", "img", "input"). Only accepts
+     * attributes, not children — enforced at compile time.
+     *
+     * @param tag
+     *   the element tag name (e.g., "br", "img")
+     * @param attributes
+     *   attribute key-value pairs
+     */
+    final case class VoidGeneric(
+      tag: String,
+      attributes: Chunk[Attribute]
+    ) extends Void {
+      def withAttributes(attrs: Chunk[Attribute]): VoidGeneric = copy(attributes = attrs)
+
+      def apply(attr: Attribute, attrs: Attribute*): VoidGeneric = {
+        val b = Chunk.newBuilder[Attribute]
+        b ++= attributes
+        b += attr
+        var i = 0
+        while (i < attrs.length) {
+          b += attrs(i)
+          i += 1
+        }
+        copy(attributes = b.result())
+      }
     }
   }
 
