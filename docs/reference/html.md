@@ -90,7 +90,7 @@ The module is organized around five core subsystems that compose together:
 ┌─────────────────────────────────────────────────────┐
 │  DSL Functions (div, p, span, ...)                  │
 │  + Attribute Builders (id :=, className +=)         │
-│  └─> Produces: Dom.Element (Generic, Void, ...)     │
+│  └─> Produces: Generic / Void element nodes         │
 │                                                      │
 ├─────────────────────────────────────────────────────┤
 │  String Interpolators (html"", css"", js"")          │
