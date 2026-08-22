@@ -149,6 +149,37 @@ val v1 = "api" / endpoints {
 val u = v1.v1.users  // route.render == "GET /api/v1/users"
 ```
 
-Path-variable prefixes (`int("id") / endpoints { ... }`) are DESIGNED but not yet implemented (M4 deferred).
+Path-variable prefixes are implemented the same way. A capturing prefix contributes its segment to every child's path, while children keep their relative auto-names:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.Method
+
+val byId = PathCodec.int("id") / endpoints {
+  val get = Endpoint(Method.GET / "orders")
+  Endpoint(Method.DELETE / "orders") // auto-named `DELETE /orders`
+}
+
+val getOrder: Endpoint[Int, Unit, Unit, Unit, AuthType.None.type] = byId.get
+val delOrder = byId.`DELETE /orders`
+```
+
+Both children carry the captured segment: `byId.get.route.render == "GET /{id}/orders"` and the auto-named member renders `"DELETE /{id}/orders"`. Static types are preserved — `byId.get` is an `Endpoint[Int, Unit, Unit, Unit, AuthType.None.type]`, so the captured `id` will be delivered to handlers when routes are created on the zio-http side. A child with its own path variables composes positionally: under `int("id")`, `Endpoint(Method.GET / "orders" / PathCodec.int("orderId"))` renders as `GET /{id}/orders/{orderId}` and carries `(Int, Int)`:
+
+```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.Method
+
+val ordersById = PathCodec.int("id") / endpoints {
+  val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId"))
+}
+
+val lookup: Endpoint[(Int, Int), Unit, Unit, Unit, AuthType.None.type] = ordersById.o
+// lookup.route.render == "GET /{id}/orders/{orderId}"
+```
+
+Variable prefixes should be bound to an explicit `val` — the val names the subgroup whose members you access through it (`byId.get`, `ordersById.o`). One known limitation: a constant-prefix subgroup directly inside a path-variable-prefixed block aborts compilation with guidance to use a flat block instead.
 
 The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ named tuples). All examples above compile against the `endpoint` module on Scala 3.8.3.
