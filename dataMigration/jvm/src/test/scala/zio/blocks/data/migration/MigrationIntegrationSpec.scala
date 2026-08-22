@@ -144,23 +144,32 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
           target = TargetStrategy.InPlace
         )(using tx, summon[DbCodec[Int]])
         migrator.init()
-        assertTrue(true)
+        migrator.init() // idempotent: second call must not throw or recreate
+        val processed = migrator.processBatch()
+        assertTrue(processed == 0) // queue IDs have no matching v1 rows, so nothing migrates
       }
     },
-    test("SmallMigrator with ShadowTable init") {
-      // ShadowTable.create uses Postgres `CREATE TABLE ... (LIKE ... INCLUDING ALL)`,
-      // which is not supported by SQLite. This test requires a Postgres backend.
-      assertTrue(true) // placeholder: Postgres-only
-    },
-    test("LargeMigrator basic lifecycle (Postgres-only: SKIP LOCKED)") {
-      // QueueTable.dequeue uses SELECT ... FOR UPDATE SKIP LOCKED (Postgres syntax).
-      // Run with a Postgres test container for full verification.
-      assertTrue(true) // placeholder
-    },
-    test("LargeMigrator fence/drain/complete protocol (Postgres-only: SKIP LOCKED)") {
-      // QueueTable.dequeue uses SELECT ... FOR UPDATE SKIP LOCKED (Postgres syntax).
-      // Run with a Postgres test container for full verification.
-      assertTrue(true) // placeholder
+    test("capture triggers (SQLite): INSERT then DELETE coalesce to a single 'D' entry") {
+      withFreshDb { tx =>
+        given dialect: Dialect = Dialect.SQLite
+        val qname              = "q_sqlite_trig"
+        QueueTable.create[Int](qname, tx)
+        tx.transact {
+          QueueTable.installTriggers[Int](qname, "v1", "id")
+        }
+        tx.connect {
+          Frag.literal("INSERT INTO v1 (id, name) VALUES (7, 'x')").update
+          val pendingAfterInsert = QueueTable.pending(qname)
+          Frag.literal("DELETE FROM v1 WHERE id = 7").update
+          val pendingAfterDelete = QueueTable.pending(qname)
+          val lastOp             = Frag.literal(s"SELECT op FROM $qname").queryOne[String]
+          assertTrue(
+            pendingAfterInsert == 1 &&
+              pendingAfterDelete == 1 &&
+              lastOp.contains("D")
+          )
+        }
+      }
     },
     test("Worker failure resilience: pending count preserved on error path") {
       withFreshDb { tx =>

@@ -16,21 +16,58 @@
 
 package zio.blocks.sql
 
-trait Naming {
-  def quoteIdentifier(id: String): String
-}
-
+/**
+ * SQL generation for the data-migration queue machinery.
+ *
+ * All identifier parameters (`table`, `col`, `shadowName`, `sourceTable`,
+ * `sourceIdColumn`, `queueKeyColumn`) must be bare, pre-validated SQL
+ * identifiers — never user input, never schema-qualified, never quoted. Valid
+ * identifiers match `[A-Za-z_][A-Za-z0-9_]*`; callers must enforce this
+ * whitelist before passing values in. Implementations interpolate them into
+ * DDL/DML as-is.
+ */
 trait SqlMigration {
+
+  /** Whether `dequeueSQL` uses `FOR UPDATE SKIP LOCKED` (PostgreSQL only). */
   val supportsSkipLocked: Boolean
+
+  /**
+   * Idempotent `CREATE TABLE IF NOT EXISTS` DDL for the dirty-key queue table.
+   */
   def createQueueTableDDL(table: String, col: String): String
+
+  /**
+   * SELECT claiming up to `batchSize` queue keys, ordered by key; on PostgreSQL
+   * the claim locks rows with `FOR UPDATE SKIP LOCKED`.
+   */
   def dequeueSQL(table: String, col: String, batchSize: Int): String
+
+  /**
+   * Idempotent shadow-table DDL copying `sourceTable` structure; unsupported on
+   * SQLite (raises UnsupportedOperationException).
+   */
   def createShadowTableDDL(shadowName: String, sourceTable: String): String
-  def createTriggerDDL(queueTable: String, sourceTable: String, idColumn: String): List[String]
+
+  /**
+   * Statements installing capture triggers that upsert source-row keys into the
+   * queue table. Must be idempotent (safe to re-run on restart).
+   */
+  def createTriggerDDL(
+    queueTable: String,
+    sourceTable: String,
+    sourceIdColumn: String,
+    queueKeyColumn: String
+  ): List[String]
 }
 
-trait Dialect extends Naming, SqlMigration
+/** Database-specific SQL generation for migration support structures. */
+trait Dialect extends SqlMigration
 
 object Dialect {
+
+  /**
+   * Picks a [[Dialect]] for the given `SqlDialect`; unsupported dialects throw.
+   */
   def forSqlDialect(d: SqlDialect): Dialect = d match {
     case SqlDialect.PostgreSQL => Postgres
     case SqlDialect.SQLite     => SQLite
@@ -38,8 +75,6 @@ object Dialect {
 
   object Postgres extends Dialect {
     val supportsSkipLocked = true
-
-    def quoteIdentifier(id: String): String = "\"" + id.replace("\"", "\"\"") + "\""
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
@@ -50,32 +85,38 @@ object Dialect {
     def createShadowTableDDL(shadowName: String, sourceTable: String): String =
       s"CREATE TABLE IF NOT EXISTS $shadowName (LIKE $sourceTable INCLUDING ALL)"
 
-    def createTriggerDDL(queueTable: String, sourceTable: String, idColumn: String): List[String] = {
+    def createTriggerDDL(
+      queueTable: String,
+      sourceTable: String,
+      sourceIdColumn: String,
+      queueKeyColumn: String
+    ): List[String] = {
       val funcName = s"${queueTable}_notify"
-      val func     =
+      // s-interpolator renders $$ as one $, so build plpgsql dollar-quotes from a named value.
+      val dollarQuote = "$$"
+      val func        =
         s"""CREATE OR REPLACE FUNCTION $funcName()
-           |RETURNS TRIGGER AS $$
+           |RETURNS TRIGGER AS $dollarQuote
            |BEGIN
            |  IF TG_OP = 'DELETE' THEN
-           |    INSERT INTO $queueTable ($idColumn, op, payload) VALUES (OLD.$idColumn, 'D', row_to_json(OLD.*)::text) ON CONFLICT ($idColumn) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
+           |    INSERT INTO $queueTable ($queueKeyColumn, op, payload) VALUES (OLD.$sourceIdColumn, 'D', row_to_json(OLD)::text) ON CONFLICT ($queueKeyColumn) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
            |  ELSIF TG_OP = 'INSERT' THEN
-           |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'I') ON CONFLICT ($idColumn) DO NOTHING;
+           |    INSERT INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'I') ON CONFLICT ($queueKeyColumn) DO NOTHING;
            |  ELSIF TG_OP = 'UPDATE' THEN
-           |    INSERT INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'U') ON CONFLICT ($idColumn) DO NOTHING;
+           |    INSERT INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'U') ON CONFLICT ($queueKeyColumn) DO NOTHING;
            |  END IF;
            |  RETURN NULL;
            |END;
-           |$$ LANGUAGE plpgsql;""".stripMargin
+           |$dollarQuote LANGUAGE plpgsql;""".stripMargin
+      // CREATE OR REPLACE TRIGGER keeps re-running installTriggers idempotent (PG 14+).
       val trigger =
-        s"CREATE TRIGGER trg_${queueTable}_mod AFTER INSERT OR UPDATE OR DELETE ON $sourceTable FOR EACH ROW EXECUTE FUNCTION $funcName();"
+        s"CREATE OR REPLACE TRIGGER trg_${queueTable}_mod AFTER INSERT OR UPDATE OR DELETE ON $sourceTable FOR EACH ROW EXECUTE FUNCTION $funcName();"
       List(func, trigger)
     }
   }
 
   object SQLite extends Dialect {
     val supportsSkipLocked = false
-
-    def quoteIdentifier(id: String): String = "\"" + id.replace("\"", "\"\"") + "\""
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
@@ -89,11 +130,16 @@ object Dialect {
           s"Create shadow table '$shadowName' manually with matching column definitions."
       )
 
-    def createTriggerDDL(queueTable: String, sourceTable: String, idColumn: String): List[String] =
+    def createTriggerDDL(
+      queueTable: String,
+      sourceTable: String,
+      sourceIdColumn: String,
+      queueKeyColumn: String
+    ): List[String] =
       List(
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_insert AFTER INSERT ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'I'); END;",
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_update AFTER UPDATE ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($idColumn, op) VALUES (NEW.$idColumn, 'U'); END;",
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_delete AFTER DELETE ON $sourceTable BEGIN INSERT OR REPLACE INTO $queueTable ($idColumn, op) VALUES (OLD.$idColumn, 'D'); END;"
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_insert AFTER INSERT ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'I'); END;",
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_update AFTER UPDATE ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'U'); END;",
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_delete AFTER DELETE ON $sourceTable BEGIN INSERT OR REPLACE INTO $queueTable ($queueKeyColumn, op) VALUES (OLD.$sourceIdColumn, 'D'); END;"
       )
   }
 }

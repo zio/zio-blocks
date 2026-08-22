@@ -30,7 +30,7 @@ object TargetStrategyApplier {
   def resolveTableName[E](table: Table[E], strategy: TargetStrategy): String =
     strategy match {
       case TargetStrategy.InPlace        => table.name
-      case TargetStrategy.ShadowTable(n) => table.name + QueueTable.SqlId.validate("suffix", n)
+      case TargetStrategy.ShadowTable(n) => table.name + "_" + QueueTable.SqlId.validate("suffix", n)
     }
 
   /**
@@ -51,7 +51,7 @@ object TargetStrategyApplier {
    * in-place, no-op. Returns (oldTableName, newTableName) for shadow, or
    * (tableName, tableName) for in-place.
    */
-  def finalize(tableName: String, strategy: TargetStrategy)(using con: DbCon): (String, String) =
+  def finalizeTarget(tableName: String, strategy: TargetStrategy)(using con: DbCon): (String, String) =
     strategy match {
       case TargetStrategy.InPlace =>
         (tableName, tableName)

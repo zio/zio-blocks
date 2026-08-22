@@ -20,12 +20,20 @@ import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Frag, Transactor}
 import zio.blocks.sql.Frag.*
 
 /**
- * Helpers for Postgres queue tables used by migration workers.
+ * Helpers for migration queue tables used by migration workers, dialect-driven
+ * to support both PostgreSQL and SQLite.
  *
  * Queue tables store IDs of aggregates pending migration. Workers dequeue
- * batches via `SELECT ... FOR UPDATE SKIP LOCKED`.
+ * batches via `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL; SQLite uses a
+ * plain `LIMIT` since it serializes writes.
  */
 object QueueTable {
+
+  /**
+   * Fixed queue key column name, matching the documented `(id, op, payload)`
+   * schema.
+   */
+  final val QueueKeyColumn = "id"
 
   private[migration] object SqlId {
     private val Identifier                            = raw"[A-Za-z_][A-Za-z0-9_]*".r
@@ -41,8 +49,7 @@ object QueueTable {
 
   /**
    * Creates a queue table with columns (id, op, payload) for tracking dirty
-   * keys. Uses the dialect from `DbCon.dialect` to generate
-   * database-appropriate DDL.
+   * keys. Uses the given `dialect` to generate database-appropriate DDL.
    *
    * Note: trigger installation is a separate step handled by the dialect's
    * `createTriggerDDL`; this method only creates the queue table itself.
@@ -55,10 +62,42 @@ object QueueTable {
   def create[ID](tableName: String, transactor: Transactor)(using codec: DbCodec[ID], dialect: Dialect): Unit = {
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
-    val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
+    val colName   = SqlId.validate("column", QueueKeyColumn)
     transactor.transact { (tx: DbTx) ?=>
       Frag.literal(dialect.createQueueTableDDL(validated, colName)).update
     }
+  }
+
+  /**
+   * Installs capture triggers on `sourceTable` so that every INSERT, UPDATE,
+   * and DELETE upserts the affected key into the queue table within the
+   * writer's own transaction. This is the automatic counterpart to manual
+   * `enqueue`: once installed, producers write normally and dirty keys are
+   * captured without application-code changes.
+   *
+   * The queue key column is the fixed `id` column (see `QueueKeyColumn`) — use
+   * the same codec for `create`/`enqueue`. `sourceIdColumn` names the primary
+   * key column on the source table and may differ from it.
+   *
+   * Idempotent: safe to call again on restart (SQLite uses CREATE TRIGGER IF
+   * NOT EXISTS; PostgreSQL uses CREATE OR REPLACE TRIGGER, which requires PG
+   * 14+).
+   *
+   * Do NOT enable capture on the same physical table the migrator writes to:
+   * the worker's own writes would re-enqueue processed keys forever.
+   */
+  def installTriggers[ID](queueTable: String, sourceTable: String, sourceIdColumn: String)(using
+    tx: DbTx,
+    dialect: Dialect,
+    codec: DbCodec[ID]
+  ): Unit = {
+    require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
+    val q      = SqlId.validate("queue table", queueTable)
+    val s      = SqlId.validate("source table", sourceTable)
+    val srcCol = SqlId.validate("source id column", sourceIdColumn)
+    val keyCol = SqlId.validate("column", QueueKeyColumn)
+    val ddl    = dialect.createTriggerDDL(q, s, srcCol, keyCol)
+    ddl.foreach(stmt => Frag.literal(stmt).update)
   }
 
   /**
@@ -72,7 +111,7 @@ object QueueTable {
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return
     val validated = SqlId.validate("table", tableName)
-    val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
+    val colName   = SqlId.validate("column", QueueKeyColumn)
     val rowFrags  = ids.map { id =>
       val params = codec.toDbValues(id)
       val parts  = IndexedSeq("(CAST(") ++ IndexedSeq.fill(params.size - 1)(" AS TEXT), CAST(") :+ " AS TEXT))"
@@ -86,15 +125,14 @@ object QueueTable {
   }
 
   /**
-   * Dequeues up to `batchSize` IDs. Uses the dialect from `tx.dialect` to
-   * generate database-appropriate locking — `FOR UPDATE SKIP LOCKED` on
-   * PostgreSQL, plain `LIMIT` on SQLite (which serializes writes via BEGIN
-   * IMMEDIATE).
+   * Dequeues up to `batchSize` IDs. Uses the given `dialect` to generate
+   * database-appropriate locking — `FOR UPDATE SKIP LOCKED` on PostgreSQL,
+   * plain `LIMIT` on SQLite (which serializes writes via BEGIN IMMEDIATE).
    */
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")
     val validated = SqlId.validate("table", tableName)
-    val colName   = SqlId.validate("column", codec.columns.headOption.getOrElse("id"))
+    val colName   = SqlId.validate("column", QueueKeyColumn)
     val frag      = Frag.literal(dialect.dequeueSQL(validated, colName, batchSize))
     val rows      = frag.query[ID]
     // Delete dequeued rows with CAST(... AS TEXT) for numeric-ID/PG compatibility

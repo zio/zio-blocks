@@ -41,9 +41,9 @@ The module is Scala 3 only.
 
 ### Decision 2: Coalesced Dirty-Key Queue
 
-**Decision:** Queue entries are `(migration_id, primary_key)` pairs. No JSON payloads, no operation type. The source table remains authoritative.
+**Decision:** The queue table is a single shared table with columns `(id, op, payload)` — `id` is the source primary key (TEXT, PRIMARY KEY so duplicate keys coalesce via upsert), `op` records the capturing operation (`I`/`U`/`D`), and `payload` optionally stores the row JSON on deletes. There is no per-migration queue table or `migration_id` column; the source table remains authoritative. Keys enter the queue either manually (`QueueTable.enqueue`) or automatically via opt-in capture triggers (`captureTriggers = true` installs them in `init()`); trigger installation is idempotent and requires PG 14+ on PostgreSQL.
 
-**Rationale:** Bounded queue storage. No payload serialization complexity. The source row is always reread at processing time, avoiding stale data. A coalesced key set means multiple updates to the same row between processing cycles collapse into a single queue entry.
+**Rationale:** Bounded queue storage. A single keyed table keeps the worker protocol simple and lets manual enqueue and trigger capture share one mechanism. The source row is always reread at processing time for `I`/`U` entries, avoiding stale data; `D` entries carry the payload needed to resolve the target key. Coalescing on the primary key means multiple updates to the same row between processing cycles collapse into a single queue entry. Manual enqueue keeps the default behavior dependency-free; triggers let producers write normally without application-code changes, but must not be enabled when the migrator writes to the same physical table it captures from (self-requeue loop).
 
 ### Decision 3: Source-Authoritative Replay
 
@@ -69,19 +69,17 @@ The module is Scala 3 only.
 
 **Rationale:** PostgreSQL's row-level locking and DDL transactionality enable safe multi-worker migrations. SQLite uses `dequeueSQLite` without `SKIP LOCKED` since SQLite serializes writes via `BEGIN IMMEDIATE` (single-writer model). The dialect split is necessary because the two databases have fundamentally different concurrency models.
 
-### Decision 7: ID Type Flexibility
+### Decision 7: ID Type Parameters with Equality Constraint
 
-**Decision:** `LargeMigrator` and `SmallMigrator` accept separate `ID1` and `ID2` type parameters, allowing V1 and V2 repos to use different ID types. The queue stores V1 IDs.
+**Decision:** `LargeMigrator` and `SmallMigrator` accept separate `ID1` and `ID2` type parameters, but construction requires evidence that `ID1 =:= ID2`. The queue stores V1 IDs.
 
-**Rationale:** A migration might change the primary key type (for example, `Int` to `Long`). The queue exclusively stores V1 IDs since producers enqueue V1 IDs before migration. This flexibility lets callers migrate between repos with different key schemas without forcing a unified key type.
-
-**Note:** The missing-source-row delete (when the source entity is not found at processing time) relies on `asInstanceOf` cast from `ID1` to `ID2` since the target repo expects `ID2`. This is safe when `ID1 = ID2` (the common case). For genuinely different ID types, a conversion function would be needed.
+**Rationale:** The two type parameters document the roles (source-repo ID vs target-repo ID) and keep repo signatures precise, while the `ID1 =:= ID2` constraint makes delete propagation type-safe: when a source row disappears between dequeue and read, the worker deletes the corresponding target row using the same key, reinterpreted through the evidence (`ev.substituteCo`) rather than a cast. Genuinely different key types (for example, `Int` to `Long`) are not supported by the built-in migrators; callers needing that must provide a custom conversion path outside this module.
 
 ### Decision 8: Pre-Commit State Enforcement
 
 **Decision:** `complete()` requires `Drained` state. `drain()` requires `Fenced` state. `fence()` requires `Initialized` state. `drain()` only transitions to `Drained` if not paused.
 
-**Rationale:** Prevents misordered lifecycle calls. The pause guard prevents `complete()` from being called when the queue is not empty (paused mid-drain). State transitions are enforced at runtime with `require()` checks, making invalid sequences fail fast rather than producing subtle data inconsistencies.
+**Rationale:** Prevents misordered lifecycle calls. The pause guard prevents `complete()` from being called when the queue is not empty (paused mid-drain). The stall valve turns an unbounded hot loop (empty batches with pending items, e.g. a stuck concurrent worker holding row locks) into a clear failure after 100 consecutive rounds; `SmallMigrator.complete()` likewise refuses while items are pending. State transitions are enforced at runtime with `require()` checks, making invalid sequences fail fast rather than producing subtle data inconsistencies.
 
 ### Decision 9: Failure Policy
 

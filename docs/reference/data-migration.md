@@ -32,13 +32,15 @@ The module is Scala 3 only.
 
 ```scala
 import zio.blocks.data.migration._
-import zio.blocks.sql.Transactor
+import zio.blocks.sql._
 
-object AddAgeColumn extends TinyMigrator {
-  def run(using Transactor): Unit =
+class AddAgeColumn(transactor: Transactor) extends TinyMigrator(transactor) {
+  def run()(using tx: DbTx): Unit =
     // DDL statements executed at startup
     ???
 }
+
+new AddAgeColumn(transactor).migrate()
 ```
 
 Tiny migrations are appropriate when the schema change is fast, non-blocking, and can run before the application starts serving requests.
@@ -53,7 +55,7 @@ The lifecycle has three steps:
 2. `processBatch()` claims and processes a batch of dirty keys
 3. `complete()` finalizes the migration (swaps shadow table if applicable)
 
-Call `processBatch()` in a loop until the queue is empty, then call `complete()`:
+Call `processBatch()` in a loop until the queue is empty, then call `complete()` (`complete()` refuses to run while items are still pending):
 
 ```scala
 import zio.blocks.data.migration._
@@ -140,14 +142,14 @@ The protocol ensures that every row modified between `init()` and `complete()` i
 
 ## ID Type Flexibility
 
-`LargeMigrator` and `SmallMigrator` accept separate `ID1` and `ID2` type parameters, allowing the V1 and V2 repos to use different ID types during migration:
+`LargeMigrator` and `SmallMigrator` accept separate `ID1` and `ID2` type parameters for the source and target repos, but construction requires evidence that they are the same type (`ID1 =:= ID2`):
 
 ```scala
-SmallMigrator[UserV1, UserV2, Int, Long](...)
-LargeMigrator[UserV1, UserV2, Int, Long](...)
+SmallMigrator[UserV1, UserV2, Long, Long](...)
+LargeMigrator[UserV1, UserV2, Long, Long](...)
 ```
 
-The queue table stores V1 IDs (`ID1`). The `ID1` type must have a `DbCodec` instance available as a given. This flexibility lets you migrate between repos that use different key types without forcing a unified key schema.
+The queue table stores V1 IDs (`ID1`). The `ID1` type must have a `DbCodec` instance available as a given. The equality constraint keeps delete propagation type-safe: when a source row disappears between dequeue and read, the same key is reinterpreted for the target repo via the type evidence rather than a cast. Migrations that change the primary key type are out of scope for the built-in migrators.
 
 ## Queue Primitives
 
@@ -159,7 +161,12 @@ The queue table stores V1 IDs (`ID1`). The `ID1` type must have a `DbCodec` inst
 | `op` | `TEXT NOT NULL DEFAULT 'I'` | The operation type: `'I'` (insert), `'U'` (update), or `'D'` (delete) |
 | `payload` | `TEXT` | JSON-serialized V1 row data, captured only for `'D'` operations on PostgreSQL |
 
-Queue entries are coalesced by primary key. When a source row is inserted, updated, or deleted, capture triggers upsert the affected key into the queue table in the same transaction. For `INSERT` and `UPDATE`, only the key and operation type are stored. For `DELETE`, PostgreSQL captures the full row as JSON via `row_to_json(OLD.*)::text` so the worker can recover the V1 data even though the source row is gone. SQLite does not support `row_to_json`, so the payload is `None` for delete entries on that dialect.
+Queue entries are coalesced by primary key. There are two ways keys enter the queue:
+
+1. **Manual enqueue** — the application calls `QueueTable.enqueue` for every row it writes (or for a batch of rows to backfill).
+2. **Capture triggers** — pass `captureTriggers = true` when constructing `SmallMigrator` or `LargeMigrator`; `init()` then installs triggers via `QueueTable.installTriggers` so every source INSERT/UPDATE/DELETE upserts the affected key in the writer's own transaction. Trigger installation is idempotent (PostgreSQL requires PG 14+ for `CREATE OR REPLACE TRIGGER`). Do not enable capture triggers when the migrator writes to the same physical table it captures from: the worker's own writes would re-enqueue processed keys forever.
+
+For `INSERT` and `UPDATE`, only the key and operation type are stored. For `DELETE`, PostgreSQL additionally captures the full row as JSON via `row_to_json(OLD)::text` into the `payload` column; the payload is reserved for future delete-recovery and is not read by the current workers. SQLite does not support `row_to_json`, so its delete entries carry no payload.
 
 | Operation | Description |
 |---|---|
@@ -167,10 +174,11 @@ Queue entries are coalesced by primary key. When a source row is inserted, updat
 | `enqueue` | Inserts the ID into the queue |
 | `dequeue` | Claims and removes a batch of IDs, returning `List[ID]` |
 | `pending` | Returns the number of unprocessed keys |
+| `installTriggers` | Installs capture triggers on the source table |
 
-PostgreSQL uses `FOR UPDATE SKIP LOCKED` for concurrent worker claims. SQLite uses a single consumer with `BEGIN IMMEDIATE` and a busy timeout.
+PostgreSQL uses `FOR UPDATE SKIP LOCKED` for concurrent worker claims. SQLite uses a single consumer with `BEGIN IMMEDIATE` and a busy timeout. Queue IDs are stored as TEXT, so batches are claimed in lexicographic order (`'10'` before `'9'`); this affects claim order only, never correctness.
 
-A worker claims the dirty key and, in one transaction, looks up the source row by ID. For `'I'` and `'U'` entries the worker rereads the source row, applies the `Migration[A, B]`, and upserts the result into the target. If the source row is missing at processing time (deleted between enqueue and dequeue), the entry is silently skipped — `findAll` returns only the rows that still exist.
+A worker claims the dirty key and, in one transaction, looks up the source row by ID, applies the `Migration[A, B]`, and writes the result to the target. If the source row is missing at processing time (deleted between enqueue and dequeue), the corresponding target row is deleted — `findAll` returns only rows that still exist.
 
 ## Database Support
 
@@ -227,7 +235,7 @@ val smallMigrator = SmallMigrator[UserV1, UserV2, Int, Int](
   queueTable = "user_migration_q",
   batchSize = 100,
   target = TargetStrategy.ShadowTable("v2")
-)(using ???, summon[DbCodec[Int]])
+)(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
 
 // Lifecycle: init, process batches, complete
 smallMigrator.init()
@@ -241,8 +249,9 @@ val largeMigrator = LargeMigrator[UserV1, UserV2, Int, Int](
   migration = migration,
   queueTable = "user_migration_q",
   batchSize = 100,
-  target = TargetStrategy.ShadowTable("v2")
-)(using ???, summon[DbCodec[Int]])
+  target = TargetStrategy.ShadowTable("v2"),
+  captureTriggers = true
+)(using transactor, summon[DbCodec[Int]], Dialect.Postgres)
 
 // Safe lifecycle: init, fence, drain, complete
 largeMigrator.init()

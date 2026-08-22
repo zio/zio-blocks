@@ -17,73 +17,38 @@
 package zio.blocks.data.migration
 
 import zio.test.*
-import zio.blocks.schema.migration.Migration
-import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Repo, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbConnection, DbTx, Dialect, SqlDialect, SqlLogger, Table}
 
 object TargetStrategySpec extends ZIOSpecDefault {
 
-  // Minimal stub transactor for compile-time verification (no real DB needed).
-  val stubTransactor: Transactor = new Transactor {
-    def connect[A](f: DbCon ?=> A): A = throw new UnsupportedOperationException("stub")
-    def transact[A](f: DbTx ?=> A): A = throw new UnsupportedOperationException("stub")
+  // DbCon is only demanded by the API shape; InPlace branches never touch it.
+  // Members are defs so the ??? bodies are never evaluated.
+  private val unusedCon: DbCon = new DbCon {
+    def connection: DbConnection = ???
+    def dialect: SqlDialect      = SqlDialect.PostgreSQL
+    def logger: SqlLogger        = SqlLogger.noop
   }
 
-  // Tests that verify TargetStrategy integration (no real DB needed).
-  // resolveTableName/prepare/finalize need Table[E]/DbCon which require a real DB;
-  // we test them at compile level and verify the strategy dispatch logic inline.
+  private val users = Table[Int]("users", DbCodec.intCodec, IndexedSeq.empty)
+
   def spec = suite("TargetStrategyApplier")(
-    test("InPlace strategy round-trips") {
-      assertTrue(
-        TargetStrategy.InPlace.productPrefix == "InPlace"
+    test("resolveTableName: InPlace keeps base name") {
+      assertTrue(TargetStrategyApplier.resolveTableName(users, TargetStrategy.InPlace) == "users")
+    },
+    test("resolveTableName: ShadowTable appends underscore-separated suffix") {
+      val resolved = TargetStrategyApplier.resolveTableName(users, TargetStrategy.ShadowTable("v2"))
+      assertTrue(resolved == "users_v2")
+    },
+    test("resolveTableName rejects invalid suffix characters") {
+      val result = scala.util.Try(
+        TargetStrategyApplier.resolveTableName(users, TargetStrategy.ShadowTable("v2; DROP TABLE users"))
       )
+      assertTrue(result.isFailure)
     },
-    test("ShadowTable stores suffix") {
-      val s = TargetStrategy.ShadowTable("users_v2")
-      assertTrue(s.suffix == "users_v2")
-    },
-    test("LargeMigrator with InPlace strategy compiles") {
-      given dialect: Dialect = Dialect.Postgres
-      val _                  = new LargeMigrator[Int, String, Long, Long](
-        repoV1 = null.asInstanceOf[Repo[Int, Long]],
-        repoV2 = null.asInstanceOf[Repo[String, Long]],
-        migration = null.asInstanceOf[Migration[Int, String]],
-        queueTable = "q",
-        batchSize = 10,
-        target = TargetStrategy.InPlace
-      )(using stubTransactor, DbCodec.longCodec)
-      assertTrue(true)
-    },
-    test("LargeMigrator with ShadowTable strategy compiles") {
-      given dialect: Dialect = Dialect.Postgres
-      val _                  = new LargeMigrator[Int, String, Long, Long](
-        repoV1 = null.asInstanceOf[Repo[Int, Long]],
-        repoV2 = null.asInstanceOf[Repo[String, Long]],
-        migration = null.asInstanceOf[Migration[Int, String]],
-        queueTable = "q",
-        batchSize = 10,
-        target = TargetStrategy.ShadowTable("v2")
-      )(using stubTransactor, DbCodec.longCodec)
-      assertTrue(true)
-    },
-    test("SmallMigrator with both strategies compiles") {
-      given dialect: Dialect = Dialect.Postgres
-      val _                  = new SmallMigrator[Int, String, Long, Long](
-        repoV1 = null.asInstanceOf[Repo[Int, Long]],
-        repoV2 = null.asInstanceOf[Repo[String, Long]],
-        migration = null.asInstanceOf[Migration[Int, String]],
-        queueTable = "q",
-        batchSize = 10,
-        target = TargetStrategy.InPlace
-      )(using stubTransactor, DbCodec.longCodec)
-      val _ = new SmallMigrator[Int, String, Long, Long](
-        repoV1 = null.asInstanceOf[Repo[Int, Long]],
-        repoV2 = null.asInstanceOf[Repo[String, Long]],
-        migration = null.asInstanceOf[Migration[Int, String]],
-        queueTable = "q",
-        batchSize = 10,
-        target = TargetStrategy.ShadowTable("v2")
-      )(using stubTransactor, DbCodec.longCodec)
-      assertTrue(true)
+    test("finalizeTarget: InPlace is a no-op returning (table, table)") {
+      val (oldName, newName) =
+        TargetStrategyApplier.finalizeTarget("users", TargetStrategy.InPlace)(using unusedCon)
+      assertTrue(oldName == "users" && newName == "users")
     }
   )
 }

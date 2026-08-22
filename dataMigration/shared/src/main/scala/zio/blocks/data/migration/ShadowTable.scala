@@ -27,13 +27,13 @@ object ShadowTable {
 
   /**
    * Creates a shadow table by copying structure from the source table. Uses the
-   * dialect from `DbCon.dialect` to generate database-appropriate DDL —
+   * given `dialect` to generate database-appropriate DDL —
    * `CREATE TABLE ... (LIKE ... INCLUDING ALL)` on PostgreSQL, or raises an
    * error on SQLite (which requires manual DDL).
    */
   def create[E](table: SqlTable[E], suffix: String)(using con: DbCon, dialect: Dialect): String = {
     val validated  = QueueTable.SqlId.validate("suffix", suffix)
-    val shadowName = s"${table.name}$validated"
+    val shadowName = s"${table.name}_$validated"
     val ddl        = Frag.literal(dialect.createShadowTableDDL(shadowName, table.name))
     ddl.update
     shadowName
@@ -48,8 +48,8 @@ object ShadowTable {
   def swap(tableName: String, suffix: String)(using con: DbCon): (String, String) = {
     val tblValid   = QueueTable.SqlId.validate("table", tableName)
     val sfxValid   = QueueTable.SqlId.validate("suffix", suffix)
-    val shadowName = s"$tblValid$sfxValid"
-    val oldName    = s"${tblValid}_old$sfxValid"
+    val shadowName = s"${tblValid}_$sfxValid"
+    val oldName    = s"${tblValid}_old_$sfxValid"
 
     // Rename live → old, shadow → live (within same transaction for atomicity)
     Frag.literal(s"ALTER TABLE $tblValid RENAME TO $oldName").update

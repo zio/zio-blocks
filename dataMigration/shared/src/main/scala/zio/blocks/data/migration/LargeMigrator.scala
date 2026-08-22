@@ -22,6 +22,11 @@ import zio.blocks.sql.*
 /**
  * B-Large: incremental worker that processes migration queue until empty.
  * Supports pause/resume and progress reporting.
+ *
+ * The lifecycle methods (init, fence, drain, complete) are internally
+ * consistent but are expected to be driven from a single thread; pause and
+ * resume are safe to call from other threads while run() or drain() is in
+ * flight.
  */
 final class LargeMigrator[A, B, ID1, ID2](
   repoV1: Repo[A, ID1],
@@ -29,8 +34,11 @@ final class LargeMigrator[A, B, ID1, ID2](
   migration: Migration[A, B],
   queueTable: String,
   batchSize: Int,
-  target: TargetStrategy
+  target: TargetStrategy,
+  captureTriggers: Boolean = false
 )(using transactor: Transactor, codecId: DbCodec[ID1], dialect: Dialect, ev: ID1 =:= ID2) {
+
+  private val MaxEmptyDrainRounds = 100
 
   private enum State derives CanEqual {
     case Initialized, Fenced, Drained, Completed
@@ -49,12 +57,13 @@ final class LargeMigrator[A, B, ID1, ID2](
 
   private var writeRepo: Repo[B, ID2]        = repoV2
   @volatile private var initialized: Boolean = false
-  private var state: State                   = State.Initialized
+  @volatile private var state: State         = State.Initialized
 
   /**
    * Prepare the target table. For ShadowTable strategy, creates the shadow
-   * table via `TargetStrategyApplier.prepare`. Safe to call multiple times
-   * (idempotent after first success).
+   * table via `TargetStrategyApplier.prepare`. When `captureTriggers` is
+   * enabled, installs capture triggers on the source table. Safe to call
+   * multiple times (idempotent after first success).
    */
   def init(): Unit = {
     if (initialized) return
@@ -65,6 +74,7 @@ final class LargeMigrator[A, B, ID1, ID2](
         val shadowTable = SqlTable(resolvedName, repoV2.table.codec, repoV2.table.columnsMeta)
         writeRepo = Repo(shadowTable, repoV2.idColumn, repoV2.idCodec, repoV2.getId)
       }
+      if (captureTriggers) QueueTable.installTriggers[ID1](queueTable, repoV1.table.name, repoV1.idColumn)
     }
     initialized = true
   }
@@ -78,7 +88,7 @@ final class LargeMigrator[A, B, ID1, ID2](
    * before calling fence(). Writes arriving after fence() may be lost or
    * require a separate reconciliation.
    */
-  def fence(): Unit = {
+  def fence(): Unit = synchronized {
     require(initialized, "init() must be called before fence()")
     state match {
       case State.Initialized => state = State.Fenced
@@ -89,25 +99,36 @@ final class LargeMigrator[A, B, ID1, ID2](
   /**
    * Drain remaining queue items until pendingCount confirms the queue is truly
    * empty. Uses a separate COUNT query for verification, not just the dequeue
-   * result.
+   * result. If batches come back empty while items remain pending for more than
+   * MaxEmptyDrainRounds consecutive rounds (e.g. a stuck concurrent worker
+   * holding row locks), drain() fails loudly instead of spinning.
    *
    * @return
    *   total items processed during drain
    */
   def drain(): Int = {
     require(state == State.Fenced, s"must fence() before drain(); current state: $state")
-    var total     = 0
-    var keepGoing = true
-    while (keepGoing && !_paused) {
+    var total       = 0
+    var emptyRounds = 0
+    var drained     = false
+    while (!drained && !_paused) {
       val batch = transactor.transact { (tx: DbTx) ?=>
         val ids = QueueTable.dequeue[ID1](queueTable, batchSize)(using tx, codecId, dialect)
         if (ids.isEmpty) 0
         else processBatch(ids)(using tx)
       }
       total += batch
-      if (pendingCount == 0) keepGoing = false
+      if (pendingCount == 0) drained = true
+      else if (batch == 0) {
+        emptyRounds += 1
+        if (emptyRounds >= MaxEmptyDrainRounds)
+          throw new IllegalStateException(
+            s"Queue '$queueTable' did not drain after $MaxEmptyDrainRounds consecutive empty batches " +
+              s"(${pendingCount} item(s) pending); a concurrent worker may be stuck"
+          )
+      } else emptyRounds = 0
     }
-    if (!_paused) state = State.Drained
+    if (!_paused && drained) synchronized { state = State.Drained }
     total
   }
 
@@ -117,10 +138,10 @@ final class LargeMigrator[A, B, ID1, ID2](
    * table becomes the live table and the old table is renamed to
    * `{table}_old_{suffix}`.
    */
-  def complete(): Unit = {
+  def complete(): Unit = synchronized {
     require(state == State.Drained, s"must drain() before complete(); current state: $state")
     transactor.transact { (tx: DbTx) ?=>
-      TargetStrategyApplier.finalize(repoV2.table.name, target)
+      TargetStrategyApplier.finalizeTarget(repoV2.table.name, target)
     }
     state = State.Completed
   }
@@ -136,6 +157,7 @@ final class LargeMigrator[A, B, ID1, ID2](
    */
   def run(): Int = {
     require(batchSize > 0, "batchSize must be positive")
+    require(state != State.Completed, "cannot run() after complete(); create a new migrator")
     init()
     var total     = 0
     var keepGoing = true
@@ -160,16 +182,19 @@ final class LargeMigrator[A, B, ID1, ID2](
         case Left(err) => throw new RuntimeException(s"Migration failed: $err")
       }
     }
+    val foundIds   = entitiesV1.map(repoV1.getId).toSet
+    val deletedIds = ids.filterNot(foundIds.contains)
     target match {
       case TargetStrategy.InPlace =>
-        entitiesV2.foldLeft(0) { (count, e) =>
+        val updated = entitiesV2.foldLeft(0) { (count, e) =>
           count + repoV2.update(e)(using tx)
         }
+        val deleted = if (deletedIds.nonEmpty) repoV2.deleteAll(sameIds(deletedIds))(using tx) else 0
+        updated + deleted
       case TargetStrategy.ShadowTable(_) =>
-        val migrated   = writeRepo.insertBatch(entitiesV2)(using tx)
-        val foundIds   = entitiesV1.map(repoV1.getId).toSet
-        val deletedIds = ids.filterNot(foundIds.contains)
-        val deleted    = if (deletedIds.nonEmpty) writeRepo.deleteAll(sameIds(deletedIds))(using tx) else 0
+        // Shadow tables start empty, so rows are inserted fresh rather than updated.
+        val migrated = if (entitiesV2.nonEmpty) writeRepo.insertBatch(entitiesV2)(using tx) else 0
+        val deleted  = if (deletedIds.nonEmpty) writeRepo.deleteAll(sameIds(deletedIds))(using tx) else 0
         migrated + deleted
     }
   }

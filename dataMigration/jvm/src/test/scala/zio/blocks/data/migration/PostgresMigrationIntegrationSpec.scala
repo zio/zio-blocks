@@ -98,11 +98,19 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
 
   private def withPgDb[A](f: JdbcTransactor => A): A = {
     val tx = pgTx()
-    // Drop tables from any previous run in a dedicated transaction
+    // Drop tables from any previous run in a dedicated transaction —
+    // including stale q_* queue tables whose schema may predate a code change.
     try {
       tx.transact { (c: DbTx) ?=>
         Frag.literal("DROP TABLE IF EXISTS v1 CASCADE").update
         Frag.literal("DROP TABLE IF EXISTS v2 CASCADE").update
+        Frag
+          .literal(
+            "DO $$ DECLARE r RECORD; BEGIN " +
+              "FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename LIKE 'q\\_%') LOOP " +
+              "EXECUTE 'DROP TABLE IF EXISTS ' || r.tablename || ' CASCADE'; END LOOP; END $$;"
+          )
+          .update
       }
     } catch { case _: Throwable => () }
     try {
@@ -212,10 +220,37 @@ object PostgresMigrationIntegrationSpec extends ZIOSpecDefault {
               migration = identityMigration,
               queueTable = qname,
               batchSize = 10,
-              target = TargetStrategy.ShadowTable("_mig")
+              target = TargetStrategy.ShadowTable("mig")
             )(using tx, summon[DbCodec[Int]])
             migrator.init()
-            assertTrue(true)
+            migrator.init() // idempotent: second call must not throw or recreate
+            val processed = migrator.processBatch()
+            assertTrue(processed == 0) // queue ID has no matching v1 row, so nothing migrates
+          }
+        },
+        test("capture triggers enqueue source writes and coalesce deletes") {
+          withPgDb { tx =>
+            given dialect: Dialect = Dialect.Postgres
+            val qname              = "q_trig_01"
+            QueueTable.create[Int](qname, tx)
+            tx.transact { (c: DbTx) ?=>
+              QueueTable.installTriggers[Int](qname, "v1", "id")
+            }
+            tx.transact { (c2: DbTx) ?=>
+              Frag.literal("INSERT INTO v1 (id, name) VALUES (7, 'x') ON CONFLICT (id) DO NOTHING").update
+            }
+            val pendingAfterInsert = tx.transact(QueueTable.pending(qname))
+            tx.transact { (c3: DbTx) ?=>
+              Frag.literal("DELETE FROM v1 WHERE id = 7").update
+            }
+            val (pendingAfterDelete, lastOp) = tx.transact { (c4: DbTx) ?=>
+              (QueueTable.pending(qname), Frag.literal(s"SELECT op FROM $qname").queryOne[String])
+            }
+            assertTrue(
+              pendingAfterInsert == 1 &&
+                pendingAfterDelete == 1 &&
+                lastOp.contains("D")
+            )
           }
         }
       ) @@ TestAspect.sequential
