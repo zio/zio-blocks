@@ -62,9 +62,20 @@ private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatem
 
 private[sql] class JdbcResultSet(val underlying: java.sql.ResultSet) extends DbResultSet {
 
-  def next(): Boolean = underlying.next()
+  /**
+   * Single reader instance shared across the result set's lifetime so the
+   * per-row null bitmap stays in sync with row advancement: `next()` resets it
+   * via [[JdbcResultReader.beginRow]] before each row is decoded.
+   */
+  private val readerInstance = new JdbcResultReader(underlying)
+
+  def next(): Boolean = {
+    val advanced = underlying.next()
+    if (advanced) readerInstance.beginRow()
+    advanced
+  }
 
   def close(): Unit = underlying.close()
 
-  def reader: DbResultReader = new JdbcResultReader(underlying)
+  def reader: DbResultReader = readerInstance
 }

@@ -497,6 +497,62 @@ object TransactorSpec extends ZIOSpecDefault {
           val result = sql"SELECT id FROM qlimit_zero".queryLimit[Int](0)
           assertTrue(result.isEmpty)
         }
+      },
+      test("frag.queryChunked streams rows as chunks") {
+        transactor.connect {
+          Frag.literal("CREATE TABLE stream_chunked (id INTEGER NOT NULL)").update
+          (1 to 10).foreach(i => sql"INSERT INTO stream_chunked VALUES (${DbValue.DbInt(i)})".update)
+          val chunks = sql"SELECT id FROM stream_chunked ORDER BY id".queryChunked[Int](3).runCollect
+          assertTrue(
+            chunks.isRight,
+            chunks.toOption.get.length == 4,
+            chunks.toOption.get.map(_.toList) == List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9), List(10))
+          )
+        }
+      },
+      test("frag.queryChunked with chunk size >= row count returns single chunk") {
+        transactor.connect {
+          Frag.literal("CREATE TABLE stream_single (id INTEGER NOT NULL)").update
+          sql"INSERT INTO stream_single VALUES (${DbValue.DbInt(1)})".update
+          sql"INSERT INTO stream_single VALUES (${DbValue.DbInt(2)})".update
+          val chunks = sql"SELECT id FROM stream_single ORDER BY id".queryChunked[Int](10).runCollect
+          assertTrue(
+            chunks.toOption.get.length == 1,
+            chunks.toOption.get.head.toList == List(1, 2)
+          )
+        }
+      },
+      test("frag.queryChunked on empty result emits no chunks") {
+        transactor.connect {
+          Frag.literal("CREATE TABLE stream_empty (id INTEGER NOT NULL)").update
+          val chunks = sql"SELECT id FROM stream_empty".queryChunked[Int](4).runCollect
+          assertTrue(chunks.isRight, chunks.toOption.get.isEmpty)
+        }
+      },
+      test("frag.queryChunked streaming is equivalent to query") {
+        transactor.connect {
+          Frag
+            .literal("CREATE TABLE stream_equiv (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)")
+            .update
+          (1 to 7).foreach { i =>
+            sql"INSERT INTO stream_equiv VALUES (${DbValue.DbInt(i)}, ${DbValue.DbString(s"u$i")}, ${DbValue.DbString(s"u$i@example.com")})".update
+          }
+          val streamed     = sql"SELECT id, name, email FROM stream_equiv ORDER BY id".queryChunked[User](2).runCollect
+          val materialized = sql"SELECT id, name, email FROM stream_equiv ORDER BY id".query[User]
+          assertTrue(
+            streamed.isRight,
+            streamed.toOption.get.flatMap(_.toList) == materialized
+          )
+        }
+      },
+      test("frag.queryStream uses default chunk size and covers all rows") {
+        transactor.connect {
+          Frag.literal("CREATE TABLE stream_default (id INTEGER NOT NULL)").update
+          (1 to 200).foreach(i => sql"INSERT INTO stream_default VALUES (${DbValue.DbInt(i)})".update)
+          val chunks = sql"SELECT id FROM stream_default ORDER BY id".queryStream[Int].runCollect
+          val all    = sql"SELECT id FROM stream_default ORDER BY id".query[Int]
+          assertTrue(chunks.isRight, chunks.toOption.get.flatMap(_.toList) == all)
+        }
       }
     )
   )

@@ -18,10 +18,25 @@ package zio.blocks.sql
 
 import java.sql.DriverManager
 import zio.blocks.maybe.Maybe
+import zio.blocks.schema.Schema
 import zio.test.*
 
 object DbCodecOptionSpec extends ZIOSpecDefault {
   private val _ = Class.forName("org.sqlite.JDBC")
+
+  case class MixedRecord(id: Int, a: Option[Int], b: Option[String])
+  object MixedRecord {
+    implicit val schema: Schema[MixedRecord] = Schema.derived
+  }
+
+  case class Profile(id: Int, nickname: Option[String], bio: Maybe[String])
+  object Profile {
+    implicit val schema: Schema[Profile] = Schema.derived
+  }
+
+  private val profileTable       = Table.derived[Profile]
+  private given DbCodec[Profile] = Profile.schema.deriving(DbCodecDeriver).derive
+  private val profileRepo        = Repo(profileTable, "id", summon[DbCodec[Int]], (_: Profile).id)
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
@@ -143,6 +158,70 @@ object DbCodecOptionSpec extends ZIOSpecDefault {
           5 -> java.sql.Types.NULL
         )
       )
+    },
+    test("Option tuple decodes mixed NULL and non-NULL columns per row") {
+      withFreshDb { tx =>
+        tx.connect {
+          Frag.literal("CREATE TABLE mixed_null_rt (a INTEGER, b TEXT)").update
+          sql"INSERT INTO mixed_null_rt (a, b) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("x")})".update
+          sql"INSERT INTO mixed_null_rt (a, b) VALUES (${DbValue.DbNull}, ${DbValue.DbString("y")})".update
+          sql"INSERT INTO mixed_null_rt (a, b) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbNull})".update
+          sql"INSERT INTO mixed_null_rt (a, b) VALUES (${DbValue.DbNull}, ${DbValue.DbNull})".update
+
+          val results = sql"SELECT a, b FROM mixed_null_rt ORDER BY rowid".query[(Option[Int], Option[String])]
+
+          assertTrue(
+            results == List(
+              (Some(1), Some("x")),
+              (None, Some("y")),
+              (Some(2), None),
+              (None, None)
+            )
+          )
+        }
+      }
+    },
+    test("derived record with Option fields decodes mixed NULL and non-NULL columns") {
+      withFreshDb { tx =>
+        tx.connect {
+          Frag.literal("CREATE TABLE mixed_record_rt (id INTEGER NOT NULL, a INTEGER, b TEXT)").update
+          sql"INSERT INTO mixed_record_rt (id, a, b) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(10)}, ${DbValue.DbString("x")})".update
+          sql"INSERT INTO mixed_record_rt (id, a, b) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbNull}, ${DbValue.DbString("y")})".update
+          sql"INSERT INTO mixed_record_rt (id, a, b) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(30)}, ${DbValue.DbNull})".update
+          sql"INSERT INTO mixed_record_rt (id, a, b) VALUES (${DbValue.DbInt(4)}, ${DbValue.DbNull}, ${DbValue.DbNull})".update
+
+          val results = sql"SELECT id, a, b FROM mixed_record_rt ORDER BY id".query[MixedRecord]
+
+          assertTrue(
+            results == List(
+              MixedRecord(1, Some(10), Some("x")),
+              MixedRecord(2, None, Some("y")),
+              MixedRecord(3, Some(30), None),
+              MixedRecord(4, None, None)
+            )
+          )
+        }
+      }
+    },
+    test("Repo-backed entity with Option and Maybe fields round-trips NULL and non-NULL") {
+      withFreshDb { tx =>
+        tx.connect {
+          Frag.literal("CREATE TABLE profile (id INTEGER NOT NULL, nickname TEXT, bio TEXT)").update
+          profileRepo.insert(Profile(1, Some("nabil"), Maybe.present("hello")))
+          profileRepo.insert(Profile(2, None, Maybe.absent))
+          profileRepo.insert(Profile(3, Some("x"), Maybe.absent))
+
+          val p1 = profileRepo.find(1)
+          val p2 = profileRepo.find(2)
+          val p3 = profileRepo.find(3)
+
+          assertTrue(
+            p1 == Maybe(Profile(1, Some("nabil"), Maybe.present("hello"))),
+            p2 == Maybe(Profile(2, None, Maybe.absent)),
+            p3 == Maybe(Profile(3, Some("x"), Maybe.absent))
+          )
+        }
+      }
     }
   )
 }
