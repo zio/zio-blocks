@@ -1021,7 +1021,7 @@ Map over collections to create child elements:
 import zio.blocks.html._
 
 def userList(users: List[String]): Dom.Element =
-  ul(users.map(user => li(user)): _*)
+  ul(users.map(user => li(user)))
 
 val page = userList(List("Alice", "Bob", "Charlie"))
 ```

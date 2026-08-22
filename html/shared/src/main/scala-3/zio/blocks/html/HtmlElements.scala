@@ -204,7 +204,7 @@ trait HtmlElements {
 
   /** Creates a `<ul>` element from an iterable of list items. */
   def ul(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+    Dom.Element.Generic("ul", Chunk.empty, Chunk.from(lis))
 
   /** Creates an `<ol>` element with optional attributes and children. */
   def ol(effects: DomModifier*): Dom.Element = {
@@ -214,7 +214,7 @@ trait HtmlElements {
 
   /** Creates an `<ol>` element from an iterable of list items. */
   def ol(lis: Iterable[Dom.Element.Li]): Dom.Element =
-    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis.map(_.asInstanceOf[Dom.Element])))
+    Dom.Element.Generic("ol", Chunk.empty, Chunk.from(lis))
 
   /** Creates a `<th>` element with optional attributes and children. */
   def th(effects: DomModifier*): Dom.Element.Th = {
@@ -238,7 +238,7 @@ trait HtmlElements {
 
   /** Creates a `<tr>` element from an iterable of header/data cells. */
   def tr(cells: Iterable[Dom.Element.Cell]): Dom.Element =
-    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells.map(_.asInstanceOf[Dom.Element])))
+    Dom.Element.Generic("tr", Chunk.empty, Chunk.from(cells))
 
   /**
    * Creates a `<table>` element with optional attributes and children (caption,
@@ -261,36 +261,31 @@ trait HtmlElements {
   def option(effects: DomModifier*): Dom.Element.Opt = opt(effects: _*)
 
   /** Creates an `<optgroup>` element containing the given options. */
-  def optgroup(children: Dom.Element.Opt*): Dom.Element.Optgroup = {
-    val kids = if (children.isEmpty) Chunk.empty else Chunk.from(children.map(_.asInstanceOf[Dom.Element]))
-    Dom.Element.OptgroupElement(Chunk.empty, kids)
-  }
+  def optgroup(children: Dom.Element.Opt*): Dom.Element.Optgroup =
+    Dom.Element.OptgroupElement(Chunk.empty, Chunk.from(children))
 
   /** Creates an `<optgroup>` element with attributes and options. */
-  def optgroup(mod: DomModifier, mods: DomModifier*)(children: Dom.Element.Opt*): Dom.Element.Optgroup = {
-    val kids = if (children.isEmpty) Chunk.empty else Chunk.from(children.map(_.asInstanceOf[Dom.Element]))
-    val base = Dom.Element.OptgroupElement(Chunk.empty, kids)
-    if (mod == null && mods.isEmpty) base else base(mod, mods: _*).asInstanceOf[Dom.Element.Optgroup]
-  }
+  def optgroup(mod: DomModifier, mods: DomModifier*)(children: Dom.Element.Opt*): Dom.Element.Optgroup =
+    Dom.Element.OptgroupElement(Chunk.empty, Chunk.from(children))(mod, mods: _*)
 
   /**
    * Creates a `<select>` element containing the given `<option>` and/or
    * `<optgroup>` children.
    */
   def select(children: Dom.Element.SelectChild*): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
 
   /**
    * Creates a `<select>` element from an iterable of option/optgroup children.
    */
   def select(children: Iterable[Dom.Element.SelectChild]): Dom.Element =
-    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
+    Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
 
   /**
    * Creates a `<select>` element with attributes and option/optgroup children.
    */
   def select(mod: DomModifier, mods: DomModifier*)(children: Dom.Element.SelectChild*): Dom.Element = {
-    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
+    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
     base(mod, mods: _*)
   }
 
@@ -299,7 +294,7 @@ trait HtmlElements {
    * from an iterable.
    */
   def select(mod: DomModifier, mods: DomModifier*)(children: Iterable[Dom.Element.SelectChild]): Dom.Element = {
-    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children.map(_.asInstanceOf[Dom.Element])))
+    val base = Dom.Element.Generic("select", Chunk.empty, Chunk.from(children))
     base(mod, mods: _*)
   }
 
