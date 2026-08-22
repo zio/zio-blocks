@@ -274,6 +274,42 @@ object CiWorkflow {
           name = "Compile example project",
           condition = Some(expr("matrix.scala == '3.8.x'")),
           run = Some("sbt ++${{ matrix.scala }} schema-examples/compile")
+        ),
+        // sbt has repeatedly died on the JDK 25 jobs with a bare `exit code 1`, no stderr and no
+        // hs_err file, immediately after reporting that every test passed, skipping the remaining
+        // commands in the step. The build output cannot distinguish a kernel kill from a
+        // self-inflicted exit, so collect what can tell them apart the next time it happens: an
+        // OOM kill or a signal is recorded in the kernel log, and a JVM crash leaves an hs_err
+        // file behind. Runs on any job failure, ordinary test failures included; it costs seconds.
+        SingleStep(
+          name = "Collect failure diagnostics",
+          condition = Some(Condition.Function("failure()")),
+          run = Some(
+            """|kernel_log=$(sudo dmesg -T 2>/dev/null) || true
+               |echo "::group::Kernel log, OOM and kill lines only"
+               |if [ -n "$kernel_log" ]; then
+               |  echo "$kernel_log" | grep -iE 'out of memory|oom[-_ ]kill|killed process|segfault' || echo "no OOM or kill lines"
+               |else
+               |  echo "kernel log unavailable"
+               |fi
+               |echo "::endgroup::"
+               |echo "::group::Kernel log, last 200 lines"
+               |if [ -n "$kernel_log" ]; then echo "$kernel_log" | tail -n 200; else echo "kernel log unavailable"; fi
+               |echo "::endgroup::"
+               |echo "::group::Memory and disk"
+               |free -m || true
+               |df -h . || true
+               |echo "::endgroup::"
+               |echo "::group::JVM crash logs"
+               |crash_logs=$(find . -maxdepth 3 -name 'hs_err_pid*.log' 2>/dev/null; find . -maxdepth 3 -name 'replay_pid*.log' 2>/dev/null) || true
+               |if [ -n "$crash_logs" ]; then
+               |  for f in $crash_logs; do echo "--- $f ---"; head -n 100 "$f"; done
+               |else
+               |  echo "no JVM crash logs"
+               |fi
+               |echo "::endgroup::"
+               |""".stripMargin
+          )
         )
       )
     )
