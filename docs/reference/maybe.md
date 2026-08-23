@@ -27,10 +27,10 @@ The new encoding minimizes allocation by using the raw value when possible:
 | Flat apply | `Maybe(42)` | **0** (raw `42`) |
 | Flat fromOption | `Maybe.fromOption(Some(42))` | **0** (raw `42`) |
 | Absent | `Maybe.absent` | **0** (`Absent` singleton) |
-| Nested present | `Maybe.present(Maybe.absent)` | **1** (`Present(Absent)`) |
-| Nested fromOption | `Maybe.fromOption(Some(null))` | **1** (`Present(null)`) |
+| Present-of-absent | `Maybe.present(Maybe.absent)` | **1** (`Present(Absent)`) |
+| Present null | `Maybe.fromOption(Some(null))` | **1** (`Present(null)`) |
 
-The `Present[A]` wrapper is allocated **only** when wrapping a nested `Maybe` that is itself absent. For all flat (non-nested) cases, the value is stored raw with zero allocation overhead.
+The `Present[A]` wrapper is allocated **only** for present-of-absent cases: wrapping a nested `Maybe` that is itself absent (`Present(Absent)`) and wrapping a `null` value (`Present(null)`). All other flat cases store the value raw with zero allocation overhead.
 
 ### Nesting Depth
 

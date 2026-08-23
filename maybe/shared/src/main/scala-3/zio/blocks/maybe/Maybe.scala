@@ -57,8 +57,10 @@ object Present {
 }
 
 /**
- * Plain object (NOT case object) — enables `case Absent` as a stable-identifier
- * pattern.
+ * Top-level singleton representing absence. `case Absent` matches via a
+ * stable-identifier pattern; both plain objects and `case object`s qualify as
+ * stable identifiers, so a plain object is used simply to avoid implying an
+ * `Absent()` extractor.
  */
 object Absent
 
