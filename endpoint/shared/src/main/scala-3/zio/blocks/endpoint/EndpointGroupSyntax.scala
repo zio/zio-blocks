@@ -16,17 +16,11 @@
 
 package zio.blocks.endpoint
 
-import zio.blocks.endpoint.PathCodec
-
+/**
+ * Entry point for bulk endpoint creation. Grouping prefixes (`"api" / ...`,
+ * `PathCodec.int("id") / ...`) live in [[BulkDsl]] - import
+ * `zio.blocks.endpoint.BulkDsl.*` to opt in, so upstream `/` operators are not
+ * shadowed.
+ */
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
-
-extension (prefix: String) {
-  transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V])(using nv: NestPrefix[V]): NamedTuple.NamedTuple[N, V] =
-    nv.nest(nt.asInstanceOf[V], prefix).asInstanceOf[NamedTuple.NamedTuple[N, V]]
-}
-
-extension [A](codec: PathCodec[A]) {
-  transparent inline def /[NT <: Tuple](inline nt: NT): Any =
-    ${ EndpointGroupMacro.prefixGroup('codec, 'nt) }
-}
