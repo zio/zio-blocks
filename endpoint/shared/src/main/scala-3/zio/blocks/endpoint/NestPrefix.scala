@@ -5,15 +5,22 @@ import zio.blocks.endpoint.Endpoint
 import zio.blocks.endpoint.AuthType
 import zio.blocks.endpoint.PathCodec
 
-/** Runtime type-class: nest a constant path prefix into every Endpoint leaf of a group. */
+/**
+ * Runtime type-class: nest a constant path prefix into every Endpoint leaf of a
+ * group.
+ */
 trait NestPrefix[NT] {
   def nest(nt: NT, prefix: String): NT
 }
 
 object NestPrefix {
   // Endpoint leaf: copy with route.nest(PathCodec(prefix)) — preserves PathVars (prefix PathVars = EmptyTuple)
-  given endpointNest[PathInput, Input, Err, Output, Auth <: AuthType]: NestPrefix[Endpoint[PathInput, Input, Err, Output, Auth]] with {
-    def nest(ep: Endpoint[PathInput, Input, Err, Output, Auth], prefix: String): Endpoint[PathInput, Input, Err, Output, Auth] =
+  given endpointNest[PathInput, Input, Err, Output, Auth <: AuthType]
+    : NestPrefix[Endpoint[PathInput, Input, Err, Output, Auth]] with {
+    def nest(
+      ep: Endpoint[PathInput, Input, Err, Output, Auth],
+      prefix: String
+    ): Endpoint[PathInput, Input, Err, Output, Auth] =
       ep.copy(route = ep.route.nest(PathCodec(prefix)))
   }
 
