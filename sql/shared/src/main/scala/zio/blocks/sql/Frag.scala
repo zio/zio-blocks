@@ -65,7 +65,15 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
    */
   def sql(dialect: SqlDialect): String =
     Frag.synchronized {
-      Frag.renderedSql.getOrElseUpdate((parts, params.length, dialect), renderSql(dialect))
+      val shape = (parts, params.length, dialect)
+      Frag.renderedSql.getOrElse(
+        shape, {
+          if (Frag.renderedSql.size >= Frag.RenderedSqlCacheMaxEntries) Frag.renderedSql.clear()
+          val rendered = renderSql(dialect)
+          Frag.renderedSql.update(shape, rendered)
+          rendered
+        }
+      )
     }
 
   private def renderSql(dialect: SqlDialect): String = {
@@ -101,9 +109,17 @@ object Frag {
    * map because `scala.collection.concurrent.TrieMap` cannot be linked by
    * Scala.js (its internal node classes do not exist on that platform). The
    * critical section is a single map lookup, so contention is negligible.
+   *
+   * The cache is bounded: workloads that build fragments from runtime strings
+   * (per-tenant, per-request SQL) would otherwise retain every distinct shape
+   * forever. On overflow the cache is cleared and hot shapes are re-rendered on
+   * their next execution.
    */
   private val renderedSql: mutable.HashMap[(IndexedSeq[String], Int, SqlDialect), String] =
     mutable.HashMap.empty
+
+  /** Upper bound on [[renderedSql]] entries before it is cleared. */
+  private val RenderedSqlCacheMaxEntries = 1024
 
   /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
@@ -279,26 +295,33 @@ object Frag {
     def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
       require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
       val sqlStr = frag.sql(con.dialect)
-      val start  = System.nanoTime()
       Stream.fromAcquireRelease(
         acquire = {
+          // Timed from acquisition, not construction: re-running or delaying
+          // the stream must not inherit a stale duration.
+          val start                   = System.nanoTime()
+          var ps: DbPreparedStatement = null
           try {
-            val ps = con.connection.prepareStatement(sqlStr)
+            ps = con.connection.prepareStatement(sqlStr)
             writeParams(ps.paramWriter, frag.queryParams)
             val rs = ps.executeQuery()
-            (ps, rs)
+            (ps, rs, start)
           } catch {
             case e: Throwable =>
+              // release does not run when acquire fails.
+              if (ps ne null)
+                try ps.close()
+                catch { case _: Throwable => () }
               val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
               con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
               throw new StreamError(e)
           }
         },
-        release = { case (ps, rs) =>
+        release = { case (ps, rs, _) =>
           try rs.close()
           finally ps.close()
         }
-      ) { case (_, rs) =>
+      ) { case (_, rs, start) =>
         val reader = rs.reader
         val decode = rowDecoder(reader, codec)
         var count  = 0

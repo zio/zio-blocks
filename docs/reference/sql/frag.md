@@ -9,7 +9,7 @@ keywords:
   - "SQL Injection Prevention"
 ---
 
-`Frag` is an immutable SQL fragment — a piece of SQL text with typed parameter values kept safely separate from the literal SQL. The `sql"..."` string interpolator builds fragments by checking at compile time that every interpolated expression can be bound as a parameter. Fragments compose with `++` and execute through methods like `query`, `update`, and `queryOne`.
+`Frag` is an immutable SQL fragment — a piece of SQL text with typed parameter values kept safely separate from the literal SQL. The `sql"..."` string interpolator builds fragments by checking at compile time that every interpolated expression can be bound as a parameter. Fragments compose with `++` and execute through methods like `query`, `update`, and `queryOne`, plus the chunked streaming methods `queryStream` and `queryChunked`.
 
 `Frag` is safe from SQL injection because parameter values never appear in the SQL string — they are stored separately and bound to `?` placeholders at execution time.
 
@@ -175,6 +175,41 @@ object User { implicit val schema: Schema[User] = Schema.derived }
 given DbCon = ???
 
 val page: List[User] = sql"SELECT id, name FROM users ORDER BY name".queryLimit[User](10)
+```
+
+**`queryStream[A]`** — Execute SELECT and return rows as a chunked stream (`zio.blocks.streams.Stream`), batching `DefaultQueryChunkSize` (64) rows per chunk:
+
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+import zio.blocks.streams.Stream
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
+val chunks: Stream[Throwable, Chunk[User]] =
+  sql"SELECT id, name FROM users".queryStream[User]
+val all: Either[Throwable, List[User]] = chunks.runCollect.map(_.toList.flatten)
+```
+
+**`queryChunked[A](n)`** — Like `queryStream`, but with an explicit batch size. The statement and result set are acquired lazily on the first pull and released when the stream is closed or fully drained; each chunk holds up to `n` rows, so memory stays bounded for large result sets:
+
+```scala mdoc:compile-only
+import zio.blocks.chunk.Chunk
+import zio.blocks.sql._
+import zio.blocks.schema.Schema
+import zio.blocks.streams.Stream
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
+val batches: Stream[Throwable, Chunk[User]] =
+  sql"SELECT id, name FROM users".queryChunked[User](500)
 ```
 
 **`update`** — Execute INSERT, UPDATE, or DELETE and return affected row count:

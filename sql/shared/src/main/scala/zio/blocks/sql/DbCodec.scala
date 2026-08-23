@@ -98,6 +98,7 @@ private[sql] trait DbCodecOpaquePriority {
 }
 
 object DbCodec extends DbCodecOpaquePriority {
+  // Matches java.sql.Types.NULL (0); kept local so shared sources stay free of java.sql.
   private val SqlNullType = 0
 
   private def decodeJsonb[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): A =
@@ -391,23 +392,24 @@ trait DbResultReader {
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
   def getArray(index: Int): Array[String] =
-    throw new NoSuchElementException("DbResultReader does not support getArray(index)")
+    throw new UnsupportedOperationException("DbResultReader does not support getArray(index)")
   def getArray(label: String): Array[String] =
-    throw new NoSuchElementException("DbResultReader does not support getArray(label)")
+    throw new UnsupportedOperationException("DbResultReader does not support getArray(label)")
   def columnLabel(index: Int): String
   def hasColumn(label: String): Boolean
   def wasNull: Boolean
 
   /**
    * Returns `true` if the column at the given 1-based `index` contains SQL NULL
-   * in the current row, without decoding the column value.
+   * in the current row.
    *
-   * Backends that carry a per-row column null bitmap override this (the JDBC
-   * backend records `wasNull` per column as it reads; the wire-protocol backend
-   * will populate it from the wire format) so Option/Maybe codecs can skip the
-   * inner decode entirely for NULL columns. The default reports `false`, which
-   * preserves the historical behavior: Option/Maybe codecs then fall back to
-   * the post-read `wasNull` check and decode the inner value as before.
+   * Only backends that carry an out-of-band null bitmap can answer reliably
+   * before the column is decoded (a wire-protocol backend reads NULL flags from
+   * the row header). The JDBC backend records `wasNull` as each getter runs, so
+   * its answer is only meaningful after that column has been read; before the
+   * first read it reports `false`. The default reports `false`, which preserves
+   * the historical behavior: Option/Maybe codecs then fall back to the
+   * post-read `wasNull` check and decode the inner value as before.
    */
   def isNull(index: Int): Boolean = false
 

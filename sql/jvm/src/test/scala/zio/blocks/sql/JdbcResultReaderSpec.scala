@@ -106,7 +106,10 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
             str2 == null,
             null22
           )
-        } finally rs.close()
+        } finally {
+          rs.close()
+          stmt.close()
+        }
       }
     },
     test("isNull(label) records wasNull for label-based reads") {
@@ -133,7 +136,10 @@ object JdbcResultReaderSpec extends ZIOSpecDefault {
             strB == "x",
             !nonNullB
           )
-        } finally rs.close()
+        } finally {
+          rs.close()
+          stmt.close()
+        }
       }
     }
   )
