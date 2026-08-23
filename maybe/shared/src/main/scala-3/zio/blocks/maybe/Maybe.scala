@@ -81,11 +81,11 @@ object Maybe {
    * Wraps a value in `Maybe`, preserving present-ness even for `null` or
    * `Absent`.
    *
-    * A non-null/non-Absent value is returned as-is (zero allocation). A
-    * `null` value is wrapped as `Present(null)`, and the `Absent` sentinel is
-    * wrapped as `Present(Absent)`; both are distinguishable from `Maybe.absent`
-    * (the `Absent` singleton). This is what makes nested `Maybe`s sound:
-    * `Maybe.present(Maybe.absent)` is `Present(Absent)`, not `Maybe.absent`.
+   * A non-null/non-Absent value is returned as-is (zero allocation). A `null`
+   * value is wrapped as `Present(null)`, and the `Absent` sentinel is wrapped
+   * as `Present(Absent)`; both are distinguishable from `Maybe.absent` (the
+   * `Absent` singleton). This is what makes nested `Maybe`s sound:
+   * `Maybe.present(Maybe.absent)` is `Present(Absent)`, not `Maybe.absent`.
    *
    * Special case for soundness (see Present scaladoc): if the argument is
    * itself a `Present[_]`, it is wrapped in an extra `Present` layer so that
