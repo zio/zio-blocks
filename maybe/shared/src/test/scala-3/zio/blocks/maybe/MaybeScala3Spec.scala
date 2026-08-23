@@ -25,7 +25,7 @@ object MaybeScala3Spec extends ZIOSpecDefault {
 
   def spec = suite("Maybe Scala 3")(
     test("companion methods are callable at runtime") {
-      val absent: Maybe[Payload]        = Maybe.Absent
+      val absent: Maybe[Payload]        = Maybe.absent
       val presentOption: Maybe[Payload] = Maybe.fromOption(Some(Payload(1)))
       val absentOption: Maybe[Payload]  = Maybe.fromOption(None)
 

@@ -39,7 +39,15 @@ object WildcardImportSpec extends ZIOSpecDefault {
         (absentVal match { case Present(_) => -1; case Absent => 0 }) == 0,
         // construction and predicates still work
         Maybe.present(42).isPresent,
-        Maybe.absent[Int].isAbsent
+        Maybe.absent[Int].isAbsent,
+        // combinators expand companion helpers inline; they must stay usable
+        // from an external package (access check at the expansion site)
+        rawPresent.get == 1,
+        rawPresent.fold("absent")(v => s"present ($v)") == "present (1)",
+        rawPresent.map(_ + 1).contains(2),
+        presentOfAbsent.flatten.isAbsent,
+        absentVal.getOrElse(7) == 7,
+        absentVal.getOrNull == null
       )
     }
   )

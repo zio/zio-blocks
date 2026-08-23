@@ -81,11 +81,11 @@ object Maybe {
    * Wraps a value in `Maybe`, preserving present-ness even for `null` or
    * `Absent`.
    *
-   * A non-null/non-Absent value is returned as-is (zero allocation). A `null`
-   * value or the `Absent` sentinel is wrapped in `Present(Absent)`, which is
-   * distinguishable from `Maybe.absent` (the `Absent` singleton). This is what
-   * makes nested `Maybe`s sound: `Maybe.present(Maybe.absent)` is
-   * `Present(Absent)`, not `Maybe.absent`.
+    * A non-null/non-Absent value is returned as-is (zero allocation). A
+    * `null` value is wrapped as `Present(null)`, and the `Absent` sentinel is
+    * wrapped as `Present(Absent)`; both are distinguishable from `Maybe.absent`
+    * (the `Absent` singleton). This is what makes nested `Maybe`s sound:
+    * `Maybe.present(Maybe.absent)` is `Present(Absent)`, not `Maybe.absent`.
    *
    * Special case for soundness (see Present scaladoc): if the argument is
    * itself a `Present[_]`, it is wrapped in an extra `Present` layer so that
@@ -104,7 +104,6 @@ object Maybe {
       }
   inline def absent[A]: Maybe[A] = zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
   inline def empty[A]: Maybe[A]  = zio.blocks.maybe.Absent.asInstanceOf[Maybe[A]]
-  def Absent: Maybe[Nothing]     = zio.blocks.maybe.Absent.asInstanceOf[Maybe[Nothing]]
 
   def fromOption[A](opt: Option[A]): Maybe[A] = opt match {
     case Some(a) => present(a)
@@ -129,11 +128,16 @@ object Maybe {
   /**
    * Low-level unwrap used by schema codecs. Returns the inner value or null if
    * absent (Absent maps to null for codec compatibility).
+   *
+   * Inline so hot paths pay no virtual dispatch: absent and raw-value cases
+   * cost one reference comparison; only a Present wrapper pays a type test.
    */
-  private[blocks] def unsafeGet(x: Maybe[Any]): Any = x match {
-    case zio.blocks.maybe.Absent        => null
-    case p: zio.blocks.maybe.Present[?] => p.value
-    case _                              => x
+  private[blocks] inline def unsafeGet(x: Maybe[Any]): Any = {
+    val ref = x.asInstanceOf[AnyRef]
+    if (ref eq zio.blocks.maybe.Absent) null
+    else if (ref.isInstanceOf[zio.blocks.maybe.Present[?]])
+      ref.asInstanceOf[zio.blocks.maybe.Present[?]].value
+    else x
   }
 
   /**
