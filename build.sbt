@@ -963,6 +963,23 @@ lazy val endpoint = crossProject(JSPlatform, JVMPlatform)
   .settings(stdSettings("zio-blocks-endpoint"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.endpoint"))
+  .settings(
+    // Bulk-endpoints DSL files use named tuples (Scala 3.7+); keep them out of older Scala 3 builds
+    Compile / unmanagedSourceDirectories ++= {
+      val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 7 => Seq(sharedMain / "scala-3.7")
+        case _                      => Seq.empty
+      }
+    },
+    Test / unmanagedSourceDirectories ++= {
+      val sharedTest = baseDirectory.value.getParentFile / "shared" / "src" / "test"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 7 => Seq(sharedTest / "scala-3.7")
+        case _                      => Seq.empty
+      }
+    }
+  )
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
@@ -987,7 +1004,13 @@ lazy val `endpoint-examples` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    Compile / unmanagedSourceDirectories ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 7 => Seq(baseDirectory.value / "src" / "main" / "scala-3.7")
+        case _                      => Seq.empty
+      }
+    }
   )
   .dependsOn(endpoint.jvm)
 

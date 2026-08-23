@@ -140,7 +140,9 @@ object EndpointGroupSpec extends ZIOSpecDefault {
         val errors = typeCheckErrors(
           "endpoints { val x = 42 }"
         )
-        assertTrue(errors.nonEmpty && errors.exists(_.message.contains("val x")) && errors.exists(_.message.contains("of type")))
+        assertTrue(
+          errors.nonEmpty && errors.exists(_.message.contains("val x")) && errors.exists(_.message.contains("of type"))
+        )
       },
       test("bare non-Endpoint expression reports error") {
         val errors = typeCheckErrors(
@@ -150,11 +152,20 @@ object EndpointGroupSpec extends ZIOSpecDefault {
       },
       test("23-member block compiles and .e22 access works (proves >22 arity via ofTupleFromSeq)") {
         val group = endpoints {
-          val e0 = Endpoint(Method.GET / "e0"); val e1 = Endpoint(Method.GET / "e1"); val e2 = Endpoint(Method.GET / "e2"); val e3 = Endpoint(Method.GET / "e3"); val e4 = Endpoint(Method.GET / "e4")
-          val e5 = Endpoint(Method.GET / "e5"); val e6 = Endpoint(Method.GET / "e6"); val e7 = Endpoint(Method.GET / "e7"); val e8 = Endpoint(Method.GET / "e8"); val e9 = Endpoint(Method.GET / "e9")
-          val e10 = Endpoint(Method.GET / "e10"); val e11 = Endpoint(Method.GET / "e11"); val e12 = Endpoint(Method.GET / "e12"); val e13 = Endpoint(Method.GET / "e13"); val e14 = Endpoint(Method.GET / "e14")
-          val e15 = Endpoint(Method.GET / "e15"); val e16 = Endpoint(Method.GET / "e16"); val e17 = Endpoint(Method.GET / "e17"); val e18 = Endpoint(Method.GET / "e18"); val e19 = Endpoint(Method.GET / "e19")
-          val e20 = Endpoint(Method.GET / "e20"); val e21 = Endpoint(Method.GET / "e21"); val e22 = Endpoint(Method.GET / "e22")
+          val e0  = Endpoint(Method.GET / "e0"); val e1   = Endpoint(Method.GET / "e1");
+          val e2  = Endpoint(Method.GET / "e2"); val e3   = Endpoint(Method.GET / "e3");
+          val e4  = Endpoint(Method.GET / "e4")
+          val e5  = Endpoint(Method.GET / "e5"); val e6   = Endpoint(Method.GET / "e6");
+          val e7  = Endpoint(Method.GET / "e7"); val e8   = Endpoint(Method.GET / "e8");
+          val e9  = Endpoint(Method.GET / "e9")
+          val e10 = Endpoint(Method.GET / "e10"); val e11 = Endpoint(Method.GET / "e11");
+          val e12 = Endpoint(Method.GET / "e12"); val e13 = Endpoint(Method.GET / "e13");
+          val e14 = Endpoint(Method.GET / "e14")
+          val e15 = Endpoint(Method.GET / "e15"); val e16 = Endpoint(Method.GET / "e16");
+          val e17 = Endpoint(Method.GET / "e17"); val e18 = Endpoint(Method.GET / "e18");
+          val e19 = Endpoint(Method.GET / "e19")
+          val e20 = Endpoint(Method.GET / "e20"); val e21 = Endpoint(Method.GET / "e21");
+          val e22 = Endpoint(Method.GET / "e22")
         }
         assertTrue(group.e22.route.render == "GET /e22")
       },
@@ -171,17 +182,19 @@ object EndpointGroupSpec extends ZIOSpecDefault {
         assertTrue(byId.get.route.render == "GET /{id}/orders")
       },
       test("bare Endpoint under path-var prefix") {
-        val byId2 = PathCodec.int("id") / endpoints { Endpoint(Method.GET / "orders") }
+        val byId2 = PathCodec.int("id") / endpoints(Endpoint(Method.GET / "orders"))
         assertTrue(byId2.`GET /orders`.route.render == "GET /{id}/orders")
       },
       test("child endpoint with own var composes PathVars") {
-        val byId3 = PathCodec.int("id") / endpoints { val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId")) }
+        val byId3 = PathCodec.int("id") / endpoints {
+          val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId"))
+        }
         assertTrue(byId3.o.route.render == "GET /{id}/orders/{orderId}")
       },
       test("path-var prefix preserves static PathInput type") {
-        val byId = PathCodec.int("id") / endpoints { val get = Endpoint(Method.GET / "orders") }
-        val get = byId.get
-        val _: RoutePattern[Int] = get.route   // compile-time: PathInput must be Int
+        val byId                 = PathCodec.int("id") / endpoints { val get = Endpoint(Method.GET / "orders") }
+        val get                  = byId.get
+        val _: RoutePattern[Int] = get.route // compile-time: PathInput must be Int
         assertTrue(byId.get.route.render == "GET /{id}/orders")
       }
     )

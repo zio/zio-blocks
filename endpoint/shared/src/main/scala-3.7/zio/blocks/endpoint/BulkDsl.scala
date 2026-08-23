@@ -52,4 +52,23 @@ object BulkDsl {
     ): Any =
       ${ EndpointGroupMacro.prefixGroup('codec, 'nt) }
   }
+
+  // Mirrors of upstream's implicit-scope `/` operators. Importing BulkDsl.*
+  // brings a lexical `/` into scope, which would otherwise shadow those
+  // implicits and break ordinary `Method.GET / path` chains inside
+  // DSL-using files; these delegates preserve them byte-for-byte.
+  extension (method: zio.http.Method) {
+    def /[A, PV](path: PathCodec[A] { type PathVars = PV }): RoutePattern[A] { type PathVars = PV } =
+      RoutePattern(method, path).asInstanceOf[RoutePattern[A] { type PathVars = PV }]
+  }
+
+  extension [A, PV](self: RoutePattern[A] { type PathVars = PV }) {
+    def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
+      combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
+      _pathVarsCombiner: PathCodec.RoutePathVarsCombiner[PV, PV2, PVC]
+    ): RoutePattern[C] { type PathVars = PVC } =
+      self
+        .copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
+        .asInstanceOf[RoutePattern[C] { type PathVars = PVC }]
+  }
 }

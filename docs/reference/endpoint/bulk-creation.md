@@ -24,6 +24,14 @@ val api = "api" / endpoints {
 Member access is static (zero runtime cost):
 
 ```scala mdoc:compile-only
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.BulkDsl._
+import zio.http.Method
+
+val api = "api" / endpoints {
+  val customer = Endpoint(Method.GET / "customers")
+  Endpoint(Method.GET / "health")
+}
 val c: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = api.customer
 val h: Endpoint[Unit, Unit, Unit, Unit, AuthType.None.type] = api.`GET /health`
 ```
@@ -39,12 +47,16 @@ Auto-naming follows `RoutePattern.render` exactly:
 Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the description level; grouping nodes have no path themselves:
 
 ```scala mdoc:compile-only
-val v1 = "api" / endpoints {
+import zio.blocks.endpoint._
+import zio.blocks.endpoint.BulkDsl._
+import zio.http.Method
+
+val nested = "api" / endpoints {
   "v1" / endpoints {
     val users = Endpoint(Method.GET / "users")
   }
 }
-val u = v1.v1.users  // route.render == "GET /api/v1/users"
+val u = nested.v1.users // route.render == "GET /api/v1/users"
 ```
 
 Path-variable prefixes are implemented the same way. A capturing prefix contributes its segment to every child's path, while children keep their relative auto-names:

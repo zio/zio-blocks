@@ -251,6 +251,18 @@ object EndpointGroupMacro {
           case Apply(TypeApply(Select(left, "/"), _), List(right)) =>
             val (m, segs) = decompose(left)
             (m, segs :+ pathRender(right))
+          case Apply(Apply(TypeApply(Ident("/"), _), List(left)), List(right)) =>
+            val (m, segs) = decompose(left)
+            (m, segs :+ pathRender(right))
+          case Apply(TypeApply(Apply(TypeApply(Ident("/"), _), List(left)), _), List(right)) =>
+            val (m, segs) = decompose(left)
+            (m, segs :+ pathRender(right))
+          case Apply(Apply(Ident("/"), List(left)), List(right)) =>
+            val (m, segs) = decompose(left)
+            (m, segs :+ pathRender(right))
+          case Apply(TypeApply(Apply(TypeApply(Apply(Ident("/"), List(method)), _), List(seg)), _), List(_)) =>
+            // upstream-native two-segment chain: Method.GET / seg1 / seg2
+            (methodRender(method), List(pathRender(seg)))
           case Apply(TypeApply(Apply(Ident("/"), List(method)), _), List(seg)) =>
             (methodRender(method), List(pathRender(seg)))
           case Apply(Apply(Ident("/"), List(method)), List(seg)) =>
@@ -411,7 +423,24 @@ object EndpointGroupMacro {
               case _     => report.errorAndAbort("failed to construct NamedTuple type for single-subgroup group")
             }
           case None =>
-            '{ NamedTuple(EmptyTuple) }
+            // Upstream inlining can hand us a BARE `Endpoint(...)` term (no Block wrapper)
+            if (isEndpoint(t.tpe)) {
+              val members                     = List((autoName(t), t, false))
+              val (names, terms, isSubgroups) = members.unzip3
+              val exprs: List[Expr[Any]]      =
+                terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else wrapLeaf(tt) }
+              val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
+              val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(exprs)
+              val ntType: TypeRepr            =
+                AppliedType(
+                  TypeRepr.of[scala.NamedTuple.NamedTuple],
+                  List(namesTupleExpr.asTerm.tpe, valuesTuple.asTerm.tpe)
+                )
+              ntType.asType match {
+                case '[nt] => '{ $valuesTuple.asInstanceOf[nt] }
+                case _     => report.errorAndAbort("failed to construct NamedTuple type for single-endpoint group")
+              }
+            } else '{ NamedTuple(EmptyTuple) }
         }
     }
   }
