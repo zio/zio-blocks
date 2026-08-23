@@ -5,10 +5,11 @@ title: "Bulk Endpoint Creation"
 
 ## Bulk endpoint creation with `endpoints { ... }`
 
-The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template).
+The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is opt-in: import `zio.blocks.endpoint.BulkDsl.*` so upstream `/` operators stay unshadowed.
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
+import zio.blocks.endpoint.BulkDsl._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import zio.blocks.schema.Schema
@@ -50,6 +51,7 @@ Path-variable prefixes are implemented the same way. A capturing prefix contribu
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
+import zio.blocks.endpoint.BulkDsl._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
@@ -66,6 +68,7 @@ Both children carry the captured segment: `byId.get.route.render == "GET /{id}/o
 
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
+import zio.blocks.endpoint.BulkDsl._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
