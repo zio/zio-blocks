@@ -1755,7 +1755,11 @@ lazy val docs = project
     async.jvm,
     sql.jvm,
     telemetry.jvm,
-    otel
+    otel,
+    config.jvm,
+    `config-yaml`.jvm,
+    `config-json`.jvm,
+    `config-hocon`.jvm
   )
   .enablePlugins(WebsitePlugin)
   .settings(docsGenerateReadmeLocal := {

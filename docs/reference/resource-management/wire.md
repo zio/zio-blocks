@@ -505,6 +505,8 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 
 The macro detects cycles, duplicate providers, and missing dependencies at compile time.
 
+The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md).
+
 ## Comparison with Alternatives
 
 | Feature | Wire | Manual Passing | Service Locator |

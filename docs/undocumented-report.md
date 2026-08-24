@@ -5,327 +5,465 @@ title: "Documentation Coverage Report"
 
 # Documentation Coverage Report
 
-Comprehensive analysis of documentation gaps in ZIO Blocks, combining automated scanning with manual source-code review.
+Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
+
+**Progress since this report was generated:** the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
+
+**What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
 ## Summary
 
 | Metric | Count |
 |--------|-------|
-| Total public types found | 552 |
-| Types with documentation | 302 |
-| Types lacking documentation | 250 |
-| Documentation coverage | 54% |
-| Existing reference pages | 24 |
-| Missing methods in existing pages | ~44 |
-| Missing examples in existing pages | ~39 |
-| Conceptual docs (guides, how-tos) | 0 |
+| Library modules aggregated by `root` | 38 |
+| Modules with no reference page | **0** |
+| Reference pages | 164 |
+| Guides | 9 |
+| Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
+| Types never named anywhere in `docs/` | **568** |
+| Types with no prose or heading reference | **847** |
+| Name-mention coverage | **68%** |
+| Explained-type coverage | **53%** |
+
+Two coverage numbers are reported because they answer different questions.
+
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 568 types — is the set that is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 847 types — additionally captures the 279 types that appear only as tokens inside examples and are never explained.
+
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 564 absent. Both figures are name-based lower bounds; see *Methodology*.
 
 ---
 
-## Critical: Missing Reference Pages
+## Module Coverage Table
 
-These are core public API types that users interact with directly. Each needs a dedicated reference page or a substantial new section in an existing page.
+`types` = public types in `*/src/main/**`. `absent` = never named anywhere in `docs/`. `unexplained` = no prose or heading reference. `ratio` = documentation lines / source lines for that module's pages.
 
-- [ ] **`MediaType`** (module `mediatype`) — Public API for media type parsing and matching; essential for content negotiation. The entire `zio.blocks.mediatype` package has zero documentation. **Scope: new page**. Source: `mediatype/shared/src/main/scala/zio/blocks/mediatype/MediaType.scala`
-- [ ] **`MediaTypes`** (module `mediatype`) — Predefined media type instances (application/json, text/html, etc.). Should be part of the `MediaType` page. **Scope: new section**. Source: `mediatype/shared/src/main/scala/zio/blocks/mediatype/MediaTypes.scala`
-- [ ] **`SchemaExpr`** (module `schema`) — Core trait for expression evaluation on schema-described types; central to the validation DSL. **Scope: new page**. Source: `schema/shared/src/main/scala/zio/blocks/schema/SchemaExpr.scala`
-- [ ] **`SchemaError`** (module `schema`) — Primary error type returned from schema operations (ConversionFailed, MissingField, DuplicatedField, ExpectationMismatch, UnknownCase). Users handle these constantly. **Scope: new page or major section in schema.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/SchemaError.scala`
-- [ ] **`Into`** (module `schema`) — Core conversion type class appearing in all cross-type transformations. **Scope: new page**. Source: `schema/shared/src/main/scala/zio/blocks/schema/Into.scala`
-- [ ] **`JsonPatch`** (module `schema`) — Main public API for JSON patching and diffing operations. **Scope: new section in json.md or patch.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/JsonPatch.scala`
+| Module | types | absent | unexplained | explained cov | src LOC | doc LOC | ratio | Primary page |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| **http-model** | 191 | 101 | 132 | **31%** | 4,712 | 1,528 | 0.32 | `reference/http-model/model.md` |
+| **http-model-schema** | 18 | 14 | 14 | **22%** | 1,249 | 607 | 0.49 | `reference/http-model/schema.md` |
+| **smithy** | 42 | 16 | 32 | 24% | 2,585 | 533 | 0.21 | `reference/smithy.md` |
+| **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
+| **html** | 86 | 33 | 54 | 37% | 4,725 | 1,117 | 0.24 | `reference/html.md` |
+| **datastar** | 50 | 23 | 28 | 44% | 1,881 | 346 | 0.18 | `reference/datastar.md` |
+| **schema** | 516 | 210 | 268 | 48% | 84,969 | 23,842 | 0.28 | `reference/schema/` |
+| **scope** | 24 | 8 | 12 | 50% | 7,085 | 3,577 | 0.50 | `reference/resource-management/` |
+| **typeid** | 91 | 26 | 44 | 52% | 6,493 | 2,124 | 0.33 | `reference/typeid.md` |
+| **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
+| **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
+| **otel** | 12 | 2 | 3 | 75% | 1,325 | 162 | **0.12** | `reference/telemetry/otel/` |
+| schema-xml | 35 | 6 | 15 | 57% | 3,334 | 1,034 | 0.31 | `built-in-codecs/xml.md` |
+| schema-bson | 18 | 1 | 7 | 61% | 1,790 | 472 | 0.26 | `built-in-codecs/bson.md` |
+| codegen | 46 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 | `reference/codegen/` |
+| streams | 29 | 9 | 10 | 66% | 18,434 | 5,725 | 0.31 | `reference/streams/` |
+| combinators | 6 | 2 | 2 | 67% | 1,132 | 524 | 0.46 | `reference/combinators.md` |
+| endpoint | 58 | 16 | 18 | 69% | 2,805 | 1,757 | 0.63 | `reference/endpoint/` |
+| config (+ `-yaml`/`-json`/`-hocon`) | 77 | 3 | 21 | 72% | 3,914 | 2,212 | 0.57 | `reference/config/index.md` |
+| schema-yaml | 28 | 6 | 8 | 71% | 2,753 | 552 | 0.20 | `built-in-codecs/yaml.md` |
+| chunk | 20 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 | `reference/chunk.md` |
+| markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
+| schema-toon | 28 | 2 | 5 | 82% | 4,690 | 1,050 | 0.22 | `built-in-codecs/toon.md` |
+| mux | 13 | 2 | 2 | 85% | 1,222 | 823 | 0.67 | `reference/mux.mdx` |
+| openapi | 45 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 | `reference/openapi.md` |
+| schema-csv | 9 | 0 | 1 | 89% | 1,247 | 564 | 0.45 | `built-in-codecs/csv.md` |
+| sql | 53 | 1 | 3 | 94% | 3,736 | 4,008 | 1.07 | `reference/sql/` |
+| mediatype | 16 | 2 | 11 | 31% | 12,676 | 460 | 0.04 | `reference/media-type.md` |
+| maybe | 9 | 6 | 6 | 33% | 491 | 826 | 1.68 | `reference/maybe.md` |
+| context | 2 | 1 | 1 | 50% | 865 | 553 | 0.64 | `reference/context.md` |
+| ringbuffer | 8 | 0 | 0 | **100%** | 2,360 | 989 | 0.42 | `reference/ringbuffer/` |
+| schema-avro | 3 | 0 | 0 | **100%** | 1,922 | 450 | 0.23 | `built-in-codecs/avro.md` |
+| schema-messagepack | 5 | 0 | 0 | **100%** | 1,933 | 507 | 0.26 | `built-in-codecs/messagepack.md` |
+| schema-thrift | 3 | 0 | 0 | **100%** | 868 | 432 | 0.50 | `built-in-codecs/thrift.md` |
+| sql-zio | 1 | 0 | 0 | **100%** | 218 | 112 | 0.51 | `reference/sql-zio.md` |
 
----
+Notes on reading this table:
 
-## High Priority: Incomplete Coverage
-
-### Types needing at least a dedicated section in an existing page
-
-**schema module — Binding subsystem:**
-- [ ] **`BindingResolver`** — Essential for type binding resolution; critical for schema rebinding. Referenced in 6 source files. **Scope: new section in binding.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/binding/BindingResolver.scala`
-- [ ] **`MapConstructor` / `MapDeconstructor`** — Public traits for customizing map handling in bindings. Referenced in 7 files each. **Scope: new section in binding.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/binding/MapConstructor.scala`
-- [ ] **`ConstantConstructor` / `ConstantDeconstructor`** — Binding helpers for constant values. Referenced in 11 files each. **Scope: brief section in binding.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/binding/Constructor.scala`
-- [ ] **`RegisterType`** — Type-safe register representation. Referenced in 5 files. **Scope: brief section in registers.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/binding/RegisterType.scala`
-
-**schema module — Derivation subsystem:**
-- [ ] **`InstanceOverride`** — Used for customizing schema derivation. Referenced in 8 files. **Scope: new section in type-class-derivation.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/derive/InstanceOverride.scala`
-- [ ] **`ModifierOverride`** — Used for overriding modifiers during derivation. Referenced in 3 files. **Scope: new section in type-class-derivation.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/derive/ModifierOverride.scala`
-
-**schema module — Type classes:**
-- [ ] **`IsNumeric`** — Type class for arithmetic operations. Referenced in 3 files. **Scope: brief section in schema.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/IsNumeric.scala`
-- [ ] **`IsCollection`** — Type class for collection operations. **Scope: brief section in schema.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/IsCollection.scala`
-- [ ] **`IsMap`** — Type class for map operations. **Scope: brief section in schema.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/IsMap.scala`
-- [ ] **`Reflectable`** — Trait for types with reflectable modifiers. Referenced in 3 files. **Scope: brief section in reflect.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/Reflectable.scala`
-- [ ] **`ToStructural`** — Converts nominal to structural schemas. **Scope: brief section in reflect.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/ToStructural.scala`
-
-**schema module — JSON subsystem:**
-- [ ] **`Keyable`** — Type class for JSON key support. Referenced in 5 files. **Scope: new section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/Keyable.scala`
-- [ ] **`NameMapper`** (`CamelCase`, `KebabCase`, `PascalCase`) — Public field name transformations. **Scope: new section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/NameMapper.scala`
-- [ ] **`JsonCodecError`** — Custom exception for JSON codec errors. Referenced in 7 files. **Scope: brief section in json.md**. Source: `schema/shared/src/main/scala/zio/blocks/schema/json/JsonCodecError.scala`
-
-**typeid module:**
-- [ ] **`TypeRepr`** — Central type representation (24 subtypes: ThisType, TypeLambda, Singleton, Repeated, etc.). Referenced across 4-8 files each. **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/TypeRepr.scala`
-- [ ] **`TypeDefKind`** — Type definition classifier (AbstractType, EnumCase, TypeAlias, etc.). **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/TypeDefKind.scala`
-- [ ] **`Kind`** and **`Arrow`** — Higher-kinded type expressions. **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/Kind.scala`
-- [ ] **`Annotation`** — Type annotation metadata (ArrayArg, ClassOf, EnumValue). **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/Annotation.scala`
-- [ ] **`Owner`** and **`Segment`** — Type ownership path. **Scope: new section in typeid.md**. Source: `typeid/shared/src/main/scala/zio/blocks/typeid/Owner.scala`
-
-**context module:**
-- [ ] **`IsNominalType`** — Type class for nominal type extraction. Referenced in 6 files. **Scope: new section in context.md**. Source: `context/shared/src/main/scala/zio/blocks/context/IsNominalType.scala`
-- [ ] **`IsNominalIntersection`** — Type class for intersection type handling. Referenced in 4 files. **Scope: new section in context.md**. Source: `context/shared/src/main/scala/zio/blocks/context/IsNominalIntersection.scala`
-
-**Format codec modules:**
-- [ ] **`BsonEncoder` / `BsonDecoder` / `BsonCodec`** (schema-bson) — Core encoding/decoding types for BSON. **Scope: expand formats.md BSON section**. Source: `schema-bson/src/main/scala/zio/blocks/schema/bson/BsonTypes.scala`
-- [ ] **`MessagePackCodec`** (schema-messagepack) — Public codec for MessagePack. **Scope: expand formats.md MessagePack section**. Source: `schema-messagepack/src/main/scala/zio/blocks/schema/msgpack/MessagePackCodec.scala`
-- [ ] **`ThriftCodec`** (schema-thrift) — Public codec for Thrift. **Scope: expand formats.md Thrift section**. Source: `schema-thrift/src/main/scala/zio/blocks/schema/thrift/ThriftCodec.scala`
-- [ ] **`ToonReader` / `ToonWriter`** (schema-toon) — Public codec for TOON. Referenced in 9-10 files. **Scope: expand formats.md TOON section**. Source: `schema-toon/src/main/scala/zio/blocks/schema/toon/`
-
-**markdown module:**
-- [ ] **`Block`** subtypes (`BlockQuote`, `BulletList`, `CodeBlock`, `HtmlBlock`, `OrderedList`, `ThematicBreak`) — Core markdown AST elements. **Scope: new section in docs.md**. Source: `markdown/shared/src/main/scala/zio/blocks/docs/Block.scala`
-- [ ] **`Inline`** subtypes (`Autolink`, `HtmlInline`, `Image`, `HardBreak`, `SoftBreak`) — Core markdown AST elements. **Scope: new section in docs.md**. Source: `markdown/shared/src/main/scala/zio/blocks/docs/Inline.scala`
+- The four `config*` modules share one page directory, so the family is shown as one row (`config` 65/1/14, `config-hocon` 11/2/7, `config-yaml` 1/0/0, `config-json` 0/0/0).
+- `mediatype`'s 0.04 ratio and 31% explained coverage are both artifacts: 12,332 of its 12,676 source lines are the generated `MediaTypes.scala` lookup table, and the 11 unexplained types are generated media-type groupings. Its hand-written surface is ~340 lines and is adequately covered.
+- `maybe`, `htmx`, `codegen`, and `sql` have ratios above 1.0 — more documentation than implementation. They are the model to aim for.
+- `async`'s low coverage is mostly benign: the unnamed types are CPS-transform internals (see *Deliberately Undocumented*). Its 0.20 ratio is the real signal.
+- Five modules are fully covered at the type level: `ringbuffer`, `schema-avro`, `schema-messagepack`, `schema-thrift`, `sql-zio`.
 
 ---
 
-## Medium Priority: Brief Mentions Needed
+## Critical Gaps
 
-Types that should be mentioned in related pages but don't need dedicated sections.
+Type names below are **unexplained**: no prose reference, no heading. Names marked ✗ are **absent** — they never appear in `docs/` at all, not even inside an example.
 
-**schema module:**
-- [ ] `SchemaMetadata` / `Folder` — metadata traversal infrastructure. **Mention in: schema.md**
-- [ ] `FromBinding` — type class for binding conversion. **Mention in: binding.md**
-- [ ] `UnapplySeq` / `UnapplyMap` — implicit evidence for seq/map operations. **Mention in: binding.md**
-- [ ] `OpticCheck` subtypes (`EmptyMap`, `MissingKey`, `SequenceIndexOutOfBounds`, `WrappingError`) — validation results from optic operations. **Mention in: optics.md**
-- [ ] `RebindException` — thrown during schema rebinding. **Mention in: binding.md**
-- [ ] `JsonDiffer` — JSON diffing utility. **Mention in: json.md**
-- [ ] `JsonSchemaType` / `SchemaType` — JSON Schema type system. **Mention in: json-schema.md**
-- [ ] `ContextDetector` parsing states — JSON interpolator internals. **Mention in: json.md**
-- [ ] `TypeIdSchemas` — hand-rolled schema instances for TypeId. **Mention in: typeid.md**
+### 1. `config` — RESOLVED
 
-**chunk module:**
-- [ ] `ChunkIterator` — streaming iterator for chunks. **Mention in: chunk.md**
-- [ ] `IsText` — type class for chunk-to-string conversion. **Mention in: chunk.md**
+Was the worst gap in the repository: one 158-line page covering `config`, `config-yaml`, `config-json`, and `config-hocon` (3,914 source lines combined), with 53 of 77 public types unexplained and 43 absent.
 
-**scope module:**
-- [ ] `InStack` — trait for stack-like containment. **Mention in: scope.md**
+`docs/reference/config.md` is now `docs/reference/config/`, seven pages totalling 2,212 lines with every code block mdoc-verified:
 
-**markdown module:**
-- [ ] `Alignment` / `Center` — table column alignment. **Mention in: docs.md**
-- [ ] `HeadingLevel` (`H4`, `H5`) — heading levels. **Mention in: docs.md**
-- [ ] `TerminalRenderer` — ANSI terminal rendering. **Mention in: docs.md**
-- [ ] `MdInterpolatorRuntime` — runtime support for `md"..."`. **Mention in: docs.md**
+| Page                | Covers                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| `index.md`          | Module narrative, installation, data flow, the four `Config` entry points, integration points |
+| `config-source.md`  | `ConfigSource`, `MapSource`, `EnvSource`, `SysPropSource`, composition, `KeyMapper`, `KeyFormat`, `SourceValue`, `Provenance`, `ProvenanceMap`, `Secret`, `Displayable` |
+| `config-decoder.md` | `ConfigDecoder`, `ConfigDecoderDeriver`, one mapping rule per schema shape, the primitive parsing table, discriminators, error accumulation |
+| `errors.md`         | `ConfigError` and its four category traits, every constructor, `ConfigLoadException`        |
+| `flags.md`          | `FlagSource`, `Registry`, `StaticFlag`, `DynamicFlag`, `Flag.Reader`, `Flag.Source`, `FlagException`, `Flag.dump` |
+| `rollout.md`        | Rollout grammar, `Choice`/`Selector`/`Segment`, bucketing, `Flag.ReloadResult`, `UpdateRecord`, counters |
+| `formats.md`        | YAML, JSON, and HOCON adapters, flattening rules, substitutions, includes, `HoconValue`, JVM file loading |
 
-**schema-toon module:**
-- [ ] `Delimiter` / `Comma` / `Pipe` / `Tab` — array delimiters. **Mention in: formats.md**
-- [ ] `ArrayFormat` — array encoding strategy. **Mention in: formats.md**
-- [ ] `KeyFolding` / `PathExpansion` — TOON reader/writer config. **Mention in: formats.md**
+The family is now at 72% explained coverage with 3 absent types. Writing the pages required adding the four config modules to the `docs` project in `build.sbt` — they were absent from its classpath, which is why no config code block had ever been compiled.
 
-**schema-bson module:**
-- [ ] `DiscriminatorField` / `NoDiscriminator` / `WrapperWithClassNameField` — sum type encoding strategies. **Mention in: formats.md**
+Three behaviours that the source made non-obvious and the new pages now state explicitly: a rollout selector must match a path's segment count **exactly** (the bucketing key is itself the first segment); flag durations use a `30s` suffix grammar while config durations require ISO-8601 `PT30S`; and a flattened `null` is indistinguishable from an absent key, so it cannot be used to unset a lower-priority layer.
 
----
+What remains, all minor:
 
-## Documentation Depth Issues
+- [ ] Name `ConfigSourceHoconSyntax` and `ConfigSourceHoconPlatformSyntax` in `formats.md`, or make them private — the mechanism is described but the traits are not named
+- [ ] `DisplayableLowPriority` is an implicit-priority helper and is deliberately skipped; consider tightening its visibility
+- [ ] `ConfigError.DuplicateKey` and `ConfigError.Unauthorized` are documented as unused by the module; decide whether they should exist at all
+- [ ] `ConfigValidationError` is sealed with zero implementations, so matching on it can never match; either give it a constructor or remove it
 
-Existing pages that need updates — missing methods, examples, or cross-references.
+### 2. `http-model` — typed headers entirely undocumented
 
-### Schema (`schema.md`)
-- [ ] Missing examples of schema serialization to JSON Schema and back
-- [ ] Missing example of caching behavior with `derive(format)`
-- [ ] Missing example of using modifiers on schemas
-- [ ] No mention of `TypeId` integration in schema derivation
-- [ ] Missing reference to schema validation with `DynamicSchema`
+`Header.scala` is 1,861 lines defining ~100 typed header case classes. The `## Headers` section of `model.md` is 33 lines and shows only the untyped `String` API (`Headers("content-type" -> "...")`, `.add`, `.toList`). Not one typed header is explained, and lazy typed parsing — the reason `Headers` exists — gets a single sentence. 131 of 191 public types are unexplained, 101 absent.
 
-### Reflect (`reflect.md`)
-- [ ] `Reflect#noBinding` — critical for understanding serialization, not documented
-- [ ] `Reflect#transform` — used extensively but not documented
-- [ ] `Reflect.Extractors` — pattern matching helpers not documented
-- [ ] Missing example of working with `Reflect.Unbound` for serialization
-- [ ] Missing example of recursive type handling with `Deferred`
-- [ ] Should reference `Binding` more clearly for each reflect type
+- **Content**: `ContentLength` ✗, `ContentEncoding` ✗, `ContentLanguage` ✗, `ContentLocation` ✗, `ContentRange` ✗, `ContentBase` ✗, `ContentMd5` ✗, `ContentDisposition` ✗, `ContentSecurityPolicy` ✗, `ContentTransferEncoding` ✗, `Attachment` ✗
+- **Caching**: `CacheControl` ✗, `MaxAge` ✗, `SMaxAge` ✗, `MaxStale` ✗, `MinFresh` ✗, `NoCache` ✗, `NoStore` ✗, `NoTransform` ✗, `MustRevalidate` ✗, `MustUnderstand` ✗, `ProxyRevalidate` ✗, `OnlyIfCached` ✗, `StaleIfError` ✗, `StaleWhileRevalidate` ✗, `Expires` ✗, `Pragma` ✗, `Private` ✗, `Immutable`, `Public`
+- **Conditional**: `ETag` ✗, `ETags` ✗, `IfMatch` ✗, `IfNoneMatch` ✗, `IfModifiedSince` ✗, `IfUnmodifiedSince` ✗, `IfRange` ✗, `LastModified` ✗
+- **Negotiation**: `AcceptEncoding` ✗, `AcceptLanguage` ✗, `AcceptPatch` ✗, `AcceptRanges` ✗, `MediaRange` ✗, `LanguageRange` ✗, `Vary` ✗, `Accept`
+- **CORS**: `AccessControlAllowOrigin` ✗, `AccessControlAllowCredentials` ✗, `AccessControlAllowHeaders` ✗, `AccessControlAllowMethods` ✗, `AccessControlExposeHeaders` ✗, `AccessControlMaxAge` ✗, `AccessControlRequestHeaders` ✗, `AccessControlRequestMethod` ✗, `Origin`
+- **WebSocket**: `SecWebSocketKey` ✗, `SecWebSocketAccept` ✗, `SecWebSocketProtocol` ✗, `SecWebSocketVersion` ✗, `SecWebSocketExtensions` ✗, `SecWebSocketOrigin` ✗, `SecWebSocketLocation` ✗, `UpgradeInsecureRequests` ✗, `Upgrade`, `WS`, `WSS`
+- **Transfer**: `TransferEncoding` ✗, `Chunked` ✗, `GZip` ✗, `Deflate` ✗, `Compress` ✗, `Br` ✗, `Te` ✗, `Trailer` ✗, `KeepAlive` ✗, `Expect` ✗
+- **Auth / proxy**: `WWWAuthenticate` ✗, `ProxyAuthenticate` ✗, `UserInfo` ✗, `ProxyAuthorization`
+- **Cookies**: `CookieHeader` ✗, `SetCookieHeader` ✗, `CookiePriority`, `Lax`, `SameOrigin` ✗
+- **Other**: `Forwarded` ✗, `Referer` ✗, `RetryAfter` ✗, `MaxForwards` ✗, `UserAgent` ✗, `XFrameOptions` ✗, `XRequestedWith` ✗, `Deny` ✗, `DNT` ✗, `TrackingAllowed` ✗, `TrackingNotAllowed` ✗, `ClearSiteData` ✗, `Unparsed` ✗, `Allow`, `Date`, `Host`
+- **Supporting**: `HeadersBuilder` ✗, `QueryParamsBuilder` ✗, `QueryKey` ✗, `QueryValue` ✗, `PercentEncoder` ✗ (143 lines), `FormData` ✗, `ComponentType` ✗, `SevenBit` ✗, `EightBit` ✗, `QuotedPrintable` ✗, `PathSegment`, `Boundary`, and the charset constants `UTF8`, `UTF16`, `UTF16BE`, `UTF16LE`, `ISO_8859_1`, `ASCII`
+- **SSE**: `ServerSentEvent` ✗ (206 lines), `SseDataEncoder`
 
-### Binding (`binding.md`)
-- [ ] Missing documentation on `Register` and `RegisterOffset` API — critical for zero-allocation architecture
-- [ ] Missing `SpecializedIndexed` documentation for array-based performance
-- [ ] No detailed example of `RegisterOffset` calculation
-- [ ] No example of implementing custom `SeqConstructor` for new collection types
-- [ ] No example of `MapConstructor` / `MapDeconstructor` implementation
-- [ ] Missing explanation of why specialized constructors exist
+Actions:
 
-### Chunk (`chunk.md`)
-- [ ] `Chunk.BitChunk` and bit operations barely documented
-- [ ] No example of the `BitChunk` operations with endianness
-- [ ] Missing performance comparison with `Vector` for various operations
-- [ ] `Chunk.materialize` automatic triggering conditions are vague
-- [ ] Missing `NonEmptyChunk#flatMap` documentation
+- [ ] Write `reference/http-model/headers.md` — a typed-header catalog grouped as above, with the parse/render round trip and what happens on malformed input
+- [ ] Document lazy typed access on `Headers`: when parsing happens, what it costs, and how failures surface
+- [ ] Write `reference/http-model/server-sent-event.md` — `ServerSentEvent` and `SseDataEncoder`
+- [ ] Document `PercentEncoder` and the `QueryKey` / `QueryValue` / `PathSegment` encoding rules in the URL section of `model.md`
+- [ ] Document the charset constants and the multipart types (`Boundary`, `FormData`, `ComponentType`, transfer-encoding variants)
+- [ ] Document `HeadersBuilder` / `QueryParamsBuilder`
 
-### JSON (`json.md`)
-- [ ] Missing `Keyable` typeclass documentation
-- [ ] `Json#diff` operation types not documented
-- [ ] No example of complex querying with predicates
-- [ ] No example of recursive transformation with `transformDown` vs `transformUp`
-- [ ] No example of merging strategies in detail
-- [ ] Should reference `JsonSchema` more thoroughly
+### 3. `http-model-schema` — the codec layer is invisible
 
-### Codec (`codec.md`)
-- [ ] Missing explanation of `Format` trait interface
-- [ ] Missing documentation of `Deriver` pattern for custom codecs
-- [ ] No example of implementing a custom `Format`
-- [ ] No example of `DerivationBuilder` advanced usage
-- [ ] Codec instance caching mechanism not explained
-- [ ] JSON codec configuration incomplete — missing validation options
+`schema.md` (607 lines) documents the extension-class surface (`QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps`) but none of the machinery underneath, so there is no way to learn how to extend it. 14 of 18 public types are absent: `HeaderCodec` ✗, `QueryCodec` ✗, `HeaderCodecDeriver` ✗ (236 lines), `QueryCodecDeriver` ✗ (217 lines), `HeaderFormat` ✗, `QueryFormat` ✗, `DefaultHeaderFormat` ✗, `DefaultQueryFormat` ✗, `FieldCodec` ✗, `DecodeErrorFactory` ✗, `SinglePrimitive` ✗, `OptionalValue` ✗, `SequenceValue` ✗, `WrappedValue` ✗. `ParamCodecSupport` (264 lines) is also absent.
 
-### Patch (`patch.md`)
-- [ ] `DynamicPatch` operations not fully documented
-- [ ] No example of `modifyKey` on maps with type parameters
-- [ ] No example of composing patches across different types
-- [ ] Missing example of serialization and storage of patches
-- [ ] Should explain relationship to `DynamicValue.diff`
+Actions:
 
-### TypeId (`typeid.md`)
-- [ ] `TypeRepr` subtypes barely documented (24 variants)
-- [ ] `TypeDefKind` variants incomplete
-- [ ] `Member` API — parameter modifiers underdocumented
-- [ ] `TermPath` and singleton types barely covered
-- [ ] No mention of Scala 2 vs Scala 3 differences in TypeId derivation
+- [ ] Add a *How extraction works* section covering `HeaderCodec` / `QueryCodec` and their derivers
+- [ ] Document `HeaderFormat` / `QueryFormat` and the `Default*Format` instances — the naming and multi-value rules
+- [ ] Document the shape classification (`SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue`) so users can predict how a case class maps to headers or query params
+- [ ] Document `DecodeErrorFactory` for custom error messages
 
-### Context (`context.md`)
-- [ ] `IsNominalType` typeclass not explained
-- [ ] No mention of performance characteristics
-- [ ] Missing explanation of why only nominal types are supported
-- [ ] Missing example of context composition in larger applications
+### 4. `otel` — 162 lines for the entire export subsystem
 
-### Validation (`validation.md`)
-- [ ] Composition/chaining methods not documented
-- [ ] No example of using validations directly on `PrimitiveType`
-- [ ] No example of validation in format derivers
-- [ ] Missing guidance on validation composition workarounds
-- [ ] Missing integration examples with JSON Schema
+`reference/telemetry/otel/index.md` is a single 162-line page covering OTLP export and context propagation, while sibling `telemetry/tracing/` has 11 pages. `ExportResult` ✗ and `OtlpJsonEncoder` ✗ (527 lines) never appear; there is no page for the exporters, the propagator, or the retry/batching behaviour.
 
----
+Actions:
 
-## Conceptual Gaps
+- [ ] Split into `reference/telemetry/otel/`: `index.md`, `exporter-config.md`, `otlp-exporters.md`, `propagation.md`
+- [ ] Document `ExportResult` and failure handling — what happens when the collector is down
+- [ ] Document batching, flush, and shutdown semantics (the exporter specs in `otel/` show executor shutdown matters; the docs never mention it)
 
-Missing guides, overviews, and tutorials — none of these exist today.
+### 5. `schema` — 268 unexplained types clustered in seven subsystems
 
-- [ ] **Getting Started Guide** — No quick-start for new users. Should cover: adding dependencies, defining a case class, deriving a schema, encoding/decoding JSON. **Scope: new page `docs/getting-started.md`**
-- [ ] **Architecture Overview** — No high-level design document. Should cover: module dependency graph, register-based zero-allocation architecture, the Reflect/Binding/Schema layering, and the Deriver pattern. **Scope: new page `docs/architecture.md`**
-- [ ] **How-To: Custom Codec** — No guide for implementing a custom `Format` and its `Deriver`. **Scope: new page `docs/how-to-custom-codec.md`**
-- [ ] **How-To: Schema Derivation** — No guide walking through `Schema.derived` vs manual schema construction. **Scope: new section in schema.md or new page**
-- [ ] **How-To: Working with DynamicValue** — No guide on converting between typed and dynamic representations. **Scope: new section in dynamic-value.md**
-- [ ] **End-to-End Pipeline Example** — No documentation showing the full Schema -> Codec -> Encoding -> Decoding -> Validation pipeline. **Scope: new page or section in index.md**
-- [ ] **Migration Guide** — No version migration docs (may not be needed yet if pre-1.0, but placeholder is useful)
-- [ ] **Performance Guide** — No guidance on when to use `materialize` on Chunks, binding register allocation strategies, caching behavior in schema derivation, or JSON encoder/decoder performance characteristics
+At 84,969 source lines and 23,842 documentation lines, `schema` is the best-documented module in absolute terms and still holds the largest absolute gap. The unexplained types are not scattered; they cluster.
 
----
+**`Into` conversions** — the entire primitive conversion matrix is absent: `ByteToInt` ✗, `ByteToLong` ✗, `ByteToShort` ✗, `ByteToFloat` ✗, `ByteToDouble` ✗, `ByteToString` ✗, `IntToByte` ✗, `IntToChar` ✗, `IntToShort` ✗, `IntToLong` ✗, `IntToFloat` ✗, `IntToDouble` ✗, `IntToString` ✗, `LongTo*` ✗, `ShortTo*` ✗, `FloatTo*` ✗, `DoubleTo*` ✗, `CharToInt` ✗, `CharToString` ✗, `BooleanToString` ✗, `StringToBoolean` ✗, `StringToByte` ✗, `StringToShort` ✗, `StringToInt` ✗, `StringToLong` ✗, `StringToFloat` ✗, `StringToDouble` ✗, plus `ConversionType` ✗ and `DynamicConversionError` ✗.
+- [ ] Add a conversion-matrix table — which conversions exist, which are lossy, which can fail and how
 
-## Low Priority / Skip
+**`SchemaExpr` operators** — `BitwiseOperator` ✗, `LeftShift` ✗, `RightShift` ✗, `UnsignedRightShift` ✗, `Xor` ✗, `Pow` ✗, `Modulo` ✗, `IsIntegral` ✗, `NumericPrimitiveType` ✗, plus `Divide` and `NumericTypeTag` unexplained.
+- [ ] Add an operator reference to `schema-expr.md`, including which operators require `IsIntegral` vs `IsNumeric`
 
-Internal types that don't need documentation.
+**Migration** — `migration.md` and `schema-evolution/` exist, but the error model does not appear: `MigrationError` ✗, `MigrationErrorKind` ✗, `MissingDefault` ✗, `MandateFailed` ✗, `TransformFailed` ✗, `FieldName` ✗, `MigrationSelectorSyntax` ✗, plus `MigrationBuilderSyntax` (854 lines) unexplained.
+- [ ] Document the migration error ADT and what each failure means for a migration run
+- [ ] Document the selector syntax surface used to target fields
 
-| Type | Module | Reason |
-|------|--------|--------|
-| `LittleEndian` | chunk | Endianness marker for bit operations; specialized internal |
-| `ChunkMapBuilder` | chunk | Internal builder behind `ChunkMap.newBuilder` |
-| `PlatformSpecific` | schema | Platform-specific trait for JVM/JS split |
-| `Extractors` | schema | Internal pattern matching helpers on `Reflect` |
-| `AsLowPriorityImplicits` | schema | Implicit resolution priority helper |
-| `IntoPrimitiveInstances` / `IntoContainerInstances` | schema | Implicit instance providers (infrastructure) |
-| `HasInstances` | schema | Derivation infrastructure |
-| `UnapplySeqLowPriority` | schema | Implicit priority helper |
-| `Leaf` (in Doc) | schema | Internal documentation node type |
-| `Folder` | schema | Internal metadata traversal helper |
-| All `*Delta` / `*Dummy` types in `DynamicPatch` | schema | Internal patch operation representations (BigDecimalDelta, ByteDelta, DoubleDelta, DurationDelta, DurationDummy, FloatDelta, InstantDelta, IntDelta, LocalDateDelta, LocalDateTimeDelta, LongDelta, PeriodDelta, PeriodDummy, ShortDelta) |
-| All `PathParser` error types | schema | Internal parser errors (EmptyChar, InvalidEscape, InvalidIdentifier, InvalidSyntax, IntegerOverflow, MultiCharLiteral, UnexpectedChar, UnexpectedEnd, UnterminatedChar, UnterminatedString) |
-| `ContextDetector` / parsing states | schema | Internal JSON interpolator state machine (AfterValue, ExpectingColon, ExpectingKey, ExpectingValue, InString, TopLevel) |
-| `JsonSchemaToReflect` helpers | schema | Internal conversion types (FieldVariant, KeyVariant, MapShape, OptionOf, PrimKind) |
-| `CaseInfo` / `EnumInfo` | schema | Internal JSON codec deriver helpers |
-| `DynamicValueMergeStrategy` / `KeepLeft` | schema | Internal merge strategy implementation |
-| `DynamicValueSelection` | schema | Internal selection helper |
-| `NoBinding` | schema | Internal marker type |
-| `ReflectPrinter` | schema | Internal debug printing |
-| `Registry` / `Registry.Entry` | schema | Internal binding resolver storage |
-| `ObjectIdSupport` | schema-bson | Internal BSON ObjectId helper |
-| `BsonBuilder` / `BsonTrace` / `EncoderContext` / `BsonDecoderContext` | schema-bson | Internal codec implementation |
-| `MessagePackCodecDeriver` | schema-messagepack | Internal deriver |
-| `MessagePackReader` / `MessagePackWriter` | schema-messagepack | Internal binary readers/writers |
-| `Mixed` / `UniformRecords` | schema-toon | Internal codec strategy types |
-| `ArrayHeader` | schema-toon | Internal reader state |
-| `Off` | schema-toon | Internal config value |
-| All `scope/internal/*` types | scope | Internal error rendering (Colors, DepNode, DepStatus, ErrorMessages, Found, Missing, Pending, ProviderInfo) |
-| `Destroyed` / `Uninitialized` | scope | Internal resource lifecycle states |
-| `FlatMap` / `ZSink` / `ZSinkFiber` / `ZSource` / `ZSourceFiber` | streams | Experimental/WIP module |
-| `TypeIdInstances` | typeid | Internal implicit provider trait |
-| `TypeIdPrinter` | typeid | Internal rendering utility |
-| `Owners` | typeid | Internal namespace helper |
-| All `*Const` types in `TypeRepr` | typeid | Internal literal type representations (BooleanConst, CharConst, ClassOfConst, DoubleConst, FloatConst, IntConst, LongConst, NullConst, StringConst, UnitConst) |
-| `AnyKindType` / `AnyType` / `NothingType` / `NullType` / `UnitType` | typeid | Internal special type representations |
+**Patch operations** — `DynamicPatchOp` ✗, `MapEdit` ✗, `MapOp` ✗, `SeqOp` ✗, `SequenceEdit` ✗, `BigIntDelta` ✗, `ForInstant` ✗, `ForLocalDate` ✗, `ForPeriod` ✗.
+- [ ] Document the patch operation ADT, the map/sequence edit encodings, and the temporal delta types
 
----
+**Search, traversal, and transformation** — `SchemaSearch` ✗, `SchemaMatch` ✗ (181 lines), `TypeSearch` ✗, `SearchTraversal` ✗, `Updater` ✗, `Frame` ✗, `ReflectTransformer` ✗ (230 lines), `OnlyMetadata` ✗, plus `RebindTransformer` (237 lines), `SchemaRepr`, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained. An entire subsystem with no page.
+- [ ] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater`
+- [ ] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer`
+- [ ] Document `SchemaAspect` and `SchemaRepr`
 
-## Suggested Actions
+**Derivation overrides** — `type-class-derivation.md` never names the override subtypes: `InstanceOverrideByType` ✗, `InstanceOverrideByOptic` ✗, `InstanceOverrideByTypeAndTermName` ✗, `ModifierReflectOverrideByType` ✗, `ModifierReflectOverrideByOptic` ✗, `ModifierTermOverrideByType` ✗, `ModifierTermOverrideByOptic` ✗.
+- [ ] Document each override form with the selection rule that distinguishes it
 
-Ordered TODO checklist grouped by module, with estimated scope.
+**Optic and rebuild errors** — `CaseNotFound` ✗, `FieldNotFound` ✗, `FieldAlreadyExists` ✗, `PathNotFound` ✗, `TypeMismatch` ✗, `InvalidValue` ✗, `EmptyRecord` ✗, `EmptyVariant` ✗, `RebuildRecord` ✗, `RebuildVariant` ✗, `RebuildSequence` ✗, `RebuildMap` ✗, `RebuildObject` ✗, `RebuildArray` ✗, plus `EmptySequence` unexplained.
+- [ ] Add an error-case table to `schema-error.md` and `optics.md`
 
-### Conceptual Documentation (highest impact)
+**JSON Schema and refinements** — `Anchor` ✗, `UriReference` ✗, `EvaluationResult` ✗, `JsonMatch` ✗ (153 lines), `FieldInfo` ✗, plus `ValidationOptions`, `RegexPattern`, `NonBlank`, `NonNegative`, `NonNegativeInt`, `Positive`, `PositiveNumber`, `Negative`, `NonPositive` unexplained.
+- [ ] Document `$anchor` / `$ref` handling (`Anchor`, `UriReference`) and `ValidationOptions` in `built-in-codecs/json/json-schema.md`
+- [ ] Document the refinement types — they appear in public signatures
 
-1. - [ ] Write **Getting Started Guide** — `docs/getting-started.md` — *new page*
-2. - [ ] Write **Architecture Overview** — `docs/architecture.md` — *new page*
-3. - [ ] Write **End-to-End Pipeline Example** — Schema -> Codec -> Encode -> Decode -> Validate — *new page or section*
+**`comptime` grammar** — `GrammarNode` ✗, `GRecord` ✗, `GUnion` ✗, `GMap` ✗, `GOptional` ✗, `GPrimitive` ✗, `GSequence` ✗, `GSeqList` ✗, `GSeqVector` ✗, `GSeqSet` ✗, `GSeqChunk` ✗, `GSeqArray` ✗, `GDynamic` ✗, `GIsType` ✗, `GSelf` ✗, `GWrapped` ✗ back the `Allows` mechanism documented in `allows.md`.
+- [ ] Decide whether the grammar ADT is public; if yes, document it in `allows.md`; if not, mark it `private[schema]`
 
-### Module: `mediatype` (entirely undocumented)
+Also absent: `DocsSchemas` (1,327 lines) and `DerivedOptics` (581 lines) — check whether either is meant to be public.
 
-4. - [ ] Write **MediaType reference page** — `docs/reference/media-type.md` — *new page*
+### 6. `telemetry` — the value ADT and the log-emitter layer
 
-### Module: `schema` (core gaps)
+58 unexplained types across two clusters.
 
-5. - [ ] Write **SchemaError reference** — error types, handling patterns — *new page or new section in schema.md*
-6. - [ ] Write **SchemaExpr reference** — expression DSL, validation expressions — *new page*
-7. - [ ] Write **Into reference** — cross-type conversions — *new page*
-8. - [ ] Add **BindingResolver, MapConstructor, MapDeconstructor** sections to `binding.md` — *update existing*
-9. - [ ] Add **InstanceOverride, ModifierOverride** sections to `type-class-derivation.md` — *update existing*
-10. - [ ] Add **IsNumeric, IsCollection, IsMap** section to `schema.md` — *update existing*
-11. - [ ] Add **Keyable, NameMapper** section to `json.md` — *update existing*
-12. - [ ] Add **JsonPatch operations** section to `json.md` or `patch.md` — *update existing*
-13. - [ ] Add **Reflectable, ToStructural** sections to `reflect.md` — *update existing*
-14. - [ ] Expand **Register/RegisterOffset** explanation in `binding.md` and `registers.md` — *update existing*
+- **`AnyValue` / attribute types**: `BoolValue` ✗, `IntValue` ✗, `ArrayValue` ✗, `StringSeqValue` ✗, `LongSeqValue` ✗, `DoubleSeqValue` ✗, `BooleanSeqValue` ✗, `StringSeqType` ✗, `LongSeqType` ✗, `DoubleSeqType` ✗, `BooleanSeqType` ✗, `StringStringKV` ✗, `StringLongKV` ✗, `StringIntKV` ✗, `StringDoubleKV` ✗, `StringBooleanKV` ✗, plus `StringValue`, `BooleanType`, `LongType`, `DoubleType`, `StringType` unexplained
+- **Signal detail**: `LogState` ✗, `SourceLocation` ✗, `Templated` ✗, `AttributesKind` ✗, `EnrichmentKind` ✗, `FallbackKind` ✗, `SeverityKind` ✗, `StringBodyKind` ✗, `ThrowableKind` ✗, plus `SpanEvent`, `SpanLink`, `Measurement`, `GaugeDataPoint`, `HistogramDataPoint`, `SamplingDecision`, `LogMessage`, `LogRecordBuilder` unexplained, and the `Severity` numbered variants (`Trace2`–`Trace4`, `Debug2`–`Debug4`, `Info2`–`Info4`, `Warn2`–`Warn4`, `Error2`–`Error4`, `Fatal2`–`Fatal4`) unexplained
 
-### Module: `typeid` (many subtypes undocumented)
+Absent implementation types with a public entry point: `LogEmitter` ✗ (101 lines), `FormattedLogEmitter` ✗, `FileLogWriter` ✗ (163 lines), `StdoutLogRecordProcessor` ✗ (134 lines), `SyncInstruments` ✗.
 
-15. - [ ] Add **TypeRepr** section with key subtypes to `typeid.md` — *update existing*
-16. - [ ] Add **TypeDefKind** section to `typeid.md` — *update existing*
-17. - [ ] Add **Kind/Arrow** section to `typeid.md` — *update existing*
-18. - [ ] Add **Annotation** subtypes section to `typeid.md` — *update existing*
-19. - [ ] Add **Owner/Segment** section to `typeid.md` — *update existing*
+Actions:
 
-### Module: `context`
+- [ ] Write `reference/telemetry/common/any-value.md` — the typed attribute value ADT and the `KV` shortcuts
+- [ ] Add `SpanEvent` and `SpanLink` sections to `tracing/span.md`
+- [ ] Add `Measurement`, `GaugeDataPoint`, `HistogramDataPoint` to `metrics/metric-data.md`
+- [ ] Add `SamplingDecision` to `tracing/sampler.md`
+- [ ] Write `reference/telemetry/logging/log-emitter.md` — `LogEmitter`, `FormattedLogEmitter`, `FileLogWriter`, `StdoutLogRecordProcessor`
+- [ ] Document the full `Severity` scale, including the numbered sub-levels
+- [ ] Document the log-record `*Kind` classifiers or make them private
 
-20. - [ ] Add **IsNominalType, IsNominalIntersection** section to `context.md` — *update existing*
+### 7. `endpoint` — combinators and segment shortcuts
 
-### Module: `markdown`
+18 unexplained types: `Alternator` ✗, `CanCombine` ✗, `PathVarsCombiner` ✗, `RoutePathVarsCombiner` ✗, `SegmentCodecOps` ✗, `SinglePathVarPathCodecOps` ✗, `WithStatus` ✗, `ErrorBuilder` ✗, `EndpointUnionErrorBuilder` ✗, `IntSeg` ✗, `LongSeg` ✗, `BoolSeg` ✗, `StringSeg` ✗, `UUIDSeg` ✗, plus `Ignored`, `PathVar`, and `PathCodecRuntime` unexplained.
 
-21. - [ ] Add **Block subtypes** reference section to `docs.md` — *update existing*
-22. - [ ] Add **Inline subtypes** reference section to `docs.md` — *update existing*
-23. - [ ] Add **Alignment, HeadingLevel, TerminalRenderer** mentions to `docs.md` — *update existing*
+`Alternator` and `CanCombine` are the type-level machinery that decides what `++` and `|` produce — without them the combinator signatures in `endpoint.md` and `http-codec.md` cannot be read.
 
-### Module: `chunk`
+Actions:
 
-24. - [ ] Add **BitChunk operations** section to `chunk.md` — *update existing*
-25. - [ ] Add **ChunkIterator** mention to `chunk.md` — *update existing*
+- [ ] Add a *Type-level combination* section covering `Alternator` and `CanCombine` with the resulting-type rules
+- [ ] Document `PathVarsCombiner` / `RoutePathVarsCombiner` and how path variables accumulate into a tuple
+- [ ] Document the `*Seg` shortcuts in `segment-codec.md`
+- [ ] Document `WithStatus`, `ErrorBuilder`, and `EndpointUnionErrorBuilder` in the error section of `endpoint.md`
 
-### Format modules (expand `formats.md`)
+### 8. `htmx` — response headers
 
-26. - [ ] Expand **BSON section** in `formats.md` with BsonEncoder/BsonDecoder API — *update existing*
-27. - [ ] Expand **MessagePack section** in `formats.md` with MessagePackCodec API — *update existing*
-28. - [ ] Expand **Thrift section** in `formats.md` with ThriftCodec API — *update existing*
-29. - [ ] Expand **TOON section** in `formats.md` with ToonReader/ToonWriter, Delimiter, config — *update existing*
+The attribute DSL is well covered (2,521 doc lines, ratio 1.63), but the header side is undocumented. `HtmxHeaders` ✗ (334 lines) and `HtmxSupport` ✗ never appear, and 26 header types are absent: `HxLocation` ✗, `HxPushUrl` ✗, `HxRedirect` ✗, `HxRefresh` ✗, `HxReplaceUrl` ✗, `HxReswap` ✗, `HxRetarget` ✗, `HxReselect` ✗, `HxTriggerHeader` ✗, `HxTriggerAfterSwap` ✗, `HxTriggerAfterSettle` ✗, `HxRequest` ✗, `HxBoosted` ✗, `HxCurrentUrl` ✗, `HxPrompt` ✗, `HxHistoryRestoreRequest` ✗, `HxTargetId` ✗, `HxTriggerId` ✗, `HxTriggerName` ✗, `HxTriggerValue` ✗, `HxEventPayload` ✗, `HxOnKey` ✗, `PartialHxOn` ✗, `JsonValue` ✗, `Changed` ✗, `Threshold` ✗.
 
-### Depth improvements (existing pages)
+Actions:
 
-30. - [ ] Add missing **Reflect#transform** and **Reflect#noBinding** to `reflect.md`
-31. - [ ] Add missing **Format trait interface** and **custom Format** example to `codec.md`
-32. - [ ] Add missing **DynamicPatch** operations and **patch serialization** example to `patch.md`
-33. - [ ] Add missing **Validation composition** guidance and **JSON Schema integration** to `validation.md`
-34. - [ ] Add missing **TypeRepr pattern matching** and **Scala 2/3 differences** to `typeid.md`
-35. - [ ] Add missing **Cache behavior** and **intersection type** examples to `context.md`
+- [ ] Write `reference/htmx/response-headers.md` — request headers htmx sends, response headers you set, and the `HtmxSupport` integration point
+
+### 9. `smithy` — 32 unexplained types, mostly the shape catalog
+
+`smithy.md` covers parsing, querying, and building, but the shape ADT is incomplete. Absent: `BlobShape` ✗, `DocumentShape` ✗, `TimestampShape` ✗, `EnumShape` ✗, `EnumMember` ✗, `IntEnumShape` ✗, `IntEnumMember` ✗, `ResourceShape` ✗, `ShapeRef` ✗, `ByteShape` ✗, `ShortShape` ✗, `LongShape` ✗, `FloatShape` ✗, `DoubleShape` ✗, `BigIntegerShape` ✗, `BigDecimalShape` ✗. Unexplained but present in examples: `StringShape`, `StructureShape`, `ListShape`, `MapShape`, `UnionShape`, `OperationShape`, `ServiceShape`, `BooleanShape`, `IntegerShape`, `ShapeDefinition`, `ShapeId`, `MemberDefinition`, `NodeValue`, `ApplyStatement`, `SmithyModel`.
+
+Actions:
+
+- [ ] Complete the shape catalog in the *Core Types* section — every `ShapeDefinition` subtype, in prose not just examples
+- [ ] Document `EnumShape` / `IntEnumShape` and their member types
+- [ ] Document `ResourceShape` and `ShapeRef` resolution
+
+### 10. `streams` — the I/O adapter surface
+
+`sink.md` documents `NioSinks`, but the reader side and the queue primitives do not appear: `NioReaders` ✗, `NioWriters` ✗, `SinkError` ✗, `StreamState` ✗, `OpTag` ✗, `BlockingSpscQueue` ✗, `BlockingMpscQueue` ✗, `BlockingMpmcQueue` ✗, plus `ByteBufferReader` (554 lines), `ChannelReader`, and `ChannelWriter` unexplained.
+
+Actions:
+
+- [ ] Add a *JVM NIO Readers* section to `reader.md` mirroring the NIO section in `sink.md` (`NioReaders`, `ByteBufferReader`, `ChannelReader`)
+- [ ] Add `NioWriters` / `ChannelWriter` to `writer.md`
+- [ ] Document `SinkError`
+- [ ] State the sentinel-based EOF design in `reader.md` — it is enforced in review (`AGENTS.md`, *Sentinel performance policy*) but never explained to users
+
+### 11. `typeid` — `Member` subtypes and segment kinds
+
+44 unexplained types. Absent: `Def` ✗, `Val` ✗, `Param` ✗, `TypeMember` ✗, `EnumCaseParam` ✗, `TupleElement` ✗, `PkgSegment` ✗, `TermSegment` ✗, `TypeSegment` ✗, `SegmentInfo` ✗, plus `TypeIdOps` ✗ (333 lines). Unexplained but present in examples: `TypeBounds`, `ThisType`, `TypeProjection`, `TypeSelect`, `ParamRef`, `Repeated`, `ByName`, `Annotated`, `ArrayArg`, `ClassOf`, `EnumValue`, `Covariant`, `Contravariant`, `Invariant`, and the `*Const` literal types.
+
+Actions:
+
+- [ ] Document the `Member` ADT (`Def`, `Val`, `Param`, `TypeMember`, `EnumCaseParam`) in `typeid.md`
+- [ ] Document `Owner` segments (`PkgSegment`, `TermSegment`, `TypeSegment`) and `SegmentInfo`
+- [ ] Document `TypeBounds` and `TupleElement`
+- [ ] Document the `TypeIdOps` extension surface
+- [ ] Add a `TypeRepr` pattern-matching reference covering the variance and literal variants
+
+### 12. Smaller module gaps
+
+- **`html`** (54 unexplained) — the CSS/DOM ADT node types: `PseudoClass` ✗, `PseudoElement` ✗, `Descendant` ✗, `AdjacentSibling` ✗, `GeneralSibling` ✗, `AttributeMatch` ✗, `StartsWith` ✗, `EndsWith` ✗, `WhitespaceContains` ✗, `Rgb` ✗, `Rgba` ✗, `Hsl` ✗, `AddAttr` ✗, `AddChild` ✗, `AddChildren` ✗, `AddEffects` ✗, `DomModifier` ✗, `ToDom` ✗, `ToText` ✗, `AttrValue` ✗, `StyleArg` ✗, `ScriptArg` ✗, `HtmlElements` ✗ (335 lines). The behaviour is documented through the DSL, so this is a type-naming gap, not a conceptual one. **Lower priority.**
+  - [ ] Add an ADT reference section naming the selector, colour, and modifier types behind the DSL
+- **`datastar`** (28 unexplained) — same shape: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
+  - [ ] Expand `datastar.md` — each SSE event type needs a worked example; add an attribute-DSL type reference
+- **`schema-xml`** (15 unexplained) — `XmlCodecError` ✗, `XmlWriter` ✗, `XmlCodecDeriver` ✗ (657 lines), `SetAttribute` ✗, `RemoveAttribute` ✗, `ElementBuilder` ✗
+  - [ ] Add error-handling and deriver/customization sections to `built-in-codecs/xml.md`
+- **`schema-yaml`** (8 unexplained) — `YamlCodecError` ✗, `YamlTag` ✗, `YamlSyntax` ✗, `YamlStringContext` ✗; 552 doc lines for 2,753 source lines
+  - [ ] Document `YamlTag`, the `yaml""` interpolator, and the error type
+- **`codegen`** (17 unexplained) — `ParamList` ✗, `ParamListModifier` ✗, `ExtensionBlock` ✗, `NestedType` ✗, `GroupImport` ✗, `RenameImport` ✗, plus `SingleImport`, `WildcardImport`, `SimpleCase`, `ParameterizedCase`, `CompanionObject`, `DefMember`, `ValMember` unexplained despite a 1.44 ratio
+  - [ ] Add the import forms and `ExtensionBlock` / `NestedType` to `reference/codegen/`
+- **`scope`** (12 unexplained) — `WireInfo` ✗, `WireKind` ✗ in `resource-management/wire.md`; `InStack`, `Destroyed`, `Uninitialized` unexplained
+- **`mux`** — `HalfClosedLocal` ✗, `HalfClosedRemote` ✗ stream states
+  - [ ] Complete the stream-state lifecycle in `mux.mdx`
+- **`context`** — `ContextHas` ✗ (55 lines), `ContextEntries` ✗ (241 lines)
+- **`combinators`** — `TuplesLowPriority` ✗, `TuplesLowPriority1` ✗ (implicit-priority helpers; safe to skip)
+- **`maybe`** — `MaybeSyntax` ✗, `MaybeValue` ✗, `MaybeWithFilter` ✗, `WithFilter` ✗, but the page already exceeds the source in size; **skip**
+- **`openapi`** — `OpenAPIGen` ✗ (32 lines) only
+- **`sql`** — `PgCodec` ✗ (169 lines, PostgreSQL type mapping) only
+- **`markdown`** — `MdInterpolator` ✗, `MdStringContext` ✗: the `md"..."` interpolator is documented; the runtime types are not. **Skip.**
+- **`chunk`**, **`schema-bson`**, **`schema-csv`** — one or two unexplained internals each; effectively complete
 
 ---
 
-*Report generated on 2026-02-13. Scan performed by `scan-undocumented.sh`; manual enrichment by AI review of 250 undocumented types across 12 modules and 10 existing reference pages.*
+## Conceptual and Guide Gaps
+
+`docs/guides/` holds 9 files covering `async`, `scope`, `mux`, the SQL query DSL (4 files), `telemetry`, and migration *from* zio-schema. Every other module has reference documentation only.
+
+No guide exists for:
+
+| Module | src LOC | Suggested guide |
+|---|---:|---|
+| **schema** | 84,969 | Deriving your first schema; encode/decode round trip |
+| **streams** | 18,434 | Building a streaming pipeline end to end |
+| **http-model** + **endpoint** | 7,517 | Describing and consuming an HTTP API |
+| **html** + **htmx** + **datastar** | 8,154 | Building a hypermedia page |
+| **typeid** | 6,493 | Reflecting on types at compile time |
+| **chunk** | 5,069 | Choosing `Chunk` over `Vector` / `Array` |
+| **openapi** + **smithy** | 5,016 | Generating clients from a service description |
+| **config** | 3,914 | Loading typed configuration and feature flags |
+| **codegen** | 2,100 | Generating Scala sources |
+
+Cross-cutting documents that do not exist:
+
+- [ ] **Getting Started** — add dependencies, define a case class, derive a schema, encode to JSON. `docs/index.md` is a block catalog, not an on-ramp.
+- [ ] **Architecture Overview** — module dependency graph, the register-based zero-allocation design, the `Reflect` → `Binding` → `Schema` layering, the `Deriver` pattern
+- [ ] **Zero-dependency and cross-platform contract** — what is JVM-only, what is JS-safe, and what the `scala-2` / `scala-3` source splits mean for users
+- [ ] **Performance guide** — `Chunk.materialize`, register allocation, derivation caching, the streams sentinel design, and the labeled-instrument allocation trade-off (currently explained only inside `labeled-instruments.md`)
+- [ ] **Custom codec how-to** — implementing a `Format` and its `Deriver` end to end
+
+---
+
+## Deliberately Undocumented
+
+These naming patterns are internal by construction. Do not write documentation for them; if any are public by accident, tighten their visibility instead.
+
+| Pattern | Reason | Examples |
+|---|---|---|
+| `*Macros`, `*MacroOps`, `MacroUtils`, `MacroCore` | Compile-time implementation | `PathMacros`, `SelectorMacros`, `MigrationValidationMacros`, `CommonMacroOps`, `DbCodecOpaqueMacro` |
+| `*VersionSpecific`, `*PlatformSpecific`, `Platform*`, `*Compat` | Scala 2/3 and JVM/JS source-split shims | `SchemaVersionSpecific`, `TypeIdPlatformSpecific`, `PlatformConfigSource`, `PlatformMux`, `MaybeCompat` |
+| `*LowPriority`, `*LowPriority1` | Implicit-resolution priority helpers | `TuplesLowPriority`, `TypeIdLowPriority`, `PathVarsCombinerLowPriority`, `DisplayableLowPriority` |
+| `*Impl`, `*Runtime`, `*CodeGen` | Private implementations behind a public façade | `ScopeImpl`, `PathCodecRuntime`, `InterpolatorRuntime`, `JsonInterpolatorRuntime`, `WireCodeGen` |
+| `*StringContext` | Interpolator plumbing; document the interpolator syntax instead | `JsonStringContext`, `YamlStringContext`, `CssStringContext`, `MediaTypeStringContext` |
+| Generated primitive-lane readers | Machine-generated specializations of one documented shape | `LongConcurrentMapParReader`, `IntConcurrentMergeReader`, `DoubleConcurrentMapParReader`, and siblings |
+| `PathParser` error states | Internal parser states | `EmptyChar`, `InvalidEscape`, `UnexpectedChar`, `UnterminatedString`, `IntegerOverflow`, `MultiCharLiteral` |
+| JSON interpolator states | Internal state machine | `TopLevel`, `InString`, `AfterValue`, `ExpectingKey`, `ExpectingColon`, `ExpectingValue` |
+| `*Delta` / `*Dummy` in `patch` | Internal patch encodings | `ByteDelta`, `FloatDelta`, `PeriodDelta`, `DurationDummy`, `PeriodDummy` |
+| `scope/internal/*` | Error-rendering internals | `Colors`, `DepNode`, `DepStatus`, `ErrorMessages` |
+| async CPS internals | Direct-style transform machinery, not user-facing | `AsyncCpsMonad`, `AwaitCall`, `CollectAwaitCall`, `FoldLeftAwaitCall`, `HofAwaitCall`, `TypedHofMap`, `WaitingMarker`, `NullCauseMarker`, `WithFilterChain`, `PartialFunctionLiteral`, `SingleArgFunction`, `TwoArgFunction`, `AsyncDcaTransform`, `AsyncRunner`, `Parker` |
+| `private[...]` parsers and printers | Not part of the public surface | `SmithyParser`, `SmithyPrinter`, `HoconParser`, `SchemaParser`, `ReflectPrinter`, `TypeIdPrinter` |
+
+---
+
+## Prioritized Action List
+
+Ordered by user impact per unit of writing effort.
+
+**Tier 1 — new pages for missing subsystems**
+
+1. - [ ] `reference/http-model/headers.md` — typed header catalog (~100 types, 1,861 source lines undocumented)
+2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
+3. - [ ] Split `reference/telemetry/otel/` into four pages
+4. - [ ] `reference/htmx/response-headers.md`
+5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
+6. - [ ] `reference/telemetry/common/any-value.md`
+7. - [ ] `reference/http-model/server-sent-event.md`
+8. - [ ] `reference/schema/reflect-transformer.md`
+9. - [ ] `reference/telemetry/logging/log-emitter.md`
+
+**Tier 2 — sections in existing pages**
+
+10. - [ ] `Into` conversion matrix (schema)
+11. - [ ] `SchemaExpr` operator reference (`schema-expr.md`)
+12. - [ ] Migration error ADT (`migration.md`)
+13. - [ ] Patch operation ADT (`patch.md`)
+14. - [ ] Derivation overrides (`type-class-derivation.md`)
+15. - [ ] Codec layer in `http-model/schema.md` (`HeaderCodec`, `QueryCodec`, formats, derivers)
+16. - [ ] `Alternator` / `CanCombine` type-level rules (`endpoint/`)
+17. - [ ] Complete the Smithy shape catalog (`smithy.md`)
+18. - [ ] `SpanEvent` / `SpanLink` / `SamplingDecision` / data points (`telemetry/`)
+19. - [ ] NIO readers and writers (`streams/reader.md`, `streams/writer.md`)
+20. - [ ] `Member` ADT and owner segments (`typeid.md`)
+21. - [ ] XML and YAML error types and derivers (`built-in-codecs/`)
+22. - [ ] Optic and rebuild error tables (`schema-error.md`, `optics.md`)
+23. - [ ] JSON Schema `$anchor` / `$ref` and the refinement types
+24. - [ ] Codegen import forms, `ExtensionBlock`, `NestedType`
+
+**Tier 3 — depth on thin pages**
+
+25. - [ ] Expand `datastar.md` (ratio 0.18)
+26. - [ ] Expand `async.md` (ratio 0.20) — the user-facing direct-style surface, not the CPS internals
+27. - [ ] Expand `smithy.md` (ratio 0.21)
+28. - [ ] Expand `html.md` (ratio 0.24) with the ADT reference
+
+**Tier 4 — conceptual documents**
+
+29. - [ ] Getting Started
+30. - [ ] Architecture Overview
+31. - [ ] Zero-dependency / cross-platform contract
+32. - [ ] Performance guide
+33. - [ ] Guides for `schema`, `streams`, `http-model` + `endpoint`, hypermedia, `config`
+
+**Visibility cleanups (instead of documentation)**
+
+34. - [ ] Decide the public status of the `comptime` `G*` grammar ADT, `DocsSchemas`, `DerivedOptics`, `ContextEntries`, `HtmxHeaders`, and the telemetry log-record `*Kind` classifiers; tighten visibility where they are not public API
+
+---
+
+## Methodology
+
+Reproducible with the script below. It extracts non-`private` type declarations from every module's `src/main` sources, then diffs them against the identifier set found in `docs/`. Two doc sets are built: every identifier anywhere in `docs/` (yields *absent*), and only identifiers in inline code or headings (yields *unexplained*).
+
+```bash
+#!/usr/bin/env bash
+# Documentation coverage scan for zio-blocks.
+set -uo pipefail
+cd "$(git rev-parse --show-toplevel)"
+OUT="${1:-/tmp/doc-scan}"; mkdir -p "$OUT"
+
+MODULES="async chunk codegen combinators config config-hocon config-json config-yaml
+context datastar endpoint html htmx http-model http-model-schema markdown maybe
+mediatype mux openapi otel ringbuffer schema schema-avro schema-bson schema-csv
+schema-messagepack schema-thrift schema-toon schema-xml schema-yaml scope smithy
+sql sql-zio streams telemetry typeid"
+
+# Every identifier that appears anywhere in the docs tree.
+grep -rhoE '[A-Za-z_][A-Za-z0-9_]*' docs/ \
+  --include='*.md' --include='*.mdx' --include='*.jsx' | sort -u > "$OUT/docwords.txt"
+
+# Stricter set: only names in inline code or in headings.
+{ grep -rhoE '`[A-Za-z_][A-Za-z0-9_]*`' docs/ | tr -d '`'
+  grep -rhoE '^#+ .*' docs/ | grep -oE '[A-Za-z_][A-Za-z0-9_]*'; } | sort -u > "$OUT/documented.txt"
+
+for m in $MODULES; do
+  [ -d "$m" ] || continue
+  find "$m" -path '*/src/main/*' -name '*.scala' -print0 \
+    | xargs -0 grep -hE '^[[:space:]]*(final |sealed |abstract |implicit |case |transparent |inline )*(class|trait|object|enum)[[:space:]]+[A-Za-z_]' \
+    | grep -vE '\bprivate\b|\bprotected\b' \
+    | sed -E 's/.*(class|trait|object|enum)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\2/' \
+    | sort -u > "$OUT/types-$m.txt"
+  comm -23 "$OUT/types-$m.txt" "$OUT/docwords.txt"   > "$OUT/absent-$m.txt"
+  comm -23 "$OUT/types-$m.txt" "$OUT/documented.txt" > "$OUT/unexplained-$m.txt"
+  printf '%s\t%s\t%s\t%s\n' "$m" \
+    "$(wc -l < "$OUT/types-$m.txt")" \
+    "$(wc -l < "$OUT/absent-$m.txt")" \
+    "$(wc -l < "$OUT/unexplained-$m.txt")"
+done | sort -t$'\t' -k3,3rn
+```
+
+A second pass catches types the declaration scan misses because of a visibility modifier but which are still absent from the docs, keyed on file name:
+
+```bash
+for m in $MODULES; do
+  find "$m" -path '*/src/main/*' -name '*.scala' | while read -r f; do
+    b=$(basename "$f" .scala)
+    case "$b" in package|*Macros|*PlatformSpecific|*VersionSpecific|*Compat|*LowPriority) continue;; esac
+    grep -qxF "$b" "$OUT/docwords.txt" || printf '%s\t%s\t%s\n' "$m" "$b" "$(wc -l < "$f")"
+  done
+done
+```
+
+Known limitations:
+
+- Matching is name-based, so a type whose name collides with an ordinary English word (`Default`, `Private`, `Public`, `Wildcard`, `Flag`, `Origin`, `Date`, `Host`) can be scored as covered when the page never discusses it. Both gap counts are therefore lower bounds.
+- Nested types are counted individually, which inflates ADT-heavy modules such as `http-model` and `schema`. This is intentional: each variant is something a user can pattern match on.
+- The `unexplained` column under-counts on well-written pages. The writing-style rules require method references to be qualified (`ConfigSource#orElse`, `Flag.Reader.scalar`), and nested types read naturally as `Provenance.Resolved` or `KeyFormat.KebabCase` — none of which the bare-name match sees. A page that follows the style guide will therefore show unexplained types it actually explains.
+- Method-level coverage is not measured. The `ratio` column (doc LOC / src LOC) is the proxy used instead.
+- The `ratio` column is meaningless for modules dominated by generated code — `mediatype` is the clearest case.
+
+---
+
+*Report regenerated 2026-08-21 against commit `a33dc448`. 1,828 public types scanned across 38 modules and 164 reference pages.*
