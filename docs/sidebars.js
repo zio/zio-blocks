@@ -164,6 +164,8 @@ const sidebars = {
             link: { type: "doc", id: "reference/http-model/index" },
             items: [
               "reference/http-model/model",
+              "reference/http-model/headers",
+              "reference/http-model/server-sent-event",
               "reference/http-model/schema",
             ]
           },

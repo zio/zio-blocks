@@ -7,7 +7,9 @@ title: "Documentation Coverage Report"
 
 Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
 
-**Progress since this report was generated:** the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
+**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. Tier 1 items 1 and 7 are complete.
+
+Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
@@ -20,17 +22,17 @@ Full re-scan of documentation coverage across every library module aggregated by
 | Reference pages | 164 |
 | Guides | 9 |
 | Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
-| Types never named anywhere in `docs/` | **568** |
-| Types with no prose or heading reference | **847** |
-| Name-mention coverage | **68%** |
-| Explained-type coverage | **53%** |
+| Types never named anywhere in `docs/` | **471** |
+| Types with no prose or heading reference | **796** |
+| Name-mention coverage | **74%** |
+| Explained-type coverage | **56%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 568 types — is the set that is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 847 types — additionally captures the 279 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 471 types — is the set that is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 796 types — additionally captures the 325 types that appear only as tokens inside examples and are never explained.
 
-This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 564 absent. Both figures are name-based lower bounds; see *Methodology*.
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 467 absent. Both figures are name-based lower bounds; see *Methodology*.
 
 ---
 
@@ -40,7 +42,6 @@ This report file is excluded from the scan, so listing a type here does not make
 
 | Module | types | absent | unexplained | explained cov | src LOC | doc LOC | ratio | Primary page |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
-| **http-model** | 191 | 101 | 132 | **31%** | 4,712 | 1,528 | 0.32 | `reference/http-model/model.md` |
 | **http-model-schema** | 18 | 14 | 14 | **22%** | 1,249 | 607 | 0.49 | `reference/http-model/schema.md` |
 | **smithy** | 42 | 16 | 32 | 24% | 2,585 | 533 | 0.21 | `reference/smithy.md` |
 | **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
@@ -51,6 +52,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | **typeid** | 91 | 26 | 44 | 52% | 6,493 | 2,124 | 0.33 | `reference/typeid.md` |
 | **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
 | **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
+| http-model | 191 | 6 | 85 | 55% | 4,712 | 3,127 | 0.66 | `reference/http-model/` |
 | **otel** | 12 | 2 | 3 | 75% | 1,325 | 162 | **0.12** | `reference/telemetry/otel/` |
 | schema-xml | 35 | 6 | 15 | 57% | 3,334 | 1,034 | 0.31 | `built-in-codecs/xml.md` |
 | schema-bson | 18 | 1 | 7 | 61% | 1,790 | 472 | 0.26 | `built-in-codecs/bson.md` |
@@ -117,31 +119,33 @@ What remains, all minor:
 - [ ] `ConfigError.DuplicateKey` and `ConfigError.Unauthorized` are documented as unused by the module; decide whether they should exist at all
 - [ ] `ConfigValidationError` is sealed with zero implementations, so matching on it can never match; either give it a constructor or remove it
 
-### 2. `http-model` — typed headers entirely undocumented
+### 2. `http-model` — RESOLVED
 
-`Header.scala` is 1,861 lines defining ~100 typed header case classes. The `## Headers` section of `model.md` is 33 lines and shows only the untyped `String` API (`Headers("content-type" -> "...")`, `.add`, `.toList`). Not one typed header is explained, and lazy typed parsing — the reason `Headers` exists — gets a single sentence. 131 of 191 public types are unexplained, 101 absent.
+`Header.scala` is 1,861 lines defining 76 header types, of which 75 are typed built-ins. The `## Headers` section of `model.md` was 36 lines showing only the untyped `String` API; 101 of the module's 191 public types were absent.
 
-- **Content**: `ContentLength` ✗, `ContentEncoding` ✗, `ContentLanguage` ✗, `ContentLocation` ✗, `ContentRange` ✗, `ContentBase` ✗, `ContentMd5` ✗, `ContentDisposition` ✗, `ContentSecurityPolicy` ✗, `ContentTransferEncoding` ✗, `Attachment` ✗
-- **Caching**: `CacheControl` ✗, `MaxAge` ✗, `SMaxAge` ✗, `MaxStale` ✗, `MinFresh` ✗, `NoCache` ✗, `NoStore` ✗, `NoTransform` ✗, `MustRevalidate` ✗, `MustUnderstand` ✗, `ProxyRevalidate` ✗, `OnlyIfCached` ✗, `StaleIfError` ✗, `StaleWhileRevalidate` ✗, `Expires` ✗, `Pragma` ✗, `Private` ✗, `Immutable`, `Public`
-- **Conditional**: `ETag` ✗, `ETags` ✗, `IfMatch` ✗, `IfNoneMatch` ✗, `IfModifiedSince` ✗, `IfUnmodifiedSince` ✗, `IfRange` ✗, `LastModified` ✗
-- **Negotiation**: `AcceptEncoding` ✗, `AcceptLanguage` ✗, `AcceptPatch` ✗, `AcceptRanges` ✗, `MediaRange` ✗, `LanguageRange` ✗, `Vary` ✗, `Accept`
-- **CORS**: `AccessControlAllowOrigin` ✗, `AccessControlAllowCredentials` ✗, `AccessControlAllowHeaders` ✗, `AccessControlAllowMethods` ✗, `AccessControlExposeHeaders` ✗, `AccessControlMaxAge` ✗, `AccessControlRequestHeaders` ✗, `AccessControlRequestMethod` ✗, `Origin`
-- **WebSocket**: `SecWebSocketKey` ✗, `SecWebSocketAccept` ✗, `SecWebSocketProtocol` ✗, `SecWebSocketVersion` ✗, `SecWebSocketExtensions` ✗, `SecWebSocketOrigin` ✗, `SecWebSocketLocation` ✗, `UpgradeInsecureRequests` ✗, `Upgrade`, `WS`, `WSS`
-- **Transfer**: `TransferEncoding` ✗, `Chunked` ✗, `GZip` ✗, `Deflate` ✗, `Compress` ✗, `Br` ✗, `Te` ✗, `Trailer` ✗, `KeepAlive` ✗, `Expect` ✗
-- **Auth / proxy**: `WWWAuthenticate` ✗, `ProxyAuthenticate` ✗, `UserInfo` ✗, `ProxyAuthorization`
-- **Cookies**: `CookieHeader` ✗, `SetCookieHeader` ✗, `CookiePriority`, `Lax`, `SameOrigin` ✗
-- **Other**: `Forwarded` ✗, `Referer` ✗, `RetryAfter` ✗, `MaxForwards` ✗, `UserAgent` ✗, `XFrameOptions` ✗, `XRequestedWith` ✗, `Deny` ✗, `DNT` ✗, `TrackingAllowed` ✗, `TrackingNotAllowed` ✗, `ClearSiteData` ✗, `Unparsed` ✗, `Allow`, `Date`, `Host`
-- **Supporting**: `HeadersBuilder` ✗, `QueryParamsBuilder` ✗, `QueryKey` ✗, `QueryValue` ✗, `PercentEncoder` ✗ (143 lines), `FormData` ✗, `ComponentType` ✗, `SevenBit` ✗, `EightBit` ✗, `QuotedPrintable` ✗, `PathSegment`, `Boundary`, and the charset constants `UTF8`, `UTF16`, `UTF16BE`, `UTF16LE`, `ISO_8859_1`, `ASCII`
-- **SSE**: `ServerSentEvent` ✗ (206 lines), `SseDataEncoder`
+Two new pages, 956 lines together, with every code block mdoc-verified:
 
-Actions:
+| Page                   | Covers                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `headers.md`           | `Header`, `Header.Codec`, `Header.Typed`, `Header.Custom`, all 75 built-ins catalogued in ten groups with wire names and ADT variants, the six read methods, the parse cache, write operations, `HeadersBuilder`, validation and injection safety, writing a custom codec |
+| `server-sent-event.md` | `ServerSentEvent`, its constructors and metadata builders, validation, render order, `SseDataEncoder` and its instances, custom encoders |
 
-- [ ] Write `reference/http-model/headers.md` — a typed-header catalog grouped as above, with the parse/render round trip and what happens on malformed input
-- [ ] Document lazy typed access on `Headers`: when parsing happens, what it costs, and how failures surface
-- [ ] Write `reference/http-model/server-sent-event.md` — `ServerSentEvent` and `SseDataEncoder`
-- [ ] Document `PercentEncoder` and the `QueryKey` / `QueryValue` / `PathSegment` encoding rules in the URL section of `model.md`
-- [ ] Document the charset constants and the multipart types (`Boundary`, `FormData`, `ComponentType`, transfer-encoding variants)
-- [ ] Document `HeadersBuilder` / `QueryParamsBuilder`
+The `## Headers` section of `model.md` was rewritten to cover the collection itself — creation, raw reads, append versus replace — and now links out for the typed model rather than omitting it. The module is at 55% explained coverage with 6 absent types.
+
+Three behaviours the source made non-obvious, now stated with worked output:
+
+- **`Headers#get` discards parse errors.** A malformed header is indistinguishable from an absent one, and a malformed entry followed by a well-formed one silently yields the latter. No collection read surfaces the error.
+- **The parse cache is keyed by codec identity, compared by reference.** A codec constructed inline per request never reuses its cached values, and `Headers#add` drops the cache entirely.
+- **`Headers#toString` prints credentials verbatim.** There is no redaction, so anything logging a `Request` logs its `authorization` and `cookie` values.
+
+Writing the catalog also surfaced a genuine defect, documented in a warning admonition and worth fixing in the source:
+
+- [ ] `Header.AcceptEncoding.parseSingle` ends with `case _ => GZip(weight)` (`Header.scala:1252`), so any unrecognized encoding name silently parses as `GZip` — `accept-encoding: bogus` reads as a gzip request. Its `parse` fails only on an empty value. The sibling ADTs handle the same situation correctly: `Authorization` has an `Unparsed` case and `Connection` has `Other`. `AcceptEncoding` should either gain an equivalent case or return `Left`.
+
+What remains is the report's own items 4 and 5 rather than anything new:
+
+- [ ] Document `PercentEncoder`, `QueryKey`, `QueryValue`, and `QueryParamsBuilder` in the URL and query sections of `model.md`
+- [ ] Document `ComponentType` and `UserInfo`
 
 ### 3. `http-model-schema` — the codec layer is invisible
 
@@ -354,13 +358,13 @@ Ordered by user impact per unit of writing effort.
 
 **Tier 1 — new pages for missing subsystems**
 
-1. - [ ] `reference/http-model/headers.md` — typed header catalog (~100 types, 1,861 source lines undocumented)
+1. - [x] `reference/http-model/headers.md` — **done**: 660 lines cataloguing all 75 built-ins, mdoc-verified
 2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
 3. - [ ] Split `reference/telemetry/otel/` into four pages
 4. - [ ] `reference/htmx/response-headers.md`
 5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
 6. - [ ] `reference/telemetry/common/any-value.md`
-7. - [ ] `reference/http-model/server-sent-event.md`
+7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
 8. - [ ] `reference/schema/reflect-transformer.md`
 9. - [ ] `reference/telemetry/logging/log-emitter.md`
 
