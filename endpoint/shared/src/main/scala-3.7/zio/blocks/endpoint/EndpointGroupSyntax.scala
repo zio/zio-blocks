@@ -17,10 +17,29 @@
 package zio.blocks.endpoint
 
 /**
- * Entry point for bulk endpoint creation. Grouping prefixes (`"api" / ...`,
- * `PathCodec.int("id") / ...`) live in [[BulkDsl]] - import
- * `zio.blocks.endpoint.BulkDsl.*` to opt in, so upstream `/` operators are not
- * shadowed.
+ * Defines a group of HTTP endpoints in a single block and returns them as a
+ * statically-typed [[scala.NamedTuple]].
+ *
+ * Each statement in the block must be either:
+ *   - `val name = Endpoint(...)` — exposed as member `.name`
+ *   - a bare `Endpoint(...)` expression — auto-named from its route render,
+ *     e.g. `` .`GET /user/{userId}` `` (RFC 6570 `{var}` style, method prefix,
+ *     multi-method rendered as `GET#|POST`)
+ *
+ * Constant-prefix nesting (`"api" / endpoints { ... }`) composes prefixes into
+ * every child route at the description level. Capturing prefixes
+ * (`PathCodec.int("id") / endpoints { ... }`) additionally widen each child's
+ * static `PathInput`.
+ *
+ * @param body
+ *   the block of endpoint declarations; every statement must be an
+ *   `Endpoint(...)` construction, optionally bound to a `val`
+ * @return
+ *   a `NamedTuple[Names, Values]` pairing each declared name with its
+ *   fully-typed `Endpoint`
+ * @note
+ *   Scala 3.7+ only (named tuples); group operators require
+ *   `import zio.blocks.endpoint.BulkDsl.*`
  */
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }

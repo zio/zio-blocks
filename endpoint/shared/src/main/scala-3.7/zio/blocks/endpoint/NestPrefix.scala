@@ -24,8 +24,24 @@ import zio.blocks.endpoint.PathCodec
 /**
  * Runtime type-class: nest a constant path prefix into every Endpoint leaf of a
  * group.
+ *
+ * @tparam NT
+ *   the group shape — an `Endpoint` leaf, a `NamedTuple`/tuple of leaves and
+ *   nested groups, or `EmptyTuple`
  */
 trait NestPrefix[NT] {
+
+  /**
+   * Nest a constant path prefix into every Endpoint leaf of the group.
+   *
+   * @param nt
+   *   the group value — an `Endpoint` leaf, a `NamedTuple`/tuple of leaves and
+   *   nested groups, or `EmptyTuple`
+   * @param prefix
+   *   the constant path prefix to prepend (e.g. `"api"`)
+   * @return
+   *   a new group value with the prefix composed into every leaf
+   */
   def nest(nt: NT, prefix: String): NT
 }
 

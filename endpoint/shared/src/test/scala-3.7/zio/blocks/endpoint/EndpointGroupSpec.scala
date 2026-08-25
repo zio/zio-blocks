@@ -93,6 +93,11 @@ object EndpointGroupSpec extends ZIOSpecDefault {
           "endpoints { Endpoint(Method.GET / \"dup\"); Endpoint(Method.GET / \"dup\") }"
         )
         assertTrue(errors.nonEmpty)
+      },
+      test("builder chains still auto-name through in/out") {
+        import zio.blocks.schema.Schema
+        val group = endpoints(Endpoint(Method.GET / "x").in(Schema.int).out(Schema.string))
+        assertTrue(group.`GET /x`.route.render == "GET /x")
       }
     ),
     suite("endpoints macro M3 nesting")(

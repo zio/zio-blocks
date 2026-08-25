@@ -19,26 +19,30 @@ package zio.blocks.endpoint
 import scala.quoted.* // used for Expr/Quotes in build
 import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
-object EndpointGroupMacro {
+private[endpoint] object EndpointGroupMacro {
   def build(body: Expr[Any])(using Quotes): Expr[Any] = buildGroup(body, None)
 
   def prefixGroup(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
     import quotes.reflect.*
 
-    def recoverBlock(t: Term): Term = t match {
-      case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)                  => b
-      case Inlined(Some(Apply(Select(_, "endpoints"), List(b))), _, _)              => b
+    def recoverBlock(t: Term): Option[Term] = t match {
+      case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)                  => Some(b)
+      case Inlined(Some(Apply(Select(_, "endpoints"), List(b))), _, _)              => Some(b)
       case Inlined(_, _, inner)                                                     => recoverBlock(inner)
       case Typed(inner, _)                                                          => recoverBlock(inner)
       case Apply(Select(Ident("NamedTuple"), "toTuple"), List(inner))               => recoverBlock(inner)
       case Apply(Select(_, "toTuple"), List(inner))                                 => recoverBlock(inner)
       case Apply(TypeApply(Select(Ident("NamedTuple"), "toTuple"), _), List(inner)) => recoverBlock(inner)
       case Apply(TypeApply(Select(_, "toTuple"), _), List(inner))                   => recoverBlock(inner)
-      case Apply(Ident("endpoints"), List(b))                                       => b
-      case Apply(Select(_, "endpoints"), List(b))                                   => b
-      case other                                                                    => other
+      case Apply(Ident("endpoints"), List(b))                                       => Some(b)
+      case Apply(Select(_, "endpoints"), List(b))                                   => Some(b)
+      case _                                                                        => None
     }
-    val block = recoverBlock(ntExpr.asTerm)
+    val block = recoverBlock(ntExpr.asTerm).getOrElse(
+      report.errorAndAbort(
+        "PathCodec / <group> requires an inline `endpoints { ... }` block; binding the group to a value first (val g = endpoints { ... }) is not supported"
+      )
+    )
     buildGroup(block.asExpr, Some(codecExpr))
   }
 
@@ -137,9 +141,14 @@ object EndpointGroupMacro {
         case _ => t
       }
       def peelToRoutePattern(t: Term): Term = t match {
-        case Apply(Select(qual, _), args)
+        // Strip leftUnit / implicit evidence wrappers that appear at each builder level
+        case Apply(func, List(TypeApply(Ident("leftUnit"), _)))                                                 => peelToRoutePattern(func)
+        case Apply(func, args) if args.exists { case TypeApply(Ident("leftUnit"), _) => true; case _ => false } =>
+          peelToRoutePattern(func)
+        case Apply(func, List(TypeApply(Ident("eithers"), _))) => peelToRoutePattern(func)
+        // Builder method calls with type params: .in[T, C](codec) / .out[T, C](codec)
+        case Apply(TypeApply(Select(qual, mname), _), args)
             if Set(
-              "apply",
               "in",
               "out",
               "query",
@@ -150,7 +159,25 @@ object EndpointGroupMacro {
               "orOutError",
               "outError",
               "outHeader"
-            ).contains(qual.symbol.name) || qual.tpe <:< TypeRepr.of[Endpoint[?, ?, ?, ?, ?]] =>
+            ).contains(mname) =>
+          args.headOption match {
+            case Some(rp) if rp.tpe <:< TypeRepr.of[RoutePattern[?]] => rp
+            case _                                                   => peelToRoutePattern(qual)
+          }
+        // Builder method calls without type params
+        case Apply(Select(qual, mname), args)
+            if Set(
+              "in",
+              "out",
+              "query",
+              "header",
+              "auth",
+              "doc",
+              "unauthorizedStatus",
+              "orOutError",
+              "outError",
+              "outHeader"
+            ).contains(mname) =>
           args.headOption match {
             case Some(rp) if rp.tpe <:< TypeRepr.of[RoutePattern[?]] => rp
             case _                                                   => peelToRoutePattern(qual)
@@ -209,6 +236,9 @@ object EndpointGroupMacro {
         case Apply(Select(Ident(givenName), "apply"), List(lit)) if givenName.startsWith("given_Conversion") =>
           pathRender0(lit)
         case Apply(conversion, List(lit)) if conversion.tpe.toString.contains("Conversion") => pathRender0(lit)
+        case Apply(Select(inner, "unused"), _)                                              => pathRender0(inner)
+        case Apply(TypeApply(Select(inner, "unused"), _), _)                                => pathRender0(inner)
+        case Select(inner, "unused")                                                        => pathRender0(inner)
         case Literal(StringConstant(s))                                                     => s
         case Apply(TypeApply(Select(Select(_, "PathCodec"), ctor), _), List(Literal(StringConstant(n))))
             if Set("int", "long", "string", "bool", "uuid").contains(ctor) =>
