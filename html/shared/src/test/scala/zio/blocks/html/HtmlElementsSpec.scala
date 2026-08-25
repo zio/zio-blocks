@@ -341,7 +341,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
           rFigcaption == "<figcaption>x</figcaption>",
           rKbd == "<kbd>x</kbd>",
           rMeter == "<meter>x</meter>",
-          optgroup.render == "<optgroup></optgroup>",
+          optgroup().render == "<optgroup></optgroup>",
           rOutput == "<output>x</output>",
           rProgress == "<progress>x</progress>",
           rRuby == "<ruby>x</ruby>",
@@ -568,7 +568,7 @@ object HtmlElementsSpec extends ZIOSpecDefault {
         val rTextareaWrap    = textarea(wrap := "hard").render
         val rScriptIntegrity = script(integrity := "sha384-xxx").render
         val rImgReferrer     = img(referrerpolicy := "no-referrer").render
-        val rOlReversed      = ol.when(true)(reversed).render
+        val rOlReversed      = ol().when(true)(reversed).render
         val rIframeSandbox   = iframe(sandbox := "allow-scripts").render
         val rDivSpellcheck   = div(spellcheck := "true").render
         val rDivTranslate    = div(translate := "yes").render
