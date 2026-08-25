@@ -217,6 +217,7 @@ const sidebars = {
               "reference/htmx/hx-encoding",
               "reference/htmx/hx-sync",
               "reference/htmx/attribute-values",
+              "reference/htmx/response-headers",
             ]
           },
           {

@@ -11,6 +11,8 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 Earlier: the `schema` search/update subsystem has been documented — `docs/reference/schema/schema-search.md` (251 lines, mdoc-verified) covers `SchemaMatch`, `SearchTraversal`, and `Reflect.Updater`/`Term.Updater`. Rescanning the whole `schema` module (not just this page's own additions — the module's absent/unexplained counts also reflect every other doc improvement made since the 2026-08-21 baseline, since matching is name-based across the whole `docs/` tree) puts it at 76% explained coverage and 86 absent types, down from 48%/210 at that baseline. Tier 1 item 5 is complete; the coverage table has been updated to match.
 
+Earlier: the `htmx` header side has been documented — `docs/reference/htmx/response-headers.md` (229 lines, mdoc-verified) covers the 22 request/response header types in `HtmxHeaders.scala` that the attribute-DSL pages never mentioned, taking the module from 54% to 85% explained coverage and from 26 absent types to 0. Tier 1 item 4 is complete; the coverage table has been updated to match.
+
 Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
@@ -51,7 +53,6 @@ This report file is excluded from the scan, so listing a type here does not make
 | **datastar** | 50 | 23 | 28 | 44% | 1,881 | 346 | 0.18 | `reference/datastar.md` |
 | **scope** | 24 | 8 | 12 | 50% | 7,085 | 3,577 | 0.50 | `reference/resource-management/` |
 | **typeid** | 91 | 26 | 44 | 52% | 6,493 | 2,124 | 0.33 | `reference/typeid.md` |
-| **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
 | **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
 | http-model | 191 | 6 | 85 | 55% | 4,712 | 3,127 | 0.66 | `reference/http-model/` |
 | otel | 12 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 | `reference/telemetry/otel/` |
@@ -67,6 +68,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | **schema** | 516 | 86 | 124 | 76% | 84,969 | 24,096 | 0.28 | `reference/schema/` |
 | markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
 | schema-toon | 28 | 2 | 5 | 82% | 4,690 | 1,050 | 0.22 | `built-in-codecs/toon.md` |
+| **htmx** | 82 | 0 | 12 | 85% | 1,548 | 2,750 | 1.78 | `reference/htmx/` |
 | mux | 13 | 2 | 2 | 85% | 1,222 | 823 | 0.67 | `reference/mux.mdx` |
 | openapi | 45 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 | `reference/openapi.md` |
 | schema-csv | 9 | 0 | 1 | 89% | 1,247 | 564 | 0.45 | `built-in-codecs/csv.md` |
@@ -252,11 +254,11 @@ Actions:
 
 ### 8. `htmx` — response headers
 
-The attribute DSL is well covered (2,521 doc lines, ratio 1.63), but the header side is undocumented. `HtmxHeaders` ✗ (334 lines) and `HtmxSupport` ✗ never appear, and 26 header types are absent: `HxLocation` ✗, `HxPushUrl` ✗, `HxRedirect` ✗, `HxRefresh` ✗, `HxReplaceUrl` ✗, `HxReswap` ✗, `HxRetarget` ✗, `HxReselect` ✗, `HxTriggerHeader` ✗, `HxTriggerAfterSwap` ✗, `HxTriggerAfterSettle` ✗, `HxRequest` ✗, `HxBoosted` ✗, `HxCurrentUrl` ✗, `HxPrompt` ✗, `HxHistoryRestoreRequest` ✗, `HxTargetId` ✗, `HxTriggerId` ✗, `HxTriggerName` ✗, `HxTriggerValue` ✗, `HxEventPayload` ✗, `HxOnKey` ✗, `PartialHxOn` ✗, `JsonValue` ✗, `Changed` ✗, `Threshold` ✗.
+**Done.** The attribute DSL was well covered (2,521 doc lines, ratio 1.63), but the header side — `HtmxHeaders` (334 lines) and its 22 request/response header types — was absent. `reference/htmx/response-headers.md` (229 lines, mdoc-verified) now covers both directions: the request headers HTMX sends (`HxRequest`, `HxBoosted`, `HxCurrentUrl`, `HxTargetId`, `HxTriggerId`, `HxTriggerName`, `HxHistoryRestoreRequest`, `HxPrompt`), the response headers a handler sets (`HxLocation`, `HxPushUrl`, `HxReplaceUrl`, `HxRedirect`, `HxRefresh`, `HxReswap`, `HxRetarget`, `HxReselect`, `HxTriggerHeader`, `HxTriggerAfterSettle`, `HxTriggerAfterSwap`, `HxEventPayload`), and how each reuses `HxSwap`/`HxTarget`/`HxUrlUpdate`/`CssSelector` from the attribute DSL. `HxTriggerValue`, `HxOnKey`, `PartialHxOn`, `Changed`, and `Threshold` from the original absent-types list are attribute-DSL types (not headers) and remain covered by `hx-trigger.md`/`attribute-values.md`. The internal `HtmxHeaderSupport` parsing helper is `private[headers]` and intentionally left undocumented as an implementation detail, not a public integration point.
 
 Actions:
 
-- [ ] Write `reference/htmx/response-headers.md` — request headers htmx sends, response headers you set, and the `HtmxSupport` integration point
+- [x] Write `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `reference/htmx/index.md`
 
 ### 9. `smithy` — 32 unexplained types, mostly the shape catalog
 
@@ -374,7 +376,7 @@ Ordered by user impact per unit of writing effort.
 1. - [x] `reference/http-model/headers.md` — **done**: 660 lines cataloguing all 75 built-ins, mdoc-verified
 2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
 3. - [x] ~~Split `reference/telemetry/otel/` into four pages~~ — **done differently**: the four-page split was mis-scoped (the exporters are `private[otel]`); resolved with one new page plus index additions, module now at 100%
-4. - [ ] `reference/htmx/response-headers.md`
+4. - [x] `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified
 5. - [x] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`) — **done**: 251 lines, mdoc-verified
 6. - [ ] `reference/telemetry/common/any-value.md`
 7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
