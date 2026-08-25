@@ -3,7 +3,7 @@ id: codec
 title: "Codec"
 ---
 
-`Codec[DecodeInput, EncodeOutput, Value]` is the base abstraction for encoding and decoding values between a specific input representation and a specific output representation. It forms the foundation of ZIO Blocks' multi-format serialization system, enabling a single `Schema[A]` to derive codecs for JSON, Avro, TOON, MessagePack, Thrift, and other formats that are integrated via the `Codec`/`Format` system. BSON support is provided separately via `BsonSchemaCodec`, which is not a subtype of `codec.Codec` and is not derived via `Schema.derive(format)`.
+`Codec[DecodeInput, EncodeOutput, Value]` is the base abstraction for encoding and decoding values between a specific input representation and a specific output representation. It forms the foundation of ZIO Blocks' multi-format serialization system, enabling a single `Schema[A]` to derive codecs for JSON, Avro, TOON, MessagePack, Thrift, and other formats integrated through `Codec`/`Format`. BSON's `BsonCodec` is not a subtype of `codec.Codec` because it operates on native `BsonReader`, `BsonWriter`, and `BsonValue` APIs. It nevertheless participates in shared type-class derivation through `Schema[A].derive(BsonCodecDeriver)`; `BsonSchemaCodec` remains a compatibility facade.
 
 ## Overview
 

@@ -462,6 +462,65 @@ object BsonCodec {
     _.getCurrencyCode,
     Currency.getInstance
   )
+
+  val unit: BsonCodec[Unit] = BsonCodec(
+    new BsonEncoder[Unit] {
+      def encode(writer: BsonWriter, value: Unit, ctx: BsonEncoder.EncoderContext): Unit = {
+        writer.writeStartDocument()
+        writer.writeEndDocument()
+      }
+      def toBsonValue(value: Unit): BsonValue = new BsonDocument()
+    },
+    new BsonDecoder[Unit] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Unit = {
+        reader.readStartDocument()
+        while (reader.readBsonType() != org.bson.BsonType.END_OF_DOCUMENT) {
+          reader.readName()
+          reader.skipValue()
+        }
+        reader.readEndDocument()
+      }
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): Unit = ()
+    }
+  )
+
+  val scalaBigInt: BsonCodec[BigInt] = BsonCodec(
+    new BsonEncoder[BigInt] {
+      def encode(writer: BsonWriter, value: BigInt, ctx: BsonEncoder.EncoderContext): Unit =
+        BsonEncoder.bigInteger.encode(writer, value.bigInteger, ctx)
+      def toBsonValue(value: BigInt): BsonValue = BsonEncoder.bigInteger.toBsonValue(value.bigInteger)
+    },
+    new BsonDecoder[BigInt] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): BigInt =
+        BigInt(BsonDecoder.bigInteger.decodeUnsafe(reader, trace, ctx))
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): BigInt = BigInt(BsonDecoder.bigInteger.fromBsonValueUnsafe(value, trace, ctx))
+    }
+  )
+
+  val scalaBigDecimal: BsonCodec[BigDecimal] = BsonCodec(
+    new BsonEncoder[BigDecimal] {
+      def encode(writer: BsonWriter, value: BigDecimal, ctx: BsonEncoder.EncoderContext): Unit =
+        bigDecimal.encoder.encode(writer, value.bigDecimal, ctx)
+      def toBsonValue(value: BigDecimal): BsonValue = bigDecimal.encoder.toBsonValue(value.bigDecimal)
+    },
+    new BsonDecoder[BigDecimal] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): BigDecimal =
+        BigDecimal(bigDecimal.decoder.decodeUnsafe(reader, trace, ctx))
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): BigDecimal = BigDecimal(bigDecimal.decoder.fromBsonValueUnsafe(value, trace, ctx))
+    }
+  )
 }
 
 /**
