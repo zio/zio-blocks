@@ -5,7 +5,7 @@ title: "BSON Codec Module"
 
 `zio-blocks-schema-bson` is a **schema-driven BSON codec module** for serializing and deserializing Scala types to and from BSON (Binary JSON) format. It provides comprehensive encoding and decoding with support for 27 primitive types, records, variants, sequences, maps, and recursive types. 
 
-Core types: `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `BsonSchemaCodec`.
+Core types: `BsonCodec`, `BsonEncoder`, `BsonDecoder`, `BsonCodecDeriver`, and the compatibility facade `BsonSchemaCodec`.
 
 The module integrates with org.bson to provide native BSON type support including special handling for `ObjectId`, `Decimal128`, and other BSON-specific types.
 
@@ -39,7 +39,7 @@ Supported Scala versions: 2.13.x and 3.x
 The module provides a complete pipeline for BSON codec derivation and usage:
 
 1. **Define your type** — Any Scala type with a `Schema` instance
-2. **Derive a codec** — Use `BsonSchemaCodec.bsonCodec(schema)` to obtain a `BsonCodec[A]`
+2. **Derive a codec** — Use `schema.derive(BsonCodecDeriver)` to obtain a `BsonCodec[A]`
 3. **Encode or decode** — Call `codec.encoder.toBsonValue()` or `codec.decoder.fromBsonValue()`
 4. **Handle errors** — Catch `BsonDecoder.Error` with location traces showing where the error occurred
 
@@ -52,9 +52,9 @@ The BSON codec pipeline flows through these layers:
 ```
 1. User defines Schema[A] for their type
                  ↓
-2. BsonSchemaCodec.bsonCodec(schema) creates BsonCodec[A]
+2. Schema[A].derive(BsonCodecDeriver) creates BsonCodec[A]
                  ↓
-3. BsonSchemaCodec derives Encoder and Decoder implementations
+3. DerivationBuilder traverses the schema and BsonCodecDeriver composes Encoder and Decoder implementations
    - For primitives: type-specific BSON encoders/decoders
    - For records: field-by-field composition
    - For variants: discriminator-based selection
@@ -64,7 +64,7 @@ The BSON codec pipeline flows through these layers:
 4. BsonEncoder writes values to BsonValue or BsonWriter
    BsonDecoder reads BsonValue or BsonReader to values
                  ↓
-5. BsonSchemaCodec.Config customizes behavior
+5. BsonCodecDeriver configuration methods customize behavior
    - Sum type handling (discriminator, wrapper, or none)
    - Field name mapping for MongoDB conventions
    - ObjectId detection and native BSON encoding
@@ -83,7 +83,7 @@ User type (e.g., case class Person)
     ↓
 Schema.derived (automatic via macro)
     ↓
-BsonSchemaCodec.bsonCodec(schema, config) → BsonCodec[Person]
+schema.derive(configuredBsonCodecDeriver) → BsonCodec[Person]
     ↓
 Use codec.encoder.toBsonValue(person) to serialize
 Use codec.decoder.fromBsonValue(bsonValue) to deserialize
@@ -110,7 +110,7 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val codec = BsonSchemaCodec.bsonCodec(Person.schema)
+val codec = Person.schema.derive(BsonCodecDeriver)
 val person = Person("Alice", 30, "alice@example.com")
 val bsonValue = codec.encoder.toBsonValue(person)
 ```
@@ -342,13 +342,11 @@ val rendered = BsonTrace.render(trace) // ".user[0].age"
 
 ---
 
-## BsonSchemaCodec
+## BsonCodecDeriver and BsonSchemaCodec
 
-Configuration and derivation system for creating `BsonCodec[A]` instances from `Schema[A]`.
+`BsonCodecDeriver` implements the shared `Deriver[BsonCodec]` contract. It supports direct derivation as well as `Schema.deriving` instance and modifier overrides by type, exact optic, or parent type and term name.
 
-### Overview
-
-`BsonSchemaCodec` provides the `bsonCodec()` method to derive codecs, along with configurable behavior for sum types, field mapping, and ObjectId handling.
+`BsonSchemaCodec` retains `bsonCodec`, `bsonEncoder`, `bsonDecoder`, and `Config` as compatibility and convenience APIs. These methods delegate to `BsonCodecDeriver`, so both entry points have the same BSON behavior.
 
 ### Configuration
 
@@ -396,9 +394,33 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-val codec = BsonSchemaCodec.bsonCodec(Person.schema)
-val customCodec = BsonSchemaCodec.bsonCodec(Person.schema, BsonSchemaCodec.Config)
+val codec = Person.schema.derive(BsonCodecDeriver)
+val configuredCodec = Person.schema.derive(BsonCodecDeriver.withIgnoreExtraFields(false))
+
+// Compatibility facade
+val compatibleCodec = BsonSchemaCodec.bsonCodec(Person.schema)
+val configuredCompatibleCodec = BsonSchemaCodec.bsonCodec(Person.schema, BsonSchemaCodec.Config)
 ```
+
+### Derivation overrides
+
+Use `Schema.deriving` when part of a schema needs a custom codec or runtime modifier:
+
+```scala
+val codec = Person.schema
+  .deriving(BsonCodecDeriver)
+  .instance(Person.schema.reflect.typeId, "age", customIntCodec)
+  .modifier(Person.schema.reflect.typeId, "name", Modifier.rename("fullName"))
+  .derive
+```
+
+Type-level overrides affect every matching occurrence. Parent-type and term-name overloads are also available for fields and variant cases. String map keys remain BSON document field names; override map values or the whole map codec when custom map behavior is needed.
+
+Record-level `Modifier.fieldNaming` and `Modifier.noExtraFields` annotations override the corresponding default BSON behavior. Variant-level `Modifier.caseNaming` and `Modifier.discriminator` annotations override class-name mapping and sum-type handling for the annotated variant.
+
+### Semantic Json values
+
+`zio.blocks.schema.json.Json` objects, arrays, scalars, and nulls map directly to their semantic BSON equivalents. Finite BSON doubles other than signed zero retain their exact value when converted through `Json`; BSON signed zero is normalized to JSON zero because `Json.Number` does not retain its sign. Duplicate `Json.Object` field names are rejected because `BsonDocument` cannot represent them without data loss.
 
 ---
 
