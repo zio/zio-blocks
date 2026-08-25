@@ -228,7 +228,7 @@ The `Js` type is intentionally raw—do not build it from unsanitized user input
 
 **With JavaScript:** Attributes that accept raw JavaScript expressions (`hxOn:*`, `hxTrigger.filter()`) accept the `Js` type, making it explicit that you're writing unescaped JavaScript code. This prevents accidental XSS while allowing intentional dynamic behavior.
 
-**With headers:** The `zio.http.htmx.headers` submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
+**With headers:** The [`zio.http.htmx.headers`](./response-headers.md) submodule provides typed HTMX request/response headers (HX-Request, HX-Trigger, HX-Redirect, etc.), letting you inspect and build headers with the same type safety as attributes.
 
 **Extending with custom types:** Implement `ToHtmxValue[MyType]` to let your domain types render themselves in the DSL. For example, a custom `enum Status { Active, Inactive }` defines `implicit val statusToHtmx: ToHtmxValue[Status] = ...` and renders directly in HTMX attributes.
 

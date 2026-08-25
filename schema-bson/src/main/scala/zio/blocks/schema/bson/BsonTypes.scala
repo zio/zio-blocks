@@ -29,6 +29,7 @@ import org.bson.{
   BsonWriter
 }
 import org.bson.types.{Decimal128, ObjectId}
+import zio.blocks.chunk.Chunk
 import zio.blocks.schema.json.Json
 import java.math.{BigDecimal => JBigDecimal, BigInteger => JBigInteger}
 import java.time._
@@ -338,6 +339,107 @@ object BsonCodec {
       else throw BsonDecoder.Error(trace, s"Expected OBJECT_ID but got ${v.getBsonType}")
   )
 
+  val json: BsonCodec[Json] = BsonCodec(
+    new BsonEncoder[Json] {
+      def encode(writer: BsonWriter, value: Json, ctx: BsonEncoder.EncoderContext): Unit =
+        BsonEncoder.bsonValueEncoder.encode(writer, jsonToBsonValue(value), ctx)
+
+      def toBsonValue(value: Json): BsonValue = jsonToBsonValue(value)
+    },
+    new BsonDecoder[Json] {
+      private val bsonValueCodec = new org.bson.codecs.BsonValueCodec()
+      private val decoderContext = org.bson.codecs.DecoderContext.builder().build()
+
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Json =
+        bsonValueToJson(bsonValueCodec.decode(reader, decoderContext), trace)
+
+      def fromBsonValueUnsafe(value: BsonValue, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Json =
+        bsonValueToJson(value, trace)
+    }
+  )
+
+  private def jsonToBsonValue(value: Json): BsonValue = value match {
+    case obj: Json.Object =>
+      val document = new BsonDocument()
+      obj.value.foreach { case (key, json) =>
+        if (document.containsKey(key))
+          throw new IllegalArgumentException(
+            s"Json object contains duplicate field '$key', which cannot be represented as a BSON document"
+          )
+        document.put(key, jsonToBsonValue(json))
+      }
+      document
+    case array: Json.Array =>
+      val bsonArray = new BsonArray()
+      array.value.foreach(json => bsonArray.add(jsonToBsonValue(json)))
+      bsonArray
+    case string: Json.String   => new BsonString(string.value)
+    case boolean: Json.Boolean => new BsonBoolean(boolean.value)
+    case number: Json.Number   => jsonNumberToBsonValue(number.value)
+    case Json.Null             => org.bson.BsonNull.VALUE
+  }
+
+  private def jsonNumberToBsonValue(value: BigDecimal): BsonValue = {
+    val scale = value.bigDecimal.scale
+    if (scale <= 0 && value.isValidInt) new BsonInt32(value.toInt)
+    else if (scale <= 0 && value.isValidLong) new BsonInt64(value.toLong)
+    else if (scale <= 0) jsonNumberToDecimal128(value)
+    else {
+      val double = value.toDouble
+      if (
+        java.lang.Double.isFinite(double) &&
+        new JBigDecimal(double).compareTo(value.bigDecimal) == 0
+      ) new BsonDouble(double)
+      else jsonNumberToDecimal128(value)
+    }
+  }
+
+  private def jsonNumberToDecimal128(value: BigDecimal): BsonValue =
+    try new org.bson.BsonDecimal128(new Decimal128(value.bigDecimal))
+    catch {
+      case error: NumberFormatException =>
+        throw new IllegalArgumentException(s"Json number cannot be represented exactly as BSON: $value", error)
+    }
+
+  private def bsonValueToJson(value: BsonValue, trace: List[BsonTrace]): Json =
+    value.getBsonType match {
+      case org.bson.BsonType.DOCUMENT =>
+        val fields = scala.collection.mutable.ArrayBuffer.empty[(String, Json)]
+        val iter   = value.asDocument().entrySet().iterator()
+        while (iter.hasNext) {
+          val entry = iter.next()
+          fields += entry.getKey -> bsonValueToJson(entry.getValue, BsonTrace.Field(entry.getKey) :: trace)
+        }
+        new Json.Object(Chunk.fromIterable(fields))
+      case org.bson.BsonType.ARRAY =>
+        val elements = scala.collection.mutable.ArrayBuffer.empty[Json]
+        val iter     = value.asArray().iterator()
+        var idx      = 0
+        while (iter.hasNext) {
+          elements += bsonValueToJson(iter.next(), BsonTrace.Array(idx) :: trace)
+          idx += 1
+        }
+        new Json.Array(Chunk.fromIterable(elements))
+      case org.bson.BsonType.STRING  => Json.String(value.asString().getValue)
+      case org.bson.BsonType.BOOLEAN => Json.Boolean(value.asBoolean().getValue)
+      case org.bson.BsonType.INT32   => Json.Number(value.asInt32().getValue)
+      case org.bson.BsonType.INT64   => Json.Number(value.asInt64().getValue)
+      case org.bson.BsonType.DOUBLE  =>
+        val double = value.asDouble().getValue
+        if (java.lang.Double.isFinite(double)) {
+          val decimal = new JBigDecimal(double)
+          Json.Number(BigDecimal(if (decimal.scale <= 0) decimal.setScale(1) else decimal))
+        } else throw BsonDecoder.Error(trace, s"Unsupported non-finite DOUBLE for Json: $double")
+      case org.bson.BsonType.DECIMAL128 =>
+        val decimal = value.asDecimal128().getValue
+        if (decimal.isNaN || decimal.isInfinite)
+          throw BsonDecoder.Error(trace, s"Unsupported non-finite DECIMAL128 for Json: $decimal")
+        else if (decimal.compareTo(Decimal128.NEGATIVE_ZERO) == 0) Json.Number(0)
+        else Json.Number(BigDecimal(decimal.bigDecimalValue()))
+      case org.bson.BsonType.NULL => Json.Null
+      case other                  => throw BsonDecoder.Error(trace, s"Unsupported BSON type for Json: $other")
+    }
+
   val dayOfWeek: BsonCodec[DayOfWeek] = stringBased[DayOfWeek](
     _.toString,
     DayOfWeek.valueOf
@@ -461,6 +563,65 @@ object BsonCodec {
   val currency: BsonCodec[Currency] = stringBased[Currency](
     _.getCurrencyCode,
     Currency.getInstance
+  )
+
+  val unit: BsonCodec[Unit] = BsonCodec(
+    new BsonEncoder[Unit] {
+      def encode(writer: BsonWriter, value: Unit, ctx: BsonEncoder.EncoderContext): Unit = {
+        writer.writeStartDocument()
+        writer.writeEndDocument()
+      }
+      def toBsonValue(value: Unit): BsonValue = new BsonDocument()
+    },
+    new BsonDecoder[Unit] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): Unit = {
+        reader.readStartDocument()
+        while (reader.readBsonType() != org.bson.BsonType.END_OF_DOCUMENT) {
+          reader.readName()
+          reader.skipValue()
+        }
+        reader.readEndDocument()
+      }
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): Unit = ()
+    }
+  )
+
+  val scalaBigInt: BsonCodec[BigInt] = BsonCodec(
+    new BsonEncoder[BigInt] {
+      def encode(writer: BsonWriter, value: BigInt, ctx: BsonEncoder.EncoderContext): Unit =
+        BsonEncoder.bigInteger.encode(writer, value.bigInteger, ctx)
+      def toBsonValue(value: BigInt): BsonValue = BsonEncoder.bigInteger.toBsonValue(value.bigInteger)
+    },
+    new BsonDecoder[BigInt] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): BigInt =
+        BigInt(BsonDecoder.bigInteger.decodeUnsafe(reader, trace, ctx))
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): BigInt = BigInt(BsonDecoder.bigInteger.fromBsonValueUnsafe(value, trace, ctx))
+    }
+  )
+
+  val scalaBigDecimal: BsonCodec[BigDecimal] = BsonCodec(
+    new BsonEncoder[BigDecimal] {
+      def encode(writer: BsonWriter, value: BigDecimal, ctx: BsonEncoder.EncoderContext): Unit =
+        bigDecimal.encoder.encode(writer, value.bigDecimal, ctx)
+      def toBsonValue(value: BigDecimal): BsonValue = bigDecimal.encoder.toBsonValue(value.bigDecimal)
+    },
+    new BsonDecoder[BigDecimal] {
+      def decodeUnsafe(reader: BsonReader, trace: List[BsonTrace], ctx: BsonDecoder.BsonDecoderContext): BigDecimal =
+        BigDecimal(bigDecimal.decoder.decodeUnsafe(reader, trace, ctx))
+      def fromBsonValueUnsafe(
+        value: BsonValue,
+        trace: List[BsonTrace],
+        ctx: BsonDecoder.BsonDecoderContext
+      ): BigDecimal = BigDecimal(bigDecimal.decoder.fromBsonValueUnsafe(value, trace, ctx))
+    }
   )
 }
 

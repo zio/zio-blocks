@@ -43,6 +43,7 @@ const sidebars = {
                  "reference/schema/optics",
                  "reference/schema/dynamic-optic",
                  "reference/schema/path-interpolator",
+                 "reference/schema/schema-search",
                  "reference/schema/schema-expr",
                  "reference/schema/patch",
                ]
@@ -217,6 +218,7 @@ const sidebars = {
               "reference/htmx/hx-encoding",
               "reference/htmx/hx-sync",
               "reference/htmx/attribute-values",
+              "reference/htmx/response-headers",
             ]
           },
           {

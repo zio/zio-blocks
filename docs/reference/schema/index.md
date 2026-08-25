@@ -25,6 +25,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 - [`Optics`](./optics.md) — Reflective optics for type-safe, composable access to nested data structures
 - [`DynamicOptic`](./dynamic-optic.md) — Runtime path through nested data structures
 - [`Path Interpolator`](./path-interpolator.md) — Compile-time string interpolator `p"..."` for constructing `DynamicOptic` instances
+- [`Schema Search and Update`](./schema-search.md) — Executing type/schema-pattern searches with `SearchTraversal`, and rewriting schema metadata with `Reflect.Updater`/`Term.Updater`
 - [`SchemaExpr`](./schema-expr.md) — Schema-aware expressions for evaluation and query language translation
 - [`Patch`](./patch.md) — Type-safe, serializable transformations of data structures
 - [`Modifier`](./modifier.md) — Mechanism to attach metadata and configuration to schema elements
