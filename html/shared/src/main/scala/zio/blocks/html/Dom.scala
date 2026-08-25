@@ -496,11 +496,12 @@ object Dom {
      * A `<tr>` table row element.
      *
      * Unlike permissive elements (`li`, `th`, `td`), this class intentionally
-     * does not override `apply(DomModifier*)`: its content model only permits
-     * `<th>`/`<td>` cells, so children must be added through the `tr(...)`
-     * factory, which enforces that restriction at compile time. Attributes can
-     * still be attached afterwards via `when(...)` or modifier application,
-     * which return a plain `Element`.
+     * keeps the row content model intact: it does not override
+     * `apply(DomModifier*)`, and [[withChildren]] returns a plain `Element`, so
+     * replacing children drops the `Tr` marker — children belong in the
+     * `tr(...)` factory, which enforces the restriction at compile time.
+     * Attributes can still be attached via [[withAttributes]], preserving the
+     * marker.
      *
      * Equality is structural across all `Element` implementations, so a
      * `TrElement` equals a `Generic("tr", ...)` with the same attributes and
@@ -519,7 +520,7 @@ object Dom {
       def tag: String                                 = "tr"
       private[html] def escapeText: Boolean           = true
       def withAttributes(attrs: Chunk[Attribute]): Tr = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Tr          = copy(children = kids)
+      def withChildren(kids: Chunk[Dom]): Element     = copy(children = kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
@@ -559,11 +560,11 @@ object Dom {
      * An `<optgroup>` element.
      *
      * Unlike the other typed elements, this class intentionally does not
-     * override `apply(DomModifier*)`: its content model only permits `<option>`
-     * children, so children must be added through the `optgroup(...)` factory,
-     * which enforces that restriction at compile time. Attributes can still be
-     * attached afterwards via `when(...)` or modifier application, which return
-     * a plain `Element`.
+     * override `apply(DomModifier*)`, and [[withChildren]] returns a plain
+     * `Element`, so replacing children drops the `Optgroup` marker — children
+     * belong in the `optgroup(...)` factory, which enforces that restriction at
+     * compile time. Attributes can still be attached via [[withAttributes]],
+     * preserving the marker.
      *
      * Equality is structural across all `Element` implementations, so an
      * `OptgroupElement` equals a `Generic("optgroup", ...)` with the same
@@ -582,7 +583,7 @@ object Dom {
       def tag: String                                       = "optgroup"
       private[html] def escapeText: Boolean                 = true
       def withAttributes(attrs: Chunk[Attribute]): Optgroup = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Optgroup          = copy(children = kids)
+      def withChildren(kids: Chunk[Dom]): Element           = copy(children = kids)
 
       override def equals(other: Any): Boolean = structuralEquals(other)
       override def hashCode: Int               = structuralHashCode
