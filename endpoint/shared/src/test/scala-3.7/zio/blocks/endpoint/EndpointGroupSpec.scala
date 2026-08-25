@@ -68,6 +68,12 @@ object EndpointGroupSpec extends ZIOSpecDefault {
         }
         assertTrue(group.`GET#|POST /orders`.route.render == "GET#|POST /orders")
       },
+      test("trailing segment Endpoint(Method.GET / PathCodec.trailing) names `GET /...`") {
+        val group = endpoints {
+          Endpoint(Method.GET / PathCodec.trailing)
+        }
+        assertTrue(group.`GET /...`.route.render == "GET /...")
+      },
       test("same path different method coexist: GET /users and POST /users") {
         val group = endpoints {
           Endpoint(Method.GET / "users")

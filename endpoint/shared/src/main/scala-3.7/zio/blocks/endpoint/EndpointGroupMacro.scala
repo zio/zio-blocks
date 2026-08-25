@@ -122,7 +122,7 @@ private[endpoint] object EndpointGroupMacro {
       val nameToTerms = raw.groupBy(_._1)
       nameToTerms.foreach { case (n, list) =>
         if (list.size > 1) {
-          val locs = list.map { case (_, t, _) => s"${t.pos.sourceFile.name}:${t.pos.startLine}" }.mkString(", ")
+          val locs = list.map { case (_, t, _) => s"${t.pos.sourceFile.name}:${t.pos.startLine + 1}" }.mkString(", ")
           report.error(s"duplicate endpoint name `$n` from: $locs; rename one or assign to an explicit `val`")
         }
       }
@@ -260,6 +260,7 @@ private[endpoint] object EndpointGroupMacro {
         case Apply(TypeApply(Select(left, "/"), _), List(right))                   => pathRender0(left) + "/" + pathRender0(right)
         case Apply(Select(left, "~"), List(right))                                 => pathRender0(left) + pathRender0(right)
         case Apply(Select(_, "trailing"), _)                                       => "..."
+        case Select(_, "trailing")                                                 => "..."
         case Apply(TypeApply(Ident("leftUnit"), _), List(inner))                   => pathRender0(inner)
         case Apply(Select(qual, "apply"), args) if qual.symbol.name == "PathCodec" =>
           pathRender0(args.headOption.getOrElse(qual))

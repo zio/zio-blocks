@@ -66,9 +66,11 @@ object BulkDsl {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
       _pathVarsCombiner: PathCodec.RoutePathVarsCombiner[PV, PV2, PVC]
-    ): RoutePattern[C] { type PathVars = PVC } =
+    ): RoutePattern[C] { type PathVars = PVC } = {
+      val _ = _pathVarsCombiner
       self
         .copy(pathCodec = PathCodec.combineUnrefined(self.pathCodec, that)(combiner))
         .asInstanceOf[RoutePattern[C] { type PathVars = PVC }]
+    }
   }
 }
