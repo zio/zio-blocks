@@ -159,12 +159,28 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    joinProducer()
     // A recorded error the consumer never observed via a read (e.g. an
     // upstream close failure after the last element) must still surface
     // (Principle 4): rethrow it exactly once at teardown.
     val err = producerError
     if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  }
+
+  // `Thread.join` throws InterruptedException based on the *calling* thread's
+  // own interrupt status, checked unconditionally before it even looks at
+  // whether the joined thread is alive. The caller here is not always an
+  // innocent bystander: closing a nested buffer runs on the outer producer's
+  // own thread (from its `finally`, above), and that thread was very likely
+  // just interrupted itself to unwind its own read loop. Left alone, that
+  // leftover flag makes this join throw immediately, and the resulting
+  // InterruptedException gets reported as if the (perfectly healthy) producer
+  // had failed. Suspend the caller's flag for the join, then restore it, so
+  // an interrupt this reader didn't cause can't be mistaken for one it did.
+  private def joinProducer(): Unit = {
+    val callerWasInterrupted = Thread.interrupted()
+    try producerThread.join(5000)
+    finally if (callerWasInterrupted) Thread.currentThread().interrupt()
   }
 
   override def reset(): Unit = {
@@ -176,7 +192,7 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    joinProducer()
     // 2) Replay the upstream. A genuine one-shot source throws
     //    UnsupportedOperationException here, which correctly propagates: a buffer
     //    over a one-shot source is itself one-shot. (The producer already closed

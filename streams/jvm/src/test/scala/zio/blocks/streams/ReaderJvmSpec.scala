@@ -443,6 +443,35 @@ object ReaderJvmSpec extends StreamsBaseSpec {
           val result = reader.readUpToN[Int](0)
           reader.close()
           assertTrue(result == Chunk.empty)
+        },
+        // ---- BUG regression: close() must not confuse the caller's own
+        // pending interrupt for a producer failure. `Thread.join` throws
+        // InterruptedException based on the *calling* thread's interrupt
+        // status alone, checked before it even looks at the joined thread's
+        // state. Closing a doubly-buffered reader runs this same close() on
+        // the outer producer thread while closing the inner buffer — and
+        // that thread had just interrupted itself to unwind its own loop, so
+        // the leftover flag made this join throw as if the inner producer had
+        // failed, occasionally (flakily) failing "double buffer (buffer then
+        // buffer) works correctly" in StreamConcurrencyJvmSpec. Simulated
+        // here directly, with no nesting or timing required: any caller whose
+        // own interrupt flag is already set when it calls close() must see
+        // that reproduced deterministically, every run.
+        test("close() does not throw when the calling thread already has a pending interrupt") {
+          val reader = Stream.compileToReader(Stream.fromChunk(Chunk(1, 2, 3)).buffer(4))
+          reader.read(-1)
+          Thread.currentThread().interrupt()
+          try {
+            reader.close()
+            // Captured into a val before asserting: the zio-test runtime
+            // itself clears stray Java-level interrupt flags as part of its
+            // own fiber bookkeeping, so reading `Thread.currentThread()
+            // .isInterrupted` lazily inside `assertTrue`'s macro expansion
+            // can observe it already cleared. Reading it immediately here,
+            // in plain synchronous code, captures the true post-close() value.
+            val stillInterrupted = Thread.currentThread().isInterrupted
+            assertTrue(stillInterrupted)
+          } finally Thread.interrupted() // clear before returning the thread to the pool
         }
       ),
       suite("ConcurrentMergeReader (JVM)")(
