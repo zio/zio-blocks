@@ -177,7 +177,7 @@ given DbCon = ???
 val page: List[User] = sql"SELECT id, name FROM users ORDER BY name".queryLimit[User](10)
 ```
 
-**`queryStream[A]`** — Execute SELECT and return rows as a chunked stream (`zio.blocks.streams.Stream`), batching `DefaultQueryChunkSize` (64) rows per chunk:
+**`queryStream[A]`** — Execute SELECT and return rows as a chunked stream (`zio.blocks.streams.Stream`), batching `DefaultQueryChunkSize` (64) rows per chunk. Acquisition is lazy — nothing touches the connection until the first pull — so consume the stream within the scope that provides the `DbCon`; leaving `Transactor.connect`/`transact` closes the captured connection, and pulling afterwards fails.
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
@@ -195,7 +195,7 @@ val chunks: Stream[Throwable, Chunk[User]] =
 val all: Either[Throwable, List[User]] = chunks.runCollect.map(_.toList.flatten)
 ```
 
-**`queryChunked[A](n)`** — Like `queryStream`, but with an explicit batch size. The statement and result set are acquired lazily on the first pull and released when the stream is closed or fully drained; each chunk holds up to `n` rows, so memory stays bounded for large result sets:
+**`queryChunked[A](n)`** — Like `queryStream`, but with an explicit batch size. The statement and result set are acquired lazily on the first pull and released when the stream is closed or fully drained; each chunk holds up to `n` rows, so memory stays bounded for large result sets. The same lifetime rule applies: consume the stream before the enclosing `Transactor.connect`/`transact` callback returns — afterwards the captured connection is closed and the first pull fails.
 
 ```scala mdoc:compile-only
 import zio.blocks.chunk.Chunk
