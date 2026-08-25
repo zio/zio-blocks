@@ -172,13 +172,12 @@ trait HtmlElements {
   private def elFromListArgs(args: Seq[ListArg], tag: String): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
-    var i            = 0
-    while (i < args.length) {
-      args(i) match {
+    val it           = args.iterator
+    while (it.hasNext) {
+      it.next() match {
         case ListArg.Attribute(attr) => attrBuilder += attr
         case ListArg.Item(item)      => childBuilder += item
       }
-      i += 1
     }
     Dom.Element.Generic(tag, attrBuilder.result(), childBuilder.result())
   }
@@ -187,13 +186,12 @@ trait HtmlElements {
   private def trFromCellArgs(args: Seq[CellArg]): Dom.Element.Tr = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
-    var i            = 0
-    while (i < args.length) {
-      args(i) match {
+    val it           = args.iterator
+    while (it.hasNext) {
+      it.next() match {
         case CellArg.Attribute(attr) => attrBuilder += attr
         case CellArg.Cell(cell)      => childBuilder += cell
       }
-      i += 1
     }
     Dom.Element.TrElement(attrBuilder.result(), childBuilder.result())
   }
@@ -205,13 +203,12 @@ trait HtmlElements {
   private def tableFromRowArgs(args: Seq[RowArg]): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
-    var i            = 0
-    while (i < args.length) {
-      args(i) match {
+    val it           = args.iterator
+    while (it.hasNext) {
+      it.next() match {
         case RowArg.Attribute(attr) => attrBuilder += attr
         case RowArg.Row(row)        => childBuilder += row
       }
-      i += 1
     }
     Dom.Element.Generic("table", attrBuilder.result(), childBuilder.result())
   }
@@ -223,13 +220,12 @@ trait HtmlElements {
   private def selectFromSelectArgs(args: Seq[SelectArg]): Dom.Element = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
-    var i            = 0
-    while (i < args.length) {
-      args(i) match {
+    val it           = args.iterator
+    while (it.hasNext) {
+      it.next() match {
         case SelectArg.Attribute(attr) => attrBuilder += attr
         case SelectArg.Child(child)    => childBuilder += child
       }
-      i += 1
     }
     Dom.Element.Generic("select", attrBuilder.result(), childBuilder.result())
   }
@@ -241,13 +237,12 @@ trait HtmlElements {
   private def groupFromOptgroupArgs(args: Seq[OptgroupArg]): Dom.Element.OptgroupElement = {
     val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
     val childBuilder = Chunk.newBuilder[Dom]
-    var i            = 0
-    while (i < args.length) {
-      args(i) match {
+    val it           = args.iterator
+    while (it.hasNext) {
+      it.next() match {
         case OptgroupArg.Attribute(attr) => attrBuilder += attr
         case OptgroupArg.Option(opt)     => childBuilder += opt
       }
-      i += 1
     }
     Dom.Element.OptgroupElement(attrBuilder.result(), childBuilder.result())
   }
@@ -388,11 +383,17 @@ trait HtmlElements {
   val wbr: Dom.Element.Void                                          = Dom.Element.VoidGeneric("wbr", Chunk.empty)
   def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
 
+  /** Creates an empty `<li>` element, returning `Li`. */
+  def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
+
   /**
-   * Empty `<li>` element; apply attributes/children via `li(...)`, returning
-   * `Li`.
+   * Creates a `<li>` element from attributes and children, returning `Li`.
+   *
+   * The HTML content model of `<li>` permits flow content, so any modifier
+   * values are accepted.
    */
-  val li: Dom.Element.LiElement = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
+  def li(effect: DomModifier, effects: DomModifier*): Dom.Element.Li =
+    Dom.Element.LiElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
   /** Creates an empty `<ul>` element. */
   def ul(): Dom.Element = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
@@ -428,20 +429,32 @@ trait HtmlElements {
   def ol(children: Iterable[Dom.Element.Li]): Dom.Element =
     Dom.Element.Generic("ol", Chunk.empty, Chunk.from(children))
 
-  /**
-   * Empty `<th>` element; apply attributes/children via `th(...)`, returning
-   * `Th`.
-   */
-  val th: Dom.Element.ThElement = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
+  /** Creates an empty `<th>` element, returning `Th`. */
+  def th(): Dom.Element.Th = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
 
   /**
-   * Empty `<td>` element; apply attributes/children via `td(...)`, returning
-   * `Td`.
+   * Creates a `<th>` element from attributes and children, returning `Th`.
+   *
+   * The HTML content model of `<th>` permits flow content, so any modifier
+   * values are accepted.
    */
-  val td: Dom.Element.TdElement = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
+  def th(effect: DomModifier, effects: DomModifier*): Dom.Element.Th =
+    Dom.Element.ThElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
+
+  /** Creates an empty `<td>` element, returning `Td`. */
+  def td(): Dom.Element.Td = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
+
+  /**
+   * Creates a `<td>` element from attributes and children, returning `Td`.
+   *
+   * The HTML content model of `<td>` permits flow content, so any modifier
+   * values are accepted.
+   */
+  def td(effect: DomModifier, effects: DomModifier*): Dom.Element.Td =
+    Dom.Element.TdElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
   /** Creates an empty `<tr>` element, returning `Tr`. */
-  def tr(): Dom.Element.TrElement = Dom.Element.TrElement(Chunk.empty, Chunk.empty)
+  def tr(): Dom.Element.Tr = Dom.Element.TrElement(Chunk.empty, Chunk.empty)
 
   /**
    * Creates a `<tr>` element from attributes and table cells (`<th>`/`<td>`)
@@ -466,7 +479,7 @@ trait HtmlElements {
    * The row arguments are restricted to [[Dom.Element.Tr]] at compile time;
    * [[Dom.Attribute]] values are accepted alongside them. Other table sections
    * (`caption`, `colgroup`, `thead`, `tbody`, `tfoot`) do not have typed
-   * markers yet — compose tables containing them with the `html"` interpolator
+   * markers yet — compose tables containing them with the `html""` interpolator
    * or generic elements instead.
    */
   def table(effect: RowArg, effects: RowArg*): Dom.Element =
@@ -476,14 +489,21 @@ trait HtmlElements {
   def table(children: Iterable[Dom.Element.Tr]): Dom.Element =
     Dom.Element.Generic("table", Chunk.empty, Chunk.from(children))
 
+  /** Creates an empty `<option>` element, returning `Opt`. */
+  def option(): Dom.Element.Opt = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+
   /**
-   * Empty `<option>` element; apply attributes/children via `option(...)`,
-   * returning `Opt`.
+   * Creates an `<option>` element from attributes and children, returning
+   * `Opt`.
+   *
+   * The HTML content model of `<option>` permits flow content, so any modifier
+   * values are accepted.
    */
-  val option: Dom.Element.OptElement = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+  def option(effect: DomModifier, effects: DomModifier*): Dom.Element.Opt =
+    Dom.Element.OptElement(Chunk.empty, Chunk.empty)(effect, effects: _*)
 
   /** Creates an empty `<optgroup>` element, returning `Optgroup`. */
-  def optgroup(): Dom.Element.OptgroupElement = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
+  def optgroup(): Dom.Element.Optgroup = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
 
   /**
    * Creates an `<optgroup>` element from attributes and `<option>` children.
@@ -492,13 +512,13 @@ trait HtmlElements {
    * children, so the child arguments are restricted to [[Dom.Element.Opt]] at
    * compile time; [[Dom.Attribute]] values are accepted alongside them.
    */
-  def optgroup(effect: OptgroupArg, effects: OptgroupArg*): Dom.Element.OptgroupElement =
+  def optgroup(effect: OptgroupArg, effects: OptgroupArg*): Dom.Element.Optgroup =
     groupFromOptgroupArgs(effect +: effects)
 
   /**
    * Creates an `<optgroup>` element from an iterable of `<option>` children.
    */
-  def optgroup(children: Iterable[Dom.Element.Opt]): Dom.Element.OptgroupElement =
+  def optgroup(children: Iterable[Dom.Element.Opt]): Dom.Element.Optgroup =
     Dom.Element.OptgroupElement(Chunk.empty, Chunk.from(children))
 
   /** Creates an empty `<select>` element. */

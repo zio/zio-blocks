@@ -229,6 +229,19 @@ object Dom {
 
     private[html] def escapeText: Boolean
 
+    /**
+     * Structural comparison shared by every concrete `Element` implementation:
+     * two elements are equal when their tag, attributes, and children match,
+     * regardless of the concrete classes involved.
+     */
+    private[html] def structuralEquals(other: Any): Boolean = other match {
+      case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
+      case _          => false
+    }
+
+    /** Hash code consistent with [[structuralEquals]]. */
+    private[html] def structuralHashCode: Int = (tag, attributes, children).hashCode
+
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
       sb.append('<')
       sb.append(tag)
@@ -383,11 +396,8 @@ object Dom {
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     // --- Typed content model elements (proper OO hierarchy for Scala 2/3 parity) ---
@@ -418,11 +428,8 @@ object Dom {
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Li =
         if (condition) apply(effect, effects: _*) else this
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -451,11 +458,8 @@ object Dom {
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Th =
         if (condition) apply(effect, effects: _*) else this
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -484,15 +488,19 @@ object Dom {
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Td =
         if (condition) apply(effect, effects: _*) else this
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
      * A `<tr>` table row element.
+     *
+     * Unlike permissive elements (`li`, `th`, `td`), this class intentionally
+     * does not override `apply(DomModifier*)`: its content model only permits
+     * `<th>`/`<td>` cells, so children must be added through the `tr(...)`
+     * factory, which enforces that restriction at compile time. Attributes can
+     * still be attached afterwards via `when(...)` or modifier application,
+     * which return a plain `Element`.
      *
      * Equality is structural across all `Element` implementations, so a
      * `TrElement` equals a `Generic("tr", ...)` with the same attributes and
@@ -501,27 +509,20 @@ object Dom {
      * @param attributes
      *   attribute key-value pairs
      * @param children
-     *   child DOM nodes
+     *   child DOM nodes (`<th>`/`<td>` cells only)
      */
     final case class TrElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element
         with Tr {
-      def tag: String                                                    = "tr"
-      private[html] def escapeText: Boolean                              = true
-      def withAttributes(attrs: Chunk[Attribute]): Tr                    = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Tr                             = copy(children = kids)
-      override def apply(effect: DomModifier, effects: DomModifier*): Tr =
-        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Tr]
-      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Tr =
-        if (condition) apply(effect, effects: _*) else this
+      def tag: String                                 = "tr"
+      private[html] def escapeText: Boolean           = true
+      def withAttributes(attrs: Chunk[Attribute]): Tr = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Tr          = copy(children = kids)
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -550,11 +551,8 @@ object Dom {
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Opt =
         if (condition) apply(effect, effects: _*) else this
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -586,11 +584,8 @@ object Dom {
       def withAttributes(attrs: Chunk[Attribute]): Optgroup = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Optgroup          = copy(children = kids)
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -625,11 +620,8 @@ object Dom {
       def externalJs(url: String): Script =
         copy(attributes = attributes :+ Attribute.KeyValue("src", AttributeValue.StringValue(url)))
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -658,11 +650,8 @@ object Dom {
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))
 
-      override def equals(other: Any): Boolean = other match {
-        case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-        case _          => false
-      }
-      override def hashCode: Int = (tag, attributes, children).hashCode
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
