@@ -361,7 +361,13 @@ object BsonCodec {
   private def jsonToBsonValue(value: Json): BsonValue = value match {
     case obj: Json.Object =>
       val document = new BsonDocument()
-      obj.value.foreach { case (key, json) => document.put(key, jsonToBsonValue(json)) }
+      obj.value.foreach { case (key, json) =>
+        if (document.containsKey(key))
+          throw new IllegalArgumentException(
+            s"Json object contains duplicate field '$key', which cannot be represented as a BSON document"
+          )
+        document.put(key, jsonToBsonValue(json))
+      }
       document
     case array: Json.Array =>
       val bsonArray = new BsonArray()
@@ -420,12 +426,16 @@ object BsonCodec {
       case org.bson.BsonType.INT64   => Json.Number(value.asInt64().getValue)
       case org.bson.BsonType.DOUBLE  =>
         val double = value.asDouble().getValue
-        if (java.lang.Double.isFinite(double)) Json.Number(double)
-        else throw BsonDecoder.Error(trace, s"Unsupported non-finite DOUBLE for Json: $double")
+        if (java.lang.Double.isFinite(double)) {
+          val decimal = new JBigDecimal(double)
+          Json.Number(BigDecimal(if (decimal.scale <= 0) decimal.setScale(1) else decimal))
+        } else throw BsonDecoder.Error(trace, s"Unsupported non-finite DOUBLE for Json: $double")
       case org.bson.BsonType.DECIMAL128 =>
         val decimal = value.asDecimal128().getValue
-        if (decimal.isFinite) Json.Number(BigDecimal(decimal.bigDecimalValue()))
-        else throw BsonDecoder.Error(trace, s"Unsupported non-finite DECIMAL128 for Json: $decimal")
+        if (decimal.isNaN || decimal.isInfinite)
+          throw BsonDecoder.Error(trace, s"Unsupported non-finite DECIMAL128 for Json: $decimal")
+        else if (decimal.compareTo(Decimal128.NEGATIVE_ZERO) == 0) Json.Number(0)
+        else Json.Number(BigDecimal(decimal.bigDecimalValue()))
       case org.bson.BsonType.NULL => Json.Null
       case other                  => throw BsonDecoder.Error(trace, s"Unsupported BSON type for Json: $other")
     }

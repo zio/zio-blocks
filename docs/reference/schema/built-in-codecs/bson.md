@@ -416,6 +416,12 @@ val codec = Person.schema
 
 Type-level overrides affect every matching occurrence. Parent-type and term-name overloads are also available for fields and variant cases. String map keys remain BSON document field names; override map values or the whole map codec when custom map behavior is needed.
 
+Record-level `Modifier.fieldNaming` and `Modifier.noExtraFields` annotations override the corresponding default BSON behavior. Variant-level `Modifier.caseNaming` and `Modifier.discriminator` annotations override class-name mapping and sum-type handling for the annotated variant.
+
+### Semantic Json values
+
+`zio.blocks.schema.json.Json` objects, arrays, scalars, and nulls map directly to their semantic BSON equivalents. Finite BSON doubles other than signed zero retain their exact value when converted through `Json`; BSON signed zero is normalized to JSON zero because `Json.Number` does not retain its sign. Duplicate `Json.Object` field names are rejected because `BsonDocument` cannot represent them without data loss.
+
 ---
 
 ## BsonTrace

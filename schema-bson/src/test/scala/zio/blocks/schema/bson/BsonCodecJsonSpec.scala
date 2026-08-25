@@ -17,6 +17,7 @@
 package zio.blocks.schema.bson
 
 import org.bson._
+import org.bson.io.BasicOutputBuffer
 import org.bson.types.{Decimal128, ObjectId}
 import zio.blocks.schema._
 import zio.blocks.schema.json.Json
@@ -57,16 +58,16 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
     },
     test("selects lossless BSON number representations") {
       val values = List(
-        Json.Number(Int.MinValue)                         -> BsonType.INT32,
-        Json.Number(Int.MaxValue)                         -> BsonType.INT32,
-        Json.Number(Int.MaxValue.toLong + 1L)             -> BsonType.INT64,
-        Json.Number(Long.MinValue)                        -> BsonType.INT64,
-        Json.Number(Long.MaxValue)                        -> BsonType.INT64,
-        Json.Number(BigInt(Long.MaxValue) + 1)            -> BsonType.DECIMAL128,
-        Json.Number(BigDecimal("1.0"))                   -> BsonType.DOUBLE,
-        Json.Number(BigDecimal("1.25"))                  -> BsonType.DOUBLE,
-        Json.Number(BigDecimal("0.1"))                   -> BsonType.DECIMAL128,
-        Json.Number(BigDecimal("1.234567890123456789"))  -> BsonType.DECIMAL128,
+        Json.Number(Int.MinValue)                          -> BsonType.INT32,
+        Json.Number(Int.MaxValue)                          -> BsonType.INT32,
+        Json.Number(Int.MaxValue.toLong + 1L)              -> BsonType.INT64,
+        Json.Number(Long.MinValue)                         -> BsonType.INT64,
+        Json.Number(Long.MaxValue)                         -> BsonType.INT64,
+        Json.Number(BigInt(Long.MaxValue) + 1)             -> BsonType.DECIMAL128,
+        Json.Number(BigDecimal("1.0"))                     -> BsonType.DOUBLE,
+        Json.Number(BigDecimal("1.25"))                    -> BsonType.DOUBLE,
+        Json.Number(BigDecimal("0.1"))                     -> BsonType.DECIMAL128,
+        Json.Number(BigDecimal("1.234567890123456789"))    -> BsonType.DECIMAL128,
         Json.Number(BigDecimal("9.999999999999999E+6144")) -> BsonType.DECIMAL128
       )
 
@@ -88,13 +89,13 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
     },
     test("decodes every BSON type that has a semantic Json representation") {
       val values = List[(BsonValue, Json)](
-        new BsonString("text")                         -> Json.String("text"),
-        BsonBoolean.TRUE                               -> Json.True,
-        new BsonInt32(42)                              -> Json.Number(42),
-        new BsonInt64(1234567890123L)                  -> Json.Number(1234567890123L),
-        new BsonDouble(1.25)                           -> Json.Number(1.25),
-        new BsonDecimal128(Decimal128.parse("0.1"))   -> Json.Number(BigDecimal("0.1")),
-        BsonNull.VALUE                                 -> Json.Null,
+        new BsonString("text")                                                          -> Json.String("text"),
+        BsonBoolean.TRUE                                                                -> Json.True,
+        new BsonInt32(42)                                                               -> Json.Number(42),
+        new BsonInt64(1234567890123L)                                                   -> Json.Number(1234567890123L),
+        new BsonDouble(1.25)                                                            -> Json.Number(1.25),
+        new BsonDecimal128(Decimal128.parse("0.1"))                                     -> Json.Number(BigDecimal("0.1")),
+        BsonNull.VALUE                                                                  -> Json.Null,
         new BsonArray(java.util.Arrays.asList(new BsonInt32(1), new BsonString("two"))) ->
           Json.Array(Json.Number(1), Json.String("two")),
         new BsonDocument("key", new BsonString("value")) -> Json.Object("key" -> Json.String("value"))
@@ -105,13 +106,38 @@ object BsonCodecJsonSpec extends SchemaBaseSpec {
       })
     },
     test("preserves exact BSON DOUBLE values through Json round-trip") {
-      val values = List(new BsonDouble(1.25), new BsonDouble(1.0))
+      val values = List(new BsonDouble(0.1), new BsonDouble(1.25), new BsonDouble(1.0))
 
       assertTrue(values.forall { bson =>
         jsonCodec.decoder.fromBsonValue(bson).exists { json =>
           jsonCodec.encoder.toBsonValue(json) == bson
         }
       })
+    },
+    test("normalizes Decimal128 negative zero") {
+      val values = List(
+        new BsonDecimal128(Decimal128.NEGATIVE_ZERO),
+        new BsonDecimal128(Decimal128.parse("-0.00"))
+      )
+
+      assertTrue(values.forall(jsonCodec.decoder.fromBsonValue(_) == Right(Json.Number(0))))
+    },
+    test("rejects duplicate Json object fields") {
+      val json            = Json.Object("key" -> Json.Number(1), "key" -> Json.Number(2))
+      val bsonValueResult = scala.util.Try(jsonCodec.encoder.toBsonValue(json)).failed.toOption
+      val writerResult    = scala.util.Try {
+        val buffer = new BasicOutputBuffer()
+        try {
+          val writer = new BsonBinaryWriter(buffer)
+          try jsonCodec.encoder.encode(writer, json, BsonEncoder.EncoderContext.default)
+          finally writer.close()
+        } finally buffer.close()
+      }.failed.toOption
+
+      assertTrue(
+        bsonValueResult.exists(_.getMessage.contains("duplicate field 'key'")),
+        writerResult.exists(_.getMessage.contains("duplicate field 'key'"))
+      )
     },
     test("rejects non-finite BSON numbers") {
       val values = List[BsonValue](

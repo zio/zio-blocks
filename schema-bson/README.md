@@ -178,3 +178,5 @@ All ZIO Blocks Schema primitive types are supported and mapped to their BSON equ
 -   `Collections` (BSON Arrays)
 -   `Maps` (BSON Documents)
 -   `zio.blocks.schema.json.Json` (semantic BSON documents, arrays, and scalar values)
+
+Semantic `Json` conversion preserves finite BSON double values except for signed zero, normalizes BSON signed zero to JSON zero, and rejects duplicate object field names that `BsonDocument` cannot represent.

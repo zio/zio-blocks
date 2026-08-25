@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package zio.blocks.schema.bson
 
 import org.bson.{BsonReader, BsonWriter, BsonValue}
@@ -128,17 +129,21 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
         Reflect.Record.registers(fields.map(_.value).toArray).toIndexedSeq
       }
 
-    val fieldDefaults: Array[Option[Any]] = fields.map(_.value.getDefaultValue.asInstanceOf[Option[Any]]).toArray
     // Obtain codecs derived by DerivationBuilder. Deferred children remain lazy to break recursive cycles.
     val fieldCodecs: Array[BsonCodec[Any]] = fields.map { field =>
       childCodec(field.value.asInstanceOf[Reflect[F, Any]]).asInstanceOf[BsonCodec[Any]]
     }.toArray
 
+    val fieldNameMapper = modifiers.collectFirst { case m: Modifier.fieldNaming =>
+      NameMapper.fromString(m.strategy)
+    }.getOrElse(NameMapper.Identity)
+    val rejectExtraFields = !config.ignoreExtraFields || modifiers.exists(_.isInstanceOf[Modifier.noExtraFields])
+
     // Get field names (respecting @rename modifier)
     val fieldNames: Array[String] = fields.map { field =>
       field.modifiers.collectFirst { case m: Modifier.rename =>
         m.name
-      }.getOrElse(field.name)
+      }.getOrElse(fieldNameMapper(field.name))
     }.toArray
 
     // Check for transient fields
@@ -218,7 +223,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
               // Check if we should reject extra fields
               // We also allow fields explicitly ignored by the context (e.g. discriminator fields)
               val isIgnored = ctx.ignoreExtraField.contains(name)
-              if (!config.ignoreExtraFields && !isIgnored) {
+              if (rejectExtraFields && !isIgnored) {
                 throw BsonDecoder.Error(BsonTrace.Field(name) :: trace, "Invalid extra field.")
               }
               // Skip unknown fields
@@ -237,7 +242,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
             // Field is missing - check if it's transient or has a default value
             if (transientFields(i)) {
               // Transient field - use default value if available
-              fieldDefaults(i) match {
+              fields(i).value.getDefaultValue match {
                 case Some(defaultValue) =>
                   registers(i).set(regs, 0, defaultValue)
                 case None =>
@@ -245,7 +250,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
               }
             } else {
               // Regular field - use default value if available
-              fieldDefaults(i) match {
+              fields(i).value.getDefaultValue match {
                 case Some(defaultValue) =>
                   registers(i).set(regs, 0, defaultValue)
                 case None =>
@@ -295,7 +300,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
               // Check if we should reject extra fields
               // We also allow fields explicitly ignored by the context (e.g. discriminator fields)
               val isIgnored = ctx.ignoreExtraField.contains(name)
-              if (!config.ignoreExtraFields && !isIgnored) {
+              if (rejectExtraFields && !isIgnored) {
                 throw BsonDecoder.Error(BsonTrace.Field(name) :: trace, "Invalid extra field.")
               }
             // Skip unknown fields
@@ -311,7 +316,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
             // Field is missing - check if it's transient or has a default value
             if (transientFields(i)) {
               // Transient field - use default value if available
-              fieldDefaults(i) match {
+              fields(i).value.getDefaultValue match {
                 case Some(defaultValue) =>
                   registers(i).set(regs, 0, defaultValue)
                 case None =>
@@ -319,7 +324,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
               }
             } else {
               // Regular field - use default value if available
-              fieldDefaults(i) match {
+              fields(i).value.getDefaultValue match {
                 case Some(defaultValue) =>
                   registers(i).set(regs, 0, defaultValue)
                 case None =>
@@ -565,7 +570,13 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
     if (typeId == TypeId.of[Json]) Lazy(BsonCodec.json.asInstanceOf[BsonCodec[A]])
     else
       Lazy {
-        val discriminator = binding.discriminator
+        val discriminator  = binding.discriminator
+        val caseNameMapper = modifiers.collectFirst { case m: Modifier.caseNaming =>
+          NameMapper.fromString(m.strategy)
+        }.getOrElse(config.classNameMapping)
+        val sumTypeHandling = modifiers.collectFirst { case m: Modifier.discriminator =>
+          SumTypeHandling.DiscriminatorField(m.name)
+        }.getOrElse(config.sumTypeHandling)
 
         // Obtain case codecs derived by DerivationBuilder.
         val caseCodecs: Array[BsonCodec[Any]] = cases.map { case_ =>
@@ -576,7 +587,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
         val caseNames: Array[String] = cases.map { case_ =>
           case_.modifiers.collectFirst { case m: Modifier.rename =>
             m.name
-          }.getOrElse(config.classNameMapping(case_.name))
+          }.getOrElse(caseNameMapper(case_.name))
         }.toArray
 
         // Get case aliases (respecting @alias modifier)
@@ -607,7 +618,7 @@ class BsonCodecDeriver private[bson] (val config: BsonSchemaCodec.Config) extend
           i += 1
         }
 
-        config.sumTypeHandling match {
+        sumTypeHandling match {
           case SumTypeHandling.WrapperWithClassNameField =>
             // WrapperWithClassNameField mode: { "CaseName": <case value> }
             val encoder = new BsonEncoder[A] {

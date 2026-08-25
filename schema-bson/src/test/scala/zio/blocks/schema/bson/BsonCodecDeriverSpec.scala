@@ -13,9 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package zio.blocks.schema.bson
 
-import org.bson.{BsonDocument, BsonInt32, BsonReader, BsonString, BsonValue, BsonWriter}
+import org.bson.{
+  BsonBinaryReader,
+  BsonBinaryWriter,
+  BsonDocument,
+  BsonInt32,
+  BsonReader,
+  BsonString,
+  BsonValue,
+  BsonWriter
+}
+import org.bson.io.BasicOutputBuffer
 import zio.blocks.schema._
 import zio.blocks.typeid.TypeId
 import zio.test._
@@ -24,7 +35,7 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
   final case class Person(name: String, age: Int, score: Int)
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived[Person]
-    val age: Lens[Person, Int] = $(_.age)
+    val age: Lens[Person, Int]          = $(_.age)
   }
 
   sealed trait Event
@@ -40,12 +51,43 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
 
   final case class Nested(person: Person, event: Event, events: List[Event], lookup: Map[String, Int], meter: Meter)
   object Nested extends CompanionOptics[Nested] {
-    implicit val schema: Schema[Nested] = Schema.derived[Nested]
-    val person: Lens[Nested, Person] = $(_.person)
-    val event: Lens[Nested, Event] = $(_.event)
-    val events: Lens[Nested, List[Event]] = $(_.events)
+    implicit val schema: Schema[Nested]        = Schema.derived[Nested]
+    val person: Lens[Nested, Person]           = $(_.person)
+    val event: Lens[Nested, Event]             = $(_.event)
+    val events: Lens[Nested, List[Event]]      = $(_.events)
     val lookup: Lens[Nested, Map[String, Int]] = $(_.lookup)
-    val meter: Lens[Nested, Meter] = $(_.meter)
+    val meter: Lens[Nested, Meter]             = $(_.meter)
+  }
+
+  final case class MutableDefault(values: Array[Int] = Array(1))
+  object MutableDefault {
+    implicit val schema: Schema[MutableDefault] = Schema.derived[MutableDefault]
+  }
+
+  @Modifier.noExtraFields()
+  final case class StrictRecord(value: Int)
+  object StrictRecord {
+    implicit val schema: Schema[StrictRecord] = Schema.derived[StrictRecord]
+  }
+
+  @Modifier.fieldNaming("snake_case")
+  final case class NamedRecord(firstName: String)
+  object NamedRecord {
+    implicit val schema: Schema[NamedRecord] = Schema.derived[NamedRecord]
+  }
+
+  @Modifier.discriminator("kind")
+  sealed trait DiscriminatedEvent
+  object DiscriminatedEvent {
+    final case class Data(value: Int) extends DiscriminatedEvent
+    implicit val schema: Schema[DiscriminatedEvent] = Schema.derived[DiscriminatedEvent]
+  }
+
+  @Modifier.caseNaming("snake_case")
+  sealed trait NamedEvent
+  object NamedEvent {
+    final case class DataEvent(value: Int) extends NamedEvent
+    implicit val schema: Schema[NamedEvent] = Schema.derived[NamedEvent]
   }
 
   private val stringIntCodec: BsonCodec[Int] = BsonCodec.string.transform[Int](_.toInt)(_.toString)
@@ -106,10 +148,10 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
       )
     },
     test("type, optic, parent-term, modifier, and deriver-level overrides") {
-      val value = Person("Ada", 31, 99)
-      val byType = Person.schema.deriving(BsonCodecDeriver).instance(TypeId.int, stringIntCodec).derive
+      val value   = Person("Ada", 31, 99)
+      val byType  = Person.schema.deriving(BsonCodecDeriver).instance(TypeId.int, stringIntCodec).derive
       val byOptic = Person.schema.deriving(BsonCodecDeriver).instance(Person.age, stringIntCodec).derive
-      val byTerm = Person.schema
+      val byTerm  = Person.schema
         .deriving(BsonCodecDeriver)
         .instance(Person.schema.reflect.typeId, "score", stringIntCodec)
         .derive
@@ -141,7 +183,7 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
       )
     },
     test("unsupported schema nodes retain their previous errors") {
-      val mapError = scala.util.Try(Schema[Map[Int, String]].derive(BsonCodecDeriver)).failed.toOption
+      val mapError     = scala.util.Try(Schema[Map[Int, String]].derive(BsonCodecDeriver)).failed.toOption
       val dynamicError = scala.util.Try(Schema[DynamicValue].derive(BsonCodecDeriver)).failed.toOption
       assertTrue(
         mapError.exists(_.isInstanceOf[UnsupportedOperationException]),
@@ -151,11 +193,11 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
       )
     },
     test("shape and variant decoding failures remain errors") {
-      val person = Person.schema.derive(BsonCodecDeriver)
-      val list = Schema[List[Int]].derive(BsonCodecDeriver)
-      val map = Schema[Map[String, Int]].derive(BsonCodecDeriver)
-      val event = Event.schema.derive(BsonCodecDeriver)
-      val empty = new BsonDocument()
+      val person  = Person.schema.derive(BsonCodecDeriver)
+      val list    = Schema[List[Int]].derive(BsonCodecDeriver)
+      val map     = Schema[Map[String, Int]].derive(BsonCodecDeriver)
+      val event   = Event.schema.derive(BsonCodecDeriver)
+      val empty   = new BsonDocument()
       val unknown = new BsonDocument("Unknown", empty)
       assertTrue(
         person.decoder.fromBsonValue(new BsonString("bad")).isLeft,
@@ -170,12 +212,12 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
     test("structural child overrides are used") {
       val value = Nested(Person("Ada", 31, 99), Event.Data(0), List(Event.Data(1)), Map("a" -> 2), Meter(3))
       // Separate counters are used so every structural lane is independently asserted.
-      val personHits = Array(0)
-      val variantHits = Array(0)
+      val personHits   = Array(0)
+      val variantHits  = Array(0)
       val sequenceHits = Array(0)
-      val mapHits = Array(0)
-      val wrapperHits = Array(0)
-      val codec = Nested.schema
+      val mapHits      = Array(0)
+      val wrapperHits  = Array(0)
+      val codec        = Nested.schema
         .deriving(BsonCodecDeriver)
         .instance(Nested.person, tracked(Person.schema.derive(BsonCodecDeriver), personHits))
         .instance(Nested.event, tracked(Event.schema.derive(BsonCodecDeriver), variantHits))
@@ -192,6 +234,75 @@ object BsonCodecDeriverSpec extends SchemaBaseSpec {
         sequenceHits(0) == 2,
         mapHits(0) == 2,
         wrapperHits(0) == 2
+      )
+    },
+    test("creates fresh mutable defaults for every decode") {
+      val codec = MutableDefault.schema.derive(BsonCodecDeriver)
+      val empty = new BsonDocument()
+
+      def decodeWithReader(): MutableDefault = {
+        val buffer = new BasicOutputBuffer()
+        try {
+          val writer = new BsonBinaryWriter(buffer)
+          try {
+            writer.writeStartDocument()
+            writer.writeEndDocument()
+          } finally writer.close()
+          val reader = new BsonBinaryReader(buffer.getByteBuffers.get(0).asNIO())
+          try codec.decoder.decode(reader).toOption.get
+          finally reader.close()
+        } finally buffer.close()
+      }
+
+      val valueFirst  = codec.decoder.fromBsonValue(empty).toOption.get
+      val valueSecond = codec.decoder.fromBsonValue(empty).toOption.get
+      valueFirst.values(0) = 2
+
+      val readerFirst  = decodeWithReader()
+      val readerSecond = decodeWithReader()
+      readerFirst.values(0) = 3
+
+      assertTrue(
+        valueFirst.values.ne(valueSecond.values),
+        valueSecond.values.sameElements(Array(1)),
+        readerFirst.values.ne(readerSecond.values),
+        readerSecond.values.sameElements(Array(1))
+      )
+    },
+    test("honors record noExtraFields modifier") {
+      val codec = StrictRecord.schema.derive(BsonCodecDeriver)
+      val bson  = new BsonDocument("value", new BsonInt32(1)).append("extra", new BsonInt32(2))
+
+      assertTrue(codec.decoder.fromBsonValue(bson).isLeft)
+    },
+    test("honors record fieldNaming modifier") {
+      val codec = NamedRecord.schema.derive(BsonCodecDeriver)
+      val value = NamedRecord("Ada")
+      val bson  = new BsonDocument("first_name", new BsonString("Ada"))
+
+      assertTrue(
+        codec.encoder.toBsonValue(value) == bson,
+        codec.decoder.fromBsonValue(bson) == Right(value)
+      )
+    },
+    test("honors variant discriminator modifier") {
+      val codec = DiscriminatedEvent.schema.derive(BsonCodecDeriver)
+      val value = DiscriminatedEvent.Data(1): DiscriminatedEvent
+      val bson  = new BsonDocument("value", new BsonInt32(1)).append("kind", new BsonString("Data"))
+
+      assertTrue(
+        codec.encoder.toBsonValue(value) == bson,
+        codec.decoder.fromBsonValue(bson) == Right(value)
+      )
+    },
+    test("honors variant caseNaming modifier") {
+      val codec = NamedEvent.schema.derive(BsonCodecDeriver)
+      val value = NamedEvent.DataEvent(1): NamedEvent
+      val bson  = new BsonDocument("data_event", new BsonDocument("value", new BsonInt32(1)))
+
+      assertTrue(
+        codec.encoder.toBsonValue(value) == bson,
+        codec.decoder.fromBsonValue(bson) == Right(value)
       )
     }
   )
