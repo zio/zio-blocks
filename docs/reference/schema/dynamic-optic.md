@@ -483,6 +483,42 @@ val modified = data.modify(p"#string")(dv =>
 )
 ```
 
+### The `SchemaRepr` Pattern Type
+
+Every `#Pattern` string above parses into a `SchemaRepr` — a plain, immutable ADT you can also build by hand, independent of the interpolator. `DynamicOptic#searchSchema(schemaRepr)` takes one directly, and `Node.SchemaSearch(schemaRepr)` is the node it produces, exactly the node `#Pattern` syntax builds under the hood:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+val pattern: SchemaRepr = SchemaRepr.Record(
+  IndexedSeq("name" -> SchemaRepr.Primitive("string"), "age" -> SchemaRepr.Primitive("int"))
+)
+```
+
+`SchemaRepr#toString` renders the same syntax `#Pattern` strings use, so a pattern built by hand and one parsed from a literal print identically:
+
+```scala mdoc
+pattern.toString
+
+val path: DynamicOptic = DynamicOptic.root.searchSchema(pattern)
+path == p"#record { name: string, age: int }"
+```
+
+The eight cases cover every shape the grammar recognizes:
+
+| Case | Renders as | Matches |
+|------|------------|---------|
+| `Nominal(name)`         | the bare name, e.g. `Person`         | a value of that Scala type — only against a `Reflect` tree, see below |
+| `Primitive(name)`       | the bare name, e.g. `string`         | a primitive of that kind (case-insensitive) |
+| `Record(fields)`        | `record { name: string, ... }`       | a record with at least those fields, by subset match |
+| `Variant(cases)`        | `variant { Case: type, ... }`        | a variant whose active case matches one of those entries |
+| `Sequence(element)`     | `list(...)`                          | a sequence whose elements all match — parses from `list(...)`, `set(...)`, or `vector(...)`, all three producing the same case |
+| `Map(key, value)`       | `map(key, value)`                    | a map whose entries all match both patterns |
+| `Optional(inner)`       | `option(...)`                        | `Null`, or a value matching the inner pattern |
+| `Wildcard`              | `_`                                   | anything |
+
+Parsing a `#Pattern` string is itself layered: the path interpolator recognizes the `#` prefix and hands the substring after it to a small recursive-descent parser, which reports a specific error (unexpected character, an empty `record {}`/`variant {}`, an unterminated expression) at the exact offset where parsing failed — that's what turns a typo like `#record { name: strnig }` into a compile-time interpolator error rather than a pattern that silently matches nothing.
+
 ### Supported Patterns
 
 Search optics support both **type-based** and **schema-based** patterns:
@@ -493,7 +529,7 @@ Search optics support both **type-based** and **schema-based** patterns:
 | `#int`, `#string`, `#boolean`  | Specific primitive types (case-insensitive) | `#int`, `#string`, `#boolean` |
 | `#record { ... }`              | Records with matching fields           | `#record { name: string }` |
 | `#variant { ... }`             | Variant cases with matching content    | `#variant { Error: string }` |
-| `#list(...)`                   | Lists/sequences with element type     | `#list(string)`            |
+| `#list(...)`, `#set(...)`, `#vector(...)` | Sequences with a matching element type, regardless of which of the three keywords appears | `#list(string)` |
 | `#map(...)`                    | Maps with key and value types          | `#map(string, int)`        |
 | `#option(...)`                 | Optional values with inner type       | `#option(int)`             |
 
@@ -520,7 +556,7 @@ val allInts = nested.get(p"#int").toChunk
 
 ### Known Limitation: Nominal Matching in Untyped Contexts
 
-`Nominal` pattern matching (e.g., `#Person`) returns `false` when applied to `DynamicValue` or `Json` because these untyped structures carry no type identity. To match nominally-typed data, use one of these approaches:
+`Nominal` pattern matching (e.g., `#Person`) returns `false` against a `DynamicValue` or `Json` value because these untyped structures carry no type identity. The one exception is searching a `Schema`/`Reflect` tree itself (as `DynamicSchema#get` does) rather than a value — there, `Nominal` matches by comparing against the tree's own `TypeId`, since a `Reflect` node still carries the type identity a plain `DynamicValue`/`Json` value never does. For searching values, use one of these approaches instead:
 
 - **Use the typed API**: `optic(_.searchFor[Person])`
 - **Or use structural patterns**: `p"#record { name: string, age: int }"`
