@@ -121,6 +121,16 @@ object Frag {
   /** Upper bound on [[renderedSql]] entries before it is cleared. */
   private val RenderedSqlCacheMaxEntries = 1024
 
+  /**
+   * Per-acquisition progress shared between a chunked query's row reader and
+   * its release finalizer, so exactly one terminal log event is emitted no
+   * matter how consumption ends.
+   */
+  private final class FinishMark(val start: Long) {
+    val count: java.util.concurrent.atomic.AtomicInteger  = new java.util.concurrent.atomic.AtomicInteger(0)
+    val logged: java.util.concurrent.atomic.AtomicBoolean = new java.util.concurrent.atomic.AtomicBoolean(false)
+  }
+
   /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
 
@@ -305,7 +315,7 @@ object Frag {
             ps = con.connection.prepareStatement(sqlStr)
             writeParams(ps.paramWriter, frag.queryParams)
             val rs = ps.executeQuery()
-            (ps, rs, start)
+            (ps, rs, FinishMark(start))
           } catch {
             case e: Throwable =>
               // release does not run when acquire fails.
@@ -317,14 +327,20 @@ object Frag {
               throw new StreamError(e)
           }
         },
-        release = { case (ps, rs, _) =>
+        release = { case (ps, rs, mark) =>
           try rs.close()
           finally ps.close()
+          // A consumer that closes early must still produce exactly one
+          // terminal log event; natural exhaustion and errors mark the same
+          // flag first, so this never double-logs.
+          if (mark.logged.compareAndSet(false, true)) {
+            val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+            con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get))
+          }
         }
-      ) { case (_, rs, start) =>
+      ) { case (_, rs, mark) =>
         val reader = rs.reader
         val decode = rowDecoder(reader, codec)
-        var count  = 0
         Stream
           .fromReader[Throwable, A](new Reader[A] {
             private var done                    = false
@@ -333,18 +349,24 @@ object Frag {
               if (done) sentinel
               else
                 try {
-                  if (rs.next()) { count += 1; decode(reader).asInstanceOf[A1] }
+                  if (rs.next()) { mark.count.incrementAndGet(); decode(reader).asInstanceOf[A1] }
                   else {
                     done = true
-                    val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
-                    con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
+                    if (mark.logged.compareAndSet(false, true)) {
+                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                      con.logger.onSuccess(
+                        SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get)
+                      )
+                    }
                     sentinel
                   }
                 } catch {
                   case e: Throwable =>
                     done = true
-                    val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
-                    con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+                    if (mark.logged.compareAndSet(false, true)) {
+                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                      con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+                    }
                     throw new StreamError(e)
                 }
             def close(): Unit = done = true

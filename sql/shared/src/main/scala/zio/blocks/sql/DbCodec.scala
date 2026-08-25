@@ -214,14 +214,12 @@ object DbCodec extends DbCodecOpaquePriority {
         if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
       }
 
-
     override def readValue(reader: DbResultReader, startIndex: Int): Maybe[A] =
       if (reader.isNull(startIndex)) Maybe.absent
       else {
         val value = inner.readValue(reader, startIndex)
         if (reader.wasNull) Maybe.absent else Maybe.unsafeWrap(value)
       }
-
 
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Maybe[A]): Unit = {
       val v = Maybe.unsafeGet(value)
@@ -391,8 +389,27 @@ trait DbResultReader {
   def getDuration(label: String): java.time.Duration
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
+
+  /**
+   * Reads the array column at the given 1-based `index` as a flat
+   * `Array[String]`.
+   *
+   * @return
+   *   the column's elements; a SQL `NULL` array decodes to `null`
+   * @throws UnsupportedOperationException
+   *   by default — only backends with native array support override this
+   */
   def getArray(index: Int): Array[String] =
     throw new UnsupportedOperationException("DbResultReader does not support getArray(index)")
+
+  /**
+   * Reads the array column named `label` as a flat `Array[String]`.
+   *
+   * @return
+   *   the column's elements; a SQL `NULL` array decodes to `null`
+   * @throws UnsupportedOperationException
+   *   by default — only backends with native array support override this
+   */
   def getArray(label: String): Array[String] =
     throw new UnsupportedOperationException("DbResultReader does not support getArray(label)")
   def columnLabel(index: Int): String

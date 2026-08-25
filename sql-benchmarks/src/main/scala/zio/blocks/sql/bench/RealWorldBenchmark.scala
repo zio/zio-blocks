@@ -22,14 +22,28 @@ import org.openjdk.jmh.annotations._
 import scala.compiletime.uninitialized
 import zio.blocks.BaseBenchmark
 import zio.blocks.sql._
-import kyo.{`<`, Abort, AllowUnsafe, Async, DB, Duration, KyoApp, Result, Scope, Sql, SqlClient, SqlException, SqlSchema}
+import kyo.{
+  `<`,
+  Abort,
+  AllowUnsafe,
+  Async,
+  DB,
+  Duration,
+  KyoApp,
+  Result,
+  Scope,
+  Sql,
+  SqlClient,
+  SqlException,
+  SqlSchema
+}
 
 /**
  * Real-world workload comparison on ONE PostgreSQL server with ONE dataset:
  *
- *   - `raw*`     — hand-rolled JDBC mapping (the floor every framework pays)
- *   - `zb_*`     — zio-blocks `sql` module (JDBC + postgres driver)
- *   - `kyo_*`    — kyo-sql RC6 (native wire protocol, pooled connections)
+ *   - `raw*` — hand-rolled JDBC mapping (the floor every framework pays)
+ *   - `zb_*` — zio-blocks `sql` module (JDBC + postgres driver)
+ *   - `kyo_*` — kyo-sql RC6 (native wire protocol, pooled connections)
  *
  * Workloads mirror application shapes: point lookups (`Repo.find` hot loop),
  * full-list rendering, large export (chunked/streamed), and a bulk write.
@@ -64,15 +78,27 @@ class RealWorldBenchmark extends BaseBenchmark {
     implicit val dbCodec: DbCodec[BenchUser] = DbCodec.derived[BenchUser]
   }
 
+  // Separate row type so kyo's typed DSL (which derives the table name from
+  // the type) targets the bulkuser scratch table, not the benchuser fixture.
+  case class BulkUser(
+    id: Int,
+    name: String,
+    email: String,
+    age: Int,
+    active: Boolean,
+    nickname: Option[String],
+    bio: Option[String]
+  ) derives SqlSchema
+
   private val Rows = 10000
   private val Url  = "postgres://bench:bench@localhost:32886/benchdb"
 
-  private var conn: java.sql.Connection      = uninitialized
-  private var transactor: JdbcTransactor     = uninitialized
-  private var kyoClient: SqlClient = uninitialized
+  private var conn: java.sql.Connection            = uninitialized
+  private var transactor: JdbcTransactor           = uninitialized
+  private var kyoClient: SqlClient                 = uninitialized
   private var findStmt: java.sql.PreparedStatement = uninitialized
-  private var allFrag: Frag                  = uninitialized
-  private val Cols = "id, name, email, age, active, nickname, bio"
+  private var allFrag: Frag                        = uninitialized
+  private val Cols                                 = "id, name, email, age, active, nickname, bio"
 
   given AllowUnsafe = AllowUnsafe.embrace.danger
 
@@ -162,9 +188,9 @@ class RealWorldBenchmark extends BaseBenchmark {
     runFindLoop(rawFindOne)
 
   private def runFindLoop(f: Int => Int): Int = {
-    var n    = 0
-    var i    = 0
-    var id   = 0
+    var n  = 0
+    var i  = 0
+    var id = 0
     while (i < 100) {
       n += f(id)
       id = if (id == 0) 7 else (id * 37 + 11) % Rows
@@ -180,7 +206,8 @@ class RealWorldBenchmark extends BaseBenchmark {
     var id = 0
     transactor.connect {
       while (i < 100) {
-        val r = sql"SELECT id, name, email, age, active, nickname, bio FROM benchuser WHERE id = ${DbValue.DbInt(id)}".queryOne[BenchUser]
+        val r = sql"SELECT id, name, email, age, active, nickname, bio FROM benchuser WHERE id = ${DbValue.DbInt(id)}"
+          .queryOne[BenchUser]
         r.toOption.foreach(u => if (u.nickname.isDefined) n += 1)
         id = if (id == 0) 7 else (id * 37 + 11) % Rows
         i += 1
@@ -190,7 +217,7 @@ class RealWorldBenchmark extends BaseBenchmark {
   }
 
   private def findIds: Vector[Int] = {
-    val b = Vector.newBuilder[Int]
+    val b  = Vector.newBuilder[Int]
     var id = 0
     var i  = 0
     while (i < 100) {
@@ -203,7 +230,7 @@ class RealWorldBenchmark extends BaseBenchmark {
 
   @Benchmark
   def kyo_findById100(): Int = {
-    val ids = findIds
+    val ids     = findIds
     val lookups = ids.map { id =>
       Sql.from[BenchUser].where(r => r.benchUser.id == id).run.map { rows =>
         if (rows.headMaybe.exists(_.nickname.isDefined)) 1 else 0
@@ -242,9 +269,11 @@ class RealWorldBenchmark extends BaseBenchmark {
 
   @Benchmark
   def kyo_listAll10k(): Int =
-    eval(DB.run(kyoClient)(
-      Sql.from[BenchUser].run.map(_.count(u => u.nickname.isDefined || u.bio.isDefined))
-    ))
+    eval(
+      DB.run(kyoClient)(
+        Sql.from[BenchUser].run.map(_.count(u => u.nickname.isDefined || u.bio.isDefined))
+      )
+    )
 
   // ---- large export, bounded memory ----
   // NOTE: kyo-sql RC6 has no typed-DSL streaming terminal, and its raw
@@ -255,9 +284,9 @@ class RealWorldBenchmark extends BaseBenchmark {
   @Benchmark
   def zb_exportChunked10k(): Int =
     transactor.connect {
-      allFrag.queryChunked[BenchUser](64).runCollect match {
-        case Right(chunks) => chunks.foldLeft(0)(_ + _.size)
-        case Left(e)       => throw e
+      allFrag.queryChunked[BenchUser](64).runFold(0)((acc, chunk) => acc + chunk.size) match {
+        case Right(n)  => n
+        case Left(err) => throw err
       }
     }
 
@@ -265,7 +294,15 @@ class RealWorldBenchmark extends BaseBenchmark {
 
   private def nextBulkRows(): Vector[BenchUser] =
     Vector.tabulate(100) { i =>
-      BenchUser(i, "bulk" + i, s"bulk$i@example.com", 30, true, if (i % 3 == 0) None else Some("n"), if (i % 5 == 0) None else Some("b"))
+      BenchUser(
+        i,
+        "bulk" + i,
+        s"bulk$i@example.com",
+        30,
+        true,
+        if (i % 3 == 0) None else Some("n"),
+        if (i % 5 == 0) None else Some("b")
+      )
     }
 
   @Benchmark
@@ -280,14 +317,27 @@ class RealWorldBenchmark extends BaseBenchmark {
 
   // kyo-sql's typed insert.values() is an inline macro requiring literal rows,
   // so runtime-built batches degrade to one statement per row.
-  private def kyoInsertAll(rs: Vector[BenchUser]): Unit < (DB & Async & Abort[SqlException] & Scope) = {
-    val inserts = rs.map(r => Sql.insert[BenchUser].values(r).run)
-    Sql.delete[BenchUser].build.run.flatMap(_ => inserts.reduceLeft((acc, p) => acc.flatMap(_ => p)).unit)
+  private def kyoInsertAll(rs: Vector[BulkUser]): Unit < (DB & Async & Abort[SqlException] & Scope) = {
+    val inserts = rs.map(r => Sql.insert[BulkUser].values(r).run)
+    Sql.delete[BulkUser].build.run.flatMap(_ => inserts.reduceLeft((acc, p) => acc.flatMap(_ => p)).unit)
   }
+
+  private def nextKyoBulkRows(): Vector[BulkUser] =
+    Vector.tabulate(100) { i =>
+      BulkUser(
+        i,
+        "bulk" + i,
+        s"bulk$i@example.com",
+        30,
+        true,
+        if (i % 3 == 0) None else Some("n"),
+        if (i % 5 == 0) None else Some("b")
+      )
+    }
 
   @Benchmark
   def kyo_bulkInsert100(): Int = {
-    val rows = nextBulkRows()
+    val rows = nextKyoBulkRows()
     eval(DB.run(kyoClient)(kyoInsertAll(rows)))
     rows.size
   }

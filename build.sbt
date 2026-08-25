@@ -1334,9 +1334,9 @@ lazy val `sql-benchmarks` = project
       // Real-world cross-library comparison: same Postgres server, same data —
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.
-      "org.postgresql" % "postgresql" % "42.7.13",
-      "io.getkyo" %% "kyo-sql"          % "1.0.0-RC6",
-      "io.getkyo" %% "kyo-sql-postgres" % "1.0.0-RC6"
+      "org.postgresql" % "postgresql"       % "42.7.13",
+      "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC6",
+      "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC6"
     ),
     assembly / assemblyJarName       := "sql-benchmarks.jar",
     assembly / assemblyMergeStrategy := {
