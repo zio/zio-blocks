@@ -286,7 +286,20 @@ object Frag {
     }
 
     /**
-     * Executes this fragment as a SELECT and returns rows as a chunked stream.
+     * Executes this fragment as a SELECT and returns the decoded rows as a
+     * stream of `Chunk`s, each holding up to [[DefaultQueryChunkSize]] rows.
+     *
+     * Equivalent to `queryChunked[A](DefaultQueryChunkSize)`.
+     *
+     * @tparam A
+     *   the row type, decoded through `codec`'s column mapping
+     * @param con
+     *   the connection context providing the connection, dialect, and logger
+     * @param codec
+     *   decoder for the expected row shape
+     * @return
+     *   a lazy stream of decoded row chunks; see [[queryChunked]] for the
+     *   acquisition lifetime and error behavior
      */
     def queryStream[A](using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] =
       queryChunked[A](DefaultQueryChunkSize)
@@ -301,6 +314,31 @@ object Frag {
      * `Reader.readN` inside `Stream.chunked` rather than a manual
      * `List.newBuilder` loop. SQL failures surface as typed errors (`Left`)
      * from terminal operations such as `runCollect`.
+     *
+     * Because acquisition is lazy, the stream must be consumed within the scope
+     * that provides the `DbCon`: leaving `Transactor.connect`/`transact` closes
+     * the captured connection, and pulling afterwards fails.
+     *
+     * @example
+     *   {{{
+     * Transactor.connect(transactor) {
+     *   sql"SELECT id, name FROM users"
+     *     .queryChunked[User](500)
+     *     .runFold(0)((acc, chunk) => acc + chunk.size)
+     * }
+     *   }}}
+     *
+     * @tparam A
+     *   the row type, decoded through `codec`'s column mapping
+     * @param chunkSize
+     *   maximum number of rows per emitted `Chunk`; must be `>= 1`
+     * @param con
+     *   the connection context providing the connection, dialect, and logger
+     * @param codec
+     *   decoder for the expected row shape
+     * @return
+     *   a lazy stream of decoded row chunks; terminal operations answer
+     *   `Left(error)` on SQL failure
      */
     def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
       require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")

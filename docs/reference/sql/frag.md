@@ -33,6 +33,8 @@ object Frag {
     def query[A](using DbCon, DbCodec[A]): List[A]
     def queryOne[A](using DbCon, DbCodec[A]): Maybe[A]
     def queryLimit[A](limit: Int)(using DbCon, DbCodec[A]): List[A]
+    def queryStream[A](using DbCon, DbCodec[A]): Stream[Throwable, Chunk[A]]
+    def queryChunked[A](chunkSize: Int)(using DbCon, DbCodec[A]): Stream[Throwable, Chunk[A]]
     def update(using DbCon): Int
     def updateReturningKeys[A](using DbCon, DbCodec[A]): List[A]
   }

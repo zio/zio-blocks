@@ -427,11 +427,25 @@ trait DbResultReader {
    * first read it reports `false`. The default reports `false`, which preserves
    * the historical behavior: Option/Maybe codecs then fall back to the
    * post-read `wasNull` check and decode the inner value as before.
+   *
+   * @param index
+   *   the 1-based column position
+   * @return
+   *   `true` if the backend knows the column is NULL; `false` when it is
+   *   non-null or not yet known — callers must treat `false` as "unknown",
+   *   never as a confirmed non-null
    */
   def isNull(index: Int): Boolean = false
 
   /**
    * Label-based variant of [[isNull]].
+   *
+   * @param label
+   *   the result-set column label
+   * @return
+   *   `true` if the backend knows the named column is NULL; `false` when it is
+   *   non-null or not yet known (see [[isNull(index:Int)]] for the per-backend
+   *   reliability contract)
    */
   def isNull(label: String): Boolean = false
 }
