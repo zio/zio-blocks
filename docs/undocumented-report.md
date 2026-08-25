@@ -7,7 +7,7 @@ title: "Documentation Coverage Report"
 
 Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
 
-**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. Tier 1 items 1, 3, and 7 are complete, and the totals below account for both.
+**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. `http-model-schema`'s codec layer is documented too, in the new `schema-codecs.md` — every one of that module's six remaining "absent" types lives inside a `private[schema]` object, so its public surface is fully covered; see section 3 and the third methodology limitation. Tier 1 items 1, 3, and 7 and Tier 2 item 15 are complete, and the totals below account for all of them.
 
 Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
 
@@ -22,17 +22,17 @@ Earlier: the `config` family has been documented — `docs/reference/config.md` 
 | Reference pages | 164 |
 | Guides | 9 |
 | Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
-| Types never named anywhere in `docs/` | **469** |
-| Types with no prose or heading reference | **793** |
+| Types never named anywhere in `docs/` | **462** |
+| Types with no prose or heading reference | **786** |
 | Name-mention coverage | **74%** |
-| Explained-type coverage | **56%** |
+| Explained-type coverage | **57%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 469 types — is the set that is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 793 types — additionally captures the 324 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 462 types — is the set that is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 786 types — additionally captures the 324 types that appear only as tokens inside examples and are never explained.
 
-This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 465 absent. Both figures are name-based lower bounds; see *Methodology*.
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 458 absent. Both figures are name-based lower bounds; see *Methodology*.
 
 ---
 
@@ -42,7 +42,6 @@ This report file is excluded from the scan, so listing a type here does not make
 
 | Module | types | absent | unexplained | explained cov | src LOC | doc LOC | ratio | Primary page |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
-| **http-model-schema** | 18 | 14 | 14 | **22%** | 1,249 | 607 | 0.49 | `reference/http-model/schema.md` |
 | **smithy** | 42 | 16 | 32 | 24% | 2,585 | 533 | 0.21 | `reference/smithy.md` |
 | **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
 | **html** | 86 | 33 | 54 | 37% | 4,725 | 1,117 | 0.24 | `reference/html.md` |
@@ -54,6 +53,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
 | http-model | 191 | 6 | 85 | 55% | 4,712 | 3,127 | 0.66 | `reference/http-model/` |
 | otel | 12 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 | `reference/telemetry/otel/` |
+| http-model-schema | 18 | 6 | 6 | 66%† | 1,264 | 1,073 | 0.85 | `reference/http-model/schema-codecs.md` |
 | schema-xml | 35 | 6 | 15 | 57% | 3,334 | 1,034 | 0.31 | `built-in-codecs/xml.md` |
 | schema-bson | 18 | 1 | 7 | 61% | 1,790 | 472 | 0.26 | `built-in-codecs/bson.md` |
 | codegen | 46 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 | `reference/codegen/` |
@@ -147,16 +147,21 @@ What remains is the report's own items 4 and 5 rather than anything new:
 - [ ] Document `PercentEncoder`, `QueryKey`, `QueryValue`, and `QueryParamsBuilder` in the URL and query sections of `model.md`
 - [ ] Document `ComponentType` and `UserInfo`
 
-### 3. `http-model-schema` — the codec layer is invisible
+### 3. `http-model-schema` — RESOLVED
 
-`schema.md` (607 lines) documents the extension-class surface (`QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps`) but none of the machinery underneath, so there is no way to learn how to extend it. 14 of 18 public types are absent: `HeaderCodec` ✗, `QueryCodec` ✗, `HeaderCodecDeriver` ✗ (236 lines), `QueryCodecDeriver` ✗ (217 lines), `HeaderFormat` ✗, `QueryFormat` ✗, `DefaultHeaderFormat` ✗, `DefaultQueryFormat` ✗, `FieldCodec` ✗, `DecodeErrorFactory` ✗, `SinglePrimitive` ✗, `OptionalValue` ✗, `SequenceValue` ✗, `WrappedValue` ✗. `ParamCodecSupport` (264 lines) is also absent.
+`schema.md` (607 lines) documented the extension-class surface — `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps` — and nothing underneath it, so 14 of the module's 18 scanned types were absent.
 
-Actions:
+The gap turned out to be different from what this entry described. It was not "the machinery under the extension classes": `HeadersSchemaOps` does not use `HeaderCodec` at all, it uses the private `StringDecoder`. The codec layer is a **separate, parallel API** — whole-value encoding and decoding via `Schema[A].derive(DefaultHeaderFormat)` — that the documentation never mentioned in either form.
 
-- [ ] Add a *How extraction works* section covering `HeaderCodec` / `QueryCodec` and their derivers
-- [ ] Document `HeaderFormat` / `QueryFormat` and the `Default*Format` instances — the naming and multi-value rules
-- [ ] Document the shape classification (`SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue`) so users can predict how a case class maps to headers or query params
-- [ ] Document `DecodeErrorFactory` for custom error messages
+Resolved by adding `schema-codecs.md` (463 lines, all code blocks mdoc-verified), covering `HeaderCodec`, `QueryCodec`, `HeaderFormat`, `QueryFormat`, `DefaultHeaderFormat`, `DefaultQueryFormat`, `HeaderCodecDeriver`, and `QueryCodecDeriver`, plus field-mapping rules, supported shapes, top-level codecs, custom formats, and single-type instance overrides. `schema.md` points at it from its opening, its custom-types section, and its See Also.
+
+Three behaviours the source made non-obvious:
+
+- **The two codecs name fields differently.** `QueryCodec` uses the field name verbatim; `HeaderCodec` converts camelCase to kebab-case. Neither is configurable.
+- **Unsupported top-level shapes fail late.** `Schema[Option[A]]`, `Schema[Map[K, V]]`, and `Schema[DynamicValue]` all derive successfully and then throw on the first encode, so a codec built at startup can look healthy until the first request that uses it.
+- **The convenience encoders share a thread-local builder.** `HeaderCodec#encodeToHeaders` resets it before filling, so a custom `Codec#encode` that calls it recursively corrupts the buffer the outer call was building.
+
+**† Why the row still reads 66%.** The six remaining "absent" types — `DecodeErrorFactory`, `FieldCodec`, `SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue` — are all nested inside `private[schema] object ParamCodecSupport`. They are not public API, and documenting them would be documenting internals. The scan counts them because it checks modifiers on the declaration line only, never the enclosing scope; see the third methodology limitation. The module's genuine public surface is fully documented.
 
 ### 4. `otel` — RESOLVED, and this item was mis-scoped
 
@@ -386,7 +391,7 @@ Ordered by user impact per unit of writing effort.
 12. - [ ] Migration error ADT (`migration.md`)
 13. - [ ] Patch operation ADT (`patch.md`)
 14. - [ ] Derivation overrides (`type-class-derivation.md`)
-15. - [ ] Codec layer in `http-model/schema.md` (`HeaderCodec`, `QueryCodec`, formats, derivers)
+15. - [x] Codec layer — **done**: `http-model/schema-codecs.md`, 463 lines, mdoc-verified; it is a parallel whole-value API rather than machinery under the extension classes
 16. - [ ] `Alternator` / `CanCombine` type-level rules (`endpoint/`)
 17. - [ ] Complete the Smithy shape catalog (`smithy.md`)
 18. - [ ] `SpanEvent` / `SpanLink` / `SamplingDecision` / data points (`telemetry/`)
@@ -475,6 +480,7 @@ Known limitations:
 
 - Matching is name-based, so a type whose name collides with an ordinary English word (`Default`, `Private`, `Public`, `Wildcard`, `Flag`, `Origin`, `Date`, `Host`) can be scored as covered when the page never discusses it. Both gap counts are therefore lower bounds.
 - Nested types are counted individually, which inflates ADT-heavy modules such as `http-model` and `schema`. This is intentional: each variant is something a user can pattern match on.
+- **The scan cannot see enclosing-scope privacy.** A type declared without a modifier inside a `private[...]` object counts as public. Six of `http-model-schema`'s eighteen types are nested in `private[schema] object ParamCodecSupport` and are indistinguishable, to this scan, from real API. Check the enclosing scope before scoping a row as work — this is the otel mis-scope one level down, and excluding such types is the highest-value fix to the script below.
 - The `unexplained` column under-counts on well-written pages. The writing-style rules require method references to be qualified (`ConfigSource#orElse`, `Flag.Reader.scalar`), and nested types read naturally as `Provenance.Resolved` or `KeyFormat.KebabCase` — none of which the bare-name match sees. A page that follows the style guide will therefore show unexplained types it actually explains.
 - Method-level coverage is not measured. The `ratio` column (doc LOC / src LOC) is the proxy used instead.
 - The `ratio` column is meaningless for modules dominated by generated code — `mediatype` is the clearest case.
