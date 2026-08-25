@@ -68,6 +68,10 @@ trait HttpSender {
 object HttpSender {
   def jdk(timeout: Duration = Duration.ofSeconds(30)): HttpSender
 }
+
+final case class HttpResponse(statusCode: Int, body: Array[Byte], headers: Map[String, Seq[String]]) {
+  def firstHeader(name: String): Option[String]
+}
 ```
 
 `HttpSender.jdk` wraps `java.net.http.HttpClient`, which ships with the JVM, so nothing is added to your dependencies. The timeout applies to both connecting and completing a request. `shutdown()` is where a sender releases what it holds — the JDK one holds nothing that needs closing, so its implementation does nothing:
@@ -152,11 +156,56 @@ Create the storage yourself: a provider's own is internal, so there's no reachin
 
 ## Exporting Traces, Logs, and Metrics
 
-The exporters that carry each signal to a collector are currently internal to this module: `OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, and `OtlpJsonMetricExporter` are `private[otel]`, as is the `BatchProcessor` that batches records before a send. There is no public way to construct one yet, so this page documents the pieces you *can* reach — configuration, transport, and propagation — and leaves the wiring recipes for when the API exposes an entry point.
+The exporters that carry each signal to a collector are internal to this module: `OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, and `OtlpJsonMetricExporter` are `private[otel]`, as is the `BatchProcessor` that batches records before a send. There is no public way to construct one yet.
 
-Until then, the [Telemetry Guide](../../../guides/telemetry-guide.md) sketches the intended shape of that wiring, and the core module's in-process destinations cover development and testing: [`log.writer`](../logging/index.md) for formatted output, [`trace.collectedSpans`](../tracing/index.md) for recorded spans, and [`metric.reader`](../metrics/index.md) for measurement snapshots.
+The pieces they are built from *are* public, though, so exporting does not have to wait for that entry point. `OtlpJsonEncoder` produces OTLP JSON bytes from recorded signals, `HttpSender` transmits them, and `ExportResult` says whether a failed send is worth retrying — see [Building an Exporter](./custom-exporter.md) for the encoder, the result type, and a worked flush function.
+
+For development and testing, the core module's in-process destinations avoid the network entirely: [`log.writer`](../logging/index.md) for formatted output, [`trace.collectedSpans`](../tracing/index.md) for recorded spans, and [`metric.reader`](../metrics/index.md) for measurement snapshots. The [Telemetry Guide](../../../guides/telemetry-guide.md) sketches the intended shape of the wiring once a public exporter lands.
+
+## Threading Context Through `Context[R]`
+
+`Propagator` moves trace context between processes. `OtelContext` moves it *within* one, across code that threads dependencies through `Context[R]` rather than reading an ambient storage:
+
+```scala
+final case class OtelContext(spanContext: Option[SpanContext])
+
+object OtelContext {
+  def current(storage: ContextStorage[Option[SpanContext]]): OtelContext
+  def withSpan[A](span: Span, storage: ContextStorage[Option[SpanContext]])(f: => A): A
+}
+```
+
+`OtelContext.current` snapshots whatever span context is active in a storage, giving a plain value that can be placed into a `Context[R & OtelContext]` and passed along like any other dependency:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+val storage = ContextStorage.create[Option[SpanContext]](None)
+val snapshot = OtelContext.current(storage)
+```
+
+`OtelContext.withSpan` is the inverse: it makes a span's context active for the duration of a block and restores the previous value afterwards, including when the block throws:
+
+```scala mdoc:compile-only
+import zio.blocks.telemetry._
+import zio.blocks.telemetry.otel._
+
+val storage = ContextStorage.create[Option[SpanContext]](None)
+val tracer  = trace.get("api-service")
+
+tracer.span("handle-request", SpanKind.Server) { span =>
+  OtelContext.withSpan(span, storage) {
+    // anything reading `storage` here sees this span's context
+    OtelContext.current(storage)
+  }
+}
+```
+
+An `IsNominalType[OtelContext]` instance is provided, which is what lets the type be used as a `Context` key.
 
 ## See Also
 
+- [Building an Exporter](./custom-exporter.md) — `OtlpJsonEncoder`, `ExportResult`, and a worked flush function
 - [Tracing](../tracing/index.md) — opening the spans this module exports, and [`SpanContext`](../tracing/span-context.md), the identity a propagator moves
 - [Telemetry Reference](../index.md) — the core module that records what this one exports

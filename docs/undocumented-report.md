@@ -7,7 +7,7 @@ title: "Documentation Coverage Report"
 
 Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
 
-**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. Tier 1 items 1 and 7 are complete.
+**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. Tier 1 items 1, 3, and 7 are complete, and the totals below account for both.
 
 Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
 
@@ -22,17 +22,17 @@ Earlier: the `config` family has been documented — `docs/reference/config.md` 
 | Reference pages | 164 |
 | Guides | 9 |
 | Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
-| Types never named anywhere in `docs/` | **471** |
-| Types with no prose or heading reference | **796** |
+| Types never named anywhere in `docs/` | **469** |
+| Types with no prose or heading reference | **793** |
 | Name-mention coverage | **74%** |
 | Explained-type coverage | **56%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 471 types — is the set that is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 796 types — additionally captures the 325 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 469 types — is the set that is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 793 types — additionally captures the 324 types that appear only as tokens inside examples and are never explained.
 
-This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 467 absent. Both figures are name-based lower bounds; see *Methodology*.
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 465 absent. Both figures are name-based lower bounds; see *Methodology*.
 
 ---
 
@@ -53,7 +53,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
 | **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
 | http-model | 191 | 6 | 85 | 55% | 4,712 | 3,127 | 0.66 | `reference/http-model/` |
-| **otel** | 12 | 2 | 3 | 75% | 1,325 | 162 | **0.12** | `reference/telemetry/otel/` |
+| otel | 12 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 | `reference/telemetry/otel/` |
 | schema-xml | 35 | 6 | 15 | 57% | 3,334 | 1,034 | 0.31 | `built-in-codecs/xml.md` |
 | schema-bson | 18 | 1 | 7 | 61% | 1,790 | 472 | 0.26 | `built-in-codecs/bson.md` |
 | codegen | 46 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 | `reference/codegen/` |
@@ -158,15 +158,26 @@ Actions:
 - [ ] Document the shape classification (`SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue`) so users can predict how a case class maps to headers or query params
 - [ ] Document `DecodeErrorFactory` for custom error messages
 
-### 4. `otel` — 162 lines for the entire export subsystem
+### 4. `otel` — RESOLVED, and this item was mis-scoped
 
-`reference/telemetry/otel/index.md` is a single 162-line page covering OTLP export and context propagation, while sibling `telemetry/tracing/` has 11 pages. `ExportResult` ✗ and `OtlpJsonEncoder` ✗ (527 lines) never appear; there is no page for the exporters, the propagator, or the retry/batching behaviour.
+The original entry called for splitting the 162-line page into four, including an `otlp-exporters.md`. That was wrong, and the reason is worth recording because it applies to other rows in the table.
 
-Actions:
+`OtlpJsonTraceExporter`, `OtlpJsonLogExporter`, `OtlpJsonMetricExporter`, `BatchProcessor`, `OtlpJsonExporter`, and `JdkHttpSender` are all `private[otel]` — six of the module's eighteen declarations. An `otlp-exporters.md` page would have documented internals. The 0.12 ratio that flagged this row is misleading for the same reason `mediatype`'s 0.04 is: roughly 60% of the module's lines are not public surface, and the existing page already covered six of the ten public types well, including a paragraph explaining that the exporters are unreachable.
 
-- [ ] Split into `reference/telemetry/otel/`: `index.md`, `exporter-config.md`, `otlp-exporters.md`, `propagation.md`
-- [ ] Document `ExportResult` and failure handling — what happens when the collector is down
-- [ ] Document batching, flush, and shutdown semantics (the exporter specs in `otel/` show executor shutdown matters; the docs never mention it)
+The real gap was four public types and one missing recipe:
+
+- `OtlpJsonEncoder` (527 lines) and `NamedMetric` — the only public way to produce OTLP payloads, and therefore the answer to the dead end the old page described rather than resolved
+- `ExportResult` and its `fromHttpResponse` classification
+- `OtelContext`, which bridges `ContextStorage` with `Context[R]`
+
+Resolved by adding `custom-exporter.md` (210 lines) covering the encoder, the encoding rules, `ExportResult`, and a worked flush function that assembles the public pieces into a working exporter; and by extending `index.md` with an `OtelContext` section, the `HttpResponse` shape, and a replacement for the dead-end paragraph. The module is now at 100% — 0 absent, 0 unexplained, all 12 public types documented.
+
+Two findings from writing it:
+
+- **`MetricData` carries no name.** `MetricReader#collectAllMetrics` returns `Seq[MetricData]` and `OtlpJsonEncoder.encodeMetrics` needs `Seq[NamedMetric]`, but nothing public recovers which instrument produced which element. Documented as a warning; worth an API fix.
+- **`ExporterConfig`'s three sizing fields have no public reader.** `maxQueueSize`, `maxBatchSize`, and `flushIntervalMillis` are only consumed by the private `BatchProcessor`, so a hand-rolled exporter must implement queueing, chunking, and interval flushing itself. The new page lists what that means.
+
+**Lesson for the remaining rows:** check the public/private split before trusting a low ratio. Rows where most lines may be internal should be verified the same way before being scoped as multi-page splits.
 
 ### 5. `schema` — 268 unexplained types clustered in seven subsystems
 
@@ -360,7 +371,7 @@ Ordered by user impact per unit of writing effort.
 
 1. - [x] `reference/http-model/headers.md` — **done**: 660 lines cataloguing all 75 built-ins, mdoc-verified
 2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
-3. - [ ] Split `reference/telemetry/otel/` into four pages
+3. - [x] ~~Split `reference/telemetry/otel/` into four pages~~ — **done differently**: the four-page split was mis-scoped (the exporters are `private[otel]`); resolved with one new page plus index additions, module now at 100%
 4. - [ ] `reference/htmx/response-headers.md`
 5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
 6. - [ ] `reference/telemetry/common/any-value.md`
