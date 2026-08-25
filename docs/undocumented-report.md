@@ -9,6 +9,8 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 **Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. Tier 1 items 1, 3, and 7 are complete, and the totals below account for both.
 
+Earlier: the `ReflectTransformer`/`RebindTransformer` pair has been documented — `docs/reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) covers the generic tree-rewrite mechanism behind schema (de)serialization, `OnlyMetadata`, and `RebindException`. Rescanning the whole `schema` module (the jump also reflects unrelated doc growth elsewhere in `docs/`, since matching is name-based across the whole tree, not solely this page) puts it at 76% explained coverage and 86 absent types, up from 48%/210 at the baseline. Tier 1 item 8 is complete; the coverage table has been updated to match.
+
 Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
@@ -47,7 +49,6 @@ This report file is excluded from the scan, so listing a type here does not make
 | **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
 | **html** | 86 | 33 | 54 | 37% | 4,725 | 1,117 | 0.24 | `reference/html.md` |
 | **datastar** | 50 | 23 | 28 | 44% | 1,881 | 346 | 0.18 | `reference/datastar.md` |
-| **schema** | 516 | 210 | 268 | 48% | 84,969 | 23,842 | 0.28 | `reference/schema/` |
 | **scope** | 24 | 8 | 12 | 50% | 7,085 | 3,577 | 0.50 | `reference/resource-management/` |
 | **typeid** | 91 | 26 | 44 | 52% | 6,493 | 2,124 | 0.33 | `reference/typeid.md` |
 | **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
@@ -63,6 +64,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | config (+ `-yaml`/`-json`/`-hocon`) | 77 | 3 | 21 | 72% | 3,914 | 2,212 | 0.57 | `reference/config/index.md` |
 | schema-yaml | 28 | 6 | 8 | 71% | 2,753 | 552 | 0.20 | `built-in-codecs/yaml.md` |
 | chunk | 20 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 | `reference/chunk.md` |
+| **schema** | 516 | 86 | 125 | 76% | 84,969 | 23,983 | 0.28 | `reference/schema/` |
 | markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
 | schema-toon | 28 | 2 | 5 | 82% | 4,690 | 1,050 | 0.22 | `built-in-codecs/toon.md` |
 | mux | 13 | 2 | 2 | 85% | 1,222 | 823 | 0.67 | `reference/mux.mdx` |
@@ -196,9 +198,9 @@ At 84,969 source lines and 23,842 documentation lines, `schema` is the best-docu
 **Patch operations** — `DynamicPatchOp` ✗, `MapEdit` ✗, `MapOp` ✗, `SeqOp` ✗, `SequenceEdit` ✗, `BigIntDelta` ✗, `ForInstant` ✗, `ForLocalDate` ✗, `ForPeriod` ✗.
 - [ ] Document the patch operation ADT, the map/sequence edit encodings, and the temporal delta types
 
-**Search, traversal, and transformation** — `SchemaSearch` ✗, `SchemaMatch` ✗ (181 lines), `TypeSearch` ✗, `SearchTraversal` ✗, `Updater` ✗, `Frame` ✗, `ReflectTransformer` ✗ (230 lines), `OnlyMetadata` ✗, plus `RebindTransformer` (237 lines), `SchemaRepr`, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained. An entire subsystem with no page.
+**Search, traversal, and transformation.** **Done for the rewrite half:** `reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) now documents `ReflectTransformer` (230 lines) and its `OnlyMetadata` base class, `RebindTransformer` (237 lines, `private[schema]` — documented through its public entry point `DynamicSchema#rebind`), and `RebindException`. `Frame` turned out to be unrelated to this cluster despite the grouping — it's an internal traversal-stack ADT used by `DynamicValue`/`Json` patch application, not by `ReflectTransformer`; it belongs with the search/update page instead. Still open: `SchemaSearch` ✗, `SchemaMatch` ✗ (181 lines), `TypeSearch` ✗, `SearchTraversal` ✗, `Updater` ✗, `Frame` ✗, plus `SchemaRepr`, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained.
 - [ ] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater`
-- [ ] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer`
+- [x] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer` — **done**: 140 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `binding.md` (which had a stale forward-reference promising this coverage) and `dynamic-schema.md`
 - [ ] Document `SchemaAspect` and `SchemaRepr`
 
 **Derivation overrides** — `type-class-derivation.md` never names the override subtypes: `InstanceOverrideByType` ✗, `InstanceOverrideByOptic` ✗, `InstanceOverrideByTypeAndTermName` ✗, `ModifierReflectOverrideByType` ✗, `ModifierReflectOverrideByOptic` ✗, `ModifierTermOverrideByType` ✗, `ModifierTermOverrideByOptic` ✗.
@@ -376,7 +378,7 @@ Ordered by user impact per unit of writing effort.
 5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
 6. - [ ] `reference/telemetry/common/any-value.md`
 7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
-8. - [ ] `reference/schema/reflect-transformer.md`
+8. - [x] `reference/schema/reflect-transformer.md` — **done**: 140 lines, mdoc-verified
 9. - [ ] `reference/telemetry/logging/log-emitter.md`
 
 **Tier 2 — sections in existing pages**

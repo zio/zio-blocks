@@ -336,9 +336,9 @@ Used when the schema of the data is not known at compile time, such as JSON payl
 When `F[_, _] = NoBinding` in `Reflect[F[_, _], A]` the `Reflect` structure contains only pure data (no functions) and becomes fully serializable. This enables:
 
 1. **Schema serialization**: Convert schemas to JSON Schema or other formats, making them portable
-2. **Schema rebinding**: Deserialize a schema and rebind it using a `TypeRegistry`, so it becomes type-safe and operational again
+2. **Schema rebinding**: Deserialize a schema and rebind it using a `BindingResolver`, so it becomes type-safe and operational again
 
-We will cover schema serialization and rebinding in more detail in the `Reflect` data type documentation page. For the full API of the binding lookup mechanism used during rebinding, see [BindingResolver](binding-resolver.md).
+[ReflectTransformer](./reflect-transformer.md) covers schema serialization and rebinding in full detail — the transformer that strips bindings, the one that reattaches them, and how each is exposed as `Schema#toDynamicSchema`/`DynamicSchema#rebind`. For the full API of the binding lookup mechanism used during rebinding, see [BindingResolver](binding-resolver.md).
 
 ## Summary
 
