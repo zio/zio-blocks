@@ -3,13 +3,11 @@ id: undocumented-report
 title: "Documentation Coverage Report"
 ---
 
-# Documentation Coverage Report
-
 Full re-scan of documentation coverage across every library module aggregated by the `root` project. Replaces the 2026-02-13 report, which predated most of the current `docs/reference` tree and covered only 12 modules.
 
-**Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. `http-model-schema`'s codec layer is documented too, in the new `schema-codecs.md` — every one of that module's six remaining "absent" types lives inside a `private[schema]` object, so its public surface is fully covered; see section 3 and the third methodology limitation. Tier 1 items 1, 3, and 7 and Tier 2 item 15 are complete, and the totals below account for all of them.
+**This revision fixes the scanner, so every number below has moved.** Earlier revisions classified a declaration as private only when the modifier sat on its own line, which counted 863 privately-enclosed declarations as public API — about a third of everything declared. Two items were mis-scoped as a result. The scanner now walks enclosing scopes, and the table carries an `internal` column so a low ratio can be told apart from a real gap. See *Methodology*.
 
-Earlier: the `config` family has been documented — `docs/reference/config.md` was replaced by a seven-page `docs/reference/config/` directory (2,212 lines, all code blocks mdoc-verified), taking the family from 31% to 72% explained coverage and from 43 absent types to 3. Tier 1 item 2 is complete; the numbers in this report have been updated to match.
+**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7, `headers.md` and `server-sent-event.md`), `otel` (item 3), and the `http-model-schema` codec layer (Tier 2 item 15, `schema-codecs.md`). Three of those four modules are now at or near full coverage of their public surface; `http-model-schema` and `otel` are at 100%.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
@@ -19,76 +17,82 @@ Earlier: the `config` family has been documented — `docs/reference/config.md` 
 |--------|-------|
 | Library modules aggregated by `root` | 38 |
 | Modules with no reference page | **0** |
-| Reference pages | 164 |
+| Reference pages | 168 |
 | Guides | 9 |
-| Public types found (`class` / `trait` / `object` / `enum`, non-`private`) | 1,828 |
-| Types never named anywhere in `docs/` | **462** |
-| Types with no prose or heading reference | **786** |
-| Name-mention coverage | **74%** |
-| Explained-type coverage | **57%** |
+| Declarations found (`class` / `trait` / `object` / `enum`) | 2,648 |
+| — of which public | 1,785 |
+| — of which private or nested in a private scope | 863 |
+| Public types never named anywhere in `docs/` | **403** |
+| Public types with no prose or heading reference | **737** |
+| Name-mention coverage | **77%** |
+| Explained-type coverage | **59%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 462 types — is the set that is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 786 types — additionally captures the 324 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 403 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 737 types — additionally captures the 334 types that appear only as tokens inside examples and are never explained.
 
-This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice; the distinct-name totals are 1,632 types and 458 absent. Both figures are name-based lower bounds; see *Methodology*.
+Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 863 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
+
+This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice.
 
 ---
 
 ## Module Coverage Table
 
-`types` = public types in `*/src/main/**`. `absent` = never named anywhere in `docs/`. `unexplained` = no prose or heading reference. `ratio` = documentation lines / source lines for that module's pages.
+`public` = public types, per the rule above. `internal` = declarations excluded as private or privately-enclosed. `absent` = public types never named anywhere in `docs/`. `unexpl` = public types with no prose or heading reference. `ratio` = documentation lines / source lines.
 
-| Module | types | absent | unexplained | explained cov | src LOC | doc LOC | ratio | Primary page |
-|---|---:|---:|---:|---:|---:|---:|---:|---|
-| **smithy** | 42 | 16 | 32 | 24% | 2,585 | 533 | 0.21 | `reference/smithy.md` |
-| **async** | 24 | 17 | 18 | 25% | 6,540 | 1,291 | 0.20 | `reference/async.md` |
-| **html** | 86 | 33 | 54 | 37% | 4,725 | 1,117 | 0.24 | `reference/html.md` |
-| **datastar** | 50 | 23 | 28 | 44% | 1,881 | 346 | 0.18 | `reference/datastar.md` |
-| **schema** | 516 | 210 | 268 | 48% | 84,969 | 23,842 | 0.28 | `reference/schema/` |
-| **scope** | 24 | 8 | 12 | 50% | 7,085 | 3,577 | 0.50 | `reference/resource-management/` |
-| **typeid** | 91 | 26 | 44 | 52% | 6,493 | 2,124 | 0.33 | `reference/typeid.md` |
-| **htmx** | 82 | 26 | 38 | 54% | 1,548 | 2,521 | 1.63 | `reference/htmx/` |
-| **telemetry** | 134 | 25 | 58 | 57% | 7,509 | 2,856 | 0.38 | `reference/telemetry/` |
-| http-model | 191 | 6 | 85 | 55% | 4,712 | 3,127 | 0.66 | `reference/http-model/` |
-| otel | 12 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 | `reference/telemetry/otel/` |
-| http-model-schema | 18 | 6 | 6 | 66%† | 1,264 | 1,073 | 0.85 | `reference/http-model/schema-codecs.md` |
-| schema-xml | 35 | 6 | 15 | 57% | 3,334 | 1,034 | 0.31 | `built-in-codecs/xml.md` |
-| schema-bson | 18 | 1 | 7 | 61% | 1,790 | 472 | 0.26 | `built-in-codecs/bson.md` |
-| codegen | 46 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 | `reference/codegen/` |
-| streams | 29 | 9 | 10 | 66% | 18,434 | 5,725 | 0.31 | `reference/streams/` |
-| combinators | 6 | 2 | 2 | 67% | 1,132 | 524 | 0.46 | `reference/combinators.md` |
-| endpoint | 58 | 16 | 18 | 69% | 2,805 | 1,757 | 0.63 | `reference/endpoint/` |
-| config (+ `-yaml`/`-json`/`-hocon`) | 77 | 3 | 21 | 72% | 3,914 | 2,212 | 0.57 | `reference/config/index.md` |
-| schema-yaml | 28 | 6 | 8 | 71% | 2,753 | 552 | 0.20 | `built-in-codecs/yaml.md` |
-| chunk | 20 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 | `reference/chunk.md` |
-| markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
-| schema-toon | 28 | 2 | 5 | 82% | 4,690 | 1,050 | 0.22 | `built-in-codecs/toon.md` |
-| mux | 13 | 2 | 2 | 85% | 1,222 | 823 | 0.67 | `reference/mux.mdx` |
-| openapi | 45 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 | `reference/openapi.md` |
-| schema-csv | 9 | 0 | 1 | 89% | 1,247 | 564 | 0.45 | `built-in-codecs/csv.md` |
-| sql | 53 | 1 | 3 | 94% | 3,736 | 4,008 | 1.07 | `reference/sql/` |
-| mediatype | 16 | 2 | 11 | 31% | 12,676 | 460 | 0.04 | `reference/media-type.md` |
-| maybe | 9 | 6 | 6 | 33% | 491 | 826 | 1.68 | `reference/maybe.md` |
-| context | 2 | 1 | 1 | 50% | 865 | 553 | 0.64 | `reference/context.md` |
-| ringbuffer | 8 | 0 | 0 | **100%** | 2,360 | 989 | 0.42 | `reference/ringbuffer/` |
-| schema-avro | 3 | 0 | 0 | **100%** | 1,922 | 450 | 0.23 | `built-in-codecs/avro.md` |
-| schema-messagepack | 5 | 0 | 0 | **100%** | 1,933 | 507 | 0.26 | `built-in-codecs/messagepack.md` |
-| schema-thrift | 3 | 0 | 0 | **100%** | 868 | 432 | 0.50 | `built-in-codecs/thrift.md` |
-| sql-zio | 1 | 0 | 0 | **100%** | 218 | 112 | 0.51 | `reference/sql-zio.md` |
+| Module | public | internal | absent | unexpl | cov | srcLOC | docLOC | ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **smithy** | 42 | 4 | 16 | 32 | **24%** | 2,585 | 533 | 0.21 |
+| maybe | 10 | 0 | 7 | 7 | 30% | 491 | 826 | 1.68 |
+| mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
+| **html** | 88 | 13 | 34 | 56 | **36%** | 4,789 | 1,139 | 0.24 |
+| **datastar** | 57 | 11 | 30 | 35 | **39%** | 1,881 | 346 | 0.18 |
+| context | 2 | 7 | 1 | 1 | 50% | 865 | 553 | 0.64 |
+| **typeid** | 90 | 14 | 26 | 44 | **51%** | 6,493 | 2,124 | 0.33 |
+| **schema** | 466 | 226 | 163 | 220 | **53%** | 84,969 | 23,842 | 0.28 |
+| schema-xml | 38 | 2 | 9 | 18 | 53% | 3,334 | 1,034 | 0.31 |
+| **htmx** | 88 | 2 | 27 | 40 | **55%** | 1,548 | 2,521 | 1.63 |
+| http-model | 191 | 3 | 5 | 84 | 56% | 4,712 | 2,520 | 0.53 |
+| schema-bson | 19 | 0 | 2 | 8 | 58% | 1,790 | 472 | 0.26 |
+| telemetry | 139 | 72 | 17 | 57 | 59% | 7,509 | 2,856 | 0.38 |
+| scope | 23 | 54 | 6 | 9 | 61% | 7,085 | 3,579 | 0.51 |
+| codegen | 46 | 0 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 |
+| async | 9 | 58 | 2 | 3 | 67% | 6,540 | 1,291 | 0.20 |
+| combinators | 6 | 14 | 2 | 2 | 67% | 1,132 | 524 | 0.46 |
+| endpoint | 60 | 20 | 18 | 20 | 67% | 2,805 | 1,757 | 0.63 |
+| schema-yaml | 27 | 10 | 6 | 9 | 67% | 2,753 | 552 | 0.20 |
+| streams | 30 | 152 | 9 | 10 | 67% | 18,434 | 5,725 | 0.31 |
+| config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 25 | 70% | 3,914 | 2,212 | 0.57 |
+| chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
+| markdown | 46 | 3 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 |
+| schema-toon | 25 | 14 | 1 | 4 | 84% | 4,690 | 1,050 | 0.22 |
+| openapi | 46 | 1 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 |
+| schema-csv | 9 | 1 | 0 | 1 | 89% | 1,247 | 564 | 0.45 |
+| sql | 53 | 13 | 1 | 3 | 94% | 3,736 | 4,008 | 1.07 |
+| http-model-schema | 16 | 10 | 0 | 0 | **100%** | 1,249 | 1,073 | 0.86 |
+| mux | 9 | 40 | 0 | 0 | **100%** | 1,222 | 823 | 0.67 |
+| otel | 12 | 8 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 |
+| ringbuffer | 8 | 42 | 0 | 0 | **100%** | 2,360 | 989 | 0.42 |
+| schema-avro | 3 | 3 | 0 | 0 | **100%** | 1,922 | 450 | 0.23 |
+| schema-messagepack | 5 | 2 | 0 | 0 | **100%** | 1,933 | 507 | 0.26 |
+| schema-thrift | 3 | 2 | 0 | 0 | **100%** | 868 | 432 | 0.50 |
+| sql-zio | 1 | 0 | 0 | 0 | **100%** | 218 | 112 | 0.51 |
 
 Notes on reading this table:
 
-- The four `config*` modules share one page directory, so the family is shown as one row (`config` 65/1/14, `config-hocon` 11/2/7, `config-yaml` 1/0/0, `config-json` 0/0/0).
-- `mediatype`'s 0.04 ratio and 31% explained coverage are both artifacts: 12,332 of its 12,676 source lines are the generated `MediaTypes.scala` lookup table, and the 11 unexplained types are generated media-type groupings. Its hand-written surface is ~340 lines and is adequately covered.
-- `maybe`, `htmx`, `codegen`, and `sql` have ratios above 1.0 — more documentation than implementation. They are the model to aim for.
-- `async`'s low coverage is mostly benign: the unnamed types are CPS-transform internals (see *Deliberately Undocumented*). Its 0.20 ratio is the real signal.
-- Five modules are fully covered at the type level: `ringbuffer`, `schema-avro`, `schema-messagepack`, `schema-thrift`, `sql-zio`.
+- **The `internal` column is the one that prevents mis-scoping.** A module whose declarations are mostly internal will show a low ratio without having a real gap. `streams` declares 152 internal types against 30 public ones, and `async` 58 against 9 — their low ratios are arithmetic, not neglect.
+- **`maybe` and `async` are not real gaps** despite ranking high. `maybe`'s seven absent types are `MaybeCompat`, `MaybeOps`, `MaybeSyntax`, `MaybeSyntaxCompat`, `MaybeValue`, `MaybeWithFilter`, and `WithFilter` — syntax and compatibility shims matching the patterns in *Deliberately Undocumented*. `async`'s two are CPS-transform internals that happen to be public.
+- `mediatype`'s 0.04 ratio is an artifact: 12,332 of its 12,676 source lines are the generated `MediaTypes.scala` lookup table.
+- The four `config*` modules share one page directory, so their row is a hand-aggregate of `config` (66/2/1/14), `config-hocon` (13/22/4/9), `config-yaml` (2/0/1/1), and `config-json` (1/1/1/1). The script emits them as four separate rows.
+- Eight modules are fully covered: `http-model-schema`, `mux`, `otel`, `ringbuffer`, `schema-avro`, `schema-messagepack`, `schema-thrift`, `sql-zio`.
 
 ---
 
 ## Critical Gaps
+
+Counts in these sections are from the privacy-aware scanner and match the table above. Historical figures — what a module looked like before its pages were written — are stated as such and were measured under the older scanner, so they overstate the public surface.
 
 Type names below are **unexplained**: no prose reference, no heading. Names marked ✗ are **absent** — they never appear in `docs/` at all, not even inside an example.
 
@@ -108,7 +112,7 @@ Was the worst gap in the repository: one 158-line page covering `config`, `confi
 | `rollout.md`        | Rollout grammar, `Choice`/`Selector`/`Segment`, bucketing, `Flag.ReloadResult`, `UpdateRecord`, counters |
 | `formats.md`        | YAML, JSON, and HOCON adapters, flattening rules, substitutions, includes, `HoconValue`, JVM file loading |
 
-The family is now at 72% explained coverage with 3 absent types. Writing the pages required adding the four config modules to the `docs` project in `build.sbt` — they were absent from its classpath, which is why no config code block had ever been compiled.
+The family is now at 70% explained coverage with 7 absent types, none of which is user-facing API. Writing the pages required adding the four config modules to the `docs` project in `build.sbt` — they were absent from its classpath, which is why no config code block had ever been compiled.
 
 Three behaviours that the source made non-obvious and the new pages now state explicitly: a rollout selector must match a path's segment count **exactly** (the bucketing key is itself the first segment); flag durations use a `30s` suffix grammar while config durations require ISO-8601 `PT30S`; and a flattened `null` is indistinguishable from an absent key, so it cannot be used to unset a lower-priority layer.
 
@@ -130,7 +134,7 @@ Two new pages, 956 lines together, with every code block mdoc-verified:
 | `headers.md`           | `Header`, `Header.Codec`, `Header.Typed`, `Header.Custom`, all 75 built-ins catalogued in ten groups with wire names and ADT variants, the six read methods, the parse cache, write operations, `HeadersBuilder`, validation and injection safety, writing a custom codec |
 | `server-sent-event.md` | `ServerSentEvent`, its constructors and metadata builders, validation, render order, `SseDataEncoder` and its instances, custom encoders |
 
-The `## Headers` section of `model.md` was rewritten to cover the collection itself — creation, raw reads, append versus replace — and now links out for the typed model rather than omitting it. The module is at 55% explained coverage with 6 absent types.
+The `## Headers` section of `model.md` was rewritten to cover the collection itself — creation, raw reads, append versus replace — and now links out for the typed model rather than omitting it. The module is at 56% explained coverage with 5 absent types.
 
 Three behaviours the source made non-obvious, now stated with worked output:
 
@@ -145,7 +149,9 @@ Writing the catalog also surfaced a genuine defect, documented in a warning admo
 What remains is the report's own items 4 and 5 rather than anything new:
 
 - [ ] Document `PercentEncoder`, `QueryKey`, `QueryValue`, and `QueryParamsBuilder` in the URL and query sections of `model.md`
-- [ ] Document `ComponentType` and `UserInfo`
+- [ ] Document `ComponentType`
+
+Note that `http-model` still shows 84 unexplained types against only 5 absent. Almost all of that is the qualified-name artifact: `headers.md` writes `Header.ContentLength`, which the bare-name match never sees. It is a measurement limitation rather than 84 undocumented types.
 
 ### 3. `http-model-schema` — RESOLVED
 
@@ -161,7 +167,7 @@ Three behaviours the source made non-obvious:
 - **Unsupported top-level shapes fail late.** `Schema[Option[A]]`, `Schema[Map[K, V]]`, and `Schema[DynamicValue]` all derive successfully and then throw on the first encode, so a codec built at startup can look healthy until the first request that uses it.
 - **The convenience encoders share a thread-local builder.** `HeaderCodec#encodeToHeaders` resets it before filling, so a custom `Codec#encode` that calls it recursively corrupts the buffer the outer call was building.
 
-**† Why the row still reads 66%.** The six remaining "absent" types — `DecodeErrorFactory`, `FieldCodec`, `SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue` — are all nested inside `private[schema] object ParamCodecSupport`. They are not public API, and documenting them would be documenting internals. The scan counts them because it checks modifiers on the declaration line only, never the enclosing scope; see the third methodology limitation. The module's genuine public surface is fully documented.
+**This module is what exposed the scanner bug.** Six of the types this entry listed as absent — `DecodeErrorFactory`, `FieldCodec`, `SinglePrimitive`, `OptionalValue`, `SequenceValue`, `WrappedValue` — are nested inside `private[schema] object ParamCodecSupport` and are not API at all. The old scanner counted them as public because it only checked modifiers on the declaration line. Fixing that is what produced this revision's numbers, and the row now reads 100% with 16 public types and 10 internal ones.
 
 ### 4. `otel` — RESOLVED, and this item was mis-scoped
 
@@ -184,9 +190,9 @@ Two findings from writing it:
 
 **Lesson for the remaining rows:** check the public/private split before trusting a low ratio. Rows where most lines may be internal should be verified the same way before being scoped as multi-page splits.
 
-### 5. `schema` — 268 unexplained types clustered in seven subsystems
+### 5. `schema` — 220 unexplained types clustered in seven subsystems
 
-At 84,969 source lines and 23,842 documentation lines, `schema` is the best-documented module in absolute terms and still holds the largest absolute gap. The unexplained types are not scattered; they cluster.
+At 84,969 source lines and 23,842 documentation lines, `schema` is the best-documented module in absolute terms and still holds the largest absolute gap: 163 absent and 220 unexplained of 466 public types, with a further 226 declarations internal. The unexplained types are not scattered; they cluster.
 
 **`Into` conversions** — the entire primitive conversion matrix is absent: `ByteToInt` ✗, `ByteToLong` ✗, `ByteToShort` ✗, `ByteToFloat` ✗, `ByteToDouble` ✗, `ByteToString` ✗, `IntToByte` ✗, `IntToChar` ✗, `IntToShort` ✗, `IntToLong` ✗, `IntToFloat` ✗, `IntToDouble` ✗, `IntToString` ✗, `LongTo*` ✗, `ShortTo*` ✗, `FloatTo*` ✗, `DoubleTo*` ✗, `CharToInt` ✗, `CharToString` ✗, `BooleanToString` ✗, `StringToBoolean` ✗, `StringToByte` ✗, `StringToShort` ✗, `StringToInt` ✗, `StringToLong` ✗, `StringToFloat` ✗, `StringToDouble` ✗, plus `ConversionType` ✗ and `DynamicConversionError` ✗.
 - [ ] Add a conversion-matrix table — which conversions exist, which are lossy, which can fail and how
@@ -223,7 +229,7 @@ Also absent: `DocsSchemas` (1,327 lines) and `DerivedOptics` (581 lines) — che
 
 ### 6. `telemetry` — the value ADT and the log-emitter layer
 
-58 unexplained types across two clusters.
+57 unexplained and 17 absent, of 139 public types, across two clusters.
 
 - **`AnyValue` / attribute types**: `BoolValue` ✗, `IntValue` ✗, `ArrayValue` ✗, `StringSeqValue` ✗, `LongSeqValue` ✗, `DoubleSeqValue` ✗, `BooleanSeqValue` ✗, `StringSeqType` ✗, `LongSeqType` ✗, `DoubleSeqType` ✗, `BooleanSeqType` ✗, `StringStringKV` ✗, `StringLongKV` ✗, `StringIntKV` ✗, `StringDoubleKV` ✗, `StringBooleanKV` ✗, plus `StringValue`, `BooleanType`, `LongType`, `DoubleType`, `StringType` unexplained
 - **Signal detail**: `LogState` ✗, `SourceLocation` ✗, `Templated` ✗, `AttributesKind` ✗, `EnrichmentKind` ✗, `FallbackKind` ✗, `SeverityKind` ✗, `StringBodyKind` ✗, `ThrowableKind` ✗, plus `SpanEvent`, `SpanLink`, `Measurement`, `GaugeDataPoint`, `HistogramDataPoint`, `SamplingDecision`, `LogMessage`, `LogRecordBuilder` unexplained, and the `Severity` numbered variants (`Trace2`–`Trace4`, `Debug2`–`Debug4`, `Info2`–`Info4`, `Warn2`–`Warn4`, `Error2`–`Error4`, `Fatal2`–`Fatal4`) unexplained
@@ -242,7 +248,7 @@ Actions:
 
 ### 7. `endpoint` — combinators and segment shortcuts
 
-18 unexplained types: `Alternator` ✗, `CanCombine` ✗, `PathVarsCombiner` ✗, `RoutePathVarsCombiner` ✗, `SegmentCodecOps` ✗, `SinglePathVarPathCodecOps` ✗, `WithStatus` ✗, `ErrorBuilder` ✗, `EndpointUnionErrorBuilder` ✗, `IntSeg` ✗, `LongSeg` ✗, `BoolSeg` ✗, `StringSeg` ✗, `UUIDSeg` ✗, plus `Ignored`, `PathVar`, and `PathCodecRuntime` unexplained.
+20 unexplained types: `Alternator` ✗, `CanCombine` ✗, `PathVarsCombiner` ✗, `RoutePathVarsCombiner` ✗, `SegmentCodecOps` ✗, `SinglePathVarPathCodecOps` ✗, `WithStatus` ✗, `ErrorBuilder` ✗, `EndpointUnionErrorBuilder` ✗, `IntSeg` ✗, `LongSeg` ✗, `BoolSeg` ✗, `StringSeg` ✗, `UUIDSeg` ✗, plus `Ignored`, `PathVar`, and `PathCodecRuntime` unexplained.
 
 `Alternator` and `CanCombine` are the type-level machinery that decides what `++` and `|` produce — without them the combinator signatures in `endpoint.md` and `http-codec.md` cannot be read.
 
@@ -284,7 +290,7 @@ Actions:
 
 ### 11. `typeid` — `Member` subtypes and segment kinds
 
-44 unexplained types. Absent: `Def` ✗, `Val` ✗, `Param` ✗, `TypeMember` ✗, `EnumCaseParam` ✗, `TupleElement` ✗, `PkgSegment` ✗, `TermSegment` ✗, `TypeSegment` ✗, `SegmentInfo` ✗, plus `TypeIdOps` ✗ (333 lines). Unexplained but present in examples: `TypeBounds`, `ThisType`, `TypeProjection`, `TypeSelect`, `ParamRef`, `Repeated`, `ByName`, `Annotated`, `ArrayArg`, `ClassOf`, `EnumValue`, `Covariant`, `Contravariant`, `Invariant`, and the `*Const` literal types.
+44 unexplained types, 26 of them absent. Absent: `Def` ✗, `Val` ✗, `Param` ✗, `TypeMember` ✗, `EnumCaseParam` ✗, `TupleElement` ✗, `PkgSegment` ✗, `TermSegment` ✗, `TypeSegment` ✗, `SegmentInfo` ✗, plus `TypeIdOps` ✗ (333 lines). Unexplained but present in examples: `TypeBounds`, `ThisType`, `TypeProjection`, `TypeSelect`, `ParamRef`, `Repeated`, `ByName`, `Annotated`, `ArrayArg`, `ClassOf`, `EnumValue`, `Covariant`, `Contravariant`, `Invariant`, and the `*Const` literal types.
 
 Actions:
 
@@ -311,7 +317,7 @@ Actions:
   - [ ] Complete the stream-state lifecycle in `mux.mdx`
 - **`context`** — `ContextHas` ✗ (55 lines), `ContextEntries` ✗ (241 lines)
 - **`combinators`** — `TuplesLowPriority` ✗, `TuplesLowPriority1` ✗ (implicit-priority helpers; safe to skip)
-- **`maybe`** — `MaybeSyntax` ✗, `MaybeValue` ✗, `MaybeWithFilter` ✗, `WithFilter` ✗, but the page already exceeds the source in size; **skip**
+- **`maybe`** — `MaybeSyntax` ✗, `MaybeOps` ✗, `MaybeValue` ✗, `MaybeWithFilter` ✗, `WithFilter` ✗, `MaybeCompat` ✗, `MaybeSyntaxCompat` ✗. All seven are syntax or compatibility shims, and the page already exceeds the source in size; **skip permanently** rather than re-triaging each revision
 - **`openapi`** — `OpenAPIGen` ✗ (32 lines) only
 - **`sql`** — `PgCodec` ✗ (169 lines, PostgreSQL type mapping) only
 - **`markdown`** — `MdInterpolator` ✗, `MdStringContext` ✗: the `md"..."` interpolator is documented; the runtime types are not. **Skip.**
@@ -370,12 +376,23 @@ These naming patterns are internal by construction. Do not write documentation f
 
 ## Prioritized Action List
 
-Ordered by user impact per unit of writing effort.
+Ordered by user impact per unit of writing effort. The ranking below predates the scanner fix; by the corrected table, the largest *genuine* remaining gaps are, in order:
+
+| Rank | Module | absent / public | Why |
+| ---- | ------ | --------------- | --- |
+| 1 | `smithy` | 16 / 42 — **24% cov** | Shape catalog incomplete; one page, one table |
+| 2 | `html` | 34 / 88 — 36% | CSS/DOM ADT unnamed; behaviour is documented, types are not |
+| 3 | `datastar` | 30 / 57 — 39% | Worst ratio among real gaps (0.18); builders are new since this report |
+| 4 | `typeid` | 26 / 90 — 51% | `Member` ADT and owner segments |
+| 5 | `schema` | 163 / 466 — 53% | Largest absolute, but seven separable subsystems |
+| 6 | `htmx` | 27 / 88 — 55% | Response headers; item 4 below |
+
+`streams` and `async` drop out of contention entirely once internal declarations are excluded, and `maybe` was never a real gap.
 
 **Tier 1 — new pages for missing subsystems**
 
 1. - [x] `reference/http-model/headers.md` — **done**: 660 lines cataloguing all 75 built-ins, mdoc-verified
-2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family went from 31% to 72% explained coverage
+2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family now at 70% with no user-facing type absent
 3. - [x] ~~Split `reference/telemetry/otel/` into four pages~~ — **done differently**: the four-page split was mis-scoped (the exporters are `private[otel]`); resolved with one new page plus index additions, module now at 100%
 4. - [ ] `reference/htmx/response-headers.md`
 5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
@@ -425,66 +442,125 @@ Ordered by user impact per unit of writing effort.
 
 ## Methodology
 
-Reproducible with the script below. It extracts non-`private` type declarations from every module's `src/main` sources, then diffs them against the identifier set found in `docs/`. Two doc sets are built: every identifier anywhere in `docs/` (yields *absent*), and only identifiers in inline code or headings (yields *unexplained*).
+Reproducible with the script below. It walks every module's `src/main` sources, classifies each `class` / `trait` / `object` / `enum` declaration as public or internal, and diffs the public names against the identifiers found in `docs/`.
 
-```bash
-#!/usr/bin/env bash
-# Documentation coverage scan for zio-blocks.
-set -uo pipefail
-cd "$(git rev-parse --show-toplevel)"
-OUT="${1:-/tmp/doc-scan}"; mkdir -p "$OUT"
+A declaration is **internal** when it is `private` or `protected`, *or when any enclosing declaration is*. That second clause matters: a type declared bare inside `private[schema] object ParamCodecSupport` is not API, and an earlier revision of this script counted six such types as public and scoped a page around them. The scanner tracks an indentation stack to get this right.
 
-MODULES="async chunk codegen combinators config config-hocon config-json config-yaml
-context datastar endpoint html htmx http-model http-model-schema markdown maybe
-mediatype mux openapi otel ringbuffer schema schema-avro schema-bson schema-csv
-schema-messagepack schema-thrift schema-toon schema-xml schema-yaml scope smithy
-sql sql-zio streams telemetry typeid"
+Two document sets are built: every identifier anywhere in `docs/` (yielding *absent*), and only identifiers in inline code or headings (yielding *unexplained*). The whole scanner:
 
-# Every identifier that appears anywhere in the docs tree.
-grep -rhoE '[A-Za-z_][A-Za-z0-9_]*' docs/ \
-  --include='*.md' --include='*.mdx' --include='*.jsx' | sort -u > "$OUT/docwords.txt"
+```python
+#!/usr/bin/env python3
+"""Documentation coverage scan for zio-blocks.
 
-# Stricter set: only names in inline code or in headings.
-{ grep -rhoE '`[A-Za-z_][A-Za-z0-9_]*`' docs/ | tr -d '`'
-  grep -rhoE '^#+ .*' docs/ | grep -oE '[A-Za-z_][A-Za-z0-9_]*'; } | sort -u > "$OUT/documented.txt"
+Reports, per module, how much of the *public* type surface the documentation
+names. A type counts as public only when neither it nor any enclosing
+declaration is private or protected.
+"""
+import os, re, sys
 
-for m in $MODULES; do
-  [ -d "$m" ] || continue
-  find "$m" -path '*/src/main/*' -name '*.scala' -print0 \
-    | xargs -0 grep -hE '^[[:space:]]*(final |sealed |abstract |implicit |case |transparent |inline )*(class|trait|object|enum)[[:space:]]+[A-Za-z_]' \
-    | grep -vE '\bprivate\b|\bprotected\b' \
-    | sed -E 's/.*(class|trait|object|enum)[[:space:]]+([A-Za-z_][A-Za-z0-9_]*).*/\2/' \
-    | sort -u > "$OUT/types-$m.txt"
-  comm -23 "$OUT/types-$m.txt" "$OUT/docwords.txt"   > "$OUT/absent-$m.txt"
-  comm -23 "$OUT/types-$m.txt" "$OUT/documented.txt" > "$OUT/unexplained-$m.txt"
-  printf '%s\t%s\t%s\t%s\n' "$m" \
-    "$(wc -l < "$OUT/types-$m.txt")" \
-    "$(wc -l < "$OUT/absent-$m.txt")" \
-    "$(wc -l < "$OUT/unexplained-$m.txt")"
-done | sort -t$'\t' -k3,3rn
+DECL = re.compile(
+    r'^(?P<indent>[ \t]*)'
+    r'(?P<mods>(?:(?:final|sealed|abstract|implicit|case|transparent|inline|'
+    r'private|protected)(?:\[[A-Za-z_]\w*\])?\s+)*)'
+    r'(?:class|trait|object|enum)\s+(?P<name>[A-Za-z_]\w*)'
+)
+PRIVATE = re.compile(r'\b(private|protected)\b')
+
+def scan_module(path):
+    """Return (public type names, count of non-public declarations)."""
+    public, nonpublic = set(), 0
+    for root, _, files in os.walk(path):
+        if '/src/main/' not in root + '/':
+            continue
+        for f in files:
+            if not f.endswith('.scala'):
+                continue
+            # stack of (indent, enclosing_is_private) for open declarations
+            stack = []
+            for line in open(os.path.join(root, f), encoding='utf-8', errors='ignore'):
+                m = DECL.match(line)
+                if not m:
+                    continue
+                indent = len(m.group('indent').expandtabs(2))
+                while stack and stack[-1][0] >= indent:
+                    stack.pop()
+                enclosed = any(p for _, p in stack)
+                own = bool(PRIVATE.search(m.group('mods')))
+                hidden = own or enclosed
+                if hidden:
+                    nonpublic += 1
+                else:
+                    public.add(m.group('name'))
+                stack.append((indent, hidden))
+    return public, nonpublic
+
+def doc_identifiers(docs='docs', exclude=('undocumented-report.md',)):
+    """All identifiers anywhere in the docs, and those in prose or headings."""
+    anywhere, explained = set(), set()
+    token = re.compile(r'[A-Za-z_]\w*')
+    inline = re.compile(r'`([A-Za-z_]\w*)`')
+    for root, _, files in os.walk(docs):
+        for f in files:
+            if not f.endswith(('.md', '.mdx', '.jsx')) or f in exclude:
+                continue
+            text = open(os.path.join(root, f), encoding='utf-8', errors='ignore').read()
+            anywhere.update(token.findall(text))
+            explained.update(inline.findall(text))
+            for line in text.split('\n'):
+                if line.startswith('#'):
+                    explained.update(token.findall(line))
+    return anywhere, explained
+
+def main(modules):
+    anywhere, explained = doc_identifiers()
+    rows, tp = [], [0, 0, 0]
+    for m in modules:
+        if not os.path.isdir(m):
+            continue
+        public, nonpublic = scan_module(m)
+        if not public and not nonpublic:
+            continue
+        absent = sorted(n for n in public if n not in anywhere)
+        unexplained = sorted(n for n in public if n not in explained)
+        rows.append((m, len(public), nonpublic, len(absent), len(unexplained), absent))
+        tp[0] += len(public); tp[1] += len(absent); tp[2] += len(unexplained)
+    rows.sort(key=lambda r: -r[3])
+    print(f"{'module':<20}{'public':>7}{'internal':>9}{'absent':>7}{'unexpl':>7}{'cov':>6}")
+    for m, p, np_, a, u, _ in rows:
+        print(f"{m:<20}{p:>7}{np_:>9}{a:>7}{u:>7}{round((p-u)*100/p) if p else 0:>5}%")
+    print(f"\nTOTAL public={tp[0]} absent={tp[1]} unexplained={tp[2]} "
+          f"name-cov={round((tp[0]-tp[1])*100/tp[0])}% explained-cov={round((tp[0]-tp[2])*100/tp[0])}%")
+    if '-v' in sys.argv:
+        print()
+        for m, _, _, _, _, absent in rows:
+            if absent:
+                print(f"{m}: {' '.join(absent)}")
+
+MODULES = """async chunk codegen combinators config config-hocon config-json config-yaml context
+datastar endpoint html htmx http-model http-model-schema markdown maybe mediatype mux openapi
+otel ringbuffer schema schema-avro schema-bson schema-csv schema-messagepack schema-thrift
+schema-toon schema-xml schema-yaml scope smithy sql sql-zio streams telemetry typeid""".split()
+
+if __name__ == '__main__':
+    main(MODULES)
 ```
 
-A second pass catches types the declaration scan misses because of a visibility modifier but which are still absent from the docs, keyed on file name:
+Run it from the repository root:
 
 ```bash
-for m in $MODULES; do
-  find "$m" -path '*/src/main/*' -name '*.scala' | while read -r f; do
-    b=$(basename "$f" .scala)
-    case "$b" in package|*Macros|*PlatformSpecific|*VersionSpecific|*Compat|*LowPriority) continue;; esac
-    grep -qxF "$b" "$OUT/docwords.txt" || printf '%s\t%s\t%s\n' "$m" "$b" "$(wc -l < "$f")"
-  done
-done
+python3 scan-coverage.py        # table
+python3 scan-coverage.py -v     # table plus the absent names per module
 ```
 
 Known limitations:
 
-- Matching is name-based, so a type whose name collides with an ordinary English word (`Default`, `Private`, `Public`, `Wildcard`, `Flag`, `Origin`, `Date`, `Host`) can be scored as covered when the page never discusses it. Both gap counts are therefore lower bounds.
-- Nested types are counted individually, which inflates ADT-heavy modules such as `http-model` and `schema`. This is intentional: each variant is something a user can pattern match on.
-- **The scan cannot see enclosing-scope privacy.** A type declared without a modifier inside a `private[...]` object counts as public. Six of `http-model-schema`'s eighteen types are nested in `private[schema] object ParamCodecSupport` and are indistinguishable, to this scan, from real API. Check the enclosing scope before scoping a row as work — this is the otel mis-scope one level down, and excluding such types is the highest-value fix to the script below.
-- The `unexplained` column under-counts on well-written pages. The writing-style rules require method references to be qualified (`ConfigSource#orElse`, `Flag.Reader.scalar`), and nested types read naturally as `Provenance.Resolved` or `KeyFormat.KebabCase` — none of which the bare-name match sees. A page that follows the style guide will therefore show unexplained types it actually explains.
-- Method-level coverage is not measured. The `ratio` column (doc LOC / src LOC) is the proxy used instead.
-- The `ratio` column is meaningless for modules dominated by generated code — `mediatype` is the clearest case.
+- **Matching is name-based.** A type whose name collides with an ordinary English word (`Default`, `Private`, `Public`, `Wildcard`, `Flag`, `Origin`, `Date`, `Host`) can be scored as covered when the page never discusses it. Both gap counts are lower bounds.
+- **The `unexplained` column under-counts on well-written pages.** The writing-style rules require qualified method references (`ConfigSource#orElse`), and nested types read naturally as `Provenance.Resolved` or `KeyFormat.KebabCase` — none of which the bare-name match sees. A page that follows the style guide will show unexplained types it actually explains.
+- **Indentation, not parsing, determines nesting.** The privacy stack assumes scalafmt-formatted sources, where a nested declaration is indented further than its enclosure. It would misclassify a declaration inside a Scala 3 brace-free block that was not indented, and it does not read `export` or type aliases that re-expose an internal type under a public name.
+- **Public does not mean intended-as-API.** Syntax shims, compatibility layers, and macro bundles are public because they must be, not because anyone should read about them. `maybe` and `async` rank badly for exactly this reason; see *Deliberately Undocumented*.
+- **Method-level coverage is not measured.** The `ratio` column is the proxy.
+- **The `ratio` column is meaningless for generated code** — `mediatype` is the clearest case.
 
 ---
 
-*Report regenerated 2026-08-21 against commit `a33dc448`. 1,828 public types scanned across 38 modules and 164 reference pages.*
+*Report regenerated 2026-08-25 against commit `080a5e43`, using the privacy-aware scanner above. 1,785 public types and 863 internal declarations across 38 modules and 168 reference pages. Earlier revisions reported 1,828 "public" types; that figure counted privately-enclosed declarations as API.*
