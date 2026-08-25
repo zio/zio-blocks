@@ -110,6 +110,7 @@ object QueueTable {
    */
   def enqueue[ID](tableName: String, ids: Seq[ID])(using con: DbCon, codec: DbCodec[ID]): Unit = {
     if (ids.isEmpty) return
+    require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     val rowFrags  = ids.map { id =>
@@ -131,6 +132,7 @@ object QueueTable {
    */
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")
+    require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     val frag      = Frag.literal(dialect.dequeueSQL(validated, colName, batchSize))

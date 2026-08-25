@@ -192,9 +192,15 @@ final class LargeMigrator[A, B, ID1, ID2](
         val deleted = if (deletedIds.nonEmpty) repoV2.deleteAll(sameIds(deletedIds))(using tx) else 0
         updated + deleted
       case TargetStrategy.ShadowTable(_) =>
-        // Shadow tables start empty, so rows are inserted fresh rather than updated.
-        val migrated = if (entitiesV2.nonEmpty) writeRepo.insertBatch(entitiesV2)(using tx) else 0
-        val deleted  = if (deletedIds.nonEmpty) writeRepo.deleteAll(sameIds(deletedIds))(using tx) else 0
+        // Upsert semantics: capture triggers can re-enqueue an already-migrated
+        // row (source UPDATE during the migration window), so a plain insert
+        // would hit the shadow table's primary key. Update first, insert if absent.
+        val migrated = entitiesV2.foldLeft(0) { (count, e) =>
+          val updated = writeRepo.update(e)(using tx)
+          if (updated > 0) count + updated
+          else count + writeRepo.insert(e)(using tx)
+        }
+        val deleted = if (deletedIds.nonEmpty) writeRepo.deleteAll(sameIds(deletedIds))(using tx) else 0
         migrated + deleted
     }
   }

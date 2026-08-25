@@ -65,14 +65,6 @@ trait Dialect extends SqlMigration
 
 object Dialect {
 
-  /**
-   * Picks a [[Dialect]] for the given `SqlDialect`; unsupported dialects throw.
-   */
-  def forSqlDialect(d: SqlDialect): Dialect = d match {
-    case SqlDialect.PostgreSQL => Postgres
-    case SqlDialect.SQLite     => SQLite
-  }
-
   object Postgres extends Dialect {
     val supportsSkipLocked = true
 
