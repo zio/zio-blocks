@@ -207,5 +207,6 @@ An `IsNominalType[OtelContext]` instance is provided, which is what lets the typ
 ## See Also
 
 - [Building an Exporter](./custom-exporter.md) — `OtlpJsonEncoder`, `ExportResult`, and a worked flush function
+- [AttributeValue](../common/any-value.md) — the eight attribute kinds this exporter maps onto OTLP's `AnyValue` JSON shape
 - [Tracing](../tracing/index.md) — opening the spans this module exports, and [`SpanContext`](../tracing/span-context.md), the identity a propagator moves
 - [Telemetry Reference](../index.md) — the core module that records what this one exports
