@@ -111,7 +111,6 @@ trait HtmlElements {
   val kbd: Dom.Element        = Dom.Element.Generic("kbd", Chunk.empty, Chunk.empty)
   val label: Dom.Element      = Dom.Element.Generic("label", Chunk.empty, Chunk.empty)
   val legend: Dom.Element     = Dom.Element.Generic("legend", Chunk.empty, Chunk.empty)
-  val li: Dom.Element         = Dom.Element.Generic("li", Chunk.empty, Chunk.empty)
   val link: Dom.Element.Void  = Dom.Element.VoidGeneric("link", Chunk.empty)
   val main: Dom.Element       = Dom.Element.Generic("main", Chunk.empty, Chunk.empty)
   val menu: Dom.Element       = Dom.Element.Generic("menu", Chunk.empty, Chunk.empty)
@@ -124,9 +123,6 @@ trait HtmlElements {
   val noscript: Dom.Element   = Dom.Element.Generic("noscript", Chunk.empty, Chunk.empty)
   val `object`: Dom.Element   = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
   val objectTag: Dom.Element  = Dom.Element.Generic("object", Chunk.empty, Chunk.empty)
-  val ol: Dom.Element         = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
-  val optgroup: Dom.Element   = Dom.Element.Generic("optgroup", Chunk.empty, Chunk.empty)
-  val option: Dom.Element     = Dom.Element.Generic("option", Chunk.empty, Chunk.empty)
   val output: Dom.Element     = Dom.Element.Generic("output", Chunk.empty, Chunk.empty)
   val param: Dom.Element.Void = Dom.Element.VoidGeneric("param", Chunk.empty)
   val picture: Dom.Element    = Dom.Element.Generic("picture", Chunk.empty, Chunk.empty)
@@ -155,7 +151,6 @@ trait HtmlElements {
   )
   val search: Dom.Element      = Dom.Element.Generic("search", Chunk.empty, Chunk.empty)
   val section: Dom.Element     = Dom.Element.Generic("section", Chunk.empty, Chunk.empty)
-  val select: Dom.Element      = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
   val slot: Dom.Element        = Dom.Element.Generic("slot", Chunk.empty, Chunk.empty)
   val small: Dom.Element       = Dom.Element.Generic("small", Chunk.empty, Chunk.empty)
   val source: Dom.Element.Void = Dom.Element.VoidGeneric("source", Chunk.empty)
@@ -179,25 +174,74 @@ trait HtmlElements {
   val summary: Dom.Element              = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
   val sup: Dom.Element                  = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
   val svg: Dom.Element                  = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
-  val table: Dom.Element                = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
   val tbody: Dom.Element                = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
-  val td: Dom.Element                   = Dom.Element.Generic("td", Chunk.empty, Chunk.empty)
   val `template`: Dom.Element           = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
   val templateTag: Dom.Element          = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
   val textarea: Dom.Element             = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
   val tfoot: Dom.Element                = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
-  val th: Dom.Element                   = Dom.Element.Generic("th", Chunk.empty, Chunk.empty)
   val thead: Dom.Element                = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
   val time: Dom.Element                 = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
-  val tr: Dom.Element                   = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
   val track: Dom.Element.Void           = Dom.Element.VoidGeneric("track", Chunk.empty)
   val u: Dom.Element                    = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
-  val ul: Dom.Element                   = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
   val `var`: Dom.Element                = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val varTag: Dom.Element               = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val video: Dom.Element                = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
   val wbr: Dom.Element.Void             = Dom.Element.VoidGeneric("wbr", Chunk.empty)
   def element(tag: String): Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<li>` element; apply attributes/children via `li(...)`, returning
+   * `Li`.
+   */
+  val li: Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
+
+  /** Empty `<ul>` element; apply attributes/children via `ul(...)`. */
+  val ul: Dom.Element = Dom.Element.Generic("ul", Chunk.empty, Chunk.empty)
+
+  /** Empty `<ol>` element; apply attributes/children via `ol(...)`. */
+  val ol: Dom.Element = Dom.Element.Generic("ol", Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<th>` element; apply attributes/children via `th(...)`, returning
+   * `Th`.
+   */
+  val th: Dom.Element.Th = Dom.Element.ThElement(Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<td>` element; apply attributes/children via `td(...)`, returning
+   * `Td`.
+   */
+  val td: Dom.Element.Td = Dom.Element.TdElement(Chunk.empty, Chunk.empty)
+
+  /** Empty `<tr>` element; apply attributes/children via `tr(...)`. */
+  val tr: Dom.Element = Dom.Element.Generic("tr", Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<table>` element; apply attributes/children via `table(...)`
+   * (caption, colgroup, thead, tbody, tfoot, tr).
+   */
+  val table: Dom.Element = Dom.Element.Generic("table", Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<option>` element; apply attributes/children via `opt(...)`,
+   * returning `Opt`.
+   */
+  val opt: Dom.Element.Opt = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+
+  /** Alias for [[opt]]. */
+  val option: Dom.Element.Opt = Dom.Element.OptElement(Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<optgroup>` element; apply options/attributes via `optgroup(...)`,
+   * returning `Optgroup`.
+   */
+  val optgroup: Dom.Element.Optgroup = Dom.Element.OptgroupElement(Chunk.empty, Chunk.empty)
+
+  /**
+   * Empty `<select>` element; apply `<option>`/`<optgroup>` children and
+   * attributes via `select(...)`.
+   */
+  val select: Dom.Element = Dom.Element.Generic("select", Chunk.empty, Chunk.empty)
 
   // --- Attribute helpers ---
 

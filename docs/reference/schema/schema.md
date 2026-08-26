@@ -522,6 +522,8 @@ val updated: Option[Schema[Person]] = Schema[Person]
   .updated(Person.address)(_.doc("Mailing address"))
 ```
 
+For the lower-level `Reflect.Updater`/`Term.Updater` callbacks this method builds on — including how `Term.Updater` can rename or delete a field by returning `None` — see [Schema Search and Update](./schema-search.md#updater--rewriting-schema-metadata).
+
 ## Schema Aspects
 
 Schema aspects are a powerful mechanism in ZIO Blocks for transforming schemas. You can think of the schema aspect as a function that takes a reflect and produces a new reflect:

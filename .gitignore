@@ -75,3 +75,4 @@ website/.docusaurus
 *.class
 *.tasty
 .flowrite/
+.docs-audit-state.json

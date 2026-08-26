@@ -7,7 +7,9 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 **This revision fixes the scanner, so every number below has moved.** Earlier revisions classified a declaration as private only when the modifier sat on its own line, which counted 863 privately-enclosed declarations as public API — about a third of everything declared. Two items were mis-scoped as a result. The scanner now walks enclosing scopes, and the table carries an `internal` column so a low ratio can be told apart from a real gap. See *Methodology*.
 
-**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7, `headers.md` and `server-sent-event.md`), `otel` (item 3), and the `http-model-schema` codec layer (Tier 2 item 15, `schema-codecs.md`). Three of those four modules are now at or near full coverage of their public surface; `http-model-schema` and `otel` are at 100%.
+**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7), `otel` (item 3), the `http-model-schema` codec layer (Tier 2 item 15), and — landed independently while this revision was in progress — `htmx` response headers (item 4, #1619), the `schema` search and traversal cluster (item 5, #1621), and `ReflectTransformer` (item 8, #1623).
+
+Every figure in this revision, including those three, is restated under the privacy-aware scanner. The notes those PRs added quoted the old scanner, which is why their numbers differ from the table: `htmx` reads 77% here rather than 85%, and `schema` 55% rather than 77%. The work is the same; the measurement changed.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
@@ -19,20 +21,20 @@ Full re-scan of documentation coverage across every library module aggregated by
 | Modules with no reference page | **0** |
 | Reference pages | 168 |
 | Guides | 9 |
-| Declarations found (`class` / `trait` / `object` / `enum`) | 2,648 |
-| — of which public | 1,785 |
-| — of which private or nested in a private scope | 863 |
-| Public types never named anywhere in `docs/` | **403** |
-| Public types with no prose or heading reference | **737** |
-| Name-mention coverage | **77%** |
-| Explained-type coverage | **59%** |
+| Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
+| — of which public | 1,798 |
+| — of which private or nested in a private scope | 864 |
+| Public types never named anywhere in `docs/` | **386** |
+| Public types with no prose or heading reference | **714** |
+| Name-mention coverage | **79%** |
+| Explained-type coverage | **60%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 403 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 737 types — additionally captures the 334 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 386 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 714 types — additionally captures the 328 types that appear only as tokens inside examples and are never explained.
 
-Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 863 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
+Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
 This report file is excluded from the scan, so listing a type here does not make it count as documented. Counts are per module, so a name defined in two modules is counted twice.
 
@@ -45,18 +47,17 @@ This report file is excluded from the scan, so listing a type here does not make
 | Module | public | internal | absent | unexpl | cov | srcLOC | docLOC | ratio |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | **smithy** | 42 | 4 | 16 | 32 | **24%** | 2,585 | 533 | 0.21 |
-| maybe | 10 | 0 | 7 | 7 | 30% | 491 | 826 | 1.68 |
 | mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
-| **html** | 88 | 13 | 34 | 56 | **36%** | 4,789 | 1,139 | 0.24 |
+| **html** | 100 | 13 | 46 | 68 | **32%** | 4,966 | 1,139 | 0.23 |
 | **datastar** | 57 | 11 | 30 | 35 | **39%** | 1,881 | 346 | 0.18 |
+| maybe | 10 | 0 | 6 | 6 | 40% | 595 | 943 | 1.58 |
 | context | 2 | 7 | 1 | 1 | 50% | 865 | 553 | 0.64 |
-| **typeid** | 90 | 14 | 26 | 44 | **51%** | 6,493 | 2,124 | 0.33 |
-| **schema** | 466 | 226 | 163 | 220 | **53%** | 84,969 | 23,842 | 0.28 |
+| **typeid** | 90 | 14 | 26 | 43 | **52%** | 6,493 | 2,124 | 0.33 |
 | schema-xml | 38 | 2 | 9 | 18 | 53% | 3,334 | 1,034 | 0.31 |
-| **htmx** | 88 | 2 | 27 | 40 | **55%** | 1,548 | 2,521 | 1.63 |
+| **schema** | 466 | 226 | 156 | 208 | **55%** | 85,027 | 24,259 | 0.29 |
 | http-model | 191 | 3 | 5 | 84 | 56% | 4,712 | 2,520 | 0.53 |
-| schema-bson | 19 | 0 | 2 | 8 | 58% | 1,790 | 472 | 0.26 |
 | telemetry | 139 | 72 | 17 | 57 | 59% | 7,509 | 2,856 | 0.38 |
+| schema-bson | 20 | 0 | 2 | 8 | 60% | 1,935 | 494 | 0.26 |
 | scope | 23 | 54 | 6 | 9 | 61% | 7,085 | 3,579 | 0.51 |
 | codegen | 46 | 0 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 |
 | async | 9 | 58 | 2 | 3 | 67% | 6,540 | 1,291 | 0.20 |
@@ -64,13 +65,14 @@ This report file is excluded from the scan, so listing a type here does not make
 | endpoint | 60 | 20 | 18 | 20 | 67% | 2,805 | 1,757 | 0.63 |
 | schema-yaml | 27 | 10 | 6 | 9 | 67% | 2,753 | 552 | 0.20 |
 | streams | 30 | 152 | 9 | 10 | 67% | 18,434 | 5,725 | 0.31 |
-| config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 25 | 70% | 3,914 | 2,212 | 0.57 |
+| config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 24 | 71% | 3,914 | 2,212 | 0.57 |
 | chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
+| htmx | 88 | 2 | 6 | 20 | 77% | 1,548 | 2,750 | 1.78 |
 | markdown | 46 | 3 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 |
 | schema-toon | 25 | 14 | 1 | 4 | 84% | 4,690 | 1,050 | 0.22 |
 | openapi | 46 | 1 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 |
 | schema-csv | 9 | 1 | 0 | 1 | 89% | 1,247 | 564 | 0.45 |
-| sql | 53 | 13 | 1 | 3 | 94% | 3,736 | 4,008 | 1.07 |
+| sql | 53 | 14 | 1 | 3 | 94% | 4,234 | 4,047 | 0.96 |
 | http-model-schema | 16 | 10 | 0 | 0 | **100%** | 1,249 | 1,073 | 0.86 |
 | mux | 9 | 40 | 0 | 0 | **100%** | 1,222 | 823 | 0.67 |
 | otel | 12 | 8 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 |
@@ -85,8 +87,9 @@ Notes on reading this table:
 - **The `internal` column is the one that prevents mis-scoping.** A module whose declarations are mostly internal will show a low ratio without having a real gap. `streams` declares 152 internal types against 30 public ones, and `async` 58 against 9 — their low ratios are arithmetic, not neglect.
 - **`maybe` and `async` are not real gaps** despite ranking high. `maybe`'s seven absent types are `MaybeCompat`, `MaybeOps`, `MaybeSyntax`, `MaybeSyntaxCompat`, `MaybeValue`, `MaybeWithFilter`, and `WithFilter` — syntax and compatibility shims matching the patterns in *Deliberately Undocumented*. `async`'s two are CPS-transform internals that happen to be public.
 - `mediatype`'s 0.04 ratio is an artifact: 12,332 of its 12,676 source lines are the generated `MediaTypes.scala` lookup table.
-- The four `config*` modules share one page directory, so their row is a hand-aggregate of `config` (66/2/1/14), `config-hocon` (13/22/4/9), `config-yaml` (2/0/1/1), and `config-json` (1/1/1/1). The script emits them as four separate rows.
+- The four `config*` modules share one page directory, so their row is a hand-aggregate; the script emits them as four separate rows.
 - Eight modules are fully covered: `http-model-schema`, `mux`, `otel`, `ringbuffer`, `schema-avro`, `schema-messagepack`, `schema-thrift`, `sql-zio`.
+- **`html` moved the wrong way.** #1536 replaced the untyped element factories with a typed content model, adding 12 public types that no page names yet. Its absent count went from 34 to 46 while its documentation stood still — the clearest case in this table of code outrunning docs.
 
 ---
 
@@ -207,10 +210,10 @@ At 84,969 source lines and 23,842 documentation lines, `schema` is the best-docu
 **Patch operations** — `DynamicPatchOp` ✗, `MapEdit` ✗, `MapOp` ✗, `SeqOp` ✗, `SequenceEdit` ✗, `BigIntDelta` ✗, `ForInstant` ✗, `ForLocalDate` ✗, `ForPeriod` ✗.
 - [ ] Document the patch operation ADT, the map/sequence edit encodings, and the temporal delta types
 
-**Search, traversal, and transformation** — `SchemaSearch` ✗, `SchemaMatch` ✗ (181 lines), `TypeSearch` ✗, `SearchTraversal` ✗, `Updater` ✗, `Frame` ✗, `ReflectTransformer` ✗ (230 lines), `OnlyMetadata` ✗, plus `RebindTransformer` (237 lines), `SchemaRepr`, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained. An entire subsystem with no page.
-- [ ] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater`
-- [ ] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer`
-- [ ] Document `SchemaAspect` and `SchemaRepr`
+**Search, traversal, and transformation.** **Done for both halves of this cluster.** `reference/schema/schema-search.md` (251 lines, mdoc-verified) documents `SchemaMatch`'s structural matching rules, `SearchTraversal`'s `fold`/`modify`/`modifyOption`/`modifyOrFail`/`check` and its composition with other optics, and `Reflect.Updater`/`Term.Updater` (including how `Term.Updater` deletes a field/case by returning `None`) — `TypeSearch`/`SchemaSearch` themselves were already covered by `dynamic-optic.md`'s `## Search Optics` section, which now cross-links to the new page. `reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) documents `ReflectTransformer` (230 lines) and its `OnlyMetadata` base class, `RebindTransformer` (237 lines, `private[schema]` — documented through its public entry point `DynamicSchema#rebind`), and `RebindException`. `Frame` turned out to be unrelated to this cluster despite the grouping — it's an internal traversal-stack ADT used by `DynamicValue`/`Json` patch application, not by `ReflectTransformer` or the search/update surface. `SchemaRepr` is explained incidentally as the pattern language `SchemaMatch` matches against, but its own dedicated reference (every constructor, `render`, the derived `Schema[SchemaRepr]`) is still open. Still absent: `Frame` ✗, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained.
+- [x] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater` — **done**: 251 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `dynamic-optic.md` and `schema.md`
+- [x] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer` — **done**: 140 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `binding.md` (which had a stale forward-reference promising this coverage) and `dynamic-schema.md`
+- [ ] Document `SchemaAspect` and `SchemaRepr`'s dedicated reference
 
 **Derivation overrides** — `type-class-derivation.md` never names the override subtypes: `InstanceOverrideByType` ✗, `InstanceOverrideByOptic` ✗, `InstanceOverrideByTypeAndTermName` ✗, `ModifierReflectOverrideByType` ✗, `ModifierReflectOverrideByOptic` ✗, `ModifierTermOverrideByType` ✗, `ModifierTermOverrideByOptic` ✗.
 - [ ] Document each override form with the selection rule that distinguishes it
@@ -261,11 +264,11 @@ Actions:
 
 ### 8. `htmx` — response headers
 
-The attribute DSL is well covered (2,521 doc lines, ratio 1.63), but the header side is undocumented. `HtmxHeaders` ✗ (334 lines) and `HtmxSupport` ✗ never appear, and 26 header types are absent: `HxLocation` ✗, `HxPushUrl` ✗, `HxRedirect` ✗, `HxRefresh` ✗, `HxReplaceUrl` ✗, `HxReswap` ✗, `HxRetarget` ✗, `HxReselect` ✗, `HxTriggerHeader` ✗, `HxTriggerAfterSwap` ✗, `HxTriggerAfterSettle` ✗, `HxRequest` ✗, `HxBoosted` ✗, `HxCurrentUrl` ✗, `HxPrompt` ✗, `HxHistoryRestoreRequest` ✗, `HxTargetId` ✗, `HxTriggerId` ✗, `HxTriggerName` ✗, `HxTriggerValue` ✗, `HxEventPayload` ✗, `HxOnKey` ✗, `PartialHxOn` ✗, `JsonValue` ✗, `Changed` ✗, `Threshold` ✗.
+**Done.** The attribute DSL was well covered (2,521 doc lines, ratio 1.63), but the header side — `HtmxHeaders` (334 lines) and its 22 request/response header types — was absent. `reference/htmx/response-headers.md` (229 lines, mdoc-verified) now covers both directions: the request headers HTMX sends (`HxRequest`, `HxBoosted`, `HxCurrentUrl`, `HxTargetId`, `HxTriggerId`, `HxTriggerName`, `HxHistoryRestoreRequest`, `HxPrompt`), the response headers a handler sets (`HxLocation`, `HxPushUrl`, `HxReplaceUrl`, `HxRedirect`, `HxRefresh`, `HxReswap`, `HxRetarget`, `HxReselect`, `HxTriggerHeader`, `HxTriggerAfterSettle`, `HxTriggerAfterSwap`, `HxEventPayload`), and how each reuses `HxSwap`/`HxTarget`/`HxUrlUpdate`/`CssSelector` from the attribute DSL. `HxTriggerValue`, `HxOnKey`, `PartialHxOn`, `Changed`, and `Threshold` from the original absent-types list are attribute-DSL types (not headers) and remain covered by `hx-trigger.md`/`attribute-values.md`. The internal `HtmxHeaderSupport` parsing helper is `private[headers]` and intentionally left undocumented as an implementation detail, not a public integration point.
 
 Actions:
 
-- [ ] Write `reference/htmx/response-headers.md` — request headers htmx sends, response headers you set, and the `HtmxSupport` integration point
+- [x] Write `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `reference/htmx/index.md`
 
 ### 9. `smithy` — 32 unexplained types, mostly the shape catalog
 
@@ -378,27 +381,27 @@ These naming patterns are internal by construction. Do not write documentation f
 
 Ordered by user impact per unit of writing effort. The ranking below predates the scanner fix; by the corrected table, the largest *genuine* remaining gaps are, in order:
 
-| Rank | Module | absent / public | Why |
-| ---- | ------ | --------------- | --- |
-| 1 | `smithy` | 16 / 42 — **24% cov** | Shape catalog incomplete; one page, one table |
-| 2 | `html` | 34 / 88 — 36% | CSS/DOM ADT unnamed; behaviour is documented, types are not |
-| 3 | `datastar` | 30 / 57 — 39% | Worst ratio among real gaps (0.18); builders are new since this report |
-| 4 | `typeid` | 26 / 90 — 51% | `Member` ADT and owner segments |
-| 5 | `schema` | 163 / 466 — 53% | Largest absolute, but seven separable subsystems |
-| 6 | `htmx` | 27 / 88 — 55% | Response headers; item 4 below |
+| Rank | Module | absent / public | cov | Why |
+| ---- | ------ | --------------- | ---- | --- |
+| 1 | `smithy` | 16 / 42 | **24%** | Shape catalog incomplete; one page, one table |
+| 2 | `html` | 46 / 100 | **32%** | The typed content model from #1536 is entirely unnamed, and the gap is growing |
+| 3 | `datastar` | 30 / 57 | 39% | Worst ratio among real gaps (0.18); its builders are newer than this report |
+| 4 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
+| 5 | `schema` | 156 / 466 | 55% | Largest absolute, but six separable subsystems remain |
+| 6 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
 
-`streams` and `async` drop out of contention entirely once internal declarations are excluded, and `maybe` was never a real gap.
+`streams` and `async` drop out entirely once internal declarations are excluded, and `maybe` was never a real gap. `htmx` has left the list — #1619 took it to 77%.
 
 **Tier 1 — new pages for missing subsystems**
 
 1. - [x] `reference/http-model/headers.md` — **done**: 660 lines cataloguing all 75 built-ins, mdoc-verified
 2. - [x] Split `reference/config.md` into `reference/config/` — **done**: seven pages, 2,212 lines, mdoc-verified; family now at 70% with no user-facing type absent
 3. - [x] ~~Split `reference/telemetry/otel/` into four pages~~ — **done differently**: the four-page split was mis-scoped (the exporters are `private[otel]`); resolved with one new page plus index additions, module now at 100%
-4. - [ ] `reference/htmx/response-headers.md`
-5. - [ ] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`)
+4. - [x] `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified
+5. - [x] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`) — **done**: 251 lines, mdoc-verified
 6. - [ ] `reference/telemetry/common/any-value.md`
 7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
-8. - [ ] `reference/schema/reflect-transformer.md`
+8. - [x] `reference/schema/reflect-transformer.md` — **done**: 140 lines, mdoc-verified
 9. - [ ] `reference/telemetry/logging/log-emitter.md`
 
 **Tier 2 — sections in existing pages**
@@ -563,4 +566,4 @@ Known limitations:
 
 ---
 
-*Report regenerated 2026-08-25 against commit `080a5e43`, using the privacy-aware scanner above. 1,785 public types and 863 internal declarations across 38 modules and 168 reference pages. Earlier revisions reported 1,828 "public" types; that figure counted privately-enclosed declarations as API.*
+*Report regenerated 2026-08-26 against `main` at `01fc5099`, using the privacy-aware scanner above. 1,798 public types and 864 internal declarations across 38 modules. Earlier revisions reported 1,828 "public" types; that figure counted privately-enclosed declarations as API.*
