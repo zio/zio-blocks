@@ -49,11 +49,8 @@ object PgCodec {
 
   private val ValueColumn = IndexedSeq("value")
 
-  private def readStringArray(sqlArray: java.sql.Array): Array[String] =
-    if (sqlArray == null) null
-    else
-      try sqlArray.getArray().asInstanceOf[Array[String]]
-      finally sqlArray.free()
+  private def readStringArray(values: Array[String]): Array[String] =
+    if (values == null) null else values
 
   private val listStringArrayCodec: DbCodec[List[String]] = new DbCodec[List[String]] {
     val columns: IndexedSeq[String] = ValueColumn

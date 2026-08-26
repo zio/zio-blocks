@@ -16,7 +16,12 @@
 
 package zio.blocks.sql
 
+import scala.collection.mutable
+import zio.blocks.chunk.Chunk
 import zio.blocks.maybe.Maybe
+import zio.blocks.streams.Stream
+import zio.blocks.streams.internal.StreamError
+import zio.blocks.streams.io.Reader
 
 /**
  * A SQL fragment composed of literal text interleaved with typed parameter
@@ -51,8 +56,27 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
   /**
    * Renders the fragment to a SQL string using the given dialect's placeholder
    * syntax.
+   *
+   * The rendered SQL depends only on the fragment's literal `parts`, the number
+   * of params, and the dialect — param *values* are bound separately — so the
+   * result is memoized per shape in [[Frag.renderedSql]] and reused across
+   * executions. Repeated execution of the same fragment therefore returns the
+   * cached `String` instead of rebuilding it with a `StringBuilder` each time.
    */
-  def sql(dialect: SqlDialect): String = {
+  def sql(dialect: SqlDialect): String =
+    Frag.synchronized {
+      val shape = (parts, params.length, dialect)
+      Frag.renderedSql.getOrElse(
+        shape, {
+          if (Frag.renderedSql.size >= Frag.RenderedSqlCacheMaxEntries) Frag.renderedSql.clear()
+          val rendered = renderSql(dialect)
+          Frag.renderedSql.update(shape, rendered)
+          rendered
+        }
+      )
+    }
+
+  private def renderSql(dialect: SqlDialect): String = {
     val sb       = new StringBuilder
     var paramIdx = 1
     var i        = 0
@@ -74,8 +98,44 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
 
 object Frag {
 
+  /**
+   * Memoized rendered SQL, keyed by the fragment's shape — its literal `parts`,
+   * param count, and dialect. The rendered SQL does not depend on param values
+   * (they bind separately), so every execution of a fragment with the same
+   * shape reuses the same `String` instead of rebuilding it with a
+   * `StringBuilder`.
+   *
+   * A plain `HashMap` guarded by `synchronized` is used instead of a concurrent
+   * map because `scala.collection.concurrent.TrieMap` cannot be linked by
+   * Scala.js (its internal node classes do not exist on that platform). The
+   * critical section is a single map lookup, so contention is negligible.
+   *
+   * The cache is bounded: workloads that build fragments from runtime strings
+   * (per-tenant, per-request SQL) would otherwise retain every distinct shape
+   * forever. On overflow the cache is cleared and hot shapes are re-rendered on
+   * their next execution.
+   */
+  private val renderedSql: mutable.HashMap[(IndexedSeq[String], Int, SqlDialect), String] =
+    mutable.HashMap.empty
+
+  /** Upper bound on [[renderedSql]] entries before it is cleared. */
+  private val RenderedSqlCacheMaxEntries = 1024
+
+  /**
+   * Per-acquisition progress shared between a chunked query's row reader and
+   * its release finalizer, so exactly one terminal log event is emitted no
+   * matter how consumption ends.
+   */
+  private final class FinishMark(val start: Long) {
+    val count: java.util.concurrent.atomic.AtomicInteger  = new java.util.concurrent.atomic.AtomicInteger(0)
+    val logged: java.util.concurrent.atomic.AtomicBoolean = new java.util.concurrent.atomic.AtomicBoolean(false)
+  }
+
   /** An empty fragment that contributes no SQL text and no parameters. */
   val empty: Frag = Frag(IndexedSeq(""), IndexedSeq.empty)
+
+  /** Default chunk size for [[queryStream]] batch emission. */
+  private val DefaultQueryChunkSize = 64
 
   /** Wraps a parameter-free SQL string as a fragment. */
   def literal(sqlStr: String): Frag = Frag(IndexedSeq(sqlStr), IndexedSeq.empty)
@@ -112,6 +172,29 @@ object Frag {
         else reader.columnLabel(offset + 1)
       }
 
+    /**
+     * Resolves how each result row is decoded ONCE per statement rather than
+     * once per row.
+     *
+     * When the result set exposes the codec's columns in codec order starting
+     * at position 1 (the common case for `SELECT` matching the derived column
+     * order), every row is decoded through the cheaper index-based
+     * `readValue(reader, 1)` overload, which performs no per-row label lookup
+     * and no label slicing. Otherwise the column labels are resolved once via
+     * [[selectLabels]] and shared by every row through the label-based
+     * overload.
+     */
+    private def rowDecoder[A](reader: DbResultReader, codec: DbCodec[A]): DbResultReader => A = {
+      val columns = codec.columns
+      var i       = 0
+      while (i < columns.length && reader.hasColumn(columns(i)) && reader.columnLabel(i + 1) == columns(i)) i += 1
+      if (i == columns.length) r => codec.readValue(r, 1)
+      else {
+        val labels = selectLabels(reader, codec)
+        r => codec.readValue(r, labels)
+      }
+    }
+
     /** Executes this fragment as a SELECT and returns all decoded rows. */
     def query[A](using con: DbCon, codec: DbCodec[A]): List[A] = {
       val sqlStr = frag.sql(con.dialect)
@@ -123,10 +206,11 @@ object Frag {
           val rs = ps.executeQuery()
           try {
             val reader  = rs.reader
+            val decode  = rowDecoder(reader, codec)
             val builder = List.newBuilder[A]
             var count   = 0
             while (rs.next()) {
-              builder += codec.readValue(reader, selectLabels(reader, codec))
+              builder += decode(reader)
               count += 1
             }
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -152,8 +236,10 @@ object Frag {
           writeParams(ps.paramWriter, frag.queryParams)
           val rs = ps.executeQuery()
           try {
+            val reader = rs.reader
+            val decode = rowDecoder(reader, codec)
             val result =
-              if (rs.next()) Maybe(codec.readValue(rs.reader, selectLabels(rs.reader, codec))) else Maybe.absent
+              if (rs.next()) Maybe(decode(reader)) else Maybe.absent
             val count    = if (result.isPresent) 1 else 0
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
             con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, count))
@@ -179,10 +265,11 @@ object Frag {
           val rs = ps.executeQuery()
           try {
             val reader  = rs.reader
+            val decode  = rowDecoder(reader, codec)
             val builder = List.newBuilder[A]
             var count   = 0
             while (count < limit && rs.next()) {
-              builder += codec.readValue(reader, selectLabels(reader, codec))
+              builder += decode(reader)
               count += 1
             }
             val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -195,6 +282,143 @@ object Frag {
           val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
           con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
           throw e
+      }
+    }
+
+    /**
+     * Executes this fragment as a SELECT and returns the decoded rows as a
+     * stream of `Chunk`s, each holding up to [[DefaultQueryChunkSize]] rows.
+     *
+     * Equivalent to `queryChunked[A](DefaultQueryChunkSize)`.
+     *
+     * @example
+     *   {{{
+     * val chunks: Stream[Throwable, Chunk[User]] =
+     *   sql"SELECT id, name FROM users".queryStream[User]
+     * val total = chunks.runFold(0)((n, chunk) => n + chunk.size)
+     *   }}}
+     *
+     * @tparam A
+     *   the row type, decoded through `codec`'s column mapping
+     * @param con
+     *   the connection context providing the connection, dialect, and logger
+     * @param codec
+     *   decoder for the expected row shape
+     * @return
+     *   a lazy stream of decoded row chunks; see [[queryChunked]] for the
+     *   acquisition lifetime and error behavior
+     */
+    def queryStream[A](using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] =
+      queryChunked[A](DefaultQueryChunkSize)
+
+    /**
+     * Executes this fragment as a SELECT and returns the decoded rows as a
+     * stream of `Chunk`s, each holding up to `chunkSize` rows.
+     *
+     * The statement and result set are acquired lazily on the first pull and
+     * released when the stream is closed or fully drained (via
+     * `Stream.fromAcquireRelease`). Rows are batched by the streams layer's
+     * `Reader.readN` inside `Stream.chunked` rather than a manual
+     * `List.newBuilder` loop. SQL failures surface as typed errors (`Left`)
+     * from terminal operations such as `runCollect`.
+     *
+     * Because acquisition is lazy, the stream must be consumed within the scope
+     * that provides the `DbCon`: leaving `Transactor.connect`/`transact` closes
+     * the captured connection, and pulling afterwards fails.
+     *
+     * @example
+     *   {{{
+     * Transactor.connect(transactor) {
+     *   sql"SELECT id, name FROM users"
+     *     .queryChunked[User](500)
+     *     .runFold(0)((acc, chunk) => acc + chunk.size)
+     * }
+     *   }}}
+     *
+     * @tparam A
+     *   the row type, decoded through `codec`'s column mapping
+     * @param chunkSize
+     *   maximum number of rows per emitted `Chunk`; must be `>= 1`
+     * @param con
+     *   the connection context providing the connection, dialect, and logger
+     * @param codec
+     *   decoder for the expected row shape
+     * @return
+     *   a lazy stream of decoded row chunks; terminal operations answer
+     *   `Left(error)` on SQL failure
+     * @throws IllegalArgumentException
+     *   if `chunkSize` is less than 1
+     */
+    def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
+      require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
+      val sqlStr = frag.sql(con.dialect)
+      Stream.fromAcquireRelease(
+        acquire = {
+          // Timed from acquisition, not construction: re-running or delaying
+          // the stream must not inherit a stale duration.
+          val start                   = System.nanoTime()
+          var ps: DbPreparedStatement = null
+          try {
+            ps = con.connection.prepareStatement(sqlStr)
+            writeParams(ps.paramWriter, frag.queryParams)
+            val rs = ps.executeQuery()
+            (ps, rs, FinishMark(start))
+          } catch {
+            case e: Throwable =>
+              // release does not run when acquire fails.
+              if (ps ne null)
+                try ps.close()
+                catch { case _: Throwable => () }
+              val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+              con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+              throw new StreamError(e)
+          }
+        },
+        release = { case (ps, rs, mark) =>
+          try rs.close()
+          finally ps.close()
+          // A consumer that closes early must still produce exactly one
+          // terminal log event; natural exhaustion and errors mark the same
+          // flag first, so this never double-logs.
+          if (mark.logged.compareAndSet(false, true)) {
+            val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+            con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get))
+          }
+        }
+      ) { case (_, rs, mark) =>
+        val reader = rs.reader
+        val decode = rowDecoder(reader, codec)
+        Stream
+          .fromReader[Throwable, A](new Reader[A] {
+            private var done                    = false
+            def isClosed: Boolean               = done
+            def read[A1 >: A](sentinel: A1): A1 =
+              if (done) sentinel
+              else
+                try {
+                  if (rs.next()) { mark.count.incrementAndGet(); decode(reader).asInstanceOf[A1] }
+                  else {
+                    done = true
+                    if (mark.logged.compareAndSet(false, true)) {
+                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                      con.logger.onSuccess(
+                        SqlLogger.SuccessEvent(sqlStr, frag.queryParams, duration, mark.count.get)
+                      )
+                    }
+                    sentinel
+                  }
+                } catch {
+                  case e: Throwable =>
+                    done = true
+                    if (mark.logged.compareAndSet(false, true)) {
+                      val duration = java.time.Duration.ofNanos(System.nanoTime() - mark.start)
+                      con.logger.onError(SqlLogger.ErrorEvent(sqlStr, frag.queryParams, duration, e))
+                    }
+                    throw new StreamError(e)
+                }
+            def close(): Unit = done = true
+          })
+          .chunked(chunkSize)
       }
     }
 
