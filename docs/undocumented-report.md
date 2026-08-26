@@ -9,7 +9,7 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 **Progress since this report was generated:** the `http-model` typed header surface has been documented — `docs/reference/http-model/headers.md` (660 lines) and `server-sent-event.md` (296 lines) are new, and `model.md`'s `## Headers` section was rewritten, taking the module from 31% to 55% explained coverage and from 101 absent types to 6. `otel` is complete at 100%, though that item as originally written was mis-scoped — most of the module is `private[otel]`; see section 4 for what was actually missing and the lesson for other low-ratio rows. Tier 1 items 1, 3, and 7 are complete, and the totals below account for both.
 
-Earlier: the `schema` search/update subsystem has been documented — `docs/reference/schema/schema-search.md` (251 lines, mdoc-verified) covers `SchemaMatch`, `SearchTraversal`, and `Reflect.Updater`/`Term.Updater`. Rescanning the whole `schema` module (not just this page's own additions — the module's absent/unexplained counts also reflect every other doc improvement made since the 2026-08-21 baseline, since matching is name-based across the whole `docs/` tree) puts it at 76% explained coverage and 86 absent types, down from 48%/210 at that baseline. Tier 1 item 5 is complete; the coverage table has been updated to match.
+Earlier: the `schema` search, traversal, and transformation cluster has been fully documented — `docs/reference/schema/schema-search.md` (251 lines, mdoc-verified) covers `SchemaMatch`, `SearchTraversal`, and `Reflect.Updater`/`Term.Updater`, and `docs/reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) covers the generic tree-rewrite mechanism behind schema (de)serialization — `ReflectTransformer`, `OnlyMetadata`, `RebindTransformer`, and `RebindException`. Rescanning the whole `schema` module (the movement also reflects unrelated doc growth elsewhere in `docs/`, since matching is name-based across the whole tree, not solely these two pages) puts it at 77% explained coverage and 86 absent types, down from 48%/210 at the 2026-08-21 baseline. Tier 1 items 5 and 8 are both complete; the coverage table has been updated to match.
 
 Earlier: the `htmx` header side has been documented — `docs/reference/htmx/response-headers.md` (229 lines, mdoc-verified) covers the 22 request/response header types in `HtmxHeaders.scala` that the attribute-DSL pages never mentioned, taking the module from 54% to 85% explained coverage and from 26 absent types to 0. Tier 1 item 4 is complete; the coverage table has been updated to match.
 
@@ -65,7 +65,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | config (+ `-yaml`/`-json`/`-hocon`) | 77 | 3 | 21 | 72% | 3,914 | 2,212 | 0.57 | `reference/config/index.md` |
 | schema-yaml | 28 | 6 | 8 | 71% | 2,753 | 552 | 0.20 | `built-in-codecs/yaml.md` |
 | chunk | 20 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 | `reference/chunk.md` |
-| **schema** | 516 | 86 | 124 | 76% | 84,969 | 24,096 | 0.28 | `reference/schema/` |
+| **schema** | 516 | 86 | 121 | 77% | 84,969 | 24,259 | 0.29 | `reference/schema/` |
 | markdown | 46 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 | `reference/docs.md` |
 | schema-toon | 28 | 2 | 5 | 82% | 4,690 | 1,050 | 0.22 | `built-in-codecs/toon.md` |
 | **htmx** | 82 | 0 | 12 | 85% | 1,548 | 2,750 | 1.78 | `reference/htmx/` |
@@ -200,10 +200,10 @@ At 84,969 source lines and 23,842 documentation lines, `schema` is the best-docu
 **Patch operations** — `DynamicPatchOp` ✗, `MapEdit` ✗, `MapOp` ✗, `SeqOp` ✗, `SequenceEdit` ✗, `BigIntDelta` ✗, `ForInstant` ✗, `ForLocalDate` ✗, `ForPeriod` ✗.
 - [ ] Document the patch operation ADT, the map/sequence edit encodings, and the temporal delta types
 
-**Search, traversal, and transformation.** **Done for the search/update half:** `reference/schema/schema-search.md` (251 lines, mdoc-verified) now documents `SchemaMatch`'s structural matching rules, `SearchTraversal`'s `fold`/`modify`/`modifyOption`/`modifyOrFail`/`check` and its composition with other optics, and `Reflect.Updater`/`Term.Updater` (including how `Term.Updater` deletes a field/case by returning `None`) — `TypeSearch`/`SchemaSearch` themselves were already covered by `dynamic-optic.md`'s `## Search Optics` section, which now cross-links to the new page. `SchemaRepr` is explained incidentally as the pattern language `SchemaMatch` matches against, but its own dedicated reference (every constructor, `render`, the derived `Schema[SchemaRepr]`) is still open. Still absent: `Frame` ✗, `ReflectTransformer` ✗ (230 lines), `OnlyMetadata` ✗, `RebindTransformer` (237 lines), `SchemaAspect`, and `SchemaParser` (344 lines).
+**Search, traversal, and transformation.** **Done for both halves of this cluster.** `reference/schema/schema-search.md` (251 lines, mdoc-verified) documents `SchemaMatch`'s structural matching rules, `SearchTraversal`'s `fold`/`modify`/`modifyOption`/`modifyOrFail`/`check` and its composition with other optics, and `Reflect.Updater`/`Term.Updater` (including how `Term.Updater` deletes a field/case by returning `None`) — `TypeSearch`/`SchemaSearch` themselves were already covered by `dynamic-optic.md`'s `## Search Optics` section, which now cross-links to the new page. `reference/schema/reflect-transformer.md` (140 lines, mdoc-verified) documents `ReflectTransformer` (230 lines) and its `OnlyMetadata` base class, `RebindTransformer` (237 lines, `private[schema]` — documented through its public entry point `DynamicSchema#rebind`), and `RebindException`. `Frame` turned out to be unrelated to this cluster despite the grouping — it's an internal traversal-stack ADT used by `DynamicValue`/`Json` patch application, not by `ReflectTransformer` or the search/update surface. `SchemaRepr` is explained incidentally as the pattern language `SchemaMatch` matches against, but its own dedicated reference (every constructor, `render`, the derived `Schema[SchemaRepr]`) is still open. Still absent: `Frame` ✗, `SchemaAspect`, and `SchemaParser` (344 lines) unexplained.
 - [x] Write `reference/schema/schema-search.md` covering `SchemaSearch` / `SchemaMatch` / `TypeSearch` / `SearchTraversal` / `Updater` — **done**: 251 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `dynamic-optic.md` and `schema.md`
-- [ ] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer`
-- [ ] Document `SchemaAspect` and `SchemaRepr`
+- [x] Write `reference/schema/reflect-transformer.md` covering `ReflectTransformer` and `RebindTransformer` — **done**: 140 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `binding.md` (which had a stale forward-reference promising this coverage) and `dynamic-schema.md`
+- [ ] Document `SchemaAspect` and `SchemaRepr`'s dedicated reference
 
 **Derivation overrides** — `type-class-derivation.md` never names the override subtypes: `InstanceOverrideByType` ✗, `InstanceOverrideByOptic` ✗, `InstanceOverrideByTypeAndTermName` ✗, `ModifierReflectOverrideByType` ✗, `ModifierReflectOverrideByOptic` ✗, `ModifierTermOverrideByType` ✗, `ModifierTermOverrideByOptic` ✗.
 - [ ] Document each override form with the selection rule that distinguishes it
@@ -380,7 +380,7 @@ Ordered by user impact per unit of writing effort.
 5. - [x] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`) — **done**: 251 lines, mdoc-verified
 6. - [ ] `reference/telemetry/common/any-value.md`
 7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
-8. - [ ] `reference/schema/reflect-transformer.md`
+8. - [x] `reference/schema/reflect-transformer.md` — **done**: 140 lines, mdoc-verified
 9. - [ ] `reference/telemetry/logging/log-emitter.md`
 
 **Tier 2 — sections in existing pages**

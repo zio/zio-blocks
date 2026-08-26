@@ -21,6 +21,7 @@ const sidebars = {
                  "reference/schema/binding",
                  "reference/schema/registers",
                  "reference/schema/binding-resolver",
+                 "reference/schema/reflect-transformer",
                  "reference/schema/modifier",
                  "reference/schema/structural-types",
                ]

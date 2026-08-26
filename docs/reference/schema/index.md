@@ -12,6 +12,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 - [`Schema`](./schema.md) — Primary data type containing reified structure of a Scala data type
 - [`Reflect`](./reflect.md) — Foundational data structure containing reified structural information
 - [`Binding`](./binding.md) — Operational machinery for constructing and deconstructing values
+- [`ReflectTransformer`](./reflect-transformer.md) — Generic mechanism for rewriting a Reflect tree's binding type, powering schema (de)serialization and derivation
 - [`Registers`](./registers.md) — Register-based design for zero-allocation construction and deconstruction
 - [`Structural Types`](./structural-types.md) — Duck typing with ZIO Blocks schemas
 
