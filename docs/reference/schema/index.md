@@ -12,6 +12,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 - [`Schema`](./schema.md) — Primary data type containing reified structure of a Scala data type
 - [`Reflect`](./reflect.md) — Foundational data structure containing reified structural information
 - [`Binding`](./binding.md) — Operational machinery for constructing and deconstructing values
+- [`ReflectTransformer`](./reflect-transformer.md) — Generic mechanism for rewriting a Reflect tree's binding type, powering schema (de)serialization and derivation
 - [`Registers`](./registers.md) — Register-based design for zero-allocation construction and deconstruction
 - [`Structural Types`](./structural-types.md) — Duck typing with ZIO Blocks schemas
 
@@ -24,6 +25,7 @@ ZIO Blocks Schema is the core type system and serialization framework that provi
 - [`Optics`](./optics.md) — Reflective optics for type-safe, composable access to nested data structures
 - [`DynamicOptic`](./dynamic-optic.md) — Runtime path through nested data structures
 - [`Path Interpolator`](./path-interpolator.md) — Compile-time string interpolator `p"..."` for constructing `DynamicOptic` instances
+- [`Schema Search and Update`](./schema-search.md) — Executing type/schema-pattern searches with `SearchTraversal`, and rewriting schema metadata with `Reflect.Updater`/`Term.Updater`
 - [`SchemaExpr`](./schema-expr.md) — Schema-aware expressions for evaluation and query language translation
 - [`Patch`](./patch.md) — Type-safe, serializable transformations of data structures
 - [`Modifier`](./modifier.md) — Mechanism to attach metadata and configuration to schema elements

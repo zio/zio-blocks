@@ -116,15 +116,39 @@ object MaybeSpec extends ZIOSpecDefault {
         absent.toLeft("fallback") == Right("fallback")
       )
     },
-    test("flatten, zip, and Option conversion helpers work") {
-      val nestedPresent: Maybe[Maybe[Int]] = Maybe.present(Maybe.present(1))
-      val nestedAbsent: Maybe[Maybe[Int]]  = Maybe.present(Maybe.absent)
-      val someValue: Maybe[Int]            = Maybe.fromOption(Some(5))
-      val noneValue: Maybe[Int]            = Maybe.fromOption(None)
+    test("flatten unwraps nested Maybe via fromOption") {
+      val someValue: Maybe[Maybe[Int]] = Maybe.fromOption(Some(Maybe.fromOption(Some(42))))
+      val noneValue: Maybe[Maybe[Int]] = Maybe.fromOption(Some(Maybe.absent))
+      val absent: Maybe[Maybe[Int]]    = Maybe.absent
 
       assertTrue(
-        nestedPresent.flatten.contains(1),
-        nestedAbsent.flatten.isAbsent,
+        someValue.flatten.contains(42),
+        noneValue.isPresent,
+        noneValue.flatten.isAbsent,
+        absent.flatten.isAbsent
+      )
+    },
+    test("present(null) and present(absent) are present-of-absent") {
+      val presentNull: Maybe[String]       = Maybe.present(null: String)
+      val presentAbsent: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+      val fromOptionNull: Maybe[String]    = Maybe.fromOption(Some(null: String))
+      val fromOptionNone: Maybe[String]    = Maybe.fromOption(None)
+
+      assertTrue(
+        presentNull.isPresent,
+        !presentNull.isAbsent,
+        presentNull.get == null,
+        presentAbsent.isPresent,
+        presentAbsent.flatten.isAbsent,
+        fromOptionNull.isPresent,
+        fromOptionNone.isAbsent
+      )
+    },
+    test("zip and Option conversion helpers work") {
+      val someValue: Maybe[Int] = Maybe.fromOption(Some(5))
+      val noneValue: Maybe[Int] = Maybe.fromOption(None)
+
+      assertTrue(
         Maybe.present(1).zip(Maybe.present("a")).contains((1, "a")),
         Maybe.present(1).zip(Maybe.absent[String]).isAbsent,
         someValue.contains(5),

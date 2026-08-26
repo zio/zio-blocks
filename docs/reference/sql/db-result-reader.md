@@ -58,13 +58,15 @@ trait DbResultReader {
   // Other types
   def getUUID(index: Int): java.util.UUID
   def getUUID(label: String): java.util.UUID
-  def getArray(index: Int): java.sql.Array   // default: throws UnsupportedOperationException
-  def getArray(label: String): java.sql.Array // default: throws UnsupportedOperationException
+  def getArray(index: Int): Array[String]    // default: throws UnsupportedOperationException
+  def getArray(label: String): Array[String] // default: throws UnsupportedOperationException
 
   // Metadata and NULL detection
   def columnLabel(index: Int): String
   def hasColumn(label: String): Boolean
   def wasNull: Boolean
+  def isNull(index: Int): Boolean  // default: false
+  def isNull(label: String): Boolean // default: false
 }
 ```
 
