@@ -208,6 +208,46 @@ object EndpointGroupSpec extends ZIOSpecDefault {
         val _: RoutePattern[Int] = get.route // compile-time: PathInput must be Int
         assertTrue(byId.get.route.render == "GET /{id}/orders")
       }
+    ),
+    suite("endpoints macro mixed nesting")(
+      test("constant prefix containing capturing prefix") {
+        val group = "api" / endpoints {
+          PathCodec.int("id") / endpoints {
+            val users = Endpoint(Method.GET / "users")
+          }
+        }
+        assertTrue(group.id.users.route.render == "GET /api/{id}/users")
+      },
+      test("capturing prefix containing constant prefix") {
+        val group = PathCodec.int("id") / endpoints {
+          "v1" / endpoints {
+            val items = Endpoint(Method.GET / "items")
+          }
+        }
+        assertTrue(group.v1.items.route.render == "GET /{id}/v1/items")
+      },
+      test("mixed nesting with multiple leaves") {
+        val group = "api" / endpoints {
+          PathCodec.int("id") / endpoints {
+            val users  = Endpoint(Method.GET / "users")
+            val orders = Endpoint(Method.POST / "orders")
+          }
+        }
+        assertTrue(
+          group.id.users.route.render == "GET /api/{id}/users",
+          group.id.orders.route.render == "POST /api/{id}/orders"
+        )
+      },
+      test("3-level mixed nesting") {
+        val group = "api" / endpoints {
+          PathCodec.int("id") / endpoints {
+            "v1" / endpoints {
+              val items = Endpoint(Method.GET / "items")
+            }
+          }
+        }
+        assertTrue(group.id.v1.items.route.render == "GET /api/{id}/v1/items")
+      }
     )
   )
 }

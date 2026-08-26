@@ -16,13 +16,25 @@
 
 package zio.blocks.endpoint
 
-import scala.quoted.* // used for Expr/Quotes in build
+import scala.quoted.*
 import zio.blocks.endpoint.{Endpoint, PathCodec, RoutePattern}
 
 private[endpoint] object EndpointGroupMacro {
-  def build(body: Expr[Any])(using Quotes): Expr[Any] = buildGroup(body, None)
+  def build(body: Expr[Any])(using Quotes): Expr[Any] =
+    buildGroupTree(body, Nil)
 
-  def prefixGroup(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
+  def prefixGroupString(prefix: String, ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
+    import quotes.reflect.*
+    val pathCodecSym = Symbol.requiredClass("zio.blocks.endpoint.PathCodec$")
+    val literalMeth  = pathCodecSym.companionModule.methodMember("literal").head
+    val prefixCodec  = Apply(
+      Select(Ref(pathCodecSym.companionModule), literalMeth),
+      List(Literal(StringConstant(prefix)))
+    )
+    prefixGroupCodec(prefixCodec.asExprOf[PathCodec[?]], ntExpr)
+  }
+
+  def prefixGroupCodec(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
     import quotes.reflect.*
 
     def recoverBlock(t: Term): Option[Term] = t match {
@@ -43,14 +55,13 @@ private[endpoint] object EndpointGroupMacro {
         "PathCodec / <group> requires an inline `endpoints { ... }` block; binding the group to a value first (val g = endpoints { ... }) is not supported"
       )
     )
-    buildGroup(block.asExpr, Some(codecExpr))
+    buildGroupTree(block.asExpr, List(codecExpr))
   }
 
-  private def buildGroup(bodyExpr: Expr[Any], captureCodecExpr: Option[Expr[Any]])(using Quotes): Expr[Any] = {
+  private def buildGroupTree(bodyExpr: Expr[Any], codecs: List[Expr[PathCodec[?]]])(using Quotes): Expr[Any] = {
     import quotes.reflect.*
 
-    val bodyTerm: Term             = bodyExpr.asTerm
-    val captureCodec: Option[Term] = captureCodecExpr.map(_.asTerm)
+    val bodyTerm: Term = bodyExpr.asTerm
 
     def unwrap(term: Term): Term = term match {
       case Inlined(Some(Apply(Ident("endpoints"), List(b))), _, _)     => unwrap(b)
@@ -83,6 +94,28 @@ private[endpoint] object EndpointGroupMacro {
       case _                                                                                           => None
     }
 
+    def isPathCodecSubgroupStmt(t: Term): Option[(Term, Term)] = t match {
+      case Inlined(Some(call: Term), _, _) =>
+        isPathCodecSubgroupStmt(call) match {
+          case some @ Some(_) => some
+          case None           => isPathCodecSubgroupStmt(call)
+        }
+      case Inlined(_, _, inner)                                                                        => isPathCodecSubgroupStmt(inner)
+      case Typed(inner, _)                                                                             => isPathCodecSubgroupStmt(inner)
+      case Apply(TypeApply(Select(codec, "/"), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+        Some((codec, t))
+      case Apply(Apply(TypeApply(Select(codec, "/"), _), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+        Some((codec, t))
+      case Apply(Select(codec, "/"), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+        Some((codec, t))
+      // prefixGroupCodec calls (expanded from PathCodec / endpoints { ... })
+      case Apply(Select(_, "prefixGroupCodec"), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(Ident("prefixGroupCodec"), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case _ => None
+    }
+
     def slashPrefix(t: Term): Option[String] = t match {
       case Apply(Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), _), List(_)) => Some(p)
       case Apply(TypeApply(Apply(Ident("/"), List(Literal(StringConstant(p)))), _), List(_))           => Some(p)
@@ -91,6 +124,50 @@ private[endpoint] object EndpointGroupMacro {
       case Apply(Select(Literal(StringConstant(p)), "/"), List(_))                                     => Some(p)
       case Apply(TypeApply(Select(Literal(StringConstant(p)), "/"), _), List(_))                       => Some(p)
       case _                                                                                           => None
+    }
+
+    /**
+     * Extract the inner block from a nested subgroup term like "prefix" /
+     * endpoints { ... }
+     */
+    def extractEndpointsBlock(t: Term): Term = {
+      def go(inner: Term): Term = inner match {
+        case Apply(Select(_, "/"), List(right))                         => unwrap(right)
+        case Apply(TypeApply(Select(_, "/"), _), List(right))           => unwrap(right)
+        case Apply(Apply(TypeApply(Select(_, "/"), _), _), List(right)) => unwrap(right)
+        case Apply(Select(_, "~"), List(right))                         => go(right)
+        // prefixGroupCodec calls (expanded from PathCodec / endpoints { ... })
+        case Apply(Select(_, "prefixGroupCodec"), List(_, ntArg)) => unwrap(ntArg)
+        case Apply(Ident("prefixGroupCodec"), List(_, ntArg))     => unwrap(ntArg)
+        case Inlined(_, _, inner2)                                => go(inner2)
+        case Typed(inner2, _)                                     => go(inner2)
+        case _                                                    => unwrap(inner)
+      }
+      go(t)
+    }
+
+    /**
+     * Extract a readable name from a PathCodec term like PathCodec.int("id")
+     */
+    def extractCodecName(codec: Term): String = {
+      def go(t: Term): String = t match {
+        case Apply(TypeApply(Select(Select(_, "PathCodec"), ctor), _), List(Literal(StringConstant(n))))
+            if Set("int", "long", "string", "bool", "uuid").contains(ctor) =>
+          n
+        case Apply(TypeApply(Select(qual, ctor), _), List(Literal(StringConstant(n))))
+            if Set("int", "long", "string", "bool", "uuid").contains(ctor) && qual.symbol.name == "PathCodec" =>
+          n
+        case Apply(Select(Select(_, "PathCodec"), ctor), List(Literal(StringConstant(n))))
+            if Set("int", "long", "string", "bool", "uuid").contains(ctor) =>
+          n
+        case Apply(Select(qual, ctor), List(Literal(StringConstant(n))))
+            if Set("int", "long", "string", "bool", "uuid").contains(ctor) && qual.symbol.name == "PathCodec" =>
+          n
+        case Inlined(_, _, inner) => go(inner)
+        case Typed(inner, _)      => go(inner)
+        case _                    => "group"
+      }
+      go(codec)
     }
 
     def collectMembers(stats: List[Statement]): List[(String, Term, Boolean)] = {
@@ -111,11 +188,17 @@ private[endpoint] object EndpointGroupMacro {
           isNestedSubgroupStmt(other) match {
             case Some((name, wholeSlashTerm)) =>
               Some((name, wholeSlashTerm, true))
-            case None if !other.isInstanceOf[ValDef @unchecked] && !other.toString.trim.isEmpty =>
-              report.errorAndAbort(
-                "endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`"
-              )
-            case _ => None
+            case None =>
+              isPathCodecSubgroupStmt(other) match {
+                case Some((codec, whole)) =>
+                  val name = extractCodecName(codec)
+                  Some((name, whole, true))
+                case None if !other.isInstanceOf[ValDef @unchecked] && !other.toString.trim.isEmpty =>
+                  report.errorAndAbort(
+                    "endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`"
+                  )
+                case _ => None
+              }
           }
         case _ => None
       }
@@ -130,7 +213,6 @@ private[endpoint] object EndpointGroupMacro {
     }
 
     def autoName(endpointTerm: Term): String = {
-      import quotes.reflect.*
       def stripWrappers(t: Term): Term = t match {
         case TypeApply(inner, _)                                                                             => stripWrappers(inner)
         case Inlined(_, _, inner)                                                                            => stripWrappers(inner)
@@ -141,12 +223,10 @@ private[endpoint] object EndpointGroupMacro {
         case _ => t
       }
       def peelToRoutePattern(t: Term): Term = t match {
-        // Strip leftUnit / implicit evidence wrappers that appear at each builder level
         case Apply(func, List(TypeApply(Ident("leftUnit"), _)))                                                 => peelToRoutePattern(func)
         case Apply(func, args) if args.exists { case TypeApply(Ident("leftUnit"), _) => true; case _ => false } =>
           peelToRoutePattern(func)
         case Apply(func, List(TypeApply(Ident("eithers"), _))) => peelToRoutePattern(func)
-        // Builder method calls with type params: .in[T, C](codec) / .out[T, C](codec)
         case Apply(TypeApply(Select(qual, mname), _), args)
             if Set(
               "in",
@@ -159,12 +239,12 @@ private[endpoint] object EndpointGroupMacro {
               "orOutError",
               "outError",
               "outHeader"
-            ).contains(mname) =>
+            )
+              .contains(mname) =>
           args.headOption match {
             case Some(rp) if rp.tpe <:< TypeRepr.of[RoutePattern[?]] => rp
             case _                                                   => peelToRoutePattern(qual)
           }
-        // Builder method calls without type params
         case Apply(Select(qual, mname), args)
             if Set(
               "in",
@@ -177,7 +257,8 @@ private[endpoint] object EndpointGroupMacro {
               "orOutError",
               "outError",
               "outHeader"
-            ).contains(mname) =>
+            )
+              .contains(mname) =>
           args.headOption match {
             case Some(rp) if rp.tpe <:< TypeRepr.of[RoutePattern[?]] => rp
             case _                                                   => peelToRoutePattern(qual)
@@ -198,7 +279,6 @@ private[endpoint] object EndpointGroupMacro {
     }
 
     def renderRoutePatternName(rpTerm0: Term): String = {
-      import quotes.reflect.*
       def stripWrappers(t: Term): Term = t match {
         case TypeApply(inner, _)                                                                             => stripWrappers(inner)
         case Inlined(_, _, inner)                                                                            => stripWrappers(inner)
@@ -292,7 +372,6 @@ private[endpoint] object EndpointGroupMacro {
             val (m, segs) = decompose(left)
             (m, segs :+ pathRender(right))
           case Apply(TypeApply(Apply(TypeApply(Apply(Ident("/"), List(method)), _), List(seg)), _), List(_)) =>
-            // upstream-native two-segment chain: Method.GET / seg1 / seg2
             (methodRender(method), List(pathRender(seg)))
           case Apply(TypeApply(Apply(Ident("/"), List(method)), _), List(seg)) =>
             (methodRender(method), List(pathRender(seg)))
@@ -320,71 +399,103 @@ private[endpoint] object EndpointGroupMacro {
       case other      => isEndpoint(other.tpe)
     }
 
-    def wrapLeaf(term: Term): Expr[Any] = captureCodec match {
-      case Some(codecTerm) =>
-        val epTpe            = term.tpe.dealias
-        val (pi, i, e, o, a) = epTpe match {
-          case AppliedType(_, List(pi, i, e, o, a)) => (pi, i, e, o, a)
-          case _                                    => report.errorAndAbort(s"cannot read Endpoint type: ${epTpe.show}")
-        }
-        val codecA = codecTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
-          case AppliedType(_, List(ca)) => ca
-          case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${codecTerm.tpe.show}")
-        }
-        (codecA.asType, pi.asType) match {
-          case ('[ca], '[p]) =>
-            // Upstream's Tuples givens infer C; read the precise Out off the
-            // summoned instance's refined static type - never hand-construct C.
-            Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, p]] match {
-              case Some(withOut) =>
-                val outTpe = {
-                  val tuplesSym                    = TypeRepr.of[zio.blocks.combinators.Tuples.Tuples].typeSymbol
-                  def walk(t0: TypeRepr): TypeRepr = t0.dealias match {
-                    case Refinement(_, "Out", TypeBounds(_, hi)) => hi.dealias
-                    case Refinement(parent, _, _)                => walk(parent)
-                    case other                                   => other.memberType(tuplesSym.typeMember("Out")).dealias
-                  }
-                  walk(withOut.asTerm.tpe)
-                }
-                val composedEndpoint: TypeRepr = TypeRepr.of[Endpoint].appliedTo(List(outTpe, i, e, o, a))
-                composedEndpoint.asType match {
-                  case '[ce] =>
-                    '{
-                      val ep       = ${ term.asExprOf[Endpoint[?, ?, ?, ?, ?]] }
-                      val codec    = ${ codecTerm.asExprOf[PathCodec[?]] }
-                      val pc       = ep.route.pathCodec
-                      val combiner =
-                        ${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[Any, Any, Any]]
-                      val combined =
-                        PathCodec.combineUnrefined(codec.asInstanceOf[PathCodec[Any]], pc.asInstanceOf[PathCodec[Any]])(
-                          combiner
-                        )
-                      ep.copy(route =
-                        ep.route.copy(pathCodec = combined.asInstanceOf[PathCodec[Any]]).asInstanceOf[ep.route.type]
-                      ).asInstanceOf[ce]
-                    }
-                }
-              case None =>
-                report.errorAndAbort(s"cannot find Tuples[${codecA.show}, ${pi.show}] combiner for prefix composition")
-            }
-        }
-      case None => term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
-    }
+    def wrapLeaf(term: Term): Expr[Any] =
+      if (codecs.isEmpty) term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+      else {
+        val epExpr = term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
 
-    def wrapSubgroupError(): Nothing =
-      if (captureCodec.isDefined)
-        report.errorAndAbort(
-          "nested constant groups under a path-variable prefix are not yet supported; use a flat block"
-        )
-      else sys.error("internal: subgroup under capture without error")
+        // Build composed path codec by folding codecs with combineUnrefined at the quote level
+        val basePC: Expr[PathCodec[?]]     = '{ $epExpr.route.pathCodec }
+        val composedPC: Expr[PathCodec[?]] =
+          codecs.reverse.foldLeft[Expr[PathCodec[?]]](basePC) { (acc, codecExpr) =>
+            val cA = codecExpr.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
+              case AppliedType(_, List(ca)) => ca
+              case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${codecExpr.asTerm.tpe.show}")
+            }
+            val accA = acc.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
+              case AppliedType(_, List(ca)) => ca
+              case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${acc.asTerm.tpe.show}")
+            }
+            (cA.asType, accA.asType) match {
+              case ('[ca], '[ac]) =>
+                Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
+                  case Some(withOut) =>
+                    '{
+                      PathCodec.combineUnrefined(
+                        $codecExpr.asInstanceOf[PathCodec[ca]],
+                        $acc.asInstanceOf[PathCodec[ac]]
+                      )(${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[ca, ac, Any]])
+                    }
+                  case None =>
+                    report.errorAndAbort(s"cannot find Tuples combiner for prefix composition")
+                }
+              case _ => report.errorAndAbort("internal: failed to decompose types for prefix composition")
+            }
+          }
+
+        // Rebuild Endpoint — PathInput inferred from RoutePattern via Endpoint.apply
+        '{
+          val ep = $epExpr
+          Endpoint(
+            route = RoutePattern(ep.route.method, $composedPC),
+            input = ep.input,
+            error = ep.error,
+            output = ep.output,
+            auth = ep.auth,
+            doc = ep.doc
+          )
+        }
+      }
+
+    def processSubgroup(term: Term): Expr[Any] =
+      isNestedSubgroupStmt(term) match {
+        case Some((prefixStr, whole)) =>
+          val pathCodecSym = Symbol.requiredClass("zio.blocks.endpoint.PathCodec$")
+          val literalMeth  = pathCodecSym.companionModule.methodMember("literal").head
+          val prefixCodec  = Apply(
+            Select(Ref(pathCodecSym.companionModule), literalMeth),
+            List(Literal(StringConstant(prefixStr)))
+          )
+          val innerBlock = extractEndpointsBlock(whole)
+          buildGroupTree(innerBlock.asExpr, codecs :+ prefixCodec.asExprOf[PathCodec[?]])
+        case None =>
+          isPathCodecSubgroupStmt(term) match {
+            case Some((codec, whole)) =>
+              val innerBlock = extractEndpointsBlock(whole)
+              buildGroupTree(innerBlock.asExpr, codecs :+ codec.asExprOf[PathCodec[?]])
+            case None =>
+              report.errorAndAbort("internal: processSubgroup called with non-subgroup term")
+          }
+      }
+
+    def buildNamedTuple(names: List[String], exprs: List[Expr[Any]]): Expr[Any] = {
+      val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
+      val namesTypeRepr: TypeRepr     = namesTupleExpr.asTerm.tpe
+      val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(exprs)
+      val valuesTypeRepr: TypeRepr    = valuesTuple.asTerm.tpe
+      val ntType: TypeRepr            =
+        AppliedType(TypeRepr.of[scala.NamedTuple.NamedTuple], List(namesTypeRepr, valuesTypeRepr))
+      ntType.asType match {
+        case '[nt] =>
+          '{ $valuesTuple.asInstanceOf[nt] }
+        case _ =>
+          report.errorAndAbort("failed to construct NamedTuple type for group")
+      }
+    }
 
     unwrapped match {
       case Block(stats, expr) =>
         val memberStats: List[Statement] =
-          if (isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked] || isNestedSubgroupStmt(expr).isDefined)
+          if (
+            isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked] ||
+            isNestedSubgroupStmt(expr).isDefined || isPathCodecSubgroupStmt(expr).isDefined
+          )
             stats :+ expr
           else if (expr match { case Literal(UnitConstant()) => true; case _ => false }) stats
-          else stats
+          else
+            report.errorAndAbort(
+              "endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)`, or `prefix / endpoints { ... }`"
+            )
         if (memberStats.isEmpty) {
           '{ NamedTuple(EmptyTuple) }
         } else {
@@ -394,43 +505,18 @@ private[endpoint] object EndpointGroupMacro {
           } else {
             val (names, terms, isSubgroups) = members.unzip3
             val exprs: List[Expr[Any]]      = terms.zip(isSubgroups).map { case (t, isSub) =>
-              if (isSub) {
-                if (captureCodec.isDefined) wrapSubgroupError() else t.asExpr
-              } else {
-                wrapLeaf(t)
-              }
+              if (isSub) processSubgroup(t)
+              else wrapLeaf(t)
             }
-            val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
-            val namesTypeRepr: TypeRepr     = namesTupleExpr.asTerm.tpe
-            val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(exprs)
-            val valuesTypeRepr: TypeRepr    = valuesTuple.asTerm.tpe
-            val ntType: TypeRepr            =
-              AppliedType(TypeRepr.of[scala.NamedTuple.NamedTuple], List(namesTypeRepr, valuesTypeRepr))
-            ntType.asType match {
-              case '[nt] =>
-                '{ $valuesTuple.asInstanceOf[nt] }
-              case _ =>
-                report.errorAndAbort("failed to construct NamedTuple type for group")
-            }
+            buildNamedTuple(names, exprs)
           }
         }
 
       case vd: ValDef if vd.rhs.nonEmpty =>
         val rhsTerm = vd.rhs.get
         if (isEndpoint(rhsTerm.tpe)) {
-          val expr                        = wrapLeaf(rhsTerm)
-          val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(List(Expr(vd.name)))
-          val namesTypeRepr: TypeRepr     = namesTupleExpr.asTerm.tpe
-          val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(Seq(expr))
-          val valuesTypeRepr: TypeRepr    = valuesTuple.asTerm.tpe
-          val ntType: TypeRepr            =
-            AppliedType(TypeRepr.of[scala.NamedTuple.NamedTuple], List(namesTypeRepr, valuesTypeRepr))
-          ntType.asType match {
-            case '[nt] =>
-              '{ $valuesTuple.asInstanceOf[nt] }
-            case _ =>
-              report.errorAndAbort("failed to construct NamedTuple type for group")
-          }
+          val expr = wrapLeaf(rhsTerm)
+          buildNamedTuple(List(vd.name), List(expr))
         } else {
           report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements")
         }
@@ -438,40 +524,20 @@ private[endpoint] object EndpointGroupMacro {
       case t: Term =>
         isNestedSubgroupStmt(t) match {
           case Some((name, whole)) =>
-            if (captureCodec.isDefined) wrapSubgroupError()
-            val members                     = List((name, whole, true))
-            val (names, terms, isSubgroups) = members.unzip3
-            val exprs: List[Expr[Any]]      =
-              terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else wrapLeaf(tt) }
-            val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
-            val namesTypeRepr: TypeRepr     = namesTupleExpr.asTerm.tpe
-            val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(exprs)
-            val valuesTypeRepr: TypeRepr    = valuesTuple.asTerm.tpe
-            val ntType: TypeRepr            =
-              AppliedType(TypeRepr.of[scala.NamedTuple.NamedTuple], List(namesTypeRepr, valuesTypeRepr))
-            ntType.asType match {
-              case '[nt] => '{ $valuesTuple.asInstanceOf[nt] }
-              case _     => report.errorAndAbort("failed to construct NamedTuple type for single-subgroup group")
-            }
+            val expr = processSubgroup(whole)
+            buildNamedTuple(List(name), List(expr))
           case None =>
-            // Upstream inlining can hand us a BARE `Endpoint(...)` term (no Block wrapper)
-            if (isEndpoint(t.tpe)) {
-              val members                     = List((autoName(t), t, false))
-              val (names, terms, isSubgroups) = members.unzip3
-              val exprs: List[Expr[Any]]      =
-                terms.zip(isSubgroups).map { case (tt, isSub) => if (isSub) tt.asExpr else wrapLeaf(tt) }
-              val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
-              val valuesTuple: Expr[Tuple]    = Expr.ofTupleFromSeq(exprs)
-              val ntType: TypeRepr            =
-                AppliedType(
-                  TypeRepr.of[scala.NamedTuple.NamedTuple],
-                  List(namesTupleExpr.asTerm.tpe, valuesTuple.asTerm.tpe)
-                )
-              ntType.asType match {
-                case '[nt] => '{ $valuesTuple.asInstanceOf[nt] }
-                case _     => report.errorAndAbort("failed to construct NamedTuple type for single-endpoint group")
-              }
-            } else '{ NamedTuple(EmptyTuple) }
+            isPathCodecSubgroupStmt(t) match {
+              case Some((codec, whole)) =>
+                val name = extractCodecName(codec)
+                val expr = processSubgroup(whole)
+                buildNamedTuple(List(name), List(expr))
+              case None =>
+                if (isEndpoint(t.tpe)) {
+                  val expr = wrapLeaf(t)
+                  buildNamedTuple(List(autoName(t)), List(expr))
+                } else '{ NamedTuple(EmptyTuple) }
+            }
         }
     }
   }

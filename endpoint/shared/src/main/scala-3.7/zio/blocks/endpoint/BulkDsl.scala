@@ -39,18 +39,13 @@ import zio.blocks.endpoint.PathCodec
 object BulkDsl {
 
   extension (prefix: String) {
-    transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V])(using
-      nv: NestPrefix[V]
-    ): NamedTuple.NamedTuple[N, V] =
-      nv.nest(nt.asInstanceOf[V], prefix).asInstanceOf[NamedTuple.NamedTuple[N, V]]
+    transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
+      PathCodec.literal(prefix) / nt
   }
 
   extension [A](codec: PathCodec[A]) {
-    @scala.annotation.nowarn("msg=unused")
-    transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V])(using
-      nv: NestPrefix[V]
-    ): Any =
-      ${ EndpointGroupMacro.prefixGroup('codec, 'nt) }
+    transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
+      ${ EndpointGroupMacro.prefixGroupCodec('codec, 'nt) }
   }
 
   // Mirrors of upstream's implicit-scope `/` operators. Importing BulkDsl.*
