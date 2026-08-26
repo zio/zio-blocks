@@ -147,6 +147,51 @@ object Frag {
   def sequence(frags: Frag*): Frag = frags.foldLeft(Frag.empty)(_ ++ _)
 
   /**
+   * Keyset pagination fragment for a single ordering column.
+   *
+   * Produces `WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT n` as a `Frag`
+   * with one bound parameter (`lastValue`). The ordering column is validated as
+   * a SQL identifier; when a `table` is supplied the column must also exist in
+   * `table.columns`.
+   *
+   * Single column only — composite cursors are intentionally unsupported (v2).
+   *
+   * @throws IllegalArgumentException
+   *   if `orderCol` is not a valid identifier, not in `table.columns` (when a
+   *   table is supplied), or if `limit <= 0`
+   */
+  def keysetAfter(table: Table[_], orderCol: String, lastValue: DbValue, limit: Int): Frag = {
+    require(limit > 0, s"Frag.keysetAfter: limit must be > 0, got $limit")
+    val validated = SqlIdentifier.validate("column", orderCol)
+    if (!table.columns.contains(validated))
+      throw new IllegalArgumentException(
+        s"Column '$validated' not found in table '${table.name}' columns: ${table.columns.mkString(", ")}"
+      )
+    Frag(
+      IndexedSeq(s" WHERE $validated > ", s" ORDER BY $validated ASC LIMIT $limit"),
+      IndexedSeq(lastValue)
+    )
+  }
+
+  /**
+   * Keyset pagination fragment without a table binding.
+   *
+   * Validates `orderCol` as a SQL identifier and produces
+   * `WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT n`.
+   *
+   * @throws IllegalArgumentException
+   *   if `orderCol` is not a valid identifier or `limit <= 0`
+   */
+  def keysetAfter(orderCol: String, lastValue: DbValue, limit: Int): Frag = {
+    require(limit > 0, s"Frag.keysetAfter: limit must be > 0, got $limit")
+    val validated = SqlIdentifier.validate("column", orderCol)
+    Frag(
+      IndexedSeq(s" WHERE $validated > ", s" ORDER BY $validated ASC LIMIT $limit"),
+      IndexedSeq(lastValue)
+    )
+  }
+
+  /**
    * Builds a VALUES clause for a multi-row INSERT. Renders as:
    * `(?, ?), (?, ?), ...` — one tuple per row, columns within each tuple
    * separated by `, `.

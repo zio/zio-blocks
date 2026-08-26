@@ -726,6 +726,65 @@ println(toSql(Product.price * 0.9))
 // (price * 0.9)
 ```
 
+## Keyset Pagination
+
+Keyset (cursor) pagination avoids the cost and drift of `OFFSET` by seeking
+after the last seen key: `WHERE id > ? ORDER BY id ASC LIMIT n`. The row
+identified by the cursor is excluded (`>` not `>=`) so consecutive pages do
+not duplicate the boundary row.
+
+`Repo` exposes this directly for primary-key cursors:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+
+// repo: Repo[User, Int] with idColumn = "id"
+val firstPage: List[User]  = repo.pageAfter(cursorId = 0, limit = 20)
+val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit = 20)
+// when cursorId == last id, nextPage is empty
+```
+
+It renders as:
+
+```sql
+SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+```
+
+where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
+
+For non-ID orderings or ad-hoc queries, `Frag.keysetAfter` builds the
+portable `WHERE col > ? ORDER BY col ASC LIMIT n` fragment without a `Repo`:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+
+case class User(id: Int, name: String, email: String)
+import zio.blocks.schema.Schema
+object User { implicit val schema: Schema[User] = Schema.derived }
+val table: Table[User] = Table.derived[User]
+
+// Table-validated: rejects unknown columns
+val frag: Frag = Frag.keysetAfter(table, orderCol = "id", lastValue = DbValue.DbInt(42), limit = 20)
+// frag.sql(dialect) == " WHERE id > ? ORDER BY id ASC LIMIT 20"
+
+// Without a table: identifier-only validation
+val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.DbLong(1000L), limit = 10)
+```
+
+- `Frag.keysetAfter(table, orderCol, lastValue, limit)` validates `orderCol`
+  with `SqlIdentifier.validate` and checks membership in `table.columns`;
+  unknown columns throw `IllegalArgumentException`.
+- `Frag.keysetAfter(orderCol, lastValue, limit)` validates the identifier only.
+- `limit` must be `> 0`; single-column cursors only (composite cursors are v2).
+
+Compose with a base `SELECT`:
+
+```scala mdoc:compile-only
+val base     = Frag.literal("SELECT id, name, email FROM user")
+val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
+val rows: List[User] = pageFrag.query[User] // via given DbCon + DbCodec[User]
+```
+
 ## Going Further
 
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
