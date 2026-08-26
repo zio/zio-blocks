@@ -165,19 +165,20 @@ class Registers private (userRegister: RegisterOffset) {
   private[blocks] def isInUse: Boolean = inUse
 
   /**
-   * Marks this instance as in use and clears all previously stored values so it
-   * can be safely reused for the next encoding or decoding operation.
+   * Marks this instance as in use so it can be safely reused for the next
+   * encoding or decoding operation.
    */
-  private[blocks] def startUse(): Unit = {
+  private[blocks] def startUse(): Unit =
     inUse = true
-    clear()
-  }
 
   /**
-   * Marks this instance as no longer in use so it can be returned to its pool.
+   * Marks this instance as no longer in use and releases all stored values so
+   * that a pooled instance does not retain the previous operation's objects.
    */
-  private[blocks] def endUse(): Unit =
+  private[blocks] def endUse(): Unit = {
+    clear()
     inUse = false
+  }
 
   private[this] def clear(): Unit = {
     java.util.Arrays.fill(bytes, 0, bytes.length, (0: Byte))
