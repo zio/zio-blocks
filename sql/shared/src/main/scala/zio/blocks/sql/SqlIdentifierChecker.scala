@@ -303,6 +303,12 @@ object SqlIdentifierChecker {
     validate(parts, knownTables, knownColumns, allowlist)
   }
 
+  // Alternate signature requested: Set-based knownNames
+  def validate(parts: Seq[String], knownNames: Set[String], allowlist: Set[String], dummy: Unit): List[Diagnostic] = {
+    val _ = dummy
+    validate(parts, knownNames, Set.empty, allowlist)
+  }
+
   private def validateTokens(
     tokens: List[Token],
     knownTablesLower: Set[String],

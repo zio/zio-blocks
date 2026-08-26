@@ -146,6 +146,23 @@ final class LargeMigrator[A, B, ID1, ID2](
     state = State.Completed
   }
 
+  /**
+   * Pure preview of init/run SQL without opening any connection.
+   *
+   * Returns init/run statement texts (queue DDL, shadow create/rename,
+   * triggers, dequeue template) rendered against the ambient dialect. Does NOT
+   * call Transactor.
+   */
+  def previewSql(): Vector[String] = {
+    val buf = Vector.newBuilder[String]
+    buf += QueueTable.queueTableDDL(queueTable)
+    TargetStrategyApplier.preparePreview(repoV2.table, target).foreach(buf += _)
+    if (captureTriggers) buf ++= QueueTable.triggerDDLs(queueTable, repoV1.table.name, repoV1.idColumn)
+    buf += QueueTable.dequeueSQLTemplate(queueTable, batchSize)
+    buf ++= TargetStrategyApplier.finalizePreview(repoV2.table.name, target)
+    buf.result()
+  }
+
   /** Returns queue size estimate (pending items). */
   def pendingCount: Long =
     transactor.connect((tx: DbCon) ?=> QueueTable.pending(queueTable)(using tx))
