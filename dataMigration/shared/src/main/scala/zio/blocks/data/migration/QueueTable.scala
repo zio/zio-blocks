@@ -25,7 +25,9 @@ import zio.blocks.sql.Frag.*
  *
  * Queue tables store IDs of aggregates pending migration. Workers dequeue
  * batches via `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL; SQLite uses a
- * plain `LIMIT` since it serializes writes.
+ * plain `LIMIT` with the write lock held via `BEGIN IMMEDIATE` (see
+ * `JdbcTransactor.transact` for the SQLite immediate-mode handling and
+ * `busy_timeout`).
  */
 object QueueTable {
 
@@ -141,7 +143,13 @@ object QueueTable {
   /**
    * Dequeues up to `batchSize` IDs. Uses the given `dialect` to generate
    * database-appropriate locking — `FOR UPDATE SKIP LOCKED` on PostgreSQL,
-   * plain `LIMIT` on SQLite (which serializes writes via BEGIN IMMEDIATE).
+   * plain `LIMIT` on SQLite.
+   *
+   * On SQLite the transaction must already hold the write lock before the
+   * SELECT; `JdbcTransactor.transact` starts SQLite transactions with
+   * `BEGIN IMMEDIATE` and `PRAGMA busy_timeout = 5000` so the worker reserves
+   * the write lock and waits on contention instead of failing the later DELETE
+   * with `SQLITE_BUSY`. Single-consumer only on SQLite.
    */
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")
