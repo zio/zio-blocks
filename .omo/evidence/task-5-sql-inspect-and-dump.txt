@@ -1,0 +1,33 @@
+Task 5: Docs — Inspecting SQL + Compile-time SQL Dumps
+=====================================================
+
+Files Modified:
+  docs/guides/query-dsl-sql.md (extended with 2 new sections)
+
+Changes:
+  1. "Inspecting SQL" section added (lines 729-820)
+     - explain(dialect): String on SqlQuery
+     - statement(dialect): SqlStatement on SqlQuery
+     - sql(dialect): String on query.SqlQuery (query IR)
+     - previewSql(): Vector[String] on SmallMigrator/LargeMigrator
+
+  2. "Compile-time SQL Dumps" section added (lines 822-890)
+     - Enabling Dumps: -Dzib.sql.dumpDir=<dir> property flag
+     - Entry Points: Dump.dumpTable, Dump.dump, Dump.dumpQuery
+     - Naming Scheme: <owner>-<dialect>.sql (e.g., user-postgresql.sql)
+     - Content-hash Skip: deterministic UTF-8 with trailing newline
+     - Limitations: dynamic Frag chains, Repo internals (Phase-2 note)
+
+  3. "Going Further" section updated with SQL reference links
+
+Verification:
+  - mdoc build: pre-existing failure (not caused by changes)
+  - mdoc output generated successfully with both new sections present
+  - Confirmed pre-existing: stashed changes, same failure occurred
+  - No benchmark claims added
+  - No Scala files modified (docs only)
+  - No sidebars.js changes needed (existing entry covers the file)
+
+No transactions guide exists in docs/; the sql-query-dsl guide is the
+appropriate home for these sections since inspecting SQL and dumps are
+query-related features.
