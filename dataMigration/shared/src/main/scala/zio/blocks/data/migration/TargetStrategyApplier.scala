@@ -58,4 +58,33 @@ object TargetStrategyApplier {
       case TargetStrategy.ShadowTable(suffix) =>
         ShadowTable.swap(tableName, suffix)
     }
+
+  // ---- Pure preview helpers (no connection) ----
+
+  /**
+   * Pure shadow-create DDL for the given dialect, if strategy is ShadowTable.
+   */
+  def preparePreview[E](table: Table[E], strategy: TargetStrategy)(using dialect: Dialect): Option[String] =
+    strategy match {
+      case TargetStrategy.InPlace             => None
+      case TargetStrategy.ShadowTable(suffix) =>
+        val shadowName = s"${table.name}_${QueueTable.SqlId.validate("suffix", suffix)}"
+        try Some(dialect.createShadowTableDDL(shadowName, table.name))
+        catch { case e: UnsupportedOperationException => Some(s"-- ${e.getMessage}") }
+    }
+
+  /** Pure finalize (swap/rename) statements for the given strategy. */
+  def finalizePreview(tableName: String, strategy: TargetStrategy): List[String] =
+    strategy match {
+      case TargetStrategy.InPlace             => Nil
+      case TargetStrategy.ShadowTable(suffix) =>
+        val tbl        = QueueTable.SqlId.validate("table", tableName)
+        val sfx        = QueueTable.SqlId.validate("suffix", suffix)
+        val shadowName = s"${tbl}_$sfx"
+        val oldName    = s"${tbl}_old_$sfx"
+        List(
+          s"ALTER TABLE $tbl RENAME TO $oldName",
+          s"ALTER TABLE $shadowName RENAME TO $tbl"
+        )
+    }
 }

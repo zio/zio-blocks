@@ -79,6 +79,28 @@ final class SmallMigrator[A, B, ID1, ID2](
     completed = true
   }
 
+  /**
+   * Pure preview of init/run SQL without opening any connection.
+   *
+   * Returns init/run statement texts (queue DDL, shadow create/rename,
+   * triggers, dequeue template) rendered against the ambient dialect. Does NOT
+   * call Transactor.
+   */
+  def previewSql(): Vector[String] = {
+    val buf = Vector.newBuilder[String]
+    // queue DDL
+    buf += QueueTable.queueTableDDL(queueTable)
+    // shadow create (if any)
+    TargetStrategyApplier.preparePreview(repoV2.table, target).foreach(buf += _)
+    // triggers
+    if (captureTriggers) buf ++= QueueTable.triggerDDLs(queueTable, repoV1.table.name, repoV1.idColumn)
+    // dequeue template
+    buf += QueueTable.dequeueSQLTemplate(queueTable, batchSize)
+    // finalize (rename) preview for shadow
+    buf ++= TargetStrategyApplier.finalizePreview(repoV2.table.name, target)
+    buf.result()
+  }
+
   /** Processes one batch. Returns count of migrated rows. */
   def processBatch(): Int = {
     require(initialized, "init() must be called before processBatch()")
