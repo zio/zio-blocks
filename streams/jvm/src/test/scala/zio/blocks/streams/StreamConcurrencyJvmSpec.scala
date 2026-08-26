@@ -136,6 +136,25 @@ object StreamConcurrencyJvmSpec extends StreamsBaseSpec {
           assertTrue(isOrderedRange(result, n))
         }
       } @@ TestAspect.timeout(30.seconds),
+      test("double buffer repeated teardown never surfaces InterruptedException") {
+        ZIO.attemptBlocking {
+          var i: Int             = 0
+          var failure: Throwable = null
+          while ((failure eq null) && i < 200) {
+            i += 1
+            failure = scala.util.Try(Stream.range(0, 2000).buffer(32).buffer(32).runCollect) match {
+              case scala.util.Failure(t)     => t
+              case scala.util.Success(value) =>
+                if (value.isRight) null
+                else new java.lang.AssertionError(s"iteration $i returned ${value.swap.getOrElse(null)}")
+            }
+          }
+          // Fail with the original exception (and its stack trace), tagged
+          // with the iteration that broke, instead of a bare boolean.
+          if (failure ne null) throw new java.lang.AssertionError(s"failed at iteration $i of 200", failure)
+          assertTrue(i == 200)
+        }
+      } @@ TestAspect.timeout(120.seconds),
       test("no thread leaks after buffer stream completes") {
         ZIO.attemptBlocking {
           val baseline = Thread.getAllStackTraces.size()
