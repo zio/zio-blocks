@@ -54,11 +54,11 @@ object TransactorSpec extends ZIOSpecDefault {
   private given DbCodec[AllTypes]   = AllTypes.schema.deriving(DbCodecDeriver).derive
   private given DbCodec[WithOption] = WithOption.schema.deriving(DbCodecDeriver).derive
 
-  private given DbCodec[Int]     = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
-  private given DbCodec[String]  = implicitly[Schema[String]].deriving(DbCodecDeriver).derive
-  private given DbCodec[Long]    = implicitly[Schema[Long]].deriving(DbCodecDeriver).derive
-  private given DbCodec[Double]  = implicitly[Schema[Double]].deriving(DbCodecDeriver).derive
-  private given DbCodec[Boolean] =
+  private given derivedIntCodec: DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  private given DbCodec[String]               = implicitly[Schema[String]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Long]                 = implicitly[Schema[Long]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Double]               = implicitly[Schema[Double]].deriving(DbCodecDeriver).derive
+  private given DbCodec[Boolean]              =
     implicitly[Schema[Boolean]].deriving(DbCodecDeriver).derive
 
   private def sharedConnTransactor(): (JdbcTransactor, java.sql.Connection) = {
@@ -94,6 +94,37 @@ object TransactorSpec extends ZIOSpecDefault {
       }
     }
     (tx, conn)
+  }
+
+  private class RecordingLogger extends SqlLogger {
+    val successes                                      = scala.collection.mutable.ListBuffer.empty[SqlLogger.SuccessEvent]
+    val errors                                         = scala.collection.mutable.ListBuffer.empty[SqlLogger.ErrorEvent]
+    def onSuccess(event: SqlLogger.SuccessEvent): Unit = successes += event
+    def onError(event: SqlLogger.ErrorEvent): Unit     = errors += event
+  }
+
+  private def loggedCon[A](conn: java.sql.Connection, log: SqlLogger)(f: DbCon ?=> A): A = {
+    given con: DbCon = new DbCon {
+      val connection: DbConnection = new JdbcConnection(conn)
+      val dialect: SqlDialect      = SqlDialect.SQLite
+      val logger: SqlLogger        = log
+    }
+    f
+  }
+
+  // SQLite drivers coerce bad numeric text instead of throwing, so decode
+  // failures are simulated with a wrapper that fails after delegating.
+  private def failingCodec[A](inner: DbCodec[A]): DbCodec[A] = new DbCodec[A] {
+    val columns: IndexedSeq[String]                                            = inner.columns
+    def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
+      val _ = inner.readValue(reader, columnLabels); throw new IllegalStateException("decode boom")
+    }
+    override def readValue(reader: DbResultReader, startIndex: Int): A = {
+      val _ = inner.readValue(reader, startIndex); throw new IllegalStateException("decode boom")
+    }
+    def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
+      inner.writeValue(writer, startIndex, value)
+    def toDbValues(value: A): IndexedSeq[DbValue] = inner.toDbValues(value)
   }
 
   def spec: Spec[TestEnvironment, Any] = suite("TransactorSpec")(
@@ -553,6 +584,55 @@ object TransactorSpec extends ZIOSpecDefault {
           val all    = sql"SELECT id FROM stream_default ORDER BY id".query[Int]
           assertTrue(chunks.isRight, chunks.toOption.get.flatMap(_.toList) == all)
         }
+      },
+      test("frag.queryChunked surfaces acquisition failure as Left with exactly one error log") {
+        val (tx, conn) = sharedConnTransactor()
+        val logger     = new RecordingLogger
+        val result     = loggedCon(conn, logger) {
+          sql"SELECT id FROM no_such_table_stream".queryChunked[Int](2).runCollect
+        }
+        assertTrue(
+          result.isLeft,
+          logger.errors.size == 1,
+          logger.successes.isEmpty
+        )
+      },
+      test("frag.queryChunked surfaces row decode failure as Left with exactly one error log") {
+        val (tx, conn) = sharedConnTransactor()
+        tx.connect {
+          Frag.literal("CREATE TABLE stream_badtype (id INTEGER NOT NULL)").update
+          sql"INSERT INTO stream_badtype VALUES (${DbValue.DbInt(1)})".update
+          ()
+        }
+        val logger         = new RecordingLogger
+        given DbCodec[Int] = failingCodec(derivedIntCodec)
+        val result         = loggedCon(conn, logger) {
+          sql"SELECT id FROM stream_badtype".queryChunked[Int](1).runCollect
+        }
+        assertTrue(
+          result.isLeft,
+          logger.errors.size == 1,
+          logger.successes.isEmpty
+        )
+      },
+      test("frag.queryChunked emits exactly one success log with the decoded row count") {
+        val (tx, conn) = sharedConnTransactor()
+        tx.connect {
+          Frag.literal("CREATE TABLE stream_logged (id INTEGER NOT NULL)").update
+          (1 to 5).foreach(i => sql"INSERT INTO stream_logged VALUES (${DbValue.DbInt(i)})".update)
+          ()
+        }
+        val logger = new RecordingLogger
+        val result = loggedCon(conn, logger) {
+          sql"SELECT id FROM stream_logged ORDER BY id".queryChunked[Int](3).runCollect
+        }
+        assertTrue(
+          result.isRight,
+          result.toOption.get.flatMap(_.toList).size == 5,
+          logger.successes.size == 1,
+          logger.successes.head.rowCount == 5,
+          logger.errors.isEmpty
+        )
       }
     )
   )

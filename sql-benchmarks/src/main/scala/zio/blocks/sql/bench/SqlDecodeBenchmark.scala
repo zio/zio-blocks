@@ -28,7 +28,11 @@ import zio.blocks.sql._
  * Benchmarks the per-row SQL decode path: `DbCodec.derived` record decode of
  * rows from an in-memory SQLite table. This is the allocation hot spot fixed in
  * steps 1-4 (ThreadLocal `Registers`, index-based decode fast path, cached SQL
- * re-render) plus the step-6 null-bitmap skip for `Option`/`Maybe` columns.
+ * re-render) plus step-6 NULL handling for `Option`/`Maybe` columns: bitmap
+ * recording with post-read `wasNull` fallback. The `isNull` precheck only
+ * short-circuits decoding on backends that know nullness before the getter runs
+ * (wire-protocol drivers); JDBC reports it after the read, so this benchmark
+ * measures the fallback path those backends must not regress.
  *
  * The fixture is inserted once in `@Setup`; the benchmark methods only run the
  * `SELECT ... WHERE ...` decode loop, so per-row allocations are the measured

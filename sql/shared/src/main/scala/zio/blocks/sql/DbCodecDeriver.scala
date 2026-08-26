@@ -337,21 +337,25 @@ class DbCodecDeriver(columnNameMapper: SqlNameMapper = SqlNameMapper.SnakeCase) 
       new DbCodec[A] {
         val columns: IndexedSeq[String] = innerCodec.columns
 
-        override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A = {
-          val innerValue  = innerCodec.readValue(reader, columnLabels)
-          val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
-          result.asInstanceOf[A]
-        }
+        override def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): A =
+          if (reader.isNull(columnLabels.head)) optionalEmpty(typeId).asInstanceOf[A]
+          else {
+            val innerValue  = innerCodec.readValue(reader, columnLabels)
+            val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
+            result.asInstanceOf[A]
+          }
 
         // Note: wasNull reflects the last column read by the inner codec.
         // For single-column types (the common case), this is correct.
         // For multi-column inner types, wasNull only reflects the last column,
         // so a NULL in an earlier column may not be detected.
-        override def readValue(reader: DbResultReader, startIndex: Int): A = {
-          val innerValue  = innerCodec.readValue(reader, startIndex)
-          val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
-          result.asInstanceOf[A]
-        }
+        override def readValue(reader: DbResultReader, startIndex: Int): A =
+          if (reader.isNull(startIndex)) optionalEmpty(typeId).asInstanceOf[A]
+          else {
+            val innerValue  = innerCodec.readValue(reader, startIndex)
+            val result: Any = optionalValue(typeId, innerValue, reader.wasNull)
+            result.asInstanceOf[A]
+          }
 
         def writeValue(writer: DbParamWriter, startIndex: Int, value: A): Unit =
           optionalPayload(typeId, value) match {

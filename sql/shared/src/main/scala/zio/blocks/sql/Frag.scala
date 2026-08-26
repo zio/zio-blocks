@@ -291,6 +291,13 @@ object Frag {
      *
      * Equivalent to `queryChunked[A](DefaultQueryChunkSize)`.
      *
+     * @example
+     *   {{{
+     * val chunks: Stream[Throwable, Chunk[User]] =
+     *   sql"SELECT id, name FROM users".queryStream[User]
+     * val total = chunks.runFold(0)((n, chunk) => n + chunk.size)
+     *   }}}
+     *
      * @tparam A
      *   the row type, decoded through `codec`'s column mapping
      * @param con
@@ -339,6 +346,8 @@ object Frag {
      * @return
      *   a lazy stream of decoded row chunks; terminal operations answer
      *   `Left(error)` on SQL failure
+     * @throws IllegalArgumentException
+     *   if `chunkSize` is less than 1
      */
     def queryChunked[A](chunkSize: Int)(using con: DbCon, codec: DbCodec[A]): Stream[Throwable, Chunk[A]] = {
       require(chunkSize >= 1, s"queryChunked: chunkSize must be >= 1, got $chunkSize")
