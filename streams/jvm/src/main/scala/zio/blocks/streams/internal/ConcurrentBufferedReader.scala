@@ -67,12 +67,27 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
         }
       } catch {
         case t: Throwable =>
-          producerError = t
+          // An InterruptedException we induced ourselves (by interrupting this
+          // producer from `close()`/`reset()`) is an internal shutdown
+          // artifact, not an upstream failure: recording it would surface a
+          // spurious error to the consumer at teardown. Genuine failures
+          // outside a stop request keep the previous behavior unchanged.
+          if (!(t.isInstanceOf[InterruptedException] && consumerClosed)) {
+            producerError = t
+          }
           queue.offer(EndOfStream)
       } finally {
         queue.close()
         if (!upstreamClosedByProducer) {
           upstreamClosedByProducer = true
+          // Consume the stop-signal interrupt before cascading teardown. At
+          // this point the flag can only mean "we told you to stop" (nobody
+          // outside this class holds the producer thread handle), and that
+          // signal has been honored. Forwarding it into another reader's
+          // close() — whose join() is interrupt-sensitive, e.g. nested
+          // buffers — would abort that teardown with a spurious
+          // InterruptedException.
+          Thread.interrupted()
           // A close failure must surface (Principle 4): record it (without
           // displacing an earlier read error) so the consumer rethrows it from
           // read() or close().
@@ -159,7 +174,7 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    awaitProducerTermination()
     // A recorded error the consumer never observed via a read (e.g. an
     // upstream close failure after the last element) must still surface
     // (Principle 4): rethrow it exactly once at teardown.
@@ -170,13 +185,13 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
   override def reset(): Unit = {
     // `buffer` is a pure decoupling transform: it must not weaken replayability.
     // 1) Fully terminate the current producer so no thread touches `upstream` or
-    //    the fields below. `Thread.join` establishes happens-before with the
-    //    producer's termination, making the subsequent single-threaded mutation
+    //    the fields below. Awaiting the producer establishes happens-before with
+    //    its termination, making the subsequent single-threaded mutation
     //    (including the non-volatile `upstreamClosedByProducer`) safe.
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    awaitProducerTermination()
     // 2) Replay the upstream. A genuine one-shot source throws
     //    UnsupportedOperationException here, which correctly propagates: a buffer
     //    over a one-shot source is itself one-shot. (The producer already closed
@@ -192,6 +207,24 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     producerThread = spawnProducer()
   }
 
+  /**
+   * Waits up to [[JoinTimeoutNanos]] for the producer to terminate, ignoring
+   * interruption of the calling thread. Teardown legitimately runs on threads
+   * that carry an interrupt status (nested buffers cascade close() across
+   * producer threads, and effect runtimes may interrupt a blocked closer),
+   * while `Thread.join` aborts immediately in that case — leaving the producer
+   * unjoined and teardown half-done. Any interrupt observed here is consumed.
+   */
+  private def awaitProducerTermination(): Unit = {
+    val deadline  = System.nanoTime() + JoinTimeoutNanos
+    var remaining = JoinTimeoutNanos
+    while (!producerDone && remaining > 0) {
+      try producerThread.join(math.max(1L, remaining / 1000000L))
+      catch { case _: InterruptedException => () }
+      remaining = deadline - System.nanoTime()
+    }
+  }
+
   private def rethrow(t: Throwable): Nothing = {
     errorDelivered = true
     t match {
@@ -204,4 +237,7 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
 private object ConcurrentBufferedReader {
   val counter: AtomicLong  = new AtomicLong(0L)
   val NullSentinel: AnyRef = new AnyRef
+
+  /** Upper bound on how long `close()`/`reset()` wait for the producer. */
+  val JoinTimeoutNanos: Long = 5000L * 1000000L
 }
