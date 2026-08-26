@@ -398,7 +398,7 @@ val serialized: DynamicValue = opticSchema.toDynamicValue(path)
 
 ## Search Optics
 
-A **Search optic** recursively traverses a data structure to find **all occurrences** matching a type or schema. It produces a `Traversal[S, A]` that collects matches in depth-first, left-to-right order.
+A **Search optic** recursively traverses a data structure to find **all occurrences** matching a type or schema. It produces a `Traversal[S, A]` that collects matches in depth-first, left-to-right order. This section covers the two DSLs for building a search path; for the `SearchTraversal` engine that executes one — `fold`/`modify`/`check`, composing a search with other optics, and the `SchemaMatch` predicate behind `#Pattern` matching — see [Schema Search and Update](./schema-search.md).
 
 ### Motivation
 

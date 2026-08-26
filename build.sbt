@@ -305,6 +305,7 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `sql-benchmarks`,
     `streams-benchmark`,
     docs,
     `schema-examples`,
@@ -470,7 +471,7 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
 
 lazy val sql = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
-  .dependsOn(schema, scope)
+  .dependsOn(schema, scope, streams)
   .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.sql"))
@@ -1320,6 +1321,37 @@ lazy val benchmarks = project
     coverageMinimumBranchTotal := 42
   )
 
+lazy val `sql-benchmarks` = project
+  .in(file("sql-benchmarks"))
+  .settings(stdSettings("zio-blocks-sql-benchmarks", Seq("3.8.3")))
+  .dependsOn(sql.jvm % "compile->compile;test->test")
+  .enablePlugins(JmhPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      // In-memory SQLite table for the decode fixture; sql.jvm only has it as a
+      // Test dep, so the benchmark (main sources) declares it directly.
+      "org.xerial" % "sqlite-jdbc" % "3.53.2.1",
+      // Real-world cross-library comparison: same Postgres server, same data —
+      // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
+      // hand-rolled raw-JDBC floor.
+      "org.postgresql" % "postgresql"       % "42.7.13",
+      "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC6",
+      "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC6"
+    ),
+    assembly / assemblyJarName       := "sql-benchmarks.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 // ---------------------------------------------------------------------------
 // zio-golem modules (kept distinct from existing modules)
 // ---------------------------------------------------------------------------
@@ -1594,7 +1626,7 @@ lazy val `streams-benchmark` = project
     libraryDependencies ++= Seq(
       // fs2 — pull-based functional streams (Cats Effect)
       "co.fs2"        %% "fs2-core"    % "3.13.0",
-      "org.typelevel" %% "cats-effect" % "3.7.0",
+      "org.typelevel" %% "cats-effect" % "3.7.1",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
       "org.apache.pekko" %% "pekko-stream" % "1.7.0",
       // Kyo — algebraic effect streams (Scala 3 only)
@@ -1627,7 +1659,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.7.1"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1655,7 +1687,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.7.1"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1703,7 +1735,7 @@ lazy val docs = project
     publish / skip                             := true,
     libraryDependencies ++= Seq(
       "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
-      "dev.zio"   %% "zio-sbt-source" % "0.7.1",
+      "dev.zio"   %% "zio-sbt-source" % "0.7.2",
       "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
     // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
@@ -1992,7 +2024,7 @@ lazy val `async-benchmarks` = project
   .settings(
     libraryDependencies ++= Seq(
       // Cats Effect IO — boxed effect tree
-      "org.typelevel" %% "cats-effect" % "3.7.0",
+      "org.typelevel" %% "cats-effect" % "3.7.1",
       // Kyo — algebraic-effect runtime with raw-value `A < S` (Scala 3 only)
       "io.getkyo" %% "kyo-core" % "0.19.0"
     ),
