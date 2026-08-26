@@ -964,6 +964,169 @@ val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM
 // val rows: List[User] = pageFrag.query[User]
 ```
 
+## Inspecting SQL
+
+The custom interpreter above produces raw strings useful for debugging. When you work with the `sql` module's built-in query builder (`zio.blocks.sql.SqlQuery`) or the query IR (`zio.blocks.sql.query.SqlQuery`), you get richer inspection APIs.
+
+### explain(dialect): String
+
+The `explain` method renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
+
+```scala
+import zio.blocks.sql._
+
+val userTable = Table.derived[User]
+val repoTable = Table.derived[Repo]
+
+val q = SqlQuery
+  .from(userTable)
+  .join(repoTable, "id", "owner_id")
+  .where(userTable, "name", DbValue.DbString("alice"))
+
+println(q.explain(SqlDialect.PostgreSQL))
+// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name
+// FROM users t0
+// INNER JOIN repos t1 ON t0.id = t1.owner_id
+// WHERE t0.name = ?1
+// -- params: 1:String
+```
+
+The `?N` placeholders correspond one-to-one with the parameter list you can obtain separately via `statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a database.
+
+### statement(dialect): SqlStatement
+
+The `statement` method returns a structured `SqlStatement` that decomposes the query into its constituent parts:
+
+```scala
+val st = q.statement(SqlDialect.PostgreSQL)
+
+st.source      // Source(table = "users", alias = "t0")
+st.joins       // Vector(Join(Inner, "repos", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
+st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
+st.groupBy     // None
+st.orderBy     // Vector.empty
+st.limit       // None
+st.offset      // None
+st.toFrag      // Frag (re-renderable to SQL)
+```
+
+`SqlStatement` lets you inspect joins, filters, ordering, and limits programmatically. This is useful for building monitoring dashboards, query analyzers, or dynamic query modification layers.
+
+### sql(dialect): String (Query IR)
+
+The newer query IR (`zio.blocks.sql.query.SqlQuery`) provides a simpler `sql` method:
+
+```scala
+import zio.blocks.sql.query._
+
+val q = SqlQuery
+  .from(userTable)
+  .innerJoin(userToRepo)
+  .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
+
+println(q.sql(SqlDialect.PostgreSQL))
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name"
+// FROM "users" AS t0
+// INNER JOIN "repos" AS t1 ON t0."id" = t1."owner_id"
+// WHERE t0."name" = $1
+```
+
+### previewSql() for Migrations
+
+When using `SmallMigrator` or `LargeMigrator` from the `data-migration` module, `previewSql()` returns the full sequence of SQL statements the migrator would execute, without opening any database connection:
+
+```scala
+import zio.blocks.data.migration._
+
+val migrator = SmallMigrator(
+  repoV1 = userRepo,
+  repoV2 = userRepoV2,
+  transactor = tx,
+  target = TargetStrategy.Rename
+)
+
+val statements: Vector[String] = migrator.previewSql()
+// Vector(
+//   "CREATE TABLE ...",     -- queue DDL
+//   "CREATE TABLE ...",     -- shadow table
+//   "CREATE TRIGGER ...",   -- capture triggers
+//   "SELECT ...",           -- dequeue template
+//   "ALTER TABLE ..."       -- finalize (rename)
+// )
+```
+
+This gives you a dry run of the migration SQL before any schema changes are applied.
+
+## Compile-time SQL Dumps
+
+The `Dump` object emits SQL files at compile time. When the JVM property `zib.sql.dumpDir` is set, inline macro calls to `Dump.dumpTable`, `Dump.dump`, or `Dump.dumpQuery` write `.sql` files to that directory. When the property is absent, the calls become no-ops with zero runtime cost.
+
+### Enabling Dumps
+
+Pass the property as a compiler flag:
+
+```bash
+sbt 'set Compile / scalacOptions += "-Dzib.sql.dumpDir=target/sql-dumps"' \
+    compile
+```
+
+Or set it in `build.sbt`:
+
+```scala
+Compile / scalacOptions += "-Dzib.sql.dumpDir=target/sql-dumps"
+```
+
+### Entry Points
+
+There are three inline macro entry points, all in `zio.blocks.sql.Dump`:
+
+```scala
+import zio.blocks.sql._
+
+// Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
+Dump.dumpTable(userTable)
+
+// Dump a SqlQuery's SELECT (legacy builder)
+Dump.dump(userQuery)
+
+// Dump a query IR's SELECT
+Dump.dumpQuery(queryIr)
+```
+
+Each call emits one file per dialect (PostgreSQL and SQLite by default).
+
+### Naming Scheme
+
+Files are named `<owner>-<dialect>.sql` where `<owner>` is derived from the enclosing symbol and `<dialect>` is the lowercased dialect name:
+
+```
+target/sql-dumps/
+  user-postgresql.sql
+  user-sqlite.sql
+  repo-postgresql.sql
+  repo-sqlite.sql
+```
+
+For `dumpTable`, the owner comes from the `Table`'s type name. For `dump` and `dumpQuery`, the macro walks the call site to extract the enclosing method, val name, or argument name. If the macro cannot determine a meaningful name, it falls back to `query`.
+
+### Content-hash Skip
+
+Each dump file is written only when its content differs from the existing file. The macro compares the new bytes against any existing file at the target path. If they match, the write is skipped. This means incremental compilations do not produce noisy diffs or unnecessary filesystem writes.
+
+All files use UTF-8 encoding with a trailing newline.
+
+### Limitations
+
+Compile-time dumps work well for statically constructed queries, but some SQL patterns cannot be dumped:
+
+- **Dynamic `Frag` chains.** Fragments built at runtime from user input, database lookups, or conditional branching are invisible to the macro. Only the static structure known at compile time appears in the dump.
+- **Repo internals.** The `Repo` abstraction's generated queries (insert, update, delete, select-by-id) are assembled at runtime from the `DbCodec` and `Table` metadata. `Dump.dumpTable` captures the DDL, but the CRUD queries themselves are not emitted.
+- **Phase 2 note.** A future phase may extend `Dump` to cover `Repo`-level CRUD operations and dynamic fragment composition. For now, treat the dump as a DDL and static-query snapshot, not a complete representation of every SQL statement your application will execute.
+
+:::tip
+Pair `Dump.dumpTable` with `previewSql()` for a fuller picture: `dumpTable` captures the schema DDL at compile time, while `previewSql` captures the migration SQL at runtime before execution.
+:::
+
 ## Going Further
 
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics
