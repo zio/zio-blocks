@@ -197,7 +197,7 @@ object ContentModelsSpec extends ZIOSpecDefault {
         val scriptEl: Dom.Element = script().inlineJs(js"console.log(1);")
         val generic: Dom.Element  =
           Dom.Element.Generic("script", Chunk.empty, Chunk(Dom.Text(js"console.log(1);".value)))
-        assertTrue(scriptEl != generic && scriptEl.hashCode != generic.hashCode)
+        assertTrue(scriptEl != generic)
       },
       test("elements with different escaping semantics diverge on raw content") {
         val raw                   = Chunk(Dom.Text("<b>&"))

@@ -361,16 +361,8 @@ trait HtmlElements {
     effect: Dom.Attribute | Dom.Element.Opt,
     effects: (Dom.Attribute | Dom.Element.Opt)*
   ): Dom.Element.Optgroup = {
-    val attrBuilder  = Chunk.newBuilder[Dom.Attribute]
-    val childBuilder = Chunk.newBuilder[Dom]
-    val it           = (effect +: effects).iterator
-    while (it.hasNext) {
-      it.next() match {
-        case attr: Dom.Attribute  => attrBuilder += attr
-        case opt: Dom.Element.Opt => childBuilder += opt
-      }
-    }
-    Dom.Element.OptgroupElement(attrBuilder.result(), childBuilder.result())
+    val (attributes, children) = splitEffects(effect +: effects)
+    Dom.Element.OptgroupElement(attributes, children)
   }
 
   /**

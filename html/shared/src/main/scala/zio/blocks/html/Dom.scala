@@ -363,7 +363,7 @@ object Dom {
 
     /**
      * An `<option>` element, accepted as an element child of `select(...)` and
-     * `optgroup(...)`. Produced by the `option(...)`/`opt` DSL value.
+     * `optgroup(...)`. Produced by the `opt(...)`/`option(...)` DSL factories.
      */
     sealed trait Opt extends SelectChild
 
