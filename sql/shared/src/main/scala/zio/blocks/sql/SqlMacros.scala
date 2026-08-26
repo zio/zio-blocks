@@ -83,10 +83,32 @@ private[sql] object SqlMacros {
       SqlValidator.validate(ps).foreach(report.errorAndAbort(_))
       val (knownTables, knownColumns) = extractTables(tables)
       val diagnostics                 = SqlIdentifierChecker.validate(ps, knownTables, knownColumns)
-      if (diagnostics.nonEmpty) {
-        diagnostics.foreach(d => report.error(d.message))
-        report.errorAndAbort(s"Invalid SQL identifiers: ${diagnostics.map(_.message).mkString(", ")}")
-      }
+      diagnostics.take(5).foreach(d => report.errorAndAbort(d.message))
+      try {
+        val ownerName = {
+          var sym = Symbol.spliceOwner
+          while (
+            sym != Symbol.noSymbol && (sym.flags
+              .is(Flags.Synthetic) || sym.name == "<init>" || sym.name.startsWith("$anon") || sym.name == "$package")
+          ) {
+            sym = sym.owner
+          }
+          if (sym == Symbol.noSymbol) "query"
+          else {
+            val full = sym.fullName
+            val last = if (full.contains(".")) full.split("\\.").last else full
+            val cand = if (last.nonEmpty && last != "<init>") last else sym.name
+            if (cand == null || cand.isEmpty || cand == "<none>") "query" else cand
+          }
+        }
+        val safe =
+          try SqlIdentifier.validate("table", ownerName)
+          catch { case _: Throwable => ownerName.replaceAll("[^A-Za-z0-9_]", "_") }
+        val placeholderSql = ps.mkString("?")
+        for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
+          Dump.emit(safe, dialect, placeholderSql)
+        }
+      } catch { case _: Throwable => }
     }
 
     val convertedArgs: Expr[IndexedSeq[DbValue]] = args match {
@@ -168,7 +190,6 @@ private[sql] object SqlMacros {
     '{ Frag($sc.parts.toIndexedSeq, $convertedArgs) }
   }
 
-  @scala.annotation.nowarn("msg=unused")
   private def extractTables(tables: Expr[Seq[Table[?]]])(using Quotes): (Set[String], Set[String]) = {
     import quotes.reflect._
     tables match {
@@ -190,14 +211,15 @@ private[sql] object SqlMacros {
               val fields =
                 try sym.caseFields
                 catch { case _: Exception => Nil }
-              if (fields.nonEmpty) {
-                fields.foreach { f =>
+              val fieldSyms =
+                if (fields.nonEmpty) fields
+                else sym.declaredFields.filterNot(_.isNoSymbol)
+              if (fieldSyms.nonEmpty) {
+                fieldSyms.foreach { f =>
                   cols += SqlNameMapper.SnakeCase(f.name)
                 }
               } else {
-                val ctorParams =
-                  try sym.primaryConstructor.paramSymss.flatten
-                  catch { case _: Exception => Nil }
+                val ctorParams = sym.primaryConstructor.paramSymss.flatten
                 ctorParams.foreach { p =>
                   val n = p.name
                   if (n.nonEmpty && n != "x$0" && !n.startsWith("$")) cols += SqlNameMapper.SnakeCase(n)
