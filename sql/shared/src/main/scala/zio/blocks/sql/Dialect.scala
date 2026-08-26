@@ -61,12 +61,20 @@ trait SqlMigration {
 }
 
 /** Database-specific SQL generation for migration support structures. */
-trait Dialect extends SqlMigration
+trait Dialect extends SqlMigration {
+
+  /**
+   * The `SqlDialect` this generation strategy targets, for mismatch checks
+   * against the live connection.
+   */
+  def sqlDialect: SqlDialect
+}
 
 object Dialect {
 
   object Postgres extends Dialect {
-    val supportsSkipLocked = true
+    val sqlDialect: SqlDialect = SqlDialect.PostgreSQL
+    val supportsSkipLocked     = true
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
@@ -108,7 +116,8 @@ object Dialect {
   }
 
   object SQLite extends Dialect {
-    val supportsSkipLocked = false
+    val sqlDialect: SqlDialect = SqlDialect.SQLite
+    val supportsSkipLocked     = false
 
     def createQueueTableDDL(table: String, col: String): String =
       s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"

@@ -16,7 +16,7 @@
 
 package zio.blocks.data.migration
 
-import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Frag, Transactor}
+import zio.blocks.sql.{DbCodec, DbCon, DbTx, Dialect, Frag, SqlDialect, Transactor}
 import zio.blocks.sql.Frag.*
 
 /**
@@ -34,6 +34,17 @@ object QueueTable {
    * schema.
    */
   final val QueueKeyColumn = "id"
+
+  /**
+   * Fails fast when the given generation `Dialect` targets a different database
+   * than the live connection — mismatched SQL would otherwise fail deep inside
+   * the driver with confusing errors.
+   */
+  private[migration] def requireDialectMatch(actual: SqlDialect, dialect: Dialect): Unit =
+    require(
+      dialect.sqlDialect == actual,
+      s"Dialect mismatch: SQL was generated for ${dialect.sqlDialect} but the connection reports $actual"
+    )
 
   private[migration] object SqlId {
     private val Identifier                            = raw"[A-Za-z_][A-Za-z0-9_]*".r
@@ -64,6 +75,7 @@ object QueueTable {
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     transactor.transact { (tx: DbTx) ?=>
+      requireDialectMatch(tx.dialect, dialect)
       Frag.literal(dialect.createQueueTableDDL(validated, colName)).update
     }
   }
@@ -92,6 +104,7 @@ object QueueTable {
     codec: DbCodec[ID]
   ): Unit = {
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
+    requireDialectMatch(tx.dialect, dialect)
     val q      = SqlId.validate("queue table", queueTable)
     val s      = SqlId.validate("source table", sourceTable)
     val srcCol = SqlId.validate("source id column", sourceIdColumn)
@@ -133,6 +146,7 @@ object QueueTable {
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")
     require(codec.columns.length == 1, "QueueTable only supports single-column ID codecs")
+    requireDialectMatch(tx.dialect, dialect)
     val validated = SqlId.validate("table", tableName)
     val colName   = SqlId.validate("column", QueueKeyColumn)
     val frag      = Frag.literal(dialect.dequeueSQL(validated, colName, batchSize))

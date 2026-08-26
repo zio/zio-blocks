@@ -32,6 +32,7 @@ object ShadowTable {
    * error on SQLite (which requires manual DDL).
    */
   def create[E](table: SqlTable[E], suffix: String)(using con: DbCon, dialect: Dialect): String = {
+    QueueTable.requireDialectMatch(con.dialect, dialect)
     val validated  = QueueTable.SqlId.validate("suffix", suffix)
     val shadowName = s"${table.name}_$validated"
     val ddl        = Frag.literal(dialect.createShadowTableDDL(shadowName, table.name))
