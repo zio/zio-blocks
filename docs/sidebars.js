@@ -169,6 +169,7 @@ const sidebars = {
               "reference/http-model/headers",
               "reference/http-model/server-sent-event",
               "reference/http-model/schema",
+              "reference/http-model/schema-codecs",
             ]
           },
           {
