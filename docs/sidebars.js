@@ -278,6 +278,7 @@ const sidebars = {
             ],
           },
           "reference/sql-zio",
+          "reference/data-migration",
           {
             type: "category",
             label: "Telemetry",
