@@ -545,10 +545,10 @@ elements.
 
 ### Equality Across Element Classes
 
-Element equality is structural (tag + attributes + children), independent of
-the concrete class. A factory-produced `li(...)` equals the structurally
-identical `Generic("li", ...)`, and vice versa; equal elements also have equal
-hash codes:
+Element equality is structural (tag + attributes + children + text-escaping
+semantics), independent of the concrete class. A factory-produced `li(...)`
+equals the structurally identical `Generic("li", ...)`, and vice versa; equal
+elements also have equal hash codes:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -558,6 +558,11 @@ val fromFactory = li("a")
 val generic = Dom.Element.Generic("li", Chunk.empty, Chunk(Dom.Text("a")))
 fromFactory == generic  // true — structural equality across classes
 ```
+
+Elements that render differently are never equal, even with identical fields:
+`script`/`style` render their children **unescaped** while `Generic` escapes
+them, so a `Script` never equals an equally-shaped `Generic("script", ...)` —
+equal elements always render identically.
 
 ## String Interpolators
 

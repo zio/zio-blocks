@@ -231,16 +231,20 @@ object Dom {
 
     /**
      * Structural comparison shared by every concrete `Element` implementation:
-     * two elements are equal when their tag, attributes, and children match,
-     * regardless of the concrete classes involved.
+     * two elements are equal when their tag, attributes, children, and
+     * [[escapeText]] semantics match, regardless of the concrete classes
+     * involved. Escaping participates so that equal elements always render
+     * identically (`Script` never equals an equally-shaped `Generic`, since one
+     * renders its children raw and the other escapes them).
      */
     private[html] def structuralEquals(other: Any): Boolean = other match {
-      case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-      case _          => false
+      case e: Element =>
+        tag == e.tag && attributes == e.attributes && children == e.children && escapeText == e.escapeText
+      case _ => false
     }
 
     /** Hash code consistent with [[structuralEquals]]. */
-    private[html] def structuralHashCode: Int = (tag, attributes, children).hashCode
+    private[html] def structuralHashCode: Int = (tag, attributes, children, escapeText).hashCode
 
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
       sb.append('<')
@@ -376,9 +380,9 @@ object Dom {
      * in children is HTML-escaped during rendering.
      *
      * Equality is structural across all `Element` implementations: a `Generic`
-     * equals any other element with the same tag, attributes, and children,
-     * regardless of the concrete class (e.g., `Generic("li", ...)` equals the
-     * equivalent `LiElement`).
+     * equals any other element with the same tag, attributes, children, and
+     * text-escaping semantics, regardless of the concrete class (e.g.,
+     * `Generic("li", ...)` equals the equivalent `LiElement`).
      *
      * @param tag
      *   the element tag name (e.g., "div", "h1")
@@ -597,7 +601,10 @@ object Dom {
      * `inlineJs(code)` to inject escaped JavaScript or `externalJs(url)` to
      * link external scripts.
      *
-     * Equality is structural across all `Element` implementations.
+     * Equality is structural across all `Element` implementations, including
+     * the text-escaping semantics: because `Script` renders its children
+     * unescaped, it never equals an equally-shaped `Generic("script", ...)`,
+     * whose children would be escaped on render.
      *
      * @param attributes
      *   attribute key-value pairs
@@ -632,7 +639,10 @@ object Dom {
      * inline CSS to be rendered as-is. Provides convenience method
      * `inlineCss(code)` to inject CSS code directly.
      *
-     * Equality is structural across all `Element` implementations.
+     * Equality is structural across all `Element` implementations, including
+     * the text-escaping semantics: because `Style` renders its children
+     * unescaped, it never equals an equally-shaped `Generic("style", ...)`,
+     * whose children would be escaped on render.
      *
      * @param attributes
      *   attribute key-value pairs

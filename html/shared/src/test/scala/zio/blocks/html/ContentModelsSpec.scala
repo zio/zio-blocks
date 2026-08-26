@@ -193,11 +193,17 @@ object ContentModelsSpec extends ZIOSpecDefault {
         val b: Dom.Element = li(id := "two", "x")
         assertTrue(a != b)
       },
-      test("script equals structurally identical Generic") {
+      test("script never equals structurally identical Generic (escaping differs)") {
         val scriptEl: Dom.Element = script().inlineJs(js"console.log(1);")
         val generic: Dom.Element  =
           Dom.Element.Generic("script", Chunk.empty, Chunk(Dom.Text(js"console.log(1);".value)))
-        assertTrue(scriptEl == generic)
+        assertTrue(scriptEl != generic && scriptEl.hashCode != generic.hashCode)
+      },
+      test("elements with different escaping semantics diverge on raw content") {
+        val raw                   = Chunk(Dom.Text("<b>&"))
+        val scriptEl: Dom.Element = Dom.Element.Script(Chunk.empty, raw)
+        val generic: Dom.Element  = Dom.Element.Generic("script", Chunk.empty, raw)
+        assertTrue(scriptEl != generic && scriptEl.render != generic.render)
       }
     )
   )
