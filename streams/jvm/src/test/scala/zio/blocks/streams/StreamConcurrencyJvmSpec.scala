@@ -136,6 +136,29 @@ object StreamConcurrencyJvmSpec extends StreamsBaseSpec {
           assertTrue(isOrderedRange(result, n))
         }
       } @@ TestAspect.timeout(30.seconds),
+      // ---- BUG regression: 200 repeated teardowns of a nested double buffer.
+      // This is the exact shape that flaked on CI (job 32838318998/97777568274)
+      // before the interrupt-handling fix in ConcurrentBufferedReader; the
+      // deterministic unit tests in ReaderJvmSpec cover the mechanism
+      // directly, this drives the real race at volume as a belt-and-braces
+      // check (h/t @987Nabil, #1627).
+      test("double buffer repeated teardown never surfaces InterruptedException") {
+        ZIO.attemptBlocking {
+          var i: Int             = 0
+          var failure: Throwable = null
+          while ((failure eq null) && i < 200) {
+            i += 1
+            failure = scala.util.Try(Stream.range(0, 2000).buffer(32).buffer(32).runCollect) match {
+              case scala.util.Failure(t)     => t
+              case scala.util.Success(value) =>
+                if (value.isRight) null
+                else new AssertionError(s"iteration $i returned ${value.swap.getOrElse(null)}")
+            }
+          }
+          if (failure ne null) throw new AssertionError(s"failed at iteration $i of 200", failure)
+          assertTrue(i == 200)
+        }
+      } @@ TestAspect.timeout(120.seconds),
       test("no thread leaks after buffer stream completes") {
         ZIO.attemptBlocking {
           val baseline = Thread.getAllStackTraces.size()

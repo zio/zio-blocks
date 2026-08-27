@@ -17,12 +17,38 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.streams.internal.ConcurrentBufferedReader
+import zio.blocks.streams.io.Reader
 import zio.test._
 
 import java.nio.ByteBuffer
 import java.nio.channels.{Channels, ReadableByteChannel}
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.LockSupport
 
 object ReaderJvmSpec extends StreamsBaseSpec {
+
+  /**
+   * Parks until interrupted, then throws — how an interruptible source (e.g.
+   * real blocking I/O) reacts to our stop-signal interrupt.
+   */
+  private final class InterruptibleReader extends Reader[Int] {
+    val enteredRead: AtomicInteger        = new AtomicInteger(0)
+    val closeCount: AtomicInteger         = new AtomicInteger(0)
+    def isClosed: Boolean                 = false
+    def read[A1 >: Int](sentinel: A1): A1 = {
+      enteredRead.incrementAndGet()
+      while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(100000L)
+      throw new InterruptedException("stopped by shutdown")
+    }
+    def close(): Unit = closeCount.incrementAndGet()
+  }
+
+  private final class FailingReader extends Reader[Int] {
+    def isClosed: Boolean                 = false
+    def read[A1 >: Int](sentinel: A1): A1 = throw new IllegalStateException("boom")
+    def close(): Unit                     = ()
+  }
 
   private def intBuf(ints: Int*): ByteBuffer = {
     val bb = ByteBuffer.allocate(ints.size * 4)
@@ -472,6 +498,48 @@ object ReaderJvmSpec extends StreamsBaseSpec {
             val stillInterrupted = Thread.currentThread().isInterrupted
             assertTrue(stillInterrupted)
           } finally Thread.interrupted() // clear before returning the thread to the pool
+        },
+        // ---- BUG regression, nested-buffer variant: closes the actual
+        // .buffer(32).buffer(32) shape from the original CI failure while the
+        // closing thread itself already carries a pending interrupt (h/t
+        // @987Nabil, #1627) — belt-and-braces alongside the single-layer
+        // deterministic test above.
+        test("close() mid-flight on nested buffers does not surface internal interruption") {
+          val reader = Stream.compileToReader(Stream.range(0, 100000).buffer(32).buffer(32))
+          reader.readUpToN[Int](1)
+          Thread.currentThread().interrupt()
+          val closedCleanly = scala.util.Try(reader.close()).isSuccess
+          Thread.interrupted()
+          assertTrue(closedCleanly)
+        },
+        // ---- BUG regression: a different call site than close()'s join.
+        // When `upstream.read()` is itself interruptible (a real blocking I/O
+        // read, not another buffered layer), our own stop-signal interrupt
+        // makes it throw InterruptedException *from the read loop*, one step
+        // earlier than the join hazard above. That must be recognized as
+        // deliberate shutdown, not recorded as a producer failure (h/t
+        // @987Nabil, #1627).
+        test("shutdown-induced interruption of an interruptible upstream is not recorded as an error") {
+          val upstream = new InterruptibleReader
+          val reader   = new ConcurrentBufferedReader[Int](upstream, 8)
+          val deadline = System.nanoTime() + 10L * 1000000000L
+          while (upstream.enteredRead.get() == 0 && System.nanoTime() < deadline) Thread.onSpinWait()
+          val sawProducerReading = upstream.enteredRead.get() > 0
+          val closedCleanly      = scala.util.Try(reader.close()).isSuccess
+          assertTrue(sawProducerReading) &&
+          assertTrue(closedCleanly) &&
+          assertTrue(upstream.closeCount.get() == 1)
+        },
+        // Companion to the above: a genuine (non-interrupt) upstream failure
+        // must still surface through read() unchanged.
+        test("genuine upstream failure still surfaces through read") {
+          val reader = new ConcurrentBufferedReader[Int](new FailingReader, 8)
+          val caught = scala.util.Try {
+            var done = false
+            while (!done) { if (reader.readUpToN[Int](4).isEmpty) done = true }
+            ()
+          }.failed
+          assertTrue(caught.map(_.isInstanceOf[IllegalStateException]).getOrElse(false))
         }
       ),
       suite("ConcurrentMergeReader (JVM)")(
