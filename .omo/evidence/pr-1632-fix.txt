@@ -1,0 +1,89 @@
+PR 1632 Review Fix Loop — Evidence
+===================================
+PR: https://github.com/zio/zio-blocks/pull/1632
+Branch: feat/sql-inspect-and-dump
+Date: 2026-08-27
+Workspace: /tmp/ws-inspect (child of msrtkvop 4331cd41)
+Chain: lyvnuznq -> ukrrkwko -> vlysptqw -> mpruwnsw -> tkuppwmu -> msrtkvop (4331cd41) -> muqyzsmm (96c95ad4)
+
+Phase 1 — Identify PR
+---------------------
+gh pr view 1632 --json number,headRefName,url,title,state => OPEN, feat/sql-inspect-and-dump, https://github.com/zio/zio-blocks/pull/1632, feat(sql): inspectable SQL + opt-in compile-time dumps
+gh repo view --json nameWithOwner => zio/zio-blocks
+jj bookmark list => feat/sql-inspect-and-dump: msrtkvop 4331cd41 -> muqyzsmm 96c95ad4 (after fix)
+jj status clean after fix commit (new working copy empty)
+
+Phase 2 — Fetch & Categorize
+----------------------------
+Endpoints fetched with --paginate:
+- GET /repos/zio/zio-blocks/pulls/1632/comments => 10 line comments (Copilot)
+- GET /repos/zio/zio-blocks/pulls/1632/reviews   => 1 overview review (Copilot, COMMENTED, 2026-08-27T04:34:05Z)
+- GET /repos/zio/zio-blocks/issues/1632/comments => 0
+
+Comment categorization (10 line comments):
+1. 3868746872 sql/shared/src/main/scala/zio/blocks/sql/Dump.scala:42 — emit stale primary file => Valid fix (logic bug)
+2. 3868746900 sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala:30 — reduce throws on empty cols => Valid fix
+3. 3868746918 sql/shared/src/main/scala/zio/blocks/sql/SqlIdentifierChecker.scala:414 — double-quoted position off by 1 => Valid fix
+4. 3868746940 sql/shared/src/main/scala/zio/blocks/sql/SqlIdentifierChecker.scala:310 — dummy Unit overload unused/awkward => Valid fix (remove)
+5. 3868746963 sql/shared/src/test/scala/zio/blocks/sql/SqlIdentifierCheckerSpec.scala:222 — test name mismatch distance 1 vs 2 => Valid fix (rename)
+6. 3868746974 docs/guides/query-dsl-sql.md:753 — explain output singular/plural & multiline mismatch => Valid fix (docs)
+7. 3868747000 sql/shared/src/main/scala/zio/blocks/sql/SqlQuery.scala:21 — missing Scaladoc => Valid fix
+8. 3868747025 sql/shared/src/main/scala/zio/blocks/sql/SqlStatement.scala:19 — missing Scaladoc => Valid fix
+9. 3868747054 sql/shared/src/main/scala/zio/blocks/sql/Dump.scala:24 — missing Scaladoc => Valid fix
+10. 3868747076 docs/guides/query-dsl-sql.md:808 — SmallMigrator example wrong TargetStrategy.Rename & params => Valid fix (docs)
+
+Counts: Valid fix 10, Style 0 (included in Valid), Question 0, Disagreement 0, Already resolved 0
+Disagreements to present (DO NOT POST): none — all comments were valid; no Suppressed-comment disagreements posted.
+Suppressed 3 comments noted but out of scope for this chain (SmallMigrator/LargeMigrator constructor without new — docs examples are illustrative; docs plural at 793 — covered by #6).
+
+Todos created: 7 file groups, all valid fixes.
+
+Phase 3 — Apply Fixes
+---------------------
+Files changed (7):
+- sql/shared/src/main/scala/zio/blocks/sql/Dump.scala — rewrite emit to overwrite outdated primary (remove stale-file + secondary logic), add object-level Scaladoc and inline def Scaladocs for dumpTable/dump/dumpQuery
+- sql/shared/src/main/scala/zio/blocks/sql/query/QueryRenderer.scala — guard empty selectCols => SELECT * fallback
+- sql/shared/src/main/scala/zio/blocks/sql/SqlIdentifierChecker.scala — remove dummy Unit overload, fix double-quoted Token position to start+1
+- sql/shared/src/test/scala/zio/blocks/sql/SqlIdentifierCheckerSpec.scala — rename test "two edits distance 2" -> "one substitution distance 1"
+- sql/shared/src/main/scala/zio/blocks/sql/SqlQuery.scala — add Scaladoc for SqlQuery builder
+- sql/shared/src/main/scala/zio/blocks/sql/SqlStatement.scala — add Scaladoc for SqlStatement
+- docs/guides/query-dsl-sql.md — fix explain example to single-line singular (user/repo), fix sql IR example to singular quoted, fix statement example singular, fix previewSql SmallMigrator example to InPlace + migration/queueTable/batchSize + given Transactor, add note about single-line explain
+
+Verification before commit:
+- GIT_DIR=/home/user/zio-blocks/.git sbt scalafmtAll => Reformatted 5 sources, EXIT 0
+- GIT_DIR=/home/user/zio-blocks/.git sbt "++3.8.3; sqlJVM/testOnly zio.blocks.sql.ExplainSpec zio.blocks.sql.SqlIdentifierCheckerSpec zio.blocks.sql.query.QueryRenderSpec" => 76 tests passed, 0 failed
+- jj diff --stat confirms only sql/dataMigration/docs scope (7 files, no sql-benchmarks/build changes beyond expected)
+
+Commit:
+- muqyzsmm 96c95ad498d74da07bf8b0a789c6727e43b7c466 fix: address review — dump emit stale-file, QueryRenderer empty cols, checker position/dummy, docs singular table names and SmallMigrator API, Scaladoc for Dump/SqlQuery/SqlStatement, test rename
+- Bookmark feat/sql-inspect-and-dump moved forward 4331cd41 -> 96c95ad4
+
+Phase 4 — Push & Monitor CI
+---------------------------
+Push: jj git push --bookmark feat/sql-inspect-and-dump => forward 4331cd41..96c95ad4 to origin, success (GitHub vulnerabilities notice only, no rejection)
+Wait 15s then monitor:
+- gh api repos/zio/zio-blocks/pulls/1632 => head.sha 96c95ad4, state open
+- gh api repos/zio/zio-blocks/commits/96c95ad4/check-runs => 3 runs: copilot-pull-request-reviewer queued, auto-approve-bot-prs skipped, auto-merge skipped
+- gh api repos/zio/zio-blocks/commits/96c95ad4/status => license/cla success
+- gh pr checks 1632 => 2 skipped, 1 passed (license/cla) after 30s poll; no required CI failures observed
+- No sbt CI workflow configured for pull_request on this branch (ci.yml skip); previous chain evidence confirms local sbt test pass is primary gate
+Iterations: 1/5 used, no retry needed (no failure logs to fetch via gh run view)
+
+Phase 5 — Summary
+----------------
+PR 1632: OPEN, feat/sql-inspect-and-dump, 10 line comments fetched, all categorized Valid fix, zero pending disagreements
+Fixes applied: 10/10 comments addressed across 7 files
+Commits: 1 new commit 96c95ad4 on top of 4331cd41, diff remains within sql/dataMigration/docs only
+CI: license/cla passed, bot checks skipped, Copilot review queued (dynamic), no failures requiring iteration
+Verification: sbt scalafmtAll + sbt sqlJVM/testOnly 76 passed; gh pr checks shows pass/skipped only
+
+Pending / Next steps:
+- Await Copilot re-review on 96c95ad4 (run 33042604918 queued at push time)
+- If Copilot posts follow-up comments, iterate again (max 5 remaining)
+- No disagreement replies to post (none)
+
+Evidence file written to:
+- /tmp/ws-inspect/.omo/evidence/pr-1632-fix.txt
+- /home/user/.omo/evidence/pr-1632-fix.txt
+- /home/user/zio-blocks/.omo/evidence/pr-1632-fix.txt (copy)
+
