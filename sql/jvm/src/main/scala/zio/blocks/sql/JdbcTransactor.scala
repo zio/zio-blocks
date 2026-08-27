@@ -17,6 +17,7 @@
 package zio.blocks.sql
 
 import java.sql.{Connection, DriverManager}
+import java.util.Properties
 
 class JdbcTransactor(
   connectionFactory: () => Connection,
@@ -28,11 +29,6 @@ class JdbcTransactor(
     val conn   = connectionFactory()
     val dbConn = new JdbcConnection(conn)
     try {
-      if (dialect == SqlDialect.SQLite) {
-        val stmt = conn.createStatement()
-        try stmt.execute("PRAGMA busy_timeout = 5000")
-        finally stmt.close()
-      }
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
@@ -50,29 +46,18 @@ class JdbcTransactor(
    * and rolls back on exception. The connection is closed after commit or
    * rollback.
    *
-   * For `SqlDialect.SQLite`, the transaction is started in `IMMEDIATE` mode
-   * after setting `PRAGMA busy_timeout = 5000` so that queue workers reserve
-   * the write lock before the `SELECT` and wait on contention instead of
-   * failing the later `DELETE` with `SQLITE_BUSY`. See PR #1534
-   * discussion_r3863454094; SQLite is single-consumer and `PRAGMA` runs before
-   * `setAutoCommit(false)` to avoid "within a transaction".
+   * For `SqlDialect.SQLite`, connections are created with `busy_timeout=5000`
+   * and `transaction_mode=IMMEDIATE` (see `fromUrl` / `sqlite`) so that queue
+   * workers reserve the write lock before the `SELECT` and wait on contention
+   * instead of failing the later `DELETE` with `SQLITE_BUSY`. See PR #1534
+   * discussion_r3863454094; SQLite is single-consumer.
    */
   def transact[A](f: DbTx ?=> A): A = {
-    val conn   = connectionFactory()
-    val dbConn = new JdbcConnection(conn)
-    if (dialect == SqlDialect.SQLite) {
-      val timeoutStmt = conn.createStatement()
-      try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
-      finally timeoutStmt.close()
-    }
+    val conn           = connectionFactory()
+    val dbConn         = new JdbcConnection(conn)
     val prevAutoCommit = conn.getAutoCommit
     conn.setAutoCommit(false)
     try {
-      if (dialect == SqlDialect.SQLite) {
-        val beginStmt = conn.createStatement()
-        try beginStmt.execute("BEGIN IMMEDIATE")
-        finally beginStmt.close()
-      }
       given tx: DbTx = new DbTx {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
@@ -98,13 +83,41 @@ class JdbcTransactor(
 object JdbcTransactor {
 
   def fromUrl(url: String, dialect: SqlDialect): JdbcTransactor =
-    new JdbcTransactor(() => DriverManager.getConnection(url), dialect)
+    if (dialect == SqlDialect.SQLite) {
+      val props = new Properties()
+      props.setProperty("busy_timeout", "5000")
+      props.setProperty("transaction_mode", "IMMEDIATE")
+      new JdbcTransactor(() => DriverManager.getConnection(url, props), dialect)
+    } else new JdbcTransactor(() => DriverManager.getConnection(url), dialect)
 
   def fromUrl(url: String, user: String, password: String, dialect: SqlDialect): JdbcTransactor =
-    new JdbcTransactor(() => DriverManager.getConnection(url, user, password), dialect)
+    if (dialect == SqlDialect.SQLite) {
+      val props = new Properties()
+      props.setProperty("busy_timeout", "5000")
+      props.setProperty("transaction_mode", "IMMEDIATE")
+      props.setProperty("user", user)
+      props.setProperty("password", password)
+      new JdbcTransactor(() => DriverManager.getConnection(url, props), dialect)
+    } else new JdbcTransactor(() => DriverManager.getConnection(url, user, password), dialect)
 
-  def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): JdbcTransactor =
+  def fromDataSource(dataSource: javax.sql.DataSource, dialect: SqlDialect): JdbcTransactor = {
+    // For SQLite, try to configure the DataSource for IMMEDIATE + busy timeout
+    // when it is a SQLiteDataSource; otherwise the connection will still work
+    // as DEFERRED (tests use a mock DataSource). Use reflection to avoid a
+    // hard compile-time dependency on sqlite-jdbc in main.
+    if (dialect == SqlDialect.SQLite) {
+      try {
+        val clazz = Class.forName("org.sqlite.SQLiteDataSource")
+        if (clazz.isInstance(dataSource)) {
+          val setBusy = clazz.getMethod("setBusyTimeout", classOf[Int])
+          setBusy.invoke(dataSource, Integer.valueOf(5000))
+          val setMode = clazz.getMethod("setTransactionMode", classOf[String])
+          setMode.invoke(dataSource, "IMMEDIATE")
+        }
+      } catch { case _: Throwable => () }
+    }
     new JdbcTransactor(() => dataSource.getConnection, dialect)
+  }
 
   def postgres(dataSource: javax.sql.DataSource): JdbcTransactor =
     fromDataSource(dataSource, SqlDialect.PostgreSQL)
