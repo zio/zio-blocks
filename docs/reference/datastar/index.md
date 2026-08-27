@@ -34,7 +34,7 @@ This module closes each of those:
 - **Signal names are validated, literals at compile time.** `Signal[Int]("count")` checks the name during compilation; `Signal.dynamic` defers the same check to runtime for names you compute.
 - **Raw strings are rejected in expression positions.** `ToDatastarExpr` is deliberately ambiguous for `String`, so passing one is a compile error that names the fix. Expressions come from the `js"..."` interpolator or from typed signals.
 - **Attributes are `Dom.Attribute` values**, so they compose with the rest of the HTML DSL and cannot be misplaced into text content. The helpers also settle the naming convention for you: plain attributes render with a hyphen (`data-text`), and keyed ones with a colon (`data-on:click`, `data-class:active`, `data-computed:total`).
-- **SSE events are builders**, so a patch event carries only the fields that kind of event accepts, and rendering emits the exact protocol field names.
+- **SSE events are builders**, so each event kind offers the options it accepts and rendering emits the exact protocol field names. The one exception is `executeScript`, which returns an element-patch builder and so exposes `selector` and `mode` that do not apply to it.
 
 ## Installation
 
@@ -66,11 +66,11 @@ The module divides along the direction data flows.
 
 ### Attributes — declaring reactivity on the page
 
-`DatastarAttributes` supplies around two dozen `data*` helpers — `dataText`, `dataShow`, `dataBind`, `dataClass`, `dataComputed`, and the rest — each returning either a `Dom.Attribute` or a `DatastarAttrKey` awaiting a value. `ToDatastarExpr` governs what may be assigned. See [Attributes](./attributes.md).
+`DatastarAttributes` supplies 27 `data*` helpers — `dataText`, `dataShow`, `dataBind`, `dataClass`, `dataComputed`, and the rest — each returning either a `Dom.Attribute` or a `DatastarAttrKey` awaiting a value. `ToDatastarExpr` governs what may be assigned. See [Attributes](./attributes.md).
 
 ### Events — reacting to the user
 
-`dataOn` opens the event side: sixteen predefined events, thirteen chainable modifiers for debouncing, throttling, and propagation control, and four specialized triggers for intersection, interval, signal-patch, and init. See [Event Handlers](./events.md).
+`dataOn` opens the event side: sixteen predefined events, fourteen chainable modifiers for debouncing, throttling, and propagation control, and four specialized triggers for intersection, interval, signal-patch, and init. See [Event Handlers](./events.md).
 
 ### SSE — patching the page from the server
 
@@ -101,7 +101,7 @@ BROWSER SIDE (rendered into HTML)
 
   dataOn.click ──> DataOn ──modifiers──> DataOn ──:=──> Dom.Attribute
                               │                          data-on:click__debounce.300ms
-                              ├─ EventModifier            (13: debounce, throttle,
+                              ├─ EventModifier            (14: debounce, throttle,
                               │                            once, passive, stop, …)
                               └─ CaseModifier             (__case.camel | kebab | snake | pascal)
 

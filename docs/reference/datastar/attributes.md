@@ -4,7 +4,7 @@ title: "Datastar Attributes"
 sidebar_label: "Attributes"
 ---
 
-`DatastarAttributes` supplies the `data*` helpers that make rendered HTML reactive. Each returns either a finished `Dom.Attribute` or a `DatastarAttrKey` awaiting a value, and `ToDatastarExpr` decides what may be assigned — rejecting raw `String` at compile time. The package object extends this trait, so one wildcard import brings every helper into scope. The two types every helper funnels through:
+`DatastarAttributes` supplies 27 `data*` helpers that make rendered HTML reactive. Each returns either a finished `Dom.Attribute` or a `DatastarAttrKey` awaiting a value, and `ToDatastarExpr` decides what may be assigned — rejecting raw `String` at compile time. The package object extends this trait, so one wildcard import brings every helper into scope. The two types every helper funnels through:
 
 ```scala
 final class DatastarAttrKey(val name: String) {

@@ -4,7 +4,7 @@ title: "Event Handlers"
 sidebar_label: "Event Handlers"
 ---
 
-`dataOn` opens the event side of the attribute DSL: sixteen predefined DOM events, thirteen chainable modifiers, and four case modifiers, all rendering into a single `data-on:<event>__<modifiers>` attribute. Four sibling builders cover triggers that are not DOM events — intersection, interval, signal patches, and initialization. Core types: `DataOn`, `PartialDataOn`, `EventModifier`, `CaseModifier`, `DataOnIntersect`, `DataOnInterval`, `DataOnSignalPatch`, `DataInit`. The shape of the builder:
+`dataOn` opens the event side of the attribute DSL: sixteen predefined DOM events, fourteen chainable modifiers, and four case modifiers, all rendering into a single `data-on:<event>__<modifiers>` attribute. Four sibling builders cover triggers that are not DOM events — intersection, interval, signal patches, and initialization. Core types: `DataOn`, `PartialDataOn`, `EventModifier`, `CaseModifier`, `DataOnIntersect`, `DataOnInterval`, `DataOnSignalPatch`, `DataInit`. The shape of the builder:
 
 ```scala
 final class DataOn private (name: String, modifiers: Maybe[EventModifier], caseModifier: CaseModifier) {
@@ -81,7 +81,7 @@ div(dataOn("animationend") := js"@get('/done')").renderMinified
 
 ## Event Modifiers
 
-Thirteen modifiers chain in any order before `:=`. Each contributes a `__` suffix.
+Fourteen modifiers chain before `:=`, each contributing a `__` suffix.
 
 | Method | Renders | Effect |
 | ------ | ------- | ------ |
@@ -98,6 +98,7 @@ Thirteen modifiers chain in any order before `:=`. Each contributes a `__` suffi
 | `DataOn#outside` | `__outside` | Fire on events outside the element |
 | `DataOn#window` | `__window` | Listen on the window object |
 | `DataOn#document` | `__document` | Listen on the document object |
+| `DataOn#viewTransition` | `__viewTransition` | Wrap the resulting patch in a view transition |
 
 Modifiers combine, and the rendered name carries each one:
 
@@ -118,9 +119,11 @@ button(dataOn.click.once.prevent := js"@post('/subscribe')").renderMinified
 div(dataOn.click.outside := js"$$open = false").renderMinified
 ```
 
+Repeating a timing or target modifier does not stack: the chain is normalized to the last effective value before the name is rendered, so chaining `DataOn#debounce` twice keeps only the second value.
+
 Modifiers are represented by the `EventModifier` ADT — `Debounce`, `Throttle`, `Delay`, `Once`, `Passive`, `Capture`, `Stop`, `Prevent`, `Outside`, `Window`, `Document`, `ViewTransition`, and `And` for combination — but the builder methods are the intended interface.
 
-Each trigger has its own modifier ADT, and they are not interchangeable: `EventModifier` for `dataOn`, `IntersectModifier` for `dataOnIntersect` (which adds `Half`, `Full`, `Exit`, and `Threshold`), `OnIntervalModifier` for `dataOnInterval` (`Duration`, `ViewTransition`), `OnSignalPatchModifier` for `dataOnSignalPatch` (`Delay`, `Debounce`, `Throttle`), and `InitModifier` for `dataInit` (`Delay`, `ViewTransition`). Every one of them has an `And` variant, which is how a chain of builder calls accumulates. You never construct these directly — the builder methods do it — but they are what a modifier chain is made of.
+Each trigger has its own modifier ADT, and they are not interchangeable: `EventModifier` for `dataOn`, `IntersectModifier` for `dataOnIntersect` (which adds `Half`, `Full`, `Exit`, and `Threshold`), `OnIntervalModifier` for `dataOnInterval` (`Duration`, `ViewTransition`), `OnSignalPatchModifier` for `dataOnSignalPatch` (`Delay`, `Debounce`, `Throttle`), and `InitModifier` for `dataInit` (`Delay`, `ViewTransition`). Every one of them has an `And` variant, which is how a chain of builder calls accumulates. You never need to construct these directly — the builder methods do it — but they are what a modifier chain is made of.
 
 ## Case Modifiers
 
@@ -158,7 +161,7 @@ Fires when the element becomes visible, which is the basis for infinite scroll a
 | `exit` | Fire on leaving rather than entering |
 | `threshold(pct)` | Require an explicit visibility fraction |
 | `delay(ms)`, `debounce(ms)`, `throttle(ms)` | Timing control |
-| `viewTransition` | Wrap the patch in a view transition |
+| `DataOnIntersect#viewTransition` | Wrap the patch in a view transition |
 
 A sentinel element at the end of a list is the canonical use:
 
@@ -175,7 +178,7 @@ div(dataOnIntersect.once.full := js"@get('/page/2')").renderMinified
 
 ### `dataOnInterval` — fire on a timer
 
-Polls on an interval, with `DataOnInterval#duration` setting the period and `DataOnInterval#durationLeading` firing immediately as well:
+Polls on an interval, with `DataOnInterval#duration` setting the period, `DataOnInterval#durationLeading` firing immediately as well, and `DataOnInterval#viewTransition` wrapping the resulting patch:
 
 ```scala mdoc
 div(dataOnInterval.duration(5000) := js"@get('/status')").renderMinified
@@ -193,7 +196,7 @@ div(dataOnSignalPatch.debounce(200) := js"@get('/recalculate')").renderMinified
 
 ### `dataInit` — fire once on load
 
-Runs when Datastar first processes the element, with `delay(ms)` and `viewTransition`:
+Runs when Datastar first processes the element, with `DataInit#delay` and `DataInit#viewTransition`:
 
 ```scala mdoc
 div(dataInit := js"@get('/bootstrap')").renderMinified

@@ -48,7 +48,7 @@ DatastarEvent.patchSignals(count := 42).renderSSE
 
 ## Construction
 
-Two constructors, differing only in when the name is checked.
+Two constructors. They differ in when a *literal* name is checked; for a computed name both check at runtime.
 
 ### `Signal.apply` — checked at compile time
 
@@ -70,7 +70,7 @@ nested.name
 
 ### `Signal.dynamic` — checked at runtime
 
-When the name is computed, `Signal.dynamic` applies the same rules at runtime and throws `IllegalArgumentException` on a bad name:
+`Signal.apply` also accepts a computed name — its macro falls back to a runtime check when the argument is not a literal — so `Signal.dynamic` is not strictly required. Prefer it anyway for computed names, because it states that intent at the call site. Either way the check throws `IllegalArgumentException`:
 
 ```scala
 object Signal {

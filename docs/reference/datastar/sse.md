@@ -4,7 +4,7 @@ title: "Server-Sent Events"
 sidebar_label: "Server-Sent Events"
 ---
 
-`DatastarEvent` builds the events a server sends to patch a live page: replace elements, patch signals, execute a script, or remove elements. Each constructor returns a builder carrying only the options that event kind accepts, and `DatastarEvent#renderSSE` produces the wire format. Supporting types: `PatchElementsBuilder`, `PatchSignalsBuilder`, `RemoveElementsBuilder`, `ElementPatchMode`, `EventType`. The constructors and the one method they all end in:
+`DatastarEvent` builds the events a server sends to patch a live page: replace elements, patch signals, execute a script, or remove elements. Each constructor returns a builder for its event kind, and `DatastarEvent#renderSSE` produces the wire format. `DatastarEvent.executeScript` is the exception noted below: it reuses the element-patch builder, so it offers two options that do not apply to it. Supporting types: `PatchElementsBuilder`, `PatchSignalsBuilder`, `RemoveElementsBuilder`, `ElementPatchMode`, `EventType`. The constructors and the one method they all end in:
 
 ```scala
 sealed trait DatastarEvent {
