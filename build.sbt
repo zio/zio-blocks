@@ -490,7 +490,7 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
   )
   .jvmSettings(
     libraryDependencies ++= Seq(
-      "org.xerial"     % "sqlite-jdbc" % "3.53.2.1" % Test,
+      "org.xerial"     % "sqlite-jdbc" % "3.53.4.0" % Test,
       "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
   )
@@ -1357,7 +1357,7 @@ lazy val `sql-benchmarks` = project
     libraryDependencies ++= Seq(
       // In-memory SQLite table for the decode fixture; sql.jvm only has it as a
       // Test dep, so the benchmark (main sources) declares it directly.
-      "org.xerial" % "sqlite-jdbc" % "3.53.2.1",
+      "org.xerial" % "sqlite-jdbc" % "3.53.4.0",
       // Real-world cross-library comparison: same Postgres server, same data —
       // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
       // hand-rolled raw-JDBC floor.
