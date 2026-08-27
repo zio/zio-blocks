@@ -31,8 +31,11 @@ class JdbcTransactor(
       if (dialect == SqlDialect.SQLite) {
         try {
           val stmt = conn.createStatement()
-          if (stmt != null) try stmt.execute("PRAGMA busy_timeout = 5000")
-          finally try if (stmt != null) stmt.close() catch { case _: Throwable => () }
+          if (stmt != null)
+            try stmt.execute("PRAGMA busy_timeout = 5000")
+            finally
+              try if (stmt != null) stmt.close()
+              catch { case _: Throwable => () }
         } catch { case _: Throwable => () }
       }
       given con: DbCon = new DbCon {
@@ -62,8 +65,11 @@ class JdbcTransactor(
     if (dialect == SqlDialect.SQLite) {
       try {
         val timeoutStmt = conn.createStatement()
-        if (timeoutStmt != null) try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
-        finally try if (timeoutStmt != null) timeoutStmt.close() catch { case _: Throwable => () }
+        if (timeoutStmt != null)
+          try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
+          finally
+            try if (timeoutStmt != null) timeoutStmt.close()
+            catch { case _: Throwable => () }
       } catch { case _: Throwable => () }
     }
     val prevAutoCommit = conn.getAutoCommit
@@ -72,8 +78,11 @@ class JdbcTransactor(
       if (dialect == SqlDialect.SQLite) {
         try {
           val beginStmt = conn.createStatement()
-          if (beginStmt != null) try beginStmt.execute("BEGIN IMMEDIATE")
-          finally try if (beginStmt != null) beginStmt.close() catch { case _: Throwable => () }
+          if (beginStmt != null)
+            try beginStmt.execute("BEGIN IMMEDIATE")
+            finally
+              try if (beginStmt != null) beginStmt.close()
+              catch { case _: Throwable => () }
         } catch { case _: Throwable => () }
       }
       given tx: DbTx = new DbTx {
