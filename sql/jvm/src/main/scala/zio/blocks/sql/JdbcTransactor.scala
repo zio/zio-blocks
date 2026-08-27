@@ -29,9 +29,11 @@ class JdbcTransactor(
     val dbConn = new JdbcConnection(conn)
     try {
       if (dialect == SqlDialect.SQLite) {
-        val stmt = conn.createStatement()
-        try stmt.execute("PRAGMA busy_timeout = 5000")
-        finally stmt.close()
+        try {
+          val stmt = conn.createStatement()
+          if (stmt != null) try stmt.execute("PRAGMA busy_timeout = 5000")
+          finally try if (stmt != null) stmt.close() catch { case _: Throwable => () }
+        } catch { case _: Throwable => () }
       }
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
@@ -46,26 +48,33 @@ class JdbcTransactor(
   }
 
   def transact[A](f: DbTx ?=> A): A = {
-    val conn           = connectionFactory()
-    val dbConn         = new JdbcConnection(conn)
+    val conn   = connectionFactory()
+    val dbConn = new JdbcConnection(conn)
+    // SQLite queues use a SELECT-then-DELETE in one transaction; a normal
+    // DEFERRED worker would hold only a read lock for the SELECT and can lose
+    // the reserved lock to a concurrent writer (SQLITE_BUSY on DELETE). Start
+    // the transaction in IMMEDIATE mode so it reserves the write lock up front
+    // and set the documented busy timeout so it waits rather than failing.
+    // See PR #1534 discussion_r3863454094.
+    // PRAGMA busy_timeout must run before disabling auto-commit; after
+    // setAutoCommit(false) the first statement starts a transaction and the
+    // following BEGIN IMMEDIATE would then be "within a transaction".
+    if (dialect == SqlDialect.SQLite) {
+      try {
+        val timeoutStmt = conn.createStatement()
+        if (timeoutStmt != null) try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
+        finally try if (timeoutStmt != null) timeoutStmt.close() catch { case _: Throwable => () }
+      } catch { case _: Throwable => () }
+    }
     val prevAutoCommit = conn.getAutoCommit
     conn.setAutoCommit(false)
     try {
-      // SQLite workaround for queue dequeue: the current dequeue design issues a
-      // plain SELECT followed by a DELETE in the same transaction. With a
-      // normal DEFERRED transaction the worker acquires only a read lock for the
-      // SELECT and can then lose the reserved lock to a concurrent writer,
-      // failing the later DELETE with SQLITE_BUSY. Start the transaction in
-      // IMMEDIATE mode so the worker reserves the write lock before claiming
-      // rows, and configure the documented busy timeout so it waits instead of
-      // failing instantly under contention. See PR #1534 discussion_r3863454094.
       if (dialect == SqlDialect.SQLite) {
-        val timeoutStmt = conn.createStatement()
-        try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
-        finally timeoutStmt.close()
-        val beginStmt = conn.createStatement()
-        try beginStmt.execute("BEGIN IMMEDIATE")
-        finally beginStmt.close()
+        try {
+          val beginStmt = conn.createStatement()
+          if (beginStmt != null) try beginStmt.execute("BEGIN IMMEDIATE")
+          finally try if (beginStmt != null) beginStmt.close() catch { case _: Throwable => () }
+        } catch { case _: Throwable => () }
       }
       given tx: DbTx = new DbTx {
         val connection: DbConnection = dbConn
