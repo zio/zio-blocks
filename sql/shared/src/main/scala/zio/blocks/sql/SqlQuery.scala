@@ -18,6 +18,17 @@ package zio.blocks.sql
 
 import SqlStatement._
 
+/**
+ * Immutable builder for SELECT queries over a [[Table]].
+ *
+ * Obtain an instance via [[SqlQuery.from]] and chain `join`, `where`,
+ * `groupBy`, `orderBy`, `limit` and `offset`. Render the query for a dialect
+ * with:
+ *   - [[toFrag]] — `Frag` with `?` placeholders and typed params for execution
+ *   - [[statement]] — structured [[SqlStatement]] for programmatic inspection
+ *   - [[explain]] — single-line SQL with `?N` placeholders plus
+ *     `-- params: ...` footer for logging
+ */
 final class SqlQuery[A] private (
   private val source: Table[A],
   private val sourceAlias: String,

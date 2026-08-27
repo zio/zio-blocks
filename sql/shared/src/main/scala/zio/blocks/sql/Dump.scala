@@ -19,6 +19,17 @@ package zio.blocks.sql
 import scala.quoted._
 import zio.blocks.schema.Schema
 
+/**
+ * Compile-time SQL dump emission.
+ *
+ * When the JVM system property `zib.sql.dumpDir` is set, inline macro entry
+ * points [[dumpTable]], [[dump]] and [[dumpQuery]] emit `.sql` files to that
+ * directory at compile time. When the property is absent the calls expand to
+ * `()` with zero runtime cost. Files are named `<owner>-<dialect>.sql` (owner
+ * derived from the enclosing symbol or query/table name), written as UTF-8 with
+ * a trailing newline, and skipped when the existing content is byte-identical
+ * (content-hash skip).
+ */
 object Dump {
 
   private[sql] def emit(name: String, dialect: SqlDialect, sqlText: String)(using Quotes): Unit = {
@@ -26,43 +37,31 @@ object Dump {
     val dirProp = System.getProperty("zib.sql.dumpDir")
     if (dirProp == null) return
     try {
-      val safe                                = sanitize(name)
-      val suffix                              = dialect.name.toLowerCase(java.util.Locale.ROOT)
-      val content                             = if (sqlText.endsWith("\n")) sqlText else sqlText + "\n"
-      val dirPath                             = java.nio.file.Paths.get(dirProp)
-      val bytes                               = content.getBytes(java.nio.charset.StandardCharsets.UTF_8)
-      def tryWrite(fileName: String): Boolean = {
+      val safe                              = sanitize(name)
+      val suffix                            = dialect.name.toLowerCase(java.util.Locale.ROOT)
+      val content                           = if (sqlText.endsWith("\n")) sqlText else sqlText + "\n"
+      val dirPath                           = java.nio.file.Paths.get(dirProp)
+      val bytes                             = content.getBytes(java.nio.charset.StandardCharsets.UTF_8)
+      def writeFile(fileName: String): Unit = {
         val filePath = dirPath.resolve(fileName)
         val parent   = filePath.getParent
         if (parent != null) java.nio.file.Files.createDirectories(parent)
-        if (java.nio.file.Files.exists(filePath)) {
-          val existing = java.nio.file.Files.readAllBytes(filePath)
-          if (java.util.Arrays.equals(existing, bytes)) return true
-          else return false
-        } else {
-          java.nio.file.Files.write(
-            filePath,
-            bytes,
-            java.nio.file.StandardOpenOption.CREATE,
-            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-            java.nio.file.StandardOpenOption.WRITE
-          )
-          return true
-        }
+        java.nio.file.Files.write(
+          filePath,
+          bytes,
+          java.nio.file.StandardOpenOption.CREATE,
+          java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
+          java.nio.file.StandardOpenOption.WRITE
+        )
+      }
+      def isUpToDate(fileName: String): Boolean = {
+        val filePath = dirPath.resolve(fileName)
+        if (!java.nio.file.Files.exists(filePath)) false
+        else java.util.Arrays.equals(java.nio.file.Files.readAllBytes(filePath), bytes)
       }
       val primary = s"$safe-$suffix.sql"
-      if (!tryWrite(primary)) {
-        val secondary = s"$safe-2-$suffix.sql"
-        if (!tryWrite(secondary)) {
-          java.nio.file.Files.write(
-            dirPath.resolve(secondary),
-            bytes,
-            java.nio.file.StandardOpenOption.CREATE,
-            java.nio.file.StandardOpenOption.TRUNCATE_EXISTING,
-            java.nio.file.StandardOpenOption.WRITE
-          )
-        }
-      }
+      if (isUpToDate(primary)) ()
+      else writeFile(primary)
     } catch {
       case e: Throwable =>
         report.warning(
@@ -119,14 +118,35 @@ object Dump {
         else "_" + s
     }
 
+  /**
+   * Compile-time dump of a [[Table]]'s `CREATE TABLE` DDL.
+   *
+   * When `-Dzib.sql.dumpDir` is set, emits `<table>-<dialect>.sql` for
+   * PostgreSQL and SQLite at the macro-expansion site (owner derived from the
+   * table's type name). No-op when the property is absent.
+   */
   inline def dumpTable[A](inline table: Table[A])(using
     @scala.annotation.unused schema: Schema[A]
   ): Unit =
     ${ dumpTableImpl[A]('table) }
 
+  /**
+   * Compile-time dump of a legacy `SqlQuery`'s `SELECT` statement.
+   *
+   * When `-Dzib.sql.dumpDir` is set, emits `<owner>-<dialect>.sql` for each
+   * dialect at the call site (owner derived from the enclosing symbol/val
+   * name). No-op otherwise.
+   */
   inline def dump(inline query: SqlQuery[?]): Unit =
     ${ dumpQueryImpl('query) }
 
+  /**
+   * Compile-time dump of a query-IR `SqlQuery`'s `SELECT` statement.
+   *
+   * When `-Dzib.sql.dumpDir` is set, emits `<owner>-<dialect>.sql` for each
+   * dialect at the call site (owner derived from the enclosing symbol/val
+   * name). No-op otherwise.
+   */
   inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
 

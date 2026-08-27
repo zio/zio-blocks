@@ -16,6 +16,16 @@
 
 package zio.blocks.sql
 
+/**
+ * Structured, inspectable representation of a `SqlQuery` for a specific
+ * dialect.
+ *
+ * Produced by [[SqlQuery.statement]] / `SqlQuery#build`; mirrors the same
+ * joins, filters, grouping and pagination as the query but decomposed into
+ * typed fields. The original [[Frag]] is retained as [[frag]] for re-rendering
+ * or execution, and `statement.frag.params` aligns with the `?N` placeholders
+ * shown by [[SqlQuery.explain]].
+ */
 final case class SqlStatement(
   source: SqlStatement.Source,
   joins: Vector[SqlStatement.Join],

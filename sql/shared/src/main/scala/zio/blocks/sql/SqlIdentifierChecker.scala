@@ -409,8 +409,8 @@ object SqlIdentifierChecker {
           // Split by dot inside quoted? shouldn't happen: "T"."c" produces two tokens separately
           // Here ident is inside one pair of quotes; if it contains dot, treat before/after as separate?
           // Actually dot outside quotes separates identifiers. Inside quotes dot is not separator.
-          // So keep as one token if non-empty and identifier-like
-          if (ident.nonEmpty) tokens += Token(ident, start)
+          // So keep as one token if non-empty and identifier-like; position points to first char inside quotes
+          if (ident.nonEmpty) tokens += Token(ident, start + 1)
           i = j
         } else {
           i = len

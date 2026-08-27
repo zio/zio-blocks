@@ -218,7 +218,7 @@ object SqlIdentifierCheckerSpec extends ZIOSpecDefault {
       test("one insert distance 1") {
         assertTrue(SqlIdentifierChecker.levenshtein("abc", "ab") == 1)
       },
-      test("two edits distance 2") {
+      test("one substitution distance 1") {
         assertTrue(SqlIdentifierChecker.levenshtein("kitten", "sitten") == 1)
       },
       test("distance threshold respected") {
