@@ -46,10 +46,11 @@ class JdbcTransactor(
    * and rolls back on exception. The connection is closed after commit or
    * rollback.
    *
-   * For `SqlDialect.SQLite`, connections are created with `busy_timeout=5000`
-   * and `transaction_mode=IMMEDIATE` (see `fromUrl` / `sqlite`) so that queue
-   * workers reserve the write lock before the `SELECT` and wait on contention
-   * instead of failing the later `DELETE` with `SQLITE_BUSY`. See PR #1534
+   * For `SqlDialect.SQLite`, `transact` runs with `busy_timeout=5000` and
+   * `IMMEDIATE` — `fromUrl` and `sqlite` create SQLite connections with
+   * `busy_timeout=5000` and `transaction_mode=IMMEDIATE` so queue workers
+   * reserve the write lock before the `SELECT` and wait on contention instead
+   * of failing the later `DELETE` with `SQLITE_BUSY`. See PR #1534
    * discussion_r3863454094; SQLite is single-consumer.
    */
   def transact[A](f: DbTx ?=> A): A = {
