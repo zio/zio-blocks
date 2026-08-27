@@ -88,21 +88,39 @@ private[endpoint] object EndpointGroupMacro {
       case _                                                                                           => None
     }
 
+    def isPathCodecType(tpe: TypeRepr): Boolean = {
+      val ds = tpe.dealias.show
+      ds.contains("PathCodec") || tpe.dealias.typeSymbol.fullName == "zio.blocks.endpoint.PathCodec"
+    }
+
     def isPathCodecSubgroupStmt(t: Term): Option[(Term, Term)] = t match {
       case Inlined(Some(call: Term), _, expansion) =>
         isPathCodecSubgroupStmt(call).orElse(isPathCodecSubgroupStmt(expansion))
-      case Inlined(_, _, inner)                                                                        => isPathCodecSubgroupStmt(inner)
-      case Typed(inner, _)                                                                             => isPathCodecSubgroupStmt(inner)
-      case Apply(TypeApply(Select(codec, "/"), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+      case Inlined(_, _, inner)                                                           => isPathCodecSubgroupStmt(inner)
+      case Typed(inner, _)                                                                => isPathCodecSubgroupStmt(inner)
+      case Apply(TypeApply(Select(codec, "/"), _), List(_)) if isPathCodecType(codec.tpe) =>
         Some((codec, t))
-      case Apply(Apply(TypeApply(Select(codec, "/"), _), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+      case Apply(Apply(TypeApply(Select(codec, "/"), _), _), List(_)) if isPathCodecType(codec.tpe) =>
         Some((codec, t))
-      case Apply(Select(codec, "/"), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
+      case Apply(Select(codec, "/"), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      // Ident("/") with PathCodec first arg (extension method form)
+      case Apply(Apply(Ident("/"), List(codec)), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(TypeApply(Apply(Ident("/"), List(codec)), _), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Apply(TypeApply(Ident("/"), _), List(codec)), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(TypeApply(Apply(TypeApply(Ident("/"), _), List(codec)), _), List(_)) if isPathCodecType(codec.tpe) =>
         Some((codec, t))
       // prefixGroupCodec calls (expanded from PathCodec / endpoints { ... })
       case Apply(Select(_, "prefixGroupCodec"), List(codecArg, _)) =>
         Some((codecArg, t))
       case Apply(Ident("prefixGroupCodec"), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(TypeApply(Select(_, "prefixGroupCodec"), _), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(TypeApply(Ident("prefixGroupCodec"), _), List(codecArg, _)) =>
         Some((codecArg, t))
       case _ => None
     }
@@ -123,16 +141,25 @@ private[endpoint] object EndpointGroupMacro {
      */
     def extractEndpointsBlock(t: Term): Term = {
       def go(inner: Term): Term = inner match {
-        case Apply(Select(_, "/"), List(right))                         => unwrap(right)
-        case Apply(TypeApply(Select(_, "/"), _), List(right))           => unwrap(right)
-        case Apply(Apply(TypeApply(Select(_, "/"), _), _), List(right)) => unwrap(right)
-        case Apply(Select(_, "~"), List(right))                         => go(right)
+        case Inlined(Some(call: Term), _, _)
+            if isNestedSubgroupStmt(call).isDefined || isPathCodecSubgroupStmt(call).isDefined =>
+          go(call)
+        case Apply(Select(_, "/"), List(right))                                         => unwrap(right)
+        case Apply(TypeApply(Select(_, "/"), _), List(right))                           => unwrap(right)
+        case Apply(Apply(TypeApply(Select(_, "/"), _), _), List(right))                 => unwrap(right)
+        case Apply(Apply(Ident("/"), List(_)), List(right))                             => unwrap(right)
+        case Apply(TypeApply(Apply(Ident("/"), List(_)), _), List(right))               => unwrap(right)
+        case Apply(Apply(TypeApply(Apply(Ident("/"), List(_)), _), _), List(right))     => unwrap(right)
+        case Apply(TypeApply(Apply(TypeApply(Ident("/"), _), List(_)), _), List(right)) => unwrap(right)
+        case Apply(Select(_, "~"), List(right))                                         => go(right)
         // prefixGroupCodec calls (expanded from PathCodec / endpoints { ... })
-        case Apply(Select(_, "prefixGroupCodec"), List(_, ntArg)) => unwrap(ntArg)
-        case Apply(Ident("prefixGroupCodec"), List(_, ntArg))     => unwrap(ntArg)
-        case Inlined(_, _, inner2)                                => go(inner2)
-        case Typed(inner2, _)                                     => go(inner2)
-        case _                                                    => unwrap(inner)
+        case Apply(Select(_, "prefixGroupCodec"), List(_, ntArg))               => unwrap(ntArg)
+        case Apply(Ident("prefixGroupCodec"), List(_, ntArg))                   => unwrap(ntArg)
+        case Apply(TypeApply(Select(_, "prefixGroupCodec"), _), List(_, ntArg)) => unwrap(ntArg)
+        case Apply(TypeApply(Ident("prefixGroupCodec"), _), List(_, ntArg))     => unwrap(ntArg)
+        case Inlined(_, _, inner2)                                              => go(inner2)
+        case Typed(inner2, _)                                                   => go(inner2)
+        case _                                                                  => unwrap(inner)
       }
       go(t)
     }
@@ -154,11 +181,21 @@ private[endpoint] object EndpointGroupMacro {
         case Apply(Select(qual, ctor), List(Literal(StringConstant(n))))
             if Set("int", "long", "string", "bool", "uuid").contains(ctor) && qual.symbol.name == "PathCodec" =>
           n
-        case Inlined(_, _, inner) => go(inner)
-        case Typed(inner, _)      => go(inner)
-        case _                    => "group"
+        case Apply(Select(Select(_, "PathCodec"), "literal"), List(Literal(StringConstant(n))))                  => n
+        case Apply(Select(qual, "literal"), List(Literal(StringConstant(n)))) if qual.symbol.name == "PathCodec" => n
+        case Apply(Select(_, "literal"), List(Literal(StringConstant(n))))                                       => n
+        case Inlined(_, _, inner)                                                                                => go(inner)
+        case Typed(inner, _)                                                                                     => go(inner)
+        case Block(List(_), inner)                                                                               => go(inner)
+        case _                                                                                                   => "group"
       }
-      go(codec)
+      val res = go(codec)
+      if (res != "group") res
+      else {
+        val s   = codec.show
+        val lit = "\"([^\"]+)\"".r.findFirstMatchIn(s).map(_.group(1)).getOrElse("group")
+        if (lit.matches("[A-Za-z0-9_\\-\\.]+") && lit != "group") lit else "group"
+      }
     }
 
     def collectMembers(stats: List[Statement]): List[(String, Term, Boolean)] = {
@@ -407,9 +444,14 @@ private[endpoint] object EndpointGroupMacro {
         def extractOut(withOutTerm: Term): TypeRepr = {
           val tuplesSym                    = TypeRepr.of[zio.blocks.combinators.Tuples.Tuples].typeSymbol
           def walk(t0: TypeRepr): TypeRepr = t0.dealias match {
-            case Refinement(_, "Out", TypeBounds(_, hi)) => hi.dealias
-            case Refinement(parent, _, _)                => walk(parent)
-            case other                                   => other.memberType(tuplesSym.typeMember("Out")).dealias
+            case Refinement(_, "Out", tb @ TypeBounds(lo, hi)) =>
+              if (lo =:= TypeRepr.of[Nothing] && hi =:= TypeRepr.of[Any]) tb else hi.dealias
+            case Refinement(parent, _, _) => walk(parent)
+            case other                    =>
+              other.memberType(tuplesSym.typeMember("Out")).dealias match {
+                case tb @ TypeBounds(lo, hi) if lo =:= TypeRepr.of[Nothing] && hi =:= TypeRepr.of[Any] => tb
+                case t                                                                                 => t
+              }
           }
           walk(withOutTerm.tpe)
         }
@@ -426,24 +468,23 @@ private[endpoint] object EndpointGroupMacro {
               case ('[ca], '[ac]) =>
                 Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
                   case Some(withOut) =>
-                    var outTpe0 = extractOut(withOut.asTerm)
-                    // Fallback when Out is still abstract (Nothing..Any) — happens on 3.8 for some shapes
+                    var outTpe0          = extractOut(withOut.asTerm)
                     val isAbstractBounds = outTpe0 match {
-                      case TypeBounds(_, _)                                                        => true
-                      case t if t.show == "Any" && (cA.show != "Any" || accATpeNorm.show != "Any") => true
-                      case _                                                                       => false
+                      case TypeBounds(lo, hi) => lo =:= TypeRepr.of[Nothing] && hi =:= TypeRepr.of[Any]
+                      case _                  => false
                     }
                     if (isAbstractBounds) {
-                      // Manual precise inference for common prefix shapes: Unit acts as identity
-                      val caIsUnit  = cA <:< TypeRepr.of[Unit]
-                      val acIsUnit  = accATpeNorm <:< TypeRepr.of[Unit]
-                      val caIsEmpty = cA <:< TypeRepr.of[EmptyTuple]
-                      val acIsEmpty = accATpeNorm <:< TypeRepr.of[EmptyTuple]
+                      val caNorm    = cA.dealias
+                      val acNorm    = accATpeNorm.dealias
+                      val caIsUnit  = caNorm =:= TypeRepr.of[Unit]
+                      val acIsUnit  = acNorm =:= TypeRepr.of[Unit]
+                      val caIsEmpty = caNorm =:= TypeRepr.of[EmptyTuple]
+                      val acIsEmpty = acNorm =:= TypeRepr.of[EmptyTuple]
                       outTpe0 = (caIsUnit, acIsUnit, caIsEmpty, acIsEmpty) match {
-                        case (true, _, _, _) => accATpeNorm
-                        case (_, true, _, _) => cA
-                        case (_, _, true, _) => accATpeNorm
-                        case (_, _, _, true) => cA
+                        case (true, _, _, _) => acNorm
+                        case (_, true, _, _) => caNorm
+                        case (_, _, true, _) => acNorm
+                        case (_, _, _, true) => caNorm
                         case _               => TypeRepr.of[(ca, ac)]
                       }
                     }
