@@ -7,7 +7,9 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 **This revision fixes the scanner, so every number below has moved.** Earlier revisions classified a declaration as private only when the modifier sat on its own line, which counted 863 privately-enclosed declarations as public API — about a third of everything declared. Two items were mis-scoped as a result. The scanner now walks enclosing scopes, and the table carries an `internal` column so a low ratio can be told apart from a real gap. See *Methodology*.
 
-**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7), `otel` (item 3), the `http-model-schema` codec layer (Tier 2 item 15), and — landed independently while this revision was in progress — `htmx` response headers (item 4, #1619), the `schema` search and traversal cluster (item 5, #1621), and `ReflectTransformer` (item 8, #1623).
+**Work completed since this report was written:** `datastar`, split from one 346-line page into five (index, signals, attributes, events, sse), taking it from 39% to 98% with no absent types. Its previous page had 22 code blocks and no mdoc modifiers, so none of it had ever compiled.
+
+Earlier: `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7), `otel` (item 3), the `http-model-schema` codec layer (Tier 2 item 15), and — landed independently while this revision was in progress — `htmx` response headers (item 4, #1619), the `schema` search and traversal cluster (item 5, #1621), and `ReflectTransformer` (item 8, #1623).
 
 Every figure in this revision, including those three, is restated under the privacy-aware scanner. The notes those PRs added quoted the old scanner, which is why their numbers differ from the table: `htmx` reads 77% here rather than 85%, and `schema` 55% rather than 77%. The work is the same; the measurement changed.
 
@@ -22,17 +24,17 @@ Every figure in this revision, including those three, is restated under the priv
 | Reference pages | 168 |
 | Guides | 9 |
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
-| — of which public | 1,798 |
+| — of which public | 1,811 |
 | — of which private or nested in a private scope | 864 |
-| Public types never named anywhere in `docs/` | **386** |
-| Public types with no prose or heading reference | **714** |
-| Name-mention coverage | **79%** |
-| Explained-type coverage | **60%** |
+| Public types never named anywhere in `docs/` | **355** |
+| Public types with no prose or heading reference | **683** |
+| Name-mention coverage | **80%** |
+| Explained-type coverage | **62%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 386 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 714 types — additionally captures the 328 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 355 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 683 types — additionally captures the 328 types that appear only as tokens inside examples and are never explained.
 
 Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
@@ -49,7 +51,6 @@ This report file is excluded from the scan, so listing a type here does not make
 | **smithy** | 42 | 4 | 16 | 32 | **24%** | 2,585 | 533 | 0.21 |
 | mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
 | **html** | 100 | 13 | 46 | 68 | **32%** | 4,966 | 1,139 | 0.23 |
-| **datastar** | 57 | 11 | 30 | 35 | **39%** | 1,881 | 346 | 0.18 |
 | maybe | 10 | 0 | 6 | 6 | 40% | 595 | 943 | 1.58 |
 | context | 2 | 7 | 1 | 1 | 50% | 865 | 553 | 0.64 |
 | **typeid** | 90 | 14 | 26 | 43 | **52%** | 6,493 | 2,124 | 0.33 |
@@ -68,6 +69,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 24 | 71% | 3,914 | 2,212 | 0.57 |
 | chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
 | htmx | 88 | 2 | 6 | 20 | 77% | 1,548 | 2,750 | 1.78 |
+| datastar | 57 | 11 | 0 | 1 | **98%** | 1,881 | 1,196 | 0.64 |
 | markdown | 46 | 3 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 |
 | schema-toon | 25 | 14 | 1 | 4 | 84% | 4,690 | 1,050 | 0.22 |
 | openapi | 46 | 1 | 1 | 6 | 87% | 2,431 | 1,301 | 0.54 |
@@ -385,12 +387,11 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 | ---- | ------ | --------------- | ---- | --- |
 | 1 | `smithy` | 16 / 42 | **24%** | Shape catalog incomplete; one page, one table |
 | 2 | `html` | 46 / 100 | **32%** | The typed content model from #1536 is entirely unnamed, and the gap is growing |
-| 3 | `datastar` | 30 / 57 | 39% | Worst ratio among real gaps (0.18); its builders are newer than this report |
-| 4 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
-| 5 | `schema` | 156 / 466 | 55% | Largest absolute, but six separable subsystems remain |
-| 6 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
+| 3 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
+| 4 | `schema` | 156 / 466 | 55% | Largest absolute, but six separable subsystems remain |
+| 5 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
 
-`streams` and `async` drop out entirely once internal declarations are excluded, and `maybe` was never a real gap. `htmx` has left the list — #1619 took it to 77%.
+`streams` and `async` drop out entirely once internal declarations are excluded, and `maybe` was never a real gap. `htmx` and `datastar` have both left the list — #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
 
 **Tier 1 — new pages for missing subsystems**
 
