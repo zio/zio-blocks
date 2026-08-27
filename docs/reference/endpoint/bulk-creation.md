@@ -24,6 +24,7 @@ Member access is static (zero runtime cost):
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
 val api = "api" / endpoints {
@@ -47,6 +48,7 @@ Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
 val nested = "api" / endpoints {

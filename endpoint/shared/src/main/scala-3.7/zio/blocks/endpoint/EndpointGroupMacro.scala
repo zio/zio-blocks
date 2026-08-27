@@ -91,7 +91,7 @@ private[endpoint] object EndpointGroupMacro {
     def isPathCodecSubgroupStmt(t: Term): Option[(Term, Term)] = t match {
       case Inlined(Some(call: Term), _, expansion) =>
         isPathCodecSubgroupStmt(call).orElse(isPathCodecSubgroupStmt(expansion))
-      case Inlined(_, _, inner) => isPathCodecSubgroupStmt(inner)
+      case Inlined(_, _, inner)                                                                        => isPathCodecSubgroupStmt(inner)
       case Typed(inner, _)                                                                             => isPathCodecSubgroupStmt(inner)
       case Apply(TypeApply(Select(codec, "/"), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
         Some((codec, t))
@@ -426,7 +426,7 @@ private[endpoint] object EndpointGroupMacro {
               case ('[ca], '[ac]) =>
                 Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
                   case Some(withOut) =>
-                    var outTpe0                     = extractOut(withOut.asTerm)
+                    var outTpe0 = extractOut(withOut.asTerm)
                     // Fallback when Out is still abstract (Nothing..Any) — happens on 3.8 for some shapes
                     val isAbstractBounds = outTpe0 match {
                       case TypeBounds(_, _)                                                        => true
