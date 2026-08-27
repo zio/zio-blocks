@@ -227,13 +227,24 @@ object Dom {
         case None        => this
       }
 
-    override def equals(other: Any): Boolean = other match {
-      case e: Element => tag == e.tag && attributes == e.attributes && children == e.children
-      case _          => false
-    }
-    override def hashCode: Int = (tag, attributes, children).hashCode
-
     private[html] def escapeText: Boolean
+
+    /**
+     * Structural comparison shared by every concrete `Element` implementation:
+     * two elements are equal when their tag, attributes, children, and
+     * [[escapeText]] semantics match, regardless of the concrete classes
+     * involved. Escaping participates so that equal elements always render
+     * identically (`Script` never equals an equally-shaped `Generic`, since one
+     * renders its children raw and the other escapes them).
+     */
+    private[html] def structuralEquals(other: Any): Boolean = other match {
+      case e: Element =>
+        tag == e.tag && attributes == e.attributes && children == e.children && escapeText == e.escapeText
+      case _ => false
+    }
+
+    /** Hash code consistent with [[structuralEquals]]. */
+    private[html] def structuralHashCode: Int = (tag, attributes, children, escapeText).hashCode
 
     private[html] def renderTo(sb: java.lang.StringBuilder): Unit = {
       sb.append('<')
@@ -306,20 +317,72 @@ object Dom {
 
   object Element {
 
-    // --- Marker traits for typed content model (proper OO hierarchy, same file as sealed Element) ---
-    trait Li          extends Element
-    trait Th          extends Cell
-    trait Td          extends Cell
-    trait Opt         extends SelectChild
-    trait Optgroup    extends SelectChild
-    trait Cell        extends Element
-    trait SelectChild extends Element
+    // --- Sealed markers for typed content models ---
+    //
+    // These markers classify elements by the HTML content-model role they play
+    // as children of other elements (e.g., only `Li` elements may appear
+    // directly inside `ul`/`ol`). They are sealed: the only implementations are
+    // the dedicated element classes in this file, so a marker type guarantees
+    // both the tag and the content-model role at compile time.
+
+    /**
+     * An `<li>` list item, accepted as an element child of `ul(...)` and
+     * `ol(...)`. Produced by the `li(...)` factory.
+     */
+    sealed trait Li extends Element
+
+    /**
+     * A table cell (`<th>` or `<td>`), accepted as an element child of
+     * `tr(...)`.
+     */
+    sealed trait Cell extends Element
+
+    /**
+     * A `<th>` header cell, accepted as an element child of `tr(...)`. Produced
+     * by the `th(...)` factory.
+     */
+    sealed trait Th extends Cell
+
+    /**
+     * A `<td>` data cell, accepted as an element child of `tr(...)`. Produced
+     * by the `td(...)` factory.
+     */
+    sealed trait Td extends Cell
+
+    /**
+     * A `<tr>` table row, accepted as an element child of `table(...)`.
+     * Produced by the `tr(...)` factory.
+     */
+    sealed trait Tr extends Element
+
+    /**
+     * An `<option>` or `<optgroup>`, accepted as an element child of
+     * `select(...)`.
+     */
+    sealed trait SelectChild extends Element
+
+    /**
+     * An `<option>` element, accepted as an element child of `select(...)` and
+     * `optgroup(...)`. Produced by the `opt(...)`/`option(...)` DSL factories.
+     */
+    sealed trait Opt extends SelectChild
+
+    /**
+     * An `<optgroup>` element, accepted as an element child of `select(...)`.
+     * Produced by the `optgroup(...)` factory.
+     */
+    sealed trait Optgroup extends SelectChild
 
     /**
      * A generic HTML element.
      *
      * Represents any standard HTML tag (e.g., "div", "p", "span"). Text content
      * in children is HTML-escaped during rendering.
+     *
+     * Equality is structural across all `Element` implementations: a `Generic`
+     * equals any other element with the same tag, attributes, children, and
+     * text-escaping semantics, regardless of the concrete class (e.g.,
+     * `Generic("li", ...)` equals the equivalent `LiElement`).
      *
      * @param tag
      *   the element tag name (e.g., "div", "h1")
@@ -336,10 +399,25 @@ object Dom {
       private[html] def escapeText: Boolean                = true
       def withAttributes(attrs: Chunk[Attribute]): Generic = copy(attributes = attrs)
       def withChildren(kids: Chunk[Dom]): Generic          = copy(children = kids)
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     // --- Typed content model elements (proper OO hierarchy for Scala 2/3 parity) ---
 
+    /**
+     * An `<li>` list item element.
+     *
+     * Equality is structural across all `Element` implementations, so a
+     * `LiElement` equals a `Generic("li", ...)` with the same attributes and
+     * children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes
+     */
     final case class LiElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -353,8 +431,23 @@ object Dom {
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Li]
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Li =
         if (condition) apply(effect, effects: _*) else this
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
+    /**
+     * A `<th>` table header cell element.
+     *
+     * Equality is structural across all `Element` implementations, so a
+     * `ThElement` equals a `Generic("th", ...)` with the same attributes and
+     * children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes
+     */
     final case class ThElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -368,8 +461,23 @@ object Dom {
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Th]
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Th =
         if (condition) apply(effect, effects: _*) else this
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
+    /**
+     * A `<td>` table data cell element.
+     *
+     * Equality is structural across all `Element` implementations, so a
+     * `TdElement` equals a `Generic("td", ...)` with the same attributes and
+     * children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes
+     */
     final case class TdElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -383,8 +491,57 @@ object Dom {
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Td]
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Td =
         if (condition) apply(effect, effects: _*) else this
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
+    /**
+     * A `<tr>` table row element.
+     *
+     * Unlike permissive elements (`li`, `th`, `td`), this class intentionally
+     * keeps the row content model intact: it does not override
+     * `apply(DomModifier*)`, and [[withChildren]] returns a plain `Element`, so
+     * replacing children drops the `Tr` marker — children belong in the
+     * `tr(...)` factory, which enforces the restriction at compile time.
+     * Attributes can still be attached via [[withAttributes]], preserving the
+     * marker.
+     *
+     * Equality is structural across all `Element` implementations, so a
+     * `TrElement` equals a `Generic("tr", ...)` with the same attributes and
+     * children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes (`<th>`/`<td>` cells only)
+     */
+    final case class TrElement(
+      attributes: Chunk[Attribute],
+      children: Chunk[Dom]
+    ) extends Element
+        with Tr {
+      def tag: String                                 = "tr"
+      private[html] def escapeText: Boolean           = true
+      def withAttributes(attrs: Chunk[Attribute]): Tr = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Element     = copy(children = kids)
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
+    }
+
+    /**
+     * An `<option>` element.
+     *
+     * Equality is structural across all `Element` implementations, so an
+     * `OptElement` equals a `Generic("option", ...)` with the same attributes
+     * and children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes
+     */
     final case class OptElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
@@ -398,21 +555,42 @@ object Dom {
         ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Opt]
       override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Opt =
         if (condition) apply(effect, effects: _*) else this
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
+    /**
+     * An `<optgroup>` element.
+     *
+     * Unlike the other typed elements, this class intentionally does not
+     * override `apply(DomModifier*)`, and [[withChildren]] returns a plain
+     * `Element`, so replacing children drops the `Optgroup` marker — children
+     * belong in the `optgroup(...)` factory, which enforces that restriction at
+     * compile time. Attributes can still be attached via [[withAttributes]],
+     * preserving the marker.
+     *
+     * Equality is structural across all `Element` implementations, so an
+     * `OptgroupElement` equals a `Generic("optgroup", ...)` with the same
+     * attributes and children.
+     *
+     * @param attributes
+     *   attribute key-value pairs
+     * @param children
+     *   child DOM nodes (`<option>` elements only)
+     */
     final case class OptgroupElement(
       attributes: Chunk[Attribute],
       children: Chunk[Dom]
     ) extends Element
         with Optgroup {
-      def tag: String                                                          = "optgroup"
-      private[html] def escapeText: Boolean                                    = true
-      def withAttributes(attrs: Chunk[Attribute]): Optgroup                    = copy(attributes = attrs)
-      def withChildren(kids: Chunk[Dom]): Optgroup                             = copy(children = kids)
-      override def apply(effect: DomModifier, effects: DomModifier*): Optgroup =
-        ToModifier.buildFromEffects(this, effect, effects).asInstanceOf[Optgroup]
-      override def when(condition: Boolean)(effect: DomModifier, effects: DomModifier*): Optgroup =
-        if (condition) apply(effect, effects: _*) else this
+      def tag: String                                       = "optgroup"
+      private[html] def escapeText: Boolean                 = true
+      def withAttributes(attrs: Chunk[Attribute]): Optgroup = copy(attributes = attrs)
+      def withChildren(kids: Chunk[Dom]): Element           = copy(children = kids)
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -422,6 +600,11 @@ object Dom {
      * inline JavaScript to be rendered as-is. Provides convenience methods
      * `inlineJs(code)` to inject escaped JavaScript or `externalJs(url)` to
      * link external scripts.
+     *
+     * Equality is structural across all `Element` implementations, including
+     * the text-escaping semantics: because `Script` renders its children
+     * unescaped, it never equals an equally-shaped `Generic("script", ...)`,
+     * whose children would be escaped on render.
      *
      * @param attributes
      *   attribute key-value pairs
@@ -444,6 +627,9 @@ object Dom {
 
       def externalJs(url: String): Script =
         copy(attributes = attributes :+ Attribute.KeyValue("src", AttributeValue.StringValue(url)))
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**
@@ -452,6 +638,11 @@ object Dom {
      * The Style element renders its children WITHOUT HTML-escaping, allowing
      * inline CSS to be rendered as-is. Provides convenience method
      * `inlineCss(code)` to inject CSS code directly.
+     *
+     * Equality is structural across all `Element` implementations, including
+     * the text-escaping semantics: because `Style` renders its children
+     * unescaped, it never equals an equally-shaped `Generic("style", ...)`,
+     * whose children would be escaped on render.
      *
      * @param attributes
      *   attribute key-value pairs
@@ -469,6 +660,9 @@ object Dom {
 
       def inlineCss(code: Css): Style =
         copy(children = children :+ Dom.Text(code.render))
+
+      override def equals(other: Any): Boolean = structuralEquals(other)
+      override def hashCode: Int               = structuralHashCode
     }
 
     /**

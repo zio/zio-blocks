@@ -136,7 +136,7 @@ lazy val testJVMScala2Command =
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test" +
+    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
@@ -145,7 +145,7 @@ lazy val testJSScala2Command =
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test"
 
 lazy val testJS1Scala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
@@ -168,7 +168,7 @@ lazy val docJVMScala2Command =
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc" +
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
@@ -183,7 +183,7 @@ lazy val docJSScala2Batch2Command =
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc; dataMigrationJS/doc"
 
 lazy val docJSScala3Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; asyncJS/doc"
@@ -321,7 +321,9 @@ lazy val root = project
     `smithy-examples`,
     telemetry.jvm,
     telemetry.js,
-    otel
+    otel,
+    dataMigration.jvm,
+    dataMigration.js
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -491,6 +493,31 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
       "org.xerial"     % "sqlite-jdbc" % "3.53.2.1" % Test,
       "org.postgresql" % "postgresql"  % "42.7.13"  % Test
     )
+  )
+
+lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(sql, schema, maybe)
+  .settings(stdSettings("zio-blocks-data-migration"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.data.migration"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(crossScalaVersions := Seq("3.8.3", "3.3.7"))
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+    )
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 lazy val `sql-zio` = project

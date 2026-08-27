@@ -178,7 +178,15 @@ class RealWorldBenchmark extends BaseBenchmark {
     findStmt.setInt(1, id)
     val rs = findStmt.executeQuery()
     rs.next()
+    // Decode all seven selected columns like the framework paths do, so the
+    // comparison measures identical row materialization work.
+    rs.getInt(1)
+    rs.getString(2)
+    rs.getString(3)
+    rs.getInt(4)
+    rs.getBoolean(5)
     val nick = rs.getString(6)
+    rs.getString(7)
     rs.close()
     if (nick == null) 0 else 1
   }

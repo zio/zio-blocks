@@ -169,6 +169,7 @@ const sidebars = {
               "reference/http-model/headers",
               "reference/http-model/server-sent-event",
               "reference/http-model/schema",
+              "reference/http-model/schema-codecs",
             ]
           },
           {
@@ -277,6 +278,7 @@ const sidebars = {
             ],
           },
           "reference/sql-zio",
+          "reference/data-migration",
           {
             type: "category",
             label: "Telemetry",

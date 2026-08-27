@@ -7,6 +7,8 @@ title: "Schema-Based Typed Access"
 
 Core features are built on **extension methods** — `QueryParamsSchemaOps`, `HeadersSchemaOps`, `RequestSchemaOps`, `ResponseSchemaOps` — which add typed, schema-based extraction to query parameters and headers. Complemented by error types `QueryParamError` and `HeaderError`, the module provides automatic decoding for 11 primitive types and extensible support for custom types via `Schema[T]`.
 
+This page covers extraction one field at a time. The module also derives whole-value codecs — a `QueryCodec[A]` or `HeaderCodec[A]` that encodes and decodes an entire case class in one call — which are documented in [Codecs](./schema-codecs.md).
+
 ## Motivation
 
 Building HTTP handlers often requires extracting and validating query parameters or headers — "get the `userId` query parameter as a `UUID`." Without schema-based extraction, this becomes tedious and error-prone:
@@ -600,8 +602,9 @@ Expected single character but got ''
 
 ### Custom Types
 
-To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, manually create a `Schema[T]` using the schema module's derivation tools or manual construction.
+To support custom types, provide a `Schema[T]` instance. The module automatically uses the schema's primitive type information via `StringDecoder`. For case classes or other compound types, derive a whole-value codec instead — see [Codecs](./schema-codecs.md), which maps a case class onto a whole collection of parameters or headers rather than a single value.
 
 ## See Also
 
+- [Codecs](./schema-codecs.md) — `QueryCodec` and `HeaderCodec`, derived from a schema, for encoding and decoding a whole value rather than one field
 - [Combinators](../combinators.md) — Systematically compose and canonicalize Either types for uniform error handling across multiple query parameter or header extractions. The `Eithers` combinator canonicalizes nested Either types, making error accumulation consistent.
