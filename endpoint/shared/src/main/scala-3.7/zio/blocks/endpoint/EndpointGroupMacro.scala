@@ -426,7 +426,28 @@ private[endpoint] object EndpointGroupMacro {
               case ('[ca], '[ac]) =>
                 Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
                   case Some(withOut) =>
-                    val outTpe                      = extractOut(withOut.asTerm)
+                    var outTpe0                     = extractOut(withOut.asTerm)
+                    // Fallback when Out is still abstract (Nothing..Any) — happens on 3.8 for some shapes
+                    val isAbstractBounds = outTpe0 match {
+                      case TypeBounds(_, _)                                                        => true
+                      case t if t.show == "Any" && (cA.show != "Any" || accATpeNorm.show != "Any") => true
+                      case _                                                                       => false
+                    }
+                    if (isAbstractBounds) {
+                      // Manual precise inference for common prefix shapes: Unit acts as identity
+                      val caIsUnit  = cA <:< TypeRepr.of[Unit]
+                      val acIsUnit  = accATpeNorm <:< TypeRepr.of[Unit]
+                      val caIsEmpty = cA <:< TypeRepr.of[EmptyTuple]
+                      val acIsEmpty = accATpeNorm <:< TypeRepr.of[EmptyTuple]
+                      outTpe0 = (caIsUnit, acIsUnit, caIsEmpty, acIsEmpty) match {
+                        case (true, _, _, _) => accATpeNorm
+                        case (_, true, _, _) => cA
+                        case (_, _, true, _) => accATpeNorm
+                        case (_, _, _, true) => cA
+                        case _               => TypeRepr.of[(ca, ac)]
+                      }
+                    }
+                    val outTpe                      = outTpe0.dealias
                     val outExpr: Expr[PathCodec[?]] = outTpe.asType match {
                       case '[out] =>
                         '{
