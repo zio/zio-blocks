@@ -18,6 +18,7 @@ These four types describe every signal, across all three telemetry pillars — t
 |------|-------------|
 | [Attributes](./attributes.md) | Immutable, unboxed parallel-array collection of typed key-value pairs. Carried by every signal: `Span`, `LogRecord`, `Counter`, `Resource`, and `InstrumentationScope`. |
 | [AttributeKey](./attribute-key.md) | Typed key for an `Attributes` entry. Binds a string name to one of eight value types (`String`, `Long`, `Double`, `Boolean`, and their `Seq` variants). |
+| [AttributeValue](./any-value.md) | Boxed existential wrapper for the same eight kinds, used at API boundaries — `Logger`'s vararg attributes, `Span#setAttribute`, metric label maps — where the type isn't known ahead of time. |
 | [Resource](./resource.md) | Immutable `Attributes` wrapper that describes the entity producing telemetry (service name, SDK version, deployment environment). Shared across all three providers. |
 | [InstrumentationScope](./instrumentation-scope.md) | Named and versioned identity for the library or component that created a signal. Set when calling `TracerProvider.get`, `LoggerProvider.get`, or `MeterProvider.get`. |
 

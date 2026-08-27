@@ -349,6 +349,7 @@ const sidebars = {
                 items: [
                   "reference/telemetry/common/attributes",
                   "reference/telemetry/common/attribute-key",
+                  "reference/telemetry/common/any-value",
                   "reference/telemetry/common/resource",
                   "reference/telemetry/common/instrumentation-scope",
                 ]
