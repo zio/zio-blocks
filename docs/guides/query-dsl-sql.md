@@ -737,8 +737,15 @@ not duplicate the boundary row.
 
 ```scala mdoc:compile-only
 import zio.blocks.sql.*
+import zio.blocks.schema.Schema
 
-// repo: Repo[User, Int] with idColumn = "id"
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
+val repo: Repo[User, Int] = ??? // e.g. Repo(table, "id", idCodec, _.id)
+
 val firstPage: List[User]  = repo.pageAfter(cursorId = 0, limit = 20)
 val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit = 20)
 // when cursorId == last id, nextPage is empty
@@ -782,7 +789,12 @@ Compose with a base `SELECT`:
 ```scala mdoc:compile-only
 val base     = Frag.literal("SELECT id, name, email FROM user")
 val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
-val rows: List[User] = pageFrag.query[User] // via given DbCon + DbCodec[User]
+// Rendering the SQL does not require a DbCon:
+val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+// Executing needs givens at the call site:
+// given DbCon = ???
+// given DbCodec[User] = table.codec
+// val rows: List[User] = pageFrag.query[User]
 ```
 
 ## Going Further

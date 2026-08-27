@@ -110,7 +110,13 @@ object Upsert {
   ): Frag = {
     val t = SqlIdentifier.validate("table", tableName)
     SqlIdentifier.validate("column", conflictColumn)
-    val base = Repo.buildInsertFrag(t, allColumns, values)
+    val columns = allColumns.split(",").map(_.trim).filter(_.nonEmpty).toIndexedSeq
+    if (columns.isEmpty)
+      throw new IllegalArgumentException("Upsert.doNothingRaw: allColumns must not be empty")
+    columns.foreach(c => SqlIdentifier.validate("column", c))
+    require(columns.size == values.size, "Upsert.doNothingRaw: columns/value count mismatch")
+    val normalizedCols = columns.mkString(", ")
+    val base           = Repo.buildInsertFrag(t, normalizedCols, values)
     base ++ doNothingSuffix(conflictColumn)
   }
 
