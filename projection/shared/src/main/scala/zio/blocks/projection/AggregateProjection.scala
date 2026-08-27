@@ -43,9 +43,9 @@ object AggregateProjection {
   def globalWithCounters[A: Schema](
     name: String,
     bindings: List[(String, Any => String)] = Nil
-  ): ProjectionSpec[A] = {
+  ): Projection[A] = {
     val _ = bindings
-    ProjectionSpec.global[A](name)
+    Projection.global[A](name)
   }
 
   /**

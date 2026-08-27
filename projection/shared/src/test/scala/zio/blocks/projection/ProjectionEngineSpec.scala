@@ -157,7 +157,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
         ZIO.scoped {
           for {
             engine <- ProjectionEngine.make(
-                        ProjectionSpec[User]("users")
+                        Projection[User]("users")
                           .on[UserCreated]
                           .custom((e, ctx) => ProjectionAction.Insert(User(ctx.entityId, e.name, e.email, 0L)))
                       )
@@ -170,7 +170,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache    <- TransactorCache.make()
             store    <- InMemoryProjectionStore.make[User]
             hubStore <- InMemEventStore.make[UserCreated]
-            spec      = ProjectionSpec[User]("users")
+            spec      = Projection[User]("users")
                      .from("src")
                      .routeToSelf
                      .on[UserCreated]
@@ -186,7 +186,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[UserCreated]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .on[UserCreated]
                      .custom((e, ctx) => ProjectionAction.Insert(User(ctx.entityId, e.name, e.email, 0L)))
             engine <- ProjectionEngine.makeWithStores(List(spec), Map(spec.name -> store), Map("hub" -> hub), cache)
@@ -201,7 +201,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache    <- TransactorCache.make()
             store    <- InMemoryProjectionStore.make[User]
             hubStore <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec[User]("users")
+            spec      = Projection[User]("users")
                      .from("events")
                      .routeToSelf
                      .on[UserCreated]
@@ -224,7 +224,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache    <- TransactorCache.make()
             store    <- InMemoryProjectionStore.make[User]
             hubStore <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec[User]("users")
+            spec      = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -251,7 +251,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache    <- TransactorCache.make()
             store    <- InMemoryProjectionStore.make[User]
             hubStore <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec[User]("users")
+            spec      = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -282,14 +282,14 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[User]
             hub1  <- InMemEventStore.make[Any]
             hub2  <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("src1")
                      .routeToSelf
                      .on[UserCreated]
                      .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L))
             // Need second binding: we add via from again, but insert same logic; for multi-source we create two specs sharing store?
             // Instead test two specs each with own source, sharing engine
-            spec2 = ProjectionSpec[Counter]("counters")
+            spec2 = Projection[Counter]("counters")
                       .from("src2")
                       .routeToSelf
                       .on[CountInc]
@@ -316,7 +316,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[User]
             hubA  <- InMemEventStore.make[Any]
             hubB  <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("srcA")
                      .routeToSelf
                      .on[UserCreated]
@@ -350,7 +350,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .on[UserCreated]
                      .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L))
             engine <- ProjectionEngine.makeWithStores(
@@ -370,7 +370,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -401,7 +401,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .on[UserCreated]
                      .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L))
             engine <- ProjectionEngine.makeWithStores(
@@ -423,7 +423,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -451,7 +451,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
             cfg    = ProjectionEngineConfig(batchSize = 2, batchTimeout = 5.seconds)
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -480,7 +480,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
             cfg    = ProjectionEngineConfig(batchSize = 100, batchTimeout = 50.millis)
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -506,7 +506,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[Counter]
             hub   <- InMemEventStore.make[Any]
             cfg    = ProjectionEngineConfig(batchSize = 3, batchTimeout = 50.millis)
-            spec   = ProjectionSpec[Counter]("counters")
+            spec   = Projection[Counter]("counters")
                      .from("ev")
                      .routeToSelf
                      .on[CountInc]
@@ -534,7 +534,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
             // RepoCreated contains ownerId, routedBy ownerId should create shard per owner
-            spec = ProjectionSpec[User]("users")
+            spec = Projection[User]("users")
                      .from("repos")
                      .routedBy[RepoCreated](_.ownerId)
                      .on[RepoCreated]
@@ -557,7 +557,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("repos")
                      .routedBy[RepoCreated](_.ownerId)
                      .on[RepoCreated]
@@ -583,7 +583,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routedBy[RepoCreated](_.ownerId)
                      .on[RepoCreated]
@@ -608,7 +608,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[OrderSummary]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec
+            spec   = Projection
                      .global[OrderSummary]("globalOrders")
                      .from("orders")
                      .routeToAll
@@ -632,7 +632,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[OrderSummary]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec
+            spec   = Projection
                      .global[OrderSummary]("g2")
                      .from("ev")
                      .routeToAll
@@ -661,7 +661,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -707,7 +707,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
                              def updateSchemaHash(hash: String): Task[Unit]     = baseStore.updateSchemaHash(hash)
                            }
             hub <- InMemEventStore.make[Any]
-            spec = ProjectionSpec[User]("users")
+            spec = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -733,7 +733,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -760,7 +760,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -790,7 +790,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -814,7 +814,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -841,7 +841,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .from("ev")
                      .routeToSelf
                      .on[UserCreated]
@@ -879,7 +879,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             size0 <- cache.size
             store <- InMemoryProjectionStore.make[User]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[User]("users")
+            spec   = Projection[User]("users")
                      .on[UserCreated]
                      .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L))
             engine <- ProjectionEngine.makeWithStores(
@@ -900,7 +900,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             store <- InMemoryProjectionStore.make[Counter]
             hub   <- InMemEventStore.make[Any]
             // Test Upsert via custom
-            specUpsert = ProjectionSpec[Counter]("counters")
+            specUpsert = Projection[Counter]("counters")
                            .from("ev")
                            .routeToSelf
                            .on[CountInc]
@@ -917,7 +917,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             // Test Truncate
             store2   <- InMemoryProjectionStore.make[Counter]
             hub2     <- InMemEventStore.make[Any]
-            specTrunc = ProjectionSpec[Counter]("counters2")
+            specTrunc = Projection[Counter]("counters2")
                           .from("ev2")
                           .routeToSelf
                           .on[UserCreated]

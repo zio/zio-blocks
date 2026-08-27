@@ -494,7 +494,7 @@ object InMemorySpec extends ZIOSpecDefault {
     suite("InMemory via TestProjectionEngine")(
       test("engine processes insert and applies to store") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val ctx = TestContext.make(entityId = "e1")
@@ -506,7 +506,7 @@ object InMemorySpec extends ZIOSpecDefault {
       },
       test("engine batch processes multiple events") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val events = List(

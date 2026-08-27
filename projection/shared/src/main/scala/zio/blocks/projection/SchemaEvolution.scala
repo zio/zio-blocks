@@ -42,7 +42,7 @@ object SchemaEvolution {
   def checkAndRebuild[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     config: SchemaEvolutionConfig = SchemaEvolutionConfig.default,
     migrationOpt: Option[Migration[?, A]] = None
   ): Task[Boolean] = {
@@ -63,7 +63,7 @@ object SchemaEvolution {
   def rebuild[A](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     currentHash: String
   ): Task[Unit] =
     for {
@@ -76,7 +76,7 @@ object SchemaEvolution {
   def rebuildWithHash[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
-    spec: ProjectionSpec[A]
+    spec: Projection[A]
   ): Task[Unit] = {
     val _ = summon[EntityPath[A]]
     val h = SchemaHash.compute[A]
@@ -86,7 +86,7 @@ object SchemaEvolution {
   private def replayAll[A](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
-    spec: ProjectionSpec[A]
+    spec: Projection[A]
   ): Task[Unit] = {
     val esAny = eventStore.asInstanceOf[EventStore[Any]]
     ZIO.unit.flatMap { _ =>
@@ -180,12 +180,12 @@ object SchemaEvolution {
   }
 
   def tryMigrationShortcutForSpec(
-    spec: ProjectionSpec[_],
+    spec: Projection[_],
     store: ProjectionStore[_],
     migrationOpt: Option[Migration[?, ?]],
     currentHash: String
   ): Task[Boolean] = {
-    val s                            = spec.asInstanceOf[ProjectionSpec[Any]]
+    val s                            = spec.asInstanceOf[Projection[Any]]
     implicit val schema: Schema[Any] = s.schema.asInstanceOf[Schema[Any]]
     implicit val ep: EntityPath[Any] =
       s.entityPath.map(_.asInstanceOf[EntityPath[Any]]).getOrElse(EntityPath[Any](s.name, "id"))
@@ -213,7 +213,7 @@ object SchemaEvolution {
   def lazyRebuildIfNeeded[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     pendingRef: Ref[Map[String, Boolean]],
     rebuildSem: Semaphore,
     migrationOpt: Option[Migration[?, A]] = None
@@ -237,7 +237,7 @@ object SchemaEvolution {
     }
 
   def bulkRebuildPending(
-    specs: List[ProjectionSpec[_]],
+    specs: List[Projection[_]],
     stores: Map[String, ProjectionStore[_]],
     eventStores: Map[String, EventStore[_]],
     pendingRef: Ref[Map[String, Boolean]],
@@ -260,7 +260,7 @@ object SchemaEvolution {
                 tryMigrationShortcutForSpec(specAny, store, migOpt, cur).flatMap {
                   case true  => pendingRef.update(_ - specAny.name)
                   case false =>
-                    val specCast = specAny.asInstanceOf[ProjectionSpec[Any]]
+                    val specCast = specAny.asInstanceOf[Projection[Any]]
                     rebuild[Any](store, es.asInstanceOf[EventStore[Any]], specCast, cur) *>
                       pendingRef.update(_ - specAny.name)
                 }.catchAll(e => ZIO.logError(s"bulk rebuild $specAny failed: ${e.getMessage}") *> ZIO.unit)

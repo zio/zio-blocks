@@ -17,19 +17,19 @@
 package zio.blocks.projection.testing
 
 import zio.*
-import zio.blocks.projection.{ProjectionAction, ProjectionContext, ProjectionSpec, ProjectionStore}
+import zio.blocks.projection.{ProjectionAction, ProjectionContext, Projection, ProjectionStore}
 
 class TestProjectionEngine {
 
   def processEvent[E, A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     event: E,
     ctx: ProjectionContext
   ): Task[ProjectionAction[A]] =
     ZIO.succeed(spec.dispatch(event, ctx).getOrElse(ProjectionAction.Noop))
 
   def processEvents[E, A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     events: List[(E, ProjectionContext)]
   ): Task[Unit] =
     ZIO.foreachDiscard(events) { case (event, ctx) =>
@@ -37,7 +37,7 @@ class TestProjectionEngine {
     }
 
   def processEvents[E, A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     events: List[(E, ProjectionContext)],
     store: ProjectionStore[A]
   ): Task[Unit] =
@@ -49,7 +49,7 @@ class TestProjectionEngine {
     }
 
   def processEventsWithActions[E, A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     events: List[(E, ProjectionContext)]
   ): Task[List[ProjectionAction[A]]] =
     ZIO.foreach(events) { case (event, ctx) => processEvent(spec, event, ctx) }
@@ -69,7 +69,7 @@ class TestProjectionEngine {
     }
 
   def processAndApply[E, A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     event: E,
     ctx: ProjectionContext,
     store: ProjectionStore[A]

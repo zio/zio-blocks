@@ -163,7 +163,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
         for {
           store <- InMemoryProjectionStore.make[UserV1]
           hub   <- InMemEventStore.make[Any]
-          spec   = ProjectionSpec[UserV1]("users")
+          spec   = Projection[UserV1]("users")
                    .on[UserCreated]
                    .insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           // Seed events
@@ -196,7 +196,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           _     <- store.upsert(UserV1("u1", "Keep", 10L))
           hub   <- InMemEventStore.make[Any]
           spec   =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           rebuilt <- SchemaEvolution.checkAndRebuild(store, hub.asInstanceOf[EventStore[Any]], spec)
           r1      <- store.findById("u1")
         } yield assertTrue(!rebuilt, r1.exists(_.name == "Keep"))
@@ -208,7 +208,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           hub   <- InMemEventStore.make[Any]
           _     <- hub.append("u1", UserCreated("Alice", 1L))
           spec   =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           rebuilt <- SchemaEvolution.checkAndRebuild(store, hub.asInstanceOf[EventStore[Any]], spec)
           h       <- store.getSchemaHash
         } yield assertTrue(rebuilt, h.contains(SchemaHash.compute[UserV1]))
@@ -218,7 +218,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           store <- InMemoryProjectionStore.make[UserV1]
           hub   <- InMemEventStore.make[Any]
           spec   =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           _  <- hub.append("u1", UserCreated("Alice", 30L))
           cur = SchemaHash.compute[UserV1]
           _  <- SchemaEvolution.rebuild(store, hub.asInstanceOf[EventStore[Any]], spec, cur)
@@ -233,7 +233,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           store <- InMemoryProjectionStore.make[UserV1]
           hub   <- InMemEventStore.make[Any]
           spec   =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           _   <- ZIO.foreachDiscard((1 to 5).toList)(i => hub.append(s"u$i", UserCreated(s"N$i", i.toLong)))
           cur  = SchemaHash.compute[UserV1]
           sem <- Semaphore.make(1)
@@ -252,7 +252,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           _     <- store.updateSchemaHash("old")
           hub   <- InMemEventStore.make[Any]
           spec   =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           cur = SchemaHash.compute[UserV1]
           _  <- SchemaEvolution.rebuild(store, hub.asInstanceOf[EventStore[Any]], spec, cur)
           r  <- store.findById("old")
@@ -282,7 +282,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           for {
             store <- InMemoryProjectionStore.make[UserV1]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[UserV1]("users")
+            spec   = Projection[UserV1]("users")
                      .on[UserCreated]
                      .insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
             _     <- hub.append("u1", UserCreated("Alice", 30L))
@@ -309,7 +309,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           for {
             store <- InMemoryProjectionStore.make[UserV1]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec[UserV1]("users")
+            spec   = Projection[UserV1]("users")
                      .on[UserCreated]
                      .insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
             _      <- hub.append("u1", UserCreated("Alice", 30L))
@@ -335,9 +335,9 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           hub1 <- InMemEventStore.make[Any]
           hub2 <- InMemEventStore.make[Any]
           spec1 =
-            ProjectionSpec[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
+            Projection[UserV1]("users").on[UserCreated].insert((e, ctx) => UserV1(ctx.entityId, e.name, e.age))
           spec2 =
-            ProjectionSpec[Counter]("counters").on[UserCreated].insert((e, ctx) => Counter(ctx.entityId, e.age))
+            Projection[Counter]("counters").on[UserCreated].insert((e, ctx) => Counter(ctx.entityId, e.age))
           _       <- hub1.append("u1", UserCreated("Alice", 10L))
           _       <- hub2.append("c1", UserCreated("Bob", 20L))
           _       <- s1.updateSchemaHash("old1")
@@ -395,7 +395,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
           _     <- store.updateSchemaHash("old")
           hub   <- InMemEventStore.make[Any]
           _     <- hub.append("u1", UserCreated("Alice", 30L))
-          spec   = ProjectionSpec[UserV2]("users")
+          spec   = Projection[UserV2]("users")
                    .on[UserCreated]
                    .insert((e, ctx) => UserV2(ctx.entityId, e.name, e.age, "fallback@x.com"))
           ren            = MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName")
@@ -418,7 +418,7 @@ object SchemaEvolutionSpec extends ZIOSpecDefault {
         for {
           reg <- Ref.make(Map.empty[String, Migration[?, ?]])
           mig  = Migration.newBuilder[UserV1, UserV2].addField(_.email, literal("a")).build
-          spec = ProjectionSpec[UserV2]("users")
+          spec = Projection[UserV2]("users")
           _   <- SchemaEvolution.registerMigration(mig, reg, spec.name)
           m   <- reg.get
         } yield assertTrue(m.contains("users"))

@@ -161,7 +161,7 @@ object SQLiteAggregateSpec extends ZIOSpecDefault {
           res       <- store.findById(dateKey)
           _         <- cleanup(path, tmpPath)
           // Verify global path naming convention
-          spec = ProjectionSpec.global[DailyStats]("dailyStats")
+          spec = Projection.global[DailyStats]("dailyStats")
         } yield assertTrue(res.isDefined, spec.scope == ProjectionScope.Global, globalPath == "global/dailyStats.db")
       }
     },

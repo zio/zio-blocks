@@ -18,7 +18,7 @@ package projection.examples
 
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.InMemoryProjectionStore
+import zio.blocks.projection.testing.{InMemoryProjectionStore, TestEngine}
 import zio.blocks.schema.{Modifier, Schema}
 import zio.blocks.schema.migration.Migration
 import zio.stream.ZStream
@@ -111,47 +111,6 @@ object ProjectionExampleApp extends ZIOAppDefault {
   }
 
   // ===========================================================================
-  // In-memory EventStore stub (for self-contained demo, no SQLite needed)
-  // ===========================================================================
-
-  final class InMemEventStore[E](
-    hub: Hub[EventEnvelope[E]],
-    buffer: Ref[List[EventEnvelope[E]]],
-    counter: Ref[Long]
-  ) extends EventStore[E] {
-
-    def subscribe: Hub[EventEnvelope[E]] = hub
-
-    def append(entityId: String, event: E): Task[Long] =
-      for {
-        seq <- counter.updateAndGet(_ + 1)
-        env  = EventEnvelope(seq, event.getClass.getSimpleName.stripSuffix("$"), event, Instant.now(), entityId)
-        _   <- buffer.update(_ :+ env)
-        _   <- hub.publish(env).unit
-      } yield seq
-
-    def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
-      ZStream.unwrap {
-        buffer.get.map { list =>
-          val filtered = list.filter(_.seq > afterSeq).filter(e => tags.isEmpty || tags.contains(e.tag))
-          ZStream.fromIterable(filtered)
-        }
-      }
-
-    def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
-      readFrom(0L, tags)
-  }
-
-  object InMemEventStore {
-    def make[E]: ZIO[Any, Nothing, InMemEventStore[E]] =
-      for {
-        hub     <- Hub.unbounded[EventEnvelope[E]]
-        buffer  <- Ref.make(List.empty[EventEnvelope[E]])
-        counter <- Ref.make(0L)
-      } yield new InMemEventStore[E](hub, buffer, counter)
-  }
-
-  // ===========================================================================
   // Helper: poll until value appears (engine processes async)
   // ===========================================================================
 
@@ -170,6 +129,39 @@ object ProjectionExampleApp extends ZIOAppDefault {
              else ZIO.sleep(20.millis) *> loopUntil(zio, deadline)
     } yield res
 
+  // Simple standalone EventStore stub for schema-evolution rebuild demo
+  final class DemoEventStore[E](
+    hub: Hub[EventEnvelope[E]],
+    buffer: Ref[List[EventEnvelope[E]]],
+    counter: Ref[Long]
+  ) extends EventStore[E] {
+    def subscribe: Hub[EventEnvelope[E]]               = hub
+    def append(entityId: String, event: E): Task[Long] =
+      for {
+        seq <- counter.updateAndGet(_ + 1)
+        env  = EventEnvelope(seq, event.getClass.getSimpleName.stripSuffix("$"), event, Instant.now(), entityId)
+        _   <- buffer.update(_ :+ env)
+        _   <- hub.publish(env).unit
+      } yield seq
+    def readFrom(afterSeq: Long, tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
+      ZStream.unwrap {
+        buffer.get.map { list =>
+          val filtered = list.filter(_.seq > afterSeq).filter(e => tags.isEmpty || tags.contains(e.tag))
+          ZStream.fromIterable(filtered)
+        }
+      }
+    def readAll(tags: Set[String] = Set.empty): ZStream[Any, Throwable, EventEnvelope[E]] =
+      readFrom(0L, tags)
+  }
+  object DemoEventStore {
+    def make[E]: ZIO[Any, Nothing, DemoEventStore[E]] =
+      for {
+        hub     <- Hub.unbounded[EventEnvelope[E]]
+        buffer  <- Ref.make(List.empty[EventEnvelope[E]])
+        counter <- Ref.make(0L)
+      } yield new DemoEventStore[E](hub, buffer, counter)
+  }
+
   // ===========================================================================
   // Demo 1: PerEntity — UserProfile from UserCreated
   // ===========================================================================
@@ -178,38 +170,21 @@ object ProjectionExampleApp extends ZIOAppDefault {
     Console.printLine("\n--- Demo 1: PerEntity Projection (UserProfile) ---").orDie *>
       ZIO.scoped {
         for {
-          // Define the projection spec
-          spec = ProjectionSpec[UserProfile]("userProfiles")
-                   .from("users")
-                   .routeToSelf
-                   .on[UserCreated]
-                   .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+          projection = Projection[UserProfile]("userProfiles")
+                         .from("users")
+                         .routeToSelf
+                         .on[UserCreated]
+                         .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 
-          // Create in-memory stores
-          store <- InMemoryProjectionStore.make[UserProfile]
-          hub   <- InMemEventStore.make[Any]
+          engine <- TestEngine.make(projection)
 
-          // Create engine with injected stores
-          cache  <- TransactorCache.make()
-          engine <- ProjectionEngine.makeWithStores(
-                      List(spec),
-                      Map(spec.name -> store),
-                      Map("users"   -> hub.asInstanceOf[EventStore[Any]]),
-                      cache
-                    )
+          _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+          _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
+          _ <- engine.append("user-3", UserCreated("Charlie", "charlie@example.com"))
 
-          // Start the engine (subscribes to live + catch-up)
-          _ <- engine.start
-
-          // Append some events
-          _ <- hub.append("user-1", UserCreated("Alice", "alice@example.com"))
-          _ <- hub.append("user-2", UserCreated("Bob", "bob@example.com"))
-          _ <- hub.append("user-3", UserCreated("Charlie", "charlie@example.com"))
-
-          // Query and print results
-          u1 <- pollUntil(engine.query(spec, "user-1"))
-          u2 <- pollUntil(engine.query(spec, "user-2"))
-          u3 <- pollUntil(engine.query(spec, "user-3"))
+          u1 <- pollUntil(engine.query(projection, "user-1"))
+          u2 <- pollUntil(engine.query(projection, "user-2"))
+          u3 <- pollUntil(engine.query(projection, "user-3"))
 
           _ <- Console.printLine(s"  user-1: ${u1.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
           _ <- Console.printLine(s"  user-2: ${u2.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
@@ -226,42 +201,24 @@ object ProjectionExampleApp extends ZIOAppDefault {
     Console.printLine("\n--- Demo 2: CrossEntity Projection (RepoListEntry routed by ownerId) ---").orDie *>
       ZIO.scoped {
         for {
-          // Define the projection spec with cross-entity routing
-          // Uses upsert so multiple repos for same ownerId accumulate
-          spec = ProjectionSpec[RepoListEntry]("repoListEntries")
-                   .from("repos")
-                   .routedBy[RepoCreated](_.ownerId)
-                   .on[RepoCreated]
-                   .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
+          projection = Projection[RepoListEntry]("repoListEntries")
+                         .from("repos")
+                         .routedBy[RepoCreated](_.ownerId)
+                         .on[RepoCreated]
+                         .custom((e, _) => ProjectionAction.Upsert(RepoListEntry(e.ownerId, e.ownerId, e.repoName)))
 
-          // Verify scope
-          _ <- Console.printLine(s"  Scope: ${spec.scope}").orDie
+          _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
-          // Create in-memory stores
-          store <- InMemoryProjectionStore.make[RepoListEntry]
-          hub   <- InMemEventStore.make[Any]
+          engine <- TestEngine.make(projection)
 
-          // Create engine
-          cache  <- TransactorCache.make()
-          engine <- ProjectionEngine.makeWithStores(
-                      List(spec),
-                      Map(spec.name -> store),
-                      Map("repos"   -> hub.asInstanceOf[EventStore[Any]]),
-                      cache
-                    )
+          _ <- engine.append("repo-1", RepoCreated("alice", "zio-blocks"))
+          _ <- engine.append("repo-2", RepoCreated("alice", "zio-http"))
+          _ <- engine.append("repo-3", RepoCreated("bob", "zio-kafka"))
+          _ <- engine.append("repo-4", RepoCreated("charlie", "zio-schema"))
 
-          _ <- engine.start
-
-          // Append repos for different owners
-          _ <- hub.append("repo-1", RepoCreated("alice", "zio-blocks"))
-          _ <- hub.append("repo-2", RepoCreated("alice", "zio-http"))
-          _ <- hub.append("repo-3", RepoCreated("bob", "zio-kafka"))
-          _ <- hub.append("repo-4", RepoCreated("charlie", "zio-schema"))
-
-          // Query by routing key (ownerId)
-          alice   <- pollUntil(engine.query(spec, "alice"))
-          bob     <- pollUntil(engine.query(spec, "bob"))
-          charlie <- pollUntil(engine.query(spec, "charlie"))
+          alice   <- pollUntil(engine.query(projection, "alice"))
+          bob     <- pollUntil(engine.query(projection, "bob"))
+          charlie <- pollUntil(engine.query(projection, "charlie"))
 
           _ <- Console.printLine(s"  alice's repos:   ${alice.map(_.repoName).getOrElse("none")}").orDie
           _ <- Console.printLine(s"  bob's repos:     ${bob.map(_.repoName).getOrElse("none")}").orDie
@@ -280,46 +237,26 @@ object ProjectionExampleApp extends ZIOAppDefault {
         for {
           dateKey = "2025-08-26"
 
-          // Global spec aggregating from two sources
-          spec = ProjectionSpec
-                   .global[DailyStats]("dailyStats")
-                   .from("users")
-                   .routeToAll
-                   .on[UserCreated]
-                   .aggregate(FieldUpdate.Increment("user_count", 1L))
-                   .from("repos")
-                   .routeToAll
-                   .on[RepoCreated]
-                   .aggregate(FieldUpdate.Increment("repo_count", 1L))
+          projection = Projection
+                         .global[DailyStats]("dailyStats")
+                         .from("users")
+                         .routeToAll
+                         .on[UserCreated]
+                         .aggregate(FieldUpdate.Increment("user_count", 1L))
+                         .from("repos")
+                         .routeToAll
+                         .on[RepoCreated]
+                         .aggregate(FieldUpdate.Increment("repo_count", 1L))
 
-          _ <- Console.printLine(s"  Scope: ${spec.scope}").orDie
+          _ <- Console.printLine(s"  Scope: ${projection.scope}").orDie
 
-          // Create stores
-          store    <- InMemoryProjectionStore.make[DailyStats]
-          hubUsers <- InMemEventStore.make[Any]
-          hubRepos <- InMemEventStore.make[Any]
+          engine <- TestEngine.make(projection)
 
-          // Create engine with two event sources
-          cache  <- TransactorCache.make()
-          engine <- ProjectionEngine.makeWithStores(
-                      List(spec),
-                      Map(spec.name -> store),
-                      Map(
-                        "users" -> hubUsers.asInstanceOf[EventStore[Any]],
-                        "repos" -> hubRepos.asInstanceOf[EventStore[Any]]
-                      ),
-                      cache
-                    )
+          _ <- ZIO.foreachDiscard(1 to 5)(i => engine.append(dateKey, UserCreated(s"user-$i", s"u$i@ex.com")))
+          _ <- ZIO.foreachDiscard(1 to 3)(i => engine.append(dateKey, RepoCreated("any", s"repo-$i")))
 
-          _ <- engine.start
-
-          // Append events: 5 users and 3 repos for today
-          _ <- ZIO.foreachDiscard(1 to 5)(i => hubUsers.append(dateKey, UserCreated(s"user-$i", s"u$i@ex.com")))
-          _ <- ZIO.foreachDiscard(1 to 3)(i => hubRepos.append(dateKey, RepoCreated("any", s"repo-$i")))
-
-          // Query the aggregate
           stats <- pollUntil(
-                     engine.query(spec, dateKey).map(_.filter(s => s.userCount == 5 && s.repoCount == 3)),
+                     engine.query(projection, dateKey).map(_.filter(s => s.userCount == 5 && s.repoCount == 3)),
                      5.seconds
                    )
 
@@ -341,49 +278,36 @@ object ProjectionExampleApp extends ZIOAppDefault {
     Console.printLine("\n--- Demo 4: Schema Evolution (UserProfileV1 -> UserProfileV2) ---").orDie *>
       ZIO.scoped {
         for {
-          // Step 1: Show schema hashes differ
           hashV1 = SchemaHash.compute[UserProfileV1]
           hashV2 = SchemaHash.compute[UserProfileV2]
           _     <- Console.printLine(s"  SchemaHash V1: ${hashV1.take(16)}...").orDie
           _     <- Console.printLine(s"  SchemaHash V2: ${hashV2.take(16)}...").orDie
           _     <- Console.printLine(s"  Hashes differ: ${hashV1 != hashV2}").orDie
 
-          // Step 2: Create spec with V2 schema, events will be replayed with defaults for new field
-          specV2 = ProjectionSpec[UserProfileV2]("userProfilesV2")
-                     .from("users")
-                     .routeToSelf
-                     .on[UserCreated]
-                     .insert((e, ctx) => UserProfileV2(ctx.entityId, e.name, e.email))
+          projection = Projection[UserProfileV2]("userProfilesV2")
+                         .from("users")
+                         .routeToSelf
+                         .on[UserCreated]
+                         .insert((e, ctx) => UserProfileV2(ctx.entityId, e.name, e.email))
 
-          // Create store and event source
-          store <- InMemoryProjectionStore.make[UserProfileV2]
-          hub   <- InMemEventStore.make[Any]
+          engine <- TestEngine.make(projection)
 
-          cache  <- TransactorCache.make()
-          engine <- ProjectionEngine.makeWithStores(
-                      List(specV2),
-                      Map(specV2.name -> store),
-                      Map("users"     -> hub.asInstanceOf[EventStore[Any]]),
-                      cache
-                    )
+          _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+          _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
 
-          // Start engine — since no prior hash stored, it stores current hash (no rebuild needed)
-          _ <- engine.start
-
-          // Append events (UserCreated has name+email, maps to V2's name+email)
-          _ <- hub.append("user-1", UserCreated("Alice", "alice@example.com"))
-          _ <- hub.append("user-2", UserCreated("Bob", "bob@example.com"))
-
-          // Query V2
-          u1 <- pollUntil(engine.query(specV2, "user-1"))
-          u2 <- pollUntil(engine.query(specV2, "user-2"))
+          u1 <- pollUntil(engine.query(projection, "user-1"))
+          u2 <- pollUntil(engine.query(projection, "user-2"))
 
           _ <- Console.printLine(s"  V2 user-1: ${u1.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
           _ <- Console.printLine(s"  V2 user-2: ${u2.map(u => s"${u.name} <${u.email}>").getOrElse("not found")}").orDie
 
-          // Step 3: Demonstrate rebuild via SchemaEvolution
-          _       <- Console.printLine("  --- SchemaEvolution.rebuild demo ---").orDie
-          _       <- SchemaEvolution.rebuildWithHash(store, hub, specV2)
+          _ <- Console.printLine("  --- SchemaEvolution.rebuild demo ---").orDie
+          // Standalone rebuild demo using direct store/hub (without TestEngine wiring)
+          store   <- InMemoryProjectionStore.make[UserProfileV2]
+          hub     <- DemoEventStore.make[Any]
+          _       <- hub.append("user-1", UserCreated("Alice", "alice@example.com"))
+          _       <- hub.append("user-2", UserCreated("Bob", "bob@example.com"))
+          _       <- SchemaEvolution.rebuildWithHash(store, hub, projection)
           u1After <- store.findById("user-1")
           _       <- Console
                  .printLine(
@@ -402,29 +326,24 @@ object ProjectionExampleApp extends ZIOAppDefault {
     Console.printLine("\n--- Demo 5: Tag Rename (UserLoggedIn -> UserAuthenticated) ---").orDie *>
       ZIO.scoped {
         for {
-          // Step 1: Define migration that renames a case
           migration = Migration
                         .newBuilder[LoginEvent, LoginEvent]
                         .renameCase("UserLoggedIn", "UserAuthenticated")
                         .build
 
-          // Step 2: Create TagResolver from migration
           tagInfo = TagResolver.resolve[LoginEvent](migration)
 
           _ <- Console.printLine(s"  Current tags: ${tagInfo.currentTags.mkString(", ")}").orDie
           _ <- Console.printLine(s"  Aliases:      ${tagInfo.aliases}").orDie
           _ <- Console.printLine(s"  All tags:     ${tagInfo.allTags.mkString(", ")}").orDie
 
-          // Step 3: Show tag expansion
           expanded = tagInfo.expandRequested(Set("UserAuthenticated"))
           _       <- Console.printLine(s"  expandRequested(UserAuthenticated) -> ${expanded.mkString(", ")}").orDie
 
-          // Step 4: Show old tag detection
           _ <- Console.printLine(s"  isOldTag('UserLoggedIn'):      ${tagInfo.isOldTag("UserLoggedIn")}").orDie
           _ <- Console.printLine(s"  isOldTag('UserAuthenticated'): ${tagInfo.isOldTag("UserAuthenticated")}").orDie
           _ <- Console.printLine(s"  currentTagFor('UserLoggedIn'): ${tagInfo.currentTagFor("UserLoggedIn")}").orDie
 
-          // Step 5: Show transitive chain (A -> B -> C resolves to A -> C)
           migration2 = Migration
                          .newBuilder[LoginEvent, LoginEvent]
                          .renameCase("UserLoggedIn", "UserSignedIn")

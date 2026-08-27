@@ -18,18 +18,18 @@ package zio.blocks.projection
 
 import scala.quoted.*
 
-object ProjectionSpecMacros {
+object ProjectionMacros {
 
   def updateImpl[A: Type, E: Type](
     builder: Expr[HandlerBuilder[E, A]],
     selector: Expr[A => Any],
     f: Expr[(E, ProjectionContext) => Any]
-  )(using Quotes): Expr[ProjectionSpec[A]] =
+  )(using Quotes): Expr[Projection[A]] =
     '{ $builder.updateWithField(${ FieldSelectorMacros.extractAndMapFieldImpl[A](selector) }, $f) }
 
   def routedByFieldImpl[A: Type, E: Type](
     builder: Expr[FromBuilder[A]],
     selector: Expr[E => Any]
-  )(using Quotes): Expr[ProjectionSpec[A]] =
+  )(using Quotes): Expr[Projection[A]] =
     '{ $builder.routedBy((e: E) => $selector(e).toString) }
 }

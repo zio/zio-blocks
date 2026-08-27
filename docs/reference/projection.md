@@ -62,7 +62,7 @@ engine:
 ```scala mdoc:compile-only
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.InMemoryProjectionStore
+import zio.blocks.projection.testing.TestEngine
 import zio.blocks.schema.{Modifier, Schema}
 
 // 1. Define events
@@ -78,31 +78,22 @@ object UserProfile {
   implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
 }
 
-// 3. Define the projection spec
-val spec = ProjectionSpec[UserProfile]("userProfiles")
+// 3. Define the projection
+val projection = Projection[UserProfile]("userProfiles")
   .from("users")
   .routeToSelf
   .on[UserCreated]
   .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 
-// 4. Create an in-memory event source (for demo purposes)
+// 4. Create a test engine (auto-creates stores and hubs)
 val program: ZIO[Scope, Throwable, Unit] = for {
-  hub   <- Hub.unbounded[zio.blocks.projection.EventEnvelope[Any]]
-  store <- InMemoryProjectionStore.make[UserProfile]
-  cache <- TransactorCache.make()
-  engine <- ProjectionEngine.makeWithStores(
-              List(spec),
-              Map(spec.name -> store),
-              Map("users" -> hub.asInstanceOf[EventStore[Any]]),
-              cache
-            )
-  _ <- engine.start
+  engine <- TestEngine.make(projection)
   // Append events
-  _ <- hub.publish(EventEnvelope(1L, "UserCreated", UserCreated("Alice", "alice@example.com"), java.time.Instant.now(), "user-1"))
-  _ <- hub.publish(EventEnvelope(2L, "UserCreated", UserCreated("Bob", "bob@example.com"), java.time.Instant.now(), "user-2"))
+  _ <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+  _ <- engine.append("user-2", UserCreated("Bob", "bob@example.com"))
   // Query
-  u1 <- engine.query(spec, "user-1")
-  u2 <- engine.query(spec, "user-2")
+  u1 <- engine.query(projection, "user-1")
+  u2 <- engine.query(projection, "user-2")
 } yield ()
 ```
 
@@ -201,7 +192,7 @@ object RepoListEntry {
   implicit val entityPath: EntityPath[RepoListEntry] = EntityPath.derived[RepoListEntry]
 }
 
-val spec = ProjectionSpec[RepoListEntry]("repoListEntries")
+val spec = Projection[RepoListEntry]("repoListEntries")
   .from("repos")
   .routedBy[RepoCreated](_.ownerId)
   .on[RepoCreated]
@@ -247,7 +238,7 @@ object DailyStats {
   implicit val entityPath: EntityPath[DailyStats] = EntityPath.derived[DailyStats]
 }
 
-val spec = ProjectionSpec
+val spec = Projection
   .global[DailyStats]("dailyStats")
   .from("users")
   .routeToAll
@@ -470,18 +461,16 @@ val test: ZIO[Any, Throwable, Unit] = for {
 } yield ()
 ```
 
-### TestProjectionEngine
+### TestEngine
 
-A synchronous test helper that processes events without ZIO fibers, Hub,
-or SQLite:
+A simple test helper that auto-creates `InMemoryProjectionStore` per
+projection and `Hub` per source. No manual `makeWithStores` wiring:
 
 ```scala mdoc:compile-only
 import zio.*
 import zio.blocks.projection.*
-import zio.blocks.projection.testing.{TestProjectionEngine, TestContext}
-import zio.blocks.projection.testing.InMemoryProjectionStore
+import zio.blocks.projection.testing.TestEngine
 import zio.blocks.schema.{Modifier, Schema}
-import java.time.Instant
 
 case class UserProfile(@Modifier.id id: String, name: String, email: String)
 object UserProfile {
@@ -493,18 +482,15 @@ object UserCreated {
   implicit val schema: Schema[UserCreated] = Schema.derived[UserCreated]
 }
 
-val engine = TestProjectionEngine.make
-val spec   = ProjectionSpec[UserProfile]("userProfiles")
-             .on[UserCreated]
-             .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
+val projection = Projection[UserProfile]("userProfiles")
+  .from("users").routeToSelf
+  .on[UserCreated]
+  .insert((e, ctx) => UserProfile(ctx.entityId, e.name, e.email))
 
-val ctx = TestContext.make(entityId = "user-1")
-
-val test: ZIO[Any, Throwable, Unit] = for {
-  store  <- InMemoryProjectionStore.make[UserProfile]
-  action <- engine.processEvent(spec, UserCreated("Alice", "alice@example.com"), ctx)
-  _      <- engine.applyAction(store, action, ctx)
-  result <- store.findById("user-1")
+val test: ZIO[Scope, Throwable, Unit] = for {
+  engine <- TestEngine.make(projection)
+  _      <- engine.append("user-1", UserCreated("Alice", "alice@example.com"))
+  result <- engine.query(projection, "user-1")
   // result == Some(UserProfile("user-1", "Alice", "alice@example.com"))
 } yield ()
 ```
@@ -603,7 +589,7 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 | `EntityPath[A]` | `zio.blocks.projection` | Folder name + ID field for a projection entity |
 | `@path(name)` | `zio.blocks.projection` | Annotation to override the derived folder name |
 | `@eventTag(n)` | `zio.blocks.projection` | Annotation for numeric event tags |
-| `ProjectionSpec[A]` | `zio.blocks.projection` | Defines a projection: name, schema, handlers, routing |
+| `Projection[A]` | `zio.blocks.projection` | Defines a projection: name, schema, handlers, routing |
 | `ProjectionAction[+A]` | `zio.blocks.projection` | Enum: Insert, Upsert, Update, Delete, Truncate, Noop |
 | `FieldUpdate` | `zio.blocks.projection` | Enum: Set, Increment, Decrement, Max, Min |
 | `ProjectionContext` | `zio.blocks.projection` | Event metadata: entityId, timestamp, seq, sourceEntityId |
@@ -622,15 +608,16 @@ val app: ZIO[Scope, Throwable, Unit] = for {
 | `TagResolver` | `zio.blocks.projection` | Builds TagInfo from Schema + optional Migration |
 | `TagInfo` | `zio.blocks.projection` | Alias map, all tags, old tag detection, value migration |
 | `AggregateProjection` | `zio.blocks.projection` | Helpers for global aggregate specs with counters |
-| `TestProjectionEngine` | `zio.blocks.projection.testing` | Synchronous test engine, no fibers or SQLite |
+| `TestEngine` | `zio.blocks.projection.testing` | Simple test engine with auto-created stores and hubs |
+| `TestProjectionEngine` | `zio.blocks.projection.testing` | Synchronous test engine (deprecated, use TestEngine) |
 | `TestContext` | `zio.blocks.projection.testing` | Factory for ProjectionContext in tests |
 
-### ProjectionSpec methods
+### Projection methods
 
 | Method | Description |
 |--------|-------------|
-| `ProjectionSpec[A](name)` | Create a per-entity spec (requires `Schema[A]` + `EntityPath[A]`) |
-| `ProjectionSpec.global[A](name)` | Create a global spec (requires `Schema[A]`) |
+| `Projection[A](name)` | Create a per-entity spec (requires `Schema[A]` + `EntityPath[A]`) |
+| `Projection.global[A](name)` | Create a global spec (requires `Schema[A]`) |
 | `.from(sourceName)` | Bind to a named event source |
 | `.on[E]` | Register a handler for event type `E` |
 | `.insert((E, ProjectionContext) => A)` | Handler: insert a new entity |

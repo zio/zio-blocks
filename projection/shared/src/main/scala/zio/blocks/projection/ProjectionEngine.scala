@@ -45,7 +45,7 @@ object ProjectionEngineConfig {
 // ---------------------------------------------------------------------------
 
 final class ProjectionEngine private[projection] (
-  private val specs: List[ProjectionSpec[_]],
+  private val specs: List[Projection[_]],
   private val primaryStores: Map[String, ProjectionStore[_]],
   private val eventStores: Map[String, EventStore[_]],
   private val cache: TransactorCache,
@@ -59,12 +59,12 @@ final class ProjectionEngine private[projection] (
   def transactorCache: TransactorCache = cache
 
   def registerMigration[Old, New](
-    spec: ProjectionSpec[New],
+    spec: Projection[New],
     migration: zio.blocks.schema.migration.Migration[Old, New]
   ): Task[Unit] =
     migrationRegistry.update(_ + (spec.name -> migration.asInstanceOf[zio.blocks.schema.migration.Migration[?, ?]]))
 
-  private def eventStoreForSpec(spec: ProjectionSpec[_]): Option[EventStore[Any]] = {
+  private def eventStoreForSpec(spec: Projection[_]): Option[EventStore[Any]] = {
     val bindingSource = spec.bindings.headOption.map(_.sourceName)
     bindingSource
       .flatMap(eventStores.get)
@@ -73,11 +73,11 @@ final class ProjectionEngine private[projection] (
       .orElse(eventStores.values.headOption.map(_.asInstanceOf[EventStore[Any]]))
   }
 
-  private def currentHashFor(spec: ProjectionSpec[_]): String =
+  private def currentHashFor(spec: Projection[_]): String =
     SchemaHash.compute(using spec.schema.asInstanceOf[zio.blocks.schema.Schema[Any]])
 
-  private def checkSchemaAndRebuild(specAny: ProjectionSpec[_]): Task[Unit] = {
-    val spec  = specAny.asInstanceOf[ProjectionSpec[Any]]
+  private def checkSchemaAndRebuild(specAny: Projection[_]): Task[Unit] = {
+    val spec  = specAny.asInstanceOf[Projection[Any]]
     val store = primaryStores(spec.name).asInstanceOf[ProjectionStore[Any]]
     val cur   = currentHashFor(specAny)
     store.getSchemaHash.catchAll(_ => ZIO.succeed(None)).flatMap {
@@ -107,7 +107,7 @@ final class ProjectionEngine private[projection] (
     }
   }
 
-  private def ensureRebuiltIfPending[A](spec: ProjectionSpec[A]): Task[Unit] =
+  private def ensureRebuiltIfPending[A](spec: Projection[A]): Task[Unit] =
     pendingRebuildRef.get.map(_.getOrElse(spec.name, false)).flatMap {
       case false => ZIO.unit
       case true  =>
@@ -126,7 +126,7 @@ final class ProjectionEngine private[projection] (
                     SchemaEvolution.tryMigrationShortcutForSpec(spec, store, migOpt, cur).flatMap {
                       case true  => pendingRebuildRef.update(_ - spec.name)
                       case false =>
-                        SchemaEvolution.rebuild(store, es, spec.asInstanceOf[ProjectionSpec[Any]], cur) *>
+                        SchemaEvolution.rebuild(store, es, spec.asInstanceOf[Projection[Any]], cur) *>
                           pendingRebuildRef.update(_ - spec.name)
                     }
                   }
@@ -135,11 +135,11 @@ final class ProjectionEngine private[projection] (
         }
     }
 
-  private def primaryStoreFor[A](spec: ProjectionSpec[A]): ProjectionStore[A] =
+  private def primaryStoreFor[A](spec: Projection[A]): ProjectionStore[A] =
     primaryStores(spec.name).asInstanceOf[ProjectionStore[A]]
 
   // Factory for shards: uses same store type as primary (InMemory vs SQLite)
-  private def getOrCreateShard[A](spec: ProjectionSpec[A], routingKey: String): Task[ProjectionStore[A]] = {
+  private def getOrCreateShard[A](spec: Projection[A], routingKey: String): Task[ProjectionStore[A]] = {
     val specName = spec.name
     shardsRef.get.flatMap { outer =>
       outer.get(specName).flatMap(_.get(routingKey)) match {
@@ -166,7 +166,7 @@ final class ProjectionEngine private[projection] (
 
   // Simplified shard fallback: if cross-entity, still use primary but trace routing
   private def resolveTargetStore[A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     event: Any,
     ctx: ProjectionContext,
     sourceName: String
@@ -216,7 +216,7 @@ final class ProjectionEngine private[projection] (
     }
 
   private def processBatch[A](
-    spec: ProjectionSpec[A],
+    spec: Projection[A],
     binding: SourceBinding[?, A],
     batch: zio.Chunk[EventEnvelope[Any]]
   ): Task[Unit] = {
@@ -271,7 +271,7 @@ final class ProjectionEngine private[projection] (
 
     val launchBindings: ZIO[Scope, Nothing, Unit] =
       ZIO.foreachDiscard(specs) { specAny =>
-        val spec                                  = specAny.asInstanceOf[ProjectionSpec[Any]]
+        val spec                                  = specAny.asInstanceOf[Projection[Any]]
         val bindings: List[SourceBinding[?, Any]] =
           if (spec.bindings.isEmpty) {
             List(
@@ -302,7 +302,7 @@ final class ProjectionEngine private[projection] (
             case Some(es) =>
               es.subscribe.subscribe.flatMap { queue =>
                 val primary =
-                  primaryStoreFor(specAny.asInstanceOf[ProjectionSpec[Any]]).asInstanceOf[ProjectionStore[Any]]
+                  primaryStoreFor(specAny.asInstanceOf[Projection[Any]]).asInstanceOf[ProjectionStore[Any]]
                 val catchUp: Task[Unit] =
                   primary.getLastProcessedSeq.catchAll { e =>
                     ZIO.logError(s"ProjectionEngine[${spec.name}] getLastProcessedSeq failed: ${e.getMessage}") *> ZIO
@@ -314,7 +314,7 @@ final class ProjectionEngine private[projection] (
                         if (chunk.isEmpty) ZIO.unit
                         else
                           processBatch(
-                            spec.asInstanceOf[ProjectionSpec[Any]],
+                            spec.asInstanceOf[Projection[Any]],
                             binding.asInstanceOf[SourceBinding[?, Any]],
                             chunk.asInstanceOf[zio.Chunk[EventEnvelope[Any]]]
                           )
@@ -330,7 +330,7 @@ final class ProjectionEngine private[projection] (
                     .fromQueue(queue)
                     .mapZIO { env =>
                       processBatch(
-                        spec.asInstanceOf[ProjectionSpec[Any]],
+                        spec.asInstanceOf[Projection[Any]],
                         binding.asInstanceOf[SourceBinding[?, Any]],
                         zio.Chunk.single(env)
                       ).catchAll { e =>
@@ -352,7 +352,7 @@ final class ProjectionEngine private[projection] (
         ZIO
           .foreachDiscard(specs.grouped(config.rebuildParallelism).toList) { batch =>
             ZIO.foreachDiscard(batch) { specAny =>
-              val spec  = specAny.asInstanceOf[ProjectionSpec[Any]]
+              val spec  = specAny.asInstanceOf[Projection[Any]]
               val store = primaryStores(spec.name).asInstanceOf[ProjectionStore[Any]]
               val esOpt = eventStoreForSpec(specAny)
               esOpt match {
@@ -393,7 +393,7 @@ final class ProjectionEngine private[projection] (
   // Query
   // ---------------------------------------------------------------------------
 
-  def query[A](spec: ProjectionSpec[A], entityId: String): Task[Option[A]] =
+  def query[A](spec: Projection[A], entityId: String): Task[Option[A]] =
     ensureRebuiltIfPending(spec) *>
       primaryStoreFor(spec).findById(entityId).flatMap {
         case some @ Some(_) => ZIO.succeed(some)
@@ -422,7 +422,7 @@ final class ProjectionEngine private[projection] (
       case None        => ZIO.succeed(None)
     }
 
-  def getLastProcessedSeq[A](spec: ProjectionSpec[A]): Task[Long] =
+  def getLastProcessedSeq[A](spec: Projection[A]): Task[Long] =
     primaryStoreFor(spec).getLastProcessedSeq
 
   def storesMap: Map[String, ProjectionStore[_]] = primaryStores
@@ -432,12 +432,12 @@ final class ProjectionEngine private[projection] (
 
 object ProjectionEngine {
 
-  def make(specs: ProjectionSpec[_]*): ZIO[Scope, Throwable, ProjectionEngine] =
+  def make(specs: Projection[_]*): ZIO[Scope, Throwable, ProjectionEngine] =
     makeWithConfig(ProjectionEngineConfig.default, specs: _*)
 
   def makeWithConfig(
     config: ProjectionEngineConfig,
-    specs: ProjectionSpec[_]*
+    specs: Projection[_]*
   ): ZIO[Scope, Throwable, ProjectionEngine] =
     for {
       cache         <- TransactorCache.make()
@@ -447,7 +447,7 @@ object ProjectionEngine {
       sem           <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
-                           val spec = specAny.asInstanceOf[ProjectionSpec[Any]]
+                           val spec = specAny.asInstanceOf[Projection[Any]]
                            val path = spec.scope match {
                              case ProjectionScope.Global => s"global/${spec.name}.db"
                              case _                      =>
@@ -473,7 +473,7 @@ object ProjectionEngine {
 
   // Test helper: inject explicit stores and eventStores
   def makeWithStores(
-    specs: List[ProjectionSpec[_]],
+    specs: List[Projection[_]],
     stores: Map[String, ProjectionStore[_]],
     eventStores: Map[String, EventStore[_]],
     cache: TransactorCache,
@@ -491,7 +491,7 @@ object ProjectionEngine {
     cache: TransactorCache,
     eventStores: Map[String, EventStore[_]],
     config: ProjectionEngineConfig = ProjectionEngineConfig.default
-  )(specs: ProjectionSpec[_]*): Task[ProjectionEngine] =
+  )(specs: Projection[_]*): Task[ProjectionEngine] =
     for {
       shardsRef     <- Ref.make(Map.empty[String, Map[String, ProjectionStore[_]]])
       pendingRef    <- Ref.make(Map.empty[String, Boolean])
@@ -499,7 +499,7 @@ object ProjectionEngine {
       sem           <- Semaphore.make(1)
       primaryStores <- ZIO
                          .foreach(specs.toList) { specAny =>
-                           val spec = specAny.asInstanceOf[ProjectionSpec[Any]]
+                           val spec = specAny.asInstanceOf[Projection[Any]]
                            val path = spec.scope match {
                              case ProjectionScope.Global => s"global/${spec.name}.db"
                              case _                      =>
@@ -524,7 +524,7 @@ object ProjectionEngine {
     )
 
   private def createStoreForSpec(
-    specAny: ProjectionSpec[_],
+    specAny: Projection[_],
     path: String,
     cache: TransactorCache
   ): Task[ProjectionStore[_]] = {
@@ -533,8 +533,8 @@ object ProjectionEngine {
     createInMemoryForSpec(specAny)
   }
 
-  private def createInMemoryForSpec(specAny: ProjectionSpec[_]): Task[ProjectionStore[_]] = {
-    val spec                         = specAny.asInstanceOf[ProjectionSpec[Any]]
+  private def createInMemoryForSpec(specAny: Projection[_]): Task[ProjectionStore[_]] = {
+    val spec                         = specAny.asInstanceOf[Projection[Any]]
     implicit val schema: Schema[Any] = spec.schema.asInstanceOf[Schema[Any]]
     implicit val ep: EntityPath[Any] =
       spec.entityPath.map(_.asInstanceOf[EntityPath[Any]]).getOrElse(EntityPath[Any]("projections", "id"))

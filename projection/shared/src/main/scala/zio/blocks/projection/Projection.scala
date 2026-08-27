@@ -71,10 +71,10 @@ final case class SourceBinding[E, A](
 )
 
 // ---------------------------------------------------------------------------
-// ProjectionSpec
+// Projection
 // ---------------------------------------------------------------------------
 
-final class ProjectionSpec[A] private[projection] (
+final class Projection[A] private[projection] (
   val name: String,
   val schema: Schema[A],
   val entityPath: Option[EntityPath[A]],
@@ -92,21 +92,21 @@ final class ProjectionSpec[A] private[projection] (
       ct.runtimeClass.asInstanceOf[Class[E]]
     )
 
-  private[projection] def addBinding(binding: SourceBinding[?, A]): ProjectionSpec[A] =
-    new ProjectionSpec[A](name, schema, entityPath, isGlobal, bindings :+ binding)
+  private[projection] def addBinding(binding: SourceBinding[?, A]): Projection[A] =
+    new Projection[A](name, schema, entityPath, isGlobal, bindings :+ binding)
 
-  private[projection] def addHandler[E](handler: Handler[E, A]): ProjectionSpec[A] =
+  private[projection] def addHandler[E](handler: Handler[E, A]): Projection[A] =
     if (bindings.isEmpty) {
       val default = SourceBinding[Any, A](
         "_default",
         RoutingMode.RouteToSelf,
         List(handler.asInstanceOf[Handler[?, A]])
       )
-      new ProjectionSpec[A](name, schema, entityPath, isGlobal, List(default))
+      new Projection[A](name, schema, entityPath, isGlobal, List(default))
     } else {
       val last    = bindings.last
       val updated = last.copy(handlers = last.handlers :+ handler.asInstanceOf[Handler[?, A]])
-      new ProjectionSpec[A](name, schema, entityPath, isGlobal, bindings.init :+ updated)
+      new Projection[A](name, schema, entityPath, isGlobal, bindings.init :+ updated)
     }
 
   def scope: ProjectionScope =
@@ -159,19 +159,19 @@ final class ProjectionSpec[A] private[projection] (
   }
 
   override def toString: String =
-    s"ProjectionSpec(name=$name, isGlobal=$isGlobal, bindings=${bindings.size}, handlers=${allHandlers.size})"
+    s"Projection(name=$name, isGlobal=$isGlobal, bindings=${bindings.size}, handlers=${allHandlers.size})"
 }
 
-object ProjectionSpec {
+object Projection {
 
-  def apply[A: Schema: EntityPath](name: String): ProjectionSpec[A] =
-    new ProjectionSpec[A](name, summon[Schema[A]], Some(summon[EntityPath[A]]), isGlobal = false, Nil)
+  def apply[A: Schema: EntityPath](name: String): Projection[A] =
+    new Projection[A](name, summon[Schema[A]], Some(summon[EntityPath[A]]), isGlobal = false, Nil)
 
-  def global[A: Schema](name: String): ProjectionSpec[A] =
-    new ProjectionSpec[A](name, summon[Schema[A]], None, isGlobal = true, Nil)
+  def global[A: Schema](name: String): Projection[A] =
+    new Projection[A](name, summon[Schema[A]], None, isGlobal = true, Nil)
 
-  def apply[A](name: String, entityPath: EntityPath[A])(using schema: Schema[A]): ProjectionSpec[A] =
-    new ProjectionSpec[A](name, schema, Some(entityPath), isGlobal = false, Nil)
+  def apply[A](name: String, entityPath: EntityPath[A])(using schema: Schema[A]): Projection[A] =
+    new Projection[A](name, schema, Some(entityPath), isGlobal = false, Nil)
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ object ProjectionSpec {
 // ---------------------------------------------------------------------------
 
 final class HandlerBuilder[E, A] private[projection] (
-  spec: ProjectionSpec[A],
+  spec: Projection[A],
   schemaE: Schema[E],
   eventClass: Class[E]
 ) {
@@ -188,33 +188,33 @@ final class HandlerBuilder[E, A] private[projection] (
     try schemaE.reflect.typeId.name
     catch { case _: Throwable => eventClass.getSimpleName.stripSuffix("$") }
 
-  private def add(fn: (E, ProjectionContext) => ProjectionAction[A]): ProjectionSpec[A] =
+  private def add(fn: (E, ProjectionContext) => ProjectionAction[A]): Projection[A] =
     spec.addHandler(Handler[E, A](eventClass, schemaE, tag, fn))
 
-  def insert(f: (E, ProjectionContext) => A): ProjectionSpec[A] =
+  def insert(f: (E, ProjectionContext) => A): Projection[A] =
     add((e, ctx) => ProjectionAction.Insert(f(e, ctx)))
 
-  def delete: ProjectionSpec[A] =
+  def delete: Projection[A] =
     add((_, _) => ProjectionAction.Delete)
 
-  def custom(f: (E, ProjectionContext) => ProjectionAction[A]): ProjectionSpec[A] =
+  def custom(f: (E, ProjectionContext) => ProjectionAction[A]): Projection[A] =
     add(f)
 
-  def aggregate(update: FieldUpdate): ProjectionSpec[A] =
+  def aggregate(update: FieldUpdate): Projection[A] =
     add((_, _) => ProjectionAction.Update(Chunk(update)))
 
-  def aggregate(updates: Chunk[FieldUpdate]): ProjectionSpec[A] =
+  def aggregate(updates: Chunk[FieldUpdate]): Projection[A] =
     add((_, _) => ProjectionAction.Update(updates))
 
-  def aggregateField(update: FieldUpdate): ProjectionSpec[A] = aggregate(update)
+  def aggregateField(update: FieldUpdate): Projection[A] = aggregate(update)
 
-  def updateWithField(fieldName: String, f: (E, ProjectionContext) => Any): ProjectionSpec[A] =
+  def updateWithField(fieldName: String, f: (E, ProjectionContext) => Any): Projection[A] =
     add((e, ctx) => ProjectionAction.Update(Chunk(FieldUpdate.Set(fieldName, f(e, ctx)))))
 
-  inline def update(inline selector: A => Any)(f: (E, ProjectionContext) => Any): ProjectionSpec[A] =
-    ${ ProjectionSpecMacros.updateImpl[A, E]('this, 'selector, 'f) }
+  inline def update(inline selector: A => Any)(f: (E, ProjectionContext) => Any): Projection[A] =
+    ${ ProjectionMacros.updateImpl[A, E]('this, 'selector, 'f) }
 
-  def updateField(fieldName: String)(f: (E, ProjectionContext) => Any): ProjectionSpec[A] =
+  def updateField(fieldName: String)(f: (E, ProjectionContext) => Any): Projection[A] =
     updateWithField(fieldName, f)
 }
 
@@ -223,21 +223,21 @@ final class HandlerBuilder[E, A] private[projection] (
 // ---------------------------------------------------------------------------
 
 final class FromBuilder[A] private[projection] (
-  spec: ProjectionSpec[A],
+  spec: Projection[A],
   sourceName: String
 ) {
 
-  def routedBy[E](selector: E => String): ProjectionSpec[A] =
+  def routedBy[E](selector: E => String): Projection[A] =
     spec.addBinding(
       SourceBinding[Any, A](sourceName, RoutingMode.RoutedBy(selector.asInstanceOf[Any => String]), Nil)
     )
 
-  inline def routedByField[E](inline selector: E => Any): ProjectionSpec[A] =
-    ${ ProjectionSpecMacros.routedByFieldImpl[A, E]('this, 'selector) }
+  inline def routedByField[E](inline selector: E => Any): Projection[A] =
+    ${ ProjectionMacros.routedByFieldImpl[A, E]('this, 'selector) }
 
-  def routeToAll: ProjectionSpec[A] =
+  def routeToAll: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToAll, Nil))
 
-  def routeToSelf: ProjectionSpec[A] =
+  def routeToSelf: Projection[A] =
     spec.addBinding(SourceBinding[Any, A](sourceName, RoutingMode.RouteToSelf, Nil))
 }

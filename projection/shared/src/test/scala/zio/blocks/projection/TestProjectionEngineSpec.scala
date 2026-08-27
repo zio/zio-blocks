@@ -117,7 +117,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
     suite("processEvent single")(
       test("insert dispatch returns Insert") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val ctx = TestContext.make(entityId = "u1")
@@ -130,7 +130,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("delete dispatch returns Delete") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val spec   = Projection[User]("users").on[UserDeleted].delete
         val ctx    = TestContext.make()
         for {
           action <- engine.processEvent(spec, UserDeleted(), ctx)
@@ -138,7 +138,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("update dispatch returns Update with correct field") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserRenamed]
           .update(_.name)((e, _) => e.newName)
         val ctx = TestContext.make()
@@ -151,7 +151,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("no handler returns Noop") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val ctx = TestContext.make()
@@ -161,7 +161,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("custom handler returns Upsert") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .custom((e, ctx) => ProjectionAction.Upsert(User(ctx.entityId, e.name, e.email, 0L, 0L, active = true)))
         val ctx = TestContext.make(entityId = "x")
@@ -174,7 +174,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("aggregate handler returns Update Increment") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[Counter]("counters").on[CountInc].aggregate(FieldUpdate.Increment("total", 5L))
+        val spec   = Projection[Counter]("counters").on[CountInc].aggregate(FieldUpdate.Increment("total", 5L))
         val ctx    = TestContext.make()
         for {
           action <- engine.processEvent(spec, CountInc(5L), ctx)
@@ -185,7 +185,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("processEvent uses ctx entityId for insert") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val ctx = TestContext.make(entityId = "my-entity-99")
@@ -200,7 +200,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
     suite("processEvents batch")(
       test("batch insert applies to store") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val events = List(
@@ -218,7 +218,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("batch without store completes") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
         val events = List(
@@ -230,10 +230,10 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("batch update via FieldUpdate applies increment") {
         val engine     = TestProjectionEngine.make
-        val specInsert = ProjectionSpec[User]("users")
+        val specInsert = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 10L, 0L, active = true))
-        val specUpdate = ProjectionSpec[User]("users")
+        val specUpdate = Projection[User]("users")
           .on[CountInc]
           .aggregate(FieldUpdate.Increment("age", 5L))
         for {
@@ -250,10 +250,10 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("batch delete removes entity") {
         val engine     = TestProjectionEngine.make
-        val insertSpec = ProjectionSpec[User]("users")
+        val insertSpec = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
-        val deleteSpec = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val deleteSpec = Projection[User]("users").on[UserDeleted].delete
         for {
           store <- InMemoryProjectionStore.make[User]
           _     <- engine.processAndApply(
@@ -268,10 +268,10 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("batch truncate clears all") {
         val engine     = TestProjectionEngine.make
-        val insertSpec = ProjectionSpec[User]("users")
+        val insertSpec = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
-        val truncateSpec = ProjectionSpec[User]("users").on[UserDeleted].custom((_, _) => ProjectionAction.Truncate)
+        val truncateSpec = Projection[User]("users").on[UserDeleted].custom((_, _) => ProjectionAction.Truncate)
         for {
           store <- InMemoryProjectionStore.make[User]
           _     <- ZIO.foreachDiscard(List("1", "2", "3"))(id =>
@@ -290,10 +290,10 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("batch mixed insert and update sequence") {
         val engine     = TestProjectionEngine.make
-        val insertSpec = ProjectionSpec[User]("users")
+        val insertSpec = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
-        val renameSpec = ProjectionSpec[User]("users")
+        val renameSpec = Projection[User]("users")
           .on[UserRenamed]
           .update(_.name)((e, _) => e.newName)
         for {
@@ -310,7 +310,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("processEventsWithActions returns list of actions") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users")
+        val spec   = Projection[User]("users")
           .on[UserCreated]
           .insert((e, ctx) => User(ctx.entityId, e.name, e.email, 0L, 0L, active = true))
           .on[UserDeleted]
@@ -320,7 +320,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
           (UserDeleted(): Any, TestContext.make(entityId = "1"))
         )
         // Use genericAny spec dispatch via Any
-        val anySpec = spec.asInstanceOf[ProjectionSpec[User]]
+        val anySpec = spec.asInstanceOf[Projection[User]]
         for {
           actions <- engine.processEventsWithActions[Any, User](anySpec, events)
         } yield assertTrue(
@@ -331,7 +331,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("processEvents empty list no-op") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val spec   = Projection[User]("users").on[UserDeleted].delete
         for {
           store <- InMemoryProjectionStore.make[User]
           _     <- engine.processEvents(spec, List.empty[(UserDeleted, ProjectionContext)], store)
@@ -340,7 +340,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("processAndApply returns action and mutates store") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[Counter]("counters")
+        val spec   = Projection[Counter]("counters")
           .on[CountInc]
           .custom((e, ctx) => ProjectionAction.Insert(Counter(ctx.entityId, e.by)))
         for {
@@ -353,7 +353,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
     suite("engine synchronous no Hub")(
       test("sequential batch preserves order") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[Counter]("counters")
+        val spec   = Projection[Counter]("counters")
           .on[CountInc]
           .custom((e, ctx) => ProjectionAction.Insert(Counter(ctx.entityId + e.by.toString, e.by)))
         val events = (1 to 5).toList.map(i => (CountInc(i.toLong), TestContext.make(entityId = s"id-$i")))
@@ -365,7 +365,7 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
       },
       test("noop event does not modify store") {
         val engine = TestProjectionEngine.make
-        val spec   = ProjectionSpec[User]("users").on[UserCreated].custom((_, _) => ProjectionAction.Noop)
+        val spec   = Projection[User]("users").on[UserCreated].custom((_, _) => ProjectionAction.Noop)
         for {
           store <- InMemoryProjectionStore.make[User]
           _     <- store.insert(User("keep", "Keep", "k@b.com", 1L, 1L, active = true))

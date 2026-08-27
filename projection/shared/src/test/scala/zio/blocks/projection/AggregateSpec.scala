@@ -100,14 +100,14 @@ object AggregateSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AggregateSpec")(
     suite("global scope")(
       test("global factory has Global scope and no entityPath") {
-        val s = ProjectionSpec.global[DailyStats]("dailyStats")
+        val s = Projection.global[DailyStats]("dailyStats")
         assertTrue(s.scope == ProjectionScope.Global, s.isGlobal, s.entityPath.isEmpty)
       },
       test("global routing uses single store file path global/<name>.db") {
         // Verified indirectly via ProjectionEngine path selection; ensure engine contains global name
         ZIO.scoped {
           for {
-            engine <- ProjectionEngine.make(ProjectionSpec.global[DailyStats]("dailyStats"))
+            engine <- ProjectionEngine.make(Projection.global[DailyStats]("dailyStats"))
           } yield assertTrue(engine.storesMap.contains("dailyStats"))
         }
       },
@@ -118,7 +118,7 @@ object AggregateSpec extends ZIOSpecDefault {
             store    <- InMemoryProjectionStore.make[DailyStats]
             hubUsers <- InMemEventStore.make[Any]
             hubRepos <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec
+            spec      = Projection
                      .global[DailyStats]("dailyStats")
                      .from("users")
                      .routeToAll
@@ -152,7 +152,7 @@ object AggregateSpec extends ZIOSpecDefault {
             store    <- InMemoryProjectionStore.make[DailyStats]
             hubUsers <- InMemEventStore.make[Any]
             hubRepos <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec
+            spec      = Projection
                      .global[DailyStats]("dailyStats2")
                      .from("users")
                      .routeToAll
@@ -299,7 +299,7 @@ object AggregateSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[DailyStats]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec
+            spec   = Projection
                      .global[DailyStats]("conc")
                      .from("ev")
                      .routeToAll
@@ -342,7 +342,7 @@ object AggregateSpec extends ZIOSpecDefault {
             store    <- InMemoryProjectionStore.make[DailyStats]
             hubUsers <- InMemEventStore.make[Any]
             hubRepos <- InMemEventStore.make[Any]
-            spec      = ProjectionSpec
+            spec      = Projection
                      .global[DailyStats]("cross")
                      .from("users")
                      .routeToAll
@@ -374,14 +374,14 @@ object AggregateSpec extends ZIOSpecDefault {
             cache <- TransactorCache.make()
             store <- InMemoryProjectionStore.make[DailyStats]
             hub   <- InMemEventStore.make[Any]
-            spec   = ProjectionSpec
+            spec   = Projection
                      .global[DailyStats]("peakCross")
                      .from("ev")
                      .routeToAll
                      .on[PeakUpdate]
                      .aggregate(FieldUpdate.Max("peak", 0L)) // placeholder, will be overridden per event via custom
             // Use custom to map event value to Max
-            spec2 = ProjectionSpec
+            spec2 = Projection
                       .global[DailyStats]("peakCross2")
                       .from("ev")
                       .routeToAll

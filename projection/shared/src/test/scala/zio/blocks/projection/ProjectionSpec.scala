@@ -22,7 +22,7 @@ import zio.test._
 
 import java.time.Instant
 
-object ProjectionSpecSpec extends ZIOSpecDefault {
+object ProjectionTest extends ZIOSpecDefault {
 
   // ---------------------------------------------------------------------------
   // Test models
@@ -84,29 +84,29 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
   private def ctx(entityId: String = "entity-1", seq: Long = 1L): ProjectionContext =
     ProjectionContext(entityId, Instant.parse("2024-01-01T00:00:00Z"), seq)
 
-  def spec: Spec[Any, Any] = suite("ProjectionSpecSpec")(
+  def spec: Spec[Any, Any] = suite("Projection")(
     suite("Builder construction")(
       test("apply with EntityPath creates PerEntity spec") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
         assertTrue(s.name == "users", !s.isGlobal, s.entityPath.isDefined, s.bindings.isEmpty)
       },
       test("global factory creates Global spec") {
-        val s = ProjectionSpec.global[Counter]("counters")
+        val s = Projection.global[Counter]("counters")
         assertTrue(s.name == "counters", s.isGlobal, s.entityPath.isEmpty, s.scope == ProjectionScope.Global)
       },
       test("explicit EntityPath apply") {
         val ep = EntityPath[User]("custom", "id")
-        val s  = ProjectionSpec[User]("custom", ep)
+        val s  = Projection[User]("custom", ep)
         assertTrue(s.entityPath.get.basePath == "custom", s.entityPath.get.entityIdField == "id")
       },
       test("toString contains name") {
-        val s = ProjectionSpec[User]("my-projection")
+        val s = Projection[User]("my-projection")
         assertTrue(s.toString.contains("my-projection"))
       }
     ),
     suite("Insert handler")(
       test("insert handler dispatches to Insert action") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         val action = s.handle(UserCreated("Alice", "a@b.com"), ctx())
@@ -116,7 +116,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("insert uses context entityId") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, c) => User(c.entityId, e.name, e.email, e.name, 0L, 0))
         val c      = ctx("my-id")
@@ -127,13 +127,13 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("insert handler stored internally") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.allHandlers.size == 1, s.allHandlers.head.tag.nonEmpty)
       },
       test("multiple insert handlers dispatch by type") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
           .on[UserRenamed]
@@ -148,7 +148,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
     ),
     suite("Update handler with selector macro")(
       test("update _.name maps to snake_case name") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .update(_.name)((e, _) => e.newName)
         val action = s.handle(UserRenamed("Charlie"), ctx())
@@ -161,7 +161,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("update _.firstName maps to first_name") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .update(_.firstName)((e, _) => e.newName)
         val action = s.handle(UserRenamed("Dave"), ctx())
@@ -171,7 +171,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("update _.userCount maps to user_count") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[CountInc]
           .update(_.userCount)((e, _) => e.by)
         val action = s.handle(CountInc(42L), ctx())
@@ -181,7 +181,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("update _.email maps to email") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserEmailChanged]
           .update(_.email)((e, _) => e.newEmail)
         val action = s.handle(UserEmailChanged("new@x.com"), ctx())
@@ -193,7 +193,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("update with context seq") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .update(_.name)((_, c) => c.seq.toString)
         val action = s.handle(UserRenamed("X"), ctx(seq = 99L))
@@ -203,7 +203,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("updateField string version") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .updateField("name")((e, _) => e.newName)
         val action = s.handle(UserRenamed("Eve"), ctx())
@@ -215,23 +215,23 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
     ),
     suite("Delete handler")(
       test("delete handler returns Delete sentinel") {
-        val s      = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val s      = Projection[User]("users").on[UserDeleted].delete
         val action = s.handle(UserDeleted(), ctx())
         assertTrue(action.contains(ProjectionAction.Delete))
       },
       test("delete handler stored internally") {
-        val s = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val s = Projection[User]("users").on[UserDeleted].delete
         assertTrue(s.allHandlers.size == 1)
       },
       test("delete dispatch no match returns None") {
-        val s      = ProjectionSpec[User]("users").on[UserDeleted].delete
+        val s      = Projection[User]("users").on[UserDeleted].delete
         val action = s.handle(UserCreated("A", "a@b.com"), ctx())
         assertTrue(action.isEmpty)
       }
     ),
     suite("Custom handler")(
       test("custom handler returns Upsert") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .custom((e, _) => ProjectionAction.Upsert(User("1", e.name, e.email, e.name, 0L, 0)))
         val action = s.handle(UserCreated("Frank", "f@b.com"), ctx())
@@ -241,19 +241,19 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         })
       },
       test("custom handler returns Noop") {
-        val s      = ProjectionSpec[User]("users").on[UserCreated].custom((_, _) => ProjectionAction.Noop)
+        val s      = Projection[User]("users").on[UserCreated].custom((_, _) => ProjectionAction.Noop)
         val action = s.handle(UserCreated("G", "g@b.com"), ctx())
         assertTrue(action.contains(ProjectionAction.Noop))
       },
       test("custom handler returns Truncate") {
-        val s      = ProjectionSpec[User]("users").on[UserDeleted].custom((_, _) => ProjectionAction.Truncate)
+        val s      = Projection[User]("users").on[UserDeleted].custom((_, _) => ProjectionAction.Truncate)
         val action = s.handle(UserDeleted(), ctx())
         assertTrue(action.contains(ProjectionAction.Truncate))
       }
     ),
     suite("Aggregate handler")(
       test("aggregate with FieldUpdate Increment") {
-        val s      = ProjectionSpec[User]("users").on[CountInc].aggregate(FieldUpdate.Increment("user_count", 5L))
+        val s      = Projection[User]("users").on[CountInc].aggregate(FieldUpdate.Increment("user_count", 5L))
         val action = s.handle(CountInc(5L), ctx())
         assertTrue(action.exists {
           case ProjectionAction.Update(mods) => mods.head == FieldUpdate.Increment("user_count", 5L)
@@ -262,7 +262,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
       },
       test("aggregate with FieldUpdate macro increment") {
         val fu     = FieldUpdate.increment[User](_.userCount, 10L)
-        val s      = ProjectionSpec[User]("users").on[CountInc].aggregate(fu)
+        val s      = Projection[User]("users").on[CountInc].aggregate(fu)
         val action = s.handle(CountInc(10L), ctx())
         assertTrue(action.exists {
           case ProjectionAction.Update(mods) => mods.head.asInstanceOf[FieldUpdate.Increment].field == "user_count"
@@ -271,7 +271,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
       },
       test("aggregate with Chunk of updates") {
         val chunk  = Chunk(FieldUpdate.Set("name", "X"), FieldUpdate.Increment("user_count", 1L))
-        val s      = ProjectionSpec[User]("users").on[CountInc].aggregate(chunk)
+        val s      = Projection[User]("users").on[CountInc].aggregate(chunk)
         val action = s.handle(CountInc(1L), ctx())
         assertTrue(action.exists {
           case ProjectionAction.Update(mods) => mods.size == 2
@@ -281,7 +281,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
     ),
     suite("Multi-source routing")(
       test("from routedBy extracts routing key") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("repos")
           .routedBy[RepoCreated](_.ownerId)
           .on[RepoCreated]
@@ -291,7 +291,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(key.contains("owner-123"))
       },
       test("from routeToAll routing is RouteToAll and key is None") {
-        val s = ProjectionSpec
+        val s = Projection
           .global[Counter]("counters")
           .from("users")
           .routeToAll
@@ -302,7 +302,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(key.isEmpty)
       },
       test("from routeToSelf routing is RouteToSelf and key is entityId") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("users")
           .routeToSelf
           .on[UserCreated]
@@ -312,7 +312,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(key.contains("my-entity"))
       },
       test("routedByField inline macro extracts key") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("repos")
           .routedByField[RepoCreated](_.ownerId)
           .on[RepoCreated]
@@ -321,7 +321,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(key.contains("field-owner"))
       },
       test("multi-source groups handlers per source") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("repos")
           .routedBy[RepoCreated](_.ownerId)
           .on[RepoCreated]
@@ -339,14 +339,14 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         )
       },
       test("default routing when no from is RouteToSelf") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.bindings.size == 1, s.bindings.head.sourceName == "_default")
         assertTrue(s.bindings.head.routing == RoutingMode.RouteToSelf)
       },
       test("sourceNames reflects all sources") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("a")
           .routeToSelf
           .on[UserCreated]
@@ -361,11 +361,11 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
     suite("Scope inference")(
       test("PerEntity scope for default") {
         val s =
-          ProjectionSpec[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
+          Projection[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.scope == ProjectionScope.PerEntity)
       },
       test("CrossEntity scope when routedBy") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("repos")
           .routedBy[RepoCreated](_.ownerId)
           .on[RepoCreated]
@@ -373,13 +373,13 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(s.scope.isInstanceOf[ProjectionScope.CrossEntity])
       },
       test("Global scope for global factory") {
-        val s = ProjectionSpec.global[Counter]("counters")
+        val s = Projection.global[Counter]("counters")
         assertTrue(s.scope == ProjectionScope.Global, s.isGlobal)
       }
     ),
     suite("Selector macro column mapping")(
       test("firstName selector snake_case") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .update(_.firstName)((e, _) => e.newName)
         val action = s.handle(UserRenamed("Y"), ctx())
@@ -391,7 +391,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         }
       },
       test("score selector unchanged") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserRenamed]
           .update(_.score)((_, _) => 100)
         val action = s.handle(UserRenamed("Z"), ctx())
@@ -405,7 +405,7 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
     ),
     suite("Handler dispatch")(
       test("dispatch matching event type returns action") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
           .on[UserDeleted]
@@ -415,11 +415,11 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
       },
       test("dispatch non-matching returns None") {
         val s =
-          ProjectionSpec[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
+          Projection[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.dispatch(UserDeleted(), ctx()).isEmpty)
       },
       test("dispatch respects handler order for same type first wins") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .on[UserCreated]
           .insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
           .on[UserCreated]
@@ -429,18 +429,18 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
         assertTrue(action.exists(_.isInstanceOf[ProjectionAction.Insert[?]]))
       },
       test("handle returns None when no handlers") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
         assertTrue(s.handle(UserCreated("A", "a@b.com"), ctx()).isEmpty)
       },
       test("validate returns empty for valid spec") {
         val s =
-          ProjectionSpec[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
+          Projection[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.validate().isEmpty)
       }
     ),
     suite("Internal representation")(
       test("bindings is List[SourceBinding] with correct type") {
-        val s: ProjectionSpec[User] = ProjectionSpec[User]("users")
+        val s: Projection[User] = Projection[User]("users")
           .from("repos")
           .routedBy[RepoCreated](_.ownerId)
           .on[RepoCreated]
@@ -451,11 +451,11 @@ object ProjectionSpecSpec extends ZIOSpecDefault {
       },
       test("handler tag is non-empty") {
         val s =
-          ProjectionSpec[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
+          Projection[User]("users").on[UserCreated].insert((e, _) => User("1", e.name, e.email, e.name, 0L, 0))
         assertTrue(s.allHandlers.head.tag == "UserCreated")
       },
       test("allHandlers aggregates across sources") {
-        val s = ProjectionSpec[User]("users")
+        val s = Projection[User]("users")
           .from("repos")
           .routedBy[RepoCreated](_.ownerId)
           .on[RepoCreated]
