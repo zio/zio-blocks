@@ -22,7 +22,7 @@ import _root_.zio.blocks.sql.*
 import _root_.zio.test.*
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
-import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData}
+import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData, Statement}
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.sql.DataSource
 
@@ -61,6 +61,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
 
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
             case "prepareStatement" => preparedStatement()
+            case "createStatement"  => statement()
             case "getAutoCommit"    => java.lang.Boolean.valueOf(autoCommit)
             case "setAutoCommit"    => autoCommit = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue(); null
             case "commit"           => null
@@ -93,6 +94,24 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         }
       )
       .asInstanceOf[PreparedStatement]
+
+  private def statement(): Statement =
+    Proxy
+      .newProxyInstance(
+        getClass.getClassLoader,
+        Array(classOf[Statement]),
+        new InvocationHandler {
+          override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
+            case "execute"      => java.lang.Boolean.TRUE
+            case "close"        => null
+            case "unwrap"       => null
+            case "isWrapperFor" => java.lang.Boolean.FALSE
+            case "toString"     => "TestStatement"
+            case _              => defaultValue(method.getReturnType)
+          }
+        }
+      )
+      .asInstanceOf[Statement]
 
   private def resultSet(): ResultSet =
     Proxy

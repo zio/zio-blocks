@@ -29,14 +29,9 @@ class JdbcTransactor(
     val dbConn = new JdbcConnection(conn)
     try {
       if (dialect == SqlDialect.SQLite) {
-        try {
-          val stmt = conn.createStatement()
-          if (stmt != null)
-            try stmt.execute("PRAGMA busy_timeout = 5000")
-            finally
-              try if (stmt != null) stmt.close()
-              catch { case _: Throwable => () }
-        } catch { case _: Throwable => () }
+        val stmt = conn.createStatement()
+        try stmt.execute("PRAGMA busy_timeout = 5000")
+        finally stmt.close()
       }
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
@@ -50,40 +45,33 @@ class JdbcTransactor(
     }
   }
 
+  /**
+   * Opens a connection, disables auto-commit, executes `f`, commits on success,
+   * and rolls back on exception. The connection is closed after commit or
+   * rollback.
+   *
+   * For `SqlDialect.SQLite`, the transaction is started in `IMMEDIATE` mode
+   * after setting `PRAGMA busy_timeout = 5000` so that queue workers reserve
+   * the write lock before the `SELECT` and wait on contention instead of
+   * failing the later `DELETE` with `SQLITE_BUSY`. See PR #1534
+   * discussion_r3863454094; SQLite is single-consumer and `PRAGMA` runs before
+   * `setAutoCommit(false)` to avoid "within a transaction".
+   */
   def transact[A](f: DbTx ?=> A): A = {
     val conn   = connectionFactory()
     val dbConn = new JdbcConnection(conn)
-    // SQLite queues use a SELECT-then-DELETE in one transaction; a normal
-    // DEFERRED worker would hold only a read lock for the SELECT and can lose
-    // the reserved lock to a concurrent writer (SQLITE_BUSY on DELETE). Start
-    // the transaction in IMMEDIATE mode so it reserves the write lock up front
-    // and set the documented busy timeout so it waits rather than failing.
-    // See PR #1534 discussion_r3863454094.
-    // PRAGMA busy_timeout must run before disabling auto-commit; after
-    // setAutoCommit(false) the first statement starts a transaction and the
-    // following BEGIN IMMEDIATE would then be "within a transaction".
     if (dialect == SqlDialect.SQLite) {
-      try {
-        val timeoutStmt = conn.createStatement()
-        if (timeoutStmt != null)
-          try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
-          finally
-            try if (timeoutStmt != null) timeoutStmt.close()
-            catch { case _: Throwable => () }
-      } catch { case _: Throwable => () }
+      val timeoutStmt = conn.createStatement()
+      try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
+      finally timeoutStmt.close()
     }
     val prevAutoCommit = conn.getAutoCommit
     conn.setAutoCommit(false)
     try {
       if (dialect == SqlDialect.SQLite) {
-        try {
-          val beginStmt = conn.createStatement()
-          if (beginStmt != null)
-            try beginStmt.execute("BEGIN IMMEDIATE")
-            finally
-              try if (beginStmt != null) beginStmt.close()
-              catch { case _: Throwable => () }
-        } catch { case _: Throwable => () }
+        val beginStmt = conn.createStatement()
+        try beginStmt.execute("BEGIN IMMEDIATE")
+        finally beginStmt.close()
       }
       given tx: DbTx = new DbTx {
         val connection: DbConnection = dbConn
