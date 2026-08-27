@@ -66,6 +66,14 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
           }
         }
       } catch {
+        case _: InterruptedException if consumerClosed =>
+          // An interruptible upstream (e.g. a real blocking I/O read) reacts
+          // to our own stop-signal interrupt by throwing from read() itself,
+          // one call site earlier than the join hazard above. `consumerClosed`
+          // being set here can only mean we induced this: nobody outside this
+          // class holds the producer thread handle. Recording it as
+          // `producerError` would surface deliberate shutdown as a failure.
+          queue.offer(EndOfStream)
         case t: Throwable =>
           producerError = t
           queue.offer(EndOfStream)
@@ -73,6 +81,15 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
         queue.close()
         if (!upstreamClosedByProducer) {
           upstreamClosedByProducer = true
+          // Consume our own stop-signal interrupt before cascading into
+          // `upstream.close()`. At this point the flag can only mean "we told
+          // this thread to stop" — that has been honored, so there is nothing
+          // left to restore. Left set, it would leak into whatever blocking
+          // work `upstream.close()` does — `joinProducer` below already
+          // guards the nested-`ConcurrentBufferedReader` case specifically,
+          // but `upstream` may be any `Reader` with its own interrupt-sensitive
+          // shutdown path.
+          Thread.interrupted()
           // A close failure must surface (Principle 4): record it (without
           // displacing an earlier read error) so the consumer rethrows it from
           // read() or close().
@@ -159,12 +176,40 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    joinProducer()
     // A recorded error the consumer never observed via a read (e.g. an
     // upstream close failure after the last element) must still surface
     // (Principle 4): rethrow it exactly once at teardown.
     val err = producerError
     if ((err ne null) && !errorDelivered) { errorDelivered = true; rethrow(err) }
+  }
+
+  // `Thread.join` throws InterruptedException based on the *calling* thread's
+  // own interrupt status, checked unconditionally before it even looks at
+  // whether the joined thread is alive. The caller here is not always an
+  // innocent bystander: closing a nested buffer runs on the outer producer's
+  // own thread (from its `finally`, above), and that thread was very likely
+  // just interrupted itself to unwind its own read loop. A single
+  // clear-before/join/restore-after is not enough on its own, either: the
+  // three statements in `close()`/`reset()` above (`consumerClosed = true`,
+  // `queue.close()`, `producerThread.interrupt()`) are not atomic with the
+  // producer's own progress, so the interrupt can just as easily land *while*
+  // this join is already parked as before it starts. Either way, treating
+  // that as "the producer failed" is wrong — it's this reader's own
+  // stop-signal. Retry across the full timeout budget, consuming (not
+  // propagating) every InterruptedException the wait itself produces, then
+  // restore the calling thread's flag once at the end so a genuine,
+  // unrelated interrupt on the caller is never silently dropped.
+  private def joinProducer(): Unit = {
+    val deadline          = System.nanoTime() + JoinTimeoutNanos
+    var remainingNanos    = JoinTimeoutNanos
+    var callerInterrupted = Thread.interrupted()
+    while (!producerDone && remainingNanos > 0) {
+      try producerThread.join(math.max(1L, remainingNanos / 1000000L))
+      catch { case _: InterruptedException => callerInterrupted = true }
+      remainingNanos = deadline - System.nanoTime()
+    }
+    if (callerInterrupted) Thread.currentThread().interrupt()
   }
 
   override def reset(): Unit = {
@@ -176,7 +221,7 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
     consumerClosed = true
     queue.close()
     producerThread.interrupt()
-    producerThread.join(5000)
+    joinProducer()
     // 2) Replay the upstream. A genuine one-shot source throws
     //    UnsupportedOperationException here, which correctly propagates: a buffer
     //    over a one-shot source is itself one-shot. (The producer already closed
@@ -204,4 +249,7 @@ private[streams] final class ConcurrentBufferedReader[A](upstream: Reader[A], bu
 private object ConcurrentBufferedReader {
   val counter: AtomicLong  = new AtomicLong(0L)
   val NullSentinel: AnyRef = new AnyRef
+
+  /** Upper bound on how long `close()`/`reset()` wait for the producer. */
+  val JoinTimeoutNanos: Long = 5000L * 1000000L
 }
