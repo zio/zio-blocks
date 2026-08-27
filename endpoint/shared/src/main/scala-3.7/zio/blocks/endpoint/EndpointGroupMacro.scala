@@ -89,12 +89,9 @@ private[endpoint] object EndpointGroupMacro {
     }
 
     def isPathCodecSubgroupStmt(t: Term): Option[(Term, Term)] = t match {
-      case Inlined(Some(call: Term), _, _) =>
-        isPathCodecSubgroupStmt(call) match {
-          case some @ Some(_) => some
-          case None           => isPathCodecSubgroupStmt(call)
-        }
-      case Inlined(_, _, inner)                                                                        => isPathCodecSubgroupStmt(inner)
+      case Inlined(Some(call: Term), _, expansion) =>
+        isPathCodecSubgroupStmt(call).orElse(isPathCodecSubgroupStmt(expansion))
+      case Inlined(_, _, inner) => isPathCodecSubgroupStmt(inner)
       case Typed(inner, _)                                                                             => isPathCodecSubgroupStmt(inner)
       case Apply(TypeApply(Select(codec, "/"), _), List(_)) if codec.tpe <:< TypeRepr.of[PathCodec[?]] =>
         Some((codec, t))
