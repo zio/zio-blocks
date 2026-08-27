@@ -25,9 +25,13 @@ object QueryRenderer {
     val tableName = SqlIdentifier.validate("table", query.source.name)
 
     // Build SELECT via Frag composition to avoid string concatenation outside Frag
-    val selectColFrags = selectCols.map(Frag.literal)
-    val selectCombined = selectColFrags.reduce(_ ++ Frag.literal(", ") ++ _)
-    var frag: Frag     = Frag.literal("SELECT ") ++ selectCombined ++ Frag.literal(s""" FROM "$tableName" AS t0""")
+    var frag: Frag =
+      if (selectCols.isEmpty) Frag.literal(s"""SELECT * FROM "$tableName" AS t0""")
+      else {
+        val selectColFrags = selectCols.map(Frag.literal)
+        val selectCombined = selectColFrags.reduce(_ ++ Frag.literal(", ") ++ _)
+        Frag.literal("SELECT ") ++ selectCombined ++ Frag.literal(s""" FROM "$tableName" AS t0""")
+      }
 
     // JOINs
     query.joins.foreach { j =>

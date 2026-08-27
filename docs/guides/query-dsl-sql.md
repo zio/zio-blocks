@@ -984,14 +984,14 @@ val q = SqlQuery
   .where(userTable, "name", DbValue.DbString("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name
-// FROM users t0
-// INNER JOIN repos t1 ON t0.id = t1.owner_id
-// WHERE t0.name = ?1
+// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
 // -- params: 1:String
 ```
 
-The `?N` placeholders correspond one-to-one with the parameter list you can obtain separately via `statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a database.
+`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `SqlQuery.build`). The `?N`
+placeholders correspond one-to-one with the parameter list you can obtain separately via
+`statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a
+database.
 
 ### statement(dialect): SqlStatement
 
@@ -1000,8 +1000,8 @@ The `statement` method returns a structured `SqlStatement` that decomposes the q
 ```scala
 val st = q.statement(SqlDialect.PostgreSQL)
 
-st.source      // Source(table = "users", alias = "t0")
-st.joins       // Vector(Join(Inner, "repos", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
+st.source      // Source(table = "user", alias = "t0")
+st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
 st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
 st.groupBy     // None
 st.orderBy     // Vector.empty
@@ -1025,10 +1025,7 @@ val q = SqlQuery
   .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
 
 println(q.sql(SqlDialect.PostgreSQL))
-// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name"
-// FROM "users" AS t0
-// INNER JOIN "repos" AS t1 ON t0."id" = t1."owner_id"
-// WHERE t0."name" = $1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t0."id" = t1."owner_id" WHERE t0."name" = $1
 ```
 
 ### previewSql() for Migrations
@@ -1038,11 +1035,15 @@ When using `SmallMigrator` or `LargeMigrator` from the `data-migration` module, 
 ```scala
 import zio.blocks.data.migration._
 
+given transactor: Transactor = tx
+
 val migrator = SmallMigrator(
   repoV1 = userRepo,
   repoV2 = userRepoV2,
-  transactor = tx,
-  target = TargetStrategy.Rename
+  migration = userMigration,
+  queueTable = "migration_queue",
+  batchSize = 100,
+  target = TargetStrategy.InPlace
 )
 
 val statements: Vector[String] = migrator.previewSql()
