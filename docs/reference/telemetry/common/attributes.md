@@ -91,7 +91,7 @@ attrs.accept(new AttributeVisitor {
 
 Those four are the only methods you must write. There are four more for sequence values, and they already do nothing — so if you store a sequence attribute and don't override its method, `accept` passes over it in silence. Nothing fails; the attribute simply never reaches your exporter.
 
-The other form is for when convenience matters more than a few allocations, which is most code outside an exporter. `foreach` and `toMap` do the wrapping for you, handing each value over as an `AttributeValue` — one wrapper per kind, so you can match on which kind you got:
+The other form is for when convenience matters more than a few allocations, which is most code outside an exporter. `foreach` and `toMap` do the wrapping for you, handing each value over as an [`AttributeValue`](./any-value.md) — one wrapper per kind, so you can match on which kind you got:
 
 ```scala mdoc:compile-only
 import zio.blocks.telemetry._
@@ -113,5 +113,6 @@ Two sets holding the same pairs are equal regardless of the order they were buil
 ## See Also
 
 - [AttributeKey](./attribute-key.md) — defining typed keys
+- [AttributeValue](./any-value.md) — the boxed wrapper `foreach`/`toMap` hand back
 - [Resource](./resource.md) — service identity, itself an `Attributes` set
 - [Common Types](./index.md) — the types every pillar uses

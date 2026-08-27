@@ -7,9 +7,9 @@ Full re-scan of documentation coverage across every library module aggregated by
 
 **This revision fixes the scanner, so every number below has moved.** Earlier revisions classified a declaration as private only when the modifier sat on its own line, which counted 863 privately-enclosed declarations as public API — about a third of everything declared. Two items were mis-scoped as a result. The scanner now walks enclosing scopes, and the table carries an `internal` column so a low ratio can be told apart from a real gap. See *Methodology*.
 
-**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7), `otel` (item 3), the `http-model-schema` codec layer (Tier 2 item 15), and — landed independently while this revision was in progress — `htmx` response headers (item 4, #1619), the `schema` search and traversal cluster (item 5, #1621), and `ReflectTransformer` (item 8, #1623).
+**Work completed since this report was written:** `config` (Tier 1 item 2, seven pages), the `http-model` typed header surface (items 1 and 7), `otel` (item 3), the `http-model-schema` codec layer (Tier 2 item 15), and — landed independently while this revision was in progress — `htmx` response headers (item 4, #1619), the `schema` search and traversal cluster (item 5, #1621), the `telemetry` attribute-value ADT (item 6, #1622), and `ReflectTransformer` (item 8, #1623).
 
-Every figure in this revision, including those three, is restated under the privacy-aware scanner. The notes those PRs added quoted the old scanner, which is why their numbers differ from the table: `htmx` reads 77% here rather than 85%, and `schema` 55% rather than 77%. The work is the same; the measurement changed.
+Every figure in this revision, including those four, is restated under the privacy-aware scanner. The notes those PRs added quoted the old scanner, which is why their numbers differ from the table: `htmx` reads 77% here rather than 85%, `schema` 55% rather than 77%, and `telemetry` 68% rather than 95%. The work is the same; the measurement changed. `docs/reference/telemetry/common/any-value.md` (90 lines, mdoc-verified) covers `AttributeValue`/`AttributeType` and their eight variants each, correcting the original Tier 1 item 6, which named types (`BoolValue`, `IntValue`, `ArrayValue`, several `*KV` types) that don't exist in source; under the privacy-aware scanner it resolves 8 of the module's absent types and 12 of its unexplained ones.
 
 **What changed since the previous (2026-02-13) report:** every published module now has a reference page, and every page is linked from `docs/sidebars.js`. There are no longer any modules with zero documentation, and four of the six "critical missing pages" from the old report now exist (`media-type.md`, `schema/schema-expr.md`, `schema/schema-error.md`, `built-in-codecs/json/json-patch.md`). The remaining gaps are (a) whole subsystems inside otherwise-documented modules, (b) pages far too short for the surface they cover, and (c) an almost complete absence of task-oriented guides.
 
@@ -19,20 +19,20 @@ Every figure in this revision, including those three, is restated under the priv
 |--------|-------|
 | Library modules aggregated by `root` | 38 |
 | Modules with no reference page | **0** |
-| Reference pages | 168 |
+| Reference pages | 169 |
 | Guides | 9 |
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
 | — of which public | 1,798 |
 | — of which private or nested in a private scope | 864 |
-| Public types never named anywhere in `docs/` | **386** |
-| Public types with no prose or heading reference | **714** |
+| Public types never named anywhere in `docs/` | **378** |
+| Public types with no prose or heading reference | **702** |
 | Name-mention coverage | **79%** |
-| Explained-type coverage | **60%** |
+| Explained-type coverage | **61%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 386 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 714 types — additionally captures the 328 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 378 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 702 types — additionally captures the 324 types that appear only as tokens inside examples and are never explained.
 
 Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
@@ -56,7 +56,6 @@ This report file is excluded from the scan, so listing a type here does not make
 | schema-xml | 38 | 2 | 9 | 18 | 53% | 3,334 | 1,034 | 0.31 |
 | **schema** | 466 | 226 | 156 | 208 | **55%** | 85,027 | 24,259 | 0.29 |
 | http-model | 191 | 3 | 5 | 84 | 56% | 4,712 | 2,520 | 0.53 |
-| telemetry | 139 | 72 | 17 | 57 | 59% | 7,509 | 2,856 | 0.38 |
 | schema-bson | 20 | 0 | 2 | 8 | 60% | 1,935 | 494 | 0.26 |
 | scope | 23 | 54 | 6 | 9 | 61% | 7,085 | 3,579 | 0.51 |
 | codegen | 46 | 0 | 6 | 17 | 63% | 2,100 | 3,024 | 1.44 |
@@ -65,6 +64,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | endpoint | 60 | 20 | 18 | 20 | 67% | 2,805 | 1,757 | 0.63 |
 | schema-yaml | 27 | 10 | 6 | 9 | 67% | 2,753 | 552 | 0.20 |
 | streams | 30 | 152 | 9 | 10 | 67% | 18,434 | 5,725 | 0.31 |
+| telemetry | 139 | 72 | 9 | 45 | 68% | 7,509 | 2,948 | 0.39 |
 | config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 24 | 71% | 3,914 | 2,212 | 0.57 |
 | chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
 | htmx | 88 | 2 | 6 | 20 | 77% | 1,548 | 2,750 | 1.78 |
@@ -75,7 +75,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | sql | 53 | 14 | 1 | 3 | 94% | 4,234 | 4,047 | 0.96 |
 | http-model-schema | 16 | 10 | 0 | 0 | **100%** | 1,249 | 1,073 | 0.86 |
 | mux | 9 | 40 | 0 | 0 | **100%** | 1,222 | 823 | 0.67 |
-| otel | 12 | 8 | 0 | 0 | **100%** | 1,325 | 421 | 0.32 |
+| otel | 12 | 8 | 0 | 0 | **100%** | 1,325 | 422 | 0.32 |
 | ringbuffer | 8 | 42 | 0 | 0 | **100%** | 2,360 | 989 | 0.42 |
 | schema-avro | 3 | 3 | 0 | 0 | **100%** | 1,922 | 450 | 0.23 |
 | schema-messagepack | 5 | 2 | 0 | 0 | **100%** | 1,933 | 507 | 0.26 |
@@ -232,16 +232,16 @@ Also absent: `DocsSchemas` (1,327 lines) and `DerivedOptics` (581 lines) — che
 
 ### 6. `telemetry` — the value ADT and the log-emitter layer
 
-57 unexplained and 17 absent, of 139 public types, across two clusters.
+45 unexplained and 9 absent, of 139 public types, across two clusters. The `AnyValue`/attribute-type cluster below is now resolved (was part of the original 57/17); what remains is the log-emitter layer.
 
-- **`AnyValue` / attribute types**: `BoolValue` ✗, `IntValue` ✗, `ArrayValue` ✗, `StringSeqValue` ✗, `LongSeqValue` ✗, `DoubleSeqValue` ✗, `BooleanSeqValue` ✗, `StringSeqType` ✗, `LongSeqType` ✗, `DoubleSeqType` ✗, `BooleanSeqType` ✗, `StringStringKV` ✗, `StringLongKV` ✗, `StringIntKV` ✗, `StringDoubleKV` ✗, `StringBooleanKV` ✗, plus `StringValue`, `BooleanType`, `LongType`, `DoubleType`, `StringType` unexplained
+- **`AnyValue` / attribute types — done, with a correction:** this cluster's names didn't match the source. There is no `BoolValue`, `IntValue`, `ArrayValue`, or any `*KV` type (`StringStringKV` etc.) anywhere in the codebase or its history; the real, only value ADT is `AttributeValue` (`StringValue`, `BooleanValue`, `LongValue`, `DoubleValue`, `StringSeqValue`, `LongSeqValue`, `DoubleSeqValue`, `BooleanSeqValue`) alongside the separate discriminator ADT `AttributeType` (`StringType`, `BooleanType`, `LongType`, `DoubleType`, and four `*SeqType` variants). `reference/telemetry/common/any-value.md` (90 lines, mdoc-verified) now documents both ADTs, the `AttributeValue` → `AttributeType` → `AttributeKey` three-way correspondence, and the OTLP JSON mapping (`stringValue`/`boolValue`/`intValue`/`doubleValue`/`arrayValue`) the `otel` exporter uses.
 - **Signal detail**: `LogState` ✗, `SourceLocation` ✗, `Templated` ✗, `AttributesKind` ✗, `EnrichmentKind` ✗, `FallbackKind` ✗, `SeverityKind` ✗, `StringBodyKind` ✗, `ThrowableKind` ✗, plus `SpanEvent`, `SpanLink`, `Measurement`, `GaugeDataPoint`, `HistogramDataPoint`, `SamplingDecision`, `LogMessage`, `LogRecordBuilder` unexplained, and the `Severity` numbered variants (`Trace2`–`Trace4`, `Debug2`–`Debug4`, `Info2`–`Info4`, `Warn2`–`Warn4`, `Error2`–`Error4`, `Fatal2`–`Fatal4`) unexplained
 
 Absent implementation types with a public entry point: `LogEmitter` ✗ (101 lines), `FormattedLogEmitter` ✗, `FileLogWriter` ✗ (163 lines), `StdoutLogRecordProcessor` ✗ (134 lines), `SyncInstruments` ✗.
 
 Actions:
 
-- [ ] Write `reference/telemetry/common/any-value.md` — the typed attribute value ADT and the `KV` shortcuts
+- [x] Write `reference/telemetry/common/any-value.md` — **done**: 90 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `attributes.md` and `otel/index.md`. The `KV` shortcuts named in the original action item don't exist in source; documented `AttributeValue`/`AttributeType` instead (see above)
 - [ ] Add `SpanEvent` and `SpanLink` sections to `tracing/span.md`
 - [ ] Add `Measurement`, `GaugeDataPoint`, `HistogramDataPoint` to `metrics/metric-data.md`
 - [ ] Add `SamplingDecision` to `tracing/sampler.md`
@@ -399,7 +399,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 3. - [x] ~~Split `reference/telemetry/otel/` into four pages~~ — **done differently**: the four-page split was mis-scoped (the exporters are `private[otel]`); resolved with one new page plus index additions, module now at 100%
 4. - [x] `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified
 5. - [x] `reference/schema/schema-search.md` (`SchemaSearch`, `SchemaMatch`, `TypeSearch`, `SearchTraversal`, `Updater`) — **done**: 251 lines, mdoc-verified
-6. - [ ] `reference/telemetry/common/any-value.md`
+6. - [x] `reference/telemetry/common/any-value.md` — **done**: 90 lines, mdoc-verified
 7. - [x] `reference/http-model/server-sent-event.md` — **done**: 296 lines
 8. - [x] `reference/schema/reflect-transformer.md` — **done**: 140 lines, mdoc-verified
 9. - [ ] `reference/telemetry/logging/log-emitter.md`
