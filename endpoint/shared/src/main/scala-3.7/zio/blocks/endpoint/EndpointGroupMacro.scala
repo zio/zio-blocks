@@ -24,14 +24,8 @@ private[endpoint] object EndpointGroupMacro {
     buildGroupTree(body, Nil)
 
   def prefixGroupString(prefix: String, ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
-    import quotes.reflect.*
-    val pathCodecSym = Symbol.requiredClass("zio.blocks.endpoint.PathCodec$")
-    val literalMeth  = pathCodecSym.companionModule.methodMember("literal").head
-    val prefixCodec  = Apply(
-      Select(Ref(pathCodecSym.companionModule), literalMeth),
-      List(Literal(StringConstant(prefix)))
-    )
-    prefixGroupCodec(prefixCodec.asExprOf[PathCodec[?]], ntExpr)
+    val prefixCodec: Expr[PathCodec[Unit]] = '{ PathCodec.literal(${ Expr(prefix) }) }
+    prefixGroupCodec(prefixCodec.asInstanceOf[Expr[PathCodec[?]]], ntExpr)
   }
 
   def prefixGroupCodec(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
@@ -402,62 +396,79 @@ private[endpoint] object EndpointGroupMacro {
     def wrapLeaf(term: Term): Expr[Any] =
       if (codecs.isEmpty) term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
       else {
-        val epExpr = term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+        val epExpr           = term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+        val epTpe            = term.tpe.dealias
+        val (pi, i, e, o, a) = epTpe match {
+          case AppliedType(_, List(pi0, i0, e0, o0, a0)) => (pi0, i0, e0, o0, a0)
+          case _                                         => report.errorAndAbort(s"cannot read Endpoint type: ${epTpe.show}")
+        }
 
-        // Build composed path codec by folding codecs with combineUnrefined at the quote level
-        val basePC: Expr[PathCodec[?]]     = '{ $epExpr.route.pathCodec }
-        val composedPC: Expr[PathCodec[?]] =
-          codecs.reverse.foldLeft[Expr[PathCodec[?]]](basePC) { (acc, codecExpr) =>
+        // Build composed path codec by folding codecs with precise Out extraction
+        val basePC: Expr[PathCodec[?]] = '{ $epExpr.route.pathCodec }
+
+        // Helper to extract Out from a summoned Tuples instance
+        def extractOut(withOutTerm: Term): TypeRepr = {
+          val tuplesSym                    = TypeRepr.of[zio.blocks.combinators.Tuples.Tuples].typeSymbol
+          def walk(t0: TypeRepr): TypeRepr = t0.dealias match {
+            case Refinement(_, "Out", TypeBounds(_, hi)) => hi.dealias
+            case Refinement(parent, _, _)                => walk(parent)
+            case other                                   => other.memberType(tuplesSym.typeMember("Out")).dealias
+          }
+          walk(withOutTerm.tpe)
+        }
+
+        // Fold codecs left-to-right building precise PC chain; track precise A type via TypeRepr
+        val composedPCWithType: (Expr[PathCodec[?]], TypeRepr) =
+          codecs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) { case ((acc, accATpe), codecExpr) =>
             val cA = codecExpr.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
               case AppliedType(_, List(ca)) => ca
               case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${codecExpr.asTerm.tpe.show}")
             }
-            val accA = acc.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
-              case AppliedType(_, List(ca)) => ca
-              case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${acc.asTerm.tpe.show}")
-            }
-            (cA.asType, accA.asType) match {
+            val accATpeNorm = accATpe.dealias
+            (cA.asType, accATpeNorm.asType) match {
               case ('[ca], '[ac]) =>
                 Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
                   case Some(withOut) =>
-                    '{
-                      PathCodec.combineUnrefined(
-                        $codecExpr.asInstanceOf[PathCodec[ca]],
-                        $acc.asInstanceOf[PathCodec[ac]]
-                      )(${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[ca, ac, Any]])
+                    val outTpe                      = extractOut(withOut.asTerm)
+                    val outExpr: Expr[PathCodec[?]] = outTpe.asType match {
+                      case '[out] =>
+                        '{
+                          PathCodec.combineUnrefined(
+                            $codecExpr.asInstanceOf[PathCodec[ca]],
+                            $acc.asInstanceOf[PathCodec[ac]]
+                          )(${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[ca, ac, out]])
+                        }.asInstanceOf[Expr[PathCodec[?]]]
                     }
+                    (outExpr, outTpe)
                   case None =>
-                    report.errorAndAbort(s"cannot find Tuples combiner for prefix composition")
+                    report.errorAndAbort(
+                      s"cannot find Tuples combiner for prefix composition: ${cA.show} / ${accATpeNorm.show}"
+                    )
                 }
               case _ => report.errorAndAbort("internal: failed to decompose types for prefix composition")
             }
           }
 
-        // Rebuild Endpoint — PathInput inferred from RoutePattern via Endpoint.apply
-        '{
-          val ep = $epExpr
-          Endpoint(
-            route = RoutePattern(ep.route.method, $composedPC),
-            input = ep.input,
-            error = ep.error,
-            output = ep.output,
-            auth = ep.auth,
-            doc = ep.doc
-          )
+        val (composedPC, finalOutTpe) = composedPCWithType
+        // Build precise Endpoint type with finalOut as PathInput
+        val composedEndpointTpe: TypeRepr = TypeRepr.of[Endpoint].appliedTo(List(finalOutTpe, i, e, o, a))
+        composedEndpointTpe.asType match {
+          case '[ce] =>
+            '{
+              val ep = $epExpr
+              val pc = $composedPC.asInstanceOf[PathCodec[Any]]
+              ep.copy(route = ep.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]).asInstanceOf[ep.route.type])
+                .asInstanceOf[ce]
+            }
         }
       }
 
     def processSubgroup(term: Term): Expr[Any] =
       isNestedSubgroupStmt(term) match {
         case Some((prefixStr, whole)) =>
-          val pathCodecSym = Symbol.requiredClass("zio.blocks.endpoint.PathCodec$")
-          val literalMeth  = pathCodecSym.companionModule.methodMember("literal").head
-          val prefixCodec  = Apply(
-            Select(Ref(pathCodecSym.companionModule), literalMeth),
-            List(Literal(StringConstant(prefixStr)))
-          )
-          val innerBlock = extractEndpointsBlock(whole)
-          buildGroupTree(innerBlock.asExpr, codecs :+ prefixCodec.asExprOf[PathCodec[?]])
+          val prefixCodec: Expr[PathCodec[Unit]] = '{ PathCodec.literal(${ Expr(prefixStr) }) }
+          val innerBlock                         = extractEndpointsBlock(whole)
+          buildGroupTree(innerBlock.asExpr, codecs :+ prefixCodec.asInstanceOf[Expr[PathCodec[?]]])
         case None =>
           isPathCodecSubgroupStmt(term) match {
             case Some((codec, whole)) =>

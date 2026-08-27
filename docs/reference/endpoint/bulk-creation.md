@@ -12,8 +12,6 @@ import zio.blocks.endpoint._
 import zio.blocks.endpoint.BulkDsl._
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
-import zio.blocks.schema.Schema
-import zio.http.Status
 
 val api = "api" / endpoints {
   val customer = Endpoint(Method.GET / "customers")

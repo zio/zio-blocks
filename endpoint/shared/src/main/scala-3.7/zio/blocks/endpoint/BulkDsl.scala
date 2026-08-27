@@ -40,7 +40,7 @@ object BulkDsl {
 
   extension (prefix: String) {
     transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
-      PathCodec.literal(prefix) / nt
+      ${ EndpointGroupMacro.prefixGroupString(prefix, 'nt) }
   }
 
   extension [A](codec: PathCodec[A]) {
