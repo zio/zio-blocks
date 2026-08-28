@@ -28,15 +28,15 @@ Every figure in this revision, including those four, is restated under the priva
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
 | — of which public | 1,811 |
 | — of which private or nested in a private scope | 864 |
-| Public types never named anywhere in `docs/` | **331** |
-| Public types with no prose or heading reference | **643** |
+| Public types never named anywhere in `docs/` | **325** |
+| Public types with no prose or heading reference | **637** |
 | Name-mention coverage | **82%** |
-| Explained-type coverage | **64%** |
+| Explained-type coverage | **65%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 331 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 643 types — additionally captures the 312 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 325 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 637 types — additionally captures the 312 types that appear only as tokens inside examples and are never explained.
 
 Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
@@ -51,7 +51,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | Module | public | internal | absent | unexpl | cov | srcLOC | docLOC | ratio |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
-| **html** | 100 | 13 | 46 | 68 | **32%** | 4,966 | 1,139 | 0.23 |
+| **html** | 110 | 13 | 40 | 68 | **38%** | 5,591 | 1,300 | 0.23 |
 | maybe | 10 | 0 | 6 | 6 | 40% | 595 | 943 | 1.58 |
 | context | 2 | 7 | 1 | 1 | 50% | 865 | 553 | 0.64 |
 | **typeid** | 90 | 14 | 26 | 43 | **52%** | 6,493 | 2,124 | 0.33 |
@@ -317,7 +317,13 @@ Actions:
 
 ### 12. Smaller module gaps
 
-- **`html`** (54 unexplained) — the CSS/DOM ADT node types: `PseudoClass` ✗, `PseudoElement` ✗, `Descendant` ✗, `AdjacentSibling` ✗, `GeneralSibling` ✗, `AttributeMatch` ✗, `StartsWith` ✗, `EndsWith` ✗, `WhitespaceContains` ✗, `Rgb` ✗, `Rgba` ✗, `Hsl` ✗, `AddAttr` ✗, `AddChild` ✗, `AddChildren` ✗, `AddEffects` ✗, `DomModifier` ✗, `ToDom` ✗, `ToText` ✗, `AttrValue` ✗, `StyleArg` ✗, `ScriptArg` ✗, `HtmlElements` ✗ (335 lines). The behaviour is documented through the DSL, so this is a type-naming gap, not a conceptual one. **Lower priority.**
+- **`html`** (68 unexplained, 40 absent) — **the rank-1 justification in the table above was wrong and is corrected here.** An earlier revision of this entry claimed the typed content model was "entirely unnamed"; it is not. `html.md` has had a `## Typed Content Models` section since #1536 landed, naming every marker type (`Dom.Element.Li`, `Cell`, `Tr`, `SelectChild`, `Opt`, `Optgroup`), demonstrating compile-time rejection with an `mdoc:fail` block, and documenting structural equality across element classes and the `caption`/`thead` limitation. The 40 absent types break down as follows, and only two groups are conceptual gaps:
+  - **Real: CSS values — resolved.** `CssLength`'s unit set and numeric extension methods, and four of `CssColor`'s five cases, had no mention anywhere. The page's one example used the verbose `CssLength(300.0, "px")` while `300.px` existed unmentioned, so the docs actively steered readers to the clunkier API. A `### Typed Values: Lengths and Colors` section now covers the 15 valid units, `CssLengthIntOps`/`CssLengthDoubleOps` and the second import they require, all five `CssColor` cases, and the `Hex` versus `Hex.unsafe` validation split.
+  - **Real: the Scala 2 argument encoding.** `ListArg` ✗, `CellArg` ✗, `RowArg` ✗, `SelectArg` ✗, `OptgroupArg` ✗, `ScriptArg` ✗, and `StyleArg` ✗ are how the content model is expressed on 2.13 — sealed traits plus implicit conversions, where Scala 3 uses union types (`Dom.Attribute | Dom.Element.Li`). The content-model table writes the Scala 3 form only, and no page mentions that the encodings differ. This needs tabbed examples per the writing-style rule on version-specific syntax.
+  - **Real: extension points.** `DomModifier` ✗ and its four cases (`AddAttr` ✗, `AddChild` ✗, `AddChildren` ✗, `AddEffects` ✗), plus the `ToDom` ✗ and `ToText` ✗ conversion type classes. `ToModifier` is named in the page; these are not.
+  - **Naming only: selector ADT nodes.** `Descendant` ✗, `AdjacentSibling` ✗, `GeneralSibling` ✗, `AttributeMatch` ✗, `StartsWith` ✗, `EndsWith` ✗, `WhitespaceContains` ✗, `HyphenPrefix` ✗, `PseudoClass` ✗, `PseudoElement` ✗. Every one is reachable and demonstrated through the DSL (`div >> span`, `a.hover`, `input.withAttributeStarting(...)`); only the resulting node types are unnamed. Worth a short table for readers pattern matching on a built selector, not a section.
+  - **Naming only: concrete element classes.** `LiElement` ✗, `ThElement` ✗, `TdElement` ✗, `TrElement` ✗, `OptElement` ✗, `OptgroupElement` ✗ — the implementations behind the documented marker traits.
+  - **Skip: interpolator plumbing.** `CssStringContext` ✗, `HtmlStringContext` ✗, `JsStringContext` ✗, `SelectorStringContext` ✗, `TemplateInterpolators` ✗, `InterpolatorRuntime` ✗, `HtmlElements` ✗, `DomModifierConversions` ✗, `LowPriorityToJs` ✗, `JsValue` ✗. These match the naming patterns in *Deliberately Undocumented*; the interpolator syntax is documented, its machinery should not be.
   - [ ] Add an ADT reference section naming the selector, colour, and modifier types behind the DSL
 - **`datastar`** (28 unexplained) — same shape: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
   - [ ] Expand `datastar.md` — each SSE event type needs a worked example; add an attribute-DSL type reference
@@ -395,7 +401,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 
 | Rank | Module | absent / public | cov | Why |
 | ---- | ------ | --------------- | ---- | --- |
-| 1 | `html` | 45 / 110 | **35%** | The typed content model is entirely unnamed, and the module is still growing |
+| 1 | `html` | 40 / 110 | **38%** | Selector and modifier ADTs unnamed, and the Scala 2 argument encoding is undocumented |
 | 2 | `maybe` | 6 / 10 | 40% | Small surface, but more than half of it unnamed |
 | 3 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
 | 4 | `schema-xml` | 9 / 38 | 53% | Error types and the deriver |
@@ -441,7 +447,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 25. - [ ] Expand `datastar.md` (ratio 0.18)
 26. - [ ] Expand `async.md` (ratio 0.20) — the user-facing direct-style surface, not the CPS internals
 27. - [x] Expand `smithy.md` — **done**: ratio 0.21 → 0.34 (533 → 881 lines)
-28. - [ ] Expand `html.md` (ratio 0.24) with the ADT reference
+28. - [ ] Expand `html.md` with the Scala 2 argument encoding, the `DomModifier`/`ToDom`/`ToText` extension points, and a selector-node table — CSS values done
 
 **Tier 4 — conceptual documents**
 
