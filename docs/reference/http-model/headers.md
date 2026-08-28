@@ -198,7 +198,7 @@ Header.AcceptEncoding.parse("!!!")
 ```
 
 :::warning[`AcceptEncoding` falls back to `GZip` on unknown values]
-`Header.AcceptEncoding` matches a fixed set of encoding names and returns `GZip` for anything it does not recognize, rather than reporting a parse failure. A request with `accept-encoding: bogus` — or a typo like `identityy` — reads as if the client asked for gzip. Its `parse` fails only on an empty value, so a server choosing a response encoding from this header should compare against `Header.AcceptEncoding.render` output or read the raw value instead.
+`Header.AcceptEncoding` matches a fixed set of encoding names and returns `GZip` for anything it does not recognize, rather than reporting a parse failure. A request with `accept-encoding: bogus` — or a typo like `identityy` — reads as if the client asked for gzip. `Header.AcceptEncoding.parse` rejects only values with no non-empty comma-separated part, so almost any string succeeds. A server choosing a response encoding from this header should read the raw value instead of trusting the parsed variant. Tracked as [zio/zio-blocks#1618](https://github.com/zio/zio-blocks/issues/1618).
 :::
 
 ### `Headers#getLast` — last parseable match
