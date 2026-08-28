@@ -205,7 +205,17 @@ const sidebars = {
           "reference/html",
           "reference/smithy",
           "reference/openapi",
-          "reference/datastar",
+         {
+           type: "category",
+           label: "Datastar",
+           link: { type: "doc", id: "reference/datastar/index" },
+           items: [
+             "reference/datastar/signals",
+             "reference/datastar/attributes",
+             "reference/datastar/events",
+             "reference/datastar/sse",
+           ]
+         },
           {
             type: "category",
             label: "HTMX",
