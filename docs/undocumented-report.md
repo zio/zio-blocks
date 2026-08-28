@@ -151,7 +151,7 @@ Three behaviours the source made non-obvious, now stated with worked output:
 
 Writing the catalog also surfaced a genuine defect, documented in a warning admonition and worth fixing in the source:
 
-- [ ] `Header.AcceptEncoding.parseSingle` ends with `case _ => GZip(weight)` (`Header.scala:1252`), so any unrecognized encoding name silently parses as `GZip` — `accept-encoding: bogus` reads as a gzip request. Its `parse` fails only on an empty value. The sibling ADTs handle the same situation correctly: `Authorization` has an `Unparsed` case and `Connection` has `Other`. `AcceptEncoding` should either gain an equivalent case or return `Left`.
+- [ ] `Header.AcceptEncoding.parseSingle` ends with `case _ => GZip(weight)` (`Header.scala:1250`), so any unrecognized encoding name silently parses as `GZip` — `accept-encoding: bogus` reads as a gzip request. `Header.AcceptEncoding.parse` rejects only values with no non-empty comma-separated part, so `""`, `","`, and `"   "` are the only failing inputs. The sibling ADTs handle the same situation correctly: `Authorization` has an `Unparsed` case and `Connection` has `Other`. `AcceptEncoding` should either gain an equivalent case or return `Left`. Tracked as [zio/zio-blocks#1618](https://github.com/zio/zio-blocks/issues/1618).
 
 What remains is the report's own items 4 and 5 rather than anything new:
 
