@@ -309,7 +309,7 @@ userModel.shapes
 
 ### Service Shapes
 
-Three shapes describe an API rather than a value, and all of their cross-references are `ShapeId`s:
+`ServiceShape`, `OperationShape`, and `ResourceShape` describe an API rather than a value, and all of their cross-references are `ShapeId`s:
 
 ```scala
 final case class ServiceShape(
