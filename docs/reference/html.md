@@ -876,6 +876,84 @@ All `Css` subtypes support `.render()` for minified output and `.render(indent: 
 - `Css.Raw` — raw CSS string
 - `Css.Comment` — CSS comment
 
+### Typed Values: Lengths and Colors
+
+A `Css.Declaration` takes its value as a `String`, so nothing stops `"10pixels"` or `"#gggggg"` from reaching a stylesheet. `CssLength` and `CssColor` are the typed alternatives: each validates on construction and renders itself, so an invalid value cannot be built rather than being caught downstream.
+
+`CssLength` pairs a numeric value with a unit, and rejects units outside the CSS set — `px`, `em`, `rem`, `%`, `vh`, `vw`, `ch`, `ex`, `vmin`, `vmax`, `cm`, `mm`, `in`, `pt`, `pc`:
+
+```scala mdoc:silent
+import zio.blocks.html._
+import zio.blocks.html.CssLength._
+```
+
+The second import is what brings the numeric extension methods into scope. They live in `object CssLength` rather than the package, so `import zio.blocks.html._` alone gives you the `CssLength` constructor but not `300.px`.
+
+Writing the constructor directly works, but the extension methods on `Int` and `Double` are shorter and produce the same value:
+
+```scala mdoc
+CssLength(300.0, "px").render
+300.px.render
+1.5.rem.render
+```
+
+`CssLengthIntOps` and `CssLengthDoubleOps` provide `px`, `em`, `rem`, `pct`, `vh`, and `vw` on numeric literals. `pct` is spelled out because `%` is not a legal method name:
+
+```scala mdoc
+50.pct.render
+100.vh.render
+```
+
+A whole-number `Double` renders without its decimal point, so `2.0.em` and `2.em` produce identical CSS:
+
+```scala mdoc
+2.0.em.render
+2.em.render
+```
+
+`CssColor` is a sealed ADT with five cases, covering the notations CSS accepts:
+
+| Case                   | Constructor                       | Renders as              |
+| ---------------------- | --------------------------------- | ----------------------- |
+| `CssColor.Hex`         | `Hex(value)` / `Hex.unsafe(value)` | `#ff0000`               |
+| `CssColor.Rgb`         | `Rgb(r, g, b)`                     | `rgb(255,0,0)`          |
+| `CssColor.Rgba`        | `Rgba(r, g, b, a)`                 | `rgba(255,0,0,0.5)`     |
+| `CssColor.Hsl`         | `Hsl(h, s, l)`                     | `hsl(0,100%,50%)`       |
+| `CssColor.Named`       | `Named(name)`                      | `red`                   |
+
+The numeric cases are plain case classes, so they need no validation step:
+
+```scala mdoc
+CssColor.Rgb(255, 0, 0).render
+CssColor.Rgba(255, 0, 0, 0.5).render
+CssColor.Hsl(0, 100, 50).render
+```
+
+`Hsl` renders its saturation and lightness with percent signs while taking them as bare `Int`s, so pass `100` rather than `1.0` for full saturation.
+
+`CssColor.Hex` and `CssColor.Named` are the two validated cases, and both return an `Option` from `CssColor.Hex.apply` rather than throwing:
+
+```scala mdoc
+CssColor.Hex("ff0000")
+CssColor.Hex("gggggg")
+```
+
+A leading `#` is optional and the value is lowercased, so the same colour written four ways yields one representation:
+
+```scala mdoc
+CssColor.Hex("#FF0000").map(_.render)
+```
+
+`CssColor.Hex.unsafe` skips validation for literals you know are well-formed. It returns a `CssColor` directly rather than an `Option`, which is what makes it convenient inside an interpolator — and what makes it unsuitable for anything user-supplied:
+
+```scala mdoc
+CssColor.Hex.unsafe("ff0000").render
+```
+
+:::warning[`unsafe` renders whatever it is given]
+`CssColor.Hex.unsafe` performs no checking, so `Hex.unsafe("not-a-color")` renders as `#not-a-color` and produces a stylesheet the browser silently ignores. Use it only for compile-time literals; route anything dynamic through `CssColor.Hex.apply` and handle the `None`.
+:::
+
 ### Declarations and Rules
 
 A `Css.Declaration` is a property-value pair:
