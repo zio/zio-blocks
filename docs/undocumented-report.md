@@ -28,15 +28,15 @@ Every figure in this revision, including those four, is restated under the priva
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
 | — of which public | 1,811 |
 | — of which private or nested in a private scope | 864 |
-| Public types never named anywhere in `docs/` | **347** |
-| Public types with no prose or heading reference | **669** |
-| Name-mention coverage | **81%** |
-| Explained-type coverage | **63%** |
+| Public types never named anywhere in `docs/` | **331** |
+| Public types with no prose or heading reference | **643** |
+| Name-mention coverage | **82%** |
+| Explained-type coverage | **64%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 347 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 669 types — additionally captures the 322 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 331 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 643 types — additionally captures the 312 types that appear only as tokens inside examples and are never explained.
 
 Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
@@ -50,7 +50,6 @@ This report file is excluded from the scan, so listing a type here does not make
 
 | Module | public | internal | absent | unexpl | cov | srcLOC | docLOC | ratio |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| **smithy** | 42 | 4 | 16 | 32 | **24%** | 2,585 | 533 | 0.21 |
 | mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
 | **html** | 100 | 13 | 46 | 68 | **32%** | 4,966 | 1,139 | 0.23 |
 | maybe | 10 | 0 | 6 | 6 | 40% | 595 | 943 | 1.58 |
@@ -71,6 +70,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | config (+ `-yaml`/`-json`/`-hocon`) | 82 | 25 | 7 | 24 | 71% | 3,914 | 2,212 | 0.57 |
 | chunk | 20 | 35 | 2 | 5 | 75% | 5,069 | 3,140 | 0.62 |
 | htmx | 88 | 2 | 6 | 20 | 77% | 1,548 | 2,750 | 1.78 |
+| smithy | 42 | 4 | 0 | 4 | 90% | 2,585 | 882 | 0.34 |
 | datastar | 57 | 11 | 0 | 1 | **98%** | 1,881 | 1,196 | 0.64 |
 | markdown | 46 | 3 | 3 | 10 | 78% | 2,596 | 1,539 | 0.59 |
 | schema-toon | 25 | 14 | 1 | 4 | 84% | 4,690 | 1,050 | 0.22 |
@@ -274,15 +274,23 @@ Actions:
 
 - [x] Write `reference/htmx/response-headers.md` — **done**: 229 lines, mdoc-verified, wired into `sidebars.js` and cross-linked from `reference/htmx/index.md`
 
-### 9. `smithy` — 32 unexplained types, mostly the shape catalog
+### 9. `smithy` — RESOLVED
 
-`smithy.md` covers parsing, querying, and building, but the shape ADT is incomplete. Absent: `BlobShape` ✗, `DocumentShape` ✗, `TimestampShape` ✗, `EnumShape` ✗, `EnumMember` ✗, `IntEnumShape` ✗, `IntEnumMember` ✗, `ResourceShape` ✗, `ShapeRef` ✗, `ByteShape` ✗, `ShortShape` ✗, `LongShape` ✗, `FloatShape` ✗, `DoubleShape` ✗, `BigIntegerShape` ✗, `BigDecimalShape` ✗. Unexplained but present in examples: `StringShape`, `StructureShape`, `ListShape`, `MapShape`, `UnionShape`, `OperationShape`, `ServiceShape`, `BooleanShape`, `IntegerShape`, `ShapeDefinition`, `ShapeId`, `MemberDefinition`, `NodeValue`, `ApplyStatement`, `SmithyModel`.
+`smithy.md` covered parsing, querying, building, and serializing, but its *Core Types* tree elided the shape ADT with "StringShape, BooleanShape, IntegerShape, etc." and "... (and other shape subtypes)". 16 of 42 public types were absent, and the module had the lowest coverage in the repository at 24%.
 
-Actions:
+A `## Shape Catalog` section (348 lines, mdoc-verified) now covers all 20 `Shape` subtypes in the four families the source organizes them into: 13 simple shapes with a table of IDL keywords, `EnumShape`/`IntEnumShape` with their member types, the four aggregate shapes and the `MemberDefinition` they share, and the three service shapes including a field table for `ResourceShape`'s identifiers and five lifecycle operations. `ShapeRef`, `ShapeId`, `ShapeId.Member`, and reference resolution get their own subsections. The module is now at **90% with no absent types**.
 
-- [ ] Complete the shape catalog in the *Core Types* section — every `ShapeDefinition` subtype, in prose not just examples
-- [ ] Document `EnumShape` / `IntEnumShape` and their member types
-- [ ] Document `ResourceShape` and `ShapeRef` resolution
+The catalog uses evaluated `mdoc` blocks rather than the page's `compile-only` style, which surfaced two behaviours worth knowing and neither previously documented:
+
+- **Parsed references carry an empty namespace.** An IDL target written without a namespace prefix becomes `ShapeId(namespace = "", name = "TagList")` — not the model's namespace, and not `smithy.api`. This holds for structure members, list/map members, resource identifiers, and lifecycle operations alike. Trait identifiers are the exception and do arrive qualified as `smithy.api`. This is why `SmithyModel#findShape` matches on name alone, and why comparing `ShapeId#namespace` on a parsed reference tells you nothing.
+- **A parsed `ShapeId` need not round-trip through `ShapeId.parse`.** `ShapeId("", "String").toString` renders `"#String"`, which `ShapeId.parse` then rejects with "ShapeId namespace cannot be empty".
+
+Also documented: `ListShape` and `MapShape` declare their defaulted `traits` parameter *before* their undefaulted `member`/`key`/`value` parameters, so only named-argument construction compiles.
+
+Remaining: 4 unexplained types, none absent. Two are measurement artifacts rather than gaps — `SmithyModel` and `ShapeId.Member` are discussed throughout, but always in qualified form (`SmithyModel.parse`, `ShapeId.Member`), which the bare-name match does not see. The other two are real, small, and belong to the metadata surface rather than the shape ADT:
+
+- [ ] `NodeValue` — the metadata value ADT, named in the *Core Types* tree and used in examples but never explained
+- [ ] `ApplyStatement` — appears in the `SmithyModel` signature with no accompanying prose
 
 ### 10. `streams` — the I/O adapter surface
 
@@ -387,13 +395,16 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 
 | Rank | Module | absent / public | cov | Why |
 | ---- | ------ | --------------- | ---- | --- |
-| 1 | `smithy` | 16 / 42 | **24%** | Shape catalog incomplete; one page, one table |
-| 2 | `html` | 46 / 100 | **32%** | The typed content model from #1536 is entirely unnamed, and the gap is growing |
+| 1 | `html` | 45 / 110 | **35%** | The typed content model is entirely unnamed, and the module is still growing |
+| 2 | `maybe` | 6 / 10 | 40% | Small surface, but more than half of it unnamed |
 | 3 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
-| 4 | `schema` | 156 / 466 | 55% | Largest absolute, but six separable subsystems remain |
-| 5 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
+| 4 | `schema-xml` | 9 / 38 | 53% | Error types and the deriver |
+| 5 | `schema` | 156 / 466 | 56% | Largest absolute, but six separable subsystems remain |
+| 6 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
 
-`streams` and `async` drop out entirely once internal declarations are excluded, and `maybe` was never a real gap. `htmx` and `datastar` have both left the list — #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
+`smithy` has left the list — the shape catalog took it from 24% to 86% with no absent types. `streams` and `async` drop out entirely once internal declarations are excluded. `htmx` and `datastar` left earlier: #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
+
+`html` grew from 100 public types to 110 between revisions while its documentation did not, which is the one row where waiting makes the work larger.
 
 **Tier 1 — new pages for missing subsystems**
 
@@ -416,7 +427,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 14. - [ ] Derivation overrides (`type-class-derivation.md`)
 15. - [x] Codec layer — **done**: `http-model/schema-codecs.md`, 463 lines, mdoc-verified; it is a parallel whole-value API rather than machinery under the extension classes
 16. - [ ] `Alternator` / `CanCombine` type-level rules (`endpoint/`)
-17. - [ ] Complete the Smithy shape catalog (`smithy.md`)
+17. - [x] Complete the Smithy shape catalog (`smithy.md`) — **done**: `## Shape Catalog`, 348 lines, mdoc-verified; module went from 24% to 90% with no absent types
 18. - [ ] `SpanEvent` / `SpanLink` / `SamplingDecision` / data points (`telemetry/`)
 19. - [ ] NIO readers and writers (`streams/reader.md`, `streams/writer.md`)
 20. - [ ] `Member` ADT and owner segments (`typeid.md`)
@@ -429,7 +440,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 
 25. - [ ] Expand `datastar.md` (ratio 0.18)
 26. - [ ] Expand `async.md` (ratio 0.20) — the user-facing direct-style surface, not the CPS internals
-27. - [ ] Expand `smithy.md` (ratio 0.21)
+27. - [x] Expand `smithy.md` — **done**: ratio 0.21 → 0.34 (533 → 881 lines)
 28. - [ ] Expand `html.md` (ratio 0.24) with the ADT reference
 
 **Tier 4 — conceptual documents**
