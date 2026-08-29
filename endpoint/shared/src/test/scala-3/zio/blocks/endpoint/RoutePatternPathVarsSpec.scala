@@ -19,6 +19,7 @@ package zio.blocks.endpoint
 import zio.blocks.endpoint.RoutePattern._
 import zio.http.Method
 import zio.test._
+import scala.language.implicitConversions
 
 object RoutePatternPathVarsSpec extends ZIOSpecDefault {
 

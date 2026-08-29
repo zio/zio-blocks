@@ -123,3 +123,19 @@ Removed duplicate `Compile/Test unmanagedSourceDirectories` wiring for `endpoint
 - `sbt scalafmtAll` reformatted 1 source
 - `sbt ++3.8.3 endpointJVM/test` 169 tests passed (was 151)
 - LSP diagnostics clean
+
+## 2026-08-29 - Fix -Werror implicitConversion warning (PR 1614 CI failure)
+
+### Problem
+`given Conversion[String, PathCodec[Unit]]` in `EndpointGroupSyntax.scala` triggers `given_Conversion_String_PathCodec` implicit conversion warnings in test files that use string literals with PathCodec `/` operator. CI failed with `-Werror` on Scala 3.8.3.
+
+### Root cause
+`import scala.language.implicitConversions` is required **per compilation unit**. `EndpointGroupSyntax.scala` (definition site) and `EndpointGroupSpec.scala` (scala-3.7) already had the import, but `RoutePatternPathVarsSpec.scala` (scala-3/) was missing it. Scala 3.8 requires each file that *uses* an implicit conversion to have the language import locally — it does NOT inherit from the definition site.
+
+### Fix
+Added `import scala.language.implicitConversions` to `endpoint/shared/src/test/scala-3/zio/blocks/endpoint/RoutePatternPathVarsSpec.scala`.
+
+### Learnings
+- `import scala.language.implicitConversions` is per-file/per-compilation-unit, NOT transitive from the given's definition site.
+- In Scala 3.8 with `-Werror -Wunused:all`, missing language feature imports at usage sites cause CI failures even if the definition site has the import.
+- Always grep ALL test files under `scala-3/` and `scala-3.7/` for `import scala.language` when adding `given Conversion` definitions.
