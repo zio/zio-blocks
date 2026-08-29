@@ -16,6 +16,8 @@
 
 package zio.blocks.endpoint
 
+import scala.language.implicitConversions
+
 /**
  * Defines a group of HTTP endpoints in a single block and returns them as a
  * statically-typed [[scala.NamedTuple]].
@@ -38,8 +40,61 @@ package zio.blocks.endpoint
  *   a `NamedTuple[Names, Values]` pairing each declared name with its
  *   fully-typed `Endpoint`
  * @note
- *   Scala 3.7+ only (named tuples); group operators require
- *   `import zio.blocks.endpoint.BulkDsl.*`
+ *   Scala 3.7+ only (named tuples); prefix grouping (`"api" / endpoints { ...
+ *   }` or `PathCodec.int("id") / endpoints { ... }`) is available via
+ *   `import zio.blocks.endpoint.*` (no extra import required).
  */
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
+
+/**
+ * Auto-convert a constant String prefix to a literal `PathCodec[Unit]` so that
+ * `"api" / endpoints { ... }` goes through the `PathCodec` `/` extension.
+ * Available via `import zio.blocks.endpoint.*`.
+ */
+given Conversion[String, PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }] with {
+  def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
+    PathCodec.literal(value)
+}
+
+extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) {
+
+  /**
+   * Prefix a bulk group with a capturing path codec — named alias for `/`.
+   *
+   * @param nt
+   *   the `endpoints { ... }` group
+   * @return
+   *   the same group with `codec`'s segment prepended to every leaf; static
+   *   `PathInput` is widened positionally (e.g. `Int` prefix + `Int` child
+   *   yields `(Int, Int)`)
+   */
+  transparent inline def nest[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
+    ${ EndpointGroupMacro.prefixGroupCodec('codec, 'nt) }
+
+  /** Symbolic alias for [[nest]] — `codec / endpoints { ... }`. */
+  transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
+    nest(nt)
+
+  /**
+   * Delegate for ordinary `PathCodec` composition. When
+   * `import zio.blocks.endpoint.*` brings the grouping `/` into lexical scope,
+   * it would otherwise shadow `PathCodec.PathCodecOps./` and break
+   * `PathCodec.int("a") / PathCodec.int("b")`. Providing the same operator here
+   * preserves that composition byte-for-byte.
+   */
+  def concat[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
+    combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
+    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
+  ): PathCodec[C] { type PathVars = PVC } = {
+    val _ = _pathVarsCombiner
+    PathCodec.combineUnrefined(codec, that)(combiner).asInstanceOf[PathCodec[C] { type PathVars = PVC }]
+  }
+
+  /** Symbolic alias for [[concat]] — `codec / codec`. */
+  def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
+    combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
+    _pathVarsCombiner: PathCodec.PathVarsCombiner[PV, PV2, PVC]
+  ): PathCodec[C] { type PathVars = PVC } =
+    concat(that)(combiner, _pathVarsCombiner)
+}

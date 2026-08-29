@@ -17,7 +17,6 @@
 package zio.blocks.endpoint
 
 import zio.blocks.endpoint.*
-import zio.blocks.endpoint.BulkDsl.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import zio.test.*

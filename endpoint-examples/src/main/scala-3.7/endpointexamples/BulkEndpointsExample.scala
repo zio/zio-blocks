@@ -16,8 +16,7 @@
 
 package endpointexamples
 
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import scala.language.implicitConversions

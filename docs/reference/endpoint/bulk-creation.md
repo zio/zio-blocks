@@ -5,15 +5,14 @@ title: "Bulk Endpoint Creation"
 
 ## Bulk endpoint creation with `endpoints { ... }`
 
-The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is opt-in: import `zio.blocks.endpoint.BulkDsl.*` so upstream `/` operators stay unshadowed.
+The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed.
 
-String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `BulkDsl` — there is no String-specific `/` operator; both constant and capturing prefixes go through the single `PathCodec` `/` extension.
+String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `zio.blocks.endpoint.*` — there is no String-specific `/` operator; both constant and capturing prefixes go through the single `PathCodec` `/` extension.
 
 > **Inline-only:** prefix grouping (`prefix / endpoints { ... }`) requires an inline `endpoints { ... }` block. Binding the group to a value first (`val g = endpoints { ... }; "api" / g`) is not supported — the macro must see the block literal to compose prefixes.
 
 ```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
@@ -26,8 +25,7 @@ val api = "api" / endpoints {
 Member access is static (zero runtime cost):
 
 ```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
@@ -50,8 +48,7 @@ Auto-naming follows `RoutePattern.render` exactly:
 Constant-prefix nesting bakes the prefix into each child's `RoutePattern` at the description level; grouping nodes have no path themselves:
 
 ```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
@@ -66,8 +63,7 @@ val u = nested.v1.users // route.render == "GET /api/v1/users"
 Path-variable prefixes are implemented the same way. A capturing prefix contributes its segment to every child's path, while children keep their relative auto-names:
 
 ```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
@@ -83,8 +79,7 @@ val delOrder = byId.`DELETE /orders`
 Both children carry the captured segment: `byId.get.route.render == "GET /{id}/orders"` and the auto-named member renders `"DELETE /{id}/orders"`. Static types are preserved — `byId.get` is an `Endpoint[Int, Unit, Unit, Unit, AuthType.None.type]`, so the captured `id` will be delivered to handlers when routes are created on the zio-http side. A child with its own path variables composes positionally: under `int("id")`, `Endpoint(Method.GET / "orders" / PathCodec.int("orderId"))` renders as `GET /{id}/orders/{orderId}` and carries `(Int, Int)`:
 
 ```scala mdoc:compile-only
-import zio.blocks.endpoint._
-import zio.blocks.endpoint.BulkDsl._
+import zio.blocks.endpoint.*
 import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 
