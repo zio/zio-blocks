@@ -7,6 +7,10 @@ title: "Bulk Endpoint Creation"
 
 The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is opt-in: import `zio.blocks.endpoint.BulkDsl.*` so upstream `/` operators stay unshadowed.
 
+String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `BulkDsl` — there is no String-specific `/` operator; both constant and capturing prefixes go through the single `PathCodec` `/` extension.
+
+> **Inline-only:** prefix grouping (`prefix / endpoints { ... }`) requires an inline `endpoints { ... }` block. Binding the group to a value first (`val g = endpoints { ... }; "api" / g`) is not supported — the macro must see the block literal to compose prefixes.
+
 ```scala mdoc:compile-only
 import zio.blocks.endpoint._
 import zio.blocks.endpoint.BulkDsl._

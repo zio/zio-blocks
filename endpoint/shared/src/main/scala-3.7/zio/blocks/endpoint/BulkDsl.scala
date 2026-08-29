@@ -15,15 +15,16 @@
  */
 
 package zio.blocks.endpoint
-import zio.blocks.endpoint.PathCodec
+import scala.language.implicitConversions
 
 /**
- * Opt-in grouping DSL for bulk endpoint creation: `String`/`PathCodec` prefixes
- * combined with `endpoints { ... }` blocks via `/`.
+ * Opt-in grouping DSL for bulk endpoint creation: `PathCodec` prefixes combined
+ * with `endpoints { ... }` blocks via `/`.
  *
- * These operators live in a dedicated object (not the package scope) so they
- * never lexically shadow upstream's own `/` operators (`PathCodecOps./`,
- * `RoutePatternOps./`, ...). Import them explicitly:
+ * String prefixes work via an implicit `Conversion[String, PathCodec[Unit]]`
+ * provided here, so `"api" / endpoints { ... }` resolves through the
+ * `PathCodec` extension (no String-specific operator). Import the DSL
+ * explicitly:
  * {{{
  * import zio.blocks.endpoint.BulkDsl.*
  *
@@ -34,27 +35,25 @@ import zio.blocks.endpoint.PathCodec
  *   val orders = Endpoint(Method.GET / "orders")
  * }
  * }}}
+ *
+ * Prefix grouping requires an inline `endpoints { ... }` block (`val g =
+ * endpoints { ... }; "api" / g` is not supported — the macro must see the block
+ * literal). Nested `"v1" / endpoints { ... }` statements inside a block are
+ * lifted to named members automatically.
  */
 object BulkDsl {
-  extension (prefix: String) {
 
-    /**
-     * Prefix a bulk group with a constant path segment — named alias for `/`.
-     *
-     * @param nt
-     *   the `endpoints { ... }` group (a `NamedTuple` of endpoints / nested
-     *   groups)
-     * @return
-     *   the same group with `prefix` composed into every leaf `RoutePattern` at
-     *   the description level
-     */
-    transparent inline def nest[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
-      ${ EndpointGroupMacro.prefixGroupCodec('{ PathCodec.literal(prefix) }, 'nt) }
-
-    /** Symbolic alias for [[nest]] — `prefix / endpoints { ... }`. */
-    transparent inline def /[N <: Tuple, V <: Tuple](inline nt: NamedTuple.NamedTuple[N, V]): Any =
-      nest(nt)
+  /**
+   * Auto-convert a constant String prefix to a literal `PathCodec[Unit]` so
+   * that `"api" / endpoints { ... }` goes through the `PathCodec` `/`
+   * extension. Available when `import zio.blocks.endpoint.BulkDsl.*` is in
+   * scope.
+   */
+  given Conversion[String, PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }] with {
+    def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
+      PathCodec.literal(value)
   }
+
   extension [A](codec: PathCodec[A]) {
 
     /**
@@ -111,7 +110,9 @@ object BulkDsl {
     def /[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
       combiner: zio.blocks.combinators.Tuples.Tuples.WithOut[A, B, C],
       _pathVarsCombiner: PathCodec.RoutePathVarsCombiner[PV, PV2, PVC]
-    ): RoutePattern[C] { type PathVars = PVC } =
-      concat(that)
+    ): RoutePattern[C] { type PathVars = PVC } = {
+      val _ = _pathVarsCombiner
+      concat(that)(combiner, _pathVarsCombiner)
+    }
   }
 }
