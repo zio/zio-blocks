@@ -58,88 +58,96 @@ object RepoUpsertSpec extends ZIOSpecDefault {
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
-      override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
-        given con: DbCon = new DbCon {
-          val connection: DbConnection = dbConn
-          val dialect: SqlDialect      = SqlDialect.SQLite
-          val logger: SqlLogger        = SqlLogger.noop
+    try {
+      val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+        override def connect[B](f: DbCon ?=> B): B = {
+          val dbConn       = new JdbcConnection(conn)
+          given con: DbCon = new DbCon {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
+          }
+          f
         }
-        f
       }
-    }
-    tx.connect {
-      Frag
-        .literal("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)")
-        .update
-    }
-    f(tx)
+      tx.connect {
+        Frag
+          .literal("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)")
+          .update
+      }
+      f(tx)
+    } finally conn.close()
   }
 
   private def withFreshDbAndLogger[A](f: (JdbcTransactor, CapturingLogger) => A): A = {
     val conn       = DriverManager.getConnection("jdbc:sqlite::memory:")
     val testLogger = new CapturingLogger
-    val tx         = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
-      override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
-        given con: DbCon = new DbCon {
-          val connection: DbConnection = dbConn
-          val dialect: SqlDialect      = SqlDialect.SQLite
-          val logger: SqlLogger        = testLogger
+    try {
+      val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+        override def connect[B](f: DbCon ?=> B): B = {
+          val dbConn       = new JdbcConnection(conn)
+          given con: DbCon = new DbCon {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = testLogger
+          }
+          f
         }
-        f
       }
-    }
-    tx.connect {
-      Frag
-        .literal("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)")
-        .update
-    }
-    testLogger.clear()
-    f(tx, testLogger)
+      tx.connect {
+        Frag
+          .literal("CREATE TABLE IF NOT EXISTS user (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL)")
+          .update
+      }
+      testLogger.clear()
+      f(tx, testLogger)
+    } finally conn.close()
   }
 
   private def withUniqueDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
-      override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
-        given con: DbCon = new DbCon {
-          val connection: DbConnection = dbConn
-          val dialect: SqlDialect      = SqlDialect.SQLite
-          val logger: SqlLogger        = SqlLogger.noop
+    try {
+      val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+        override def connect[B](f: DbCon ?=> B): B = {
+          val dbConn       = new JdbcConnection(conn)
+          given con: DbCon = new DbCon {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
+          }
+          f
         }
-        f
       }
-    }
-    tx.connect {
-      Frag
-        .literal(
-          "CREATE TABLE IF NOT EXISTS user_unique (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE)"
-        )
-        .update
-    }
-    f(tx)
+      tx.connect {
+        Frag
+          .literal(
+            "CREATE TABLE IF NOT EXISTS user_unique (id INTEGER PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE)"
+          )
+          .update
+      }
+      f(tx)
+    } finally conn.close()
   }
 
   private def withOnlyIdDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
-      override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
-        given con: DbCon = new DbCon {
-          val connection: DbConnection = dbConn
-          val dialect: SqlDialect      = SqlDialect.SQLite
-          val logger: SqlLogger        = SqlLogger.noop
+    try {
+      val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+        override def connect[B](f: DbCon ?=> B): B = {
+          val dbConn       = new JdbcConnection(conn)
+          given con: DbCon = new DbCon {
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
+          }
+          f
         }
-        f
       }
-    }
-    tx.connect {
-      Frag.literal("CREATE TABLE IF NOT EXISTS only_id (id INTEGER PRIMARY KEY)").update
-    }
-    f(tx)
+      tx.connect {
+        Frag.literal("CREATE TABLE IF NOT EXISTS only_id (id INTEGER PRIMARY KEY)").update
+      }
+      f(tx)
+    } finally conn.close()
   }
 
   private class CapturingLogger extends SqlLogger {

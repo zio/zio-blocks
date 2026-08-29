@@ -28,27 +28,29 @@ object RepoKeysetSpec extends ZIOSpecDefault {
     implicit val schema: Schema[User] = Schema.derived
   }
 
-  private val userTable = Table.derived[User]
-  private given DbCodec[User] = User.schema.deriving(DbCodecDeriver).derive
-  private given DbCodec[Int] = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
+  private val userTable              = Table.derived[User]
+  private given DbCodec[User]        = User.schema.deriving(DbCodecDeriver).derive
+  private given DbCodec[Int]         = implicitly[Schema[Int]].deriving(DbCodecDeriver).derive
   private val intCodec: DbCodec[Int] = summon[DbCodec[Int]]
-  private val userRepo = Repo(userTable, "id", intCodec, (_: User).id)
+  private val userRepo               = Repo(userTable, "id", intCodec, (_: User).id)
 
   private def withFreshDb[A](f: JdbcTransactor => A): A = {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
-    val tx = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
+    val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
       override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn = new JdbcConnection(conn)
+        val dbConn       = new JdbcConnection(conn)
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
-          val dialect: SqlDialect = SqlDialect.SQLite
-          val logger: SqlLogger = SqlLogger.noop
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
         }
         f
       }
     }
     tx.connect {
-      Frag.literal("CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)").update
+      Frag
+        .literal("CREATE TABLE IF NOT EXISTS user (id INTEGER NOT NULL, name TEXT NOT NULL, email TEXT NOT NULL)")
+        .update
     }
     try f(tx)
     finally conn.close()
@@ -61,7 +63,7 @@ object RepoKeysetSpec extends ZIOSpecDefault {
           tx.connect {
             (1 to 5).foreach(i => userRepo.insert(User(i, s"u$i", s"u$i@test.com")))
             val lastId = 5
-            val page = userRepo.pageAfter(lastId, 10)
+            val page   = userRepo.pageAfter(lastId, 10)
             assertTrue(page.isEmpty)
           }
         }
@@ -86,9 +88,9 @@ object RepoKeysetSpec extends ZIOSpecDefault {
         withFreshDb { tx =>
           tx.connect {
             (1 to 100).foreach(i => userRepo.insert(User(i, s"user$i", s"user$i@example.com")))
-            var cursor = 0
-            var seen = List.empty[Int]
-            var pages = 0
+            var cursor   = 0
+            var seen     = List.empty[Int]
+            var pages    = 0
             var continue = true
             while (continue) {
               val page = userRepo.pageAfter(cursor, 7)

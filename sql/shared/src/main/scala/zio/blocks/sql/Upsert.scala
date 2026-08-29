@@ -170,15 +170,25 @@ object Upsert {
   /**
    * `INSERT ... ON CONFLICT ("conflict") DO NOTHING` for an entity.
    *
-   * Conflict column defaults to the first column when not supplied.
+   * Builds
+   * `INSERT INTO table (cols) VALUES (?, ...) ON CONFLICT ("conflict") DO NOTHING`.
+   * The table name is validated via [[SqlIdentifier.validate]] and the conflict
+   * column is validated as an identifier and checked for membership in
+   * `table.columns`.
+   *
+   * @param table
+   *   validated via [[Table]]; its name via [[SqlIdentifier.validate]] and its
+   *   columns used for conflict validation
+   * @param entity
+   *   entity whose values are obtained via `table.codec.toDbValues`
+   * @param conflictColumn
+   *   validated identifier that must be present in `table.columns`
+   * @return
+   *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ("conflict") DO NOTHING`
+   * @throws IllegalArgumentException
+   *   if `conflictColumn` is not a valid identifier or is not found in
+   *   `table.columns`
    */
-  def insertDoNothing[A](table: Table[A], entity: A): Frag = {
-    val conflict = table.columns.headOption.getOrElse(
-      throw new IllegalArgumentException(s"Table '${table.name}' has no columns")
-    )
-    insertDoNothing(table, entity, conflict)
-  }
-
   def insertDoNothing[A](table: Table[A], entity: A, conflictColumn: String): Frag = {
     val t        = validatedTableName(table)
     val conflict = validatedConflictInTable(table, conflictColumn)
@@ -191,17 +201,24 @@ object Upsert {
   /**
    * `INSERT ... ON CONFLICT ("conflict") DO UPDATE SET ...` for an entity.
    *
-   * When `updateColumns` is empty the builder updates every column except the
-   * conflict column. Caller-supplied columns are validated against
-   * `Table.columns`.
+   * Updates all columns except the conflict column. The conflict column is
+   * validated via [[SqlIdentifier.validate]] and must exist in `table.columns`.
+   * The update set is derived as `table.columns.filter(_ != conflict)` and
+   * validated against `Table.columns`.
+   *
+   * @param table
+   *   validated via [[Table]]; name validated via [[SqlIdentifier.validate]]
+   * @param entity
+   *   entity serialized via `table.codec.toDbValues`
+   * @param conflictColumn
+   *   validated identifier that must be present in `table.columns`
+   * @return
+   *   a [[Frag]] with `ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...`
+   *   where cols are all table columns except the conflict column
+   * @throws IllegalArgumentException
+   *   if `conflictColumn` is invalid or not in `table.columns`, or if the table
+   *   has only the conflict column (no assignable columns to update)
    */
-  def insertDoUpdate[A](table: Table[A], entity: A): Frag = {
-    val conflict = table.columns.headOption.getOrElse(
-      throw new IllegalArgumentException(s"Table '${table.name}' has no columns")
-    )
-    insertDoUpdate(table, entity, conflict)
-  }
-
   def insertDoUpdate[A](table: Table[A], entity: A, conflictColumn: String): Frag = {
     val conflict   = validatedConflictInTable(table, conflictColumn)
     val updateCols = table.columns.filter(_ != conflict)
@@ -212,6 +229,30 @@ object Upsert {
     insertDoUpdate(table, entity, conflict, updateCols)
   }
 
+  /**
+   * `INSERT ... ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...` for an
+   * entity with explicit update columns.
+   *
+   * All identifiers are validated via [[SqlIdentifier.validate]]. The conflict
+   * column and each `updateColumns` entry must exist in `table.columns`.
+   *
+   * @param table
+   *   validated via [[Table]]; name validated via [[SqlIdentifier.validate]]
+   * @param entity
+   *   entity serialized via `table.codec.toDbValues`
+   * @param conflictColumn
+   *   validated identifier that must be present in `table.columns`
+   * @param updateColumns
+   *   validated against `table.columns`; each entry validated as an identifier,
+   *   must exist in the table, must not contain `conflictColumn`, and must be
+   *   non-empty
+   * @return
+   *   a [[Frag]] with `ON CONFLICT ("conflict") DO UPDATE SET` for the
+   *   specified columns
+   * @throws IllegalArgumentException
+   *   if any identifier is invalid, if any column is not in `table.columns`, if
+   *   `updateColumns` contains the conflict column, or if it is empty
+   */
   def insertDoUpdate[A](
     table: Table[A],
     entity: A,

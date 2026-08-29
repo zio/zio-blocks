@@ -787,6 +787,13 @@ val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.
 Compose with a base `SELECT`:
 
 ```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+val table: Table[User] = Table.derived[User]
+
 val base     = Frag.literal("SELECT id, name, email FROM user")
 val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
 // Rendering the SQL does not require a DbCon:

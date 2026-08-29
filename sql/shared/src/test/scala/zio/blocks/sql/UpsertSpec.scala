@@ -54,8 +54,8 @@ object UpsertSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("insertDoNothing default conflict is first column") {
-        val frag = Upsert.insertDoNothing(userTable, User(2, "Bob", "bob@test.com"))
+      test("insertDoNothing with explicit conflict column") {
+        val frag = Upsert.insertDoNothing(userTable, User(2, "Bob", "bob@test.com"), "id")
         assertTrue(
           frag.sql(
             SqlDialect.PostgreSQL
@@ -137,8 +137,8 @@ object UpsertSpec extends ZIOSpecDefault {
           ) == """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?"""
         )
       },
-      test("insertDoUpdate without conflict arg defaults to first column and updates rest") {
-        val frag = Upsert.insertDoUpdate(userTable, User(1, "Alice", "alice@example.com"))
+      test("insertDoUpdate with explicit conflict and default update set") {
+        val frag = Upsert.insertDoUpdate(userTable, User(1, "Alice", "alice@example.com"), "id")
         assertTrue(
           frag.sql(SqlDialect.PostgreSQL).contains("""ON CONFLICT ("id") DO UPDATE SET"""),
           frag.sql(
