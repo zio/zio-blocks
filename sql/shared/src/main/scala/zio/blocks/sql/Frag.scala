@@ -168,6 +168,16 @@ object Frag {
    *
    * Single column only — composite cursors are intentionally unsupported (v2).
    *
+   * @param table
+   *   the table whose columns are validated against
+   * @param orderCol
+   *   the column name used for ordering
+   * @param lastValue
+   *   the last value from the previous page
+   * @param limit
+   *   maximum number of rows to return
+   * @return
+   *   a `Frag` containing the keyset pagination clause
    * @throws IllegalArgumentException
    *   if `orderCol` is not a valid identifier, not in `table.columns` (when a
    *   table is supplied), or if `limit <= 0`
@@ -191,6 +201,14 @@ object Frag {
    * Validates `orderCol` as a SQL identifier and produces
    * `WHERE <orderCol> > ? ORDER BY <orderCol> ASC LIMIT n`.
    *
+   * @param orderCol
+   *   the column name used for ordering
+   * @param lastValue
+   *   the last value from the previous page
+   * @param limit
+   *   maximum number of rows to return
+   * @return
+   *   a `Frag` containing the keyset pagination clause
    * @throws IllegalArgumentException
    *   if `orderCol` is not a valid identifier or `limit <= 0`
    */
