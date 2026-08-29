@@ -164,8 +164,10 @@ object RepoUpsertSpec extends ZIOSpecDefault {
       test("insert new via upsert inserts 1 row") {
         withFreshDb { tx =>
           tx.connect {
-            val c = userRepo.insertOrUpdate(User(1, "Alice", "alice@test.com"))
-            assertTrue(c == 1, userRepo.count == 1L, userRepo.find(1).get.name == "Alice")
+            val c     = userRepo.insertOrUpdate(User(1, "Alice", "alice@test.com"))
+            val cnt   = userRepo.count
+            val found = userRepo.find(1)
+            assertTrue(c == 1, cnt == 1L, found.get.name == "Alice")
           }
         }
       },
@@ -175,12 +177,13 @@ object RepoUpsertSpec extends ZIOSpecDefault {
             userRepo.insert(User(1, "Alice", "alice@test.com"))
             val c     = userRepo.insertOrUpdate(User(1, "Alice Updated", "new@test.com"))
             val found = userRepo.find(1)
+            val cnt   = userRepo.count
             assertTrue(
               c == 1,
               found.isDefined,
               found.get.name == "Alice Updated",
               found.get.email == "new@test.com",
-              userRepo.count == 1L
+              cnt == 1L
             )
           }
         }
@@ -191,9 +194,11 @@ object RepoUpsertSpec extends ZIOSpecDefault {
             userRepo.insertOrUpdate(User(1, "First", "first@test.com"))
             userRepo.insertOrUpdate(User(1, "Second", "second@test.com"))
             val found = userRepo.find(1)
+            val cnt   = userRepo.count
+            val all   = userRepo.all
             assertTrue(
-              userRepo.count == 1L,
-              userRepo.all.size == 1,
+              cnt == 1L,
+              all.size == 1,
               found.isDefined,
               found.get.name == "Second",
               found.get.email == "second@test.com"
@@ -204,10 +209,11 @@ object RepoUpsertSpec extends ZIOSpecDefault {
       test("insertOrUpdate new vs update both return 1") {
         withFreshDb { tx =>
           tx.connect {
-            val c1 = userRepo.insertOrUpdate(User(10, "A", "a@test.com"))
-            val c2 = userRepo.insertOrUpdate(User(10, "B", "b@test.com"))
-            val c3 = userRepo.insertOrUpdate(User(11, "C", "c@test.com"))
-            assertTrue(c1 == 1, c2 == 1, c3 == 1, userRepo.count == 2L)
+            val c1  = userRepo.insertOrUpdate(User(10, "A", "a@test.com"))
+            val c2  = userRepo.insertOrUpdate(User(10, "B", "b@test.com"))
+            val c3  = userRepo.insertOrUpdate(User(11, "C", "c@test.com"))
+            val cnt = userRepo.count
+            assertTrue(c1 == 1, c2 == 1, c3 == 1, cnt == 2L)
           }
         }
       },
@@ -217,8 +223,9 @@ object RepoUpsertSpec extends ZIOSpecDefault {
             userRepo.insert(User(1, "Alice", "a@test.com"))
             userRepo.insert(User(2, "Bob", "b@test.com"))
             userRepo.insertOrUpdate(User(1, "Alice2", "a2@test.com"))
-            val b = userRepo.find(2)
-            assertTrue(b.isDefined, b.get.name == "Bob", b.get.email == "b@test.com", userRepo.count == 2L)
+            val b   = userRepo.find(2)
+            val cnt = userRepo.count
+            assertTrue(b.isDefined, b.get.name == "Bob", b.get.email == "b@test.com", cnt == 2L)
           }
         }
       },
@@ -252,7 +259,9 @@ object RepoUpsertSpec extends ZIOSpecDefault {
                 User(3, "Charlie", "c@test.com")
               )
             )
-            assertTrue(c == 3, userRepo.count == 3L, userRepo.all.size == 3)
+            val cnt = userRepo.count
+            val all = userRepo.all
+            assertTrue(c == 3, cnt == 3L, all.size == 3)
           }
         }
       },
@@ -268,12 +277,13 @@ object RepoUpsertSpec extends ZIOSpecDefault {
                 User(2, "Bob Updated", "b2@test.com")
               )
             )
-            val a1 = userRepo.find(1)
-            val a2 = userRepo.find(2)
-            val a3 = userRepo.find(3)
+            val a1  = userRepo.find(1)
+            val a2  = userRepo.find(2)
+            val a3  = userRepo.find(3)
+            val cnt = userRepo.count
             assertTrue(
               c == 3,
-              userRepo.count == 3L,
+              cnt == 3L,
               a1.get.name == "Alice Updated",
               a1.get.email == "a2@test.com",
               a2.get.name == "Bob Updated",
@@ -285,25 +295,29 @@ object RepoUpsertSpec extends ZIOSpecDefault {
       test("batch counts correct") {
         withFreshDb { tx =>
           tx.connect {
-            val c1 = userRepo.insertOrUpdateBatch(List(User(1, "A", "a@test.com"), User(2, "B", "b@test.com")))
-            val c2 = userRepo.insertOrUpdateBatch(List(User(1, "A2", "a2@test.com"), User(3, "C", "c@test.com")))
-            assertTrue(c1 == 2, c2 == 2, userRepo.count == 3L)
+            val c1  = userRepo.insertOrUpdateBatch(List(User(1, "A", "a@test.com"), User(2, "B", "b@test.com")))
+            val c2  = userRepo.insertOrUpdateBatch(List(User(1, "A2", "a2@test.com"), User(3, "C", "c@test.com")))
+            val cnt = userRepo.count
+            assertTrue(c1 == 2, c2 == 2, cnt == 3L)
           }
         }
       },
       test("empty batch returns 0 without touching db") {
         withFreshDb { tx =>
           tx.connect {
-            val c = userRepo.insertOrUpdateBatch(List.empty[User])
-            assertTrue(c == 0, userRepo.count == 0L)
+            val c   = userRepo.insertOrUpdateBatch(List.empty[User])
+            val cnt = userRepo.count
+            assertTrue(c == 0, cnt == 0L)
           }
         }
       },
       test("single entity batch") {
         withFreshDb { tx =>
           tx.connect {
-            val c = userRepo.insertOrUpdateBatch(List(User(99, "Solo", "solo@test.com")))
-            assertTrue(c == 1, userRepo.count == 1L, userRepo.find(99).isDefined)
+            val c     = userRepo.insertOrUpdateBatch(List(User(99, "Solo", "solo@test.com")))
+            val cnt   = userRepo.count
+            val found = userRepo.find(99)
+            assertTrue(c == 1, cnt == 1L, found.isDefined)
           }
         }
       },
@@ -318,11 +332,14 @@ object RepoUpsertSpec extends ZIOSpecDefault {
                 User(2, "B2", "b2@test.com")
               )
             )
+            val f1  = userRepo.find(1)
+            val f2  = userRepo.find(2)
+            val cnt = userRepo.count
             assertTrue(
               c == 2,
-              userRepo.find(1).get.name == "A2",
-              userRepo.find(2).get.name == "B2",
-              userRepo.count == 2L
+              f1.get.name == "A2",
+              f2.get.name == "B2",
+              cnt == 2L
             )
           }
         }
@@ -332,7 +349,9 @@ object RepoUpsertSpec extends ZIOSpecDefault {
           tx.connect {
             userRepo.insertOrUpdateBatch(List(User(1, "A", "a@test.com")))
             userRepo.insertOrUpdateBatch(List(User(1, "B", "b@test.com")))
-            assertTrue(userRepo.count == 1L, userRepo.find(1).get.name == "B")
+            val cnt   = userRepo.count
+            val found = userRepo.find(1)
+            assertTrue(cnt == 1L, found.get.name == "B")
           }
         }
       }
