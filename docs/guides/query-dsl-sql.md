@@ -726,6 +726,244 @@ println(toSql(Product.price * 0.9))
 // (price * 0.9)
 ```
 
+## Upsert (ON CONFLICT)
+
+Upsert (insert-or-update) combines an `INSERT` with a conflict handler so the
+statement is idempotent. When a row with the conflicting key already exists, the
+database either skips the insert or updates specified columns.
+
+All identifiers (table name, column names, conflict column) are validated through
+`SqlIdentifier.validate` and assignment columns are additionally checked against
+`Table.columns`. Invalid or unknown names throw `IllegalArgumentException` at
+build time, not at execution time.
+
+### Table-aware builders
+
+The high-level `Upsert` builders accept a `Table[A]` and an entity. The table
+provides column names and a codec that extracts `DbValue` parameters.
+
+`Upsert.insertDoNothing` builds `INSERT ... ON CONFLICT ("id") DO NOTHING`:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val table: Table[User] = Table.derived[User]
+val user = User(42, "Alice", "alice@example.com")
+
+// INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO NOTHING
+val frag: Frag = Upsert.insertDoNothing(table, user, conflictColumn = "id")
+```
+
+`Upsert.insertDoUpdate` builds `INSERT ... ON CONFLICT ("id") DO UPDATE SET`
+for **all** non-conflict columns:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val table: Table[User] = Table.derived[User]
+val user = User(42, "Alice", "alice@example.com")
+
+// INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+//   ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
+val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id")
+```
+
+Pass `updateColumns` to restrict which columns are overwritten on conflict:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+val table: Table[User] = Table.derived[User]
+val user = User(42, "Alice", "alice@example.com")
+
+// Only "name" is updated on conflict; "email" keeps its original value
+val frag: Frag = Upsert.insertDoUpdate(table, user, conflictColumn = "id", updateColumns = Seq("name"))
+```
+
+### Low-level builders
+
+When you need full control over column names and values (e.g. computed or
+transformed data), use the low-level `Upsert.doNothing`, `Upsert.doNothingRaw`,
+and `Upsert.doUpdate` builders:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+
+// Low-level DO NOTHING with explicit columns and values
+val frag1: Frag = Upsert.doNothing(
+  tableName   = "users",
+  columns     = IndexedSeq("id", "name", "email"),
+  values      = IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Bob"), DbValue.DbString("bob@example.com")),
+  conflictColumn = "id"
+)
+
+// Comma-joined column string variant
+val frag2: Frag = Upsert.doNothingRaw(
+  tableName   = "users",
+  allColumns  = "id, name, email",
+  values      = IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Bob"), DbValue.DbString("bob@example.com")),
+  conflictColumn = "id"
+)
+
+// Low-level DO UPDATE with explicit assignments
+val frag3: Frag = Upsert.doUpdate(
+  tableName      = "users",
+  columns        = IndexedSeq("id", "name", "email"),
+  values         = IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Bob"), DbValue.DbString("bob@example.com")),
+  conflictColumn = "id",
+  assignments    = IndexedSeq("name" -> DbValue.DbString("Bob"), "email" -> DbValue.DbString("bob@example.com"))
+)
+```
+
+### Suffix builders
+
+To append an `ON CONFLICT` clause to an existing `INSERT` `Frag`, use the suffix
+builders:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+
+val base: Frag = Frag.literal("INSERT INTO users (id, name) VALUES (?, ?)")
+
+// Append DO NOTHING suffix
+val withNothing: Frag = base ++ Upsert.doNothingSuffix(conflictColumn = "id")
+
+// Append DO UPDATE suffix with explicit assignments
+val withUpdate: Frag = base ++ Upsert.doUpdateSuffix(
+  conflictColumn = "id",
+  assignments    = IndexedSeq("name" -> DbValue.DbString("updated"))
+)
+```
+
+### Repository integration
+
+`Repo` provides `insertOrUpdate` and `insertOrUpdateBatch` as convenience
+wrappers that use `Upsert.insertDoUpdate` under the hood. The conflict target is
+the repository's validated ID column, and all non-ID columns are overwritten with
+the entity's values.
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
+val table: Table[User] = Table.derived[User]
+val repo: Repo[User, Int] = ???
+
+val user = User(42, "Alice", "alice@example.com")
+
+// Single upsert
+val affected: Int = repo.insertOrUpdate(user)
+
+// Batch upsert
+val users: List[User] = List(user, User(43, "Bob", "bob@example.com"))
+val totalAffected: Int = repo.insertOrUpdateBatch(users)
+```
+
+These generate SQL like:
+
+```sql
+INSERT INTO user (id, name, email) VALUES (?, ?, ?)
+  ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?
+```
+
+`insertOrUpdateBatch` uses a JDBC batch for efficiency, mirroring the pattern of
+`insertBatch`. Both return the total affected row count.
+
+## Keyset Pagination
+
+Keyset (cursor) pagination avoids the cost and drift of `OFFSET` by seeking
+after the last seen key: `WHERE id > ? ORDER BY id ASC LIMIT n`. The row
+identified by the cursor is excluded (`>` not `>=`) so consecutive pages do
+not duplicate the boundary row.
+
+`Repo` exposes this directly for primary-key cursors:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+
+given DbCon = ???
+
+val repo: Repo[User, Int] = ??? // e.g. Repo(table, "id", idCodec, _.id)
+
+val firstPage: List[User]  = repo.pageAfter(cursorId = 0, limit = 20)
+val nextPage: List[User]   = repo.pageAfter(cursorId = firstPage.last.id, limit = 20)
+// when cursorId == last id, nextPage is empty
+```
+
+It renders as:
+
+```sql
+SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+```
+
+where `?` is bound via `idCodec.toDbValues(cursorId)`. `limit` must be `> 0`.
+
+For non-ID orderings or ad-hoc queries, `Frag.keysetAfter` builds the
+portable `WHERE col > ? ORDER BY col ASC LIMIT n` fragment without a `Repo`:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+
+case class User(id: Int, name: String, email: String)
+import zio.blocks.schema.Schema
+object User { implicit val schema: Schema[User] = Schema.derived }
+val table: Table[User] = Table.derived[User]
+
+// Table-validated: rejects unknown columns
+val frag: Frag = Frag.keysetAfter(table, orderCol = "id", lastValue = DbValue.DbInt(42), limit = 20)
+// frag.sql(dialect) == " WHERE id > ? ORDER BY id ASC LIMIT 20"
+
+// Without a table: identifier-only validation
+val frag2: Frag = Frag.keysetAfter(orderCol = "created_at", lastValue = DbValue.DbLong(1000L), limit = 10)
+```
+
+- `Frag.keysetAfter(table, orderCol, lastValue, limit)` validates `orderCol`
+  with `SqlIdentifier.validate` and checks membership in `table.columns`;
+  unknown columns throw `IllegalArgumentException`.
+- `Frag.keysetAfter(orderCol, lastValue, limit)` validates the identifier only.
+- `limit` must be `> 0`; single-column cursors only (composite cursors are v2).
+
+Compose with a base `SELECT`:
+
+```scala mdoc:compile-only
+import zio.blocks.sql.*
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String, email: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+val table: Table[User] = Table.derived[User]
+
+val base     = Frag.literal("SELECT id, name, email FROM user")
+val pageFrag = base ++ Frag.keysetAfter(table, "id", DbValue.DbInt(42), 20)
+// Rendering the SQL does not require a DbCon:
+val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM user WHERE id > ? ORDER BY id ASC LIMIT 20
+// Executing needs givens at the call site:
+// given DbCon = ???
+// given DbCodec[User] = table.codec
+// val rows: List[User] = pageFrag.query[User]
+```
+
 ## Going Further
 
 - **[Part 1: Expressions](./query-dsl-reified-optics.md)** -- Building query expressions with reified optics

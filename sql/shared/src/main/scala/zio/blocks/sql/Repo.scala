@@ -50,8 +50,11 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * final class UserRepo extends Repo[User, UserId]
    * }}}
    */
-  protected def this()(using schema: Schema[E], idSchema: Schema[ID], idCodec: DbCodec[ID]) =
-    this(Repo.derivedMetadata[E, ID])
+  protected def this()(using
+    schema: Schema[E],
+    idSchema: Schema[ID],
+    idCodec: DbCodec[ID]
+  ) = this(Repo.derivedMetadata[E, ID])
 
   /** The table this repository operates on. */
   final val table: Table[E] = metadata.table
@@ -79,12 +82,6 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
   private val allCols: String = table.columns.mkString(", ")
   private val tbl: String     = table.name
-
-  /**
-   * `Statement.SUCCESS_NO_INFO` constant (-2), kept local to de-JDBC the shared
-   * source set.
-   */
-  private val SuccessNoInfo = -2
 
   /** The entity codec, exposed for internal Frag operations. */
   private given codec: DbCodec[E] = table.codec
@@ -126,6 +123,30 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   final def count(using con: DbCon): Long = {
     val frag = Frag.literal(s"SELECT COUNT(*) FROM $tbl")
     frag.queryOne[Long](using con, DbCodec.longCodec).getOrElse(0L)
+  }
+
+  // === Pagination ===
+
+  /**
+   * Keyset pagination: returns the next `limit` rows whose primary key is
+   * strictly greater than `cursorId`, ordered by the primary key ascending.
+   *
+   * Uses `WHERE id > ? ORDER BY id ASC LIMIT n` so the cursor row itself is not
+   * repeated. When `cursorId` equals the last id the result is empty.
+   *
+   * @throws IllegalArgumentException
+   *   if `limit <= 0`
+   */
+  final def pageAfter(cursorId: ID, limit: Int)(using con: DbCon): List[E] = {
+    require(limit > 0, s"Repo.pageAfter: limit must be > 0, got $limit")
+    val frag = Frag(
+      IndexedSeq(
+        s"SELECT $allCols FROM $tbl WHERE $validatedIdColumn > ",
+        s" ORDER BY $validatedIdColumn ASC LIMIT $limit"
+      ),
+      idCodec.toDbValues(cursorId)
+    )
+    frag.query[E]
   }
 
   // === Write Operations ===
@@ -179,7 +200,68 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
         val counts = ps.executeBatch()
         val total  = counts.map { count =>
           if (count >= 0) count
-          else if (count == SuccessNoInfo) 1
+          else if (count == Repo.SuccessNoInfo) 1
+          else 0
+        }.sum
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onSuccess(SqlLogger.SuccessEvent(sqlStr, IndexedSeq.empty, duration, total))
+        total
+      } finally ps.close()
+    } catch {
+      case e: Throwable =>
+        val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
+        con.logger.onError(SqlLogger.ErrorEvent(sqlStr, IndexedSeq.empty, duration, e))
+        throw e
+    }
+  }
+
+  /**
+   * Inserts `entity` or updates it if the primary key already exists, using
+   * `ON CONFLICT (id) DO UPDATE SET ...`. All non-ID columns are overwritten
+   * with the values from `entity`.
+   *
+   * Conflict target is the repository's validated ID column. Assignment columns
+   * are `table.columns.filter(_ != validatedIdColumn)`.
+   *
+   * @return
+   *   affected row count (normally 1 for both insert and update paths)
+   * @throws IllegalArgumentException
+   *   if the table has only the ID column and no non-ID columns to update
+   */
+  final def insertOrUpdate(entity: E)(using con: DbCon): Int = {
+    val frag = Upsert.insertDoUpdate(table, entity, validatedIdColumn)
+    frag.update
+  }
+
+  /**
+   * Upserts all `entities` using a JDBC batch, following the `insertBatch`
+   * pattern. Each row is inserted with `ON CONFLICT (id) DO UPDATE SET ...`
+   * where the update columns are all non-ID columns.
+   *
+   * If `entities` is empty the method returns 0 without touching the database.
+   *
+   * Batch logging mirrors `insertBatch`: rendered SQL, duration, and total
+   * affected count with empty param capture.
+   *
+   * @throws IllegalArgumentException
+   *   if the table has only the ID column (no assignment columns)
+   */
+  final def insertOrUpdateBatch(entities: Iterable[E])(using con: DbCon): Int = {
+    if (entities.isEmpty) return 0
+    val sqlStr = Upsert.insertDoUpdate(table, entities.head, validatedIdColumn).sql(con.dialect)
+    val start  = System.nanoTime()
+    try {
+      val ps = con.connection.prepareStatement(sqlStr)
+      try {
+        entities.foreach { entity =>
+          val frag = Upsert.insertDoUpdate(table, entity, validatedIdColumn)
+          Frag.writeParams(ps.paramWriter, frag.queryParams)
+          ps.addBatch()
+        }
+        val counts = ps.executeBatch()
+        val total  = counts.map { count =>
+          if (count >= 0) count
+          else if (count == Repo.SuccessNoInfo) 1
           else 0
         }.sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -265,6 +347,13 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 }
 
 object Repo {
+
+  /**
+   * Shared constant matching `java.sql.Statement.SUCCESS_NO_INFO` (-2). Defined
+   * here to avoid `java.sql` references in the shared source set (breaks
+   * Scala.js).
+   */
+  private val SuccessNoInfo: Int = -2
 
   private[sql] final case class Metadata[E, ID](
     table: Table[E],
