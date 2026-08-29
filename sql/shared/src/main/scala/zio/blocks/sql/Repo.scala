@@ -200,7 +200,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
         val counts = ps.executeBatch()
         val total  = counts.map { count =>
           if (count >= 0) count
-          else if (count == java.sql.Statement.SUCCESS_NO_INFO) 1
+          else if (count == Repo.SuccessNoInfo) 1
           else 0
         }.sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -261,7 +261,7 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
         val counts = ps.executeBatch()
         val total  = counts.map { count =>
           if (count >= 0) count
-          else if (count == java.sql.Statement.SUCCESS_NO_INFO) 1
+          else if (count == Repo.SuccessNoInfo) 1
           else 0
         }.sum
         val duration = java.time.Duration.ofNanos(System.nanoTime() - start)
@@ -347,6 +347,13 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 }
 
 object Repo {
+
+  /**
+   * Shared constant matching `java.sql.Statement.SUCCESS_NO_INFO` (-2). Defined
+   * here to avoid `java.sql` references in the shared source set (breaks
+   * Scala.js).
+   */
+  private val SuccessNoInfo: Int = -2
 
   private[sql] final case class Metadata[E, ID](
     table: Table[E],
