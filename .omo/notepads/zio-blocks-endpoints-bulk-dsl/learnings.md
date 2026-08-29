@@ -51,3 +51,29 @@ Previously only `Apply(Select(_, "trailing"), _)` (def call) was handled; `PathC
 - `sbt scalafmtAll` reformatted 1 source, `scalafmtCheckAll` passes
 - `sbt "++3.8.3 endpointJVM/test"` 151 tests passed, no `-Wunused` failures (only pre-existing type-erasure warning)
 - Duplicate-name diagnostic still `t.pos.startLine + 1`; Tuples combiner still `combineUnrefined` + `WithOut` (no regression)
+
+## 2026-08-29 - PR 1614 EndpointGroupMacro single-eval, hoist, intra-group, unsupported input, symbol checks
+
+### Single-eval binding (Major 400-478)
+Problem: `val basePC = '{ $epExpr.route.pathCodec }` + `val ep = $epExpr` spliced original endpoint expression twice, causing double construction side effects (e.g., side-effect counter increment twice). Fixed by creating `epSym = Symbol.newVal(Symbol.spliceOwner, "ep", epTpe, ...)` + `ValDef(epSym, Some(term))` then `epRefExpr = Ref(epSym).asExprOf[Endpoint]` and `basePC = '{ $epRefExpr.route.pathCodec }`. Final leaf is `Block(List(epDef), '{ val pc = $composedPC.asInstanceOf[PathCodec[Any]]; $epRefExpr.copy(...) }.asTerm).asExpr` — single evaluation, codec derived from binding via `epRef`.
+
+### Prefix hoisting (Minor 412-470)
+Shared prefix codecs like `PathCodec.literal("api")` were spliced per leaf via `codecs.reverse.foldLeft` with original `Expr`s, reconstructing per leaf. Added `hoistPrefixes(prefixes)` that deduplicates by `expr.asTerm.show` into `LinkedHashMap`, creates `val prefix_X = <codec>` `ValDef`s via `Symbol.newVal` + `Ref(sym).asExpr`, returns distinct `ValDef`s and ordered `Expr` refs (sharing). `buildGroupTree`'s `Block` case now does `val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)` then `wrapLeaf(t, prefixOrderedRefs)` for leaves and `Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr` when non-empty — generated block starts with prefix vals, reused for all leaves in group. Single-leaf ValDef/Term paths also hoist similarly. Distinct by show ensures `PathCodec.literal("api")` not rebuilt per leaf.
+
+### Intra-group rejection (Major 203)
+Previously intra-group dependencies failed accidentally via discarded bindings. Now explicit detection: `localSymbols = memberStats.collect { case vd: ValDef => vd.symbol }.toSet` then `hasIntraGroupRef(term, localSymbols)` via `TreeTraverser` looking for `Ident` whose `symbol` in `localSymbols`. If found, `report.errorAndAbort(s"endpoint `$name` has intra-group dependency on `$dep`: endpoints { ... } does not support dependencies between members; extract to external val outside block or make independent (move `$dep` outside)")`. Allows external codecs/schemas/config vals (not in block) and only rejects block-local `ValDef` refs. Covers `val y = Endpoint(...)` referencing earlier `val x` and bare `Endpoint(...)` referencing earlier val.
+
+### Unsupported input abort (Major 609)
+`endpoints(42)`, `endpoints("foo")` or single non-endpoint Term previously returned `NamedTuple(EmptyTuple)`. Changed `case t: Term` fallback from `'{ NamedTuple(EmptyTuple) }` to `report.errorAndAbort(s"endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`; found unsupported expression of type ${t.tpe.show}")`. Block case already aborts for `endpoints { 42 }` via `memberStats` check. Empty block `endpoints {}` still returns `EmptyTuple` as allowed.
+
+### Symbol-based isPathCodecType (Minor 102-104)
+Already fixed to `tpe.dealias.baseType(TypeRepr.of[PathCodec].typeSymbol) match { case AppliedType(_,_) => true }` — no `show.contains`. Verified grep for `.show.contains` and `ep.route.type` returns 0. `isPathCodecType` now handles `PathCodec[A] { type PathVars = ... }` refinements via `baseType`.
+
+### Generic prefix error (Minor 49) & cast (Minor 519)
+`prefix / <group> requires ...` already generic (not hard-coded PathCodec). Cast `asInstanceOf[ep.route.type]` already removed; now uses `Block` with `asInstanceOf[ce]` where `ce` is `Endpoint[finalOut, I,E,O,A]` derived via `Tuples` combiner — precise composed `RoutePattern` type via `TypeRepr.of[Endpoint].appliedTo(...)`.
+
+### Verification
+- `sbt scalafmtAll` / `endpointJVM/scalafmtAll` clean
+- `sbt "++3.8.3 endpointJVM/test"` 151 tests passed (including EndpointGroupSpec 3.7 sources)
+- `grep -rn "ep.route.type" endpoint/...` 0, `grep -rn "show.contains" ...` 0
+- Single-eval supports side-effect counter (val ep = mkEp only once), hoist creates `val prefix_0` per group

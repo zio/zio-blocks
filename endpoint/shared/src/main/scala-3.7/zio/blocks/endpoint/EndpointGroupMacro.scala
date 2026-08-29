@@ -460,18 +460,58 @@ private[endpoint] object EndpointGroupMacro {
       case other      => isEndpoint(other.tpe)
     }
 
-    def wrapLeaf(term: Term): Expr[Any] =
-      if (codecs.isEmpty) term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
+    def hoistPrefixes(
+      prefixes: List[Expr[PathCodec[?]]]
+    ): (List[ValDef], List[Expr[PathCodec[?]]]) = {
+      val seen        = scala.collection.mutable.LinkedHashMap[String, (ValDef, Expr[PathCodec[?]])]()
+      val orderedRefs = scala.collection.mutable.ListBuffer[Expr[PathCodec[?]]]()
+      prefixes.foreach { expr =>
+        val key = expr.asTerm.show
+        seen.get(key) match {
+          case Some((_, ref)) => orderedRefs += ref
+          case None           =>
+            val tpe = expr.asTerm.tpe
+            val idx = seen.size
+            val sym = Symbol.newVal(Symbol.spliceOwner, s"prefix_$idx", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+            val vd  = ValDef(sym, Some(expr.asTerm))
+            val ref = Ref(sym).asExprOf[PathCodec[?]]
+            seen(key) = (vd, ref)
+            orderedRefs += ref
+        }
+      }
+      (seen.values.map(_._1).toList, orderedRefs.toList)
+    }
+
+    def hasIntraGroupRef(term: Term, localSymbols: Set[Symbol]): Option[String] = {
+      var found: Option[String] = None
+      val traverser             = new TreeTraverser {
+        override def traverseTree(tree: Tree)(owner: Symbol): Unit =
+          if (found.isEmpty) {
+            tree match {
+              case ident: Ident if localSymbols.contains(ident.symbol) =>
+                found = Some(ident.name)
+              case _ =>
+                super.traverseTree(tree)(owner)
+            }
+          }
+      }
+      traverser.traverseTree(term)(Symbol.spliceOwner)
+      found
+    }
+
+    def wrapLeaf(term: Term, prefixRefs: List[Expr[PathCodec[?]]]): Expr[Any] =
+      if (prefixRefs.isEmpty) term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
       else {
-        val epExpr           = term.asExprOf[Endpoint[?, ?, ?, ?, ?]]
         val epTpe            = term.tpe.dealias
         val (pi, i, e, o, a) = epTpe match {
           case AppliedType(_, List(pi0, i0, e0, o0, a0)) => (pi0, i0, e0, o0, a0)
           case _                                         => report.errorAndAbort(s"cannot read Endpoint type: ${epTpe.show}")
         }
 
-        // Build composed path codec by folding codecs with precise Out extraction
-        val basePC: Expr[PathCodec[?]] = '{ $epExpr.route.pathCodec }
+        val epSym                      = Symbol.newVal(Symbol.spliceOwner, "ep", epTpe, Flags.EmptyFlags, Symbol.noSymbol)
+        val epDef                      = ValDef(epSym, Some(term))
+        val epRefExpr                  = Ref(epSym).asExprOf[Endpoint[?, ?, ?, ?, ?]]
+        val basePC: Expr[PathCodec[?]] = '{ $epRefExpr.route.pathCodec }
 
         // Helper to extract Out from a summoned Tuples instance
         def extractOut(withOutTerm: Term): TypeRepr = {
@@ -491,54 +531,55 @@ private[endpoint] object EndpointGroupMacro {
 
         // Fold codecs left-to-right building precise PC chain; track precise A type via TypeRepr
         val composedPCWithType: (Expr[PathCodec[?]], TypeRepr) =
-          codecs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) { case ((acc, accATpe), codecExpr) =>
-            val cA = codecExpr.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
-              case AppliedType(_, List(ca)) => ca
-              case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${codecExpr.asTerm.tpe.show}")
-            }
-            val accATpeNorm = accATpe.dealias
-            (cA.asType, accATpeNorm.asType) match {
-              case ('[ca], '[ac]) =>
-                Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
-                  case Some(withOut) =>
-                    var outTpe0          = extractOut(withOut.asTerm)
-                    val isAbstractBounds = outTpe0 match {
-                      case TypeBounds(lo, hi) => lo =:= TypeRepr.of[Nothing] && hi =:= TypeRepr.of[Any]
-                      case _                  => false
-                    }
-                    if (isAbstractBounds) {
-                      val caNorm    = cA.dealias
-                      val acNorm    = accATpeNorm.dealias
-                      val caIsUnit  = caNorm =:= TypeRepr.of[Unit]
-                      val acIsUnit  = acNorm =:= TypeRepr.of[Unit]
-                      val caIsEmpty = caNorm =:= TypeRepr.of[EmptyTuple]
-                      val acIsEmpty = acNorm =:= TypeRepr.of[EmptyTuple]
-                      outTpe0 = (caIsUnit, acIsUnit, caIsEmpty, acIsEmpty) match {
-                        case (true, _, _, _) => acNorm
-                        case (_, true, _, _) => caNorm
-                        case (_, _, true, _) => acNorm
-                        case (_, _, _, true) => caNorm
-                        case _               => TypeRepr.of[(ca, ac)]
+          prefixRefs.reverse.foldLeft[(Expr[PathCodec[?]], TypeRepr)]((basePC, pi)) {
+            case ((acc, accATpe), codecExpr) =>
+              val cA = codecExpr.asTerm.tpe.baseType(TypeRepr.of[PathCodec].typeSymbol) match {
+                case AppliedType(_, List(ca)) => ca
+                case _                        => report.errorAndAbort(s"cannot read PathCodec A: ${codecExpr.asTerm.tpe.show}")
+              }
+              val accATpeNorm = accATpe.dealias
+              (cA.asType, accATpeNorm.asType) match {
+                case ('[ca], '[ac]) =>
+                  Expr.summon[zio.blocks.combinators.Tuples.Tuples[ca, ac]] match {
+                    case Some(withOut) =>
+                      var outTpe0          = extractOut(withOut.asTerm)
+                      val isAbstractBounds = outTpe0 match {
+                        case TypeBounds(lo, hi) => lo =:= TypeRepr.of[Nothing] && hi =:= TypeRepr.of[Any]
+                        case _                  => false
                       }
-                    }
-                    val outTpe                      = outTpe0.dealias
-                    val outExpr: Expr[PathCodec[?]] = outTpe.asType match {
-                      case '[out] =>
-                        '{
-                          PathCodec.combineUnrefined(
-                            $codecExpr.asInstanceOf[PathCodec[ca]],
-                            $acc.asInstanceOf[PathCodec[ac]]
-                          )(${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[ca, ac, out]])
-                        }.asInstanceOf[Expr[PathCodec[?]]]
-                    }
-                    (outExpr, outTpe)
-                  case None =>
-                    report.errorAndAbort(
-                      s"cannot find Tuples combiner for prefix composition: ${cA.show} / ${accATpeNorm.show}"
-                    )
-                }
-              case _ => report.errorAndAbort("internal: failed to decompose types for prefix composition")
-            }
+                      if (isAbstractBounds) {
+                        val caNorm    = cA.dealias
+                        val acNorm    = accATpeNorm.dealias
+                        val caIsUnit  = caNorm =:= TypeRepr.of[Unit]
+                        val acIsUnit  = acNorm =:= TypeRepr.of[Unit]
+                        val caIsEmpty = caNorm =:= TypeRepr.of[EmptyTuple]
+                        val acIsEmpty = acNorm =:= TypeRepr.of[EmptyTuple]
+                        outTpe0 = (caIsUnit, acIsUnit, caIsEmpty, acIsEmpty) match {
+                          case (true, _, _, _) => acNorm
+                          case (_, true, _, _) => caNorm
+                          case (_, _, true, _) => acNorm
+                          case (_, _, _, true) => caNorm
+                          case _               => TypeRepr.of[(ca, ac)]
+                        }
+                      }
+                      val outTpe                      = outTpe0.dealias
+                      val outExpr: Expr[PathCodec[?]] = outTpe.asType match {
+                        case '[out] =>
+                          '{
+                            PathCodec.combineUnrefined(
+                              $codecExpr.asInstanceOf[PathCodec[ca]],
+                              $acc.asInstanceOf[PathCodec[ac]]
+                            )(${ withOut }.asInstanceOf[zio.blocks.combinators.Tuples.Tuples.WithOut[ca, ac, out]])
+                          }.asInstanceOf[Expr[PathCodec[?]]]
+                      }
+                      (outExpr, outTpe)
+                    case None =>
+                      report.errorAndAbort(
+                        s"cannot find Tuples combiner for prefix composition: ${cA.show} / ${accATpeNorm.show}"
+                      )
+                  }
+                case _ => report.errorAndAbort("internal: failed to decompose types for prefix composition")
+              }
           }
 
         val (composedPC, finalOutTpe) = composedPCWithType
@@ -546,12 +587,15 @@ private[endpoint] object EndpointGroupMacro {
         val composedEndpointTpe: TypeRepr = TypeRepr.of[Endpoint].appliedTo(List(finalOutTpe, i, e, o, a))
         composedEndpointTpe.asType match {
           case '[ce] =>
-            '{
-              val ep = $epExpr
-              val pc = $composedPC.asInstanceOf[PathCodec[Any]]
-              ep.copy(route = ep.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]))
-                .asInstanceOf[ce]
-            }
+            Block(
+              List(epDef),
+              '{
+                val pc = $composedPC.asInstanceOf[PathCodec[Any]]
+                $epRefExpr
+                  .copy(route = $epRefExpr.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]))
+                  .asInstanceOf[ce]
+              }.asTerm
+            ).asExpr
         }
       }
 
@@ -606,20 +650,38 @@ private[endpoint] object EndpointGroupMacro {
           if (members.isEmpty) {
             '{ NamedTuple(EmptyTuple) }
           } else {
-            val (names, terms, isSubgroups) = members.unzip3
-            val exprs: List[Expr[Any]]      = terms.zip(isSubgroups).map { case (t, isSub) =>
-              if (isSub) processSubgroup(t)
-              else wrapLeaf(t)
+            // Intra-group dependency rejection: detect refs to ValDefs defined in same block
+            val localSymbols: Set[Symbol] = memberStats.collect { case vd: ValDef => vd.symbol }.toSet
+            members.foreach { case (name, term, isSub) =>
+              if (!isSub) {
+                hasIntraGroupRef(term, localSymbols) match {
+                  case Some(dep) =>
+                    report.errorAndAbort(
+                      s"endpoint `$name` has intra-group dependency on `$dep`: endpoints { ... } does not support dependencies between members; extract to external val outside block or make independent (move `$dep` outside)"
+                    )
+                  case None => ()
+                }
+              }
             }
-            buildNamedTuple(names, exprs)
+            val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
+            val (names, terms, isSubgroups)                = members.unzip3
+            val exprs: List[Expr[Any]]                     = terms.zip(isSubgroups).map { case (t, isSub) =>
+              if (isSub) processSubgroup(t)
+              else wrapLeaf(t, prefixOrderedRefs)
+            }
+            val ntExpr = buildNamedTuple(names, exprs)
+            if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr
+            else ntExpr
           }
         }
 
       case vd: ValDef if vd.rhs.nonEmpty =>
         val rhsTerm = vd.rhs.get
         if (isEndpoint(rhsTerm.tpe)) {
-          val expr = wrapLeaf(rhsTerm)
-          buildNamedTuple(List(vd.name), List(expr))
+          val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
+          val expr                                       = wrapLeaf(rhsTerm, prefixOrderedRefs)
+          val ntExpr                                     = buildNamedTuple(List(vd.name), List(expr))
+          if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr else ntExpr
         } else {
           report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements")
         }
@@ -637,9 +699,14 @@ private[endpoint] object EndpointGroupMacro {
                 buildNamedTuple(List(name), List(expr))
               case None =>
                 if (isEndpoint(t.tpe)) {
-                  val expr = wrapLeaf(t)
-                  buildNamedTuple(List(autoName(t)), List(expr))
-                } else '{ NamedTuple(EmptyTuple) }
+                  val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
+                  val expr                                       = wrapLeaf(t, prefixOrderedRefs)
+                  val ntExpr                                     = buildNamedTuple(List(autoName(t)), List(expr))
+                  if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr else ntExpr
+                } else
+                  report.errorAndAbort(
+                    s"endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`; found unsupported expression of type ${t.tpe.show}"
+                  )
             }
         }
     }
