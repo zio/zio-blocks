@@ -139,3 +139,29 @@ Added `import scala.language.implicitConversions` to `endpoint/shared/src/test/s
 - `import scala.language.implicitConversions` is per-file/per-compilation-unit, NOT transitive from the given's definition site.
 - In Scala 3.8 with `-Werror -Wunused:all`, missing language feature imports at usage sites cause CI failures even if the definition site has the import.
 - Always grep ALL test files under `scala-3/` and `scala-3.7/` for `import scala.language` when adding `given Conversion` definitions.
+
+## 2026-08-29 - Fix JS linking error (PR 1614 CI failure)
+
+### Problem
+`testJS` (17, JS, 3.8.x) failed with linking error:
+```
+[error] Referring to non-existent class java.security.SecureRandom
+[error]   called from private java.util.UUID$.csprng$lzycompute()java.util.Random
+[error]   called from zio.blocks.endpoint.EndpointGroupSpec$.spec()zio.test.Spec
+[error] There were linking errors
+[error] (endpointJS / Test / fastLinkJS) There were linking errors
+```
+
+### Root cause
+`EndpointGroupSpec.scala` (scala-3.7) used `java.util.UUID.randomUUID()` which internally depends on `java.security.SecureRandom`. Scala.js does not implement `java.security.SecureRandom`, causing a linker error. This was in a test case "non-Int codecs preserve types and decode" that tested UUID round-trip decoding.
+
+### Fix
+Replaced `java.util.UUID.randomUUID()` with `java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")`. `fromString()` is a pure string parser that works on both JVM and JS (Scala.js implements it in its javalib). The test still validates UUID decode round-trip correctness.
+
+### Learnings
+- `java.util.UUID.randomUUID()` is NOT JS-compatible — it requires `java.security.SecureRandom` which Scala.js does not implement.
+- `java.util.UUID.fromString()` IS JS-compatible — it's a pure string parser implemented in Scala.js javalib.
+- `java.util.UUID(long, long)` constructor IS JS-compatible — used by Scala.js internally for `fromString`.
+- Always check if test code uses JVM-only APIs when adding tests to `shared/src/test/` (cross-compiled for JS).
+- Other endpoint test files (e.g., `EndpointSpec.scala`) already used `UUID.fromString()` — this was an oversight when adding the test.
+- Verified: `sbt "++3.8.3 endpointJS/Test/fastLinkJS"` passes, `sbt "++3.8.3 endpointJVM/test"` passes (169), `scalafmtCheckAll` clean.

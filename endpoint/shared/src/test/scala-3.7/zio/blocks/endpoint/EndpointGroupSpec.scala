@@ -311,7 +311,7 @@ val _ = endpoints { "not an endpoint" }
         val gBool = endpoints { val a = Endpoint(Method.GET / PathCodec.bool("b")) }
         val gLong = endpoints { val a = Endpoint(Method.GET / PathCodec.long("l")) }
         val gUuid = endpoints { val a = Endpoint(Method.GET / PathCodec.uuid("u")) }
-        val uuid  = java.util.UUID.randomUUID()
+        val uuid  = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         assertTrue(
           gStr.a.route.decode(Method.GET, Path("/hello")) == Right("hello"),
           gBool.a.route.decode(Method.GET, Path("/true")) == Right(true),
