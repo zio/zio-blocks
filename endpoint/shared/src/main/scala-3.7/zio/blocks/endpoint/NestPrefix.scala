@@ -22,13 +22,13 @@ import zio.blocks.endpoint.PathCodec
 
 /**
  * Runtime type-class: nest a constant path prefix into every Endpoint leaf of a
- * group.
+ * group. Internal — not part of public API.
  *
  * @tparam NT
  *   the group shape — an `Endpoint` leaf, a `NamedTuple`/tuple of leaves and
  *   nested groups, or `EmptyTuple`
  */
-trait NestPrefix[NT] {
+private[endpoint] trait NestPrefix[NT] {
 
   /**
    * Nest a constant path prefix into every Endpoint leaf of the group.
@@ -43,7 +43,7 @@ trait NestPrefix[NT] {
    */
   def nest(nt: NT, prefix: String): NT
 }
-object NestPrefix {
+private[endpoint] object NestPrefix {
   // Endpoint leaf: route.nest(PathCodec.literal(prefix)) delegates to
   // RoutePattern.nest which uses PathCodec.combineUnrefined; PathVars are combined
   // via PathCodec.Concat as (left.PathVars, right.PathVars) where a literal prefix

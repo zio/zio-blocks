@@ -23,11 +23,6 @@ private[endpoint] object EndpointGroupMacro {
   def build(body: Expr[Any])(using Quotes): Expr[Any] =
     buildGroupTree(body, Nil)
 
-  def prefixGroupString(prefix: String, ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
-    val prefixCodec: Expr[PathCodec[Unit]] = '{ PathCodec.literal(${ Expr(prefix) }) }
-    prefixGroupCodec(prefixCodec.asInstanceOf[Expr[PathCodec[?]]], ntExpr)
-  }
-
   def prefixGroupCodec(codecExpr: Expr[PathCodec[?]], ntExpr: Expr[Any])(using Quotes): Expr[Any] = {
     import quotes.reflect.*
 
@@ -46,7 +41,7 @@ private[endpoint] object EndpointGroupMacro {
     }
     val block = recoverBlock(ntExpr.asTerm).getOrElse(
       report.errorAndAbort(
-        "PathCodec / <group> requires an inline `endpoints { ... }` block; binding the group to a value first (val g = endpoints { ... }) is not supported"
+        "prefix / <group> requires an inline `endpoints { ... }` block; binding the group to a value first (val g = endpoints { ... }) is not supported"
       )
     )
     buildGroupTree(block.asExpr, List(codecExpr))
@@ -89,13 +84,17 @@ private[endpoint] object EndpointGroupMacro {
     }
 
     def isPathCodecType(tpe: TypeRepr): Boolean = {
-      val ds = tpe.dealias.show
-      ds.contains("PathCodec") || tpe.dealias.typeSymbol.fullName == "zio.blocks.endpoint.PathCodec"
+      val sym = TypeRepr.of[PathCodec].typeSymbol
+      tpe.dealias.baseType(sym) match {
+        case AppliedType(_, _) => true
+        case _                 => false
+      }
     }
 
     def isPathCodecSubgroupStmt(t: Term): Option[(Term, Term)] = t match {
       case Inlined(Some(call: Term), _, expansion) =>
-        isPathCodecSubgroupStmt(call).orElse(isPathCodecSubgroupStmt(expansion))
+        // Avoid self-recursion: check call's direct patterns without re-entering Inlined(Some(...)) case
+        isPathCodecSubgroupStmtDirect(call).orElse(isPathCodecSubgroupStmt(expansion))
       case Inlined(_, _, inner)                                                           => isPathCodecSubgroupStmt(inner)
       case Typed(inner, _)                                                                => isPathCodecSubgroupStmt(inner)
       case Apply(TypeApply(Select(codec, "/"), _), List(_)) if isPathCodecType(codec.tpe) =>
@@ -123,6 +122,35 @@ private[endpoint] object EndpointGroupMacro {
       case Apply(TypeApply(Ident("prefixGroupCodec"), _), List(codecArg, _)) =>
         Some((codecArg, t))
       case _ => None
+    }
+
+    // Direct check without Inlined(Some(...)) recursion to avoid infinite loop when inner call does not match
+    def isPathCodecSubgroupStmtDirect(t: Term): Option[(Term, Term)] = t match {
+      case Apply(TypeApply(Select(codec, "/"), _), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Apply(TypeApply(Select(codec, "/"), _), _), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Select(codec, "/"), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Apply(Ident("/"), List(codec)), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(TypeApply(Apply(Ident("/"), List(codec)), _), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Apply(TypeApply(Ident("/"), _), List(codec)), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(TypeApply(Apply(TypeApply(Ident("/"), _), List(codec)), _), List(_)) if isPathCodecType(codec.tpe) =>
+        Some((codec, t))
+      case Apply(Select(_, "prefixGroupCodec"), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(Ident("prefixGroupCodec"), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(TypeApply(Select(_, "prefixGroupCodec"), _), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Apply(TypeApply(Ident("prefixGroupCodec"), _), List(codecArg, _)) =>
+        Some((codecArg, t))
+      case Inlined(_, _, inner) => isPathCodecSubgroupStmtDirect(inner)
+      case Typed(inner, _)      => isPathCodecSubgroupStmtDirect(inner)
+      case _                    => None
     }
 
     def slashPrefix(t: Term): Option[String] = t match {
@@ -340,6 +368,9 @@ private[endpoint] object EndpointGroupMacro {
       }
       def pathRender(p: Term): String  = pathRender0(stripWrappers(p))
       def pathRender0(p: Term): String = p match {
+        case Inlined(_, _, inner)                                                                            => pathRender0(inner)
+        case Typed(inner, _)                                                                                 => pathRender0(inner)
+        case Block(List(_), inner)                                                                           => pathRender0(inner)
         case Apply(Select(conv, "apply"), List(inner)) if conv.symbol.name.contains("Conversion")            => pathRender0(inner)
         case Apply(Select(Ident(givenName), "apply"), List(lit)) if givenName.startsWith("given_Conversion") =>
           pathRender0(lit)
@@ -369,6 +400,8 @@ private[endpoint] object EndpointGroupMacro {
         case Apply(Select(left, "~"), List(right))                                 => pathRender0(left) + pathRender0(right)
         case Apply(Select(_, "trailing"), _)                                       => "..."
         case Select(_, "trailing")                                                 => "..."
+        case Apply(TypeApply(Select(Select(_, "PathCodec"), "trailing"), _), _)    => "..."
+        case Apply(TypeApply(Select(_, "trailing"), _), _)                         => "..."
         case Apply(TypeApply(Ident("leftUnit"), _), List(inner))                   => pathRender0(inner)
         case Apply(Select(qual, "apply"), args) if qual.symbol.name == "PathCodec" =>
           pathRender0(args.headOption.getOrElse(qual))
@@ -516,7 +549,7 @@ private[endpoint] object EndpointGroupMacro {
             '{
               val ep = $epExpr
               val pc = $composedPC.asInstanceOf[PathCodec[Any]]
-              ep.copy(route = ep.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]).asInstanceOf[ep.route.type])
+              ep.copy(route = ep.route.copy(pathCodec = pc.asInstanceOf[PathCodec[Any]]))
                 .asInstanceOf[ce]
             }
         }
