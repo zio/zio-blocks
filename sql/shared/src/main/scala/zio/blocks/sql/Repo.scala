@@ -134,6 +134,13 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * Uses `WHERE id > ? ORDER BY id ASC LIMIT n` so the cursor row itself is not
    * repeated. When `cursorId` equals the last id the result is empty.
    *
+   * @param cursorId
+   *   the primary key of the last row from the previous page; results returned
+   *   have a strictly greater key
+   * @param limit
+   *   maximum number of rows to return; must be positive
+   * @return
+   *   a list of entities with primary keys greater than `cursorId`
    * @throws IllegalArgumentException
    *   if `limit <= 0`
    */
@@ -223,6 +230,9 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * Conflict target is the repository's validated ID column. Assignment columns
    * are `table.columns.filter(_ != validatedIdColumn)`.
    *
+   * @param entity
+   *   the entity to insert or update; its primary key determines the conflict
+   *   target
    * @return
    *   affected row count (normally 1 for both insert and update paths)
    * @throws IllegalArgumentException
@@ -243,6 +253,10 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
    * Batch logging mirrors `insertBatch`: rendered SQL, duration, and total
    * affected count with empty param capture.
    *
+   * @param entities
+   *   the entities to upsert; if empty, returns 0 immediately
+   * @return
+   *   total affected row count across all batched rows
    * @throws IllegalArgumentException
    *   if the table has only the ID column (no assignment columns)
    */

@@ -91,8 +91,20 @@ final case class Frag(parts: IndexedSeq[String], params: IndexedSeq[DbValue]) {
     sb.toString()
   }
 
+  /**
+   * The bound parameter values for this fragment.
+   *
+   * @return
+   *   the indexed sequence of parameter values bound to `?` placeholders
+   */
   def queryParams: IndexedSeq[DbValue] = params
 
+  /**
+   * Whether this fragment has no SQL text and no parameters.
+   *
+   * @return
+   *   `true` if all literal parts are empty and there are no parameters
+   */
   def isEmpty: Boolean = parts.forall(_.isEmpty) && params.isEmpty
 }
 

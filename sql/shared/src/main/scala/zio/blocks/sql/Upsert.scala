@@ -29,19 +29,41 @@ object Upsert {
 
   // -- suffix builders -----------------------------------------------------------------
 
-  /** Suffix ` ON CONFLICT ("col") DO NOTHING`. */
+  /**
+   * Suffix ` ON CONFLICT ("col") DO NOTHING`.
+   *
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @return
+   *   a [[Frag]] containing the `ON CONFLICT ... DO NOTHING` suffix
+   */
   def doNothingSuffix(conflictColumn: String): Frag = {
     val c = SqlIdentifier.validate("column", conflictColumn)
     Frag(IndexedSeq(s""" ON CONFLICT ("$c") DO NOTHING"""), IndexedSeq.empty)
   }
 
-  /** Alias used by prior docs. */
+  /**
+   * Alias used by prior docs.
+   *
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @return
+   *   a [[Frag]] containing the `ON CONFLICT ... DO NOTHING` suffix
+   */
   def buildDoNothingSuffix(conflictColumn: String): Frag =
     doNothingSuffix(conflictColumn)
 
   /**
    * Suffix ` ON CONFLICT ("conflict") DO UPDATE SET "col" = ?, ...`.
    * Assignments must be non-empty; each column is validated and quoted.
+   *
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @param assignments
+   *   column-value pairs to SET; must be non-empty; each column is validated
+   *   via [[SqlIdentifier.validate]]
+   * @return
+   *   a [[Frag]] containing the `ON CONFLICT ... DO UPDATE SET` suffix
    */
   def doUpdateSuffix(
     conflictColumn: String,
@@ -65,7 +87,16 @@ object Upsert {
     Frag(parts.result(), params)
   }
 
-  /** Alias used by prior docs. */
+  /**
+   * Alias used by prior docs.
+   *
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @param assignments
+   *   column-value pairs to SET; must be non-empty
+   * @return
+   *   a [[Frag]] containing the `ON CONFLICT ... DO UPDATE SET` suffix
+   */
   def buildDoUpdateSuffix(
     conflictColumn: String,
     assignments: IndexedSeq[(String, DbValue)]
@@ -85,6 +116,8 @@ object Upsert {
    *   values aligned with columns
    * @param conflictColumn
    *   validated and quoted in suffix
+   * @return
+   *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ... DO NOTHING`
    */
   def doNothing(
     tableName: String,
@@ -101,7 +134,20 @@ object Upsert {
     base ++ doNothingSuffix(conflictColumn)
   }
 
-  /** Overload accepting comma-joined column string (as Repo does). */
+  /**
+   * Overload accepting comma-joined column string (as Repo does).
+   *
+   * @param tableName
+   *   validated via [[SqlIdentifier.validate]]
+   * @param allColumns
+   *   comma-separated column names, each validated; must not be empty
+   * @param values
+   *   values aligned with columns
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @return
+   *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ... DO NOTHING`
+   */
   def doNothingRaw(
     tableName: String,
     allColumns: String,
@@ -122,6 +168,19 @@ object Upsert {
 
   /**
    * Low-level builder: full INSERT with DO UPDATE SET.
+   *
+   * @param tableName
+   *   validated via [[SqlIdentifier.validate]]
+   * @param columns
+   *   column names in order, each validated
+   * @param values
+   *   values aligned with columns
+   * @param conflictColumn
+   *   validated and quoted in the suffix
+   * @param assignments
+   *   column-value pairs for the `DO UPDATE SET` clause
+   * @return
+   *   a [[Frag]] whose SQL is `INSERT ... ON CONFLICT ... DO UPDATE SET ...`
    */
   def doUpdate(
     tableName: String,
