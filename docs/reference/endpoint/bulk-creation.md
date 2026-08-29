@@ -5,7 +5,7 @@ title: "Bulk Endpoint Creation"
 
 ## Bulk endpoint creation with `endpoints { ... }`
 
-The `endpoints` macro (Scala 3.7+) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed.
+The `endpoints` macro (Scala 3.8+ with `-experimental` for `NamedTuple`, also works on Scala 3.7 with `-experimental`) lets you define multiple `Endpoint` values in a block and access them by name on the returned `NamedTuple`. Member names are either explicit `val` names or auto-generated from the `RoutePattern.render` string (method prefix + path template). Prefix grouping via `/` (`"api" / endpoints { ... }`, `PathCodec.int("id") / endpoints { ... }`) is available via the default `import zio.blocks.endpoint.*` — no extra import is needed. All examples below assume `import zio.blocks.endpoint.*` and `scalacOptions += "-experimental"`.
 
 String prefixes such as `"api"` are auto-converted to a literal `PathCodec[Unit]` via a `Conversion[String, PathCodec[Unit]]` provided by `zio.blocks.endpoint.*` — there is no String-specific `/` operator; both constant and capturing prefixes go through the single `PathCodec` `/` extension.
 
@@ -93,4 +93,4 @@ val lookup: Endpoint[(Int, Int), Unit, Unit, Unit, AuthType.None.type] = ordersB
 
 Variable prefixes should be bound to an explicit `val` — the val names the subgroup whose members you access through it (`byId.get`, `ordersById.o`). Constant-prefix and capturing-prefix subgroups can be freely nested inside each other: `"api" / endpoints { PathCodec.int("id") / endpoints { ... } }` composes both prefixes into every leaf route at compile time.
 
-The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ named tuples). All examples above compile against the `endpoint` module on Scala 3.8.3.
+The returned type is a Scala 3 `NamedTuple` — static member access, erased at runtime. The DSL is Scala 3 only (3.7+ with `-experimental` for named tuples). All examples above compile against the `endpoint` module on Scala 3.8.3 with `scalacOptions += "-experimental"`.

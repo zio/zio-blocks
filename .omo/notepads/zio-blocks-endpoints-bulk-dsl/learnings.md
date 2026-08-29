@@ -77,3 +77,49 @@ Already fixed to `tpe.dealias.baseType(TypeRepr.of[PathCodec].typeSymbol) match 
 - `sbt "++3.8.3 endpointJVM/test"` 151 tests passed (including EndpointGroupSpec 3.7 sources)
 - `grep -rn "ep.route.type" endpoint/...` 0, `grep -rn "show.contains" ...` 0
 - Single-eval supports side-effect counter (val ep = mkEp only once), hoist creates `val prefix_0` per group
+
+## 2026-08-29 - PR 1614 Hardening EndpointGroupSpec + docs + build.sbt per required test additions
+
+### Spec hardening: self-contained negative tests
+Rewrote all `typeCheckErrors` snippets to be self-contained with explicit imports (`import zio.blocks.endpoint.*`, `import zio.http.Method`, etc.) and assert intended diagnostic substrings (`"only accepts"`, `"unsupported expression"`, `"intra-group dependency"`). Cannot use `"""...""".stripMargin` because `typeCheckErrors` requires a statically-known `String` literal — that pattern expands to `augmentString(...).stripMargin` which is not a constant and fails compilation with `argument to compileError must be a statically known String`. Fix: use raw triple-quoted literals `"""..."""` without `.stripMargin` (multiline literal is still constant).
+
+### Duplicate-name test hardened
+Expanded from `contains("duplicate")` to also assert `contains(":")` for source locations (`t.pos.sourceFile.name + ":" + (startLine+1)`) and `contains("rename")` for actionable advice `"rename one or assign to an explicit val"`. Matches macro at 265: `report.error(s"duplicate endpoint name `$n` from: $locs; rename one ...")`.
+
+### Compound path-variable composition
+Replaced render-only check with static type + decode verification:
+```scala
+val group = PathCodec.int("id") / endpoints { val o = Endpoint(Method.GET / "orders" / PathCodec.int("orderId")) }
+val rp: RoutePattern[(Int,Int)] = group.o.route
+assert(rp.decode(Method.GET, Path("/1/orders/2")) == Right((1,2)) && decode("/2/orders/1") == Right((2,1)))
+```
+Exercises DSL's static-typing guarantee that `(Int,Int)` extraction order is preserved (prefix `id` first, then `orderId`).
+
+### Focused auto-naming tests
+- `~`: via `PathCodec(SegmentCodec.literal("v") ~ SegmentCodec.int("major"))` — explicit `PathCodec(...)` unwrapped by `pathRender0`'s `PathCodec.apply` case then `left ~ right` case renders `v{major}`. Using implicit `segmentToPathCodec` conversion alone would hide `~` behind `segmentToPathCodec` wrapper which `pathRender0` did not handle; explicit wrapper makes test robust.
+- `.unused`: `PathCodec.int("id").unused` with explicit `val` name (avoids needing bare autoName to parse `SinglePathVarPathCodecOps` wrapper which `pathRender0` does not support). Still verifies `.unused` renders as `{id}` and compiles inside macro block.
+- `ANY`: `Method.ANY / "any"` renders `* /any`.
+- Non-Int: `string`, `bool`, `long`, `uuid` each auto-named and decoded individually; preserves types via `RoutePattern` decode round-trip.
+
+### Single-eval tests
+Macro previously spliced endpoint expression twice (`epExpr` + `basePC` derived from same expr). Fix uses single `epSym` binding + `Ref`. Tests verify `var c=0; def mk(): Endpoint[...] = {c+=1; Endpoint(...) }; endpoints { val a = mk() }` and `prefix / endpoints { val a = mk() }` both leave `c==1`. Must define `mk` as `def mk(): Endpoint[...]` and call `mk()` so term is `Apply(Ident("mk"), Nil)` whose tpe is `Endpoint` (AvailableType with 5 args). Bare `def mk = Endpoint(...)` without return type produced `Ident("mk")` whose tpe was not `AppliedType(_, List(...))` causing `"cannot read Endpoint type: mk"` at `wrapLeaf`.
+
+### External refs tests
+External `PathCodec`, `Schema`, and config vals defined outside block are allowed because `hasIntraGroupRef` only checks symbols in `memberStats.collect { case vd: ValDef => vd.symbol }`. Tests: external `PathCodec.int("extId") / "items"`, prefix `myCodec / endpoints { ... }`, and `query("q", Schema.int)` with external `limitSchema`.
+
+### Intra-group rejection
+ValDef `val b = a` and ValDef `val b = Endpoint(...).in(a.input)` both trigger `hasIntraGroupRef` and abort with `"intra-group dependency"`. Bare `Endpoint(a.route)` fails earlier at `autoName` (`cannot auto-name: unsupported path tree Select(Ident("a"), "route")`) before intra-group check, so not a valid test shape. Switched second test to ValDef via `in(a.input)` which stays autoName-free (explicit val name) but still contains Ident `a`.
+
+### Unsupported input
+Added `typeCheckErrors` for `endpoints(42)`, `endpoints { 42 }`, `endpoints { "oops" }` asserting `"unsupported expression"` + `"only accepts"`; Block fallback already aborts for `{ 42 }`.
+
+### Docs
+Updated `docs/reference/endpoint/bulk-creation.md:7` to state `Scala 3.8+ with -experimental for NamedTuple (also works on 3.7 with -experimental)` and `scalacOptions += "-experimental"` plus final paragraph note `compiled with -experimental`. BuildHelper already adds `-experimental` for `minor >=8` (so 3.8.3 has it) and `docs` project has `scalacOptions += "-experimental"` at line 1710; examples now compile against default `import zio.blocks.endpoint.*` (BulkDsl integrated at 0bf6878c).
+
+### Build.sbt dedup
+Removed duplicate `Compile/Test unmanagedSourceDirectories` wiring for `endpoint` crossProject (964-981) which duplicated `crossProjectSettings`'s `findApplicableScala3MinorDirs` + `platformSpecificSources` discovery for `shared/src/main/scala-3.7` etc. Kept only `endpoint-examples` non-cross-built wiring (`Compile / unmanagedSourceDirectories += baseDirectory.value / "src" / "main" / "scala-3.7"`).
+
+### Verification
+- `sbt scalafmtAll` reformatted 1 source
+- `sbt ++3.8.3 endpointJVM/test` 169 tests passed (was 151)
+- LSP diagnostics clean
