@@ -99,7 +99,7 @@ object TagResolver {
     resolveOpt[E](None)
 
   // Scala 2 compatible implicit discovery with default null
-  def resolveImplicit[E: Schema](implicit migration: Migration[E, E]): TagInfo =
+  def resolveImplicit[E: Schema](implicit migration: Migration[E, E] = null): TagInfo =
     resolveOpt[E](Option(migration))
 
   def allTags[E: Schema](migration: Migration[E, E] = null): Set[String] =

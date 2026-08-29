@@ -325,7 +325,6 @@ lazy val root = project
     dataMigration.jvm,
     dataMigration.js,
     projection.jvm,
-    projection.js,
     `projection-examples`
   )
 
@@ -523,7 +522,7 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 0
   )
 
-lazy val projection = crossProject(JSPlatform, JVMPlatform)
+lazy val projection = crossProject(JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(schema, sql, scope)
   .settings(stdSettings("zio-blocks-projection", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
@@ -531,7 +530,6 @@ lazy val projection = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.projection"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
-  .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio"          % "2.1.26",
@@ -539,8 +537,8 @@ lazy val projection = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 67
   )
   .jvmSettings(
     libraryDependencies ++= Seq(

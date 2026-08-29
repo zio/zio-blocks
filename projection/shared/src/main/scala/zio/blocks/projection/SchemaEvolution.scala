@@ -21,6 +21,7 @@ import zio.blocks.schema.{DynamicOptic, Schema}
 import zio.blocks.schema.migration.{Migration, MigrationAction}
 import zio.blocks.sql.{SqlDialect, Table}
 
+/** Controls schema-evolution behavior (rebuild vs migration shortcut). */
 final case class SchemaEvolutionConfig(
   rebuildParallelism: Int = 4,
   lazyRebuild: Boolean = false,
@@ -31,6 +32,10 @@ object SchemaEvolutionConfig {
   val default: SchemaEvolutionConfig = SchemaEvolutionConfig()
 }
 
+/**
+ * Detects schema drift via [[SchemaHash]] and rebuilds or migrates projection
+ * stores.
+ */
 object SchemaEvolution {
 
   def needsRebuild[A: Schema](store: ProjectionStore[A]): Task[Boolean] =
@@ -39,26 +44,26 @@ object SchemaEvolution {
       stored  <- store.getSchemaHash
     } yield stored.exists(_ != current)
 
+  @scala.annotation.nowarn
   def checkAndRebuild[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
     spec: Projection[A],
     config: SchemaEvolutionConfig = SchemaEvolutionConfig.default,
     migrationOpt: Option[Migration[?, A]] = None
-  ): Task[Boolean] = {
-    val _ = config
+  ): Task[Boolean] =
     for {
       current <- ZIO.succeed(SchemaHash.compute[A])
       stored  <- store.getSchemaHash
       needs    = stored.exists(_ != current)
       rebuilt <- if (!needs) ZIO.succeed(false)
+                 else if (!config.enableMigrationShortcut) rebuild(store, eventStore, spec, current).as(true)
                  else
                    tryMigrationShortcut(store, migrationOpt, current).flatMap {
                      case true  => ZIO.succeed(true)
                      case false => rebuild(store, eventStore, spec, current).as(true)
                    }
     } yield rebuilt
-  }
 
   def rebuild[A](
     store: ProjectionStore[A],
@@ -73,12 +78,12 @@ object SchemaEvolution {
       _ <- store.updateSchemaHash(currentHash)
     } yield ()
 
+  @scala.annotation.nowarn
   def rebuildWithHash[A: Schema: EntityPath](
     store: ProjectionStore[A],
     eventStore: EventStore[_],
     spec: Projection[A]
   ): Task[Unit] = {
-    val _ = summon[EntityPath[A]]
     val h = SchemaHash.compute[A]
     rebuild(store, eventStore, spec, h)
   }
@@ -89,28 +94,29 @@ object SchemaEvolution {
     spec: Projection[A]
   ): Task[Unit] = {
     val esAny = eventStore.asInstanceOf[EventStore[Any]]
-    ZIO.unit.flatMap { _ =>
-      esAny
-        .readAll()
-        .mapZIO { env =>
-          val ctx    = ProjectionContext(env.entityId, env.timestamp, env.seq, Some(env.entityId))
-          val action = spec.handle(env.event, ctx)
-          action match {
-            case None      => ZIO.unit
-            case Some(act) =>
-              applyAction(store, act, ctx).catchAll(e =>
-                ZIO.logError(s"SchemaEvolution replay apply failed at seq ${env.seq}: ${e.getMessage}") *> ZIO.unit
-              )
-          }
-        }
-        .runDrain
-        .zipRight {
-          esAny.readAll().runCollect.map(_.lastOption.map(_.seq).getOrElse(0L)).flatMap { last =>
-            if (last > 0) store.updateLastProcessedSeq(last) else ZIO.unit
-          }
-        }
-        .catchAll(e => ZIO.logError(s"SchemaEvolution replay failed: ${e.getMessage}") *> ZIO.unit)
-    }
+    (for {
+      ref <- Ref.make[Long](0L)
+      _   <- esAny
+             .readAll()
+             .mapZIO { env =>
+               ref.update(m => math.max(m, env.seq)) *> {
+                 val ctx    = ProjectionContext(env.entityId, env.timestamp, env.seq, Some(env.entityId))
+                 val action = spec.handle(env.event, ctx)
+                 action match {
+                   case None      => ZIO.unit
+                   case Some(act) =>
+                     applyAction(store, act, ctx).catchAll(e =>
+                       ZIO.logError(
+                         s"SchemaEvolution replay apply failed at seq ${env.seq}: ${e.getMessage}"
+                       ) *> ZIO.unit
+                     )
+                 }
+               }
+             }
+             .runDrain
+      max <- ref.get
+      _   <- if (max > 0) store.updateLastProcessedSeq(max) else ZIO.unit
+    } yield ()).catchAll(e => ZIO.logError(s"SchemaEvolution replay failed: ${e.getMessage}") *> ZIO.unit)
   }
 
   private def applyAction[A](
@@ -142,12 +148,12 @@ object SchemaEvolution {
     }
   }
 
+  @scala.annotation.nowarn
   def tryMigrationShortcut[A: Schema: EntityPath](
     store: ProjectionStore[A],
     migrationOpt: Option[Migration[?, A]],
     currentHash: String
-  ): Task[Boolean] = {
-    val _ = summon[EntityPath[A]]
+  ): Task[Boolean] =
     migrationOpt match {
       case None    => ZIO.succeed(false)
       case Some(m) =>
@@ -174,10 +180,9 @@ object SchemaEvolution {
             }
             .zipRight(store.updateSchemaHash(currentHash))
             .as(true)
-            .catchAll(_ => ZIO.succeed(false))
+            .catchAll(e => ZIO.logWarning(s"SchemaEvolution migration shortcut failed: ${e.getMessage}").as(false))
         }
     }
-  }
 
   def tryMigrationShortcutForSpec(
     spec: Projection[_],
@@ -196,15 +201,13 @@ object SchemaEvolution {
     )
   }
 
+  @scala.annotation.nowarn
   def registerMigration[Old, New: Schema: EntityPath](
     migration: Migration[Old, New],
     registry: Ref[Map[String, Migration[?, ?]]],
     specName: String
-  ): Task[Unit] = {
-    val _ = summon[Schema[New]]
-    val _ = summon[EntityPath[New]]
+  ): Task[Unit] =
     registry.update(_ + (specName -> migration.asInstanceOf[Migration[?, ?]]))
-  }
 
   // ---------------------------------------------------------------------------
   // Lazy rebuild helpers
@@ -249,24 +252,26 @@ object SchemaEvolution {
       if (toRebuild.isEmpty) ZIO.unit
       else
         ZIO
-          .foreachPar(toRebuild.grouped(config.rebuildParallelism).toList) { batch =>
-            ZIO.foreachDiscard(batch) { specAny =>
-              val store = stores(specAny.name).asInstanceOf[ProjectionStore[Any]]
-              val es    = eventStores.values.headOption.getOrElse(null)
-              if (es == null) ZIO.unit
-              else {
-                val cur    = SchemaHash.compute[Any](using specAny.schema.asInstanceOf[Schema[Any]])
-                val migOpt = migrations.get(specAny.name)
-                tryMigrationShortcutForSpec(specAny, store, migOpt, cur).flatMap {
-                  case true  => pendingRef.update(_ - specAny.name)
-                  case false =>
-                    val specCast = specAny.asInstanceOf[Projection[Any]]
-                    rebuild[Any](store, es.asInstanceOf[EventStore[Any]], specCast, cur) *>
-                      pendingRef.update(_ - specAny.name)
-                }.catchAll(e => ZIO.logError(s"bulk rebuild $specAny failed: ${e.getMessage}") *> ZIO.unit)
-              }
+          .foreachPar(toRebuild) { specAny =>
+            val store = stores(specAny.name).asInstanceOf[ProjectionStore[Any]]
+            val es    = eventStores
+              .get(specAny.sources.headOption.map(_.sourceName).getOrElse(specAny.name))
+              .orElse(eventStores.headOption.map(_._2))
+              .getOrElse(null)
+            if (es == null) ZIO.unit
+            else {
+              val cur    = SchemaHash.compute[Any](using specAny.schema.asInstanceOf[Schema[Any]])
+              val migOpt = migrations.get(specAny.name)
+              tryMigrationShortcutForSpec(specAny, store, migOpt, cur).flatMap {
+                case true  => pendingRef.update(_ - specAny.name)
+                case false =>
+                  val specCast = specAny.asInstanceOf[Projection[Any]]
+                  rebuild[Any](store, es.asInstanceOf[EventStore[Any]], specCast, cur) *>
+                    pendingRef.update(_ - specAny.name)
+              }.catchAll(e => ZIO.logError(s"bulk rebuild $specAny failed: ${e.getMessage}") *> ZIO.unit)
             }
           }
+          .withParallelism(config.rebuildParallelism)
           .unit
     }
 }

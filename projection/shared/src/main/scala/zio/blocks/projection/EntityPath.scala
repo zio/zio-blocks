@@ -24,18 +24,39 @@ class path(name: String) extends StaticAnnotation {
   def pathName: String = name
 }
 
+/**
+ * Describes where a projection entity `A` lives on disk and which field is its
+ * identifier.
+ *
+ * `basePath` is the folder name (e.g. `users` derived from `userId`),
+ * `entityIdField` is the field name that holds the entity id.
+ */
 trait EntityPath[A] {
+
+  /** Folder name for the projection's SQLite file(s). */
   def basePath: String
+
+  /** Field name that holds the entity identifier. */
   def entityIdField: String
 }
 
 object EntityPath {
+
+  /** Manual construction with an explicit folder and id field. */
   def apply[A](basePath0: String, entityIdField0: String): EntityPath[A] =
     new EntityPath[A] {
       val basePath: String      = basePath0
       val entityIdField: String = entityIdField0
     }
 
+  /**
+   * Derive an [[EntityPath]] from `Schema[A]`.
+   *
+   * Finds the `@Modifier.id` field (or `id` by name), then derives the folder
+   * as `pluralize(toSnakeCase(stripIdSuffix(fieldName)))` — e.g. `userId` →
+   * `users`, `id` → `ids` (prefer `userId` or `@path` to avoid the generic
+   * `ids` folder).
+   */
   def derived[A](using schema: Schema[A]): EntityPath[A] = {
     val reflect = schema.reflect
     reflect.asRecord match {
@@ -54,8 +75,8 @@ object EntityPath {
             }
           case None =>
             throw new RuntimeException(
-              s"Entity ${reflect.typeId.fullName} must have @Modifier.id field. " +
-                s"Annotate a field with @Modifier.id."
+              s"Entity ${reflect.typeId.fullName} must have @Modifier.id field or field named 'id'. " +
+                s"Annotate a field with @Modifier.id or name it 'id'."
             )
         }
       case None =>
@@ -80,8 +101,8 @@ object EntityPath {
             }
           case None =>
             throw new RuntimeException(
-              s"Entity ${reflect.typeId.fullName} must have @Modifier.id field. " +
-                s"Annotate a field with @Modifier.id."
+              s"Entity ${reflect.typeId.fullName} must have @Modifier.id field or field named 'id'. " +
+                s"Annotate a field with @Modifier.id or name it 'id'."
             )
         }
       case None =>
@@ -150,4 +171,12 @@ object EntityPath {
       case ann if ann.name == "path" =>
         ann.args.collectFirst { case zio.blocks.typeid.AnnotationArg.Const(value: String) => value }
     }.flatten
+
+  // M3: validate basePath does not contain traversal
+  private[projection] def validateBasePath(path: String): Unit = {
+    require(path.nonEmpty, s"invalid basePath $path")
+    require(!path.contains("/") || !path.contains(".."), s"invalid basePath $path")
+    require(!path.contains("\\"), s"invalid basePath $path")
+    require(!path.contains(".."), s"invalid basePath $path")
+  }
 }

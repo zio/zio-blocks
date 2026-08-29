@@ -54,8 +54,8 @@ final class TestEngine private (
    * tries to route the event to the source whose binding has a handler for the
    * event's runtime class; otherwise it broadcasts to all sources.
    */
-  def append[E: Schema](entityId: String, event: E): Task[Unit] = {
-    val _ = summon[Schema[E]]
+  @scala.annotation.nowarn
+  def append[E: Schema](entityId: String, event: E): Task[Unit] =
     if (eventStores.size == 1) {
       eventStores.values.head.asInstanceOf[EventStore[E]].append(entityId, event).unit
     } else {
@@ -69,16 +69,14 @@ final class TestEngine private (
         es.asInstanceOf[EventStore[E]].append(entityId, event).unit.catchAll(_ => ZIO.unit)
       }
     }
-  }
 
   /** Append to a specific source hub. */
-  def append[E: Schema](entityId: String, event: E, source: String): Task[Unit] = {
-    val _ = summon[Schema[E]]
+  @scala.annotation.nowarn
+  def append[E: Schema](entityId: String, event: E, source: String): Task[Unit] =
     eventStores.get(source) match {
       case Some(es) => es.asInstanceOf[EventStore[E]].append(entityId, event).unit
       case None     => ZIO.fail(new RuntimeException(s"Unknown source '$source' known=${eventStores.keys.mkString(",")}"))
     }
-  }
 
   def query[A](projection: Projection[A], id: String): Task[Option[A]] =
     engine.query(projection, id)
@@ -127,7 +125,7 @@ object TestEngine {
       eventStoresMap <- ZIO
                           .foreach(distinctSources) { src =>
                             for {
-                              hub     <- Hub.unbounded[EventEnvelope[Any]]
+                              hub     <- Hub.bounded[EventEnvelope[Any]](config.ringCapacity)
                               buffer  <- Ref.make(List.empty[EventEnvelope[Any]])
                               counter <- Ref.make(0L)
                               store    = new InMemEventStore[Any](hub, buffer, counter)

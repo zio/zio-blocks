@@ -417,24 +417,24 @@ object TransactorCacheSpec extends ZIOSpecDefault {
     test("transactor remains functional after caching") {
       withTempCache() { (cache, pathStr, _) =>
         for {
-          tx <- cache.get(pathStr)
-          _  <- ZIO.attemptBlocking {
-                 tx.connect {
-                   Frag.literal("CREATE TABLE func_test (id INTEGER NOT NULL, name TEXT NOT NULL)").update
-                   ()
-                 }
-                 tx.connect {
-                   Frag.literal("INSERT INTO func_test (id, name) VALUES (1, 'hello')").update
-                   ()
-                 }
-                 val rows = tx.connect {
-                   Frag
-                     .literal("SELECT name FROM func_test")
-                     .query[String](using summon[DbCon], summon[zio.blocks.sql.DbCodec[String]])
-                 }
-                 assert(rows == List("hello"))
-               }
-        } yield assertTrue(true)
+          tx   <- cache.get(pathStr)
+          rows <- ZIO.attemptBlocking {
+                    tx.connect {
+                      Frag.literal("CREATE TABLE func_test (id INTEGER NOT NULL, name TEXT NOT NULL)").update
+                      ()
+                    }
+                    tx.connect {
+                      Frag.literal("INSERT INTO func_test (id, name) VALUES (1, 'hello')").update
+                      ()
+                    }
+                    tx.connect {
+                      Frag
+                        .literal("SELECT name FROM func_test")
+                        .query[String](using summon[DbCon], summon[zio.blocks.sql.DbCodec[String]])
+                    }
+                  }
+          sz <- cache.size
+        } yield assertTrue(rows == List("hello"), sz == 1)
       }
     }
   )

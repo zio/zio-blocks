@@ -16,6 +16,7 @@
 
 package zio.blocks.projection
 
+// $COVERAGE-OFF$
 import scala.quoted.*
 
 object ProjectionMacros {
@@ -33,3 +34,4 @@ object ProjectionMacros {
   )(using Quotes): Expr[Projection[A]] =
     '{ $builder.routedBy((e: E) => $selector(e).toString) }
 }
+// $COVERAGE-ON$

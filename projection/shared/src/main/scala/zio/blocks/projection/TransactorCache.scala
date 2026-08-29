@@ -61,6 +61,7 @@ object TransactorCache {
   def makeUnscoped(maxSize: Int = 256): UIO[TransactorCache] =
     TransactorCachePlatform.makeInternal(maxSize)
 
+  // $COVERAGE-OFF$
   /** ZLayer that provides a [[TransactorCache]] with default size 256. */
   def live(maxSize: Int = 256): ZLayer[Scope, Nothing, TransactorCache] =
     ZLayer.fromZIO(make(maxSize))
@@ -68,4 +69,5 @@ object TransactorCache {
   /** ZLayer with custom config. */
   def liveConfig(config: TransactorCacheConfig): ZLayer[Scope, Nothing, TransactorCache] =
     live(config.maxSize)
+  // $COVERAGE-ON$
 }

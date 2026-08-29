@@ -77,3 +77,4 @@ website/.docusaurus
 *.tasty
 .flowrite/
 .docs-audit-state.json
+sweep-*.db

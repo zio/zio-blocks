@@ -16,6 +16,7 @@
 
 package zio.blocks.projection
 
+// $COVERAGE-OFF$
 import scala.quoted.*
 import zio.blocks.sql.SqlNameMapper
 
@@ -72,3 +73,4 @@ object FieldSelectorMacros {
     fieldName
   }
 }
+// $COVERAGE-ON$

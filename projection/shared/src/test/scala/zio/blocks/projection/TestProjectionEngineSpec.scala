@@ -225,8 +225,8 @@ object TestProjectionEngineSpec extends ZIOSpecDefault {
           (UserCreated("X", "x@b.com"), TestContext.make(entityId = "x1"))
         )
         for {
-          _ <- engine.processEvents(spec, events)
-        } yield assertTrue(true)
+          res <- engine.processEvents(spec, events).either
+        } yield assertTrue(res.isRight)
       },
       test("batch update via FieldUpdate applies increment") {
         val engine     = TestProjectionEngine.make

@@ -18,7 +18,14 @@ libraryDependencies += "dev.zio" %% "zio-blocks-projection" % "@VERSION@"
 
 // ZIO integration (transactor cache, engine runtime)
 libraryDependencies += "dev.zio" %% "zio-blocks-sql-zio" % "@VERSION@"
+
+// for SQLite persistence add: libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0" // or InMemory fallback if not present
+libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.4.0"
 ```
+
+`sqlite-jdbc` is `% Test` by default in `zio-blocks-projection`; consumers that
+want SQLite persistence at runtime must add the dependency above explicitly.
+If it is not present the engine falls back to `InMemoryProjectionStore`.
 
 ## Overview
 
@@ -125,11 +132,12 @@ val raw     = orderId // String = "42"
 import zio.blocks.projection.*
 import zio.blocks.schema.{Modifier, Schema}
 
-case class UserProfile(@Modifier.id id: String, name: String, email: String)
+case class UserProfile(@Modifier.id userId: String, name: String, email: String)
 object UserProfile {
   implicit val schema: Schema[UserProfile]         = Schema.derived[UserProfile]
   implicit val entityPath: EntityPath[UserProfile] = EntityPath.derived[UserProfile]
 }
+// basePath = "users", entityIdField = "userId"
 ```
 
 **Derivation rules** (`EntityPath.derived[A]`):
@@ -142,7 +150,9 @@ object UserProfile {
    - Strip trailing `Id` suffix: `userId` → `user`
    - Convert to snake_case: `userId` → `user_id`
    - Pluralize: `user` → `users`
-   - Result: `basePath = "users"`, `entityIdField = "id"`
+   - Result: `basePath = "users"`, `entityIdField = "userId"`
+
+If the field is exactly `id`, `basePath` is `ids` — prefer `userId` or use `@path` to override.
 
 **Override with `@path`:**
 

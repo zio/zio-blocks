@@ -42,11 +42,9 @@ object AggregateProjection {
    */
   def globalWithCounters[A: Schema](
     name: String,
-    bindings: List[(String, Any => String)] = Nil
-  ): Projection[A] = {
-    val _ = bindings
+    @annotation.nowarn("msg=unused") bindings: List[(String, Any => String)] = Nil
+  ): Projection[A] =
     Projection.global[A](name)
-  }
 
   /**
    * Example model used by the aggregate spec tests: daily statistics bucketed

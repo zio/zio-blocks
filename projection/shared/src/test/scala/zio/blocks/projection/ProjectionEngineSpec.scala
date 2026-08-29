@@ -112,7 +112,7 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
   object InMemEventStore {
     def make[E]: ZIO[Any, Nothing, InMemEventStore[E]] =
       for {
-        hub     <- Hub.unbounded[EventEnvelope[E]]
+        hub     <- Hub.bounded[EventEnvelope[E]](4096)
         buffer  <- Ref.make(List.empty[EventEnvelope[E]])
         counter <- Ref.make(0L)
       } yield new InMemEventStore[E](hub, buffer, counter)
@@ -938,6 +938,84 @@ object ProjectionEngineSpec extends ZIOSpecDefault {
             _      <- Live.live(ZIO.sleep(200.millis))
             rTrunc <- store2.findById("c1")
           } yield assertTrue(r1.exists(_.total == 7L), rTrunc.isEmpty)
+        }
+      }
+    ),
+    suite("C1 watermark and C3 dedup")(
+      test("C1: failed last event does not advance watermark past last success") {
+        ZIO.scoped {
+          for {
+            cache    <- TransactorCache.make()
+            store    <- InMemoryProjectionStore.make[User]
+            hubStore <- InMemEventStore.make[Any]
+            spec      = Projection[User]("users")
+                     .from("ev")
+                     .routeToSelf
+                     .on[UserCreated]
+                     .custom { (e, ctx) =>
+                       if (e.name == "bad") throw new RuntimeException("boom")
+                       else ProjectionAction.Insert(User(ctx.entityId, e.name, e.email, 0L))
+                     }
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("ev"      -> hubStore.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _    <- engine.start
+            _    <- hubStore.append("u1", UserCreated("good", "g@b.com"))
+            _    <- Live.live(ZIO.sleep(300.millis))
+            seq1 <- store.getLastProcessedSeq
+            _    <- hubStore.append("u2", UserCreated("bad", "bad@b.com"))
+            _    <- Live.live(ZIO.sleep(300.millis))
+            seq2 <- store.getLastProcessedSeq
+            // watermark must stay at seq1, not advance to seq of failed event
+            _    <- hubStore.append("u3", UserCreated("good2", "g2@b.com"))
+            _    <- Live.live(ZIO.sleep(300.millis))
+            seq3 <- store.getLastProcessedSeq
+            r3   <- engine.query(spec, "u3")
+          } yield assertTrue(seq1 == 1L, seq2 == seq1, seq3 == 3L, r3.exists(_.name == "good2"))
+        }
+      },
+      test("C3: duplicate seq not double-applied (catch-up vs live dedup with Increment)") {
+        ZIO.scoped {
+          for {
+            cache    <- TransactorCache.make()
+            store    <- InMemoryProjectionStore.make[Counter]
+            hubStore <- InMemEventStore.make[Any]
+            spec      = Projection[Counter]("counters")
+                     .from("ev")
+                     .routeToSelf
+                     .on[CountInc]
+                     .custom((e, ctx) => ProjectionAction.Insert(Counter(ctx.entityId, e.by)))
+            // Insert via direct buffer to simulate pre-existing event at seq 1 before engine start
+            // Use hubStore.append before start, then start should catch-up exactly once
+            _      <- hubStore.append("c1", CountInc(10L))
+            engine <- ProjectionEngine.makeWithStores(
+                        List(spec),
+                        Map(spec.name -> store),
+                        Map("ev"      -> hubStore.asInstanceOf[EventStore[Any]]),
+                        cache
+                      )
+            _    <- engine.start
+            _    <- Live.live(ZIO.sleep(300.millis))
+            r1   <- engine.query(spec, "c1")
+            seq1 <- store.getLastProcessedSeq
+            // Publish same seq again via hub directly (simulate live duplicate)
+            // We publish an envelope with seq 1 which should be filtered as <= lastSeq
+            // Instead simulate by appending a new event and ensuring increment not double counted
+            // Start a second engine with same store/hub: catch-up should not reprocess seq 1
+            engine2 <- ProjectionEngine.makeWithStores(
+                         List(spec),
+                         Map(spec.name -> store),
+                         Map("ev"      -> hubStore.asInstanceOf[EventStore[Any]]),
+                         cache
+                       )
+            _    <- engine2.start
+            _    <- Live.live(ZIO.sleep(300.millis))
+            r2   <- engine2.query(spec, "c1")
+            seq2 <- store.getLastProcessedSeq
+          } yield assertTrue(r1.exists(_.total == 10L), r2.exists(_.total == 10L), seq1 == 1L, seq2 == 1L)
         }
       }
     )

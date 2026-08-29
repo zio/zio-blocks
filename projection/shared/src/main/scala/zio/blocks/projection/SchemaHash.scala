@@ -20,8 +20,15 @@ import java.security.MessageDigest
 
 import zio.blocks.schema.{Reflect, Schema}
 
+/**
+ * SHA-256 hash of a schema's structure for evolution detection.
+ *
+ * Records recurse into field schemas (not just type names) so nested changes
+ * affect the hash.
+ */
 object SchemaHash {
 
+  /** Compute a stable hash for `A`'s schema. */
   def compute[A: Schema]: String = {
     val schema = summon[Schema[A]]
     val sb     = new StringBuilder
@@ -37,10 +44,12 @@ object SchemaHash {
         sb.append("Record(").append(record.typeId.name).append("){")
         record.fields.zipWithIndex.foreach { case (field, idx) =>
           sb.append(field.name).append(":")
-          sb.append(typeDescriptor(field.value))
+          // M10: if field schema is Record, recurse hashRecord(field.schema) instead of just typeId.name
+          field.value.asRecord match {
+            case Some(_) => appendSchema(sb, field.value, depth + 1)
+            case None    => sb.append(typeDescriptor(field.value))
+          }
           sb.append(":").append(idx).append(";")
-        // For nested records with inline handling, do not recurse deeper to keep hash top-level only
-        // but include nested structure if field is record and could be inlined – we hash top-level only per spec
         }
         sb.append("}")
       case None =>

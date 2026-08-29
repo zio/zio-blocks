@@ -25,10 +25,17 @@ import scala.reflect.ClassTag
 // RoutingMode
 // ---------------------------------------------------------------------------
 
+/** How events are routed to projection shards. */
 sealed trait RoutingMode
 object RoutingMode {
-  case object RouteToSelf                              extends RoutingMode
-  case object RouteToAll                               extends RoutingMode
+
+  /** Route by `ctx.entityId` (per-entity, the default). */
+  case object RouteToSelf extends RoutingMode
+
+  /** Send all events to the same store (global aggregates). */
+  case object RouteToAll extends RoutingMode
+
+  /** Route by a key extracted from the event payload. */
   final case class RoutedBy[E](extractor: E => String) extends RoutingMode {
     def extractAny(value: Any): String = extractor.asInstanceOf[Any => String](value)
   }
@@ -38,10 +45,17 @@ object RoutingMode {
 // ProjectionScope
 // ---------------------------------------------------------------------------
 
+/** Derived scope of a [[Projection]] from its bindings. */
 sealed trait ProjectionScope
 object ProjectionScope {
-  case object PerEntity                                 extends ProjectionScope
-  case object Global                                    extends ProjectionScope
+
+  /** One row per entityId. */
+  case object PerEntity extends ProjectionScope
+
+  /** Single global row / coalesced store. */
+  case object Global extends ProjectionScope
+
+  /** Multiple shards keyed by an extracted routing key. */
   final case class CrossEntity(routedBy: Any => String) extends ProjectionScope
 }
 
@@ -49,6 +63,7 @@ object ProjectionScope {
 // Handler
 // ---------------------------------------------------------------------------
 
+/** Binds an event type `E` to a projection action on `A`. */
 final case class Handler[E, A](
   eventClass: Class[E],
   schema: Schema[E],
@@ -64,6 +79,7 @@ final case class Handler[E, A](
 // SourceBinding
 // ---------------------------------------------------------------------------
 
+/** Associates a named event source with routing and handlers. */
 final case class SourceBinding[E, A](
   sourceName: String,
   routing: RoutingMode,
@@ -74,6 +90,12 @@ final case class SourceBinding[E, A](
 // Projection
 // ---------------------------------------------------------------------------
 
+/**
+ * Declarative spec for a projection `A`.
+ *
+ * Build with `Projection[A](name).from(src).routeToSelf.on[E].insert(...)`.
+ * Call `validate()` before engine start to surface empty bindings/handlers.
+ */
 final class Projection[A] private[projection] (
   val name: String,
   val schema: Schema[A],
@@ -123,10 +145,31 @@ final class Projection[A] private[projection] (
 
   def sourceNames: List[String] = bindings.map(_.sourceName)
 
-  def handle(event: Any, ctx: ProjectionContext): Option[ProjectionAction[A]] =
-    allHandlers.find(_.eventClass.isInstance(event)).map(_.runAny(event, ctx))
+  def sources: List[SourceBinding[?, A]] = bindings
 
-  def dispatch(event: Any, ctx: ProjectionContext): Option[ProjectionAction[A]] = handle(event, ctx)
+  /**
+   * Resolve a handler for `event` within `ctx`.
+   *
+   * When `source` is defined, only handlers bound to that source are
+   * considered; otherwise all handlers are searched in binding order
+   * (order-dependent: first matching handler wins across sources). Pass
+   * `source` when dispatching from a multi-source engine to avoid cross-source
+   * handler leakage.
+   */
+  def handle(event: Any, ctx: ProjectionContext, source: Option[String] = None): Option[ProjectionAction[A]] =
+    source match {
+      case Some(src) =>
+        bindings
+          .find(_.sourceName == src)
+          .flatMap(_.handlers.find(_.eventClass.isInstance(event)))
+          .map(_.runAny(event, ctx))
+      case None =>
+        allHandlers.find(_.eventClass.isInstance(event)).map(_.runAny(event, ctx))
+    }
+
+  /** Alias for `handle` — retained for binary compatibility. */
+  def dispatch(event: Any, ctx: ProjectionContext, source: Option[String] = None): Option[ProjectionAction[A]] =
+    handle(event, ctx, source)
 
   def routingKey(event: Any, ctx: ProjectionContext, sourceName: String): Option[String] =
     bindings.find(_.sourceName == sourceName).flatMap { b =>
@@ -150,7 +193,10 @@ final class Projection[A] private[projection] (
 
   def validate(): List[String] = {
     val warnings = scala.collection.mutable.ListBuffer.empty[String]
+    if (bindings.isEmpty) warnings += s"Projection $name has no bindings"
+    if (allHandlers.isEmpty) warnings += s"Projection $name has no handlers"
     bindings.foreach { b =>
+      if (b.sourceName.isEmpty) warnings += s"Projection $name has binding with empty sourceName"
       b.handlers.foreach { h =>
         if (h.eventClass == null) warnings += s"Handler for ${h.tag} has null class"
       }

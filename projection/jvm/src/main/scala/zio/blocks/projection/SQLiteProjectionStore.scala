@@ -40,6 +40,17 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
   private val validatedIdColumn = idColumn
   private val validatedTblName  = tblName
 
+  private def quoted(s: String): String = "\"" + s.replace("\"", "\"\"") + "\""
+
+  private def validateField(field: String): Unit =
+    if (!table.columns.contains(field))
+      throw new IllegalArgumentException(s"unknown field '$field' not in ${table.columns.mkString(",")}")
+    else if (!field.matches("[a-zA-Z_][a-zA-Z0-9_]*"))
+      throw new IllegalArgumentException(s"invalid field name '$field'")
+
+  private def validateColumnName(name: String): Unit =
+    require(name.matches("[a-zA-Z_][a-zA-Z0-9_]*"), s"invalid column name $name")
+
   private def ensureTables: Task[Unit] =
     initFlag.get.flatMap {
       case true  => ZIO.unit
@@ -65,10 +76,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                          try ps2.executeUpdate()
                          finally ps2.close()
                          val idxSql =
-                           s"CREATE UNIQUE INDEX IF NOT EXISTS idx_${validatedTblName}_${validatedIdColumn} ON $validatedTblName ($validatedIdColumn)"
+                           s"CREATE UNIQUE INDEX IF NOT EXISTS idx_${validatedTblName}_${validatedIdColumn} ON ${quoted(validatedTblName)} (${quoted(validatedIdColumn)})"
                          val ps3 = conn.prepareStatement(idxSql)
                          try ps3.executeUpdate()
-                         finally ps3.close()()
+                         finally ps3.close()
                        }
                      }
                 _ <- initFlag.set(true)
@@ -162,12 +173,12 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             val values       = codec.toDbValues(a)
             val placeholders = List.fill(values.size)("?").mkString(", ")
             val nonIdCols    = table.columns.filter(_ != validatedIdColumn)
-            val excludedSets = nonIdCols.map(col => s"$col=excluded.$col").mkString(", ")
+            val excludedSets = nonIdCols.map(col => s"${quoted(col)}=excluded.${quoted(col)}").mkString(", ")
             val sql          =
               if (excludedSets.nonEmpty)
-                s"INSERT INTO $validatedTblName ($allCols) VALUES ($placeholders) ON CONFLICT($validatedIdColumn) DO UPDATE SET $excludedSets"
+                s"INSERT INTO ${quoted(validatedTblName)} ($allCols) VALUES ($placeholders) ON CONFLICT(${quoted(validatedIdColumn)}) DO UPDATE SET $excludedSets"
               else
-                s"INSERT OR REPLACE INTO $validatedTblName ($allCols) VALUES ($placeholders)"
+                s"INSERT OR REPLACE INTO ${quoted(validatedTblName)} ($allCols) VALUES ($placeholders)"
             try {
               val ps = conn.prepareStatement(sql)
               try {
@@ -181,8 +192,11 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                 ()
               } finally ps.close()
             } catch {
-              case _: Throwable =>
-                val fallback = s"INSERT OR REPLACE INTO $validatedTblName ($allCols) VALUES ($placeholders)"
+              case e: java.sql.SQLException =>
+                // Log original and fallback only for SQLException (not all Throwables)
+                java.lang.System.err
+                  .println(s"upsert ON CONFLICT failed: ${e.getMessage}, falling back to INSERT OR REPLACE")
+                val fallback = s"INSERT OR REPLACE INTO ${quoted(validatedTblName)} ($allCols) VALUES ($placeholders)"
                 val ps2      = conn.prepareStatement(fallback)
                 try {
                   val pw = ps2.paramWriter
@@ -204,14 +218,21 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
     else
       ensureTables *>
         cache.get(path).flatMap { tx =>
+          // Validate fields before transaction (fail fast on bad input)
+          updates.foreach {
+            case FieldUpdate.Set(f, _)       => validateField(f)
+            case FieldUpdate.Increment(f, _) => validateField(f)
+            case FieldUpdate.Decrement(f, _) => validateField(f)
+            case FieldUpdate.Max(f, _)       => validateField(f)
+            case FieldUpdate.Min(f, _)       => validateField(f)
+          }
           ZIO.attemptBlocking {
-            tx.connect {
-              val con  = summon[DbCon]
+            tx.transact {
+              val con  = summon[DbTx]
               val conn = con.connection
               // Ensure row exists before atomic updates: INSERT OR IGNORE with defaults for all columns
-              // Build default row: id = entityId, other cols use their DbValue defaults (0, "", etc)
               val placeholderAll = List.fill(table.columns.size)("?").mkString(", ")
-              val ensureSql      = s"INSERT OR IGNORE INTO $validatedTblName ($allCols) VALUES ($placeholderAll)"
+              val ensureSql      = s"INSERT OR IGNORE INTO ${quoted(validatedTblName)} ($allCols) VALUES ($placeholderAll)"
               val psEnsure       = conn.prepareStatement(ensureSql)
               try {
                 val pw = psEnsure.paramWriter
@@ -227,8 +248,8 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
               } finally psEnsure.close()
               updates.foreach {
                 case FieldUpdate.Set(field, value) =>
-                  val col = field
-                  val sql = s"UPDATE $validatedTblName SET $col = ? WHERE $validatedIdColumn = ?"
+                  val col = quoted(field)
+                  val sql = s"UPDATE ${quoted(validatedTblName)} SET $col = ? WHERE ${quoted(validatedIdColumn)} = ?"
                   val ps  = conn.prepareStatement(sql)
                   try {
                     val pw = ps.paramWriter
@@ -238,9 +259,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                     ()
                   } finally ps.close()
                 case FieldUpdate.Increment(field, by) =>
-                  val col = field
-                  val sql = s"UPDATE $validatedTblName SET $col = COALESCE($col, 0) + ? WHERE $validatedIdColumn = ?"
-                  val ps  = conn.prepareStatement(sql)
+                  val col = quoted(field)
+                  val sql =
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = COALESCE($col, 0) + ? WHERE ${quoted(validatedIdColumn)} = ?"
+                  val ps = conn.prepareStatement(sql)
                   try {
                     val pw = ps.paramWriter
                     pw.setLong(1, by)
@@ -249,9 +271,10 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                     ()
                   } finally ps.close()
                 case FieldUpdate.Decrement(field, by) =>
-                  val col = field
-                  val sql = s"UPDATE $validatedTblName SET $col = COALESCE($col, 0) - ? WHERE $validatedIdColumn = ?"
-                  val ps  = conn.prepareStatement(sql)
+                  val col = quoted(field)
+                  val sql =
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = COALESCE($col, 0) - ? WHERE ${quoted(validatedIdColumn)} = ?"
+                  val ps = conn.prepareStatement(sql)
                   try {
                     val pw = ps.paramWriter
                     pw.setLong(1, by)
@@ -260,9 +283,9 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                     ()
                   } finally ps.close()
                 case FieldUpdate.Max(field, value) =>
-                  val col = field
+                  val col = quoted(field)
                   val sql =
-                    s"UPDATE $validatedTblName SET $col = MAX(COALESCE($col, ?), ?) WHERE $validatedIdColumn = ?"
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = MAX(COALESCE($col, ?), ?) WHERE ${quoted(validatedIdColumn)} = ?"
                   val ps = conn.prepareStatement(sql)
                   try {
                     val pw = ps.paramWriter
@@ -273,9 +296,9 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
                     ()
                   } finally ps.close()
                 case FieldUpdate.Min(field, value) =>
-                  val col = field
+                  val col = quoted(field)
                   val sql =
-                    s"UPDATE $validatedTblName SET $col = MIN(COALESCE($col, ?), ?) WHERE $validatedIdColumn = ?"
+                    s"UPDATE ${quoted(validatedTblName)} SET $col = MIN(COALESCE($col, ?), ?) WHERE ${quoted(validatedIdColumn)} = ?"
                   val ps = conn.prepareStatement(sql)
                   try {
                     val pw = ps.paramWriter
@@ -371,31 +394,21 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       cache.get(path).flatMap { tx =>
         ZIO.attemptBlocking {
           tx.connect {
-            val con     = summon[DbCon]
-            val conn    = con.connection
-            val now     = java.lang.System.currentTimeMillis()
-            val updSql  = s"UPDATE $metaTable SET last_seq = ?, updated_at = ? WHERE name = ?"
-            val psUpd   = conn.prepareStatement(updSql)
-            val updated =
-              try {
-                val pw = psUpd.paramWriter
-                pw.setLong(1, seq)
-                pw.setLong(2, now)
-                pw.setString(3, metaKey)
-                psUpd.executeUpdate()
-              } finally psUpd.close()
-            if (updated == 0) {
-              val insSql = s"INSERT INTO $metaTable (name, last_seq, updated_at) VALUES (?, ?, ?)"
-              val psIns  = conn.prepareStatement(insSql)
-              try {
-                val pw = psIns.paramWriter
-                pw.setString(1, metaKey)
-                pw.setLong(2, seq)
-                pw.setLong(3, now)
-                psIns.executeUpdate()
-                ()
-              } finally psIns.close()
-            }
+            val con  = summon[DbCon]
+            val conn = con.connection
+            val now  = java.lang.System.currentTimeMillis()
+            // ON CONFLICT atomic upsert (no UPDATE-then-INSERT race)
+            val sql =
+              s"INSERT INTO $metaTable (name, last_seq, updated_at) VALUES (?, ?, ?) ON CONFLICT(name) DO UPDATE SET last_seq=excluded.last_seq, updated_at=excluded.updated_at"
+            val ps = conn.prepareStatement(sql)
+            try {
+              val pw = ps.paramWriter
+              pw.setString(1, metaKey)
+              pw.setLong(2, seq)
+              pw.setLong(3, now)
+              ps.executeUpdate()
+              ()
+            } finally ps.close()
           }
         }
       }
@@ -428,31 +441,20 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
       cache.get(path).flatMap { tx =>
         ZIO.attemptBlocking {
           tx.connect {
-            val con     = summon[DbCon]
-            val conn    = con.connection
-            val now     = java.lang.System.currentTimeMillis()
-            val updSql  = s"UPDATE $metaTable SET schema_hash = ?, updated_at = ? WHERE name = ?"
-            val psUpd   = conn.prepareStatement(updSql)
-            val updated =
-              try {
-                val pw = psUpd.paramWriter
-                pw.setString(1, hash)
-                pw.setLong(2, now)
-                pw.setString(3, metaKey)
-                psUpd.executeUpdate()
-              } finally psUpd.close()
-            if (updated == 0) {
-              val insSql = s"INSERT INTO $metaTable (name, last_seq, schema_hash, updated_at) VALUES (?, 0, ?, ?)"
-              val psIns  = conn.prepareStatement(insSql)
-              try {
-                val pw = psIns.paramWriter
-                pw.setString(1, metaKey)
-                pw.setString(2, hash)
-                pw.setLong(3, now)
-                psIns.executeUpdate()
-                ()
-              } finally psIns.close()
-            }
+            val con  = summon[DbCon]
+            val conn = con.connection
+            val now  = java.lang.System.currentTimeMillis()
+            val sql  =
+              s"INSERT INTO $metaTable (name, last_seq, schema_hash, updated_at) VALUES (?, 0, ?, ?) ON CONFLICT(name) DO UPDATE SET schema_hash=excluded.schema_hash, updated_at=excluded.updated_at"
+            val ps = conn.prepareStatement(sql)
+            try {
+              val pw = ps.paramWriter
+              pw.setString(1, metaKey)
+              pw.setString(2, hash)
+              pw.setLong(3, now)
+              ps.executeUpdate()
+              ()
+            } finally ps.close()
           }
         }
       }
@@ -465,7 +467,7 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             val con  = summon[DbCon]
             val conn = con.connection
             // Drop existing table if exists, then recreate via Table.derived DDL + index + meta
-            val dropSql = s"DROP TABLE IF EXISTS $validatedTblName"
+            val dropSql = s"DROP TABLE IF EXISTS ${quoted(validatedTblName)}"
             val psDrop  = conn.prepareStatement(dropSql)
             try psDrop.executeUpdate()
             finally psDrop.close()
@@ -476,43 +478,45 @@ class SQLiteProjectionStore[A: Schema: EntityPath] private (
             try ps1.executeUpdate()
             finally ps1.close()
             val idxSql =
-              s"CREATE UNIQUE INDEX IF NOT EXISTS idx_${validatedTblName}_${validatedIdColumn} ON $validatedTblName ($validatedIdColumn)"
+              s"CREATE UNIQUE INDEX IF NOT EXISTS idx_${validatedTblName}_${validatedIdColumn} ON ${quoted(validatedTblName)} (${quoted(validatedIdColumn)})"
             val ps3 = conn.prepareStatement(idxSql)
             try ps3.executeUpdate()
-            finally ps3.close()()
+            finally ps3.close()
           }
         }
       }
 
   override def addColumn(columnName: String, sqlType: String): Task[Unit] =
-    ensureTables *>
-      cache.get(path).flatMap { tx =>
-        ZIO.attemptBlocking {
-          tx.connect {
-            val con  = summon[DbCon]
-            val conn = con.connection
-            // Check if column already exists via PRAGMA table_info
-            val pragma = conn.prepareStatement(s"PRAGMA table_info($validatedTblName)")
-            try {
-              val rs = pragma.executeQuery()
+    ZIO.attempt(validateColumnName(columnName)).flatMap { _ =>
+      ensureTables *>
+        cache.get(path).flatMap { tx =>
+          ZIO.attemptBlocking {
+            tx.connect {
+              val con  = summon[DbCon]
+              val conn = con.connection
+              // Check if column already exists via PRAGMA table_info
+              val pragma = conn.prepareStatement(s"PRAGMA table_info(${quoted(validatedTblName)})")
               try {
-                var exists = false
-                while (rs.next()) {
-                  val colName = rs.reader.getString(2) // name is column 2
-                  if (colName == columnName) exists = true
-                }
-                if (!exists) {
-                  val addSql = s"ALTER TABLE $validatedTblName ADD COLUMN $columnName $sqlType"
-                  val psAdd  = conn.prepareStatement(addSql)
-                  try psAdd.executeUpdate()
-                  finally psAdd.close()
-                }
-              } finally rs.close()
-            } finally pragma.close()
-            ()
+                val rs = pragma.executeQuery()
+                try {
+                  var exists = false
+                  while (rs.next()) {
+                    val colName = rs.reader.getString(2) // name is column 2
+                    if (colName == columnName) exists = true
+                  }
+                  if (!exists) {
+                    val addSql = s"ALTER TABLE ${quoted(validatedTblName)} ADD COLUMN ${quoted(columnName)} $sqlType"
+                    val psAdd  = conn.prepareStatement(addSql)
+                    try psAdd.executeUpdate()
+                    finally psAdd.close()
+                  }
+                } finally rs.close()
+              } finally pragma.close()
+              ()
+            }
           }
         }
-      }
+    }
 }
 
 object SQLiteProjectionStore {

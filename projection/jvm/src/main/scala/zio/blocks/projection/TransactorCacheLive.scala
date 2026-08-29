@@ -49,6 +49,17 @@ private final class LiveTransactorCache(
         val ps2 = dbCon.connection.prepareStatement("PRAGMA synchronous=NORMAL")
         try ps2.executeUpdate()
         finally ps2.close()
+        val ps3 = dbCon.connection.prepareStatement("PRAGMA busy_timeout=5000")
+        try {
+          // busy_timeout may return a row on some drivers, handle both
+          try {
+            val rs = ps3.executeQuery()
+            try rs.next()
+            finally rs.close()
+          } catch {
+            case _: java.sql.SQLException => ps3.executeUpdate()
+          }
+        } finally ps3.close()
         ()
       }
       tx
