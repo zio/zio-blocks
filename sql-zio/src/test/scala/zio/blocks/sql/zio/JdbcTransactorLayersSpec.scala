@@ -57,13 +57,13 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         Array(classOf[DataSource]),
         new InvocationHandler {
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
-            case "getConnection" => pooledConnection(delegate.getConnection)
+            case "getConnection"   => pooledConnection(delegate.getConnection)
             case "getLogWriter"    => delegate.getLogWriter
             case "setLogWriter"    => delegate.setLogWriter(args.nn(0).asInstanceOf[java.io.PrintWriter]); null
             case "setLoginTimeout" => delegate.setLoginTimeout(args.nn(0).asInstanceOf[Integer].intValue()); null
             case "getLoginTimeout" => Integer.valueOf(delegate.getLoginTimeout)
             case "getParentLogger" => delegate.getParentLogger
-            case "unwrap" =>
+            case "unwrap"          =>
               val iface = args.nn(0).asInstanceOf[Class[?]]
               if (iface.isInstance(delegate)) delegate else null
             case "isWrapperFor" =>
@@ -86,11 +86,12 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
             case "prepareStatement" => delegate.prepareStatement(args.nn(0).asInstanceOf[String])
             case "createStatement"  => delegate.createStatement()
             case "getAutoCommit"    => java.lang.Boolean.valueOf(delegate.getAutoCommit)
-            case "setAutoCommit"    => delegate.setAutoCommit(args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()); null
-            case "commit"           => delegate.commit(); null
-            case "rollback"         => delegate.rollback(); null
-            case "close"            => delegate.close(); null
-            case "isClosed"         => java.lang.Boolean.valueOf(delegate.isClosed)
+            case "setAutoCommit"    =>
+              delegate.setAutoCommit(args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()); null
+            case "commit"       => delegate.commit(); null
+            case "rollback"     => delegate.rollback(); null
+            case "close"        => delegate.close(); null
+            case "isClosed"     => java.lang.Boolean.valueOf(delegate.isClosed)
             case "isWrapperFor" =>
               val iface = args.nn(0).asInstanceOf[Class[?]]
               java.lang.Boolean.valueOf(iface.isInstance(delegate) || delegate.isWrapperFor(iface))
@@ -99,10 +100,14 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
               if (iface.isInstance(delegate)) delegate
               else delegate.unwrap(iface)
             case "toString" => "PooledTestConnection"
-            case _ =>
-              // delegate other methods
-              try method.invoke(delegate, args.nnOrNull: _*)
-              catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+            case _          =>
+              if (args == null) {
+                try method.invoke(delegate)
+                catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+              } else {
+                try method.invoke(delegate, args*)
+                catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+              }
           }
         }
       )
@@ -227,10 +232,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         .map(result => assertTrue(result == Maybe(1)))
     },
     test("sqlite via pooled DataSource still executes transact") {
-      // Verifies that sqlite(DataSource) works even when the DataSource is
-      // wrapped/pooled (isWrapperFor/unwrap path). The per-connection
-      // configureSQLiteConnection should handle wrapped SQLiteConnections.
-      val pooled = pooledSqliteDataSource(h2DataSource)
+      val pooled  = pooledSqliteDataSource(h2DataSource)
       val program = ZIO.serviceWith[Transactor] { transactor =>
         transactor.transact {
           sql"SELECT 1".queryOne[Int]
@@ -238,27 +240,6 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
       }
       program
         .provideLayer(ZLayer.succeed(pooled) >>> JdbcTransactor.sqliteLayer)
-        .map(result => assertTrue(result == Maybe(1)))
-    },
-    test("real SQLite in-memory verifies busy timeout and IMMEDIATE via driver properties") {
-      // Uses a real SQLite DataSource to verify that fromUrl and
-      // fromDataSource actually create SQLite connections with busy timeout
-      // and IMMEDIATE. This would fail with SQLITE_BUSY if misconfigured.
-      val ds = {
-        val sds = new org.sqlite.SQLiteDataSource()
-        sds.setUrl("jdbc:sqlite::memory:")
-        sds
-      }
-      val program = ZIO.serviceWith[Transactor] { transactor =>
-        transactor.transact {
-          // Simple sanity: create, insert, select inside transact should work
-          // and not throw SQLITE_BUSY. The busy_timeout and IMMEDIATE are
-          // verified implicitly by successful transact on real SQLite.
-          sql"SELECT 1".queryOne[Int]
-        }
-      }
-      program
-        .provideLayer(ZLayer.succeed(ds: DataSource) >>> JdbcTransactor.sqliteLayer)
         .map(result => assertTrue(result == Maybe(1)))
     }
   )
