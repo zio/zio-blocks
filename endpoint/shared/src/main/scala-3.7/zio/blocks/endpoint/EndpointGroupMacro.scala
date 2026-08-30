@@ -706,7 +706,7 @@ private[endpoint] object EndpointGroupMacro {
                 case None =>
                   if (isEndpoint(t.tpe)) {
                     val expr = wrapLeaf(t, resolveGlobal(codecsAcc))
-                    buildNamedTuple(List(autoName(t)), List(expr))
+                    buildNamedTuple(List(endpointName(t)), List(expr))
                   } else
                     report.errorAndAbort(
                       s"endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`; found unsupported expression of type ${t.tpe.show}"
