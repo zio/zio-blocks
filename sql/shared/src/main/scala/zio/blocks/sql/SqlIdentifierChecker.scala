@@ -29,6 +29,20 @@ import scala.collection.mutable
  */
 object SqlIdentifierChecker {
 
+  /**
+   * A single lint diagnostic for an unknown SQL identifier.
+   *
+   * @param message
+   *   human-readable error, e.g. "Unknown identifier 'usre' at position 14; did
+   *   you mean 'users'?"
+   * @param position
+   *   0-based offset of the identifier's first character in the combined SQL
+   *   string (`parts.mkString(" __HOLE__ ")`); for double-quoted identifiers
+   *   this is the offset of the content start (one past the opening `"`), so
+   *   editors can highlight the identifier itself
+   * @param suggestion
+   *   closest known name by case-insensitive Levenshtein distance ≤ 2, if any
+   */
   final case class Diagnostic(message: String, position: Int, suggestion: Option[String])
 
   /**
@@ -105,8 +119,6 @@ object SqlIdentifierChecker {
     "create",
     "table",
     "if",
-    "not_exists",
-    "exists_word",
     "drop",
     "alter",
     "add",
@@ -153,7 +165,6 @@ object SqlIdentifierChecker {
     "replace",
     "concat",
     "concat_ws",
-    "coalesce",
     "now",
     "current_timestamp",
     "current_date",
@@ -220,7 +231,6 @@ object SqlIdentifierChecker {
     "time",
     "timestamp",
     "timestamptz",
-    "interval_word",
     "array",
     "any",
     "some",
@@ -228,13 +238,11 @@ object SqlIdentifierChecker {
     "conflict",
     "do",
     "nothing",
-    "update_word",
     "except",
     "intersect",
     "for",
     "share",
     "no",
-    "key_word",
     "of",
     "only",
     "lateral",
@@ -248,23 +256,58 @@ object SqlIdentifierChecker {
     "immediate",
     "match",
     "partial",
-    "full_word",
     "simple",
     "action",
     "cascade",
-    "restrict",
-    "set_null",
-    "set_default",
-    "using_word"
+    "restrict"
   ).map(_.toLowerCase)
 
   private val HolePlaceholder = "__HOLE__"
 
   private final case class Token(text: String, position: Int)
 
+  /**
+   * Validates SQL literal parts against known tables/columns.
+   *
+   * @param parts
+   *   StringContext.parts literal segments between `?` holes; holes are
+   *   replaced by the `__HOLE__` placeholder before tokenization (joined as
+   *   `parts.mkString(" __HOLE__ ")`)
+   * @param knownTables
+   *   set of known table names (matched case-insensitively)
+   * @param knownColumns
+   *   set of known column names (matched case-insensitively)
+   * @return
+   *   diagnostics for unknown identifiers, with a did-you-mean suggestion when
+   *   Levenshtein distance ≤ 2; alias names introduced via `AS alias` are
+   *   collected globally and treated as known; single- and double-quoted
+   *   content is respected during tokenization
+   */
   def validate(parts: Seq[String], knownTables: Set[String], knownColumns: Set[String]): List[Diagnostic] =
     validate(parts, knownTables, knownColumns, DefaultAllowlist)
 
+  /**
+   * Validates SQL literal parts against known tables/columns with a custom
+   * allowlist.
+   *
+   * @param parts
+   *   StringContext.parts literal segments between `?` holes; holes are
+   *   replaced by the `__HOLE__` placeholder before tokenization (joined as
+   *   `parts.mkString(" __HOLE__ ")`)
+   * @param knownTables
+   *   set of known table names (matched case-insensitively)
+   * @param knownColumns
+   *   set of known column names (matched case-insensitively)
+   * @param allowlist
+   *   additional SQL keywords/functions/types that are never flagged (matched
+   *   case-insensitively; defaults to [[DefaultAllowlist]] in the 3-arg
+   *   overload)
+   * @return
+   *   diagnostics for unknown identifiers, with a did-you-mean suggestion when
+   *   Levenshtein distance ≤ 2; alias names introduced via `AS alias` are
+   *   collected globally and treated as known; single- and double-quoted
+   *   content is respected during tokenization
+   */
   def validate(
     parts: Seq[String],
     knownTables: Set[String],
@@ -291,12 +334,50 @@ object SqlIdentifierChecker {
     validateTokens(tokens, knownTablesLower, knownColumnsLower, allowlistLower, suggestionPool)
   }
 
+  /**
+   * Validates SQL literal parts against tables derived from schema.
+   *
+   * @param parts
+   *   StringContext.parts literal segments between `?` holes; holes are
+   *   replaced by the `__HOLE__` placeholder before tokenization (joined as
+   *   `parts.mkString(" __HOLE__ ")`)
+   * @param tables
+   *   schema tables providing known table names (`_.name`) and column names
+   *   (`_.columns`); all names are matched case-insensitively
+   * @return
+   *   diagnostics for unknown identifiers, with a did-you-mean suggestion when
+   *   Levenshtein distance ≤ 2; alias names introduced via `AS alias` are
+   *   collected globally and treated as known; single- and double-quoted
+   *   content is respected during tokenization; uses [[DefaultAllowlist]] as
+   *   allowlist
+   */
   def validate(parts: Seq[String], tables: Seq[Table[?]]): List[Diagnostic] = {
     val knownTables  = tables.map(_.name).toSet
     val knownColumns = tables.flatMap(_.columns).toSet
     validate(parts, knownTables, knownColumns, DefaultAllowlist)
   }
 
+  /**
+   * Validates SQL literal parts against tables derived from schema with a
+   * custom allowlist.
+   *
+   * @param parts
+   *   StringContext.parts literal segments between `?` holes; holes are
+   *   replaced by the `__HOLE__` placeholder before tokenization (joined as
+   *   `parts.mkString(" __HOLE__ ")`)
+   * @param tables
+   *   schema tables providing known table names (`_.name`) and column names
+   *   (`_.columns`); all names are matched case-insensitively
+   * @param allowlist
+   *   additional SQL keywords/functions/types that are never flagged (matched
+   *   case-insensitively; defaults to [[DefaultAllowlist]] in the tables-only
+   *   overload)
+   * @return
+   *   diagnostics for unknown identifiers, with a did-you-mean suggestion when
+   *   Levenshtein distance ≤ 2; alias names introduced via `AS alias` are
+   *   collected globally and treated as known; single- and double-quoted
+   *   content is respected during tokenization
+   */
   def validate(parts: Seq[String], tables: Seq[Table[?]], allowlist: Set[String]): List[Diagnostic] = {
     val knownTables  = tables.map(_.name).toSet
     val knownColumns = tables.flatMap(_.columns).toSet
@@ -336,10 +417,10 @@ object SqlIdentifierChecker {
 
       if (isAliasDecl) {
         // declaration itself is not an error
+      } else if (knownTablesLower.contains(lower) || knownColumnsLower.contains(lower) || aliases.contains(lower)) {
+        // known table/column/alias — checked before allowlist so keyword-named tables (e.g. `order`) are not hidden
       } else if (allowlistLower.contains(lower)) {
         // known keyword — skip
-      } else if (knownTablesLower.contains(lower) || knownColumnsLower.contains(lower) || aliases.contains(lower)) {
-        // known table/column/alias
       } else {
         if (lower != HolePlaceholder.toLowerCase && isIdentifier(token.text)) {
           val suggestion = findSuggestion(lower, extendedPool)
@@ -400,11 +481,18 @@ object SqlIdentifierChecker {
         }
         if (closed) {
           val ident = sb.toString
-          // Split by dot inside quoted? shouldn't happen: "T"."c" produces two tokens separately
-          // Here ident is inside one pair of quotes; if it contains dot, treat before/after as separate?
-          // Actually dot outside quotes separates identifiers. Inside quotes dot is not separator.
-          // So keep as one token if non-empty and identifier-like
-          if (ident.nonEmpty) tokens += Token(ident, start)
+          // Split by dot inside quoted: "public.users" → tokens "public", "users"
+          if (ident.nonEmpty) {
+            val parts = ident.split('.')
+            if (parts.length > 1) {
+              var off = 0
+              parts.foreach { p =>
+                if (p.nonEmpty) tokens += Token(p, start + 1 + off)
+                off += p.length + 1
+              }
+            } else
+              tokens += Token(ident, start + 1)
+          }
           i = j
         } else {
           i = len

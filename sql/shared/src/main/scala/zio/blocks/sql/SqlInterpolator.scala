@@ -123,10 +123,22 @@ object DbParam {
 }
 
 extension (inline sc: StringContext) {
-  inline def sql(inline args: Any*): Frag = ${ SqlMacros.sqlImpl('sc, 'args) }
 
-  inline def sqlUnchecked(inline args: Any*): Frag = ${ SqlMacros.sqlUncheckedImpl('sc, 'args) }
+  /** Plain `sql"SELECT ... $param"` — validates quotes/parentheses only. */
+  inline def sql(inline args: Any*): Frag =
+    ${ SqlMacros.sqlImpl('sc, '{ Seq.empty[Table[?]] }, 'args) }
 
-  inline def sqlChecked(inline tables: Table[?]*)(inline args: Any*): Frag =
-    ${ SqlMacros.sqlCheckedImpl('sc, 'tables, 'args) }
+  /**
+   * Checked `sql` — `StringContext(...).sql(table, ...)(args)` also checks
+   * identifiers against the provided `Table[?]` metadata. Requires at least one
+   * table to avoid overload ambiguity with the plain `sql"..."` interpolator.
+   *
+   * Escape hatch for unchecked raw SQL: interpolate a `SqlLiteral` or `Frag` —
+   * it is spliced verbatim (not as a `?` parameter) and not identifier-checked:
+   * `sql"SELECT ${SqlLiteral("MY_FUNC()")} FROM users"`. For a standalone
+   * unchecked fragment, use `SqlLiteral("SELECT ...").toFrag`.
+   */
+  inline def sql(inline first: Table[?], inline rest: Table[?]*)(inline args: Any*): Frag =
+    ${ SqlMacros.sqlImplChecked('sc, 'first, 'rest, 'args) }
+
 }
