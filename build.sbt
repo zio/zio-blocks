@@ -1053,7 +1053,13 @@ lazy val `endpoint-examples` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    Compile / unmanagedSourceDirectories ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 7 => Seq(baseDirectory.value / "src" / "main" / "scala-3.7")
+        case _                      => Seq.empty
+      }
+    }
   )
   .dependsOn(endpoint.jvm)
 
