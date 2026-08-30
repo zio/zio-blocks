@@ -45,8 +45,13 @@ final class SqlQuery[A] private (
 
   private def validateColumn(column: String): Unit = {
     SqlIdentifier.validate("column", column)
-    // Exercise SqlIdentifierChecker for column identifier validation (allowlist check, no diagnostics for known column)
     val _ = SqlIdentifierChecker.validate(Seq(column), Set(column), Set.empty[String])
+    ()
+  }
+
+  private def validateTableAlias(alias: String): Unit = {
+    SqlIdentifier.validate("tableAlias", alias)
+    val _ = SqlIdentifierChecker.validate(Seq(alias), Set(alias), Set.empty[String])
     ()
   }
 
@@ -55,6 +60,35 @@ final class SqlQuery[A] private (
       allowedOperators.contains(operator.toUpperCase),
       s"Invalid operator '$operator'. Allowed operators are: ${allowedOperators.mkString(", ")}"
     )
+
+  private def dbValuesForIn(value: DbValue): IndexedSeq[DbValue] = value match {
+    case DbValue.DbArray(_, elems) =>
+      if (elems.isEmpty)
+        throw new IllegalArgumentException("IN operator requires non-empty collection")
+      elems.map {
+        case dv: DbValue          => dv
+        case s: String            => DbValue.DbString(s)
+        case i: Int               => DbValue.DbInt(i)
+        case j: java.lang.Integer => DbValue.DbInt(j.intValue())
+        case l: Long              => DbValue.DbLong(l)
+        case j: java.lang.Long    => DbValue.DbLong(j.longValue())
+        case d: Double            => DbValue.DbDouble(d)
+        case j: java.lang.Double  => DbValue.DbDouble(j.doubleValue())
+        case f: Float             => DbValue.DbFloat(f)
+        case j: java.lang.Float   => DbValue.DbFloat(j.floatValue())
+        case b: Boolean           => DbValue.DbBoolean(b)
+        case j: java.lang.Boolean => DbValue.DbBoolean(j.booleanValue())
+        case s: Short             => DbValue.DbShort(s)
+        case b: Byte              => DbValue.DbByte(b)
+        case c: Char              => DbValue.DbChar(c)
+        case u: java.util.UUID    => DbValue.DbUUID(u)
+        case other                => DbValue.DbString(other.toString)
+      }.toIndexedSeq
+    case other =>
+      throw new IllegalArgumentException(
+        s"IN operator requires DbArray value with collection, got ${other.getClass.getSimpleName}: $other"
+      )
+  }
 
   def join[B](
     other: Table[B],
@@ -98,6 +132,8 @@ final class SqlQuery[A] private (
   ): SqlQuery[A] = {
     validateColumn(onLeft.column)
     validateColumn(onRight.column)
+    validateTableAlias(onLeft.tableAlias)
+    validateTableAlias(onRight.tableAlias)
     val newAlias = s"t${joins.size + 1}"
     val j        = Join(kind, other.name, newAlias, onLeft, onRight)
     new SqlQuery(
@@ -115,7 +151,12 @@ final class SqlQuery[A] private (
 
   def where(column: ColumnRef, operator: String, value: DbValue): SqlQuery[A] = {
     validateColumn(column.column)
+    validateTableAlias(column.tableAlias)
     validateOperator(operator)
+    if (operator.equalsIgnoreCase("IN")) {
+      // Validate IN value early to fail fast
+      dbValuesForIn(value)
+    }
     val f = Filter(column, operator, value)
     new SqlQuery(source, sourceAlias, joins, filters :+ f, groupBy, orderBy, limit, offset, columnsByAlias)
   }
@@ -132,7 +173,10 @@ final class SqlQuery[A] private (
   }
 
   def groupBy(columns: ColumnRef*): SqlQuery[A] = {
-    columns.foreach(c => validateColumn(c.column))
+    columns.foreach { c =>
+      validateColumn(c.column)
+      validateTableAlias(c.tableAlias)
+    }
     val gb = GroupBy(columns.toVector)
     new SqlQuery(source, sourceAlias, joins, filters, Some(gb), orderBy, limit, offset, columnsByAlias)
   }
@@ -145,6 +189,7 @@ final class SqlQuery[A] private (
 
   def orderBy(column: ColumnRef, direction: OrderDirection = OrderDirection.Asc): SqlQuery[A] = {
     validateColumn(column.column)
+    validateTableAlias(column.tableAlias)
     val ob = OrderBy(column, direction)
     new SqlQuery(source, sourceAlias, joins, filters, groupBy, orderBy :+ ob, limit, offset, columnsByAlias)
   }
@@ -207,9 +252,6 @@ final class SqlQuery[A] private (
       cols.map(c => s"$alias.$c")
     }.mkString(", ")
 
-    val parts  = scala.collection.mutable.ArrayBuffer[String]()
-    val params = scala.collection.mutable.ArrayBuffer[DbValue]()
-
     val head = new StringBuilder
     head.append(s"SELECT $selectList FROM ${source.name} $sourceAlias")
     for (j <- joins) {
@@ -220,54 +262,41 @@ final class SqlQuery[A] private (
       head.append(s" $kindStr ${j.table} ${j.alias} ON ${j.onLeft.qualified} = ${j.onRight.qualified}")
     }
 
-    if (filters.isEmpty) {
-      val tail = new StringBuilder
-      groupBy.foreach(gb => tail.append(s" GROUP BY ${gb.columns.map(_.qualified).mkString(", ")}"))
-      if (orderBy.nonEmpty) {
-        val obStr = orderBy.map { ob =>
-          val dir = ob.direction match {
-            case OrderDirection.Asc  => "ASC"
-            case OrderDirection.Desc => "DESC"
-          }
-          s"${ob.column.qualified} $dir"
-        }.mkString(", ")
-        tail.append(s" ORDER BY $obStr")
-      }
-      limit.foreach(l => tail.append(s" LIMIT ${l.value}"))
-      offset.foreach(o => tail.append(s" OFFSET ${o.value}"))
-      head.append(tail.toString())
-      parts += head.toString()
-    } else {
-      val preWhere = head.toString() + " WHERE "
-      var current  = new StringBuilder(preWhere)
+    val tailBuilder = new StringBuilder
+    groupBy.foreach(gb => tailBuilder.append(s" GROUP BY ${gb.columns.map(_.qualified).mkString(", ")}"))
+    if (orderBy.nonEmpty) {
+      val obStr = orderBy.map { ob =>
+        val dir = ob.direction match {
+          case OrderDirection.Asc  => "ASC"
+          case OrderDirection.Desc => "DESC"
+        }
+        s"${ob.column.qualified} $dir"
+      }.mkString(", ")
+      tailBuilder.append(s" ORDER BY $obStr")
+    }
+    limit.foreach(l => tailBuilder.append(s" LIMIT ${l.value}"))
+    offset.foreach(o => tailBuilder.append(s" OFFSET ${o.value}"))
+    val tailStr = tailBuilder.toString()
 
-      filters.zipWithIndex.foreach { case (f, idx) =>
-        if (idx > 0) current.append(" AND ")
-        current.append(s"${f.column.qualified} ${f.operator} ")
-        parts += current.toString()
-        params += f.param
-        current = new StringBuilder()
+    val frag: Frag = if (filters.isEmpty) {
+      Frag.literal(head.toString() + tailStr)
+    } else {
+      val filterFrags: Vector[Frag] = filters.map { f =>
+        if (f.operator.equalsIgnoreCase("IN")) {
+          val inVals  = dbValuesForIn(f.param)
+          val inParts = IndexedSeq(s"${f.column.qualified} IN (") ++
+            IndexedSeq.fill(inVals.size - 1)(", ") ++ IndexedSeq(")")
+          Frag(inParts, inVals)
+        } else {
+          Frag(IndexedSeq(s"${f.column.qualified} ${f.operator} ", ""), IndexedSeq(f.param))
+        }
       }
-      val tail = new StringBuilder
-      groupBy.foreach(gb => tail.append(s" GROUP BY ${gb.columns.map(_.qualified).mkString(", ")}"))
-      if (orderBy.nonEmpty) {
-        val obStr = orderBy.map { ob =>
-          val dir = ob.direction match {
-            case OrderDirection.Asc  => "ASC"
-            case OrderDirection.Desc => "DESC"
-          }
-          s"${ob.column.qualified} $dir"
-        }.mkString(", ")
-        tail.append(s" ORDER BY $obStr")
-      }
-      limit.foreach(l => tail.append(s" LIMIT ${l.value}"))
-      offset.foreach(o => tail.append(s" OFFSET ${o.value}"))
-      current.append(tail.toString())
-      parts += current.toString()
+      val combined = filterFrags.reduce((a, b) => a ++ Frag.literal(" AND ") ++ b)
+      val base     = Frag.literal(head.toString()) ++ Frag.literal(" WHERE ") ++ combined
+      if (tailStr.isEmpty) base else base ++ Frag.literal(tailStr)
     }
 
-    val frag = Frag(parts.toIndexedSeq, params.toIndexedSeq)
-    val st   = SqlStatement(
+    val st = SqlStatement(
       source = SqlStatement.Source(source.name, sourceAlias),
       joins = joins,
       filters = filters,
