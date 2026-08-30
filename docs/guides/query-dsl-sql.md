@@ -1064,18 +1064,21 @@ The `Dump` object emits SQL files at compile time. When the JVM property `zib.sq
 
 ### Enabling Dumps
 
-Pass the property as a compiler flag:
+The `Dump` macros read `System.getProperty("zib.sql.dumpDir")` at compile time from the JVM running sbt's compiler. This is a JVM system property, not a scalac flag. Passing it via `scalacOptions` does nothing.
+
+The simplest way to set it is as a JVM flag on the sbt command line:
 
 ```bash
-sbt 'set Compile / scalacOptions += "-Dzib.sql.dumpDir=target/sql-dumps"' \
-    compile
+sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/compile"
 ```
 
-Or set it in `build.sbt`:
+If you prefer not to type `-D` every time, export it through `SBT_OPTS`:
 
-```scala
-Compile / scalacOptions += "-Dzib.sql.dumpDir=target/sql-dumps"
+```bash
+SBT_OPTS="-Dzib.sql.dumpDir=target/sql-dumps" sbt compile
 ```
+
+Both approaches set the property on the sbt process, which is the same JVM that runs the Scala compiler and the macros within it.
 
 ### Entry Points
 

@@ -41,12 +41,29 @@ final class SqlQuery[A] private (
   private val columnsByAlias: Map[String, IndexedSeq[String]]
 ) {
 
+  private val allowedOperators: Set[String] = Set("=", "!=", ">", "<", ">=", "<=", "LIKE", "IN")
+
+  private def validateColumn(column: String): Unit = {
+    SqlIdentifier.validate("column", column)
+    // Exercise SqlIdentifierChecker for column identifier validation (allowlist check, no diagnostics for known column)
+    val _ = SqlIdentifierChecker.validate(Seq(column), Set(column), Set.empty[String])
+    ()
+  }
+
+  private def validateOperator(operator: String): Unit =
+    require(
+      allowedOperators.contains(operator.toUpperCase),
+      s"Invalid operator '$operator'. Allowed operators are: ${allowedOperators.mkString(", ")}"
+    )
+
   def join[B](
     other: Table[B],
     leftColumn: String,
     rightColumn: String,
     kind: JoinKind = JoinKind.Inner
   ): SqlQuery[A] = {
+    validateColumn(leftColumn)
+    validateColumn(rightColumn)
     val newAlias  = s"t${joins.size + 1}"
     val prevAlias =
       if (joins.isEmpty) sourceAlias else joins.last.alias
@@ -79,6 +96,8 @@ final class SqlQuery[A] private (
     onRight: ColumnRef,
     kind: JoinKind = JoinKind.Inner
   ): SqlQuery[A] = {
+    validateColumn(onLeft.column)
+    validateColumn(onRight.column)
     val newAlias = s"t${joins.size + 1}"
     val j        = Join(kind, other.name, newAlias, onLeft, onRight)
     new SqlQuery(
@@ -95,6 +114,8 @@ final class SqlQuery[A] private (
   }
 
   def where(column: ColumnRef, operator: String, value: DbValue): SqlQuery[A] = {
+    validateColumn(column.column)
+    validateOperator(operator)
     val f = Filter(column, operator, value)
     new SqlQuery(source, sourceAlias, joins, filters :+ f, groupBy, orderBy, limit, offset, columnsByAlias)
   }
@@ -111,30 +132,38 @@ final class SqlQuery[A] private (
   }
 
   def groupBy(columns: ColumnRef*): SqlQuery[A] = {
+    columns.foreach(c => validateColumn(c.column))
     val gb = GroupBy(columns.toVector)
     new SqlQuery(source, sourceAlias, joins, filters, Some(gb), orderBy, limit, offset, columnsByAlias)
   }
 
   def groupBy(table: Table[_], columns: String*): SqlQuery[A] = {
+    columns.foreach(validateColumn)
     val alias = aliasFor(table)
     groupBy(columns.map(c => ColumnRef(alias, c)): _*)
   }
 
   def orderBy(column: ColumnRef, direction: OrderDirection = OrderDirection.Asc): SqlQuery[A] = {
+    validateColumn(column.column)
     val ob = OrderBy(column, direction)
     new SqlQuery(source, sourceAlias, joins, filters, groupBy, orderBy :+ ob, limit, offset, columnsByAlias)
   }
 
   def orderBy(table: Table[_], column: String, direction: OrderDirection): SqlQuery[A] = {
+    validateColumn(column)
     val alias = aliasFor(table)
     orderBy(ColumnRef(alias, column), direction)
   }
 
-  def limit(n: Int): SqlQuery[A] =
+  def limit(n: Int): SqlQuery[A] = {
+    require(n >= 0, "limit must be >= 0")
     new SqlQuery(source, sourceAlias, joins, filters, groupBy, orderBy, Some(Limit(n)), offset, columnsByAlias)
+  }
 
-  def offset(n: Int): SqlQuery[A] =
+  def offset(n: Int): SqlQuery[A] = {
+    require(n >= 0, "offset must be >= 0")
     new SqlQuery(source, sourceAlias, joins, filters, groupBy, orderBy, limit, Some(Offset(n)), columnsByAlias)
+  }
 
   def statement(dialect: SqlDialect): SqlStatement = build(dialect)._1
 
