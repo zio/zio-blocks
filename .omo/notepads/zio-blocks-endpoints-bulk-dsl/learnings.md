@@ -211,3 +211,29 @@ Note on `import scala.language.implicitConversions` lifecycle:
 - `sbt "++3.8.3 endpointJVM/test"` 169 pass (unchanged from 1b733dbc head)
 - `sbt "++3.8.3 endpointJS/Test/fastLinkJS"` passes (JS-compatible; no SecureRandom regression)
 - `extension [A,PV](codec: PathCodec...){ nest, /, concat, / }` still present (2 `/` overloads: NamedTuple + PathCodec/PathCodec shadowing)
+
+## 2026-08-30 - fix(endpoint): hoist prefixes once across complete tree — avoid per-subgroup re-evaluation
+
+### Problem
+`EndpointGroupMacro` hoisted each distinct prefix per subgroup via `hoistPrefixes(codecs)` inside each `Block` case and per-`ValDef`/bare `Term` level. For `outer() / endpoints { p1() / endpoints { val a = Endpoint(...) }; p2() / endpoints { val b = Endpoint(...) } }`, outer `outer()` was re-hoisted inside each sibling subgroup (`val prefix_0 = outer()` per subgroup, twice) plus the outer `val prefix_0` was unused at the top level because no leaf directly used `prefixOrderedRefs` there. Effectful `def prefix(): PathCodec[Unit] = { counter+=1; PathCodec.literal("api") }` would execute once per sibling (2×) instead of once, plus wasted outer evaluation.
+
+### Root cause
+`hoistPrefixes` keyed by `show` but scoped per `buildGroupTree` invocation. Recursive `processSubgroup` called `buildGroupTree(innerBlock.asExpr, codecs :+ prefixCodec)` which created a fresh `LinkedHashMap` per level. Sibling subgroups therefore each built their own map from `codecs` (including the shared outer prefix) independently.
+
+### Fix
+Hoist across the complete generated tree:
+- Replace per-level `hoistPrefixes` with a single `globalSeen: LinkedHashMap[String, (ValDef, Expr)]` scoped to the outermost `buildGroupTree` call.
+- `ensureGlobal(expr)` deduplicates by `expr.asTerm.show`, creates `val prefix_X = <codec>` via `Symbol.newVal(Symbol.spliceOwner, s"prefix_$idx", tpe, ...)` + `Ref`.
+- Seed `globalSeen` with outer `codecs` (`codecs.foreach(ensureGlobal)`), then on each subgroup discovery `ensureGlobal(prefixExpr)` before recursing (`rec(innerBlock, codecsAcc :+ prefixExpr)`). `resolveGlobal(codecsAcc)` maps accumulated `codecsAcc` list to global refs for `wrapLeaf`.
+- Introduce `rec(term, codecsAcc)` that shares `globalSeen` across all nested blocks/subgroups and never emits per-level `Block(prefixDistinctValDefs, ...)`. Only the outermost result is wrapped once: `if (globalSeen.nonEmpty) Block(globalSeen.values.map(_._1).toList, result.asTerm).asExpr else result`.
+- Added helper `extractPrefixExpr(t)` to synthesize `'{ PathCodec.literal(p) }` for string subgroups or `codec.asExprOf[PathCodec[?]]` for `PathCodec` subgroups, consistent with prior `processSubgroup`.
+- Removed old `hoistPrefixes` and `processSubgroup` that invoked fresh `buildGroupTree`; replaced by `rec` recursion.
+
+### Test
+Added suite `endpoints macro prefix hoist - sibling subgroups` with `var outerCount/c1/c2` + `def outer()/p1()/p2(): PathCodec[Unit] = { count+=1; PathCodec.literal(...) }` and `val group = outer() / endpoints { p1() / endpoints { val a = Endpoint(...) }; p2() / endpoints { val b = Endpoint(...) } }`. Asserts `outerCount==1, c1==1, c2==1` and routes `GET /api/v1/a`, `GET /api/v2/b`. Verifies outer evaluated once across siblings (not per-subgroup) and each distinct sibling prefix exactly once, with no unused outer val.
+
+### Verification
+- `sbt scalafmtAll` / `scalafmtCheckAll` clean
+- `sbt "++3.8.3 endpointJVM/Test/compile"` succeeds
+- `sbt "++3.8.3 endpointJVM/test"` 170 pass (was 169, +1 sibling hoist test), `endpointJS/Test/fastLinkJS` passes
+- `grep -n "asInstanceOf\[ep.route.type"` 0, `grep -n "show.contains"` 0

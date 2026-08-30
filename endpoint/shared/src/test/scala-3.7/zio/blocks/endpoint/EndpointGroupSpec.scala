@@ -340,6 +340,20 @@ val _ = endpoints { "not an endpoint" }
         assertTrue(c == 1) && assertTrue(group.a.route.render == "GET /api/s")
       }
     ),
+    suite("endpoints macro prefix hoist - sibling subgroups")(
+      test("effectful prefix evaluated once across sibling subgroups (global hoist)") {
+        var outerCount = 0
+        var c1         = 0
+        var c2         = 0
+        val group      = ({ outerCount += 1; PathCodec.literal("api") }) / endpoints {
+          ({ c1 += 1; PathCodec.literal("v1") }) / endpoints { val a = Endpoint(Method.GET / "a") }
+          ({ c2 += 1; PathCodec.literal("v2") }) / endpoints { val b = Endpoint(Method.GET / "b") }
+        }
+        assertTrue(outerCount == 1, c1 == 1, c2 == 1) &&
+        assertTrue(group.v1.a.route.render == "GET /api/v1/a") &&
+        assertTrue(group.v2.b.route.render == "GET /api/v2/b")
+      }
+    ),
     suite("endpoints macro external refs")(
       test("external PathCodec can be referenced inside endpoints") {
         val extCodec = PathCodec.int("extId")

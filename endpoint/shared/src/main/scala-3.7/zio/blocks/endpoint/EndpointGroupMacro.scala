@@ -62,8 +62,6 @@ private[endpoint] object EndpointGroupMacro {
       case _                                                           => term
     }
 
-    val unwrapped = unwrap(bodyTerm)
-
     def isEndpoint(tpe: TypeRepr): Boolean =
       tpe <:< TypeRepr.of[Endpoint[?, ?, ?, ?, ?]]
 
@@ -460,28 +458,6 @@ private[endpoint] object EndpointGroupMacro {
       case other      => isEndpoint(other.tpe)
     }
 
-    def hoistPrefixes(
-      prefixes: List[Expr[PathCodec[?]]]
-    ): (List[ValDef], List[Expr[PathCodec[?]]]) = {
-      val seen        = scala.collection.mutable.LinkedHashMap[String, (ValDef, Expr[PathCodec[?]])]()
-      val orderedRefs = scala.collection.mutable.ListBuffer[Expr[PathCodec[?]]]()
-      prefixes.foreach { expr =>
-        val key = expr.asTerm.show
-        seen.get(key) match {
-          case Some((_, ref)) => orderedRefs += ref
-          case None           =>
-            val tpe = expr.asTerm.tpe
-            val idx = seen.size
-            val sym = Symbol.newVal(Symbol.spliceOwner, s"prefix_$idx", tpe, Flags.EmptyFlags, Symbol.noSymbol)
-            val vd  = ValDef(sym, Some(expr.asTerm))
-            val ref = Ref(sym).asExprOf[PathCodec[?]]
-            seen(key) = (vd, ref)
-            orderedRefs += ref
-        }
-      }
-      (seen.values.map(_._1).toList, orderedRefs.toList)
-    }
-
     def hasIntraGroupRef(term: Term, localSymbols: Set[Symbol]): Option[String] = {
       var found: Option[String] = None
       val traverser             = new TreeTraverser {
@@ -599,22 +575,6 @@ private[endpoint] object EndpointGroupMacro {
         }
       }
 
-    def processSubgroup(term: Term): Expr[Any] =
-      isNestedSubgroupStmt(term) match {
-        case Some((prefixStr, whole)) =>
-          val prefixCodec: Expr[PathCodec[Unit]] = '{ PathCodec.literal(${ Expr(prefixStr) }) }
-          val innerBlock                         = extractEndpointsBlock(whole)
-          buildGroupTree(innerBlock.asExpr, codecs :+ prefixCodec.asInstanceOf[Expr[PathCodec[?]]])
-        case None =>
-          isPathCodecSubgroupStmt(term) match {
-            case Some((codec, whole)) =>
-              val innerBlock = extractEndpointsBlock(whole)
-              buildGroupTree(innerBlock.asExpr, codecs :+ codec.asExprOf[PathCodec[?]])
-            case None =>
-              report.errorAndAbort("internal: processSubgroup called with non-subgroup term")
-          }
-      }
-
     def buildNamedTuple(names: List[String], exprs: List[Expr[Any]]): Expr[Any] = {
       val namesTupleExpr: Expr[Tuple] = Expr.ofTupleFromSeq(names.map(Expr(_)))
       val namesTypeRepr: TypeRepr     = namesTupleExpr.asTerm.tpe
@@ -630,85 +590,134 @@ private[endpoint] object EndpointGroupMacro {
       }
     }
 
-    unwrapped match {
-      case Block(stats, expr) =>
-        val memberStats: List[Statement] =
-          if (
-            isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked] ||
-            isNestedSubgroupStmt(expr).isDefined || isPathCodecSubgroupStmt(expr).isDefined
-          )
-            stats :+ expr
-          else if (expr match { case Literal(UnitConstant()) => true; case _ => false }) stats
-          else
-            report.errorAndAbort(
-              "endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)`, or `prefix / endpoints { ... }`"
+    // — Global hoist: one val per distinct prefix across the entire tree —
+    val globalSeen = scala.collection.mutable.LinkedHashMap[String, (ValDef, Expr[PathCodec[?]])]()
+
+    def ensureGlobal(expr: Expr[PathCodec[?]]): Expr[PathCodec[?]] = {
+      val key = expr.asTerm.show
+      globalSeen.get(key) match {
+        case Some((_, ref)) => ref
+        case None           =>
+          val tpe = expr.asTerm.tpe
+          val idx = globalSeen.size
+          val sym = Symbol.newVal(Symbol.spliceOwner, s"prefix_$idx", tpe, Flags.EmptyFlags, Symbol.noSymbol)
+          val vd  = ValDef(sym, Some(expr.asTerm))
+          val ref = Ref(sym).asExprOf[PathCodec[?]]
+          globalSeen(key) = (vd, ref)
+          ref
+      }
+    }
+
+    def resolveGlobal(prefixes: List[Expr[PathCodec[?]]]): List[Expr[PathCodec[?]]] =
+      prefixes.map(ensureGlobal)
+
+    // Seed global with outer codecs already
+    codecs.foreach(ensureGlobal)
+
+    def extractPrefixExpr(t: Term): Expr[PathCodec[?]] =
+      isNestedSubgroupStmt(t) match {
+        case Some((p, _)) =>
+          '{ PathCodec.literal(${ Expr(p) }) }.asInstanceOf[Expr[PathCodec[?]]]
+        case None =>
+          isPathCodecSubgroupStmt(t) match {
+            case Some((codec, _)) => codec.asExprOf[PathCodec[?]]
+            case None             => report.errorAndAbort("internal: extractPrefixExpr called with non-subgroup term")
+          }
+      }
+
+    def rec(term: Term, codecsAcc: List[Expr[PathCodec[?]]]): Expr[Any] = {
+      // Ensure accumulated prefixes are registered globally (idempotent)
+      codecsAcc.foreach(ensureGlobal)
+      val unwrapped = unwrap(term)
+      unwrapped match {
+        case Block(stats, expr) =>
+          val memberStats: List[Statement] =
+            if (
+              isEndpointTerm(expr) || expr.isInstanceOf[ValDef @unchecked] ||
+              isNestedSubgroupStmt(expr).isDefined || isPathCodecSubgroupStmt(expr).isDefined
             )
-        if (memberStats.isEmpty) {
-          '{ NamedTuple(EmptyTuple) }
-        } else {
-          val members = collectMembers(memberStats)
-          if (members.isEmpty) {
+              stats :+ expr
+            else if (expr match { case Literal(UnitConstant()) => true; case _ => false }) stats
+            else
+              report.errorAndAbort(
+                "endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)`, or `prefix / endpoints { ... }`"
+              )
+          if (memberStats.isEmpty) {
             '{ NamedTuple(EmptyTuple) }
           } else {
-            // Intra-group dependency rejection: detect refs to ValDefs defined in same block
-            val localSymbols: Set[Symbol] = memberStats.collect { case vd: ValDef => vd.symbol }.toSet
-            members.foreach { case (name, term, isSub) =>
-              if (!isSub) {
-                hasIntraGroupRef(term, localSymbols) match {
-                  case Some(dep) =>
-                    report.errorAndAbort(
-                      s"endpoint `$name` has intra-group dependency on `$dep`: endpoints { ... } does not support dependencies between members; extract to external val outside block or make independent (move `$dep` outside)"
-                    )
-                  case None => ()
+            val members = collectMembers(memberStats)
+            if (members.isEmpty) {
+              '{ NamedTuple(EmptyTuple) }
+            } else {
+              val localSymbols: Set[Symbol] = memberStats.collect { case vd: ValDef => vd.symbol }.toSet
+              members.foreach { case (name, t, isSub) =>
+                if (!isSub) {
+                  hasIntraGroupRef(t, localSymbols) match {
+                    case Some(dep) =>
+                      report.errorAndAbort(
+                        s"endpoint `$name` has intra-group dependency on `$dep`: endpoints { ... } does not support dependencies between members; extract to external val outside block or make independent (move `$dep` outside)"
+                      )
+                    case None => ()
+                  }
                 }
               }
+              val (names, terms, isSubgroups) = members.unzip3
+              val exprs: List[Expr[Any]]      = terms.zip(isSubgroups).map { case (t, isSub) =>
+                if (isSub) {
+                  val prefixExpr = extractPrefixExpr(t)
+                  ensureGlobal(prefixExpr)
+                  val innerBlock = extractEndpointsBlock(t)
+                  rec(innerBlock, codecsAcc :+ prefixExpr)
+                } else wrapLeaf(t, resolveGlobal(codecsAcc))
+              }
+              buildNamedTuple(names, exprs)
             }
-            val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
-            val (names, terms, isSubgroups)                = members.unzip3
-            val exprs: List[Expr[Any]]                     = terms.zip(isSubgroups).map { case (t, isSub) =>
-              if (isSub) processSubgroup(t)
-              else wrapLeaf(t, prefixOrderedRefs)
-            }
-            val ntExpr = buildNamedTuple(names, exprs)
-            if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr
-            else ntExpr
           }
-        }
 
-      case vd: ValDef if vd.rhs.nonEmpty =>
-        val rhsTerm = vd.rhs.get
-        if (isEndpoint(rhsTerm.tpe)) {
-          val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
-          val expr                                       = wrapLeaf(rhsTerm, prefixOrderedRefs)
-          val ntExpr                                     = buildNamedTuple(List(vd.name), List(expr))
-          if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr else ntExpr
-        } else {
-          report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements")
-        }
+        case vd: ValDef if vd.rhs.nonEmpty =>
+          val rhsTerm = vd.rhs.get
+          if (isEndpoint(rhsTerm.tpe)) {
+            val expr = wrapLeaf(rhsTerm, resolveGlobal(codecsAcc))
+            buildNamedTuple(List(vd.name), List(expr))
+          } else {
+            report.errorAndAbort("endpoints { ... } only accepts `val name = Endpoint(...)` statements")
+          }
 
-      case t: Term =>
-        isNestedSubgroupStmt(t) match {
-          case Some((name, whole)) =>
-            val expr = processSubgroup(whole)
-            buildNamedTuple(List(name), List(expr))
-          case None =>
-            isPathCodecSubgroupStmt(t) match {
-              case Some((codec, whole)) =>
-                val name = extractCodecName(codec)
-                val expr = processSubgroup(whole)
-                buildNamedTuple(List(name), List(expr))
-              case None =>
-                if (isEndpoint(t.tpe)) {
-                  val (prefixDistinctValDefs, prefixOrderedRefs) = hoistPrefixes(codecs)
-                  val expr                                       = wrapLeaf(t, prefixOrderedRefs)
-                  val ntExpr                                     = buildNamedTuple(List(autoName(t)), List(expr))
-                  if (prefixDistinctValDefs.nonEmpty) Block(prefixDistinctValDefs, ntExpr.asTerm).asExpr else ntExpr
-                } else
-                  report.errorAndAbort(
-                    s"endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`; found unsupported expression of type ${t.tpe.show}"
-                  )
-            }
-        }
+        case t: Term =>
+          isNestedSubgroupStmt(t) match {
+            case Some((_, whole)) =>
+              val prefixExpr = extractPrefixExpr(whole)
+              ensureGlobal(prefixExpr)
+              val innerBlock = extractEndpointsBlock(whole)
+              val expr       = rec(innerBlock, codecsAcc :+ prefixExpr)
+              isNestedSubgroupStmt(t) match {
+                case Some((name, _)) => buildNamedTuple(List(name), List(expr))
+                case None            => buildNamedTuple(List(extractCodecName(t.asInstanceOf[Term])), List(expr))
+              }
+            case None =>
+              isPathCodecSubgroupStmt(t) match {
+                case Some((codec, whole)) =>
+                  val prefixExpr = codec.asExprOf[PathCodec[?]]
+                  ensureGlobal(prefixExpr)
+                  val innerBlock = extractEndpointsBlock(whole)
+                  val expr       = rec(innerBlock, codecsAcc :+ prefixExpr)
+                  val name       = extractCodecName(codec)
+                  buildNamedTuple(List(name), List(expr))
+                case None =>
+                  if (isEndpoint(t.tpe)) {
+                    val expr = wrapLeaf(t, resolveGlobal(codecsAcc))
+                    buildNamedTuple(List(autoName(t)), List(expr))
+                  } else
+                    report.errorAndAbort(
+                      s"endpoints { ... } only accepts `val name = Endpoint(...)` statements, bare `Endpoint(...)` or `prefix / endpoints { ... }`; found unsupported expression of type ${t.tpe.show}"
+                    )
+              }
+          }
+      }
     }
+
+    val result = rec(bodyTerm, codecs)
+    if (globalSeen.nonEmpty) Block(globalSeen.values.map(_._1).toList, result.asTerm).asExpr
+    else result
   }
 }
