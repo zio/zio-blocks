@@ -51,7 +51,12 @@ final class SqlQuery[A] private (
 
   private def validateTableAlias(alias: String): Unit = {
     SqlIdentifier.validate("tableAlias", alias)
-    val _ = SqlIdentifierChecker.validate(Seq(alias), Set(alias), Set.empty[String])
+    val _              = SqlIdentifierChecker.validate(Seq(alias), Set(alias), Set.empty[String])
+    val allowedAliases = Set(sourceAlias) ++ joins.map(_.alias)
+    if (!allowedAliases.contains(alias))
+      throw new IllegalArgumentException(
+        s"Unknown table alias '$alias'. Allowed aliases are: ${allowedAliases.toSeq.sorted.mkString(", ")}"
+      )
     ()
   }
 
