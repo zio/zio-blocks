@@ -16,8 +16,6 @@
 
 package zio.blocks.endpoint
 
-import scala.language.implicitConversions
-
 /**
  * Defines a group of HTTP endpoints in a single block and returns them as a
  * statically-typed [[scala.NamedTuple]].
@@ -46,16 +44,6 @@ import scala.language.implicitConversions
  */
 transparent inline def endpoints(inline body: Any): Any =
   ${ EndpointGroupMacro.build('body) }
-
-/**
- * Auto-convert a constant String prefix to a literal `PathCodec[Unit]` so that
- * `"api" / endpoints { ... }` goes through the `PathCodec` `/` extension.
- * Available via `import zio.blocks.endpoint.*`.
- */
-given Conversion[String, PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }] with {
-  def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } =
-    PathCodec.literal(value)
-}
 
 extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) {
 

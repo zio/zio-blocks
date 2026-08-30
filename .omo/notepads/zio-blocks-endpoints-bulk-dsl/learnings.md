@@ -165,3 +165,49 @@ Replaced `java.util.UUID.randomUUID()` with `java.util.UUID.fromString("550e8400
 - Always check if test code uses JVM-only APIs when adding tests to `shared/src/test/` (cross-compiled for JS).
 - Other endpoint test files (e.g., `EndpointSpec.scala`) already used `UUID.fromString()` — this was an oversight when adding the test.
 - Verified: `sbt "++3.8.3 endpointJS/Test/fastLinkJS"` passes, `sbt "++3.8.3 endpointJVM/test"` passes (169), `scalafmtCheckAll` clean.
+
+## 2026-08-30 - fix(endpoint): remove duplicate String->PathCodec Conversion, rely on companion stringToPathCodec
+
+### Problem
+`EndpointGroupSyntax.scala` (scala-3.7) provided `given Conversion[String, PathCodec[Unit]]` via `PathCodec.literal`, duplicating `PathCodec.stringToPathCodec` (`implicit def stringToPathCodec` at PathCodec.scala:251) in companion `PathCodec`. Two visible conversions risk ambiguous implicit resolution when both are imported (wildcard `import zio.blocks.endpoint.*` + companion implicit scope). Review for PR 1614 requests keeping only PathCodec/NamedTuple extension and relying on companion conversion via Scala implicit scope; operator placement must be via `import zio.blocks.endpoint.*` without re-adding String conversion.
+
+### Fix
+Deleted entirely from `EndpointGroupSyntax.scala`:
+- `import scala.language.implicitConversions` (now unused locally; no string conversion gift)
+- `given Conversion[String, PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars }] = PathCodec.literal` (5 lines, including Scaladoc)
+Kept only `extension [A, PV](codec: PathCodec[A] { type PathVars = PV }) { nest, /, concat, / }` (nest + / for NamedTuple, plus concat + / for PathCodec/PathCodec shadowing). No String extension, no String Conversion. File shrinks 100 -> 88 lines.
+
+### Implicit resolution verification (companion-only)
+Created temporary `CompanionConversionCompileSpec` that imports *only* `import zio.blocks.endpoint.*` and `import zio.blocks.endpoint.RoutePattern.*` (no BulkDsl, no explicit Conversion import) and compiles:
+
+```scala
+import zio.blocks.endpoint.*
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.Method
+val g = "api" / endpoints { val x = Endpoint(Method.GET / "users") }
+val _: NamedTuple = g  // type: NamedTuple[Tuple1["x"], ...]
+assert(g.x.route.render == "GET /api/users")
+```
+
+Result: compiles cleanly under `++3.8.3 endpointJVM/Test/compile` via companion implicit scope. `sbt "++3.8.3 endpointJVM/Test/compile"` succeeds without extra language import at verification site; `PathCodec.stringToPathCodec` is discovered via companion of expected type `PathCodec[Unit]` even when `import scala.language.implicitConversions` is absent at that compilation unit (the underlying `implicit def` still triggers conversion, but feature warning is at definition site only (`PathCodec.scala` has the import) and `-Wconf` does not escalate it at use site). No redesign of operator placement required — existing `extension [A,PV](codec: PathCodec...)` brought by `import zio.blocks.endpoint.*` (wildcard covers scala-3.7 sources) is sufficient; prefix String is converted before entering `/` receiver.
+
+Also verified that the companion conversion handles the only required shape (constant literal). Capturing prefixes (`PathCodec.int("id") / endpoints { ... }`) already went via PathCodec extension directly. No BulkDsl import needed; `import zio.blocks.endpoint.*` alone suffices for both forms (string literal + capturing codec).
+
+Note on `import scala.language.implicitConversions` lifecycle:
+- Definition file `EndpointGroupSyntax.scala` no longer needs it (removed).
+- `PathCodec.scala` retains it for `implicit def stringToPathCodec` / `segmentToPathCodec` definitions (still correct).
+- Call-site files that use `"literal" / RoutePattern` outside the bulk DSL (e.g., `RoutePatternPathVarsSpec`, `EndpointSpec`) still carry their own `import scala.language.implicitConversions` (required per-compilation-unit for `-Werror` on 3.8); not affected by this change.
+
+### Learnings
+- Package-level `given Conversion[String, PathCodec]` duplicates `object PathCodec { implicit def stringToPathCodec }` — prefer companion implicit scope (always searched regardless of wildcard import) to avoid ambiguous implicits when both givens are visible.
+- `implicit def stringToPathCodec` in companion does not require `import scala.language.implicitConversions` at call site to compile under current scalacOptions (warning originates at definition site only, suppressed via `PathCodec.scala`'s import); `given Conversion` in package file required per-site import and caused `-Werror` failures.
+- `import zio.blocks.endpoint.*` wildcard already includes scala-3.7 top-level `extension [A,PV](codec: PathCodec...)` — verified via `endpointJVM/Test/compile` with only `endpoint.*` + `RoutePattern.*` imports; no need to move extension to package object or PathCodec companion.
+
+### Verification
+- `grep -r "given Conversion\\[String, PathCodec"` in EndpointGroupSyntax.scala: 0 (was 1)
+- `grep -r "import scala.language.implicitConversions" endpoint/shared/src/main/scala-3.7/...EndpointGroupSyntax.scala`: 0 (was 1), other files retain as needed (PathCodec.scala, specs)
+- `sbt scalafmtAll` / `scalafmtCheckAll` clean (no reformat of EndpointGroupSyntax after deletion; file already fmt)
+- `sbt "++3.8.3 endpointJVM/Test/compile"` succeeds (including verification compile)
+- `sbt "++3.8.3 endpointJVM/test"` 169 pass (unchanged from 1b733dbc head)
+- `sbt "++3.8.3 endpointJS/Test/fastLinkJS"` passes (JS-compatible; no SecureRandom regression)
+- `extension [A,PV](codec: PathCodec...){ nest, /, concat, / }` still present (2 `/` overloads: NamedTuple + PathCodec/PathCodec shadowing)
