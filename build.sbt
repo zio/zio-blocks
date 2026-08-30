@@ -136,7 +136,7 @@ lazy val testJVMScala2Command =
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test" +
+    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
@@ -168,7 +168,7 @@ lazy val docJVMScala2Command =
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc" +
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc; projectionJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
@@ -323,7 +323,9 @@ lazy val root = project
     telemetry.js,
     otel,
     dataMigration.jvm,
-    dataMigration.js
+    dataMigration.js,
+    projection.jvm,
+    `projection-examples`
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -518,6 +520,42 @@ lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
     ),
     coverageMinimumStmtTotal   := 0,
     coverageMinimumBranchTotal := 0
+  )
+
+lazy val projection = crossProject(JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema, sql, scope)
+  .settings(stdSettings("zio-blocks-projection", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.projection"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio"          % "2.1.26",
+      "dev.zio" %%% "zio-streams"  % "2.1.26",
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 67
+  )
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial" % "sqlite-jdbc" % "3.53.2.1" % Test
+    )
+  )
+
+lazy val `projection-examples` = project
+  .in(file("projection-examples"))
+  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .dependsOn(projection.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror"
   )
 
 lazy val `sql-zio` = project
@@ -1818,7 +1856,8 @@ lazy val docs = project
     config.jvm,
     `config-yaml`.jvm,
     `config-json`.jvm,
-    `config-hocon`.jvm
+    `config-hocon`.jvm,
+    projection.jvm
   )
   .enablePlugins(WebsitePlugin)
   .settings(docsGenerateReadmeLocal := {

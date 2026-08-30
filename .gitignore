@@ -55,6 +55,7 @@ schema/jvm/src/test/resources/json-schema-test-suite/
 # Internal working directories (Sisyphus/OpenCode)
 .sisyphus/
 .opencode/
+.omo/
 .claude/settings.local.json
 
 # Project-specific files to exclude
@@ -76,3 +77,4 @@ website/.docusaurus
 *.tasty
 .flowrite/
 .docs-audit-state.json
+sweep-*.db

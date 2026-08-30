@@ -124,4 +124,9 @@ object DbParam {
 
 extension (inline sc: StringContext) {
   inline def sql(inline args: Any*): Frag = ${ SqlMacros.sqlImpl('sc, 'args) }
+
+  inline def sqlUnchecked(inline args: Any*): Frag = ${ SqlMacros.sqlUncheckedImpl('sc, 'args) }
+
+  inline def sqlChecked(inline tables: Table[?]*)(inline args: Any*): Frag =
+    ${ SqlMacros.sqlCheckedImpl('sc, 'tables, 'args) }
 }

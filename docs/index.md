@@ -121,6 +121,7 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 |-------|----------|----------|-------|-------------|
 | [SQL](./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
 | [SQL — ZIO](./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
+| [Projection](./reference/projection.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
 
 ### Observability
 
