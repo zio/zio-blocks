@@ -27,7 +27,14 @@ class JdbcTransactor(
 
   def connect[A](f: DbCon ?=> A): A = {
     val conn = connectionFactory()
-    if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
+    try {
+      if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
+    } catch {
+      case e: Throwable =>
+        try conn.close()
+        catch { case ce: Throwable => e.addSuppressed(ce) }
+        throw e
+    }
     val dbConn = new JdbcConnection(conn)
     try {
       given con: DbCon = new DbCon {
@@ -58,10 +65,30 @@ class JdbcTransactor(
    */
   def transact[A](f: DbTx ?=> A): A = {
     val conn = connectionFactory()
-    if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
+    try {
+      if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
+    } catch {
+      case e: Throwable =>
+        try conn.close()
+        catch { case ce: Throwable => e.addSuppressed(ce) }
+        throw e
+    }
     val dbConn         = new JdbcConnection(conn)
-    val prevAutoCommit = conn.getAutoCommit
-    conn.setAutoCommit(false)
+    val prevAutoCommit =
+      try conn.getAutoCommit
+      catch {
+        case e: Throwable =>
+          try dbConn.close()
+          catch { case ce: Throwable => e.addSuppressed(ce) }
+          throw e
+      }
+    try conn.setAutoCommit(false)
+    catch {
+      case e: Throwable =>
+        try dbConn.close()
+        catch { case ce: Throwable => e.addSuppressed(ce) }
+        throw e
+    }
     try {
       given tx: DbTx = new DbTx {
         val connection: DbConnection = dbConn
@@ -133,33 +160,29 @@ object JdbcTransactor {
   def sqlite(dataSource: javax.sql.DataSource): JdbcTransactor =
     fromDataSource(dataSource, SqlDialect.SQLite)
 
-  private[sql] def configureSQLiteConnection(conn: Connection): Unit =
+  private[sql] def configureSQLiteConnection(conn: Connection): Unit = {
     // Per-connection configuration for SQLite, including pooled/wrapped
     // DataSources (e.g., Hikari). Handles both direct SQLiteConnection and
-    // wrapped via isWrapperFor/unwrap. Only ClassNotFoundException is
-    // swallowed (sqlite-jdbc not on classpath, mock test); other failures
-    // fail fast to avoid hiding misconfiguration.
-    try {
-      val sqliteConnClass        = Class.forName("org.sqlite.SQLiteConnection")
-      val sqliteConn: Connection =
-        if (conn.isWrapperFor(sqliteConnClass.asInstanceOf[Class[Object]]))
-          conn.unwrap(sqliteConnClass.asInstanceOf[Class[Object]]).asInstanceOf[Connection]
-        else if (sqliteConnClass.isInstance(conn)) conn
-        else return
-      val getConfig   = sqliteConnClass.getMethod("getConnectionConfig")
-      val config      = getConfig.invoke(sqliteConn)
-      val configClass = config.getClass
-      try {
-        val setBusy = configClass.getMethod("setBusyTimeout", classOf[Int])
-        setBusy.invoke(config, Integer.valueOf(5000))
-      } catch { case _: NoSuchMethodException => () }
-      try {
-        val modeClass = Class.forName("org.sqlite.SQLiteConfig$TransactionMode")
-        val immediate = modeClass.getField("IMMEDIATE").get(null)
-        val setMode   = configClass.getMethod("setTransactionMode", modeClass)
-        setMode.invoke(config, immediate)
-      } catch { case _: ClassNotFoundException => () }
-    } catch {
-      case _: ClassNotFoundException => ()
-    }
+    // wrapped via isWrapperFor/unwrap. Only the initial lookup of
+    // `org.sqlite.SQLiteConnection` may be swallowed (sqlite-jdbc absent or mock
+    // test); once identified as SQLite, missing APIs or invocation failures
+    // propagate to avoid silently leaving the connection DEFERRED.
+    val sqliteConnClass =
+      try Class.forName("org.sqlite.SQLiteConnection")
+      catch { case _: ClassNotFoundException => return }
+    val sqliteConn: Connection =
+      if (conn.isWrapperFor(sqliteConnClass.asInstanceOf[Class[Object]]))
+        conn.unwrap(sqliteConnClass.asInstanceOf[Class[Object]]).asInstanceOf[Connection]
+      else if (sqliteConnClass.isInstance(conn)) conn
+      else return
+    val setBusy = sqliteConnClass.getMethod("setBusyTimeout", classOf[Int])
+    setBusy.invoke(sqliteConn, Integer.valueOf(5000))
+    val getConfig   = sqliteConnClass.getMethod("getConnectionConfig")
+    val config      = getConfig.invoke(sqliteConn)
+    val configClass = config.getClass
+    val modeClass   = Class.forName("org.sqlite.SQLiteConfig$TransactionMode")
+    val immediate   = modeClass.getField("IMMEDIATE").get(null)
+    val setMode     = configClass.getMethod("setTransactionMode", modeClass)
+    setMode.invoke(config, immediate)
+  }
 }
