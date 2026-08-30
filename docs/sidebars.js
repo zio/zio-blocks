@@ -380,6 +380,7 @@ const sidebars = {
         "guides/query-dsl-fluent-builder",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
+        "guides/sql-checked-interpolation",
         "guides/zio-schema-migration",
         "guides/telemetry-guide",
       ]
