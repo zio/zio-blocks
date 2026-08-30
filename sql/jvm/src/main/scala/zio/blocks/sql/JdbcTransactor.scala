@@ -49,7 +49,6 @@ class JdbcTransactor(
     val conn           = connectionFactory()
     val dbConn         = new JdbcConnection(conn)
     val prevAutoCommit = conn.getAutoCommit
-    conn.setAutoCommit(false)
     try {
       // SQLite workaround for queue dequeue: the current dequeue design issues a
       // plain SELECT followed by a DELETE in the same transaction. With a
@@ -59,10 +58,16 @@ class JdbcTransactor(
       // IMMEDIATE mode so the worker reserves the write lock before claiming
       // rows, and configure the documented busy timeout so it waits instead of
       // failing instantly under contention. See PR #1534 discussion_r3863454094.
+      // PRAGMA must run before disabling autoCommit, otherwise it starts a
+      // DEFERRED transaction and the subsequent BEGIN IMMEDIATE fails with
+      // "cannot start a transaction within a transaction".
       if (dialect == SqlDialect.SQLite) {
         val timeoutStmt = conn.createStatement()
         try timeoutStmt.execute("PRAGMA busy_timeout = 5000")
         finally timeoutStmt.close()
+      }
+      conn.setAutoCommit(false)
+      if (dialect == SqlDialect.SQLite) {
         val beginStmt = conn.createStatement()
         try beginStmt.execute("BEGIN IMMEDIATE")
         finally beginStmt.close()

@@ -190,6 +190,7 @@ private[sql] object SqlMacros {
     '{ Frag($sc.parts.toIndexedSeq, $convertedArgs) }
   }
 
+  @scala.annotation.nowarn
   private def extractTables(tables: Expr[Seq[Table[?]]])(using Quotes): (Set[String], Set[String]) = {
     import quotes.reflect._
     tables match {
