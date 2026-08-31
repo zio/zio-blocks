@@ -238,6 +238,9 @@ object RepoSpec extends ZIOSpecDefault {
           def getAutoCommit: Boolean                   = true
           def commit(): Unit                           = ()
           def rollback(): Unit                         = ()
+          override def savepoint(name: String): Unit   = ()
+          override def release(name: String): Unit     = ()
+          override def rollbackTo(name: String): Unit  = ()
         }
 
         given DbCon = new DbCon {

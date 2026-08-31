@@ -28,8 +28,9 @@ object SmallMigratorSpec extends ZIOSpecDefault {
    * without a database.
    */
   final class StubTransactor(pendingValue: Long) extends Transactor {
-    def connect[A](f: DbCon ?=> A): A = pendingValue.asInstanceOf[A]
-    def transact[A](f: DbTx ?=> A): A = 0.asInstanceOf[A]
+    override def connect[A](f: DbCon ?=> A): A                                                     = pendingValue.asInstanceOf[A]
+    override def transact[A](f: DbTx ?=> A): A                                                     = 0.asInstanceOf[A]
+    override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A = 0.asInstanceOf[A]
   }
 
   private val idColumns = IndexedSeq(ColumnMeta("id", DbValue.DbInt(0), nullable = false))
