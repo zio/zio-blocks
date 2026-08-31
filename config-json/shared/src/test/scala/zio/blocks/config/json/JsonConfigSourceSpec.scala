@@ -163,7 +163,8 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
         assertTrue(!result.left.toOption.get.message.contains(badJson.take(20)))
       },
       test("invalid JSON with long document does not leak first 100 chars") {
-        val secret  = "SENTINEL_JSON_LONG_aaaaaaaaabbbbbbbbbccccccccddddddddeeeeeeeeffffffff111111222222333333444444555555"
+        val secret =
+          "SENTINEL_JSON_LONG_aaaaaaaaabbbbbbbbbccccccccddddddddeeeeeeeeffffffff111111222222333333444444555555"
         val badJson = s"""{"k":"$secret" """ + ("x" * 200) // missing closing brace, long
         val result  = JsonConfigSource.fromString(badJson, "json:long")
         assertTrue(result.isLeft) &&
@@ -177,16 +178,17 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
         val badJson = s"""not-json-at-all $secret [[[ """
         val result  = JsonConfigSource.fromString(badJson, "json:composite")
         assertTrue(result.isLeft) &&
-        assertTrue({
-                 val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
-                 !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
-                 composite.message.contains("valid JSON") && composite.message.contains("json:composite")
-               })
+        assertTrue {
+          val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
+          !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
+          composite.message.contains("valid JSON") && composite.message.contains("json:composite")
+        }
       },
       test("invalid JSON error retains structured fields without leak via getMessage") {
         val secret  = "SENTINEL_JSON_STRUCT_cccccddddd1111122222333334444455555"
         val badJson = s"""{"a": "$secret" invalid}"""
-        val error   = JsonConfigSource.fromString(badJson, "src-json-struct").left.toOption.get.asInstanceOf[ConfigError.ParseError]
+        val error   =
+          JsonConfigSource.fromString(badJson, "src-json-struct").left.toOption.get.asInstanceOf[ConfigError.ParseError]
         assertTrue(error.path == "") &&
         assertTrue(error.source == "src-json-struct") &&
         assertTrue(error.expectedType == "valid JSON") &&

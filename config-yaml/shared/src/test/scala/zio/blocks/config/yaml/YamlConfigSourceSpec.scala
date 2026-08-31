@@ -200,11 +200,11 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
         val badYaml = s"secretKey: $secret\nbad: \""
         val result  = YamlConfigSource.fromString(badYaml, "yaml:composite")
         assertTrue(result.isLeft) &&
-        assertTrue({
-                 val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
-                 !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
-                 composite.message.contains("valid YAML") && composite.message.contains("yaml:composite")
-               })
+        assertTrue {
+          val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
+          !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
+          composite.message.contains("valid YAML") && composite.message.contains("yaml:composite")
+        }
       },
       test("ParseError with empty path hides cause text even if cause contains secret") {
         val secret = "SENTINEL_PARSE_CAUSE_YAML_123456abcdef123456abcdef123456abcdef"

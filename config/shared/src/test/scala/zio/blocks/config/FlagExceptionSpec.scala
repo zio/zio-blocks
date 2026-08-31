@@ -283,8 +283,8 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         assertTrue(ex.rawValue == secret)
       },
       test("sensitive flag api-key kebab and credential markers redact") {
-        val s1 = "SENTINEL_FLAG_APIKEY_aaa111bbb222ccc333ddd444"
-        val s2 = "SENTINEL_FLAG_CRED_eee555fff666ggg777hhh888"
+        val s1  = "SENTINEL_FLAG_APIKEY_aaa111bbb222ccc333ddd444"
+        val s2  = "SENTINEL_FLAG_CRED_eee555fff666ggg777hhh888"
         val ex1 = FlagValueParseException("service.api-key", s1, "Int", Some(new RuntimeException(s"bad $s1")))
         val ex2 = FlagValueParseException("my.credentials", s2, "Int", Some(new RuntimeException(s2)))
         assertTrue(!ex1.getMessage.contains(s1)) &&
@@ -295,7 +295,12 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         assertTrue(ex2.rawValue == s2)
       },
       test("non-sensitive flag retains rawValue and cause details") {
-        val ex = FlagValueParseException("service.timeout", "badValue123", "Int", Some(new RuntimeException("For input string: \"badValue123\"")))
+        val ex = FlagValueParseException(
+          "service.timeout",
+          "badValue123",
+          "Int",
+          Some(new RuntimeException("For input string: \"badValue123\""))
+        )
         assertTrue(ex.getMessage.contains("badValue123")) &&
         assertTrue(ex.getMessage.contains("For input string")) &&
         assertTrue(!ex.getMessage.contains("<secret>")) &&
@@ -314,7 +319,7 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         assertTrue(ex.cause.exists(_.getMessage.contains(secret)))
       },
       test("Sensitive.isSensitive covers all markers for flag names") {
-        val secret = "SENTINEL_GENERIC_abc123"
+        val secret         = "SENTINEL_GENERIC_abc123"
         val sensitiveNames = List(
           "my.secret",
           "db.password",
