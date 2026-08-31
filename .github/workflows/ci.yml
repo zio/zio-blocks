@@ -155,6 +155,9 @@ jobs:
     - name: Run Scala 3 tests with test coverage (JDK 25, skip docs due to scaladoc bug)
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
       run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
+    - name: Run Scala 3 config adapter coverage (JDK 25, scoped)
+      if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
+      run: sbt ++${{ matrix.scala }} configCoverage
     - name: Run Scala Next tests
       if: ${{ matrix.scala == '3.8.x' }}
       run: sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test

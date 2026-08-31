@@ -66,6 +66,23 @@ inThisBuild(
 
 com.github.sbt.git.SbtGit.useReadableConsoleGit
 
+addCommandAlias(
+  "configCoverage",
+  // Project-scoped coverage for config adapters only. Global `coverage` sets
+  // `ThisBuild / coverageEnabled := true`, which instruments the entire
+  // dependency graph including schema (136 sources) and OOMs at 12GB after a
+  // clean. This alias disables global instrumentation and enables it only for
+  // the three adapter JVM projects, then runs clean/test/report per adapter
+  // so each report is isolated and does not pull in schema instrumentation.
+  "; set ThisBuild / coverageEnabled := false" +
+    "; set LocalProject(\"config-yamlJVM\") / coverageEnabled := true" +
+    "; set LocalProject(\"config-jsonJVM\") / coverageEnabled := true" +
+    "; set LocalProject(\"config-hoconJVM\") / coverageEnabled := true" +
+    "; config-yamlJVM/clean; config-yamlJVM/test; config-yamlJVM/coverageReport" +
+    "; config-jsonJVM/clean; config-jsonJVM/test; config-jsonJVM/coverageReport" +
+    "; config-hoconJVM/clean; config-hoconJVM/test; config-hoconJVM/coverageReport" +
+    "; set ThisBuild / coverageEnabled := false"
+)
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
@@ -925,6 +942,10 @@ lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
+    // Skipped in global `coverage` aggregate to avoid OOM via schema
+    // instrumentation; `configCoverage` re-enables via `set` and enforces
+    // nonzero thresholds with forked clean tests.
+    coverageEnabled := false,
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-yamlJVM; coverage; test; coverageReport`:
     // Statement 72.22%, Branch 66.67% (clean 72.22% with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 71,
@@ -949,6 +970,8 @@ lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
+    // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
+    coverageEnabled := false,
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-jsonJVM; coverage; test; coverageReport`:
     // Statement 92.59%, Branch 86.67% (clean 92.59% with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 91,
@@ -973,6 +996,8 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
+    // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
+    coverageEnabled := false,
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-hoconJVM; coverage; test; coverageReport`:
     // Statement 76.30-77.58%, Branch 67.54-67.84% (clean 76.30/67.54 with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 76,

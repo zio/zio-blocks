@@ -266,6 +266,11 @@ object CiWorkflow {
           run = Some("sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport")
         ),
         SingleStep(
+          name = "Run Scala 3 config adapter coverage (JDK 25, scoped)",
+          condition = Some(expr("startsWith(matrix.scala, '3.')") && expr("matrix.java >= 25")),
+          run = Some("sbt ++${{ matrix.scala }} configCoverage")
+        ),
+        SingleStep(
           name = "Run Scala Next tests",
           condition = Some(expr("matrix.scala == '3.8.x'")),
           run = Some("sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test")
