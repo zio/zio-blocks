@@ -268,12 +268,12 @@ object CiWorkflow {
         SingleStep(
           name = "Run Scala 3 config adapter coverage (JDK 25, scoped)",
           condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java >= 25")),
-          run = Some("sbt \"++3.8.3 configCoverage\"")
+          run = Some("sbt \"++3.8.3; configCoverage\"")
         ),
         SingleStep(
           name = "Run JWT scoped coverage (JDK 25, Scala 3.8.x)",
           condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java >= 25")),
-          run = Some("sbt \"++3.8.3 jwtCoverage\"")
+          run = Some("sbt \"++3.8.3; jwtCoverage\"")
         ),
         SingleStep(
           name = "Verify SQL dump macro emission (dumpDir)",
