@@ -16,6 +16,8 @@
 
 package zio.blocks.config
 
+import zio.blocks.schema.Schema
+
 final class Secret private (private val value: String) {
   override def toString: String = "<secret>"
 
@@ -33,4 +35,6 @@ object Secret {
   def unwrap(secret: Secret): String = secret.value
 
   def displayable: Displayable[Secret] = Displayable.instance(_ => "<secret>")
+
+  implicit val schema: Schema[Secret] = Schema[String].transform(Secret.apply, Secret.unwrap)
 }
