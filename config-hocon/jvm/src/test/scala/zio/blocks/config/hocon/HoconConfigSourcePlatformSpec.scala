@@ -170,8 +170,15 @@ object HoconConfigSourcePlatformSpec extends ZIOSpecDefault {
           result.isLeft,
           result.left.exists {
             case e: zio.blocks.config.ConfigError.ParseError =>
-              e.message.contains("exceeds limit") && !e.message.contains(secretContent) &&
-              !e.getMessage.contains(secretContent)
+              !e.message.contains(secretContent) &&
+              !e.getMessage.contains(secretContent) &&
+              !e.message.contains("exceeds limit") &&
+              !e.getMessage.contains("exceeds limit") &&
+              e.cause.exists {
+                case h: HoconError =>
+                  h.getMessage.contains("exceeds limit") && !h.getMessage.contains(secretContent)
+                case _ => false
+              }
             case _ => false
           }
         )
@@ -297,7 +304,14 @@ object HoconConfigSourcePlatformSpec extends ZIOSpecDefault {
           result.isLeft,
           result.left.exists {
             case e: zio.blocks.config.ConfigError.ParseError =>
-              e.message.contains("regular file") || e.message.contains("Failed")
+              !e.message.contains("Not a regular file") &&
+              !e.getMessage.contains("Not a regular file") &&
+              !e.message.contains("Failed") &&
+              !e.getMessage.contains("Failed") &&
+              e.cause.exists {
+                case h: HoconError => h.getMessage.contains("Not a regular file")
+                case _             => false
+              }
             case _ => false
           }
         )
