@@ -183,8 +183,10 @@ val average: Expr[Option[BigDecimal], qStar.type] = qStar.avg(qStar.col[Star](_.
 
 ### Ordering and Limits
 
+`orderBy(expr, dir)` adds a query-scoped `ORDER BY` term; repeated calls accumulate with independent directions. The expression must belong to the same query lineage (or be scope-neutral like a literal), so ordering by a joined table qualifies its alias and cross-query ordering is rejected at compile time.
+
 ```scala mdoc:silent
-val qOrdered = qBaseF.where(qBaseF.col[User](_.id) > lit(0)).orderBy("id").limit(10).offset(20)
+val qOrdered = qBaseF.where(qBaseF.col[User](_.id) > lit(0)).orderBy(qBaseF.col[User](_.id)).limit(10).offset(20)
 ```
 
 `SortOrder.Asc` is the default. Pass `SortOrder.Desc` as a second argument to `orderBy`.

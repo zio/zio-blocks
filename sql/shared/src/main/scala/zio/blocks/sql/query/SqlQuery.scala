@@ -41,7 +41,7 @@ final case class SqlQuery[A, S <: Tuple] private[query] (
   filters: Vector[Frag],
   groupBy: Vector[String],
   having: Option[Frag],
-  orderBy: Vector[OrderBy],
+  orderBy: Vector[OrderExpr],
   limit: Option[Int],
   offset: Option[Int],
   typedFilters: Vector[Expr[Boolean, ?]] = Vector.empty,
@@ -174,13 +174,24 @@ final case class SqlQuery[A, S <: Tuple] private[query] (
   def having[Sc2 <: Scope](expr: Expr[Boolean, Sc2]): SqlQuery[A, S] { type Scope = self.Scope } =
     copy(typedHaving = Some(expr)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def orderBy(col: String, dir: SortOrder = SortOrder.Asc): SqlQuery[A, S] { type Scope = self.Scope } = {
-    SqlIdentifier.validate("column", col)
-    copy(orderBy = orderBy :+ OrderBy(col, dir)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
-  }
+  /**
+   * Add a query-scoped `ORDER BY` term. The expression must carry this query's
+   * scope (`Sc2 <: Scope`) or be scope-neutral (`Nothing`, e.g. a literal);
+   * expressions from another query value are rejected at compile time. Multiple
+   * calls accumulate in order with independent directions.
+   */
+  def orderBy[Sc2 <: Scope](expr: Expr[?, Sc2], dir: SortOrder = SortOrder.Asc): SqlQuery[A, S] {
+    type Scope = self.Scope
+  } =
+    copy(orderBy = orderBy :+ OrderExpr(expr, dir)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def orderByMany(cols: OrderBy*): SqlQuery[A, S] { type Scope = self.Scope } =
-    copy(orderBy = orderBy ++ cols.toVector).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
+  /**
+   * Add several query-scoped `ORDER BY` terms as `(expr, direction)` pairs.
+   * Each expression may independently be query-scoped or scope-neutral.
+   */
+  def orderByMany(exprs: (Expr[?, ? <: Scope], SortOrder)*): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(orderBy = orderBy ++ exprs.toVector.map { case (e, d) => OrderExpr(e, d) })
+      .asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
   def limit(n: Int): SqlQuery[A, S] { type Scope = self.Scope } = {
     require(n >= 0, "limit must be >= 0")
@@ -231,15 +242,17 @@ final case class SqlQuery[A, S <: Tuple] private[query] (
         val all    = (legacy ++ typed).toVector
         if (all.isEmpty) None else Some(SqlStatement.GroupBy(all))
       }
-    val ob = orderBy.map(o =>
+    val ob = orderBy.map { o =>
+      val expr = o.expr.asInstanceOf[Expr[?, ?]]
       SqlStatement.OrderBy(
-        SqlStatement.ColumnRef("t0", o.column),
+        QueryRenderer.renderExpr(expr, allTables),
+        extractSingleColumn(expr, allTables),
         o.direction match {
           case SortOrder.Asc  => SqlStatement.OrderDirection.Asc
           case SortOrder.Desc => SqlStatement.OrderDirection.Desc
         }
       )
-    )
+    }
     val lim = limit.map(SqlStatement.Limit(_))
     val off = offset.map(SqlStatement.Offset(_))
     SqlStatement(src, js.toVector, allFilters, grp, ob.toVector, lim, off, frag)
@@ -382,8 +395,22 @@ final case class SqlQuery[A, S <: Tuple] private[query] (
 
   // ---- Projection ----
 
-  transparent inline def select[T](inline exprs: Expr[?, ? <: Scope]*)(using codec: DbCodec[T]) =
-    ${ SelectMacros.selectImpl[T]('exprs, 'codec, '{ this }) }
+  /**
+   * Projection. The public signature always returns `TypedQuery[T, Scope]` —
+   * the receiver's path-dependent scope — so the lineage of the result never
+   * depends on which projection expression comes first or whether every
+   * expression is scope-neutral (`countStar`, `lit(...)`). `selectTyped`
+   * forwards the receiver scope to the macro as an explicit type argument; the
+   * macro only validates projection content.
+   */
+  transparent inline def select[T](inline exprs: Expr[?, ? <: Scope]*)(using codec: DbCodec[T]): TypedQuery[T, Scope] =
+    selectTyped[T, Scope](exprs, codec)
+
+  private[query] transparent inline def selectTyped[T, Sc <: Scope](
+    inline exprs: Seq[Expr[?, ?]],
+    codec: DbCodec[T]
+  ): TypedQuery[T, Sc] =
+    ${ SelectMacros.selectImpl[T, Sc]('exprs, 'codec, '{ this }) }
 
   private def aliasOf(table: Table[_]): Option[String] =
     if (table.name == source.name) Some("t0")
@@ -426,4 +453,12 @@ private[query] final case class JoinNode(
   pkAlias: String
 )
 
-final case class OrderBy(column: String, direction: SortOrder)
+/**
+ * Typed `ORDER BY` term: an arbitrary query-scoped expression plus a direction.
+ * The constructor and `copy` are package-private (`private[query]`), matching
+ * the visibility of the `SqlQuery` IR itself, so ordering storage cannot be
+ * forged from outside the query package. Scope is enforced by
+ * `SqlQuery.orderBy`'s `Sc2 <: Scope` bound and the per-element `? <: Scope`
+ * wildcard of `orderByMany`, mirroring `typedFilters`/ `typedGroupBy`.
+ */
+private[query] final case class OrderExpr(expr: Expr[?, ?], direction: SortOrder)

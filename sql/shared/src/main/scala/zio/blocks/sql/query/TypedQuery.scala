@@ -64,7 +64,10 @@ final class TypedQuery[T, Sc] private[query] (
 
   // Preserve query-building after select without losing projection state.
 
-  /** The underlying query, re-typed to this typed query's scope for clause builders. */
+  /**
+   * The underlying query, re-typed to this typed query's scope for clause
+   * builders.
+   */
   private def scopedUnderlying: SqlQuery[?, ?] { type Scope = Sc } =
     underlying.asInstanceOf[SqlQuery[?, ?] { type Scope = Sc }]
 
@@ -79,11 +82,16 @@ final class TypedQuery[T, Sc] private[query] (
   def having[Sc2 <: Sc](expr: Expr[Boolean, Sc2]): TypedQuery[T, Sc] =
     new TypedQuery(scopedUnderlying.having(expr), projections, codec)
 
-  def orderBy(col: String, dir: SortOrder = SortOrder.Asc): TypedQuery[T, Sc] =
-    new TypedQuery(underlying.orderBy(col, dir), projections, codec)
+  /** Add a query-scoped `ORDER BY` term (same scope as this typed query). */
+  def orderBy[Sc2 <: Sc](expr: Expr[?, Sc2], dir: SortOrder = SortOrder.Asc): TypedQuery[T, Sc] =
+    new TypedQuery(scopedUnderlying.orderBy(expr, dir), projections, codec)
 
-  def orderByMany(cols: OrderBy*): TypedQuery[T, Sc] =
-    new TypedQuery(underlying.orderByMany(cols*), projections, codec)
+  /**
+   * Add several query-scoped `ORDER BY` terms as `(expr, direction)` pairs.
+   * Each expression may independently be query-scoped or scope-neutral.
+   */
+  def orderByMany(exprs: (Expr[?, ? <: Sc], SortOrder)*): TypedQuery[T, Sc] =
+    new TypedQuery(scopedUnderlying.orderByMany(exprs*), projections, codec)
 
   def limit(n: Int): TypedQuery[T, Sc] =
     new TypedQuery(underlying.limit(n), projections, codec)

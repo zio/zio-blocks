@@ -121,12 +121,12 @@ object QueryRenderer {
     }
     if (query.orderBy.nonEmpty) {
       val obFrags = query.orderBy.map { o =>
-        val c   = SqlIdentifier.validate("column", o.column)
-        val dir = o.direction match {
-          case SortOrder.Asc  => "ASC"
-          case SortOrder.Desc => "DESC"
+        val exprFrag = renderExpr(o.expr.asInstanceOf[Expr[?, ?]], allTables)
+        val dir      = o.direction match {
+          case SortOrder.Asc  => " ASC"
+          case SortOrder.Desc => " DESC"
         }
-        Frag.literal(s"""t0."$c" $dir""")
+        exprFrag ++ Frag.literal(dir)
       }
       val obCombined = obFrags.reduce(_ ++ Frag.literal(", ") ++ _)
       frag = frag ++ Frag.literal(" ORDER BY ") ++ obCombined

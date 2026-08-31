@@ -36,7 +36,7 @@ object QueryPropertySpec extends ZIOSpecDefault {
 
   private def buildPlain(seed: Int): SqlQuery[?, ?] = {
     val base = SqlQuery.from(userTable)
-    val q2 = (seed % 8) match {
+    val q2   = (seed % 8) match {
       case 0 => base
       case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
       case 2 => base.where(base.col[User](_.name).like("a%"))
@@ -71,7 +71,7 @@ object QueryPropertySpec extends ZIOSpecDefault {
 
   private def buildJoinedInner(seed: Int): SqlQuery[?, ?] = {
     val base = SqlQuery.from(userTable).innerJoin(userRepoRel)
-    val q2 = (seed % 8) match {
+    val q2   = (seed % 8) match {
       case 0 => base
       case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
       case 2 => base.where(base.col[User](_.name).like("a%"))
@@ -96,7 +96,7 @@ object QueryPropertySpec extends ZIOSpecDefault {
 
   private def buildJoinedLeft(seed: Int): SqlQuery[?, ?] = {
     val base = SqlQuery.from(userTable).leftJoin(userRepoRel)
-    val q2 = (seed % 8) match {
+    val q2   = (seed % 8) match {
       case 0 => base
       case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
       case 2 => base.where(base.col[User](_.name).like("a%"))
@@ -150,10 +150,10 @@ object QueryPropertySpec extends ZIOSpecDefault {
       assertTrue(failures.isEmpty, total == 500)
     },
     test("property oracle detects mismatch when perturbed count is compared") {
-      val q    = SqlQuery.from(userTable)
-      val q2   = q.where(q.col[User](_.id) === lit(1)).where(q.col[User](_.name) === lit("a"))
-      val frag = q2.toFrag(SqlDialect.PostgreSQL)
-      val sql  = frag.sql(SqlDialect.PostgreSQL)
+      val q         = SqlQuery.from(userTable)
+      val q2        = q.where(q.col[User](_.id) === lit(1)).where(q.col[User](_.name) === lit("a"))
+      val frag      = q2.toFrag(SqlDialect.PostgreSQL)
+      val sql       = frag.sql(SqlDialect.PostgreSQL)
       val correct   = sql.count(_ == '?')
       val perturbed = correct + 1
       assertTrue(

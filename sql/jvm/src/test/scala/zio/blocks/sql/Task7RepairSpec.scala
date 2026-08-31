@@ -28,8 +28,8 @@ private object Task7DumpFixtureTwoFilters {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
-  val q0 = Qry.from(userTable)
-  val twoFilters =
+  val q0                     = Qry.from(userTable)
+  val twoFilters             =
     q0.where(q0.col[User](_.name) === lit("alice")).where(q0.col[User](_.id) === lit(42))
 }
 
@@ -37,18 +37,18 @@ private object Task7DumpFixtureAndOr {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
-  val q0 = Qry.from(userTable)
-  val andPred = q0.where((q0.col[User](_.name) === lit("bob")) && (q0.col[User](_.id) === lit(7)))
-  val orPred  = q0.where((q0.col[User](_.name) === lit("bob")) || (q0.col[User](_.id) === lit(7)))
+  val q0                     = Qry.from(userTable)
+  val andPred                = q0.where((q0.col[User](_.name) === lit("bob")) && (q0.col[User](_.id) === lit(7)))
+  val orPred                 = q0.where((q0.col[User](_.name) === lit("bob")) || (q0.col[User](_.id) === lit(7)))
 }
 
 private object Task7DumpFixtureLikeIn {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
-  val q0 = Qry.from(userTable)
-  val likeQ = q0.where(q0.col[User](_.name).like("%ali%"))
-  val inQ   = q0.where(q0.col[User](_.id).in(Seq(1, 2, 3)))
+  val q0                     = Qry.from(userTable)
+  val likeQ                  = q0.where(q0.col[User](_.name).like("%ali%"))
+  val inQ                    = q0.where(q0.col[User](_.id).in(Seq(1, 2, 3)))
 }
 
 private object Task7DumpFixtureJoinCombined {
@@ -56,11 +56,11 @@ private object Task7DumpFixtureJoinCombined {
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable: Table[User]        = Table.derived[User]
-  val repoTable: Table[Repo]        = Table.derived[Repo]
-  val rel: Rel[Repo, User] = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-  val q0 = Qry.from(userTable).innerJoin(rel)
-  val combined = q0.where(q0.col[User](_.name).like("a%")).where(q0.col[Repo](_.name) === lit("my-repo"))
+  val userTable: Table[User] = Table.derived[User]
+  val repoTable: Table[Repo] = Table.derived[Repo]
+  val rel: Rel[Repo, User]   = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  val q0                     = Qry.from(userTable).innerJoin(rel)
+  val combined               = q0.where(q0.col[User](_.name).like("a%")).where(q0.col[Repo](_.name) === lit("my-repo"))
 }
 
 object Task7RepairSpec extends ZIOSpecDefault {
@@ -102,8 +102,8 @@ object Task7RepairSpec extends ZIOSpecDefault {
       case class User(id: Int, name: String)
       object User { implicit val schema: Schema[User] = Schema.derived }
       val tbl     = Table.derived[User]
-      val qBase  = Qry.from(tbl)
-      val q      = qBase.where(qBase.col[User](_.name) === lit("alice"))
+      val qBase   = Qry.from(tbl)
+      val q       = qBase.where(qBase.col[User](_.name) === lit("alice"))
       val fragSql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
       assertTrue(

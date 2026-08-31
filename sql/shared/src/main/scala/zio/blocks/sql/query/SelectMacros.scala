@@ -20,28 +20,26 @@ import scala.quoted.{Expr as SExpr, Quotes, Type as SType, Varargs}
 
 private[query] object SelectMacros {
 
-  private def exprScope(e: SExpr[Expr[?, ?]])(using quotes: Quotes): quotes.reflect.TypeRepr = {
-    import quotes.reflect.*
-    val tpe     = e.asTerm.tpe
-    val exprSym = TypeRepr.of[Expr[?, ?]].typeSymbol
-    tpe.baseType(exprSym) match {
-      case AppliedType(_, List(_, sc)) => sc.simplified
-      case _ =>
-        tpe.widen.dealias match {
-          case AppliedType(_, List(_, sc)) => sc.simplified
-          case other                       => other
-        }
-    }
-  }
-
-  def selectImpl[T: SType](
+  /**
+   * Projection macro. `Sc` is the receiver query's path-dependent scope,
+   * supplied explicitly by `SqlQuery.selectTyped` (the inline `select` passes
+   * its `Scope` member, so the public boundary always yields
+   * `TypedQuery[T, q.Scope]` regardless of projection order or content). Every
+   * projection expression is additionally verified to carry a scope within `Sc`
+   * (`Nothing`-neutral literals/`countStar` included); the final scope never
+   * depends on which expression appears first.
+   *
+   * Arity is unbounded — tuple types flatten recursively via `*:`/`TupleN` (any
+   * arity), and case-class records flatten via inline fields.
+   */
+  def selectImpl[T: SType, Sc: SType](
     exprs: SExpr[Seq[Expr[?, ?]]],
     codec: SExpr[zio.blocks.sql.DbCodec[T]],
     query: SExpr[SqlQuery[?, ?]]
-  )(using quotes: Quotes): SExpr[TypedQuery[T, ?]] = {
+  )(using quotes: Quotes): SExpr[TypedQuery[T, Sc]] = {
     import quotes.reflect.*
 
-    val varargsOpt                        = Varargs.unapply(exprs)
+    val varargsOpt                         = Varargs.unapply(exprs)
     val exprsList: List[SExpr[Expr[?, ?]]] = varargsOpt match {
       case Some(seq) => seq.toList
       case None      =>
@@ -52,8 +50,14 @@ private[query] object SelectMacros {
       report.errorAndAbort("select: empty projection")
     }
 
-    if (exprsList.size > 8) {
-      report.errorAndAbort(s"select: arity ${exprsList.size} exceeds maximum 8")
+    val scopeTpe = TypeRepr.of[Sc]
+    exprsList.zipWithIndex.foreach { case (e, idx) =>
+      val sc = exprScope(e)
+      if (!(sc <:< scopeTpe)) {
+        report.errorAndAbort(
+          s"select: projection at position ${idx + 1} has scope ${sc.show} which is not within the receiver query scope ${scopeTpe.show}; build expressions from the same query value"
+        )
+      }
     }
 
     def exprResultType(e: SExpr[Expr[?, ?]]): TypeRepr = {
@@ -165,8 +169,21 @@ private[query] object SelectMacros {
     val vecExpr: SExpr[Vector[Expr[?, ?]]] = '{
       Vector(${ Varargs(exprsList) }: _*).asInstanceOf[Vector[Expr[?, ?]]]
     }
-    exprScope(exprsList.head).asType match {
-      case '[sc] => '{ TypedQuery.create[T, sc]($query, $vecExpr, $codec) }
+    '{ TypedQuery.create[T, Sc]($query, $vecExpr, $codec) }
+  }
+
+  /** The scope type argument of an `Expr[?, Sc]` expression. */
+  private def exprScope(e: SExpr[Expr[?, ?]])(using quotes: Quotes): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    val tpe     = e.asTerm.tpe
+    val exprSym = TypeRepr.of[Expr[?, ?]].typeSymbol
+    tpe.baseType(exprSym) match {
+      case AppliedType(_, List(_, sc)) => sc.simplified
+      case _                           =>
+        tpe.widen.dealias match {
+          case AppliedType(_, List(_, sc)) => sc.simplified
+          case other                       => other
+        }
     }
   }
 }

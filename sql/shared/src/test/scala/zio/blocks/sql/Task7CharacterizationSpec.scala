@@ -34,8 +34,8 @@ object Task7CharacterizationSpec extends ZIOSpecDefault {
   def spec = suite("Task7CharacterizationSpec")(
     test("unified SqlQuery explain and statement via typed IR") {
       val rel     = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-      val qBase  = Qry.from(userTable).innerJoin(rel)
-      val q      = qBase.where(qBase.col[User](_.name) === lit("alice"))
+      val qBase   = Qry.from(userTable).innerJoin(rel)
+      val q       = qBase.where(qBase.col[User](_.name) === lit("alice"))
       val explain = q.explain(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
       val fragSql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)

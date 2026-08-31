@@ -26,8 +26,8 @@ import zio.blocks.sql.{DbValue, Table}
  * from `SqlQuery.col`/`colAt` carry the singleton scope of the query value they
  * were built from, and literals are scope-neutral (`Nothing`). Query methods
  * (`where`/`select`/`groupBy`/`having` and the aggregate constructors) require
- * expressions whose scope matches the receiver, so columns from different
- * query values cannot be mixed.
+ * expressions whose scope matches the receiver, so columns from different query
+ * values cannot be mixed.
  *
  * Combinators are declared on the trait with a bounded type parameter
  * `[Sc2 <: Sc]`: the receiver's scope is fixed by its static type (never
@@ -43,7 +43,10 @@ import zio.blocks.sql.{DbValue, Table}
  */
 sealed trait Expr[A, Sc] { self =>
 
-  /** Relational comparison of this expression against another of the same value type. */
+  /**
+   * Relational comparison of this expression against another of the same value
+   * type.
+   */
   def ===[Sc2 <: Sc](right: Expr[A, Sc2]): Expr[Boolean, Sc] = {
     val dynOpt = for {
       l <- toDynamicOpt(self)
@@ -52,7 +55,10 @@ sealed trait Expr[A, Sc] { self =>
     Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.Equal, dynOpt)
   }
 
-  /** Option-aware comparison: `Expr[Option[A]]` compared to a plain `Expr[A]` (LEFT JOIN columns, aggregates). */
+  /**
+   * Option-aware comparison: `Expr[Option[A]]` compared to a plain `Expr[A]`
+   * (LEFT JOIN columns, aggregates).
+   */
   @scala.annotation.targetName("eqOptLeft")
   def ===[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B]): Expr[Boolean, Sc] =
     Relational[A, Sc](
@@ -133,7 +139,12 @@ sealed trait Expr[A, Sc] { self =>
       l <- toDynamicOpt(self)
       r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
     } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual)
-    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual, dynOpt)
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual,
+      dynOpt
+    )
   }
 
   @scala.annotation.nowarn
@@ -156,7 +167,12 @@ sealed trait Expr[A, Sc] { self =>
       l <- toDynamicOpt(self)
       r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
     } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.LessThanOrEqual)
-    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.LessThanOrEqual, dynOpt)
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.LessThanOrEqual,
+      dynOpt
+    )
   }
 
   @scala.annotation.nowarn
@@ -200,9 +216,9 @@ sealed trait Expr[A, Sc] { self =>
 
   /** SQL `LIKE` against an expression pattern. */
   def like[Sc2 <: Sc](pattern: Expr[String, Sc2])(using ev: A =:= String): Expr[Boolean, Sc] = {
-    val s    = self.asInstanceOf[Expr[String, Sc]]
-    val pat  = pattern.asInstanceOf[Expr[String, Sc]]
-    val dyn  = DynamicSchemaExpr.StringRegexMatch(toDynamic(pat), toDynamic(s))
+    val s   = self.asInstanceOf[Expr[String, Sc]]
+    val pat = pattern.asInstanceOf[Expr[String, Sc]]
+    val dyn = DynamicSchemaExpr.StringRegexMatch(toDynamic(pat), toDynamic(s))
     LikeExpr[Sc](s, pat, dyn)
   }
 
@@ -212,8 +228,8 @@ sealed trait Expr[A, Sc] { self =>
 
   /** Boolean AND. */
   def &&[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = {
-    val l = self.asInstanceOf[Expr[Boolean, Sc]]
-    val r = right.asInstanceOf[Expr[Boolean, Sc]]
+    val l      = self.asInstanceOf[Expr[Boolean, Sc]]
+    val r      = right.asInstanceOf[Expr[Boolean, Sc]]
     val dynOpt = for {
       a <- toDynamicOpt(l)
       b <- toDynamicOpt(r)
@@ -224,8 +240,8 @@ sealed trait Expr[A, Sc] { self =>
 
   /** Boolean OR. */
   def ||[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = {
-    val l = self.asInstanceOf[Expr[Boolean, Sc]]
-    val r = right.asInstanceOf[Expr[Boolean, Sc]]
+    val l      = self.asInstanceOf[Expr[Boolean, Sc]]
+    val r      = right.asInstanceOf[Expr[Boolean, Sc]]
     val dynOpt = for {
       a <- toDynamicOpt(l)
       b <- toDynamicOpt(r)
@@ -235,7 +251,7 @@ sealed trait Expr[A, Sc] { self =>
   def or[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = ||(right)
 
   /** Boolean negation. */
-  def unary_! (using ev: A =:= Boolean): Expr[Boolean, Sc] = {
+  def unary_!(using ev: A =:= Boolean): Expr[Boolean, Sc] = {
     val l      = self.asInstanceOf[Expr[Boolean, Sc]]
     val dynOpt = toDynamicOpt(l).map(DynamicSchemaExpr.Not(_))
     NotExpr[Sc](l, dynOpt)
@@ -275,10 +291,15 @@ sealed trait Expr[A, Sc] { self =>
   def times[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = this.*(right)
 }
 
-final case class Column[A, B, Sc] private[query] (table: Table[A], column: String, alias: Option[String], dynamic: DynamicSchemaExpr)
-    extends Expr[B, Sc]
+final case class Column[A, B, Sc] private[query] (
+  table: Table[A],
+  column: String,
+  alias: Option[String],
+  dynamic: DynamicSchemaExpr
+) extends Expr[B, Sc]
 
-final case class Lit[A] private[query] (value: A, schema: Schema[A], dynamic: DynamicSchemaExpr) extends Expr[A, Nothing]
+final case class Lit[A] private[query] (value: A, schema: Schema[A], dynamic: DynamicSchemaExpr)
+    extends Expr[A, Nothing]
 
 final case class Relational[A, Sc] private[query] (
   left: Expr[A, Sc],
@@ -294,7 +315,8 @@ final case class Logical[Sc] private[query] (
   dynamic: Option[DynamicSchemaExpr]
 ) extends Expr[Boolean, Sc]
 
-final case class NotExpr[Sc] private[query] (expr: Expr[Boolean, Sc], dynamic: Option[DynamicSchemaExpr]) extends Expr[Boolean, Sc]
+final case class NotExpr[Sc] private[query] (expr: Expr[Boolean, Sc], dynamic: Option[DynamicSchemaExpr])
+    extends Expr[Boolean, Sc]
 
 final case class Arithmetic[A, Sc] private[query] (
   left: Expr[A, Sc],
@@ -304,15 +326,19 @@ final case class Arithmetic[A, Sc] private[query] (
   dynamic: Option[DynamicSchemaExpr]
 ) extends Expr[A, Sc]
 
-final case class LikeExpr[Sc] private[query] (left: Expr[String, Sc], pattern: Expr[String, Sc], dynamic: DynamicSchemaExpr)
-    extends Expr[Boolean, Sc]
+final case class LikeExpr[Sc] private[query] (
+  left: Expr[String, Sc],
+  pattern: Expr[String, Sc],
+  dynamic: DynamicSchemaExpr
+) extends Expr[Boolean, Sc]
 
 // SQL-only v1 extensions — honest extension nodes, not native DynamicSchemaExpr. They recursively contain native Exprs.
 // IN is SQL's `col IN (?,?,?)`; aggregate is SQL's `COUNT(col)` etc. DynamicSchemaExpr has no IN/aggregate cases, so these remain
 // explicit extension nodes. This is acceptable because native predicate/logical/arithmetic/string cases all render through the single
 // shared renderDynamic interpreter; only IN/aggregate are extensions.
 
-final case class InExpr[A, Sc] private[query] (col: Expr[A, Sc], values: Seq[A], schema: Schema[A]) extends Expr[Boolean, Sc]
+final case class InExpr[A, Sc] private[query] (col: Expr[A, Sc], values: Seq[A], schema: Schema[A])
+    extends Expr[Boolean, Sc]
 
 sealed trait AggFunc
 object AggFunc {
@@ -330,7 +356,7 @@ object AggFunc {
  * overloads of [[Expr]] apply because aggregate results are nullable.
  */
 final case class Agg[A, Sc] private[query] (func: AggFunc, arg: Expr[?, ?]) extends Expr[A, Sc]
-final case class AggStar[Sc] private[query] (func: AggFunc)                      extends Expr[Long, Sc]
+final case class AggStar[Sc] private[query] (func: AggFunc)                 extends Expr[Long, Sc]
 
 /**
  * Nullable wrapper for LEFT JOIN columns: the macro returns `OptExpr[B, Sc]`
@@ -381,13 +407,15 @@ private[query] object ExprInternal {
 }
 
 /**
- * Compile-time normalization of SUM result types, truthful for both
- * PostgreSQL and SQLite:
+ * Compile-time normalization of SUM result types, truthful for both PostgreSQL
+ * and SQLite:
  *
  *   - `SUM(int2/int4)` → `bigint` (PG) / `INTEGER` (SQLite) → `Long`
  *   - `SUM(int8)` → `numeric` (PG) / `INTEGER` (SQLite Int64) → `BigDecimal`
- *   - `SUM(numeric/bigint)` → `numeric` (PG) / `REAL`-independent exact (SQLite) → `BigDecimal`
- *   - `SUM(float4/float8)` → `double precision` (PG) / `REAL` (SQLite) → `Double`
+ *   - `SUM(numeric/bigint)` → `numeric` (PG) / `REAL`-independent exact
+ *     (SQLite) → `BigDecimal`
+ *   - `SUM(float4/float8)` → `double precision` (PG) / `REAL` (SQLite) →
+ *     `Double`
  *
  * The match type reduces to a concrete type at compile time (verified by the
  * select macro via match-type reduction), so `Expr[Option[SumOut[Int]], Scope]`
@@ -413,30 +441,36 @@ type AvgOut[A] = A match {
   case Float | Double                                  => Double
 }
 
-/** Gate typeclass: types SUM is supported for (the result type comes from [[SumOut]]). */
+/**
+ * Gate typeclass: types SUM is supported for (the result type comes from
+ * [[SumOut]]).
+ */
 sealed trait Summable[A]
 object Summable {
-  given byteSummable: Summable[Byte]         = new Summable[Byte] {}
-  given shortSummable: Summable[Short]       = new Summable[Short] {}
-  given intSummable: Summable[Int]           = new Summable[Int] {}
-  given longSummable: Summable[Long]         = new Summable[Long] {}
-  given floatSummable: Summable[Float]       = new Summable[Float] {}
-  given doubleSummable: Summable[Double]     = new Summable[Double] {}
+  given byteSummable: Summable[Byte]             = new Summable[Byte] {}
+  given shortSummable: Summable[Short]           = new Summable[Short] {}
+  given intSummable: Summable[Int]               = new Summable[Int] {}
+  given longSummable: Summable[Long]             = new Summable[Long] {}
+  given floatSummable: Summable[Float]           = new Summable[Float] {}
+  given doubleSummable: Summable[Double]         = new Summable[Double] {}
   given bigDecimalSummable: Summable[BigDecimal] = new Summable[BigDecimal] {}
-  given bigIntSummable: Summable[BigInt]     = new Summable[BigInt] {}
+  given bigIntSummable: Summable[BigInt]         = new Summable[BigInt] {}
 }
 
-/** Gate typeclass: types AVG is supported for (the result type comes from [[AvgOut]]). */
+/**
+ * Gate typeclass: types AVG is supported for (the result type comes from
+ * [[AvgOut]]).
+ */
 sealed trait Averagable[A]
 object Averagable {
-  given byteAveragable: Averagable[Byte]         = new Averagable[Byte] {}
-  given shortAveragable: Averagable[Short]       = new Averagable[Short] {}
-  given intAveragable: Averagable[Int]           = new Averagable[Int] {}
-  given longAveragable: Averagable[Long]         = new Averagable[Long] {}
-  given floatAveragable: Averagable[Float]       = new Averagable[Float] {}
-  given doubleAveragable: Averagable[Double]     = new Averagable[Double] {}
+  given byteAveragable: Averagable[Byte]             = new Averagable[Byte] {}
+  given shortAveragable: Averagable[Short]           = new Averagable[Short] {}
+  given intAveragable: Averagable[Int]               = new Averagable[Int] {}
+  given longAveragable: Averagable[Long]             = new Averagable[Long] {}
+  given floatAveragable: Averagable[Float]           = new Averagable[Float] {}
+  given doubleAveragable: Averagable[Double]         = new Averagable[Double] {}
   given bigDecimalAveragable: Averagable[BigDecimal] = new Averagable[BigDecimal] {}
-  given bigIntAveragable: Averagable[BigInt]     = new Averagable[BigInt] {}
+  given bigIntAveragable: Averagable[BigInt]         = new Averagable[BigInt] {}
 }
 
 // Literal helper — requires Schema, rejects unsupported types at runtime via exhaustive mapping
@@ -450,8 +484,8 @@ def lit[A](value: A)(using schema: Schema[A]): Expr[A, Nothing] = {
 }
 
 /**
- * Scope-neutral aggregate constructors for literal-only expressions
- * (`Expr[A, Nothing]`). Query-bound aggregates are methods on
+ * Scope-neutral aggregate constructors for literal-only expressions (`Expr[A,
+ * Nothing]`). Query-bound aggregates are methods on
  * [[zio.blocks.sql.query.SqlQuery]] (`q.sum(q.col(...))` etc.) so the result
  * carries the query scope; these global variants exist for literal aggregates.
  */
@@ -477,17 +511,17 @@ def count[A](col: Expr[A, Nothing]): Expr[Long, Nothing] = Agg[Long, Nothing](Ag
 val countStar: Expr[Long, Nothing] = AggStar[Nothing](AggFunc.CountStar)
 
 private def toDynamicOpt[A, Sc](expr: Expr[A, Sc]): Option[DynamicSchemaExpr] = expr match {
-  case c: Column[_, _, _] => Some(c.dynamic)
-  case l: Lit[_]          => Some(l.dynamic)
+  case c: Column[_, _, _]  => Some(c.dynamic)
+  case l: Lit[_]           => Some(l.dynamic)
   case r: Relational[_, _] => r.dynamic
-  case l: Logical[_]      => l.dynamic
-  case n: NotExpr[_]      => n.dynamic
+  case l: Logical[_]       => l.dynamic
+  case n: NotExpr[_]       => n.dynamic
   case a: Arithmetic[_, _] => a.dynamic
-  case l: LikeExpr[_]     => Some(l.dynamic)
-  case _: InExpr[_, _]    => None
-  case _: Agg[_, _]       => None
-  case _: AggStar[_]      => None
-  case o: OptExpr[_, _]   => toDynamicOpt(o.inner)
+  case l: LikeExpr[_]      => Some(l.dynamic)
+  case _: InExpr[_, _]     => None
+  case _: Agg[_, _]        => None
+  case _: AggStar[_]       => None
+  case o: OptExpr[_, _]    => toDynamicOpt(o.inner)
 }
 
 private def toDynamic[A, Sc](expr: Expr[A, Sc]): DynamicSchemaExpr =

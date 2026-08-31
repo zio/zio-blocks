@@ -81,7 +81,8 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(100)}, ${DbValue.DbInt(10)}, ${DbValue.DbInt(2)})".update
         sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(101)}, ${DbValue.DbInt(20)}, ${DbValue.DbInt(1)})".update
         val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel).innerJoin(repoStarRel)
-        val q     = qBase.select[(String, String, Int)](qBase.col[User](_.name), qBase.col[Repo](_.name), qBase.col[Star](_.id))
+        val q     =
+          qBase.select[(String, String, Int)](qBase.col[User](_.name), qBase.col[Repo](_.name), qBase.col[Star](_.id))
         val sqlStr   = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val expected =
           "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\", t2.\"id\" AS \"_3\" FROM \"users\" AS t0 INNER JOIN \"repos\" AS t1 ON t1.\"owner_id\" = t0.\"id\" INNER JOIN \"stars\" AS t2 ON t2.\"repo_id\" = t1.\"id\""
@@ -99,8 +100,8 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("boss")}, ${DbValue.DbNull})".update
         sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("alice")}, ${DbValue.DbInt(1)})".update
         sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("carol")}, ${DbValue.DbInt(1)})".update
-        val qBase = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
-        val q     = qBase.select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
+        val qBase    = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
+        val q        = qBase.select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
         val sqlStr   = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val expected =
           "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\" FROM \"employee\" AS t0 INNER JOIN \"employee\" AS t1 ON t0.\"manager_id\" = t1.\"id\""
@@ -144,7 +145,10 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r2")})".update
         sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r3")})".update
         val qBase = SqlQuery.from(repoTable)
-        val q     = qBase.groupBy(qBase.col[Repo](_.ownerId)).having(qBase.count(qBase.col[Repo](_.id)) > lit(1L)).select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
+        val q     = qBase
+          .groupBy(qBase.col[Repo](_.ownerId))
+          .having(qBase.count(qBase.col[Repo](_.id)) > lit(1L))
+          .select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
         val sqlStr   = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val expected =
           "SELECT t0.\"owner_id\" AS \"_1\", COUNT(t0.\"id\") AS \"_2\" FROM \"repos\" AS t0 GROUP BY t0.\"owner_id\" HAVING COUNT(t0.\"id\") > ?"
@@ -166,15 +170,30 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO sales (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
         sql"INSERT INTO sales (id, user_id, amount) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(2)}, ${DbValue.DbInt(5)})".update
         val qCountQ = SqlQuery.from(saleTable)
-        val qCount = qCountQ.groupBy(qCountQ.col[Sale](_.userId)).having(qCountQ.count(qCountQ.col[Sale](_.id)) > lit(1L)).select[(Int, Long)](qCountQ.col[Sale](_.userId), qCountQ.count(qCountQ.col[Sale](_.id)))
+        val qCount  = qCountQ
+          .groupBy(qCountQ.col[Sale](_.userId))
+          .having(qCountQ.count(qCountQ.col[Sale](_.id)) > lit(1L))
+          .select[(Int, Long)](qCountQ.col[Sale](_.userId), qCountQ.count(qCountQ.col[Sale](_.id)))
         val qSumQ = SqlQuery.from(saleTable)
-        val qSum = qSumQ.groupBy(qSumQ.col[Sale](_.userId)).having(qSumQ.sum(qSumQ.col[Sale](_.amount)) > lit(15L)).select[(Int, Option[Long])](qSumQ.col[Sale](_.userId), qSumQ.sum(qSumQ.col[Sale](_.amount)))
+        val qSum  = qSumQ
+          .groupBy(qSumQ.col[Sale](_.userId))
+          .having(qSumQ.sum(qSumQ.col[Sale](_.amount)) > lit(15L))
+          .select[(Int, Option[Long])](qSumQ.col[Sale](_.userId), qSumQ.sum(qSumQ.col[Sale](_.amount)))
         val qAvgQ = SqlQuery.from(saleTable)
-        val qAvg = qAvgQ.groupBy(qAvgQ.col[Sale](_.userId)).having(qAvgQ.avg(qAvgQ.col[Sale](_.amount)) > lit(BigDecimal(10.0))).select[(Int, Option[BigDecimal])](qAvgQ.col[Sale](_.userId), qAvgQ.avg(qAvgQ.col[Sale](_.amount)))
+        val qAvg  = qAvgQ
+          .groupBy(qAvgQ.col[Sale](_.userId))
+          .having(qAvgQ.avg(qAvgQ.col[Sale](_.amount)) > lit(BigDecimal(10.0)))
+          .select[(Int, Option[BigDecimal])](qAvgQ.col[Sale](_.userId), qAvgQ.avg(qAvgQ.col[Sale](_.amount)))
         val qMinQ = SqlQuery.from(saleTable)
-        val qMin = qMinQ.groupBy(qMinQ.col[Sale](_.userId)).having(qMinQ.min(qMinQ.col[Sale](_.amount)) > lit(5)).select[(Int, Option[Int])](qMinQ.col[Sale](_.userId), qMinQ.min(qMinQ.col[Sale](_.amount)))
+        val qMin  = qMinQ
+          .groupBy(qMinQ.col[Sale](_.userId))
+          .having(qMinQ.min(qMinQ.col[Sale](_.amount)) > lit(5))
+          .select[(Int, Option[Int])](qMinQ.col[Sale](_.userId), qMinQ.min(qMinQ.col[Sale](_.amount)))
         val qMaxQ = SqlQuery.from(saleTable)
-        val qMax = qMaxQ.groupBy(qMaxQ.col[Sale](_.userId)).having(qMaxQ.max(qMaxQ.col[Sale](_.amount)) > lit(10)).select[(Int, Option[Int])](qMaxQ.col[Sale](_.userId), qMaxQ.max(qMaxQ.col[Sale](_.amount)))
+        val qMax  = qMaxQ
+          .groupBy(qMaxQ.col[Sale](_.userId))
+          .having(qMaxQ.max(qMaxQ.col[Sale](_.amount)) > lit(10))
+          .select[(Int, Option[Int])](qMaxQ.col[Sale](_.userId), qMaxQ.max(qMaxQ.col[Sale](_.amount)))
         val countRows = qCount.run
         val sumRows   = qSum.run.sortBy(_._1)
         val avgRows   = qAvg.run.sortBy(_._1)
@@ -206,7 +225,10 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO sales (id, user_id, amount) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(10)})".update
         sql"INSERT INTO sales (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
         val qBase = SqlQuery.from(saleTable)
-        val q     = qBase.groupBy(qBase.col[Sale](_.userId)).having(qBase.avg(qBase.col[Sale](_.amount)) > lit(BigDecimal(10.0))).select[(Int, Option[BigDecimal])](qBase.col[Sale](_.userId), qBase.avg(qBase.col[Sale](_.amount)))
+        val q     = qBase
+          .groupBy(qBase.col[Sale](_.userId))
+          .having(qBase.avg(qBase.col[Sale](_.amount)) > lit(BigDecimal(10.0)))
+          .select[(Int, Option[BigDecimal])](qBase.col[Sale](_.userId), qBase.avg(qBase.col[Sale](_.amount)))
         val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val rows   = q.run
         assertTrue(
@@ -247,7 +269,11 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
                 sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(100)}, ${DbValue.DbInt(10)}, ${DbValue.DbInt(2)})".update
                 sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(101)}, ${DbValue.DbInt(20)}, ${DbValue.DbInt(1)})".update
                 val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel).innerJoin(repoStarRel)
-                val q     = qBase.select[(String, String, Int)](qBase.col[User](_.name), qBase.col[Repo](_.name), qBase.col[Star](_.id))
+                val q     = qBase.select[(String, String, Int)](
+                  qBase.col[User](_.name),
+                  qBase.col[Repo](_.name),
+                  qBase.col[Star](_.id)
+                )
                 (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._3))
               }
               val expected =
@@ -289,7 +315,8 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
                 sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("boss")}, ${DbValue.DbNull})".update
                 sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("alice")}, ${DbValue.DbInt(1)})".update
                 val qBase = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
-                val q     = qBase.select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
+                val q     = qBase
+                  .select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
                 (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._1))
               }
               val expected =
@@ -319,7 +346,10 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
                 sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r2")})".update
                 sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r3")})".update
                 val qBase = SqlQuery.from(repoTable)
-                val q     = qBase.groupBy(qBase.col[Repo](_.ownerId)).having(qBase.count(qBase.col[Repo](_.id)) > lit(1L)).select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
+                val q     = qBase
+                  .groupBy(qBase.col[Repo](_.ownerId))
+                  .having(qBase.count(qBase.col[Repo](_.id)) > lit(1L))
+                  .select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
                 (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run)
               }
               val expected =

@@ -26,12 +26,12 @@ import zio.test.*
  *
  *   - the SQLite JDBC driver binds `setBigDecimal` as TEXT, which breaks
  *     numeric comparisons (a REAL is always less than a TEXT under SQLite's
- *     type ordering), so the param writer binds BigDecimal as a double for
- *     the SQLite dialect and keeps the exact `setBigDecimal` for PostgreSQL;
+ *     type ordering), so the param writer binds BigDecimal as a double for the
+ *     SQLite dialect and keeps the exact `setBigDecimal` for PostgreSQL;
  *   - the SQLite driver throws `column -1 out of bounds` instead of returning
- *     null when a NULL column is read via `getBigDecimal`, so the result
- *     reader records the NULL for both the normal null return and the
- *     SQLite exception path.
+ *     null when a NULL column is read via `getBigDecimal`, so the result reader
+ *     records the NULL for both the normal null return and the SQLite exception
+ *     path.
  *
  * The dialect is threaded explicitly into the writer, so wrapped or proxied
  * connections do not affect the binding decision.
@@ -44,7 +44,10 @@ object JdbcBigDecimalSpec extends ZIOSpecDefault {
     c
   }
 
-  /** Proxy-wraps a real connection to prove the dialect-driven binding works through wrappers. */
+  /**
+   * Proxy-wraps a real connection to prove the dialect-driven binding works
+   * through wrappers.
+   */
   private def wrappedConnection(delegate: Connection): Connection =
     Proxy
       .newProxyInstance(
@@ -59,9 +62,9 @@ object JdbcBigDecimalSpec extends ZIOSpecDefault {
       .asInstanceOf[Connection]
 
   private def bindTypeOf(conn: Connection, dialect: SqlDialect): String = {
-    val ps     = conn.prepareStatement("SELECT typeof(?)")
+    val ps = conn.prepareStatement("SELECT typeof(?)")
     try {
-new JdbcParamWriter(ps, dialect).setBigDecimal(1, java.math.BigDecimal.valueOf(10L))
+      new JdbcParamWriter(ps, dialect).setBigDecimal(1, java.math.BigDecimal.valueOf(10L))
       val rs = ps.executeQuery()
       try {
         rs.next()
@@ -77,8 +80,7 @@ new JdbcParamWriter(ps, dialect).setBigDecimal(1, java.math.BigDecimal.valueOf(1
         try {
           val t = bindTypeOf(conn, SqlDialect.SQLite)
           assertTrue(t == "real")
-        }
-        finally conn.close()
+        } finally conn.close()
       },
       test("PostgreSQL dialect preserves the exact setBigDecimal binding") {
         val conn = sqliteConnection()
@@ -94,8 +96,7 @@ new JdbcParamWriter(ps, dialect).setBigDecimal(1, java.math.BigDecimal.valueOf(1
         try {
           val t = bindTypeOf(conn, SqlDialect.SQLite)
           assertTrue(t == "real")
-        }
-        finally conn.close()
+        } finally conn.close()
       }
     ),
     suite("JdbcResultReader BigDecimal NULL recording")(
@@ -162,52 +163,53 @@ new JdbcParamWriter(ps, dialect).setBigDecimal(1, java.math.BigDecimal.valueOf(1
                 onGetBigDecimalIndex().asInstanceOf[AnyRef]
               case "getBigDecimal" if args != null && args.length == 1 && args(0).isInstanceOf[String] =>
                 onGetBigDecimalLabel().asInstanceOf[AnyRef]
-              case "wasNull"    => java.lang.Boolean.valueOf(onWasNull())
-              case "getMetaData" => new java.sql.ResultSetMetaData {
-                  def getColumnCount: Int = 1
-                  def getColumnLabel(i: Int): String = "value"
-                  def isAutoIncrement(i: Int): Boolean = false
-                  def isCaseSensitive(i: Int): Boolean = false
-                  def isSearchable(i: Int): Boolean = false
-                  def isCurrency(i: Int): Boolean = false
-                  def isNullable(i: Int): Int = java.sql.ResultSetMetaData.columnNullable
-                  def isSigned(i: Int): Boolean = false
-                  def getColumnDisplaySize(i: Int): Int = 0
-                  def getColumnName(i: Int): String = "value"
-                  def getSchemaName(i: Int): String = ""
-                  def getPrecision(i: Int): Int = 0
-                  def getScale(i: Int): Int = 0
-                  def getTableName(i: Int): String = ""
-                  def getCatalogName(i: Int): String = ""
-                  def getColumnType(i: Int): Int = java.sql.Types.DECIMAL
-                  def getColumnTypeName(i: Int): String = "DECIMAL"
-                  def isReadOnly(i: Int): Boolean = true
-                  def isWritable(i: Int): Boolean = false
-                  def isDefinitelyWritable(i: Int): Boolean = false
-                  def getColumnClassName(i: Int): String = "java.math.BigDecimal"
-                  def unwrap[T](iface: Class[T]): T = throw new java.sql.SQLException("unwrap unsupported")
+              case "wasNull"     => java.lang.Boolean.valueOf(onWasNull())
+              case "getMetaData" =>
+                new java.sql.ResultSetMetaData {
+                  def getColumnCount: Int                    = 1
+                  def getColumnLabel(i: Int): String         = "value"
+                  def isAutoIncrement(i: Int): Boolean       = false
+                  def isCaseSensitive(i: Int): Boolean       = false
+                  def isSearchable(i: Int): Boolean          = false
+                  def isCurrency(i: Int): Boolean            = false
+                  def isNullable(i: Int): Int                = java.sql.ResultSetMetaData.columnNullable
+                  def isSigned(i: Int): Boolean              = false
+                  def getColumnDisplaySize(i: Int): Int      = 0
+                  def getColumnName(i: Int): String          = "value"
+                  def getSchemaName(i: Int): String          = ""
+                  def getPrecision(i: Int): Int              = 0
+                  def getScale(i: Int): Int                  = 0
+                  def getTableName(i: Int): String           = ""
+                  def getCatalogName(i: Int): String         = ""
+                  def getColumnType(i: Int): Int             = java.sql.Types.DECIMAL
+                  def getColumnTypeName(i: Int): String      = "DECIMAL"
+                  def isReadOnly(i: Int): Boolean            = true
+                  def isWritable(i: Int): Boolean            = false
+                  def isDefinitelyWritable(i: Int): Boolean  = false
+                  def getColumnClassName(i: Int): String     = "java.math.BigDecimal"
+                  def unwrap[T](iface: Class[T]): T          = throw new java.sql.SQLException("unwrap unsupported")
                   def isWrapperFor(iface: Class[?]): Boolean = false
                 }
-              case "getColumnLabel" => "value"
-              case "next"           => java.lang.Boolean.TRUE
-              case "close"          => null
-              case "getStatement"   => null
-              case "getWarnings"    => null
-              case "clearWarnings"  => null
-              case "getCursorName"  => null
-              case "getConcurrency" => Integer.valueOf(java.sql.ResultSet.CONCUR_READ_ONLY)
+              case "getColumnLabel"    => "value"
+              case "next"              => java.lang.Boolean.TRUE
+              case "close"             => null
+              case "getStatement"      => null
+              case "getWarnings"       => null
+              case "clearWarnings"     => null
+              case "getCursorName"     => null
+              case "getConcurrency"    => Integer.valueOf(java.sql.ResultSet.CONCUR_READ_ONLY)
               case "getFetchDirection" => Integer.valueOf(java.sql.ResultSet.FETCH_FORWARD)
-              case "getType"        => Integer.valueOf(java.sql.ResultSet.TYPE_FORWARD_ONLY)
-              case "getFetchSize"   => Integer.valueOf(0)
-              case "getRow"         => Integer.valueOf(0)
-              case "getHoldability" => Integer.valueOf(0)
-              case "isClosed"       => java.lang.Boolean.FALSE
-              case "isFirst"        => java.lang.Boolean.FALSE
-              case "isLast"         => java.lang.Boolean.FALSE
-              case "isBeforeFirst"  => java.lang.Boolean.TRUE
-              case "isAfterLast"    => java.lang.Boolean.FALSE
-              case "toString"       => "ProxyResultSet"
-              case _                => null
+              case "getType"           => Integer.valueOf(java.sql.ResultSet.TYPE_FORWARD_ONLY)
+              case "getFetchSize"      => Integer.valueOf(0)
+              case "getRow"            => Integer.valueOf(0)
+              case "getHoldability"    => Integer.valueOf(0)
+              case "isClosed"          => java.lang.Boolean.FALSE
+              case "isFirst"           => java.lang.Boolean.FALSE
+              case "isLast"            => java.lang.Boolean.FALSE
+              case "isBeforeFirst"     => java.lang.Boolean.TRUE
+              case "isAfterLast"       => java.lang.Boolean.FALSE
+              case "toString"          => "ProxyResultSet"
+              case _                   => null
             }
         }
       )

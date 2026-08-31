@@ -99,18 +99,27 @@ object QueryRenderSpec extends ZIOSpecDefault {
     ),
     suite("order/limit/offset")(
       test("order by single column") {
-        val q   = SqlQuery.from(userTable).orderBy("name", SortOrder.Asc)
-        val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
-        val exp = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC"
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase.orderBy(qBase.col[User](_.name), SortOrder.Asc)
+        val sql   = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp   = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC"
         assertTrue(sql == exp)
       },
       test("order by multiple columns with mixed directions") {
-        val q = SqlQuery
-          .from(userTable)
-          .orderBy("name", SortOrder.Asc)
-          .orderBy("id", SortOrder.Desc)
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase
+          .orderBy(qBase.col[User](_.name), SortOrder.Asc)
+          .orderBy(qBase.col[User](_.id), SortOrder.Desc)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
         val exp = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC, t0.\"id\" DESC"
+        assertTrue(sql == exp)
+      },
+      test("order by joined alias qualifies the joined table") {
+        val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+        val q     = qBase.orderBy(qBase.colAt[Repo]("t1", _.name), SortOrder.Asc)
+        val sql   = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp   =
+          "SELECT t0.\"id\", t0.\"name\", t1.\"id\", t1.\"owner_id\", t1.\"name\" FROM \"user\" AS t0 INNER JOIN \"repo\" AS t1 ON t1.\"owner_id\" = t0.\"id\" ORDER BY t1.\"name\" ASC"
         assertTrue(sql == exp)
       },
       test("limit only") {
@@ -126,9 +135,9 @@ object QueryRenderSpec extends ZIOSpecDefault {
         assertTrue(sql == exp)
       },
       test("order + limit + offset combo") {
-        val q = SqlQuery
-          .from(userTable)
-          .orderBy("name", SortOrder.Asc)
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase
+          .orderBy(qBase.col[User](_.name), SortOrder.Asc)
           .limit(20)
           .offset(10)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
@@ -196,11 +205,12 @@ object QueryRenderSpec extends ZIOSpecDefault {
     suite("Frag composition invariants")(
       test("renderer uses Frag.++ and.SqlIdentifier — every column is alias qualified") {
         val filterFrag = Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("x")))
-        val q          = SqlQuery
+        val qBase      = SqlQuery
           .from(userTable)
           .innerJoin(userRepoRel)
+        val q = qBase
           .filter(filterFrag)
-          .orderBy("id", SortOrder.Desc)
+          .orderBy(qBase.col[User](_.id), SortOrder.Desc)
           .limit(5)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
         assertTrue(

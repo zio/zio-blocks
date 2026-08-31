@@ -54,8 +54,8 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
         sql"INSERT INTO users_t8 (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
         sql"INSERT INTO repos_t8 (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
         // bob (id 2) has no repo
-        val q  = SqlQuery.from(userTable).leftJoin(userRepoRel)
-        val tq = q.select[(String, Option[String])](q.col[User](_.name), q.col[Repo](_.name))
+        val q    = SqlQuery.from(userTable).leftJoin(userRepoRel)
+        val tq   = q.select[(String, Option[String])](q.col[User](_.name), q.col[Repo](_.name))
         val rows = tq.run.sortBy(_._1)
         assertTrue(rows == List(("alice", Some("r1")), ("bob", None)))
       }
@@ -118,11 +118,11 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
         Frag.literal("DROP TABLE IF EXISTS sales_t8").update
         saleTable.createTable(SqlDialect.SQLite).update
         // No rows inserted, whole-query aggregate over empty table
-        val qSum = SqlQuery.from(saleTable)
-        val qAvg = SqlQuery.from(saleTable)
-        val qMin = SqlQuery.from(saleTable)
-        val qMax = SqlQuery.from(saleTable)
-        val qCount = SqlQuery.from(saleTable)
+        val qSum      = SqlQuery.from(saleTable)
+        val qAvg      = SqlQuery.from(saleTable)
+        val qMin      = SqlQuery.from(saleTable)
+        val qMax      = SqlQuery.from(saleTable)
+        val qCount    = SqlQuery.from(saleTable)
         val sumRows   = qSum.select[Option[Long]](qSum.sum(qSum.col[Sale](_.amount))).run
         val avgRows   = qAvg.select[Option[BigDecimal]](qAvg.avg(qAvg.col[Sale](_.amount))).run
         val minRows   = qMin.select[Option[Int]](qMin.min(qMin.col[Sale](_.amount))).run
@@ -143,8 +143,8 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
         saleTable.createTable(SqlDialect.SQLite).update
         sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(10)})".update
         sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
-        val q      = SqlQuery.from(saleTable)
-        val tqStar = q.select[Long](countStar)
+        val q       = SqlQuery.from(saleTable)
+        val tqStar  = q.select[Long](countStar)
         val starSql = tqStar.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val starRow = tqStar.run
         assertTrue(
@@ -152,7 +152,7 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
           starRow == List(2L)
         )
         // literal projection
-        val tqLit = q.select[Int](lit(1))
+        val tqLit  = q.select[Int](lit(1))
         val litSql = tqLit.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val litRow = tqLit.run
         assertTrue(
@@ -160,7 +160,7 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
           litRow == List(1)
         )
         // mixed scope-neutral + query-bound projection
-        val tqMixed = q.select[(Int, Long)](q.col[Sale](_.userId), countStar)
+        val tqMixed  = q.select[(Int, Long)](q.col[Sale](_.userId), countStar)
         val mixedSql = tqMixed.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val mixedRow = tqMixed.run
         assertTrue(
@@ -215,14 +215,14 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
                 sql"INSERT INTO repos_t8 (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
                 sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(10)})".update
                 sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
-                val leftQ  = SqlQuery.from(userTable).leftJoin(userRepoRel)
-                val qLeft  = leftQ.select[(String, Option[String])](leftQ.col[User](_.name), leftQ.col[Repo](_.name))
-                val qSumQ  = SqlQuery.from(saleTable)
-                val qSum   = qSumQ
+                val leftQ = SqlQuery.from(userTable).leftJoin(userRepoRel)
+                val qLeft = leftQ.select[(String, Option[String])](leftQ.col[User](_.name), leftQ.col[Repo](_.name))
+                val qSumQ = SqlQuery.from(saleTable)
+                val qSum  = qSumQ
                   .groupBy(qSumQ.col[Sale](_.userId))
                   .select[(Int, Option[Long])](qSumQ.col[Sale](_.userId), qSumQ.sum(qSumQ.col[Sale](_.amount)))
-                val qAvgQ  = SqlQuery.from(saleTable)
-                val qAvg   = qAvgQ
+                val qAvgQ = SqlQuery.from(saleTable)
+                val qAvg  = qAvgQ
                   .groupBy(qAvgQ.col[Sale](_.userId))
                   .select[(Int, Option[BigDecimal])](qAvgQ.col[Sale](_.userId), qAvgQ.avg(qAvgQ.col[Sale](_.amount)))
                 val qEmptyQ = SqlQuery.from(saleTable)

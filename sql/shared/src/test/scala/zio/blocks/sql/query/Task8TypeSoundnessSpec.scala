@@ -169,7 +169,7 @@ object Task8TypeSoundnessSpec extends ZIOSpecDefault {
             q1.select[Int](q1.col[Sale](_.amount).plus(q2.col[Sale](_.amount)))
           }"""
         )
-assertTrue(
+        assertTrue(
           errors.nonEmpty,
           errors.exists(_.message.contains("q2.Scope")),
           scala.compiletime.testing.typeChecks(
@@ -286,8 +286,8 @@ assertTrue(
             }"""
           )
         )
-      },
-      ),
+      }
+    ),
     suite("LEFT JOIN nullability compile-time")(
       test("non-optional right-side projection after LEFT JOIN fails with an Option type mismatch") {
         val errors: List[scala.compiletime.testing.Error] = scala.compiletime.testing.typeCheckErrors(

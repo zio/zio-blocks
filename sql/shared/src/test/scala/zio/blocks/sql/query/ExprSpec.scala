@@ -53,12 +53,12 @@ object ExprSpec extends ZIOSpecDefault {
         assertTrue(frag.sql(SqlDialect.PostgreSQL) == exp, frag.params.size == 2, frag.params(0) == DbValue.DbInt(21))
       },
       test("or and not combinators") {
-        val qNotQ = SqlQuery.from(userTable)
-        val qNot  = qNotQ.where(!(qNotQ.col[User](_.age) > lit(18)))
+        val qNotQ  = SqlQuery.from(userTable)
+        val qNot   = qNotQ.where(!(qNotQ.col[User](_.age) > lit(18)))
         val expNot =
           "SELECT t0.\"id\", t0.\"name\", t0.\"age\", t0.\"salary\" FROM \"user\" AS t0 WHERE NOT (t0.\"age\" > ?)"
-        val qOrQ = SqlQuery.from(userTable)
-        val qOr  = qOrQ.where((qOrQ.col[User](_.age) < lit(10)) || (qOrQ.col[User](_.name) === lit("Bob")))
+        val qOrQ  = SqlQuery.from(userTable)
+        val qOr   = qOrQ.where((qOrQ.col[User](_.age) < lit(10)) || (qOrQ.col[User](_.name) === lit("Bob")))
         val expOr =
           "SELECT t0.\"id\", t0.\"name\", t0.\"age\", t0.\"salary\" FROM \"user\" AS t0 WHERE (t0.\"age\" < ? OR t0.\"name\" = ?)"
         assertTrue(
@@ -67,8 +67,8 @@ object ExprSpec extends ZIOSpecDefault {
         )
       },
       test("comparison operators cover = < > <= >= <>") {
-        val q  = SqlQuery.from(userTable)
-        val q2 = q.where(q.col[User](_.id) =!= lit(5))
+        val q   = SqlQuery.from(userTable)
+        val q2  = q.where(q.col[User](_.id) =!= lit(5))
         val exp = "SELECT t0.\"id\", t0.\"name\", t0.\"age\", t0.\"salary\" FROM \"user\" AS t0 WHERE t0.\"id\" <> ?"
         assertTrue(q2.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL) == exp)
       },

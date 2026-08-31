@@ -105,8 +105,8 @@ object ExplainSpec extends ZIOSpecDefault {
       val q  = Qry.from(userTable).innerJoin(userRepoRel)
       val q2 = q
         .where(q.col[User](_.name) === lit("bob"))
-        .orderBy("id", SortOrder.Asc)
-        .orderBy("name", SortOrder.Desc)
+        .orderBy(q.col[User](_.id), SortOrder.Asc)
+        .orderBy(q.col[User](_.name), SortOrder.Desc)
         .limit(10)
         .offset(5)
 
@@ -120,9 +120,10 @@ object ExplainSpec extends ZIOSpecDefault {
         explain.contains("?1"),
         explain.contains("-- params: 1:String"),
         st.orderBy.size == 2,
-        st.orderBy.head.column == SqlStatement.ColumnRef("t0", "id"),
+        st.orderBy.head.column.contains(SqlStatement.ColumnRef("t0", "id")),
         st.orderBy.head.direction == SqlStatement.OrderDirection.Asc,
         st.orderBy(1).direction == SqlStatement.OrderDirection.Desc,
+        st.orderBy.head.frag.sql(SqlDialect.PostgreSQL) == "t0.\"id\"",
         st.limit.contains(SqlStatement.Limit(10)),
         st.offset.contains(SqlStatement.Offset(5)),
         !explain.contains("bob")

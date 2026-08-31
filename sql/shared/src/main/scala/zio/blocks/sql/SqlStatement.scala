@@ -87,7 +87,15 @@ object SqlStatement {
 
   final case class GroupBy(columns: Vector[ColumnRef])
 
-  final case class OrderBy(column: ColumnRef, direction: OrderDirection)
+  /**
+   * Ordering inspection that preserves the exact expression `Frag` and its
+   * column metadata honestly. `frag` is the alias-qualified rendered expression
+   * (a plain column `t0."id"`, an aggregate `COUNT(t0."id")`, an arithmetic
+   * expression, ...). `column` is populated when the ordering expression is a
+   * simple column (possibly `Option`-wrapped); otherwise it is `None` and the
+   * full expression must be inspected via `frag`.
+   */
+  final case class OrderBy(frag: Frag, column: Option[ColumnRef], direction: OrderDirection)
 
   sealed trait OrderDirection
   object OrderDirection {

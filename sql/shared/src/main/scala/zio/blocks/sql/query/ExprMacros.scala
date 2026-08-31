@@ -23,7 +23,10 @@ import zio.blocks.sql.{SqlNameMapper, Table}
 
 private[query] object ExprMacros {
 
-  /** Factory for the sealed [[Column]] node, callable from macro quotes (inlined trees). */
+  /**
+   * Factory for the sealed [[Column]] node, callable from macro quotes (inlined
+   * trees).
+   */
   private[query] def newColumn[A, B, Sc](
     table: Table[A],
     column: String,
@@ -32,17 +35,20 @@ private[query] object ExprMacros {
   ): Column[A, B, Sc] =
     new Column[A, B, Sc](table, column, alias, dynamic)
 
-  /** Factory for the sealed [[OptExpr]] node, callable from macro quotes (inlined trees). */
+  /**
+   * Factory for the sealed [[OptExpr]] node, callable from macro quotes
+   * (inlined trees).
+   */
   private[query] def newOptExpr[A, Sc](inner: zio.blocks.sql.query.Expr[A, Sc]): OptExpr[A, Sc] =
     new OptExpr[A, Sc](inner)
 
   /**
    * Query-bound column builder. `Sc` is the receiver query's path-dependent
-   * scope (`q.Scope`); the result carries that exact scope as
-   * `Expr[B, Sc]` (or `Expr[Option[B], Sc]` when the column's table slot is a
-   * LEFT JOIN), with `B` inferred from the selector lambda's result type.
-   * Table resolution is performed against the query's slot tuple `(A *: S)`
-   * before any column matching:
+   * scope (`q.Scope`); the result carries that exact scope as `Expr[B, Sc]` (or
+   * `Expr[Option[B], Sc]` when the column's table slot is a LEFT JOIN), with
+   * `B` inferred from the selector lambda's result type. Table resolution is
+   * performed against the query's slot tuple `(A *: S)` before any column
+   * matching:
    *
    *   - a table that is not present in the query fails at compile time;
    *   - a table that appears more than once (self-joins) requires `colAt`;
@@ -77,8 +83,7 @@ private[query] object ExprMacros {
           s"table '${TypeRepr.of[T].show}' appears more than once in this query; use q.colAt(alias, ...) with an explicit alias (t0, t1, ...) to disambiguate"
         )
       case Some((_, nullable, false)) =>
-        if (nullable) '{ ExprMacros.newOptExpr[B, Sc]($base) }
-        else base
+        if (nullable) '{ ExprMacros.newOptExpr[B, Sc]($base) } else base
     }
   }
 
@@ -118,8 +123,7 @@ private[query] object ExprMacros {
               s"alias '$aliasStr' does not resolve to a table slot of this query (available: t0..t${slotCount[A, S] - 1}); selectors must name a slot whose table matches '${TypeRepr.of[T].show}'"
             )
           case Some(slotNullable) =>
-            if (slotNullable) '{ ExprMacros.newOptExpr[B, Sc]($base) }
-            else base
+            if (slotNullable) '{ ExprMacros.newOptExpr[B, Sc]($base) } else base
         }
       case None =>
         // Runtime alias: enforce presence/ambiguity now, let the renderer resolve the alias.
@@ -134,16 +138,15 @@ private[query] object ExprMacros {
               s"table '${TypeRepr.of[T].show}' appears more than once in this query; use q.colAt(alias, ...) with an explicit literal alias (t0, t1, ...) to disambiguate"
             )
           case Some((_, nullable, false)) =>
-            if (nullable) '{ ExprMacros.newOptExpr[B, Sc]($base) }
-            else base
+            if (nullable) '{ ExprMacros.newOptExpr[B, Sc]($base) } else base
         }
     }
   }
 
   /**
    * Slot model: the query's tables are `source :: joins`, i.e. `A *: S`.
-   * Returns `(slotIndex, nullable, duplicated)` for `T`, where `nullable`
-   * means the slot is `Option`-wrapped (LEFT JOIN) and `duplicated` means `T`
+   * Returns `(slotIndex, nullable, duplicated)` for `T`, where `nullable` means
+   * the slot is `Option`-wrapped (LEFT JOIN) and `duplicated` means `T`
    * occupies more than one slot (self-join — requires `colAt`).
    */
   private def slotInfo[A: Type, S: Type, T: Type](using
@@ -162,7 +165,10 @@ private[query] object ExprMacros {
     }
   }
 
-  /** Resolve a literal `tN` alias to a slot's nullability, verifying the slot's table matches `T`. */
+  /**
+   * Resolve a literal `tN` alias to a slot's nullability, verifying the slot's
+   * table matches `T`.
+   */
   private def aliasSlotInfo[A: Type, S: Type, T: Type](alias: String)(using
     quotes: Quotes
   ): Option[Boolean] = {
@@ -170,7 +176,7 @@ private[query] object ExprMacros {
     if (!alias.startsWith("t")) return None
     val idxOpt = scala.util.Try(alias.drop(1).toInt).toOption
     idxOpt match {
-      case None => None
+      case None    => None
       case Some(n) =>
         val slots = slotList[A, S]
         val tRepr = TypeRepr.of[T].dealias.simplified

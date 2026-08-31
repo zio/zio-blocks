@@ -57,7 +57,7 @@ private object FullFixture {
   val query     = queryBase
     .where(queryBase.col[User](_.name) === lit("bob"))
     .groupBy(queryBase.col[User](_.id))
-    .orderBy("id", QSortOrder.Asc)
+    .orderBy(queryBase.col[User](_.id), QSortOrder.Asc)
     .limit(10)
     .offset(5)
   Dump.dump(query)
@@ -98,7 +98,7 @@ private object IrFullFixture {
   val query = queryBase
     .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
     .groupBy(queryBase.col[User](_.name))
-    .orderBy("name", QSortOrder.Asc)
+    .orderBy(queryBase.col[User](_.name), QSortOrder.Asc)
     .limit(10)
     .offset(5)
   Dump.dumpQuery(query)
