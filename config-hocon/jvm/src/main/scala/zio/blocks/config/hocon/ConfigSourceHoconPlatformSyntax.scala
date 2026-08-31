@@ -23,8 +23,9 @@ trait ConfigSourceHoconPlatformSyntax {
     def fromFile(
       path: String,
       allowedBase: Option[java.io.File] = None,
-      maxIncludeDepth: Int = 10
+      maxIncludeDepth: Int = 10,
+      maxFileBytes: Long = HoconConfigSourcePlatform.DefaultMaxFileBytes
     ): Either[ConfigError, ConfigSource] =
-      HoconConfigSourcePlatform.fromFile(path, allowedBase, maxIncludeDepth)
+      HoconConfigSourcePlatform.fromFile(path, allowedBase, maxIncludeDepth, maxFileBytes)
   }
 }
