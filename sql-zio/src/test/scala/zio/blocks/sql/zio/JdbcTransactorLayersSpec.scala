@@ -231,7 +231,9 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         .provideLayer(ZLayer.succeed(h2DataSource) >>> JdbcTransactor.sqliteLayer)
         .map(result => assertTrue(result == Maybe(1)))
     },
-    test("sqlite via pooled DataSource still executes transact") {
+    test(
+      "pooled non-SQLite mock DataSource plumbing via sqliteLayer still executes transact (not real pooled SQLite)"
+    ) {
       val pooled  = pooledSqliteDataSource(h2DataSource)
       val program = ZIO.serviceWith[Transactor] { transactor =>
         transactor.transact {
