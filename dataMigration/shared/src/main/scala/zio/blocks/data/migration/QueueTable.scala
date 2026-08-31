@@ -184,4 +184,35 @@ object QueueTable {
     val frag      = Frag.literal(s"SELECT COUNT(*) FROM $validated")
     frag.queryOne[Long].getOrElse(0L)
   }
+
+  // ---- Pure preview helpers (no connection) ----
+
+  /** Pure queue-table DDL for the given dialect. */
+  def queueTableDDL(tableName: String)(using dialect: Dialect): String = {
+    val validated = SqlId.validate("table", tableName)
+    val colName   = SqlId.validate("column", QueueKeyColumn)
+    dialect.createQueueTableDDL(validated, colName)
+  }
+
+  /** Pure trigger DDLs for the given dialect. */
+  def triggerDDLs(queueTable: String, sourceTable: String, sourceIdColumn: String)(using
+    dialect: Dialect
+  ): List[String] = {
+    val q      = SqlId.validate("queue table", queueTable)
+    val s      = SqlId.validate("source table", sourceTable)
+    val srcCol = SqlId.validate("source id column", sourceIdColumn)
+    val keyCol = SqlId.validate("column", QueueKeyColumn)
+    dialect.createTriggerDDL(q, s, srcCol, keyCol)
+  }
+
+  /** Pure dequeue SELECT template for the given dialect. */
+  def dequeueSQLTemplate(tableName: String, batchSize: Int)(using dialect: Dialect): String = {
+    val validated = SqlId.validate("table", tableName)
+    val colName   = SqlId.validate("column", QueueKeyColumn)
+    dialect.dequeueSQL(validated, colName, batchSize)
+  }
+
+  /** Pure queue-table `CREATE TABLE` fragment. */
+  def ddl(tableName: String)(using dialect: Dialect): Frag =
+    Frag.literal(queueTableDDL(tableName))
 }

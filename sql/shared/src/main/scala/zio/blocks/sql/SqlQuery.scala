@@ -16,7 +16,7 @@
 
 package zio.blocks.sql
 
-import SqlStatement._
+import zio.blocks.sql.SqlStatement._
 
 /**
  * Immutable builder for SELECT queries over a [[Table]].

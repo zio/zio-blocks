@@ -159,10 +159,10 @@ jobs:
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
       run: sbt ++${{ matrix.scala }} configCoverage
     - name: Verify SQL dump macro emission (dumpDir)
-      if: ${{ matrix.scala == '3.8.x' && matrix.java == '17' }}
-      run: |
+      if: ${{ (matrix.scala == '3.8.x') && (matrix.java == '17') }}
+      run: |-
         rm -rf target/sql-dumps
-        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/Test/compile"
+        sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/Test/clean; sqlJVM/Test/compile"
         test -d target/sql-dumps && ls -R target/sql-dumps
         sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"
     - name: Run Scala Next tests
