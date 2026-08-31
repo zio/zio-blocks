@@ -22,135 +22,18 @@ import scala.concurrent.duration.{FiniteDuration, DAYS, HOURS, MINUTES, SECONDS,
 import scala.util.Try
 
 /** Global registry and diagnostics helpers for resolved flags. */
-trait Flag {
+sealed trait Flag {
 
   /**
    * Global registry of all resolved flag instances (static and dynamic), keyed
-   * by flag name.
+   * by flag name. Delegates to the authoritative store in [[Flag.registry]] so
+   * that arbitrary `Flag` mix-ins cannot receive an independent map.
    */
-  val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
+  def registry: ConcurrentHashMap[String, Any] = Flag.registry
 
-  def dump(): String = {
-    import scala.jdk.CollectionConverters._
-    val entries = registry.entrySet().asScala.toList.sortBy(_.getKey)
-    if (entries.isEmpty) return "(no flags registered)"
+  def dump(): String = Flag.dump()
 
-    val rows: List[(String, String, String, String)] = entries.map { entry =>
-      val name = entry.getKey
-      val flag = entry.getValue
-      flag match {
-        case sf: StaticFlag[_] =>
-          (name, sf.source.toString, sf.displayValue, sf.provenance.sourceId)
-        case df: DynamicFlag[_] =>
-          (name, "DynamicFlag", df.expression, "dynamic")
-        case other =>
-          (name, "Unknown", other.toString, "unknown")
-      }
-    }
-
-    val nameWidth  = math.max("Name".length, rows.map(_._1.length).max)
-    val typeWidth  = math.max("Type".length, rows.map(_._2.length).max)
-    val valueWidth = math.max("Value".length, rows.map(_._3.length).max)
-    val srcWidth   = math.max("Source".length, rows.map(_._4.length).max)
-
-    val sb = new StringBuilder
-    sb.append("\u250c")
-    sb.append("\u2500" * (nameWidth + 2))
-    sb.append("\u252c")
-    sb.append("\u2500" * (typeWidth + 2))
-    sb.append("\u252c")
-    sb.append("\u2500" * (valueWidth + 2))
-    sb.append("\u252c")
-    sb.append("\u2500" * (srcWidth + 2))
-    sb.append("\u2510\n")
-
-    sb.append("\u2502 ")
-    sb.append("Name".padTo(nameWidth, ' '))
-    sb.append(" \u2502 ")
-    sb.append("Type".padTo(typeWidth, ' '))
-    sb.append(" \u2502 ")
-    sb.append("Value".padTo(valueWidth, ' '))
-    sb.append(" \u2502 ")
-    sb.append("Source".padTo(srcWidth, ' '))
-    sb.append(" \u2502\n")
-
-    sb.append("\u251c")
-    sb.append("\u2500" * (nameWidth + 2))
-    sb.append("\u253c")
-    sb.append("\u2500" * (typeWidth + 2))
-    sb.append("\u253c")
-    sb.append("\u2500" * (valueWidth + 2))
-    sb.append("\u253c")
-    sb.append("\u2500" * (srcWidth + 2))
-    sb.append("\u2524\n")
-
-    rows.foreach { case (name, tpe, value, src) =>
-      sb.append("\u2502 ")
-      sb.append(name.padTo(nameWidth, ' '))
-      sb.append(" \u2502 ")
-      sb.append(tpe.padTo(typeWidth, ' '))
-      sb.append(" \u2502 ")
-      sb.append(value.padTo(valueWidth, ' '))
-      sb.append(" \u2502 ")
-      sb.append(src.padTo(srcWidth, ' '))
-      sb.append(" \u2502\n")
-    }
-
-    sb.append("\u2514")
-    sb.append("\u2500" * (nameWidth + 2))
-    sb.append("\u2534")
-    sb.append("\u2500" * (typeWidth + 2))
-    sb.append("\u2534")
-    sb.append("\u2500" * (valueWidth + 2))
-    sb.append("\u2534")
-    sb.append("\u2500" * (srcWidth + 2))
-    sb.append("\u2518")
-
-    sb.toString
-  }
-
-  def nearMissWarnings(flagName: String): List[String] = {
-    val lowerName = flagName.toLowerCase
-    val envName   = flagName.replace('.', '_').toUpperCase
-    val warnings  = scala.collection.mutable.LinkedHashSet.empty[String]
-
-    val props    = System.getProperties
-    val propIter = props.stringPropertyNames().iterator()
-    while (propIter.hasNext) {
-      val prop = propIter.next()
-      if (prop.toLowerCase == lowerName && prop != flagName)
-        warnings += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
-    }
-
-    val envIter = System.getenv().entrySet().iterator()
-    while (envIter.hasNext) {
-      val envVar = envIter.next().getKey
-      if (envVar.equalsIgnoreCase(envName) && envVar != envName)
-        warnings += s"Near-miss: environment variable '$envVar' looks similar to flag '$flagName' (case mismatch)"
-    }
-
-    val candidates = List(
-      flagName,
-      lowerName,
-      flagName.toUpperCase,
-      flagName.replace('.', '_'),
-      flagName.replace('.', '_').toLowerCase,
-      envName,
-      flagName.replace('_', '.'),
-      flagName.replace('_', '.').toLowerCase,
-      flagName.replace('_', '.').toUpperCase
-    ).distinct
-
-    FlagSource.Registry.all.foreach { source =>
-      candidates.foreach { candidate =>
-        if (candidate != flagName && source.get(candidate).isPresent)
-          warnings +=
-            s"Near-miss: FlagSource '${source.sourceId}' contains key '$candidate' similar to flag '$flagName'"
-      }
-    }
-
-    warnings.toList
-  }
+  def nearMissWarnings(flagName: String): List[String] = Flag.nearMissWarnings(flagName)
 
   trait Reader[A] {
 
@@ -278,6 +161,135 @@ trait Flag {
 }
 
 object Flag extends Flag {
+
+  /**
+   * Authoritative global registry of all resolved flag instances (static and
+   * dynamic), keyed by flag name. Stored only here; [[Flag]] trait delegates
+   * to this instance so no separate map can exist.
+   */
+  override val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
+
+  override def dump(): String = {
+    import scala.jdk.CollectionConverters._
+    val entries = registry.entrySet().asScala.toList.sortBy(_.getKey)
+    if (entries.isEmpty) return "(no flags registered)"
+
+    val rows: List[(String, String, String, String)] = entries.map { entry =>
+      val name = entry.getKey
+      val flag = entry.getValue
+      flag match {
+        case sf: StaticFlag[_] =>
+          (name, sf.source.toString, sf.displayValue, sf.provenance.sourceId)
+        case df: DynamicFlag[_] =>
+          (name, "DynamicFlag", df.expression, "dynamic")
+        case other =>
+          (name, "Unknown", other.toString, "unknown")
+      }
+    }
+
+    val nameWidth  = math.max("Name".length, rows.map(_._1.length).max)
+    val typeWidth  = math.max("Type".length, rows.map(_._2.length).max)
+    val valueWidth = math.max("Value".length, rows.map(_._3.length).max)
+    val srcWidth   = math.max("Source".length, rows.map(_._4.length).max)
+
+    val sb = new StringBuilder
+    sb.append("\u250c")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u252c")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2510\n")
+
+    sb.append("\u2502 ")
+    sb.append("Name".padTo(nameWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Type".padTo(typeWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Value".padTo(valueWidth, ' '))
+    sb.append(" \u2502 ")
+    sb.append("Source".padTo(srcWidth, ' '))
+    sb.append(" \u2502\n")
+
+    sb.append("\u251c")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u253c")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2524\n")
+
+    rows.foreach { case (name, tpe, value, src) =>
+      sb.append("\u2502 ")
+      sb.append(name.padTo(nameWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(tpe.padTo(typeWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(value.padTo(valueWidth, ' '))
+      sb.append(" \u2502 ")
+      sb.append(src.padTo(srcWidth, ' '))
+      sb.append(" \u2502\n")
+    }
+
+    sb.append("\u2514")
+    sb.append("\u2500" * (nameWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (typeWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (valueWidth + 2))
+    sb.append("\u2534")
+    sb.append("\u2500" * (srcWidth + 2))
+    sb.append("\u2518")
+
+    sb.toString
+  }
+
+  override def nearMissWarnings(flagName: String): List[String] = {
+    val lowerName = flagName.toLowerCase
+    val envName   = flagName.replace('.', '_').toUpperCase
+    val warnings  = scala.collection.mutable.LinkedHashSet.empty[String]
+
+    val props    = System.getProperties
+    val propIter = props.stringPropertyNames().iterator()
+    while (propIter.hasNext) {
+      val prop = propIter.next()
+      if (prop.toLowerCase == lowerName && prop != flagName)
+        warnings += s"Near-miss: system property '$prop' looks similar to flag '$flagName' (case mismatch)"
+    }
+
+    val envIter = System.getenv().entrySet().iterator()
+    while (envIter.hasNext) {
+      val envVar = envIter.next().getKey
+      if (envVar.equalsIgnoreCase(envName) && envVar != envName)
+        warnings += s"Near-miss: environment variable '$envVar' looks similar to flag '$flagName' (case mismatch)"
+    }
+
+    val candidates = List(
+      flagName,
+      lowerName,
+      flagName.toUpperCase,
+      flagName.replace('.', '_'),
+      flagName.replace('.', '_').toLowerCase,
+      envName,
+      flagName.replace('_', '.'),
+      flagName.replace('_', '.').toLowerCase,
+      flagName.replace('_', '.').toUpperCase
+    ).distinct
+
+    FlagSource.Registry.all.foreach { source =>
+      candidates.foreach { candidate =>
+        if (candidate != flagName && source.get(candidate).isPresent)
+          warnings +=
+            s"Near-miss: FlagSource '${source.sourceId}' contains key '$candidate' similar to flag '$flagName'"
+      }
+    }
+
+    warnings.toList
+  }
 
   /**
    * Identifies where a flag's value was resolved from.
