@@ -912,6 +912,13 @@ lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.config.yaml"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM is required for scoverage to correctly write measurements after `clean`:
+    // with Test/fork := false the instrumented classes run in sbt's JVM and the
+    // measurements file is not flushed when `clean` is executed in project scope
+    // (e.g. `project config-yamlJVM; clean; coverage; test; coverageReport` reports 0%).
+    Test / fork := true
+  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
@@ -919,7 +926,7 @@ lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-yamlJVM; coverage; test; coverageReport`:
-    // Statement 72.22%, Branch 66.67%. Set just below with modest margin.
+    // Statement 72.22%, Branch 66.67% (clean 72.22% with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 71,
     coverageMinimumBranchTotal := 65
   )
@@ -932,6 +939,10 @@ lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.config.json"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM required for clean coverage (see config-yaml comment).
+    Test / fork := true
+  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
@@ -939,7 +950,7 @@ lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-jsonJVM; coverage; test; coverageReport`:
-    // Statement 92.59%, Branch 86.67%. Set just below with modest margin.
+    // Statement 92.59%, Branch 86.67% (clean 92.59% with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 91,
     coverageMinimumBranchTotal := 85
   )
@@ -952,6 +963,10 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
   .settings(buildInfoSettings("zio.blocks.config.hocon"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM required for clean coverage (see config-yaml comment).
+    Test / fork := true
+  )
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
@@ -959,7 +974,7 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
     // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-hoconJVM; coverage; test; coverageReport`:
-    // Statement 77.58%, Branch 67.84%. Set just below with modest margin.
+    // Statement 76.30-77.58%, Branch 67.54-67.84% (clean 76.30/67.54 with fork). Set just below with modest margin.
     coverageMinimumStmtTotal   := 76,
     coverageMinimumBranchTotal := 66
   )
