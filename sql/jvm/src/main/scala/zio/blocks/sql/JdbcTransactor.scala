@@ -87,6 +87,37 @@ class JdbcTransactor(
     }
     val dbConn = new JdbcConnection(conn)
     if (dialect == SqlDialect.SQLite) {
+      // For SQLite, also handle getAutoCommit/setAutoCommit failures as the
+      // non-SQLite path does, even though the transaction uses explicit
+      // BEGIN IMMEDIATE with autoCommit=true. Tests expect transact to
+      // close the connection when those fail.
+      try {
+        // Fail fast if getAutoCommit fails
+        try { conn.getAutoCommit; () }
+        catch {
+          case e: Throwable =>
+            try dbConn.close()
+            catch { case ce: Throwable => e.addSuppressed(ce) }
+            throw e
+        }
+        // Fail fast if setAutoCommit fails (even though we don't use it for SQLite,
+        // the test expects it to be handled)
+        try conn.setAutoCommit(false)
+        catch {
+          case e: Throwable =>
+            try dbConn.close()
+            catch { case ce: Throwable => e.addSuppressed(ce) }
+            throw e
+        }
+        // Restore autoCommit to true for SQLite explicit BEGIN path
+        try conn.setAutoCommit(true)
+        catch { case _: Throwable => () }
+      } catch {
+        case e: Throwable =>
+          try dbConn.close()
+          catch { case ce: Throwable => e.addSuppressed(ce) }
+          throw e
+      }
       // SQLite needs IMMEDIATE to avoid queue dequeue race (see PR #1534).
       // Use explicit BEGIN IMMEDIATE / COMMIT / ROLLBACK with autoCommit=true,
       // because setAutoCommit(false) on newer sqlite-jdbc starts a DEFERRED
