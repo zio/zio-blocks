@@ -25,7 +25,13 @@ import zio.blocks.sql.Frag.*
  *
  * Queue tables store IDs of aggregates pending migration. Workers dequeue
  * batches via `SELECT ... FOR UPDATE SKIP LOCKED` on PostgreSQL; SQLite uses a
- * plain `LIMIT` since it serializes writes.
+ * plain `LIMIT` with the write lock held via `IMMEDIATE` (SQLite connections
+ * via `JdbcTransactor.fromUrl`/`sqlite` or any pooled/wrapped `DataSource` are
+ * configured per-transaction with `busy_timeout=5000` and `IMMEDIATE` via
+ * `isWrapperFor`/`unwrap`, so `transact` reserves the write lock and waits on
+ * contention; `connect` is configured similarly but does not begin a
+ * transaction or reserve the lock — only `transact` issues `BEGIN IMMEDIATE`;
+ * see PR #1534 discussion_r3863454094).
  */
 object QueueTable {
 
@@ -141,7 +147,16 @@ object QueueTable {
   /**
    * Dequeues up to `batchSize` IDs. Uses the given `dialect` to generate
    * database-appropriate locking — `FOR UPDATE SKIP LOCKED` on PostgreSQL,
-   * plain `LIMIT` on SQLite (which serializes writes via BEGIN IMMEDIATE).
+   * plain `LIMIT` on SQLite.
+   *
+   * On SQLite the transaction must already hold the write lock before the
+   * SELECT; `JdbcTransactor` configures any SQLite `Connection` (including
+   * pooled/wrapped via `isWrapperFor`/`unwrap`) per-transaction with
+   * `busy_timeout=5000` and `IMMEDIATE` (also `fromUrl` properties and
+   * `sqlite(DataSource)` for concrete `SQLiteDataSource`), so `transact`
+   * reserves the write lock and waits on contention instead of failing the
+   * later `DELETE` with `SQLITE_BUSY`. Single-consumer only on SQLite. See PR
+   * #1534 discussion_r3863454094.
    */
   def dequeue[ID](tableName: String, batchSize: Int)(using tx: DbTx, codec: DbCodec[ID], dialect: Dialect): List[ID] = {
     require(batchSize > 0, "batchSize must be positive")

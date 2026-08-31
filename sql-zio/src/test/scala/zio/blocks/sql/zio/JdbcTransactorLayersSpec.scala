@@ -22,7 +22,7 @@ import _root_.zio.blocks.sql.*
 import _root_.zio.test.*
 
 import java.lang.reflect.{InvocationHandler, Method, Proxy}
-import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData}
+import java.sql.{Connection, PreparedStatement, ResultSet, ResultSetMetaData, Statement}
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.sql.DataSource
 
@@ -50,6 +50,69 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
       )
       .asInstanceOf[DataSource]
 
+  private def pooledSqliteDataSource(delegate: DataSource): DataSource =
+    Proxy
+      .newProxyInstance(
+        getClass.getClassLoader,
+        Array(classOf[DataSource]),
+        new InvocationHandler {
+          override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
+            case "getConnection"   => pooledConnection(delegate.getConnection)
+            case "getLogWriter"    => delegate.getLogWriter
+            case "setLogWriter"    => delegate.setLogWriter(args.nn(0).asInstanceOf[java.io.PrintWriter]); null
+            case "setLoginTimeout" => delegate.setLoginTimeout(args.nn(0).asInstanceOf[Integer].intValue()); null
+            case "getLoginTimeout" => Integer.valueOf(delegate.getLoginTimeout)
+            case "getParentLogger" => delegate.getParentLogger
+            case "unwrap"          =>
+              val iface = args.nn(0).asInstanceOf[Class[?]]
+              if (iface.isInstance(delegate)) delegate else null
+            case "isWrapperFor" =>
+              val iface = args.nn(0).asInstanceOf[Class[?]]
+              java.lang.Boolean.valueOf(iface.isInstance(delegate) || delegate.isWrapperFor(iface))
+            case "toString" => "PooledTestDataSource"
+            case _          => null
+          }
+        }
+      )
+      .asInstanceOf[DataSource]
+
+  private def pooledConnection(delegate: Connection): Connection =
+    Proxy
+      .newProxyInstance(
+        getClass.getClassLoader,
+        Array(classOf[Connection]),
+        new InvocationHandler {
+          override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
+            case "prepareStatement" => delegate.prepareStatement(args.nn(0).asInstanceOf[String])
+            case "createStatement"  => delegate.createStatement()
+            case "getAutoCommit"    => java.lang.Boolean.valueOf(delegate.getAutoCommit)
+            case "setAutoCommit"    =>
+              delegate.setAutoCommit(args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()); null
+            case "commit"       => delegate.commit(); null
+            case "rollback"     => delegate.rollback(); null
+            case "close"        => delegate.close(); null
+            case "isClosed"     => java.lang.Boolean.valueOf(delegate.isClosed)
+            case "isWrapperFor" =>
+              val iface = args.nn(0).asInstanceOf[Class[?]]
+              java.lang.Boolean.valueOf(iface.isInstance(delegate) || delegate.isWrapperFor(iface))
+            case "unwrap" =>
+              val iface = args.nn(0).asInstanceOf[Class[?]]
+              if (iface.isInstance(delegate)) delegate
+              else delegate.unwrap(iface)
+            case "toString" => "PooledTestConnection"
+            case _          =>
+              if (args == null) {
+                try method.invoke(delegate)
+                catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+              } else {
+                try method.invoke(delegate, args*)
+                catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+              }
+          }
+        }
+      )
+      .asInstanceOf[Connection]
+
   private def connection(): Connection =
     Proxy
       .newProxyInstance(
@@ -61,6 +124,7 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
 
           override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
             case "prepareStatement" => preparedStatement()
+            case "createStatement"  => statement()
             case "getAutoCommit"    => java.lang.Boolean.valueOf(autoCommit)
             case "setAutoCommit"    => autoCommit = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue(); null
             case "commit"           => null
@@ -93,6 +157,24 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
         }
       )
       .asInstanceOf[PreparedStatement]
+
+  private def statement(): Statement =
+    Proxy
+      .newProxyInstance(
+        getClass.getClassLoader,
+        Array(classOf[Statement]),
+        new InvocationHandler {
+          override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef = method.getName match {
+            case "execute"      => java.lang.Boolean.TRUE
+            case "close"        => null
+            case "unwrap"       => null
+            case "isWrapperFor" => java.lang.Boolean.FALSE
+            case "toString"     => "TestStatement"
+            case _              => defaultValue(method.getReturnType)
+          }
+        }
+      )
+      .asInstanceOf[Statement]
 
   private def resultSet(): ResultSet =
     Proxy
@@ -147,6 +229,19 @@ object JdbcTransactorLayersSpec extends ZIOSpecDefault {
 
       program
         .provideLayer(ZLayer.succeed(h2DataSource) >>> JdbcTransactor.sqliteLayer)
+        .map(result => assertTrue(result == Maybe(1)))
+    },
+    test(
+      "pooled non-SQLite mock DataSource plumbing via sqliteLayer still executes transact (not real pooled SQLite)"
+    ) {
+      val pooled  = pooledSqliteDataSource(h2DataSource)
+      val program = ZIO.serviceWith[Transactor] { transactor =>
+        transactor.transact {
+          sql"SELECT 1".queryOne[Int]
+        }
+      }
+      program
+        .provideLayer(ZLayer.succeed(pooled) >>> JdbcTransactor.sqliteLayer)
         .map(result => assertTrue(result == Maybe(1)))
     }
   )
