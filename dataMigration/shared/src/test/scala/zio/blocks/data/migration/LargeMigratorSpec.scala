@@ -30,8 +30,12 @@ object LargeMigratorSpec extends ZIOSpecDefault {
   final class StubTransactor(pendingValue: Long) extends Transactor {
     var transactCalls: Int = 0
 
-    def connect[A](f: DbCon ?=> A): A = pendingValue.asInstanceOf[A]
-    def transact[A](f: DbTx ?=> A): A = {
+    override def connect[A](f: DbCon ?=> A): A = pendingValue.asInstanceOf[A]
+    override def transact[A](f: DbTx ?=> A): A = {
+      transactCalls += 1
+      0.asInstanceOf[A]
+    }
+    override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A = {
       transactCalls += 1
       0.asInstanceOf[A]
     }

@@ -77,6 +77,9 @@ class TransactorZIO(
   def transact[A](f: DbTx ?=> A): Task[A] =
     ZIO.attemptBlocking(underlying.transact(f))
 
+  def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): Task[A] =
+    ZIO.attemptBlocking(underlying.transact(isolation, readOnly)(f))
+
   /**
    * Acquires a connection via `ZIO.acquireRelease`, passes it to `f` as a
    * `DbCon`, and ensures the connection is closed when the scope exits (even on
@@ -107,28 +110,92 @@ class TransactorZIO(
    * Acquires a connection via `ZIO.acquireRelease`, disables auto-commit,
    * passes it to `f` as a `DbTx`, commits on success, rolls back on failure,
    * then closes the connection.
+   *
+   * Preserves the driver's default isolation level and `readOnly` flag — does
+   * not force `SERIALIZABLE` — matching [[JdbcTransactor.transact]]. Use the
+   * two-arg overload to request a specific isolation level or read-only flag.
    */
   // NEW: Effect-aware ZIO transaction management
   def transactZIO[R, E, A](f: DbTx ?=> ZIO[R, E, A]): ZIO[R, E | Throwable, A] =
+    transactZIOInternal(None, None)(f)
+
+  /**
+   * Acquires a connection via `ZIO.acquireRelease`, applies the requested
+   * isolation level and read-only flag, disables auto-commit, passes it to `f`
+   * as a `DbTx`, commits on success, rolls back on failure, then closes the
+   * connection. Previous `autoCommit`, isolation level and `readOnly` flag are
+   * restored after commit or rollback.
+   *
+   * Isolation-setup failures are propagated (fail fast, matching
+   * [[JdbcTransactor.transact]]); `setReadOnly` failures remain best-effort.
+   */
+  def transactZIO[R, E, A](isolation: TransactionIsolation, readOnly: Boolean)(
+    f: DbTx ?=> ZIO[R, E, A]
+  ): ZIO[R, E | Throwable, A] =
+    transactZIOInternal(Some(isolation), Some(readOnly))(f)
+
+  private def transactZIOInternal[R, E, A](
+    isolation: Option[TransactionIsolation],
+    readOnly: Option[Boolean]
+  )(f: DbTx ?=> ZIO[R, E, A]): ZIO[R, E | Throwable, A] =
     ZIO.scoped[R] {
       ZIO
         .acquireRelease(ZIO.attemptBlocking {
-          val conn           = connectionFactory()
-          val dbConn         = new JdbcConnection(conn)
-          val prevAutoCommit = conn.getAutoCommit
-          conn.setAutoCommit(false)
-          (conn, dbConn, prevAutoCommit)
-        }) { case (conn, dbConn, prevAutoCommit) =>
+          val conn   = connectionFactory()
+          val dbConn = new JdbcConnection(conn)
+          try {
+            val prevAutoCommit = conn.getAutoCommit
+            val prevIsolation  = isolation.map(_ => conn.getTransactionIsolation)
+            val prevReadOnly   = readOnly.map(_ =>
+              try conn.isReadOnly
+              catch { case _: Throwable => false }
+            )
+            // Fail fast: isolation failures must propagate (do not swallow); the
+            // release finalizer restores previous settings and closes the connection.
+            isolation.foreach(iso => conn.setTransactionIsolation(iso.jdbcLevel))
+            // Intentionally swallow readOnly failures: SQLite (and some other
+            // drivers) throw on setReadOnly even though transactions still work;
+            // keep best-effort semantics for this flag only, as in JdbcTransactor.
+            readOnly.foreach(ro =>
+              try conn.setReadOnly(ro)
+              catch { case _: Throwable => () }
+            )
+            // Fail fast: if autoCommit cannot be disabled, do not run the body
+            // outside a transaction.
+            conn.setAutoCommit(false)
+            (conn, dbConn, prevAutoCommit, prevIsolation, prevReadOnly)
+          } catch {
+            case e: Throwable =>
+              // Setup failed before the acquire completed, so the release
+              // finalizer is not registered; close the connection here.
+              try conn.close()
+              catch { case _: Throwable => () }
+              throw e
+          }
+        }) { case (conn, dbConn, prevAutoCommit, prevIsolation, prevReadOnly) =>
           ZIO.attemptBlocking {
-            conn.setAutoCommit(prevAutoCommit)
+            prevReadOnly.foreach(ro =>
+              try conn.setReadOnly(ro)
+              catch { case _: Throwable => () }
+            )
+            prevIsolation.foreach(iso =>
+              try conn.setTransactionIsolation(iso)
+              catch { case _: Throwable => () }
+            )
+            try conn.setAutoCommit(prevAutoCommit)
+            catch { case _: Throwable => () }
             dbConn.close()
           }.ignore
         }
-        .flatMap { case (conn, dbConn, _) =>
+        .flatMap { case (conn, dbConn, _, _, _) =>
           val tx = new DbTx {
-            val connection: DbConnection = dbConn
-            val dialect: SqlDialect      = TransactorZIO.this.dialect
-            val logger: SqlLogger        = TransactorZIO.this.logger
+            val connection: DbConnection                = dbConn
+            val dialect: SqlDialect                     = TransactorZIO.this.dialect
+            val logger: SqlLogger                       = TransactorZIO.this.logger
+            override var currentDepth: Int              = 0
+            override def savepoint(name: String): Unit  = dbConn.savepoint(name)
+            override def release(name: String): Unit    = dbConn.release(name)
+            override def rollbackTo(name: String): Unit = dbConn.rollbackTo(name)
           }
           f(using tx).exit.flatMap {
             case Exit.Success(value) =>

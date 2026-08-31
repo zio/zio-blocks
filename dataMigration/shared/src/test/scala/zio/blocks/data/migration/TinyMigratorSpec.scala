@@ -39,9 +39,27 @@ object TinyMigratorSpec extends ZIOSpecDefault {
       transactCalled = true
       f(using
         new DbTx {
-          def connection: DbConnection = ???
-          def dialect: SqlDialect      = ???
-          def logger: SqlLogger        = ???
+          def connection: DbConnection                = ???
+          def dialect: SqlDialect                     = ???
+          def logger: SqlLogger                       = ???
+          override var currentDepth: Int              = 0
+          override def savepoint(name: String): Unit  = ()
+          override def release(name: String): Unit    = ()
+          override def rollbackTo(name: String): Unit = ()
+        }
+      )
+    }
+    override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A = {
+      transactCalled = true
+      f(using
+        new DbTx {
+          def connection: DbConnection                = ???
+          def dialect: SqlDialect                     = ???
+          def logger: SqlLogger                       = ???
+          override var currentDepth: Int              = 0
+          override def savepoint(name: String): Unit  = ()
+          override def release(name: String): Unit    = ()
+          override def rollbackTo(name: String): Unit = ()
         }
       )
     }

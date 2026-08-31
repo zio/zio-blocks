@@ -37,6 +37,43 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
   def commit(): Unit = underlying.commit()
 
   def rollback(): Unit = underlying.rollback()
+
+  /**
+   * Savepoint support via SQL strings for portability.
+   *
+   * Uses `SAVEPOINT <name>`, `RELEASE SAVEPOINT <name>`, and
+   * `ROLLBACK TO SAVEPOINT <name>` executed via a fresh Statement. This avoids
+   * tracking `java.sql.Savepoint` objects and works on both SQLite and
+   * PostgreSQL. The statement is closed in `finally` to avoid leaking
+   * resources. Names are expected to be simple identifiers like `zib_tx_1` so
+   * no quoting/escaping is needed.
+   *
+   * Cost: Each savepoint operation allocates a new JDBC `Statement` (two per
+   * nested transaction: one for `SAVEPOINT`, one for `RELEASE` or
+   * `ROLLBACK TO`). This is negligible for typical nesting depths (1-3) and
+   * avoids holding `Savepoint` objects, but very deep or high-frequency nesting
+   * should be benchmarked if it becomes hot.
+   */
+  override def savepoint(name: String): Unit = {
+    SqlIdentifier.validate("savepoint", name)
+    val stmt = underlying.createStatement()
+    try stmt.execute(s"SAVEPOINT $name")
+    finally stmt.close()
+  }
+
+  override def release(name: String): Unit = {
+    SqlIdentifier.validate("savepoint", name)
+    val stmt = underlying.createStatement()
+    try stmt.execute(s"RELEASE SAVEPOINT $name")
+    finally stmt.close()
+  }
+
+  override def rollbackTo(name: String): Unit = {
+    SqlIdentifier.validate("savepoint", name)
+    val stmt = underlying.createStatement()
+    try stmt.execute(s"ROLLBACK TO SAVEPOINT $name")
+    finally stmt.close()
+  }
 }
 
 private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends DbPreparedStatement {

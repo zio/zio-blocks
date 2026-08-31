@@ -12,26 +12,28 @@ keywords:
   - "JDBC Transaction Lifecycle"
 ---
 
-`DbTx` is a marker trait in the `zio-blocks-sql` module that extends `DbCon` to signal a transactional execution scope. It declares no members of its own — its distinct type is what instructs `Transactor#transact` to disable auto-commit, commit the connection on success, and roll back on any thrown exception. You never construct a `DbTx` directly; the `Transactor` creates one and supplies it as a given context to the block passed to `transact`. The connection is always closed when the block exits, whether it commits, rolls back, or throws.
+`DbTx` is the transactional connection context supplied by `Transactor#transact`. It extends `DbCon` (so every `Frag`/`Repo` operation that needs `DbCon` also accepts `DbTx`) and adds savepoint-based nested transaction support. You never construct a `DbTx` directly; the `Transactor` creates one and supplies it as a given context to the block passed to `transact`. The connection is always closed when the outermost block exits, whether it commits, rolls back, or throws.
 
 Key properties:
-- **Transactional context marker** — A `DbTx` value in scope guarantees the underlying JDBC connection has auto-commit disabled.
-- **Commit-on-success semantics** — The `Transactor` commits the connection when the `transact` block returns normally.
-- **Rollback-on-failure semantics** — Any uncaught exception causes the `Transactor` to roll back the connection before re-throwing.
+- **Transactional context** — A `DbTx` value in scope guarantees the underlying JDBC connection has auto-commit disabled.
+- **Commit-on-success / rollback-on-failure** — The outermost `Transactor.transact` commits on normal return and rolls back on any uncaught exception (with suppressed rollback failures).
+- **Savepoint-based nesting** — Inner blocks reuse the same connection via SQL savepoints (`SAVEPOINT` / `RELEASE SAVEPOINT` / `ROLLBACK TO SAVEPOINT`).
+- **`transact(isolation, readOnly)`** — The two-arg `Transactor.transact` overload sets isolation level and `readOnly` before disabling auto-commit; `DbTx` nested blocks inherit those settings on the same connection.
 
 The structural declaration of `DbTx` is:
 
 ```scala
-trait DbTx extends DbCon
-```
+trait DbTx extends DbCon {
+  def savepoint(name: String): Unit
+  def release(name: String): Unit
+  def rollbackTo(name: String): Unit
+  def currentDepth: Int
+  private[sql] def currentDepth_=(depth: Int): Unit
 
-Every context member that `DbTx` exposes is inherited from `DbCon`, which declares the three fields every SQL operation consumes:
-
-```scala
-trait DbCon {
+  // inherited from DbCon
   def connection: DbConnection
-  def dialect:    SqlDialect
-  def logger:     SqlLogger
+  def dialect: SqlDialect
+  def logger: SqlLogger
 }
 ```
 
@@ -71,3 +73,33 @@ tx.transact {
   (all, custom)
 }
 ```
+
+## Nested Transactions via Savepoints
+
+Nested transactions reuse the same underlying JDBC connection via SQL savepoints. The `DbTx` given in scope exposes an extension `transact` and the `transactNested` helpers:
+
+```scala mdoc:compile-only
+import zio.blocks.sql._
+
+val transactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
+
+// Savepoint-based nesting — same connection, isolated rollback
+transactor.transact {
+  sql"INSERT INTO t VALUES (1)".update
+
+  // Inner block runs inside SAVEPOINT zib_tx_1
+  summon[DbTx].transact {
+    sql"INSERT INTO t VALUES (2)".update
+  }
+
+  // Equivalent using the `using` helper
+  // DbTx.transactNested { sql"INSERT INTO t VALUES (3)".update }
+  // transactNested { sql"INSERT INTO t VALUES (4)".update }
+}
+```
+
+Savepoint names are `zib_tx_1 .. zib_tx_N` where `N` is the nesting depth tracked in `currentDepth`. On success the savepoint is released via `RELEASE SAVEPOINT`; on failure it is rolled back via `ROLLBACK TO SAVEPOINT` and the exception is rethrown (with any rollback failure added as suppressed). Depth is decremented in `finally`, so sibling nested blocks reuse the same name sequence without leaking savepoints. `savepoint`/`release`/`rollbackTo` are also available directly for manual control and validate identifiers via `SqlIdentifier` to prevent injection.
+
+:::caution
+Only the outermost `Transactor.transact` issues a real `COMMIT`/`ROLLBACK`. Inner `summon[DbTx].transact` blocks are savepoint-scoped — outer commit still decides the final persistence of all work, including inner blocks that succeeded.
+:::

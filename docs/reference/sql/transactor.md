@@ -25,8 +25,11 @@ The structural shape of the trait is:
 trait Transactor {
   def connect[A](f: DbCon ?=> A): A
   def transact[A](f: DbTx ?=> A): A
+  def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A
 }
 ```
+
+The no-arg `transact` preserves the driver’s default isolation level and `readOnly` flag, while the two-arg overload lets callers request an explicit `TransactionIsolation` (`ReadUncommitted(1)`, `ReadCommitted(2)`, `RepeatableRead(4)`, `Serializable(8)`) and read-only mode, plus the savepoint-based nested transaction support described in `DbTx`.
 
 `JdbcTransactor` is the concrete JDBC-backed implementation. Its companion object provides factory methods for all common connection strategies:
 
@@ -223,15 +226,18 @@ Inside `connect`, auto-commit is left at its default state (typically `true` for
 
 ### Transaction Management
 
-`Transactor#transact` builds on `connect` by adding full transaction semantics: it disables auto-commit before executing the body, commits when the body returns normally, and rolls back when the body throws. The connection is always closed after commit or rollback.
-
-It acquires a connection, sets `autoCommit = false`, synthesizes a `DbTx` given value, and runs the body. On success it calls `conn.commit()`. On any exception it calls `conn.rollback()`, adds any rollback failure as a suppressed exception, and rethrows the original. The connection is closed in the `finally` block regardless of outcome:
+`Transactor#transact` builds on `connect` by adding full transaction semantics: it disables auto-commit before executing the body, commits when the body returns normally, and rolls back when the body throws. The connection is always closed after commit or rollback. Two overloads are available — a no-arg form that preserves the driver’s defaults and a two-arg form that sets isolation and `readOnly` explicitly:
 
 ```scala
 trait Transactor {
   def transact[A](f: DbTx ?=> A): A
+  def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A
 }
 ```
+
+The two-arg overload acquires a connection, saves the previous isolation level and `readOnly` flag, calls `setTransactionIsolation(isolation.jdbcLevel)` (fail-fast — isolation failures propagate) and best-effort `setReadOnly(readOnly)` (SQLite may throw, which is swallowed), sets `autoCommit = false` (fail-fast), synthesizes a `DbTx` given value, and runs the body. On success it calls `conn.commit()`. On any exception it calls `conn.rollback()`, adds any rollback failure as a suppressed exception, and rethrows the original. Previous isolation, `readOnly`, and `autoCommit` are restored and the connection is closed in the `finally` block regardless of outcome. SQLite natively supports only `SERIALIZABLE` — other levels are accepted via `setTransactionIsolation` but the engine still behaves as serializable.
+
+The no-arg overload preserves driver defaults (e.g. PostgreSQL `READ_COMMITTED`) and does not force `SERIALIZABLE`; it simply sets `autoCommit = false` before running the body, with the same commit/rollback and cleanup guarantees.
 
 Because `DbTx extends DbCon`, the `DbTx` given satisfies any `DbCon ?=>` requirement inside the block. We can mix `Repo` CRUD calls with raw `sql"..."` fragments freely:
 
@@ -261,6 +267,10 @@ transactor.transact {
 :::caution
 If `commit` itself throws after a successful body, the transaction is rolled back and the commit exception propagates. The body's return value is discarded in that case.
 :::
+
+### Nested Transactions (Savepoints)
+
+Inside `transact`, nested work is emulated via SQL savepoints on the same JDBC connection through `DbTx` — `summon[DbTx].transact { ... }`, `DbTx.transactNested`, or the top-level `transactNested` helper. Savepoints are named `zib_tx_1 .. zib_tx_N` with depth tracked in `DbTx.currentDepth`; inner success issues `RELEASE SAVEPOINT`, failure issues `ROLLBACK TO SAVEPOINT` then rethrows. See [DbTx](db-tx) for full savepoint semantics.
 
 ## JdbcTransactor
 

@@ -33,14 +33,30 @@ object TransactorZIOSpec extends ZIOSpecDefault {
     var rollbackCalls: Int = 0,
     val autoCommitValues: ListBuffer[Boolean] = ListBuffer.empty,
     var failCommit: Boolean = false,
-    var failRollback: Boolean = false
+    var failRollback: Boolean = false,
+    var isolation: Int = Connection.TRANSACTION_READ_UNCOMMITTED,
+    var readOnly: Boolean = true,
+    var setTransactionIsolationCalls: Int = 0,
+    var setReadOnlyCalls: Int = 0,
+    var failSetTransactionIsolation: Boolean = false
   )
 
   private def connection(state: ConnectionState): Connection = {
     val handler = new InvocationHandler {
       override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
         method.getName match {
-          case "getAutoCommit" => java.lang.Boolean.valueOf(state.autoCommit)
+          case "getAutoCommit"           => java.lang.Boolean.valueOf(state.autoCommit)
+          case "getTransactionIsolation" => Integer.valueOf(state.isolation)
+          case "isReadOnly"              => java.lang.Boolean.valueOf(state.readOnly)
+          case "setTransactionIsolation" =>
+            state.setTransactionIsolationCalls += 1
+            if (state.failSetTransactionIsolation) throw new java.sql.SQLException("isolation not supported")
+            state.isolation = args.nn(0).asInstanceOf[java.lang.Integer].intValue()
+            null
+          case "setReadOnly" =>
+            state.setReadOnlyCalls += 1
+            state.readOnly = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()
+            null
           case "setAutoCommit" =>
             val value = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()
             state.autoCommit = value
@@ -80,6 +96,12 @@ object TransactorZIOSpec extends ZIOSpecDefault {
     else if (returnType == java.lang.Byte.TYPE) java.lang.Byte.valueOf(0.toByte)
     else null
 
+  private def failedWith(exit: _root_.zio.Exit[Throwable, ?], message: String): Boolean =
+    exit match {
+      case _root_.zio.Exit.Failure(cause) => cause.failures.headOption.exists(_.getMessage == message)
+      case _root_.zio.Exit.Success(_)     => false
+    }
+
   def spec: Spec[TestEnvironment, Any] = suite("TransactorZIOSpec")(
     test("transactZIO rolls back when commit fails after a successful body") {
       val state                                               = ConnectionState(failCommit = true)
@@ -106,6 +128,47 @@ object TransactorZIOSpec extends ZIOSpecDefault {
         value <- transactor.transactZIO(program)
       } yield assertTrue(
         value == 42,
+        state.commitCalls == 1,
+        state.rollbackCalls == 0,
+        state.closed,
+        state.autoCommit,
+        state.autoCommitValues.toList == List(false, true)
+      )
+    },
+    test("transactZIO propagates isolation setup failure and closes the connection") {
+      val state                                               = ConnectionState(failSetTransactionIsolation = true)
+      val transactor                                          = new TransactorZIO(() => connection(state), SqlDialect.SQLite)
+      var bodyRan                                             = false
+      val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, Int] = {
+        bodyRan = true
+        _root_.zio.ZIO.succeed(42)
+      }
+
+      for {
+        exit <- transactor.transactZIO(TransactionIsolation.Serializable, readOnly = false)(program).exit
+      } yield assertTrue(
+        exit.isFailure,
+        !bodyRan,
+        state.closed,
+        state.commitCalls == 0,
+        state.rollbackCalls == 0,
+        state.setTransactionIsolationCalls == 1,
+        failedWith(exit, "isolation not supported")
+      )
+    },
+    test("transactZIO preserves driver isolation and readOnly defaults") {
+      val state                                                          = ConnectionState()
+      val conn                                                           = connection(state)
+      val transactor                                                     = new TransactorZIO(() => conn, SqlDialect.SQLite)
+      val program: DbTx ?=> _root_.zio.ZIO[Any, Nothing, (Int, Boolean)] =
+        _root_.zio.ZIO.succeed((conn.getTransactionIsolation, conn.isReadOnly))
+
+      for {
+        result <- transactor.transactZIO(program)
+      } yield assertTrue(
+        result == (Connection.TRANSACTION_READ_UNCOMMITTED, true),
+        state.setTransactionIsolationCalls == 0,
+        state.setReadOnlyCalls == 0,
         state.commitCalls == 1,
         state.rollbackCalls == 0,
         state.closed,

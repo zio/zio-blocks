@@ -25,6 +25,36 @@ trait DbConnection extends AutoCloseable {
   def getAutoCommit: Boolean
   def commit(): Unit
   def rollback(): Unit
+
+  /**
+   * Create a savepoint with the given name via `SAVEPOINT <name>`.
+   *
+   * Used by [[DbTx]] nested transactions. Names are `zib_tx_1..N`. Default
+   * implementation throws `UnsupportedOperationException`; JDBC implementations
+   * (e.g. `JdbcConnection`) override to execute SQL.
+   */
+  def savepoint(name: String): Unit =
+    throw new UnsupportedOperationException("savepoint not supported by this DbConnection implementation")
+
+  /**
+   * Release a savepoint via `RELEASE SAVEPOINT <name>`.
+   *
+   * Called on the success path of a nested transact to avoid leaking
+   * savepoints. Default implementation throws `UnsupportedOperationException`;
+   * JDBC implementations override.
+   */
+  def release(name: String): Unit =
+    throw new UnsupportedOperationException("release not supported by this DbConnection implementation")
+
+  /**
+   * Roll back to a savepoint via `ROLLBACK TO SAVEPOINT <name>`.
+   *
+   * Called on the failure path of a nested transact to isolate the inner
+   * failure without rolling back the outer transaction. Default implementation
+   * throws `UnsupportedOperationException`; JDBC implementations override.
+   */
+  def rollbackTo(name: String): Unit =
+    throw new UnsupportedOperationException("rollbackTo not supported by this DbConnection implementation")
 }
 
 trait DbPreparedStatement extends AutoCloseable {
