@@ -189,76 +189,79 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
   )
 
   private def pgSuite =
-    if (!PgSupport.pgAvailable)
-      suite("postgres task8")(
-        test("SKIPPED (env unavailable) - PostgreSQL not available - set PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE") {
-          assertTrue(true)
-        }
-      )
-    else
-      suite("postgres task8")(
-        test("LEFT JOIN missing side and aggregate widening on PostgreSQL") {
-          val tx = PgSupport.pgTransactor()
-          try {
-            tx.connect {
-              Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
-              Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
-              Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
-              userTable.createTable(SqlDialect.PostgreSQL).update
-              repoTable.createTable(SqlDialect.PostgreSQL).update
-              saleTable.createTable(SqlDialect.PostgreSQL).update
-            }
+    PgSupport.pgGate match {
+      case Left(msg) if msg.startsWith("FAIL") =>
+        suite("postgres task8")(
+          test(msg)(assertTrue(false))
+        )
+      case Left(msg) =>
+        suite("postgres task8")(
+          test(msg)(assertTrue(true))
+        )
+      case Right(tx) =>
+        suite("postgres task8")(
+          test("LEFT JOIN missing side and aggregate widening on PostgreSQL") {
             try {
-              val (rows, sumRows, avgRows, emptySum) = tx.connect {
-                sql"INSERT INTO users_t8 (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
-                sql"INSERT INTO users_t8 (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
-                sql"INSERT INTO repos_t8 (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
-                sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(10)})".update
-                sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
-                val leftQ = SqlQuery.from(userTable).leftJoin(userRepoRel)
-                val qLeft = leftQ.select[(String, Option[String])](leftQ.col[User](_.name), leftQ.col[Repo](_.name))
-                val qSumQ = SqlQuery.from(saleTable)
-                val qSum  = qSumQ
-                  .groupBy(qSumQ.col[Sale](_.userId))
-                  .select[(Int, Option[Long])](qSumQ.col[Sale](_.userId), qSumQ.sum(qSumQ.col[Sale](_.amount)))
-                val qAvgQ = SqlQuery.from(saleTable)
-                val qAvg  = qAvgQ
-                  .groupBy(qAvgQ.col[Sale](_.userId))
-                  .select[(Int, Option[BigDecimal])](qAvgQ.col[Sale](_.userId), qAvgQ.avg(qAvgQ.col[Sale](_.amount)))
-                val qEmptyQ = SqlQuery.from(saleTable)
-                val qEmpty  = qEmptyQ
-                  .where(qEmptyQ.col[Sale](_.userId) === lit(999))
-                  .select[Option[Long]](qEmptyQ.sum(qEmptyQ.col[Sale](_.amount)))
-                (qLeft.run.sortBy(_._1), qSum.run, qAvg.run, qEmpty.run)
+              tx.connect {
+                Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
+                Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
+                Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
+                userTable.createTable(SqlDialect.PostgreSQL).update
+                repoTable.createTable(SqlDialect.PostgreSQL).update
+                saleTable.createTable(SqlDialect.PostgreSQL).update
               }
-              assertTrue(
-                rows == List(("alice", Some("r1")), ("bob", None)),
-                sumRows == List((1, Some(21L))),
-                avgRows == List((1, Some(BigDecimal(10.5)))),
-                emptySum == List(None)
-              )
-            } finally {
-              try
-                tx.connect {
-                  Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
+              try {
+                val (rows, sumRows, avgRows, emptySum) = tx.connect {
+                  sql"INSERT INTO users_t8 (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
+                  sql"INSERT INTO users_t8 (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
+                  sql"INSERT INTO repos_t8 (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
+                  sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(10)})".update
+                  sql"INSERT INTO sales_t8 (id, user_id, amount) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbInt(11)})".update
+                  val leftQ = SqlQuery.from(userTable).leftJoin(userRepoRel)
+                  val qLeft = leftQ.select[(String, Option[String])](leftQ.col[User](_.name), leftQ.col[Repo](_.name))
+                  val qSumQ = SqlQuery.from(saleTable)
+                  val qSum  = qSumQ
+                    .groupBy(qSumQ.col[Sale](_.userId))
+                    .select[(Int, Option[Long])](qSumQ.col[Sale](_.userId), qSumQ.sum(qSumQ.col[Sale](_.amount)))
+                  val qAvgQ = SqlQuery.from(saleTable)
+                  val qAvg  = qAvgQ
+                    .groupBy(qAvgQ.col[Sale](_.userId))
+                    .select[(Int, Option[BigDecimal])](qAvgQ.col[Sale](_.userId), qAvgQ.avg(qAvgQ.col[Sale](_.amount)))
+                  val qEmptyQ = SqlQuery.from(saleTable)
+                  val qEmpty  = qEmptyQ
+                    .where(qEmptyQ.col[Sale](_.userId) === lit(999))
+                    .select[Option[Long]](qEmptyQ.sum(qEmptyQ.col[Sale](_.amount)))
+                  (qLeft.run.sortBy(_._1), qSum.run, qAvg.run, qEmpty.run)
                 }
-              catch { case _: Throwable => () }
+                assertTrue(
+                  rows == List(("alice", Some("r1")), ("bob", None)),
+                  sumRows == List((1, Some(21L))),
+                  avgRows == List((1, Some(BigDecimal(10.5)))),
+                  emptySum == List(None)
+                )
+              } finally {
+                try
+                  tx.connect {
+                    Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
+                  }
+                catch { case _: Throwable => () }
+              }
+            } catch {
+              case e: Throwable =>
+                try
+                  tx.connect {
+                    Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
+                  }
+                catch { case _: Throwable => () }
+                throw new RuntimeException(s"PG task8 failed: ${e.getMessage}", e)
             }
-          } catch {
-            case e: Throwable =>
-              try
-                tx.connect {
-                  Frag.literal("DROP TABLE IF EXISTS sales_t8 CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS repos_t8 CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
-                }
-              catch { case _: Throwable => () }
-              throw new RuntimeException(s"PG task8 failed: ${e.getMessage}", e)
           }
-        }
-      )
+        )
+    }
 
   def spec = suite("Task8IntegrationSpec")(sqliteSuite, pgSuite) @@ TestAspect.sequential
 }

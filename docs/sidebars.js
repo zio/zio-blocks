@@ -383,6 +383,7 @@ const sidebars = {
         "guides/query-dsl-sql",
         "guides/sql-checked-interpolation",
         "guides/sql-query-dsl",
+        "guides/transactions",
         "guides/zio-schema-migration",
         "guides/telemetry-guide",
       ]

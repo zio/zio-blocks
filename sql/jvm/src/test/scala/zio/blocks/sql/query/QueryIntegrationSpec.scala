@@ -241,132 +241,133 @@ object QueryIntegrationSpec extends ZIOSpecDefault {
   )
 
   private def pgSuite =
-    if (!PgSupport.pgAvailable)
-      suite("postgres")(
-        test("SKIPPED (env unavailable) - PostgreSQL not available - set PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE") {
-          assertTrue(true)
-        }
-      )
-    else
-      suite("postgres")(
-        test("3-table join chain on PostgreSQL") {
-          val tx = PgSupport.pgTransactor()
-          try {
-            tx.connect {
-              Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
-              Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
-              Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
-              userTable.createTable(SqlDialect.PostgreSQL).update
-              repoTable.createTable(SqlDialect.PostgreSQL).update
-              starTable.createTable(SqlDialect.PostgreSQL).update
-            }
+    PgSupport.pgGate match {
+      case Left(msg) if msg.startsWith("FAIL") =>
+        suite("postgres")(
+          test(msg)(assertTrue(false))
+        )
+      case Left(msg) =>
+        suite("postgres")(
+          test(msg)(assertTrue(true))
+        )
+      case Right(tx) =>
+        suite("postgres")(
+          test("3-table join chain on PostgreSQL") {
             try {
-              val (sqlStr, rows) = tx.connect {
-                sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
-                sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
-                sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
-                sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(20)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r2")})".update
-                sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(100)}, ${DbValue.DbInt(10)}, ${DbValue.DbInt(2)})".update
-                sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(101)}, ${DbValue.DbInt(20)}, ${DbValue.DbInt(1)})".update
-                val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel).innerJoin(repoStarRel)
-                val q     = qBase.select[(String, String, Int)](
-                  qBase.col[User](_.name),
-                  qBase.col[Repo](_.name),
-                  qBase.col[Star](_.id)
+              tx.connect {
+                Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
+                Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
+                Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
+                userTable.createTable(SqlDialect.PostgreSQL).update
+                repoTable.createTable(SqlDialect.PostgreSQL).update
+                starTable.createTable(SqlDialect.PostgreSQL).update
+              }
+              try {
+                val (sqlStr, rows) = tx.connect {
+                  sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
+                  sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
+                  sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
+                  sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(20)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r2")})".update
+                  sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(100)}, ${DbValue.DbInt(10)}, ${DbValue.DbInt(2)})".update
+                  sql"INSERT INTO stars (id, repo_id, user_id) VALUES (${DbValue.DbInt(101)}, ${DbValue.DbInt(20)}, ${DbValue.DbInt(1)})".update
+                  val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel).innerJoin(repoStarRel)
+                  val q     = qBase.select[(String, String, Int)](
+                    qBase.col[User](_.name),
+                    qBase.col[Repo](_.name),
+                    qBase.col[Star](_.id)
+                  )
+                  (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._3))
+                }
+                val expected =
+                  "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\", t2.\"id\" AS \"_3\" FROM \"users\" AS t0 INNER JOIN \"repos\" AS t1 ON t1.\"owner_id\" = t0.\"id\" INNER JOIN \"stars\" AS t2 ON t2.\"repo_id\" = t1.\"id\""
+                assertTrue(
+                  sqlStr == expected,
+                  rows == List(("alice", "r1", 100), ("bob", "r2", 101))
                 )
-                (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._3))
+              } finally {
+                try
+                  tx.connect {
+                    Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
+                  }
+                catch { case _: Throwable => () }
               }
-              val expected =
-                "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\", t2.\"id\" AS \"_3\" FROM \"users\" AS t0 INNER JOIN \"repos\" AS t1 ON t1.\"owner_id\" = t0.\"id\" INNER JOIN \"stars\" AS t2 ON t2.\"repo_id\" = t1.\"id\""
-              assertTrue(
-                sqlStr == expected,
-                rows == List(("alice", "r1", 100), ("bob", "r2", 101))
-              )
-            } finally {
-              try
-                tx.connect {
-                  Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
-                }
-              catch { case _: Throwable => () }
+            } catch {
+              case e: Throwable =>
+                try
+                  tx.connect {
+                    Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
+                    Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
+                  }
+                catch { case _: Throwable => () }
+                throw new RuntimeException(s"PG 3-chain failed: ${e.getMessage}", e)
             }
-          } catch {
-            case e: Throwable =>
-              try
-                tx.connect {
-                  Frag.literal("DROP TABLE IF EXISTS stars CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
-                  Frag.literal("DROP TABLE IF EXISTS users CASCADE").update
-                }
-              catch { case _: Throwable => () }
-              throw new RuntimeException(s"PG 3-chain failed: ${e.getMessage}", e)
-          }
-        },
-        test("self-join on PostgreSQL") {
-          val tx = PgSupport.pgTransactor()
-          try {
-            tx.connect {
-              Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update
-              employeeTable.createTable(SqlDialect.PostgreSQL).update
-            }
+          },
+          test("self-join on PostgreSQL") {
             try {
-              val (sqlStr, rows) = tx.connect {
-                sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("boss")}, ${DbValue.DbNull})".update
-                sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("alice")}, ${DbValue.DbInt(1)})".update
-                val qBase = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
-                val q     = qBase
-                  .select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
-                (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._1))
+              tx.connect {
+                Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update
+                employeeTable.createTable(SqlDialect.PostgreSQL).update
               }
-              val expected =
-                "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\" FROM \"employee\" AS t0 INNER JOIN \"employee\" AS t1 ON t0.\"manager_id\" = t1.\"id\""
-              assertTrue(sqlStr == expected, rows == List(("alice", "boss")))
-            } finally {
-              try tx.connect(Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update)
-              catch { case _: Throwable => () }
+              try {
+                val (sqlStr, rows) = tx.connect {
+                  sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("boss")}, ${DbValue.DbNull})".update
+                  sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("alice")}, ${DbValue.DbInt(1)})".update
+                  val qBase = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
+                  val q     = qBase
+                    .select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
+                  (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run.sortBy(_._1))
+                }
+                val expected =
+                  "SELECT t0.\"name\" AS \"_1\", t1.\"name\" AS \"_2\" FROM \"employee\" AS t0 INNER JOIN \"employee\" AS t1 ON t0.\"manager_id\" = t1.\"id\""
+                assertTrue(sqlStr == expected, rows == List(("alice", "boss")))
+              } finally {
+                try tx.connect(Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update)
+                catch { case _: Throwable => () }
+              }
+            } catch {
+              case e: Throwable =>
+                try tx.connect(Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update)
+                catch { case _: Throwable => () }
+                throw new RuntimeException(s"PG self-join failed: ${e.getMessage}", e)
             }
-          } catch {
-            case e: Throwable =>
-              try tx.connect(Frag.literal("DROP TABLE IF EXISTS employee CASCADE").update)
-              catch { case _: Throwable => () }
-              throw new RuntimeException(s"PG self-join failed: ${e.getMessage}", e)
-          }
-        },
-        test("groupBy+having aggregate on PostgreSQL") {
-          val tx = PgSupport.pgTransactor()
-          try {
-            tx.connect {
-              Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
-              repoTable.createTable(SqlDialect.PostgreSQL).update
-            }
+          },
+          test("groupBy+having aggregate on PostgreSQL") {
             try {
-              val (sqlStr, rows) = tx.connect {
-                sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
-                sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r2")})".update
-                sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r3")})".update
-                val qBase = SqlQuery.from(repoTable)
-                val q     = qBase
-                  .groupBy(qBase.col[Repo](_.ownerId))
-                  .having(qBase.count(qBase.col[Repo](_.id)) > lit(1L))
-                  .select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
-                (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run)
+              tx.connect {
+                Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update
+                repoTable.createTable(SqlDialect.PostgreSQL).update
               }
-              val expected =
-                "SELECT t0.\"owner_id\" AS \"_1\", COUNT(t0.\"id\") AS \"_2\" FROM \"repos\" AS t0 GROUP BY t0.\"owner_id\" HAVING COUNT(t0.\"id\") > ?"
-              assertTrue(sqlStr == expected, rows == List((1, 2L)))
-            } finally {
-              try tx.connect(Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update)
-              catch { case _: Throwable => () }
+              try {
+                val (sqlStr, rows) = tx.connect {
+                  sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
+                  sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r2")})".update
+                  sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("r3")})".update
+                  val qBase = SqlQuery.from(repoTable)
+                  val q     = qBase
+                    .groupBy(qBase.col[Repo](_.ownerId))
+                    .having(qBase.count(qBase.col[Repo](_.id)) > lit(1L))
+                    .select[(Int, Long)](qBase.col[Repo](_.ownerId), qBase.count(qBase.col[Repo](_.id)))
+                  (q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL), q.run)
+                }
+                val expected =
+                  "SELECT t0.\"owner_id\" AS \"_1\", COUNT(t0.\"id\") AS \"_2\" FROM \"repos\" AS t0 GROUP BY t0.\"owner_id\" HAVING COUNT(t0.\"id\") > ?"
+                assertTrue(sqlStr == expected, rows == List((1, 2L)))
+              } finally {
+                try tx.connect(Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update)
+                catch { case _: Throwable => () }
+              }
+            } catch {
+              case e: Throwable =>
+                try tx.connect(Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update)
+                catch { case _: Throwable => () }
+                throw new RuntimeException(s"PG aggregate failed: ${e.getMessage}", e)
             }
-          } catch {
-            case e: Throwable =>
-              try tx.connect(Frag.literal("DROP TABLE IF EXISTS repos CASCADE").update)
-              catch { case _: Throwable => () }
-              throw new RuntimeException(s"PG aggregate failed: ${e.getMessage}", e)
           }
-        }
-      )
+        )
+    }
 
   def spec = suite("QueryIntegrationSpec")(
     sqliteSuite,
