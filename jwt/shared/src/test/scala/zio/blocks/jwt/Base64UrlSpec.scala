@@ -16,7 +16,7 @@
 
 package zio.blocks.jwt
 
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assertTrue, suite, test}
+import zio.test._
 
 object Base64UrlSpec extends ZIOSpecDefault {
 
@@ -96,6 +96,23 @@ object Base64UrlSpec extends ZIOSpecDefault {
       },
       test("length mod 4 == 1 with multiple chars returns Left") {
         assertTrue(Base64Url.decode("aaaaa").isLeft)
+      },
+      test("trailing bits non-zero for 1-byte tail returns Left (invalid trailing base64url bits)") {
+        // 1-byte input encodes to 2 chars where second char's low 4 bits must be zero.
+        // "AB" has c1=1 (0b00001), low 4 bits =0001 !=0 => invalid
+        assertTrue(Base64Url.decode("AB").isLeft)
+      },
+      test("trailing bits non-zero for 2-byte tail returns Left (invalid trailing base64url bits)") {
+        // 2-byte input encodes to 3 chars where third char's low 2 bits must be zero.
+        // "ABC" has c2=2 (0b000010), low 2 bits =10 !=0 => invalid
+        assertTrue(Base64Url.decode("ABC").isLeft)
+      },
+      test("valid trailing bits for 2-char tail passes (AA is valid)") {
+        assertTrue(Base64Url.decode("AA").isRight)
+      },
+      test("valid trailing bits for 3-char tail passes (AAA is valid for 2 bytes of zeros)") {
+        // "AAA" decodes to 2 bytes of zeros (since AAA -> c0=0,c1=0,c2=0, low bits zero)
+        assertTrue(Base64Url.decode("AAA").map(_.toSeq) == Right(Array(0x00.toByte, 0x00.toByte).toSeq))
       }
     ),
     suite("round-trip")(
@@ -112,7 +129,7 @@ object Base64UrlSpec extends ZIOSpecDefault {
         assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original bytes for 4-byte input") {
-        val bytes = Array(0xDE.toByte, 0xAD.toByte, 0xBE.toByte, 0xEF.toByte)
+        val bytes = Array(0xde.toByte, 0xad.toByte, 0xbe.toByte, 0xef.toByte)
         assertTrue(Base64Url.decode(Base64Url.encode(bytes)).map(_.toSeq) == Right(bytes.toSeq))
       },
       test("encode then decode returns original for all-zero bytes") {

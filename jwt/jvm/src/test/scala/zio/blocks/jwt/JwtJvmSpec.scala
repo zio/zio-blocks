@@ -66,9 +66,7 @@ object JwtJvmSpec extends ZIOSpecDefault {
     privateKey: Array[Byte],
     publicKey: Array[Byte]
   ): TestResult = {
-    val result = Jwt.sign(testClaims, privateKey, alg).flatMap(t =>
-      Jwt.decode(t, publicKey, alg)
-    )
+    val result = Jwt.sign(testClaims, privateKey, alg).flatMap(t => Jwt.decode(t, publicKey, alg))
     assertTrue(result.map(_.sub) == Right(testClaims.sub))
   }
 
@@ -77,9 +75,7 @@ object JwtJvmSpec extends ZIOSpecDefault {
     privateKey: Array[Byte],
     wrongPublicKey: Array[Byte]
   ): TestResult = {
-    val result = Jwt.sign(testClaims, privateKey, alg).flatMap(t =>
-      Jwt.decode(t, wrongPublicKey, alg)
-    )
+    val result = Jwt.sign(testClaims, privateKey, alg).flatMap(t => Jwt.decode(t, wrongPublicKey, alg))
     assertTrue(result match {
       case Left(_: JwtError.InvalidSignature) => true
       case _                                  => false
@@ -106,9 +102,18 @@ object JwtJvmSpec extends ZIOSpecDefault {
     wrongPublicKey: Array[Byte]
   ): Spec[TestEnvironment, Any] =
     suite(name)(
-      test("sign and decode roundtrip") { roundtripTest(alg, privateKey, publicKey) },
-      test("wrong public key returns Left") { wrongKeyTest(alg, privateKey, wrongPublicKey) },
-      test("tampered signature returns Left") { tamperedTest(alg, privateKey, publicKey) }
+      test("sign and decode roundtrip")(roundtripTest(alg, privateKey, publicKey)),
+      test("wrong public key returns Left")(wrongKeyTest(alg, privateKey, wrongPublicKey)),
+      test("tampered signature returns Left")(tamperedTest(alg, privateKey, publicKey))
+    )
+
+  private def es512Suite: Spec[TestEnvironment, Any] =
+    algSuite(
+      "ES512 (secp521r1)",
+      Algorithm.ES512,
+      ecKeyPair512.getPrivate.getEncoded,
+      ecKeyPair512.getPublic.getEncoded,
+      wrongEcKeyPair512.getPublic.getEncoded
     )
 
   def spec: Spec[TestEnvironment, Any] = suite("JwtJvmSpec")(
@@ -173,13 +178,7 @@ object JwtJvmSpec extends ZIOSpecDefault {
         ecKeyPair384.getPublic.getEncoded,
         wrongEcKeyPair384.getPublic.getEncoded
       ),
-      algSuite(
-        "ES512 (secp521r1)",
-        Algorithm.ES512,
-        ecKeyPair512.getPrivate.getEncoded,
-        ecKeyPair512.getPublic.getEncoded,
-        wrongEcKeyPair512.getPublic.getEncoded
-      )
+      es512Suite
     ),
     suite("EdDSA Ed25519")(
       algSuite(
