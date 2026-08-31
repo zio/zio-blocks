@@ -164,10 +164,12 @@ object ConfigError {
   ) extends ConfigParseError {
     def message: String = {
       val base = s"Parse error for key '$path' (expected $expectedType) in source '$source'"
-      cause match {
-        case Some(t) => s"$base: ${t.getMessage}"
-        case None    => base
-      }
+      if (path.isEmpty) base
+      else
+        cause match {
+          case Some(t) => s"$base: ${t.getMessage}"
+          case None    => base
+        }
     }
   }
 }
