@@ -222,7 +222,7 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
     }
 
     selected.split(';').foldLeft(state) { case (current, command) =>
-      Command.process(command.trim, current)
+      Command.process(command.trim, current, _ => ())
     }
   }
 
@@ -1917,7 +1917,8 @@ lazy val docs = project
     `config-yaml`.jvm,
     `config-json`.jvm,
     `config-hocon`.jvm,
-    projection.jvm
+    projection.jvm,
+    jwt.jvm
   )
   .enablePlugins(WebsitePlugin)
   .settings(docsGenerateReadmeLocal := {
@@ -2255,18 +2256,25 @@ lazy val htmx = crossProject(JSPlatform, JVMPlatform)
 
 lazy val jwt = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
+  .dependsOn(chunk)
   .settings(stdSettings("zio-blocks-jwt"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.jwt"))
   .enablePlugins(BuildInfoPlugin)
-  .jvmSettings(mimaSettings(failOnProblem = false))
+  // JWT is new/unreleased: no prior artifacts exist, so MiMA previousArtifacts is legitimately empty.
+  .jvmSettings(mimaPreviousArtifacts := Set())
   .jsSettings(jsSettings)
   .settings(
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    // scoverage measurements not flushed in cross-project JVM exit; thresholds deferred
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // Measured via `sbt "++3.8.3 jwtCoverage"` (clean): 74.39% stmt / 71.72% branch.
+    coverageMinimumStmtTotal   := 72,
+    coverageMinimumBranchTotal := 70
   )
+
+// Scoped JWT coverage gate: reliable for crossProject where global scoverage flush is unreliable.
+// Additive: preserves global coverage (root/test coverageReport) unchanged.
+// Usage: sbt jwtCoverage  (runs only jwtJVM with coverage and fails on thresholds above)
+addCommandAlias("jwtCoverage", "; jwtJVM/clean; coverage; jwtJVM/test; jwtJVM/coverageReport")
