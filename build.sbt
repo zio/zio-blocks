@@ -505,7 +505,13 @@ lazy val sql = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    scalacOptions ++= Seq(
+      "-Wconf:msg=IN placeholder:warning",
+      "-Wconf:msg=IN operator with empty:warning",
+      "-Wconf:msg=compile-time DbArray:warning"
+    ),
+    Test / scalacOptions -= "-Werror"
   )
   .jvmSettings(
     libraryDependencies ++= Seq(

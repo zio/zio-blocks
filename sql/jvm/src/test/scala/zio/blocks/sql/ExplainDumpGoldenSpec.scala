@@ -80,6 +80,53 @@ private object InQueryFixture {
       .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3)))
   Dump.dump(query)
 }
+private object InSize1Fixture {
+  case class User(id: Int, name: String)
+  object User { implicit val schema: Schema[User] = Schema.derived }
+  val userTable                    = Table.derived[User]
+  inline def query: SqlQuery[User] =
+    SqlQuery.from(userTable).where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1)))
+  Dump.dump(query)
+}
+private object InSize2Fixture {
+  case class User(id: Int, name: String)
+  object User { implicit val schema: Schema[User] = Schema.derived }
+  val userTable                    = Table.derived[User]
+  inline def query: SqlQuery[User] =
+    SqlQuery
+      .from(userTable)
+      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2)))
+  Dump.dump(query)
+}
+private object InSize5Fixture {
+  case class User(id: Int, name: String)
+  object User { implicit val schema: Schema[User] = Schema.derived }
+  val userTable                    = Table.derived[User]
+  inline def query: SqlQuery[User] =
+    SqlQuery
+      .from(userTable)
+      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3, 4, 5)))
+  Dump.dump(query)
+}
+private object InEmptyFixture {
+  case class User(id: Int, name: String)
+  object User { implicit val schema: Schema[User] = Schema.derived }
+  val userTable                    = Table.derived[User]
+  inline def query: SqlQuery[User] =
+    SqlQuery
+      .from(userTable)
+      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq.empty[Int]))
+  Dump.dump(query)
+}
+private object InDynamicFixture {
+  case class DynUser(id: Int, name: String)
+  object DynUser { implicit val schema: Schema[DynUser] = Schema.derived }
+  val dynTable                        = Table.derived[DynUser]
+  def dynIds: IndexedSeq[Int]         = scala.util.Random.shuffle(Seq(1, 2, 3)).toIndexedSeq
+  inline def query: SqlQuery[DynUser] =
+    SqlQuery.from(dynTable).where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", dynIds))
+  Dump.dump(query)
+}
 private object IrFullFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -241,6 +288,76 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
             normalizeSql(found.get) == expected
           )
       })
+    },
+    test("IN size 1 emits single placeholder and matches runtime") {
+      val q      = InSize1Fixture.query
+      val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      assertTrue(normalizeSql(fragPg).contains("IN (?)")) &&
+      (dumpDirOpt match {
+        case None    => assertTrue(true)
+        case Some(_) =>
+          val expected = normalizeSql(fragPg)
+          val found    = findDumpContaining("IN (?)")
+          // Must find a dump with exactly one placeholder, not more
+          assertTrue(found.isDefined) &&
+          assertTrue(normalizeSql(found.get).contains("IN (?)")) &&
+          assertTrue(normalizeSql(found.get) == expected)
+      })
+    },
+    test("IN size 2 emits two placeholders and matches runtime") {
+      val q      = InSize2Fixture.query
+      val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      assertTrue(normalizeSql(fragPg).contains("IN (?, ?)")) &&
+      (dumpDirOpt match {
+        case None    => assertTrue(true)
+        case Some(_) =>
+          val expected = normalizeSql(fragPg)
+          val found    = findDumpContaining("IN (?, ?)")
+          assertTrue(found.isDefined) &&
+          assertTrue(normalizeSql(found.get).contains("IN (?, ?)")) &&
+          assertTrue(normalizeSql(found.get) == expected)
+      })
+    },
+    test("IN size 5 emits five placeholders and matches runtime") {
+      val q      = InSize5Fixture.query
+      val fragPg = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+      assertTrue(normalizeSql(fragPg).contains("IN (?, ?, ?, ?, ?)")) &&
+      (dumpDirOpt match {
+        case None    => assertTrue(true)
+        case Some(_) =>
+          val expected = normalizeSql(fragPg)
+          val found    = findDumpContaining("IN (?, ?, ?, ?, ?)")
+          assertTrue(found.isDefined) &&
+          assertTrue(normalizeSql(found.get).contains("IN (?, ?, ?, ?, ?)")) &&
+          assertTrue(normalizeSql(found.get) == expected)
+      })
+    },
+    test("IN empty emits IN (NULL) safe placeholder") {
+      // Do not evaluate InEmptyFixture.query at runtime — it throws on empty DbArray via where validation, but macro dump already emitted file at compile time
+      dumpDirOpt match {
+        case None    => assertTrue(true)
+        case Some(_) =>
+          val found = findDumpContaining("IN (NULL)")
+          assertTrue(found.isDefined) &&
+          assertTrue(normalizeSql(found.get).contains("IN (NULL)"))
+      }
+    },
+    test("IN dynamic indeterminate cardinality emits no file and skips inaccurate IN (?)") {
+      // Touch the query to ensure macro expansion happened
+      val _ = InDynamicFixture.query
+      dumpDirOpt match {
+        case None    => assertTrue(true) // skipped — run with -Dzib.sql.dumpDir to verify
+        case Some(_) =>
+          // The dynamic fixture's table is dyn_user, which only appears in that query. If cardinality were indeterminate, no file should exist.
+          val byBasePg     = readDumpByBase("InDynamicFixture-query", SqlDialect.PostgreSQL)
+          val byBaseSqlite = readDumpByBase("InDynamicFixture-query", SqlDialect.SQLite)
+          val dynFound     = findDumpContaining("dyn_user")
+          // No dump should contain dyn_user's IN with a fabricated single placeholder as sole file; absence proves skip
+          assertTrue(byBasePg.isEmpty, byBaseSqlite.isEmpty) &&
+          assertTrue(dynFound.isEmpty) &&
+          // Ensure we did not fall back to inaccurate IN (?) for this table (if file existed, it would contain it)
+          assertTrue(findDumpContaining("FROM dyn_user") == None)
+      }
     },
     test("IR 2-join with filters, groupBy, orderBy, limit/offset via dumpQuery equals runtime sql normalized") {
       val q      = IrFullFixture.query

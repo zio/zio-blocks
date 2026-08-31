@@ -710,8 +710,10 @@ object Dump {
       )
       case class FilterInfo(colRef: String, op: String, placeholder: String)
 
+      var indeterminateInCard = false
+
       @scala.annotation.nowarn("msg=unchecked")
-      def inPlaceholder(valueTerm: quotes.reflect.Term): String = {
+      def inPlaceholder(valueTerm: quotes.reflect.Term): Option[String] = {
         import quotes.reflect._
         def unwrap(t: Term): Term = t match {
           case Inlined(_, _, inner) => unwrap(inner)
@@ -721,104 +723,95 @@ object Dump {
           case _                    => t
         }
         @scala.annotation.nowarn("msg=unchecked")
-        def countIndexedSeqSize(t: Term): Int =
+        def countIndexedSeqSizeOpt(t: Term): Option[Int] =
           try {
             val u = unwrap(t)
             u match {
-              case Repeated(elems, _)              => elems.size
-              case Typed(inner, _)                 => countIndexedSeqSize(inner)
-              case Inlined(_, _, inner)            => countIndexedSeqSize(inner)
-              case Block(_, inner)                 => countIndexedSeqSize(inner)
+              case Repeated(elems, _)              => Some(elems.size)
+              case Typed(inner, _)                 => countIndexedSeqSizeOpt(inner)
+              case Inlined(_, _, inner)            => countIndexedSeqSizeOpt(inner)
+              case Block(_, inner)                 => countIndexedSeqSizeOpt(inner)
               case Apply(Select(_, "apply"), args) =>
                 val uwArgs = args.map(unwrap)
                 if (uwArgs.size == 1 && uwArgs.head.isInstanceOf[Repeated @unchecked])
-                  uwArgs.head.asInstanceOf[Repeated].elems.size
+                  Some(uwArgs.head.asInstanceOf[Repeated].elems.size)
                 else if (uwArgs.exists(_.isInstanceOf[Repeated @unchecked]))
-                  uwArgs.flatMap {
-                    case r: Repeated @unchecked => r.elems
-                    case other                  => List(other)
-                  }.size
-                else if (uwArgs.isEmpty) 0
-                else uwArgs.size
+                  Some(
+                    uwArgs.flatMap {
+                      case r: Repeated @unchecked => r.elems
+                      case other                  => List(other)
+                    }.size
+                  )
+                else if (uwArgs.isEmpty) Some(0)
+                else Some(uwArgs.size)
               case Apply(TypeApply(Select(_, "apply"), _), args) =>
                 val uwArgs = args.map(unwrap)
                 if (uwArgs.size == 1 && uwArgs.head.isInstanceOf[Repeated @unchecked])
-                  uwArgs.head.asInstanceOf[Repeated].elems.size
+                  Some(uwArgs.head.asInstanceOf[Repeated].elems.size)
                 else if (uwArgs.exists(_.isInstanceOf[Repeated @unchecked]))
-                  uwArgs.flatMap {
-                    case r: Repeated @unchecked => r.elems
-                    case other                  => List(other)
-                  }.size
-                else if (uwArgs.isEmpty) 0
-                else uwArgs.size
-              case Apply(Select(_, "empty"), _)               => 0
-              case Apply(TypeApply(Select(_, "empty"), _), _) => 0
-              case Select(_, "empty")                         => 0
-              case Ident("empty")                             => 0
-              case _                                          =>
-                val s = u.show
-                if (
-                  s.contains("empty") || s == "Nil" || s.endsWith(".Nil") || s
-                    .contains("IndexedSeq.empty") || s.contains("Seq.empty") || s.contains("List.empty")
-                ) 0
-                else {
-                  var cnt: Option[Int] = None
-                  object trav extends TreeTraverser {
-                    override def traverseTree(tree: Tree)(owner: Symbol): Unit = tree match {
-                      case r: Repeated @unchecked => cnt = Some(r.elems.size)
-                      case _                      => if (cnt.isEmpty) super.traverseTree(tree)(owner)
-                    }
-                  }
-                  try trav.traverseTree(u)(Symbol.spliceOwner)
-                  catch { case _: Throwable => () }
-                  cnt.getOrElse(-1)
-                }
+                  Some(
+                    uwArgs.flatMap {
+                      case r: Repeated @unchecked => r.elems
+                      case other                  => List(other)
+                    }.size
+                  )
+                else if (uwArgs.isEmpty) Some(0)
+                else Some(uwArgs.size)
+              case Apply(Select(_, "empty"), _)               => Some(0)
+              case Apply(TypeApply(Select(_, "empty"), _), _) => Some(0)
+              case Select(_, "empty")                         => Some(0)
+              case TypeApply(Select(_, "empty"), _)           => Some(0)
+              case Ident("empty")                             => Some(0)
+              case _                                          => None
             }
-          } catch { case _: Throwable => -1 }
-        def countElements(t: Term): Option[Int] = {
+          } catch { case _: Throwable => None }
+
+        def isDbArrayApply(tree: Tree): Option[Term] = tree match {
+          case Apply(Select(qual, "apply"), args) if args.size == 2 =>
+            val qStr  = qual.toString
+            val qType =
+              try qual.tpe.typeSymbol.fullName
+              catch { case _: Throwable => "" }
+            if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1))
+            else None
+          case Apply(TypeApply(Select(qual, "apply"), _), args) if args.size == 2 =>
+            val qStr  = qual.toString
+            val qType =
+              try qual.tpe.typeSymbol.fullName
+              catch { case _: Throwable => "" }
+            if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1))
+            else None
+          case _ => None
+        }
+
+        def extractDbArraySize(t: Term): Option[Option[Int]] = {
           val u                                        = unwrap(t)
-          def isDbArrayApply(tree: Tree): Option[Term] = tree match {
-            case Apply(Select(qual, "apply"), args) if args.size == 2 =>
-              val qStr  = qual.toString
-              val qType =
-                try qual.tpe.typeSymbol.fullName
-                catch { case _: Throwable => "" }
-              if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1))
-              else None
-            case Apply(TypeApply(Select(qual, "apply"), _), args) if args.size == 2 =>
-              val qStr  = qual.toString
-              val qType =
-                try qual.tpe.typeSymbol.fullName
-                catch { case _: Throwable => "" }
-              if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1))
-              else None
-            case _ => None
-          }
+          def foundSizeFor(colTerm: Term): Option[Int] = countIndexedSeqSizeOpt(colTerm)
           u match {
             case Apply(Select(_, "DbArray"), args) if args.size == 2 =>
-              Some(countIndexedSeqSize(args(1)))
+              Some(foundSizeFor(args(1)))
             case Apply(TypeApply(Select(_, "DbArray"), _), args) if args.size == 2 =>
-              Some(countIndexedSeqSize(args(1)))
+              Some(foundSizeFor(args(1)))
             case Apply(Select(qual, "DbArray"), args)
                 if args.size == 2 && (qual.tpe.typeSymbol.fullName
                   .contains("DbValue") || qual.toString.contains("DbValue")) =>
-              Some(countIndexedSeqSize(args(1)))
+              Some(foundSizeFor(args(1)))
             case app @ Apply(Select(_, "apply"), _) =>
-              isDbArrayApply(app).map(countIndexedSeqSize)
+              isDbArrayApply(app).map(foundSizeFor)
             case app @ Apply(TypeApply(Select(_, "apply"), _), _) =>
-              isDbArrayApply(app).map(countIndexedSeqSize)
+              isDbArrayApply(app).map(foundSizeFor)
             case _ =>
-              var found: Option[Int] = None
+              var found: Option[Option[Int]] = None
               object finder extends TreeTraverser {
                 override def traverseTree(tree: Tree)(owner: Symbol): Unit = tree match {
                   case Apply(Select(_, "DbArray"), args) if args.size == 2 && found.isEmpty =>
-                    found = Some(countIndexedSeqSize(args(1)))
+                    found = Some(foundSizeFor(args(1)))
                   case Apply(TypeApply(Select(_, "DbArray"), _), args) if args.size == 2 && found.isEmpty =>
-                    found = Some(countIndexedSeqSize(args(1)))
+                    found = Some(foundSizeFor(args(1)))
                   case app2 @ Apply(Select(_, "apply"), args) if args.size == 2 && found.isEmpty =>
-                    isDbArrayApply(app2).foreach(t => found = Some(countIndexedSeqSize(t)))
+                    isDbArrayApply(app2).foreach(t => found = Some(foundSizeFor(t)))
                   case app2 @ Apply(TypeApply(Select(_, "apply"), _), args) if args.size == 2 && found.isEmpty =>
-                    isDbArrayApply(app2).foreach(t => found = Some(countIndexedSeqSize(t)))
+                    isDbArrayApply(app2).foreach(t => found = Some(foundSizeFor(t)))
                   case _ => if (found.isEmpty) super.traverseTree(tree)(owner)
                 }
               }
@@ -827,55 +820,41 @@ object Dump {
               found
           }
         }
+
         try {
-          countElements(valueTerm) match {
-            case Some(n) if n >= 0 =>
+          extractDbArraySize(valueTerm) match {
+            case Some(Some(n)) =>
               if (n == 0) {
                 report.warning(
                   "IN operator with empty DbArray will emit IN (NULL) - empty collections produce no rows",
                   Position.ofMacroExpansion
                 )
-                "(NULL)"
+                Some("(NULL)")
               } else {
-                "(" + List.fill(n)("?").mkString(", ") + ")"
+                Some("(" + List.fill(n)("?").mkString(", ") + ")")
               }
-            case Some(n) if n == -1 =>
+            case Some(None) =>
               report.warning(
-                s"IN placeholder: could not determine DbArray size for term ${valueTerm.show.take(200)}; falling back to single placeholder",
+                s"IN placeholder: compile-time DbArray cardinality is indeterminate for term ${valueTerm.show.take(200)}; skipping dump emission - use an inline literal/static array (e.g. IndexedSeq(...)) or runtime inspection for dynamic collections",
                 Position.ofMacroExpansion
               )
-              "(?)"
+              indeterminateInCard = true
+              None
             case None =>
               report.warning(
                 s"IN operator requires DbArray value, got ${valueTerm.show.take(200)}; emitting (NULL)",
                 Position.ofMacroExpansion
               )
-              "(NULL)"
-            case _ =>
-              report.warning(
-                s"IN placeholder: unexpected state for term ${valueTerm.show.take(200)}",
-                Position.ofMacroExpansion
-              )
-              "(NULL)"
+              Some("(NULL)")
           }
         } catch {
           case _: Throwable =>
-            // Fallback to parsing show string for element count to avoid -Werror failure
-            val s =
-              try valueTerm.show
-              catch { case _: Throwable => "" }
-            if (s.contains("DbArray")) {
-              // try count commas inside IndexedSeq
-              val inner        = s.split("IndexedSeq").lastOption.getOrElse("")
-              val commaCount   = inner.count(_ == ',')
-              val parenContent = inner.dropWhile(_ != '(').takeWhile(_ != ')')
-              // heuristic: number of elements = commas +1 if not empty, else 0 if empty
-              if (inner.contains("empty") || parenContent.trim == "()") "(NULL)"
-              else if (commaCount >= 0 && inner.contains("(")) {
-                val n = commaCount + 1
-                if (n == 1 && inner.contains("()")) "(NULL)" else "(" + List.fill(n)("?").mkString(", ") + ")"
-              } else "(?, ?, ?)"
-            } else "(NULL)"
+            report.warning(
+              s"IN placeholder: compile-time DbArray cardinality is indeterminate for term ${valueTerm.show.take(200)}; skipping dump emission - use an inline literal/static array (e.g. IndexedSeq(...)) or runtime inspection for dynamic collections",
+              Position.ofMacroExpansion
+            )
+            indeterminateInCard = true
+            None
         }
       }
 
@@ -1023,9 +1002,14 @@ object Dump {
                             report.warning(s"Invalid column '$col' in where", Position.ofMacroExpansion)
                         }
                         validateTableAlias(alias)
-                        val placeholder =
-                          if (op.equalsIgnoreCase("IN")) inPlaceholder(args(3)) else "?"
-                        filters = filters :+ FilterInfo(s"$alias.$col", op, placeholder)
+                        if (op.equalsIgnoreCase("IN")) {
+                          inPlaceholder(args(3)) match {
+                            case Some(ph) => filters = filters :+ FilterInfo(s"$alias.$col", op, ph)
+                            case None     => ()
+                          }
+                        } else {
+                          filters = filters :+ FilterInfo(s"$alias.$col", op, "?")
+                        }
                       case _ =>
                         report.warning(
                           s"Dump.dump: 4-arg where could not decode table/column/operator, got ${args.map(_.show).mkString(", ")}",
@@ -1068,9 +1052,14 @@ object Dump {
                               report.warning(s"Invalid column '$col' in where", Position.ofMacroExpansion)
                           }
                           validateTableAlias(alias)
-                          val placeholder =
-                            if (op.equalsIgnoreCase("IN")) inPlaceholder(args(2)) else "?"
-                          filters = filters :+ FilterInfo(s"$alias.$col", op, placeholder)
+                          if (op.equalsIgnoreCase("IN")) {
+                            inPlaceholder(args(2)) match {
+                              case Some(ph) => filters = filters :+ FilterInfo(s"$alias.$col", op, ph)
+                              case None     => ()
+                            }
+                          } else {
+                            filters = filters :+ FilterInfo(s"$alias.$col", op, "?")
+                          }
                         case _ =>
                           report.warning(
                             s"Dump.dump: where(ColumnRef, operator, value) could not decode ColumnRef or operator",
@@ -1245,82 +1234,87 @@ object Dump {
 
       val decodedOpt = tryDecode()
 
-      val baseNameForFile = {
-        val candidate = baseFromArgOrOwner.getOrElse("query")
-        if (decodedOpt.exists(_._3.nonEmpty) && (candidate == "user" || candidate == "repo" || candidate == "star")) {
-          argNameOpt.orElse(Some(ownerName)).getOrElse(candidate)
-        } else candidate
-      }
-      val fileBase =
-        if (baseNameForFile.endsWith("-query") || baseNameForFile.endsWith("_query")) baseNameForFile
-        else s"$baseNameForFile-query"
+      if (indeterminateInCard) {
+        // warning already emitted inside inPlaceholder; skip emitting file entirely
+        ()
+      } else {
+        val baseNameForFile = {
+          val candidate = baseFromArgOrOwner.getOrElse("query")
+          if (decodedOpt.exists(_._3.nonEmpty) && (candidate == "user" || candidate == "repo" || candidate == "star")) {
+            argNameOpt.orElse(Some(ownerName)).getOrElse(candidate)
+          } else candidate
+        }
+        val fileBase =
+          if (baseNameForFile.endsWith("-query") || baseNameForFile.endsWith("_query")) baseNameForFile
+          else s"$baseNameForFile-query"
 
-      // Re-implement build logic with proper colsByAlias handling
-      decodedOpt match {
-        case Some(decoded) =>
-          // decoded contains orderByList not orderByStr
-          val (srcName, srcCols, joins, filters, gb, obList, lim, off) = decoded
-          // Reconstruct colsByAlias for select: we need to capture it from tryDecode.
-          // We stored colsByAlias inside tryDecode but not returned; instead we re-derive by re-peeling?
-          // To avoid complexity, we re-derive select list via a helper that uses tableInfo for each join's table.
-          // However we have join table names; we can attempt to get columns via type lookup if we re-peel? Simpler: rebuild colsByAlias by re-examining query term again to get each join's otherCols.
-          // Easiest: capture colsByAlias as mutable map in outer scope and use it here.
-          // Let's recompute by walking again to get otherCols per alias.
-          val aliasToCols: Map[String, IndexedSeq[String]] =
-            try {
-              val (_, calls)      = peel(query.asTerm)
-              val fromIdx         = calls.indexWhere(_._1 == "from")
-              val sourceColsLocal = tableInfoFromTerm(calls(fromIdx)._2.head)._2
-              val map             = scala.collection.mutable.Map[String, IndexedSeq[String]](
-                "t0" -> (if (sourceColsLocal.nonEmpty) sourceColsLocal else srcCols)
-              )
-              var counter = 1
-              for (i <- (fromIdx + 1).until(calls.length)) {
-                val (m, a) = calls(i)
-                if (m == "join" || m == "joinLeft" || m == "joinOn") {
-                  if (a.nonEmpty) {
-                    val otherTerm  = a.head
-                    val (_, oCols) = tableInfoFromTerm(otherTerm)
-                    val alias      = s"t$counter"
-                    counter += 1
-                    map(alias) = oCols
+        // Re-implement build logic with proper colsByAlias handling
+        decodedOpt match {
+          case Some(decoded) =>
+            // decoded contains orderByList not orderByStr
+            val (srcName, srcCols, joins, filters, gb, obList, lim, off) = decoded
+            // Reconstruct colsByAlias for select: we need to capture it from tryDecode.
+            // We stored colsByAlias inside tryDecode but not returned; instead we re-derive by re-peeling?
+            // To avoid complexity, we re-derive select list via a helper that uses tableInfo for each join's table.
+            // However we have join table names; we can attempt to get columns via type lookup if we re-peel? Simpler: rebuild colsByAlias by re-examining query term again to get each join's otherCols.
+            // Easiest: capture colsByAlias as mutable map in outer scope and use it here.
+            // Let's recompute by walking again to get otherCols per alias.
+            val aliasToCols: Map[String, IndexedSeq[String]] =
+              try {
+                val (_, calls)      = peel(query.asTerm)
+                val fromIdx         = calls.indexWhere(_._1 == "from")
+                val sourceColsLocal = tableInfoFromTerm(calls(fromIdx)._2.head)._2
+                val map             = scala.collection.mutable.Map[String, IndexedSeq[String]](
+                  "t0" -> (if (sourceColsLocal.nonEmpty) sourceColsLocal else srcCols)
+                )
+                var counter = 1
+                for (i <- (fromIdx + 1).until(calls.length)) {
+                  val (m, a) = calls(i)
+                  if (m == "join" || m == "joinLeft" || m == "joinOn") {
+                    if (a.nonEmpty) {
+                      val otherTerm  = a.head
+                      val (_, oCols) = tableInfoFromTerm(otherTerm)
+                      val alias      = s"t$counter"
+                      counter += 1
+                      map(alias) = oCols
+                    }
                   }
                 }
+                map.toMap
+              } catch { case _: Throwable => Map("t0" -> srcCols) }
+            val allAliases = "t0" +: joins.map(_.alias)
+            val selectList = allAliases
+              .flatMap(alias => aliasToCols.getOrElse(alias, IndexedSeq.empty).map(c => s"$alias.$c"))
+              .mkString(", ")
+            val effectiveSelect     = if (selectList.isEmpty) "t0.*" else selectList
+            def renderSql(): String = {
+              val sb = new StringBuilder
+              sb.append(s"SELECT $effectiveSelect FROM $srcName AS t0")
+              for (j <- joins) {
+                sb.append(
+                  s" ${j.kind} ${j.table} AS ${j.alias} ON ${j.leftAlias}.${j.leftCol} = ${j.rightAlias}.${j.rightCol}"
+                )
               }
-              map.toMap
-            } catch { case _: Throwable => Map("t0" -> srcCols) }
-          val allAliases = "t0" +: joins.map(_.alias)
-          val selectList = allAliases
-            .flatMap(alias => aliasToCols.getOrElse(alias, IndexedSeq.empty).map(c => s"$alias.$c"))
-            .mkString(", ")
-          val effectiveSelect     = if (selectList.isEmpty) "t0.*" else selectList
-          def renderSql(): String = {
-            val sb = new StringBuilder
-            sb.append(s"SELECT $effectiveSelect FROM $srcName AS t0")
-            for (j <- joins) {
-              sb.append(
-                s" ${j.kind} ${j.table} AS ${j.alias} ON ${j.leftAlias}.${j.leftCol} = ${j.rightAlias}.${j.rightCol}"
-              )
+              if (filters.nonEmpty) {
+                val whereStr = filters.map(f => s"${f.colRef} ${f.op} ${f.placeholder}").mkString(" AND ")
+                sb.append(s" WHERE $whereStr")
+              }
+              gb.foreach(g => sb.append(s" GROUP BY $g"))
+              if (obList.nonEmpty) sb.append(s" ORDER BY ${obList.mkString(", ")}")
+              lim.foreach(l => sb.append(s" LIMIT $l"))
+              off.foreach(o => sb.append(s" OFFSET $o"))
+              sb.toString()
             }
-            if (filters.nonEmpty) {
-              val whereStr = filters.map(f => s"${f.colRef} ${f.op} ${f.placeholder}").mkString(" AND ")
-              sb.append(s" WHERE $whereStr")
+            val sqlText = renderSql()
+            for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
+              emit(fileBase, dialect, sqlText)
             }
-            gb.foreach(g => sb.append(s" GROUP BY $g"))
-            if (obList.nonEmpty) sb.append(s" ORDER BY ${obList.mkString(", ")}")
-            lim.foreach(l => sb.append(s" LIMIT $l"))
-            off.foreach(o => sb.append(s" OFFSET $o"))
-            sb.toString()
-          }
-          val sqlText = renderSql()
-          for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
-            emit(fileBase, dialect, sqlText)
-          }
-        case None =>
-          report.warning(
-            "Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable. Dump.dump requires inline query value; got preconstructed value - emitting no file. Use inline val/def for full tree",
-            Position.ofMacroExpansion
-          )
+          case None =>
+            report.warning(
+              "Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable. Dump.dump requires inline query value; got preconstructed value - emitting no file. Use inline val/def for full tree",
+              Position.ofMacroExpansion
+            )
+        }
       }
       '{ () }
     }
@@ -1339,6 +1333,110 @@ object Dump {
       val ownerName  = ownerDerivedName
       val candidate  = argNameOpt.getOrElse(ownerName)
       val fileBase   = if (candidate == "query" || candidate.isEmpty) s"$baseName-query" else s"$candidate-query"
+
+      var indeterminateIr = false
+
+      def irUnwrap(t: quotes.reflect.Term): quotes.reflect.Term = {
+        import quotes.reflect._
+        t match {
+          case Inlined(_, _, inner) => irUnwrap(inner)
+          case Typed(inner, _)      => irUnwrap(inner)
+          case Block(_, inner)      => irUnwrap(inner)
+          case NamedArg(_, inner)   => irUnwrap(inner)
+          case _                    => t
+        }
+      }
+
+      def irCountIndexedSeqSizeOpt(t: quotes.reflect.Term): Option[Int] = {
+        import quotes.reflect._
+        try {
+          val u = irUnwrap(t)
+          u match {
+            case Repeated(elems, _)              => Some(elems.size)
+            case Typed(inner, _)                 => irCountIndexedSeqSizeOpt(inner)
+            case Inlined(_, _, inner)            => irCountIndexedSeqSizeOpt(inner)
+            case Block(_, inner)                 => irCountIndexedSeqSizeOpt(inner)
+            case Apply(Select(_, "apply"), args) =>
+              val uwArgs = args.map(irUnwrap)
+              if (uwArgs.size == 1 && uwArgs.head.isInstanceOf[Repeated @unchecked])
+                Some(uwArgs.head.asInstanceOf[Repeated].elems.size)
+              else if (uwArgs.exists(_.isInstanceOf[Repeated @unchecked]))
+                Some(uwArgs.flatMap {
+                  case r: Repeated @unchecked => r.elems
+                  case other                  => List(other)
+                }.size)
+              else if (uwArgs.isEmpty) Some(0)
+              else Some(uwArgs.size)
+            case Apply(TypeApply(Select(_, "apply"), _), args) =>
+              val uwArgs = args.map(irUnwrap)
+              if (uwArgs.size == 1 && uwArgs.head.isInstanceOf[Repeated @unchecked])
+                Some(uwArgs.head.asInstanceOf[Repeated].elems.size)
+              else if (uwArgs.exists(_.isInstanceOf[Repeated @unchecked]))
+                Some(uwArgs.flatMap {
+                  case r: Repeated @unchecked => r.elems
+                  case other                  => List(other)
+                }.size)
+              else if (uwArgs.isEmpty) Some(0)
+              else Some(uwArgs.size)
+            case Apply(Select(_, "empty"), _)               => Some(0)
+            case Apply(TypeApply(Select(_, "empty"), _), _) => Some(0)
+            case Select(_, "empty")                         => Some(0)
+            case TypeApply(Select(_, "empty"), _)           => Some(0)
+            case Ident("empty")                             => Some(0)
+            case _                                          => None
+          }
+        } catch { case _: Throwable => None }
+      }
+
+      def irHasIndeterminate(t: quotes.reflect.Term): Boolean = {
+        import quotes.reflect._
+        var foundIndeterminate                        = false
+        def check(colTerm: quotes.reflect.Term): Unit =
+          if (irCountIndexedSeqSizeOpt(colTerm).isEmpty) foundIndeterminate = true
+        def isDbArrayApply(tree: Tree): Option[quotes.reflect.Term] = tree match {
+          case Apply(Select(qual, "apply"), args) if args.size == 2 =>
+            val qStr  = qual.toString
+            val qType =
+              try qual.tpe.typeSymbol.fullName
+              catch { case _: Throwable => "" }
+            if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1)) else None
+          case Apply(TypeApply(Select(qual, "apply"), _), args) if args.size == 2 =>
+            val qStr  = qual.toString
+            val qType =
+              try qual.tpe.typeSymbol.fullName
+              catch { case _: Throwable => "" }
+            if (qStr.contains("DbArray") || qType.contains("DbArray")) Some(args(1)) else None
+          case _ => None
+        }
+        val u = irUnwrap(t)
+        // direct matches
+        u match {
+          case Apply(Select(_, "DbArray"), args) if args.size == 2 =>
+            check(args(1)); return foundIndeterminate
+          case Apply(TypeApply(Select(_, "DbArray"), _), args) if args.size == 2 =>
+            check(args(1)); return foundIndeterminate
+          case _ => ()
+        }
+        object finder extends TreeTraverser {
+          override def traverseTree(tree: Tree)(owner: Symbol): Unit = {
+            if (foundIndeterminate) return
+            tree match {
+              case Apply(Select(_, "DbArray"), args) if args.size == 2 =>
+                check(args(1)); foundIndeterminate = irCountIndexedSeqSizeOpt(args(1)).isEmpty
+              case Apply(TypeApply(Select(_, "DbArray"), _), args) if args.size == 2 =>
+                check(args(1))
+              case app @ Apply(Select(_, "apply"), _) =>
+                isDbArrayApply(app).foreach(col => check(col))
+              case app @ Apply(TypeApply(Select(_, "apply"), _), _) =>
+                isDbArrayApply(app).foreach(col => check(col))
+              case _ => super.traverseTree(tree)(owner)
+            }
+          }
+        }
+        try finder.traverseTree(u)(Symbol.spliceOwner)
+        catch { case _: Throwable => () }
+        foundIndeterminate
+      }
 
       // Try to decode full IR via peel
       case class IrJoin(table: String, alias: String, kind: String, on: String)
@@ -1445,19 +1543,27 @@ object Dump {
                 }
               case "filter" | "where" =>
                 if (args.nonEmpty) {
-                  decodeFrag(args(0)) match {
-                    case Some((sql, cnt)) =>
-                      // sql may already contain ? placeholders; if cnt ==0 and sql contains ? still okay
-                      // For dump we ensure placeholders are ?
-                      val normalized = if (sql.contains("?")) sql else if (cnt > 0) sql + " ?" else sql
-                      filters = filters :+ IrFilter(normalized, cnt)
-                    case None =>
-                      // fallback: treat as generic filter with ?
-                      report.warning(
-                        s"Dump.dumpQuery: could not decode filter Frag, using placeholder",
-                        Position.ofMacroExpansion
-                      )
-                      filters = filters :+ IrFilter("?", 1)
+                  if (irHasIndeterminate(args(0))) {
+                    report.warning(
+                      s"IN placeholder: compile-time DbArray cardinality is indeterminate for IR filter ${args(0).show.take(200)}; skipping dump emission - use an inline literal/static array (e.g. IndexedSeq(...)) or runtime inspection for dynamic collections",
+                      Position.ofMacroExpansion
+                    )
+                    indeterminateIr = true
+                  } else {
+                    decodeFrag(args(0)) match {
+                      case Some((sql, cnt)) =>
+                        // sql may already contain ? placeholders; if cnt ==0 and sql contains ? still okay
+                        // For dump we ensure placeholders are ?
+                        val normalized = if (sql.contains("?")) sql else if (cnt > 0) sql + " ?" else sql
+                        filters = filters :+ IrFilter(normalized, cnt)
+                      case None =>
+                        // fallback: treat as generic filter with ?
+                        report.warning(
+                          s"Dump.dumpQuery: could not decode filter Frag, using placeholder",
+                          Position.ofMacroExpansion
+                        )
+                        filters = filters :+ IrFilter("?", 1)
+                    }
                   }
                 }
               case "groupBy" =>
@@ -1549,37 +1655,42 @@ object Dump {
 
       val decodedOpt = tryDecodeIr()
 
-      decodedOpt match {
-        case Some((srcName, _, joins, filters, gb, having, obList, lim, off, aliasToCols)) =>
-          val allAliases = "t0" +: joins.map(_.alias)
-          val selectList = allAliases
-            .flatMap(alias => aliasToCols.getOrElse(alias, IndexedSeq.empty).map(c => s"""$alias."$c""""))
-            .mkString(", ")
-          val effectiveSelect = if (selectList.isEmpty) "*" else selectList
-          // Build SQL via Frag-like composition but as string with quoted identifiers and ? placeholders
-          var fragStr = s"SELECT $effectiveSelect FROM \"$srcName\" AS t0"
-          for (j <- joins) {
-            fragStr = fragStr + s" ${j.kind} \"${j.table}\" AS ${j.alias} ON ${j.on}"
-          }
-          if (filters.nonEmpty) {
-            val wherePart = filters.map(_.sql).mkString(" AND ")
-            // ensure each filter's SQL already contains ? if needed; if not, add ?
-            fragStr = fragStr + s" WHERE $wherePart"
-          }
-          gb.foreach(g => fragStr = fragStr + s" GROUP BY $g")
-          having.foreach(h => fragStr = fragStr + s" HAVING $h")
-          if (obList.nonEmpty) fragStr = fragStr + s" ORDER BY ${obList.mkString(", ")}"
-          lim.foreach(l => fragStr = fragStr + s" LIMIT $l")
-          off.foreach(o => fragStr = fragStr + s" OFFSET $o")
+      if (indeterminateIr) {
+        // warning already emitted; skip emission
+        ()
+      } else {
+        decodedOpt match {
+          case Some((srcName, _, joins, filters, gb, having, obList, lim, off, aliasToCols)) =>
+            val allAliases = "t0" +: joins.map(_.alias)
+            val selectList = allAliases
+              .flatMap(alias => aliasToCols.getOrElse(alias, IndexedSeq.empty).map(c => s"""$alias."$c""""))
+              .mkString(", ")
+            val effectiveSelect = if (selectList.isEmpty) "*" else selectList
+            // Build SQL via Frag-like composition but as string with quoted identifiers and ? placeholders
+            var fragStr = s"SELECT $effectiveSelect FROM \"$srcName\" AS t0"
+            for (j <- joins) {
+              fragStr = fragStr + s" ${j.kind} \"${j.table}\" AS ${j.alias} ON ${j.on}"
+            }
+            if (filters.nonEmpty) {
+              val wherePart = filters.map(_.sql).mkString(" AND ")
+              // ensure each filter's SQL already contains ? if needed; if not, add ?
+              fragStr = fragStr + s" WHERE $wherePart"
+            }
+            gb.foreach(g => fragStr = fragStr + s" GROUP BY $g")
+            having.foreach(h => fragStr = fragStr + s" HAVING $h")
+            if (obList.nonEmpty) fragStr = fragStr + s" ORDER BY ${obList.mkString(", ")}"
+            lim.foreach(l => fragStr = fragStr + s" LIMIT $l")
+            off.foreach(o => fragStr = fragStr + s" OFFSET $o")
 
-          for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
-            emit(fileBase, dialect, fragStr)
-          }
-        case None =>
-          report.warning(
-            "Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable. Dump.dumpQuery requires inline query value; got preconstructed value - emitting no file. Use inline val/def for full tree",
-            Position.ofMacroExpansion
-          )
+            for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
+              emit(fileBase, dialect, fragStr)
+            }
+          case None =>
+            report.warning(
+              "Dump requires inline query value; preconstructed value will emit no file; use inline val/def or Dump.dumpTable. Dump.dumpQuery requires inline query value; got preconstructed value - emitting no file. Use inline val/def for full tree",
+              Position.ofMacroExpansion
+            )
+        }
       }
       '{ () }
     }
