@@ -410,42 +410,103 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
       tx.connect {
         Frag.literal("CREATE TABLE contention_test (id INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT)").update
       }
-      val executor = Executors.newFixedThreadPool(2)
+      val executor        = Executors.newFixedThreadPool(2)
+      val holderStarted   = new CountDownLatch(1)
+      val holderCanCommit = new CountDownLatch(1)
+      val holderFuture    = executor.submit(new java.util.concurrent.Callable[Unit] {
+        override def call(): Unit = {
+          val holderConn = DriverManager.getConnection(url)
+          try {
+            holderConn.createStatement().execute("PRAGMA busy_timeout=5000")
+            holderConn.createStatement().execute("BEGIN IMMEDIATE")
+            val st = holderConn.createStatement()
+            try st.executeUpdate("INSERT INTO contention_test (v) VALUES ('first')")
+            finally st.close()
+            holderStarted.countDown()
+            holderCanCommit.await(5, TimeUnit.SECONDS)
+            holderConn.createStatement().execute("COMMIT")
+          } finally holderConn.close()
+        }
+      })
       try {
-        val holderStarted   = new CountDownLatch(1)
-        val holderCanCommit = new CountDownLatch(1)
-        // Explicit raw JDBC holder with IMMEDIATE/busy_timeout=5000, holds RESERVED lock deterministically
-        val holderFuture = executor.submit(new java.util.concurrent.Callable[Unit] {
-          override def call(): Unit = {
-            val props = new java.util.Properties()
-            props.setProperty("busy_timeout", "5000")
-            props.setProperty("transaction_mode", "IMMEDIATE")
-            val holderConn = DriverManager.getConnection(url, props)
-            try {
-              holderConn.setAutoCommit(false)
-              val st = holderConn.createStatement()
-              try st.executeUpdate("INSERT INTO contention_test (v) VALUES ('first')")
-              finally st.close()
-              holderStarted.countDown()
-              // Hold lock until main thread releases
-              holderCanCommit.await(5, TimeUnit.SECONDS)
-              holderConn.commit()
-            } finally holderConn.close()
-          }
-        })
-        assertTrue(holderStarted.await(5, TimeUnit.SECONDS))
-        // Second transaction via JdbcTransactor against same file DB — must wait via busy_timeout, not fail BUSY
+        val holderStartedOk = holderStarted.await(5, TimeUnit.SECONDS)
+        // Negative control: same held lock, raw timeout=0 + IMMEDIATE must fail with SQLITE_BUSY
+        var zeroBusyFailed = false
+        try {
+          val c0 = DriverManager.getConnection(url)
+          try {
+            c0.createStatement().execute("PRAGMA busy_timeout=0")
+            c0.createStatement().execute("BEGIN IMMEDIATE")
+            val st = c0.createStatement()
+            try st.executeUpdate("INSERT INTO contention_test (v) VALUES ('should-fail')")
+            finally st.close()
+            c0.commit()
+          } finally c0.close()
+        } catch {
+          case e: SQLException =>
+            val m = Option(e.getMessage).getOrElse("") + " code=" + e.getErrorCode
+            zeroBusyFailed = e.getErrorCode == 5 || m.toUpperCase.contains("BUSY") || m.toLowerCase.contains("locked")
+          case e: Throwable =>
+            val m = Option(e.getMessage).getOrElse("")
+            zeroBusyFailed = m.toUpperCase.contains("BUSY") || m.toLowerCase.contains("locked")
+        }
+        // Configured JdbcTransactor attempt with latching before BEGIN IMMEDIATE
+        val secondAttempted                                                             = new CountDownLatch(1)
+        def latchingConnection(delegate: Connection, latch: CountDownLatch): Connection =
+          Proxy
+            .newProxyInstance(
+              getClass.getClassLoader,
+              Array(classOf[Connection]),
+              new InvocationHandler {
+                override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
+                  method.getName match {
+                    case "setAutoCommit" =>
+                      val v = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()
+                      if (!v) latch.countDown()
+                      delegate.setAutoCommit(v); null
+                    case "isWrapperFor" =>
+                      val iface = args.nn(0).asInstanceOf[Class[?]]
+                      java.lang.Boolean.valueOf(iface.isInstance(delegate) || delegate.isWrapperFor(iface))
+                    case "unwrap" =>
+                      val iface = args.nn(0).asInstanceOf[Class[?]]
+                      if (iface.isInstance(delegate)) delegate.asInstanceOf[AnyRef]
+                      else delegate.unwrap(iface).asInstanceOf[AnyRef]
+                    case "isClosed"      => java.lang.Boolean.valueOf(delegate.isClosed)
+                    case "close"         => delegate.close(); null
+                    case "commit"        => delegate.commit(); null
+                    case "rollback"      => delegate.rollback(); null
+                    case "getAutoCommit" => java.lang.Boolean.valueOf(delegate.getAutoCommit)
+                    case _               =>
+                      if (args == null) {
+                        try method.invoke(delegate)
+                        catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+                      } else {
+                        try method.invoke(delegate, args*)
+                        catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+                      }
+                  }
+              }
+            )
+            .asInstanceOf[Connection]
+        val latchingTx = new JdbcTransactor(
+          () => {
+            val raw = DriverManager.getConnection(url)
+            latchingConnection(raw, secondAttempted)
+          },
+          SqlDialect.SQLite
+        )
         val secondFuture = executor.submit(new java.util.concurrent.Callable[Unit] {
           override def call(): Unit =
-            tx.transact {
+            latchingTx.transact {
               Frag.literal("INSERT INTO contention_test (v) VALUES ('second')").update
             }
         })
-        // Release holder so second can proceed; both get bounded awaits so test cannot hang
-        holderCanCommit.countDown()
-        var succeeded  = false
-        var busyFailed = false
+        val secondAttemptedOk      = secondAttempted.await(5, TimeUnit.SECONDS)
+        val blockedWhileHolderOwns = !secondFuture.isDone
+        var succeeded              = false
+        var busyFailed             = false
         try {
+          holderCanCommit.countDown()
           secondFuture.get(5, TimeUnit.SECONDS)
           succeeded = true
         } catch {
@@ -459,12 +520,137 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
         val rows = tx.connect {
           Frag.literal("SELECT COUNT(*) FROM contention_test").queryOne[Int]
         }
-        assertTrue(succeeded, !busyFailed, rows.contains(2))
+        assertTrue(
+          holderStartedOk,
+          zeroBusyFailed,
+          secondAttemptedOk,
+          blockedWhileHolderOwns,
+          succeeded,
+          !busyFailed,
+          rows.contains(2)
+        )
       } finally {
+        holderCanCommit.countDown()
+        try holderFuture.get(5, TimeUnit.SECONDS)
+        catch { case _: Throwable => () }
         executor.shutdown()
         executor.awaitTermination(5, TimeUnit.SECONDS)
         tmp.delete()
       }
+    } @@ TestAspect.sequential,
+    test("fromDataSource unwraps InvocationTargetException from reflective SQLiteDataSource configuration") {
+      // Subclass that throws SQLException from setBusyTimeout; via reflection this becomes InvocationTargetException wrapping SQLException
+      val ds = new SQLiteDataSource() {
+        override def setBusyTimeout(timeout: Int): Unit = throw new SQLException("boom busy from ds")
+      }
+      ds.setUrl("jdbc:sqlite::memory:")
+      var threwUnwrapped = false
+      var threwITE       = false
+      try {
+        JdbcTransactor.fromDataSource(ds, SqlDialect.SQLite)
+      } catch {
+        case e: SQLException =>
+          threwUnwrapped = e.getMessage.contains("boom busy from ds")
+          threwITE = false
+        case _: java.lang.reflect.InvocationTargetException =>
+          threwITE = true
+        case _: Throwable =>
+          threwITE = true
+      }
+      assertTrue(threwUnwrapped, !threwITE)
+    },
+    test("configureSQLiteConnection unwraps InvocationTargetException from reflective SQLiteConnection configuration") {
+      val tmp = Files.createTempFile("sqlite-unwrap-conn", ".db").toFile
+      tmp.deleteOnExit()
+      // Use a closed SQLiteConnection so that reflective setBusyTimeout throws SQLException
+      // wrapped in InvocationTargetException; helper must unwrap to SQLException.
+      val closedReal = DriverManager.getConnection(s"jdbc:sqlite:${tmp.getAbsolutePath}")
+      closedReal.close()
+      try {
+        val wrapper = Proxy
+          .newProxyInstance(
+            getClass.getClassLoader,
+            Array(classOf[Connection]),
+            new InvocationHandler {
+              override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
+                method.getName match {
+                  case "isWrapperFor" => java.lang.Boolean.TRUE
+                  case "unwrap"       => closedReal.asInstanceOf[AnyRef]
+                  case "isClosed"     => java.lang.Boolean.valueOf(true)
+                  case "toString"     => "ClosedWrapper"
+                  case _              => null
+                }
+            }
+          )
+          .asInstanceOf[Connection]
+        var threwUnwrapped = false
+        var threwITE       = false
+        try {
+          JdbcTransactor.configureSQLiteConnection(wrapper)
+        } catch {
+          case _: SQLException =>
+            // Underlying driver should propagate as SQLException, not InvocationTargetException
+            threwUnwrapped = true
+            threwITE = false
+          case _: java.lang.reflect.InvocationTargetException =>
+            threwITE = true
+          case e: Throwable =>
+            threwITE = e.getClass.getName.contains("InvocationTargetException")
+        }
+        // Should have thrown unwrapped SQLException, not ITE
+        assertTrue(threwUnwrapped, !threwITE)
+      } finally {
+        try closedReal.close()
+        catch { case _: Throwable => () }
+        tmp.delete()
+      }
+    },
+    test("configureSQLiteConnection fails clearly when unwrap returns null despite isWrapperFor true") {
+      val tmp = Files.createTempFile("sqlite-null-unwrap", ".db").toFile
+      tmp.deleteOnExit()
+      val realConn = DriverManager.getConnection(s"jdbc:sqlite:${tmp.getAbsolutePath}")
+      try {
+        val nullUnwrapWrapper = Proxy
+          .newProxyInstance(
+            getClass.getClassLoader,
+            Array(classOf[Connection]),
+            new InvocationHandler {
+              override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
+                method.getName match {
+                  case "isWrapperFor" => java.lang.Boolean.TRUE
+                  case "unwrap"       => null
+                  case "toString"     => "NullUnwrapWrapper"
+                  case _              =>
+                    if (args == null) {
+                      try method.invoke(realConn)
+                      catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+                    } else {
+                      try method.invoke(realConn, args*)
+                      catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
+                    }
+                }
+            }
+          )
+          .asInstanceOf[Connection]
+        var threw    = false
+        var clearMsg = false
+        var isNPE    = false
+        try {
+          JdbcTransactor.configureSQLiteConnection(nullUnwrapWrapper)
+        } catch {
+          case e: SQLException =>
+            threw = true
+            clearMsg = e.getMessage.contains("unwrap returned null")
+          case _: NullPointerException =>
+            isNPE = true
+          case _: Throwable =>
+            threw = false
+        }
+        assertTrue(threw, clearMsg, !isNPE)
+      } finally {
+        realConn.close()
+        tmp.delete()
+      }
     }
-  )
+  ) @@ TestAspect.sequential
 }

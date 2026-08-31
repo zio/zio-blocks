@@ -16,7 +16,8 @@
 
 package zio.blocks.sql
 
-import java.sql.{Connection, DriverManager}
+import java.lang.reflect.InvocationTargetException
+import java.sql.{Connection, DriverManager, SQLException}
 import java.util.Properties
 
 class JdbcTransactor(
@@ -143,9 +144,9 @@ object JdbcTransactor {
         val clazz = Class.forName("org.sqlite.SQLiteDataSource")
         if (clazz.isInstance(dataSource)) {
           val setBusy = clazz.getMethod("setBusyTimeout", classOf[Int])
-          setBusy.invoke(dataSource, Integer.valueOf(5000))
+          invokeReflective(setBusy, dataSource, Integer.valueOf(5000))
           val setMode = clazz.getMethod("setTransactionMode", classOf[String])
-          setMode.invoke(dataSource, "IMMEDIATE")
+          invokeReflective(setMode, dataSource, "IMMEDIATE")
         }
       } catch {
         case _: ClassNotFoundException => ()
@@ -171,18 +172,29 @@ object JdbcTransactor {
       try Class.forName("org.sqlite.SQLiteConnection")
       catch { case _: ClassNotFoundException => return }
     val sqliteConn: Connection =
-      if (conn.isWrapperFor(sqliteConnClass.asInstanceOf[Class[Object]]))
-        conn.unwrap(sqliteConnClass.asInstanceOf[Class[Object]]).asInstanceOf[Connection]
-      else if (sqliteConnClass.isInstance(conn)) conn
+      if (conn.isWrapperFor(sqliteConnClass.asInstanceOf[Class[Object]])) {
+        val unwrapped = conn.unwrap(sqliteConnClass.asInstanceOf[Class[Object]])
+        if (unwrapped == null)
+          throw new SQLException(
+            "isWrapperFor returned true but unwrap returned null for org.sqlite.SQLiteConnection"
+          )
+        unwrapped.asInstanceOf[Connection]
+      } else if (sqliteConnClass.isInstance(conn)) conn
       else return
     val setBusy = sqliteConnClass.getMethod("setBusyTimeout", classOf[Int])
-    setBusy.invoke(sqliteConn, Integer.valueOf(5000))
+    invokeReflective(setBusy, sqliteConn, Integer.valueOf(5000))
     val getConfig   = sqliteConnClass.getMethod("getConnectionConfig")
-    val config      = getConfig.invoke(sqliteConn)
+    val config      = invokeReflective(getConfig, sqliteConn)
     val configClass = config.getClass
     val modeClass   = Class.forName("org.sqlite.SQLiteConfig$TransactionMode")
     val immediate   = modeClass.getField("IMMEDIATE").get(null)
     val setMode     = configClass.getMethod("setTransactionMode", modeClass)
-    setMode.invoke(config, immediate)
+    invokeReflective(setMode, config.asInstanceOf[AnyRef], immediate.asInstanceOf[AnyRef])
   }
+
+  private def invokeReflective(method: java.lang.reflect.Method, target: AnyRef, args: AnyRef*): AnyRef =
+    try method.invoke(target, args*)
+    catch {
+      case e: InvocationTargetException => throw Option(e.getCause).getOrElse(e)
+    }
 }
