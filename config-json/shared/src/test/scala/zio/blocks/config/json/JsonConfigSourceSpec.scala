@@ -16,7 +16,7 @@
 
 package zio.blocks.config.json
 
-import zio.blocks.config.ConfigSource
+import zio.blocks.config.{ConfigError, ConfigSource}
 import zio.test._
 
 object JsonConfigSourceSpec extends ZIOSpecDefault {
@@ -147,6 +147,62 @@ object JsonConfigSourceSpec extends ZIOSpecDefault {
       assertTrue(result.toOption.get.get("path").get.value == "/home/user/file.txt") &&
       assertTrue(result.toOption.get.get("url").isDefined) &&
       assertTrue(result.toOption.get.get("url").get.value == "https://example.com?key=value")
-    }
+    },
+    suite("parse error redaction")(
+      test("invalid JSON does not leak document excerpt or cause, contains source and expected format") {
+        val secret   = "SENTINEL_JSON_SECRET_9f3b8a7c2e1d4f6a93b8c1d2e3f4a5b6c7d8e9f0a1b2"
+        val badJson  = s"""{"secret": "$secret", invalid}"""
+        val sourceId = "test-json-source"
+        val result   = JsonConfigSource.fromString(badJson, sourceId)
+        assertTrue(result.isLeft) &&
+        assertTrue(result.left.toOption.get.isInstanceOf[ConfigError.ParseError]) &&
+        assertTrue(!result.left.toOption.get.message.contains(secret)) &&
+        assertTrue(!result.left.toOption.get.getMessage.contains(secret)) &&
+        assertTrue(result.left.toOption.get.message.contains(sourceId)) &&
+        assertTrue(result.left.toOption.get.message.contains("valid JSON")) &&
+        assertTrue(!result.left.toOption.get.message.contains(badJson.take(20)))
+      },
+      test("invalid JSON with long document does not leak first 100 chars") {
+        val secret  = "SENTINEL_JSON_LONG_aaaaaaaaabbbbbbbbbccccccccddddddddeeeeeeeeffffffff111111222222333333444444555555"
+        val badJson = s"""{"k":"$secret" """ + ("x" * 200) // missing closing brace, long
+        val result  = JsonConfigSource.fromString(badJson, "json:long")
+        assertTrue(result.isLeft) &&
+        assertTrue(!result.left.toOption.get.message.contains(secret)) &&
+        assertTrue(!result.left.toOption.get.getMessage.contains(secret)) &&
+        assertTrue(result.left.toOption.get.message.contains("valid JSON")) &&
+        assertTrue(result.left.toOption.get.message.contains("json:long"))
+      },
+      test("invalid JSON error wrapped in Composite still redacted") {
+        val secret  = "SENTINEL_JSON_COMPOSITE_zzz111yyy222xxx333www444vvv555uuu666ttt777"
+        val badJson = s"""not-json-at-all $secret [[[ """
+        val result  = JsonConfigSource.fromString(badJson, "json:composite")
+        assertTrue(result.isLeft) &&
+        assertTrue({
+                 val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
+                 !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
+                 composite.message.contains("valid JSON") && composite.message.contains("json:composite")
+               })
+      },
+      test("invalid JSON error retains structured fields without leak via getMessage") {
+        val secret  = "SENTINEL_JSON_STRUCT_cccccddddd1111122222333334444455555"
+        val badJson = s"""{"a": "$secret" invalid}"""
+        val error   = JsonConfigSource.fromString(badJson, "src-json-struct").left.toOption.get.asInstanceOf[ConfigError.ParseError]
+        assertTrue(error.path == "") &&
+        assertTrue(error.source == "src-json-struct") &&
+        assertTrue(error.expectedType == "valid JSON") &&
+        assertTrue(!error.message.contains(secret)) &&
+        assertTrue(!error.getMessage.contains(secret))
+      },
+      test("ParseError with empty path hides cause text even if cause contains secret") {
+        val secret = "SENTINEL_PARSE_CAUSE_JSON_abcdef1234567890abcdef1234567890"
+        val cause  = new RuntimeException(s"unexpected token near '$secret'")
+        val err    = ConfigError.ParseError("", "json:string", "valid JSON", Some(cause))
+        assertTrue(!err.message.contains(secret)) &&
+        assertTrue(!err.getMessage.contains(secret)) &&
+        assertTrue(err.message.contains("valid JSON")) &&
+        assertTrue(err.message.contains("json:string")) &&
+        assertTrue(err.cause.exists(_.getMessage.contains(secret)))
+      }
+    )
   )
 }
