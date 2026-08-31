@@ -64,6 +64,14 @@ object Table {
    *
    * The table name can be overridden by annotating `A` with
    * `@Modifier.config("sql.table_name", "my_table")`.
+   *
+   * For compile-time SQL dumps, pair with [[Dump.dumpTable]]:
+   * {{{
+   * case class User(id: Int, name: String)
+   * object User { implicit val schema: Schema[User] = Schema.derived }
+   * val userTable = Table.derived[User]
+   * Dump.dumpTable(userTable) // emits user-postgresql.sql / user-sqlite.sql when -Dzib.sql.dumpDir is set
+   * }}}
    */
   def derived[A](implicit schema: Schema[A]): Table[A] =
     derived[A](defaultNamingPolicy)

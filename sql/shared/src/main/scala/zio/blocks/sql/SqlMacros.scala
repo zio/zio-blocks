@@ -43,6 +43,31 @@ private[sql] object SqlMacros {
             diagnostics.take(5).foreach(d => report.error(d.message))
           case _ => // no tables or dynamic tables — skip identifier checking
         }
+        try {
+          val ownerName = {
+            var sym = Symbol.spliceOwner
+            while (
+              sym != Symbol.noSymbol && (sym.flags
+                .is(Flags.Synthetic) || sym.name == "<init>" || sym.name.startsWith("$anon") || sym.name == "$package")
+            ) {
+              sym = sym.owner
+            }
+            if (sym == Symbol.noSymbol) "query"
+            else {
+              val full = sym.fullName
+              val last = if (full.contains(".")) full.split("\\.").last else full
+              val cand = if (last.nonEmpty && last != "<init>") last else sym.name
+              if (cand == null || cand.isEmpty || cand == "<none>") "query" else cand
+            }
+          }
+          val safe =
+            try SqlIdentifier.validate("table", ownerName)
+            catch { case _: Throwable => ownerName.replaceAll("[^A-Za-z0-9_]", "_") }
+          val placeholderSql = ps.mkString("?")
+          for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
+            Dump.emit(safe, dialect, placeholderSql)
+          }
+        } catch { case _: Throwable => }
     }
 
     buildFragExpr(partsOpt, args, sc)
@@ -70,6 +95,31 @@ private[sql] object SqlMacros {
         val (knownTables, knownColumns) = extractTablesChecked(first, rest)
         val diagnostics                 = SqlIdentifierChecker.validate(ps, knownTables, knownColumns)
         diagnostics.take(5).foreach(d => report.error(d.message))
+        try {
+          val ownerName = {
+            var sym = Symbol.spliceOwner
+            while (
+              sym != Symbol.noSymbol && (sym.flags
+                .is(Flags.Synthetic) || sym.name == "<init>" || sym.name.startsWith("$anon") || sym.name == "$package")
+            ) {
+              sym = sym.owner
+            }
+            if (sym == Symbol.noSymbol) "query"
+            else {
+              val full = sym.fullName
+              val last = if (full.contains(".")) full.split("\\.").last else full
+              val cand = if (last.nonEmpty && last != "<init>") last else sym.name
+              if (cand == null || cand.isEmpty || cand == "<none>") "query" else cand
+            }
+          }
+          val safe =
+            try SqlIdentifier.validate("table", ownerName)
+            catch { case _: Throwable => ownerName.replaceAll("[^A-Za-z0-9_]", "_") }
+          val placeholderSql = ps.mkString("?")
+          for (dialect <- Seq(SqlDialect.PostgreSQL, SqlDialect.SQLite)) {
+            Dump.emit(safe, dialect, placeholderSql)
+          }
+        } catch { case _: Throwable => }
     }
 
     buildFragExpr(partsOpt, args, sc)

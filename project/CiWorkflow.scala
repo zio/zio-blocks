@@ -271,6 +271,16 @@ object CiWorkflow {
           run = Some("sbt ++${{ matrix.scala }} configCoverage")
         ),
         SingleStep(
+          name = "Verify SQL dump macro emission (dumpDir)",
+          condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java == '17'")),
+          run = Some(
+            """rm -rf target/sql-dumps
+              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/Test/clean; sqlJVM/Test/compile"
+              |test -d target/sql-dumps && ls -R target/sql-dumps
+              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"""".stripMargin
+          )
+        ),
+        SingleStep(
           name = "Run Scala Next tests",
           condition = Some(expr("matrix.scala == '3.8.x'")),
           run = Some("sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test")

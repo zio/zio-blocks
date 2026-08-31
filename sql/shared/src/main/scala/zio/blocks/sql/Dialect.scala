@@ -68,9 +68,24 @@ trait Dialect extends SqlMigration {
    * against the live connection.
    */
   def sqlDialect: SqlDialect
+
+  /**
+   * Pure DDL for the given table: create and drop fragments.
+   *
+   * Delegates to existing `Table`/`Ddl` builders without opening any
+   * connection.
+   */
+  def ddl[A](table: Table[A]): Seq[Frag] =
+    Seq(table.createTable(sqlDialect), Ddl.dropTable(table.name))
 }
 
 object Dialect {
+
+  /**
+   * Pure DDL for the given table using the ambient dialect.
+   */
+  def ddl[A](table: Table[A])(using dialect: Dialect): Seq[Frag] =
+    dialect.ddl(table)
 
   object Postgres extends Dialect {
     val sqlDialect: SqlDialect = SqlDialect.PostgreSQL

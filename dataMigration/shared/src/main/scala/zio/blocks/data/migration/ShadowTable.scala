@@ -58,4 +58,26 @@ object ShadowTable {
 
     (oldName, tableName)
   }
+
+  // ---- Pure preview helpers (no connection) ----
+
+  /** Pure shadow-create DDL for the given dialect. */
+  def createPreview[E](table: SqlTable[E], suffix: String)(using dialect: Dialect): String = {
+    val validated  = QueueTable.SqlId.validate("suffix", suffix)
+    val shadowName = s"${table.name}_$validated"
+    try dialect.createShadowTableDDL(shadowName, table.name)
+    catch { case e: UnsupportedOperationException => s"-- ${e.getMessage}" }
+  }
+
+  /** Pure swap (rename) statements. */
+  def swapPreview(tableName: String, suffix: String): List[String] = {
+    val tblValid   = QueueTable.SqlId.validate("table", tableName)
+    val sfxValid   = QueueTable.SqlId.validate("suffix", suffix)
+    val shadowName = s"${tblValid}_$sfxValid"
+    val oldName    = s"${tblValid}_old_$sfxValid"
+    List(
+      s"ALTER TABLE $tblValid RENAME TO $oldName",
+      s"ALTER TABLE $shadowName RENAME TO $tblValid"
+    )
+  }
 }

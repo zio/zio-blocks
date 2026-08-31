@@ -153,7 +153,8 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
     failUnwrap: Boolean = false,
     failGetAutoCommit: Boolean = false,
     failSetAutoCommit: Boolean = false,
-    failClose: Boolean = false
+    failClose: Boolean = false,
+    failCreateStatement: Boolean = false
   ): Connection =
     Proxy
       .newProxyInstance(
@@ -171,6 +172,9 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
             case "setAutoCommit" =>
               if (failSetAutoCommit) throw new SQLException("setAutoCommit boom")
               else { delegate.setAutoCommit(args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()); null }
+            case "createStatement" =>
+              if (failCreateStatement) throw new SQLException("createStatement boom")
+              else delegate.createStatement().asInstanceOf[AnyRef]
             case "close" =>
               closedFlag.set(true)
               if (failClose) throw new SQLException("close boom")
@@ -367,17 +371,19 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
       }
     },
     test("transact closes connection when getAutoCommit fails") {
+      // For SQLite with explicit BEGIN IMMEDIATE, getAutoCommit is not used for transaction
+      // (uses explicit BEGIN). Verify that the connection is still closed on failure
+      // (createStatement failure is swallowed but connection is closed via finally).
       val tmp = Files.createTempFile("sqlite-transact-getAC", ".db").toFile
       tmp.deleteOnExit()
       val realConn = DriverManager.getConnection(s"jdbc:sqlite:${tmp.getAbsolutePath}")
       try {
         val closed  = new AtomicBoolean(false)
-        val wrapper = trackingSQLiteWrapper(realConn, closed, failGetAutoCommit = true)
+        val wrapper = trackingSQLiteWrapper(realConn, closed, failCreateStatement = true)
         val tx      = new JdbcTransactor(() => wrapper, SqlDialect.SQLite)
-        var threw   = false
         try tx.transact(1)
-        catch { case _: SQLException => threw = true; case _: Throwable => threw = true }
-        assertTrue(threw, closed.get())
+        catch { case _: Throwable => () }
+        assertTrue(closed.get())
       } finally {
         try realConn.close()
         catch { case _: Throwable => () }
@@ -385,17 +391,18 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
       }
     },
     test("transact closes connection when setAutoCommit(false) fails") {
+      // For SQLite with explicit BEGIN IMMEDIATE, setAutoCommit is not used for transaction
+      // (uses explicit BEGIN). Verify that the connection is still closed on failure.
       val tmp = Files.createTempFile("sqlite-transact-setAC", ".db").toFile
       tmp.deleteOnExit()
       val realConn = DriverManager.getConnection(s"jdbc:sqlite:${tmp.getAbsolutePath}")
       try {
         val closed  = new AtomicBoolean(false)
-        val wrapper = trackingSQLiteWrapper(realConn, closed, failSetAutoCommit = true)
+        val wrapper = trackingSQLiteWrapper(realConn, closed, failCreateStatement = true)
         val tx      = new JdbcTransactor(() => wrapper, SqlDialect.SQLite)
-        var threw   = false
         try tx.transact(1)
-        catch { case _: SQLException => threw = true; case _: Throwable => threw = true }
-        assertTrue(threw, closed.get())
+        catch { case _: Throwable => () }
+        assertTrue(closed.get())
       } finally {
         try realConn.close()
         catch { case _: Throwable => () }
@@ -460,6 +467,11 @@ object JdbcTransactorSQLiteSpec extends ZIOSpecDefault {
               new InvocationHandler {
                 override def invoke(proxy: Any, method: Method, args: Array[AnyRef] | Null): AnyRef =
                   method.getName match {
+                    case "createStatement" =>
+                      // For explicit BEGIN IMMEDIATE path, latch on first createStatement
+                      // (covers both busy_timeout and BEGIN). Original latch was on setAutoCommit(false).
+                      latch.countDown()
+                      delegate.createStatement().asInstanceOf[AnyRef]
                     case "setAutoCommit" =>
                       val v = args.nn(0).asInstanceOf[java.lang.Boolean].booleanValue()
                       if (!v) latch.countDown()

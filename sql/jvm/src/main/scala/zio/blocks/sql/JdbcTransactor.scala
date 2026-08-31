@@ -38,6 +38,17 @@ class JdbcTransactor(
     }
     val dbConn = new JdbcConnection(conn)
     try {
+      if (dialect == SqlDialect.SQLite) {
+        try {
+          val stmt = conn.createStatement()
+          if (stmt != null) {
+            try stmt.execute("PRAGMA busy_timeout = 5000")
+            finally
+              try stmt.close()
+              catch { case _: Throwable => () }
+          }
+        } catch { case _: Throwable => () }
+      }
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = JdbcTransactor.this.dialect
