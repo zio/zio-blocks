@@ -22,7 +22,7 @@ import scala.concurrent.duration.{FiniteDuration, DAYS, HOURS, MINUTES, SECONDS,
 import scala.util.Try
 
 /** Global registry and diagnostics helpers for resolved flags. */
-sealed trait Flag {
+trait Flag {
 
   /**
    * Global registry of all resolved flag instances (static and dynamic), keyed
