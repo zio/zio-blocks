@@ -102,10 +102,10 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | Block | Artifact | Platform | Scala | Description |
 |-------|----------|----------|-------|-------------|
 | [Scope](docs/./reference/resource-management/index.md) | `zio-blocks-scope` | JVM · JS | 2.13 · 3.x | Compile-time safe resource management and dependency injection |
-| [Config](docs/./reference/config.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
-| [Config YAML](docs/./reference/config.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
-| [Config JSON](docs/./reference/config.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
-| [Config HOCON](docs/./reference/config.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
+| [Config](docs/./reference/config/index.md) | `zio-blocks-config` | JVM · JS | 2.13 · 3.x | Typed configuration loading, feature flags, and rollout rules |
+| [Config YAML](docs/./reference/config/formats.md) | `zio-blocks-config-yaml` | JVM · JS | 2.13 · 3.x | YAML source adapter for `ConfigSource` |
+| [Config JSON](docs/./reference/config/formats.md) | `zio-blocks-config-json` | JVM · JS | 2.13 · 3.x | JSON source adapter for `ConfigSource` |
+| [Config HOCON](docs/./reference/config/formats.md) | `zio-blocks-config-hocon` | JVM · JS | 2.13 · 3.x | HOCON source adapter for `ConfigSource` |
 
 ### Web & HTTP
 
@@ -116,8 +116,9 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | [Endpoint](docs/./reference/endpoint/index.md) | `zio-blocks-endpoint` | JVM · JS | 2.13 · 3.x | Type-safe HTTP endpoint descriptors with composable codecs and typed auth |
 | [HTML](docs/./reference/html.md) | `zio-blocks-html` | JVM · JS | 2.13 · 3.x | Type-safe HTML templating with XSS protection |
 | [HTMX](docs/./reference/htmx/index.md) | `zio-blocks-http-htmx` | JVM · JS | 3.x | Typed HTMX DSL for compile-time-checked HTMX attributes |
-| [Datastar](docs/./reference/datastar.md) | `zio-blocks-datastar` | JVM · JS | 3.x | Typed Datastar attribute and signal DSL |
+| [Datastar](docs/./reference/datastar/index.md) | `zio-blocks-datastar` | JVM · JS | 3.x | Typed Datastar attribute and signal DSL, plus the SSE events that patch a live page |
 | [OpenAPI](docs/./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 2.13 · 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
+| [JWT](docs/./reference/jwt.md) | `zio-blocks-jwt` | JVM · JS | 2.13 · 3.x | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support |
 
 ### Persistence
 
@@ -125,6 +126,7 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 |-------|----------|----------|-------|-------------|
 | [SQL](docs/./reference/sql/index.md) | `zio-blocks-sql` | JVM · JS | 3.x | Type-safe JDBC wrapper with schema-derived codecs and a CRUD repository |
 | [SQL — ZIO](docs/./reference/sql-zio.md) | `zio-blocks-sql-zio` | JVM | 3.x | ZIO integration with `ZIO.attemptBlocking` and `ZLayer` |
+| [Projection](docs/./reference/projection.md) | `zio-blocks-projection` | JVM | 3.x | Event-sourced projections with per-entity SQLite storage |
 
 ### Observability
 
