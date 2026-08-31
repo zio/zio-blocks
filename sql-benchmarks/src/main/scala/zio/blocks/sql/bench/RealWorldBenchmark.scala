@@ -150,7 +150,7 @@ class RealWorldBenchmark extends BaseBenchmark {
 
     transactor = new JdbcTransactor(() => conn, SqlDialect.PostgreSQL) {
       override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
+        val dbConn       = new JdbcConnection(conn, SqlDialect.PostgreSQL)
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.PostgreSQL

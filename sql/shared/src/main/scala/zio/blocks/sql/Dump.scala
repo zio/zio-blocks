@@ -318,7 +318,7 @@ object Dump {
    * file. For full joins/filters use `inline val`/`inline def` or construct the
    * query directly at the call site.
    */
-  inline def dump[A](inline query: zio.blocks.sql.query.SqlQuery[A]): Unit =
+  inline def dump[A](inline query: zio.blocks.sql.query.SqlQuery[A, _]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
 
   /**
@@ -336,7 +336,7 @@ object Dump {
    * fallback. For `Dump.dumpQuery` the same applies: use `inline val`/`inline
    * def` or inline the query at the call site.
    */
-  inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A]): Unit =
+  inline def dumpQuery[A](inline query: zio.blocks.sql.query.SqlQuery[A, _]): Unit =
     ${ dumpQueryIrImpl[A]('query) }
 
   def dumpTableImpl[A: Type](table: Expr[Table[A]])(using Quotes): Expr[Unit] = {
@@ -366,7 +366,7 @@ object Dump {
     }
   }
 
-  def dumpQueryIrImpl[A: Type](query: Expr[zio.blocks.sql.query.SqlQuery[A]])(using Quotes): Expr[Unit] = {
+  def dumpQueryIrImpl[A: Type](query: Expr[zio.blocks.sql.query.SqlQuery[A, _]])(using Quotes): Expr[Unit] = {
     import quotes.reflect._
     val tpe        = TypeRepr.of[A]
     val sym        = tpe.typeSymbol
@@ -395,8 +395,8 @@ object Dump {
     val fileBase     = if (candidate == "query" || candidate.isEmpty) s"$baseName-query" else s"$candidate-query"
     val fileBaseExpr = Expr(fileBase)
     '{
-      val q: zio.blocks.sql.query.SqlQuery[A] = $query
-      val dir                                 = System.getProperty("zib.sql.dumpDir")
+      val q: zio.blocks.sql.query.SqlQuery[A, _] = $query
+      val dir                                    = System.getProperty("zib.sql.dumpDir")
       if (dir != null) {
         val pgSql     = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
         val sqliteSql = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)

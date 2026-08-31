@@ -20,15 +20,29 @@ import scala.quoted.{Expr as SExpr, Quotes, Type as SType, Varargs}
 
 private[query] object SelectMacros {
 
+  private def exprScope(e: SExpr[Expr[?, ?]])(using quotes: Quotes): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    val tpe     = e.asTerm.tpe
+    val exprSym = TypeRepr.of[Expr[?, ?]].typeSymbol
+    tpe.baseType(exprSym) match {
+      case AppliedType(_, List(_, sc)) => sc.simplified
+      case _ =>
+        tpe.widen.dealias match {
+          case AppliedType(_, List(_, sc)) => sc.simplified
+          case other                       => other
+        }
+    }
+  }
+
   def selectImpl[T: SType](
-    exprs: SExpr[Seq[Expr[?]]],
+    exprs: SExpr[Seq[Expr[?, ?]]],
     codec: SExpr[zio.blocks.sql.DbCodec[T]],
-    query: SExpr[SqlQuery[?]]
-  )(using quotes: Quotes): SExpr[TypedQuery[T]] = {
+    query: SExpr[SqlQuery[?, ?]]
+  )(using quotes: Quotes): SExpr[TypedQuery[T, ?]] = {
     import quotes.reflect.*
 
-    val varargsOpt                      = Varargs.unapply(exprs)
-    val exprsList: List[SExpr[Expr[?]]] = varargsOpt match {
+    val varargsOpt                        = Varargs.unapply(exprs)
+    val exprsList: List[SExpr[Expr[?, ?]]] = varargsOpt match {
       case Some(seq) => seq.toList
       case None      =>
         report.errorAndAbort(s"select: could not extract varargs, got ${exprs.asTerm.show}")
@@ -42,16 +56,16 @@ private[query] object SelectMacros {
       report.errorAndAbort(s"select: arity ${exprsList.size} exceeds maximum 8")
     }
 
-    def exprResultType(e: SExpr[Expr[?]]): TypeRepr = {
+    def exprResultType(e: SExpr[Expr[?, ?]]): TypeRepr = {
       val tpe     = e.asTerm.tpe.widen
-      val exprSym = TypeRepr.of[Expr[?]].typeSymbol
+      val exprSym = TypeRepr.of[Expr[?, ?]].typeSymbol
       // Try baseType for Expr
       val base = tpe.baseType(exprSym)
       base match {
-        case AppliedType(_, List(arg)) => arg
-        case _                         =>
+        case AppliedType(_, List(arg, _)) => arg.simplified
+        case _                            =>
           tpe match {
-            case AppliedType(_, args) if args.nonEmpty => args.last
+            case AppliedType(_, args) if args.nonEmpty => args.head.simplified
             case other                                 => other
           }
       }
@@ -115,7 +129,7 @@ private[query] object SelectMacros {
       val fields         = sym.caseFields
       val classInlineAll = hasInlineFieldsAnnotation(sym)
       fields.toList.flatMap { field =>
-        val fieldTpe = tr.memberType(field)
+        val fieldTpe = tr.memberType(field).simplified
         val isInline = hasInlineAnnotation(field) || (classInlineAll && isRecordType(fieldTpe))
         if (isRecordType(fieldTpe) && isInline) {
           flattenedRecordTypes(fieldTpe)
@@ -127,11 +141,11 @@ private[query] object SelectMacros {
 
     val expectedTypes: List[TypeRepr] =
       if (isTupleType(tpe)) {
-        flattenTupleType(tpe)
+        flattenTupleType(tpe).map(_.simplified)
       } else if (tpe.typeSymbol.isClassDef && tpe.typeSymbol.flags.is(Flags.Case)) {
-        flattenedRecordTypes(tpe)
+        flattenedRecordTypes(tpe).map(_.simplified)
       } else {
-        List(tpe)
+        List(tpe.simplified)
       }
 
     if (exprTypes.size != expectedTypes.size) {
@@ -148,9 +162,11 @@ private[query] object SelectMacros {
       }
     }
 
-    val vecExpr: SExpr[Vector[Expr[?]]] = '{
-      Vector(${ Varargs(exprsList) }: _*)
+    val vecExpr: SExpr[Vector[Expr[?, ?]]] = '{
+      Vector(${ Varargs(exprsList) }: _*).asInstanceOf[Vector[Expr[?, ?]]]
     }
-    '{ TypedQuery.create[T]($query, $vecExpr.asInstanceOf[Vector[Expr[_]]], $codec) }
+    exprScope(exprsList.head).asType match {
+      case '[sc] => '{ TypedQuery.create[T, sc]($query, $vecExpr, $codec) }
+    }
   }
 }

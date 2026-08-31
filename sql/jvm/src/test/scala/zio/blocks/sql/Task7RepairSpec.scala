@@ -21,33 +21,34 @@ import java.nio.file.{Files, Path}
 
 import zio.test.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.query.{Rel, SqlQuery => Qry, col, colAt, lit}
+import zio.blocks.sql.query.{Rel, SqlQuery => Qry, lit}
 import zio.blocks.sql.query.*
 
 private object Task7DumpFixtureTwoFilters {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable: Table[User]       = Table.derived[User]
-  inline def twoFilters: Qry[User] =
-    Qry.from(userTable).where(col[User](_.name) === lit("alice")).where(col[User](_.id) === lit(42))
+  val userTable: Table[User] = Table.derived[User]
+  val q0 = Qry.from(userTable)
+  val twoFilters =
+    q0.where(q0.col[User](_.name) === lit("alice")).where(q0.col[User](_.id) === lit(42))
 }
 
 private object Task7DumpFixtureAndOr {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable: Table[User]    = Table.derived[User]
-  inline def andPred: Qry[User] =
-    Qry.from(userTable).where((col[User](_.name) === lit("bob")) && (col[User](_.id) === lit(7)))
-  inline def orPred: Qry[User] =
-    Qry.from(userTable).where((col[User](_.name) === lit("bob")) || (col[User](_.id) === lit(7)))
+  val userTable: Table[User] = Table.derived[User]
+  val q0 = Qry.from(userTable)
+  val andPred = q0.where((q0.col[User](_.name) === lit("bob")) && (q0.col[User](_.id) === lit(7)))
+  val orPred  = q0.where((q0.col[User](_.name) === lit("bob")) || (q0.col[User](_.id) === lit(7)))
 }
 
 private object Task7DumpFixtureLikeIn {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable: Table[User]  = Table.derived[User]
-  inline def likeQ: Qry[User] = Qry.from(userTable).where(col[User](_.name).like("%ali%"))
-  inline def inQ: Qry[User]   = Qry.from(userTable).where(col[User](_.id).in(Seq(1, 2, 3)))
+  val userTable: Table[User] = Table.derived[User]
+  val q0 = Qry.from(userTable)
+  val likeQ = q0.where(q0.col[User](_.name).like("%ali%"))
+  val inQ   = q0.where(q0.col[User](_.id).in(Seq(1, 2, 3)))
 }
 
 private object Task7DumpFixtureJoinCombined {
@@ -55,11 +56,11 @@ private object Task7DumpFixtureJoinCombined {
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable: Table[User]     = Table.derived[User]
-  val repoTable: Table[Repo]     = Table.derived[Repo]
-  val rel: Rel[Repo, User]       = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-  inline def combined: Qry[User] =
-    Qry.from(userTable).innerJoin(rel).where(col[User](_.name).like("a%")).where(col[Repo](_.name) === lit("my-repo"))
+  val userTable: Table[User]        = Table.derived[User]
+  val repoTable: Table[Repo]        = Table.derived[Repo]
+  val rel: Rel[Repo, User] = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  val q0 = Qry.from(userTable).innerJoin(rel)
+  val combined = q0.where(q0.col[User](_.name).like("a%")).where(q0.col[Repo](_.name) === lit("my-repo"))
 }
 
 object Task7RepairSpec extends ZIOSpecDefault {
@@ -101,7 +102,8 @@ object Task7RepairSpec extends ZIOSpecDefault {
       case class User(id: Int, name: String)
       object User { implicit val schema: Schema[User] = Schema.derived }
       val tbl     = Table.derived[User]
-      val q       = Qry.from(tbl).where(col[User](_.name) === lit("alice"))
+      val qBase  = Qry.from(tbl)
+      val q      = qBase.where(qBase.col[User](_.name) === lit("alice"))
       val fragSql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -217,48 +219,88 @@ object Task7RepairSpec extends ZIOSpecDefault {
         st.filters(1).params == IndexedSeq(DbValue.DbString("my-repo"))
       )
     },
-    test("unknown column and ambiguous column throw with exact messages") {
-      case class Other(id: Int, x: String)
-      object Other { implicit val schema: Schema[Other] = Schema.derived }
-      val otherTable    = Table.derived[Other]
-      val userTable     = Task7DumpFixtureTwoFilters.userTable
-      val foreignThrows = try {
-        Qry.from(userTable).where(col[Other](_.x) === lit("a")).toFrag(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case e: IllegalArgumentException => e.getMessage.contains("not found")
-        case _: Throwable                => false
-      }
-      val stmtForeignThrows = try {
-        Qry.from(userTable).where(col[Other](_.x) === lit("a")).statement(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case e: IllegalArgumentException => e.getMessage.contains("not found")
-        case _: Throwable                => false
-      }
-      case class Node(id: Int, parentId: Int)
-      object Node { implicit val schema: Schema[Node] = Schema.derived }
-      val nodeTable       = Table.derived[Node]
-      val relSelf         = Rel.manyToOne(nodeTable, "parent_id", nodeTable, "id")
-      val ambiguousThrows = try {
-        Qry.from(nodeTable).innerJoin(relSelf).where(col[Node](_.id) === lit(1)).toFrag(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case e: IllegalArgumentException => e.getMessage.contains("ambiguous") && e.getMessage.contains("candidates")
-        case _: Throwable                => false
-      }
-      val badAliasThrows = try {
-        Qry
-          .from(userTable)
-          .innerJoin(Task7DumpFixtureJoinCombined.rel)
-          .where(colAt[Task7DumpFixtureTwoFilters.User]("bad-alias!", _.name) === lit("a"))
-          .toFrag(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case _: IllegalArgumentException => true
-        case _: Throwable                => false
-      }
-      assertTrue(foreignThrows, stmtForeignThrows, ambiguousThrows, badAliasThrows)
+    test("Expr node constructors are sealed — external callers cannot forge a query scope") {
+      val forgeErrors = scala.compiletime.testing.typeCheckErrors(
+        """import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          val userTable = Table.derived[User]
+          val q = zio.blocks.sql.query.SqlQuery.from(userTable)
+          val forged = new Column[User, Int, q.type](userTable, "id", None, null)
+        """
+      )
+      val litForgeErrors = scala.compiletime.testing.typeCheckErrors(
+        """import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          val userTable = Table.derived[User]
+          val forged = Lit(1, null, null)
+        """
+      )
+      val aggForgeErrors = scala.compiletime.testing.typeCheckErrors(
+        """import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          val userTable = Table.derived[User]
+          val q = zio.blocks.sql.query.SqlQuery.from(userTable)
+          val forged = Agg[Long, q.type](AggFunc.Count, q.col[User](_.id))
+        """
+      )
+      assertTrue(
+        forgeErrors.nonEmpty,
+        forgeErrors.exists(_.message.contains("constructor Column cannot be accessed")),
+        litForgeErrors.nonEmpty,
+        litForgeErrors.exists(_.message.contains("Lit")),
+        aggForgeErrors.nonEmpty,
+        aggForgeErrors.exists(_.message.contains("Agg"))
+      )
+    },
+    test("foreign, ambiguous and bad-alias columns fail at compile time") {
+      val foreignErrors = scala.compiletime.testing.typeCheckErrors(
+        """{
+          import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          case class Other(id: Int, x: String)
+          object Other { implicit val schema: Schema[Other] = Schema.derived }
+          val userTable = Table.derived[User]
+          val qBase = SqlQuery.from(userTable)
+          qBase.where(qBase.col[Other](_.x) === lit("a"))
+        }"""
+      )
+      val ambiguousErrors = scala.compiletime.testing.typeCheckErrors(
+        """{
+          import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class Node(id: Int, parentId: Int)
+          object Node { implicit val schema: Schema[Node] = Schema.derived }
+          val nodeTable = Table.derived[Node]
+          val qBase = SqlQuery.from(nodeTable).innerJoin(Rel.manyToOne(nodeTable, "parent_id", nodeTable, "id"))
+          qBase.where(qBase.col[Node](_.id) === lit(1))
+        }"""
+      )
+      val badAliasErrors = scala.compiletime.testing.typeCheckErrors(
+        """{
+          import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          val userTable = Table.derived[User]
+          val qBase = SqlQuery.from(userTable)
+          qBase.where(qBase.colAt[User]("bad-alias!", _.name) === lit("a"))
+        }"""
+      )
+      assertTrue(foreignErrors.nonEmpty, ambiguousErrors.nonEmpty, badAliasErrors.nonEmpty)
     },
     test("generated dump equals runtime QueryRenderer sql via scoped temp dir") {
       withTempDumpDir { dir =>

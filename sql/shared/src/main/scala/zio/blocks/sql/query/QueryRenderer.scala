@@ -21,7 +21,7 @@ import zio.blocks.sql.{DbCodec, Frag, SqlDialect, SqlIdentifier, Table}
 
 object QueryRenderer {
 
-  def render[A](query: SqlQuery[A], @scala.annotation.unused dialect: SqlDialect): Frag = {
+  def render(query: SqlQuery[?, ?], @scala.annotation.unused dialect: SqlDialect): Frag = {
     val allTables: Vector[(Table[_], String)] =
       Vector((query.source, "t0")) ++ query.joins.map(j => (j.table, j.alias))
 
@@ -47,8 +47,8 @@ object QueryRenderer {
   }
 
   def renderTyped[T](
-    query: SqlQuery[_],
-    projections: Vector[Expr[_]],
+    query: SqlQuery[?, ?],
+    projections: Vector[Expr[?, ?]],
     codec: DbCodec[T],
     @scala.annotation.unused dialect: SqlDialect
   ): Frag = {
@@ -76,7 +76,7 @@ object QueryRenderer {
   }
 
   private def appendClauses(
-    query: SqlQuery[_],
+    query: SqlQuery[?, ?],
     allTables: Vector[(Table[_], String)],
     base: Frag
   ): Frag = {
@@ -190,11 +190,22 @@ object QueryRenderer {
             )
           Frag.literal(s"""$alias."$colName"""")
         case None =>
-          val field   = path.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.lastOption.getOrElse("")
-          val colName = SqlIdentifier.validate("column", field)
-          allTables.find(_._1.columns.contains(colName)) match {
-            case Some((_, alias)) => Frag.literal(s"""$alias."$colName"""")
-            case None             => Frag.literal(s""""$colName"""")
+          val field      = path.nodes.collect { case f: DynamicOptic.Node.Field => f.name }.lastOption.getOrElse("")
+          val colName    = SqlIdentifier.validate("column", field)
+          val candidates = allTables.filter(_._1.columns.contains(colName)).map(_._2)
+          if (candidates.isEmpty) {
+            val available = allTables.map { case (t, a) => s"${t.name} as $a (${t.columns.mkString(", ")})" }
+              .mkString("; ")
+            throw new IllegalArgumentException(
+              s"unresolved column '$colName' (field '$field', path $path) not found in query; available tables: $available"
+            )
+          } else if (candidates.size > 1) {
+            throw new IllegalArgumentException(
+              s"ambiguous column '$colName' (field '$field') candidates: ${candidates.mkString(", ")} — use colAt(...) with explicit alias"
+            )
+          } else {
+            val alias = candidates.head
+            Frag.literal(s"""$alias."$colName"""")
           }
       }
 
@@ -258,9 +269,9 @@ object QueryRenderer {
     case other => throw new IllegalArgumentException(s"unsupported DynamicSchemaExpr for SQL: $other")
   }
 
-  private[query] def collectColumns(expr: Expr[_]): Map[DynamicOptic, (Table[_], String, Option[String])] = {
+  private[query] def collectColumns(expr: Expr[?, ?]): Map[DynamicOptic, (Table[_], String, Option[String])] = {
     def loop(
-      e: Expr[_],
+      e: Expr[?, ?],
       acc: Map[DynamicOptic, (Table[_], String, Option[String])]
     ): Map[DynamicOptic, (Table[_], String, Option[String])] =
       e match {
@@ -287,13 +298,13 @@ object QueryRenderer {
     loop(expr, Map.empty)
   }
 
-  private[query] def renderExpr(expr: Expr[_], allTables: Vector[(Table[_], String)]): Frag = expr match {
+  private[query] def renderExpr(expr: Expr[?, ?], allTables: Vector[(Table[_], String)]): Frag = expr match {
     // Native cases — delegate to shared renderDynamic
-    case c: Column[_, _] =>
+    case c: Column[_, _, _] =>
       renderDynamic(c.dynamic, collectColumns(c), allTables)
     case l: Lit[_] =>
       renderDynamic(l.dynamic, Map.empty, allTables)
-    case r: Relational[_] =>
+    case r: Relational[_, _] =>
       r.dynamic match {
         case Some(dyn) =>
           val ctx = collectColumns(r)
@@ -311,7 +322,7 @@ object QueryRenderer {
           }
           leftFrag ++ Frag.literal(s" $opStr ") ++ rightFrag
       }
-    case l: Logical =>
+    case l: Logical[_] =>
       l.dynamic match {
         case Some(dyn) =>
           val ctx = collectColumns(l)
@@ -325,12 +336,12 @@ object QueryRenderer {
           }
           Frag.literal("(") ++ leftFrag ++ Frag.literal(s" $opStr ") ++ rightFrag ++ Frag.literal(")")
       }
-    case n: NotExpr =>
+    case n: NotExpr[_] =>
       n.dynamic match {
         case Some(dyn) => renderDynamic(dyn, collectColumns(n), allTables)
         case None      => Frag.literal("NOT (") ++ renderExpr(n.expr, allTables) ++ Frag.literal(")")
       }
-    case a: Arithmetic[_] =>
+    case a: Arithmetic[_, _] =>
       a.dynamic match {
         case Some(dyn) => renderDynamic(dyn, collectColumns(a), allTables)
         case None      =>
@@ -345,7 +356,7 @@ object QueryRenderer {
           }
           Frag.literal("(") ++ leftFrag ++ Frag.literal(s" $opStr ") ++ rightFrag ++ Frag.literal(")")
       }
-    case l: LikeExpr =>
+    case l: LikeExpr[_] =>
       renderDynamic(l.dynamic, collectColumns(l), allTables)
     // SQL-only extensions
     case InExpr(col, values, schema) =>

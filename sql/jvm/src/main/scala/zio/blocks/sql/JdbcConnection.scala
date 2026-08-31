@@ -18,13 +18,13 @@ package zio.blocks.sql
 
 import java.sql.Connection
 
-private[sql] class JdbcConnection(val underlying: Connection) extends DbConnection {
+private[sql] class JdbcConnection(val underlying: Connection, val dialect: SqlDialect) extends DbConnection {
 
   def prepareStatement(sql: String): DbPreparedStatement =
-    new JdbcPreparedStatement(underlying.prepareStatement(sql))
+    new JdbcPreparedStatement(underlying.prepareStatement(sql), dialect)
 
   def prepareStatementReturningKeys(sql: String): DbPreparedStatement =
-    new JdbcPreparedStatement(underlying.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS))
+    new JdbcPreparedStatement(underlying.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS), dialect)
 
   def close(): Unit = underlying.close()
 
@@ -39,7 +39,8 @@ private[sql] class JdbcConnection(val underlying: Connection) extends DbConnecti
   def rollback(): Unit = underlying.rollback()
 }
 
-private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement) extends DbPreparedStatement {
+private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatement, val dialect: SqlDialect)
+    extends DbPreparedStatement {
 
   def executeQuery(): DbResultSet =
     new JdbcResultSet(underlying.executeQuery())
@@ -53,7 +54,7 @@ private[sql] class JdbcPreparedStatement(val underlying: java.sql.PreparedStatem
 
   def close(): Unit = underlying.close()
 
-  def paramWriter: DbParamWriter = new JdbcParamWriter(underlying)
+  def paramWriter: DbParamWriter = new JdbcParamWriter(underlying, dialect)
 
   def addBatch(): Unit = underlying.addBatch()
 

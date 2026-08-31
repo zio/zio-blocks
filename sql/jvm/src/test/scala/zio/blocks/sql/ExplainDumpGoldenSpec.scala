@@ -23,7 +23,7 @@ import scala.annotation.nowarn
 
 import zio.test.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel, col, colAt, lit}
+import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel, lit}
 import zio.blocks.sql.query.*
 
 // Separate fixture objects ensure distinct dump fileBase per query (owner-derived).
@@ -34,18 +34,14 @@ private object TwoJoinFixture {
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  val starTable               = Table.derived[Star]
-  val r1                      = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-  val r2                      = Rel.manyToOne(starTable, "repo_id", repoTable, "id")
-  inline def query: Qry[User] =
-    Qry
-      .from(userTable)
-      .innerJoin(r1)
-      .innerJoin(r2)
-      .where(col[User](_.name) === lit("alice"))
-      .where(col[Repo](_.name) === lit("my-repo"))
+  val userTable = Table.derived[User]
+  val repoTable = Table.derived[Repo]
+  val starTable = Table.derived[Star]
+  val r1        = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  val r2        = Rel.manyToOne(starTable, "repo_id", repoTable, "id")
+  val queryBase = Qry.from(userTable).innerJoin(r1).innerJoin(r2)
+  val query     =
+    queryBase.where(queryBase.col[User](_.name) === lit("alice")).where(queryBase.col[Repo](_.name) === lit("my-repo"))
   Dump.dump(query)
   Dump.dumpQuery(query)
 }
@@ -54,38 +50,34 @@ private object FullFixture {
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  val rel                     = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-  inline def query: Qry[User] =
-    Qry
-      .from(userTable)
-      .innerJoin(rel)
-      .where(col[User](_.name) === lit("bob"))
-      .groupBy(col[User](_.id))
-      .orderBy("id", QSortOrder.Asc)
-      .limit(10)
-      .offset(5)
+  val userTable = Table.derived[User]
+  val repoTable = Table.derived[Repo]
+  val rel       = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  val queryBase = Qry.from(userTable).innerJoin(rel)
+  val query     = queryBase
+    .where(queryBase.col[User](_.name) === lit("bob"))
+    .groupBy(queryBase.col[User](_.id))
+    .orderBy("id", QSortOrder.Asc)
+    .limit(10)
+    .offset(5)
   Dump.dump(query)
   Dump.dumpQuery(query)
 }
 private object SingleFilterFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
-    Qry.from(userTable).where(col[User](_.name) === lit("alice"))
+  val userTable = Table.derived[User]
+  val queryBase = Qry.from(userTable)
+  val query     = queryBase.where(queryBase.col[User](_.name) === lit("alice"))
   Dump.dump(query)
   Dump.dumpQuery(query)
 }
 private object InQueryFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable               = Table.derived[User]
-  inline def query: Qry[User] =
-    Qry
-      .from(userTable)
-      .where(col[User](_.id).in(Seq(1, 2, 3)))
+  val userTable = Table.derived[User]
+  val queryBase = Qry.from(userTable)
+  val query     = queryBase.where(queryBase.col[User](_.id).in(Seq(1, 2, 3)))
   Dump.dump(query)
   Dump.dumpQuery(query)
 }
@@ -96,21 +88,20 @@ private object IrFullFixture {
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable               = Table.derived[User]
-  val repoTable               = Table.derived[Repo]
-  val starTable               = Table.derived[Star]
-  inline def query: Qry[User] =
-    Qry
-      .from(userTable)
-      .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
-      .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
-      .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
-      .groupBy(col[User](_.name))
-      .orderBy("name", QSortOrder.Asc)
-      .limit(10)
-      .offset(5)
-  @nowarn("msg=Dump requires inline")
-  private val _dumpIrFull: Unit = Dump.dumpQuery(query)
+  val userTable = Table.derived[User]
+  val repoTable = Table.derived[Repo]
+  val starTable = Table.derived[Star]
+  val queryBase = Qry
+    .from(userTable)
+    .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
+    .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
+  val query = queryBase
+    .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
+    .groupBy(queryBase.col[User](_.name))
+    .orderBy("name", QSortOrder.Asc)
+    .limit(10)
+    .offset(5)
+  Dump.dumpQuery(query)
 }
 
 object ExplainDumpGoldenSpec extends ZIOSpecDefault {
@@ -272,31 +263,38 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("tableAlias validation rejects invalid alias via colAt") {
-      val rel       = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-      val badResult = try {
-        Qry
-          .from(userTable)
-          .innerJoin(rel)
-          .where(colAt[User]("bad-alias!", _.name) === lit("a"))
-          .toFrag(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case _: IllegalArgumentException => true
-        case _: Throwable                => false
-      }
-      val otherResult = try {
-        Qry
-          .from(userTable)
-          .innerJoin(rel)
-          .where(colAt[User]("other", _.name) === lit("a"))
-          .toFrag(SqlDialect.PostgreSQL)
-        false
-      } catch {
-        case _: IllegalArgumentException => true
-        case _: Throwable                => false
-      }
-      assertTrue(badResult, otherResult)
+    test("tableAlias validation rejects invalid or mismatched alias via colAt at compile time") {
+      val errorsBad = scala.compiletime.testing.typeCheckErrors(
+        """{
+          import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          case class Repo(id: Int, ownerId: Int, name: String)
+          object Repo { implicit val schema: Schema[Repo] = Schema.derived }
+          val userTable = Table.derived[User]
+          val repoTable = Table.derived[Repo]
+          val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+          qBase.where(qBase.colAt[User]("bad-alias!", _.name) === lit("a"))
+        }"""
+      )
+      val errorsOther = scala.compiletime.testing.typeCheckErrors(
+        """{
+          import zio.blocks.sql.query.*
+          import zio.blocks.schema.Schema
+          import zio.blocks.sql.Table
+          case class User(id: Int, name: String)
+          object User { implicit val schema: Schema[User] = Schema.derived }
+          case class Repo(id: Int, ownerId: Int, name: String)
+          object Repo { implicit val schema: Schema[Repo] = Schema.derived }
+          val userTable = Table.derived[User]
+          val repoTable = Table.derived[Repo]
+          val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+          qBase.where(qBase.colAt[User]("other", _.name) === lit("a"))
+        }"""
+      )
+      assertTrue(errorsBad.nonEmpty, errorsOther.nonEmpty)
     }
   )
 }

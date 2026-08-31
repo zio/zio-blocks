@@ -21,17 +21,21 @@ import zio.blocks.sql.{DbCodec, DbValue, Frag, SqlDialect, SqlIdentifier, SqlSta
 /**
  * Immutable query IR starting from a source table.
  *
- * Alias allocation is deterministic: t0 = source, t1..tN in join order
- * (self-join safe — same Table joined twice gets distinct aliases). Rendering
- * is performed by [[QueryRenderer]] and produces a [[Frag]] via `Frag.++`
- * composition only, using quoted identifiers and dialect placeholders.
+ * Scope phantom `S` tracks LEFT JOIN nullability: each LEFT JOIN adds
+ * `Option[JoinedType]` to the tuple, each INNER JOIN adds `JoinedType`.
+ * Query-bound column builders inspect the slot tuple `(A *: S)` to decide
+ * whether a table's columns are nullable (`Expr[Option[B]]` vs `Expr[B]`).
+ * Source always non-optional.
  *
- * Inspection is provided via [[statement]] / [[explain]] which expose a stable
- * [[SqlStatement]] view and a single-line SQL with `?N` placeholders plus
- * `-- params: ...` footer for logging, derived directly from the typed IR via
- * [[QueryRenderer]] (no duplicate renderer).
+ * The path-dependent member `type Scope = this.type` gives every query value a
+ * distinct identity: `val q1 = SqlQuery.from(t); val q2 = SqlQuery.from(t)`
+ * have `q1.Scope = q1.type != q2.Scope = q2.type`, and expressions built from
+ * `q1` cannot be mixed into `q2`. Transformations (joins, where, groupBy,
+ * having, select) return the refined type `SqlQuery[A, S'] { type Scope =
+ * self.Scope }`, so the whole lineage of a query value shares one scope and
+ * fluent chaining keeps working.
  */
-final case class SqlQuery[A] private[query] (
+final case class SqlQuery[A, S <: Tuple] private[query] (
   source: Table[A],
   joins: Vector[JoinNode],
   filters: Vector[Frag],
@@ -40,29 +44,42 @@ final case class SqlQuery[A] private[query] (
   orderBy: Vector[OrderBy],
   limit: Option[Int],
   offset: Option[Int],
-  typedFilters: Vector[Expr[Boolean]] = Vector.empty,
-  typedGroupBy: Vector[Expr[_]] = Vector.empty,
-  typedHaving: Option[Expr[Boolean]] = None
-) {
+  typedFilters: Vector[Expr[Boolean, ?]] = Vector.empty,
+  typedGroupBy: Vector[Expr[?, ?]] = Vector.empty,
+  typedHaving: Option[Expr[Boolean, ?]] = None
+) { self =>
 
-  def innerJoin[From, To](rel: Rel[From, To]): SqlQuery[A] =
+  /** Query-bound scope: the singleton type of this query value. */
+  type Scope = this.type
+
+  def innerJoin[From, To](rel: Rel[From, To]): SqlQuery[A, Tuple.Append[S, SqlQuery.JoinTarget[From, To, A]]] {
+    type Scope = self.Scope
+  } =
     addJoin(rel, JoinKind.Inner)
+      .asInstanceOf[SqlQuery[A, Tuple.Append[S, SqlQuery.JoinTarget[From, To, A]]] { type Scope = self.Scope }]
 
-  def leftJoin[From, To](rel: Rel[From, To]): SqlQuery[A] =
+  def leftJoin[From, To](rel: Rel[From, To]): SqlQuery[A, Tuple.Append[S, Option[SqlQuery.JoinTarget[From, To, A]]]] {
+    type Scope = self.Scope
+  } =
     addJoin(rel, JoinKind.Left)
+      .asInstanceOf[SqlQuery[A, Tuple.Append[S, Option[SqlQuery.JoinTarget[From, To, A]]]] { type Scope = self.Scope }]
 
-  def join[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A] =
-    addJoin(rel, kind)
+  def join[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A, S] { type Scope = self.Scope } =
+    addJoin(rel, kind).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
   /** Alias for `innerJoin` — satisfies the `SqlQuery.join(rel)` contract. */
-  def join[From, To](rel: Rel[From, To]): SqlQuery[A] =
-    addJoin(rel, JoinKind.Inner)
+  def join[From, To](rel: Rel[From, To]): SqlQuery[A, Tuple.Append[S, SqlQuery.JoinTarget[From, To, A]]] {
+    type Scope = self.Scope
+  } =
+    innerJoin(rel)
 
   /** Alias for `leftJoin` — satisfies the `SqlQuery.joinLeft(rel)` contract. */
-  def joinLeft[From, To](rel: Rel[From, To]): SqlQuery[A] =
-    addJoin(rel, JoinKind.Left)
+  def joinLeft[From, To](rel: Rel[From, To]): SqlQuery[A, Tuple.Append[S, Option[SqlQuery.JoinTarget[From, To, A]]]] {
+    type Scope = self.Scope
+  } =
+    leftJoin(rel)
 
-  private def addJoin[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A] = {
+  private def addJoin[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A, S] = {
     val nextAlias                                              = s"t${joins.size + 1}"
     val isSelfJoin                                             = rel.fromTable.name == rel.toTable.name
     val pair: (Table[_], Frag, String, String, String, String) = if (isSelfJoin) {
@@ -102,7 +119,6 @@ final case class SqlQuery[A] private[query] (
             s"neither side of relation ${rel.fromTable.name}.${rel.fkColumn} = ${rel.toTable.name}.${rel.pkColumn} is present in query; source is '${source.name}' and joins are [${joins.map(j => j.table.name + " as " + j.alias).mkString(", ")}]"
           )
         case (Some(_), Some(_)) =>
-          // Both sides already present — treat as joining duplicate alias for target? Use from as existing and create new alias for target duplicate.
           target = rel.toTable.asInstanceOf[Table[_]]
           fkAlias = fromOpt.get
           pkAlias = nextAlias
@@ -127,49 +143,56 @@ final case class SqlQuery[A] private[query] (
     copy(joins = joins :+ node)
   }
 
-  private[sql] def filter(frag: Frag): SqlQuery[A] =
-    copy(filters = filters :+ frag)
+  private[sql] def filter(frag: Frag): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(filters = filters :+ frag).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  private[sql] def where(frag: Frag): SqlQuery[A] = filter(frag)
+  private[sql] def where(frag: Frag): SqlQuery[A, S] { type Scope = self.Scope } = filter(frag)
 
-  def filter(expr: Expr[Boolean]): SqlQuery[A] = where(expr)
+  def filter[Sc2 <: Scope](expr: Expr[Boolean, Sc2]): SqlQuery[A, S] { type Scope = self.Scope } = where(expr)
 
-  def where(expr: Expr[Boolean]): SqlQuery[A] =
-    copy(typedFilters = typedFilters :+ expr)
+  def where[Sc2 <: Scope](expr: Expr[Boolean, Sc2]): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(typedFilters = typedFilters :+ expr).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def groupBy(cols: String*): SqlQuery[A] = {
+  /**
+   * Apply several query-bound filters in one step (expressions must all be
+   * bound to this query).
+   */
+  def whereAll[Sc2 <: Scope](exprs: Expr[Boolean, Sc2]*): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(typedFilters = typedFilters ++ exprs).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
+
+  def groupBy(cols: String*): SqlQuery[A, S] { type Scope = self.Scope } = {
     cols.foreach(c => SqlIdentifier.validate("column", c))
-    copy(groupBy = cols.toVector)
+    copy(groupBy = cols.toVector).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
   }
 
-  def groupBy(expr: Expr[_], exprs: Expr[?]*): SqlQuery[A] =
-    copy(typedGroupBy = (expr +: exprs).toVector)
+  def groupBy[Sc2 <: Scope](expr: Expr[?, Sc2], exprs: Expr[?, Sc2]*): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(typedGroupBy = (expr +: exprs).toVector).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  private[sql] def having(frag: Frag): SqlQuery[A] =
-    copy(having = Some(frag))
+  private[sql] def having(frag: Frag): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(having = Some(frag)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def having(expr: Expr[Boolean]): SqlQuery[A] =
-    copy(typedHaving = Some(expr))
+  def having[Sc2 <: Scope](expr: Expr[Boolean, Sc2]): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(typedHaving = Some(expr)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def orderBy(col: String, dir: SortOrder = SortOrder.Asc): SqlQuery[A] = {
+  def orderBy(col: String, dir: SortOrder = SortOrder.Asc): SqlQuery[A, S] { type Scope = self.Scope } = {
     SqlIdentifier.validate("column", col)
-    copy(orderBy = orderBy :+ OrderBy(col, dir))
+    copy(orderBy = orderBy :+ OrderBy(col, dir)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
   }
 
-  def orderByMany(cols: OrderBy*): SqlQuery[A] =
-    copy(orderBy = orderBy ++ cols.toVector)
+  def orderByMany(cols: OrderBy*): SqlQuery[A, S] { type Scope = self.Scope } =
+    copy(orderBy = orderBy ++ cols.toVector).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
 
-  def limit(n: Int): SqlQuery[A] = {
+  def limit(n: Int): SqlQuery[A, S] { type Scope = self.Scope } = {
     require(n >= 0, "limit must be >= 0")
-    copy(limit = Some(n))
+    copy(limit = Some(n)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
   }
 
-  def offset(n: Int): SqlQuery[A] = {
+  def offset(n: Int): SqlQuery[A, S] { type Scope = self.Scope } = {
     require(n >= 0, "offset must be >= 0")
-    copy(offset = Some(n))
+    copy(offset = Some(n)).asInstanceOf[SqlQuery[A, S] { type Scope = self.Scope }]
   }
 
-  def toFrag(dialect: SqlDialect): Frag = QueryRenderer.render(this, dialect)
+  def toFrag(dialect: SqlDialect): Frag = QueryRenderer.render(this.asInstanceOf[SqlQuery[?, ?]], dialect)
 
   def sql(dialect: SqlDialect): String = toFrag(dialect).sql(dialect)
 
@@ -192,7 +215,7 @@ final case class SqlQuery[A] private[query] (
     val allTables: Vector[(Table[_], String)] =
       Vector((source, "t0")) ++ joins.map(j => (j.table, j.alias))
     val typedFilterFrags: Vector[SqlStatement.Filter] = typedFilters.map { expr =>
-      val pred         = QueryRenderer.renderExpr(expr, allTables)
+      val pred         = QueryRenderer.renderExpr(expr.asInstanceOf[Expr[?, ?]], allTables)
       val (colOpt, op) = filterMetadata(expr, allTables)
       SqlStatement.Filter(pred, colOpt, op)
     }.toVector
@@ -245,10 +268,10 @@ final case class SqlQuery[A] private[query] (
   }
 
   private def filterMetadata(
-    expr: Expr[Boolean],
+    expr: Expr[Boolean, ?],
     allTables: Vector[(Table[_], String)]
   ): (Option[SqlStatement.ColumnRef], String) = expr match {
-    case r: Relational[_] =>
+    case r: Relational[_, _] =>
       val opStr = r.operator match {
         case zio.blocks.schema.DynamicSchemaExpr.RelationalOperator.Equal              => "="
         case zio.blocks.schema.DynamicSchemaExpr.RelationalOperator.NotEqual           => "<>"
@@ -258,52 +281,45 @@ final case class SqlQuery[A] private[query] (
         case zio.blocks.schema.DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual => ">="
       }
       (extractSingleColumn(r.left, allTables), opStr)
-    case i: InExpr[_] =>
+    case i: InExpr[_, _] =>
       (extractSingleColumn(i.col, allTables), "IN")
-    case l: LikeExpr =>
+    case l: LikeExpr[_] =>
       (extractSingleColumn(l.left, allTables), "LIKE")
-    case l: Logical =>
+    case l: Logical[_] =>
       val opStr = l.operator match {
         case zio.blocks.schema.DynamicSchemaExpr.LogicalOperator.And => "AND"
         case zio.blocks.schema.DynamicSchemaExpr.LogicalOperator.Or  => "OR"
       }
       (None, opStr)
-    case _: NotExpr =>
+    case _: NotExpr[_] =>
       (None, "NOT")
     case _ =>
       (None, "PREDICATE")
   }
 
   private def extractSingleColumn(
-    expr: Expr[_],
+    expr: Expr[?, ?],
     allTables: Vector[(Table[_], String)]
   ): Option[SqlStatement.ColumnRef] =
     expr match {
-      case c: Column[_, _] =>
+      case c: Column[_, _, _] =>
         val alias = QueryRenderer.resolveAliasForColumn(c.table, c.alias, allTables)
         Some(SqlStatement.ColumnRef(alias, c.column))
-      case o: OptExpr[_] => extractSingleColumn(o.inner, allTables)
-      case _             => None
+      case o: OptExpr[_, _] => extractSingleColumn(o.inner, allTables)
+      case _                => None
     }
 
   private def extractColumnRefsStrict(
     allTables: Vector[(Table[_], String)]
-  )(expr: Expr[_]): Vector[SqlStatement.ColumnRef] = {
-    def loop(e: Expr[_], acc: Vector[SqlStatement.ColumnRef]): Vector[SqlStatement.ColumnRef] = e match {
-      case c: Column[_, _] =>
+  )(expr: Expr[?, ?]): Vector[SqlStatement.ColumnRef] = {
+    def loop(e: Expr[?, ?], acc: Vector[SqlStatement.ColumnRef]): Vector[SqlStatement.ColumnRef] = e match {
+      case c: Column[_, _, _] =>
         val alias = QueryRenderer.resolveAliasForColumn(c.table, c.alias, allTables)
         acc :+ SqlStatement.ColumnRef(alias, c.column)
-      case o: OptExpr[_] => loop(o.inner, acc)
-      case _             => acc
+      case o: OptExpr[_, _] => loop(o.inner, acc)
+      case _                => acc
     }
     loop(expr, Vector.empty)
-  }
-
-  @deprecated("Use extractColumnRefsStrict", "task-7")
-  @scala.annotation.nowarn("msg=unused")
-  private def extractColumnRefs(expr: Expr[_]): Vector[SqlStatement.ColumnRef] = {
-    val allTables: Vector[(Table[_], String)] = Vector((source, "t0")) ++ joins.map(j => (j.table, j.alias))
-    extractColumnRefsStrict(allTables)(expr)
   }
 
   private def typeLabel(v: DbValue): String = v match {
@@ -328,7 +344,45 @@ final case class SqlQuery[A] private[query] (
     case _: DbValue.DbArray         => "Array"
   }
 
-  transparent inline def select[T](inline exprs: Expr[?]*)(using codec: DbCodec[T]): TypedQuery[T] =
+  // ---- Query-bound column builders (scope-carrying) ----
+
+  /**
+   * Query-bound column builder. Returns a builder whose `apply` produces
+   * `Expr[B, Scope]` for source/inner slots and `Expr[Option[B], Scope]` for
+   * LEFT JOIN slots; tables not present in the query (or present more than
+   * once, e.g. self-joins) are rejected at compile time.
+   */
+  def col[T]: QueryColumnBuilder[A, S, T, Scope] = new QueryColumnBuilder[A, S, T, Scope]
+
+  /**
+   * Query-bound column builder with an explicit alias slot (`t0` is the source,
+   * `tN` the N-th join). Nullability is derived positionally from the slot; a
+   * slot whose table does not match the selector is rejected at compile time.
+   */
+  def colAt[T]: QueryColumnAtBuilder[A, S, T, Scope] = new QueryColumnAtBuilder[A, S, T, Scope]
+
+  // ---- Query-bound aggregate constructors (scope-carrying, concrete result types) ----
+
+  def sum[A, Sc2 <: Scope](col: Expr[A, Sc2])(using Summable[A]): Expr[Option[SumOut[A]], Scope] =
+    Agg[Option[SumOut[A]], Scope](AggFunc.Sum, col).asInstanceOf[Expr[Option[SumOut[A]], Scope]]
+
+  def avg[A, Sc2 <: Scope](col: Expr[A, Sc2])(using Averagable[A]): Expr[Option[AvgOut[A]], Scope] =
+    Agg[Option[AvgOut[A]], Scope](AggFunc.Avg, col).asInstanceOf[Expr[Option[AvgOut[A]], Scope]]
+
+  @scala.annotation.nowarn
+  def min[A: Ordering, Sc2 <: Scope](col: Expr[A, Sc2]): Expr[Option[A], Scope] =
+    Agg[Option[A], Scope](AggFunc.Min, col).asInstanceOf[Expr[Option[A], Scope]]
+
+  @scala.annotation.nowarn
+  def max[A: Ordering, Sc2 <: Scope](col: Expr[A, Sc2]): Expr[Option[A], Scope] =
+    Agg[Option[A], Scope](AggFunc.Max, col).asInstanceOf[Expr[Option[A], Scope]]
+
+  def count[A, Sc2 <: Scope](col: Expr[A, Sc2]): Expr[Long, Scope] =
+    Agg[Long, Scope](AggFunc.Count, col).asInstanceOf[Expr[Long, Scope]]
+
+  // ---- Projection ----
+
+  transparent inline def select[T](inline exprs: Expr[?, ? <: Scope]*)(using codec: DbCodec[T]) =
     ${ SelectMacros.selectImpl[T]('exprs, 'codec, '{ this }) }
 
   private def aliasOf(table: Table[_]): Option[String] =
@@ -337,8 +391,28 @@ final case class SqlQuery[A] private[query] (
 }
 
 object SqlQuery {
-  def from[A](table: Table[A]): SqlQuery[A] =
+  type JoinTarget[From, To, Src] = From match {
+    case Src => To
+    case _   => From
+  }
+
+  def from[A](table: Table[A]): SqlQuery[A, EmptyTuple] =
     SqlQuery(table, Vector.empty, Vector.empty, Vector.empty, None, Vector.empty, None, None)
+}
+
+/**
+ * Query-bound column builder. `Sc` is the receiver query's path-dependent
+ * scope; the macro receives it as an explicit type argument (never inferred, so
+ * it is never widened) and stamps the produced column with it.
+ */
+final class QueryColumnBuilder[A, S <: Tuple, T, Sc] private[query] {
+  transparent inline def apply[B](inline selector: T => B) =
+    ${ ExprMacros.queryColImpl[A, S, T, Sc, B]('selector) }
+}
+
+final class QueryColumnAtBuilder[A, S <: Tuple, T, Sc] private[query] {
+  transparent inline def apply[B](inline alias: String, inline selector: T => B) =
+    ${ ExprMacros.queryColAtImpl[A, S, T, Sc, B]('alias, 'selector) }
 }
 
 private[query] final case class JoinNode(

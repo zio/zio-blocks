@@ -34,50 +34,97 @@ object QueryPropertySpec extends ZIOSpecDefault {
   val repoTable   = Table.derived[Repo]
   val userRepoRel = Rel.manyToOne(repoTable, _.ownerId, userTable, _.id)
 
-  private def buildQuery(seed: Int): SqlQuery[?] = {
-    val base: SqlQuery[?] =
-      (seed % 3) match {
-        case 1 => SqlQuery.from(userTable).innerJoin(userRepoRel)
-        case 2 => SqlQuery.from(userTable).leftJoin(userRepoRel)
-        case _ => SqlQuery.from(userTable)
-      }
-    var q: SqlQuery[?] = base
-    (seed % 8) match {
-      case 0 => ()
-      case 1 => q = q.where(col[User](_.age) > lit(seed % 100))
-      case 2 => q = q.where(col[User](_.name).like("a%"))
+  private def buildPlain(seed: Int): SqlQuery[?, ?] = {
+    val base = SqlQuery.from(userTable)
+    val q2 = (seed % 8) match {
+      case 0 => base
+      case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
+      case 2 => base.where(base.col[User](_.name).like("a%"))
       case 3 =>
         val vals = Seq(seed % 5, (seed * 7) % 11, (seed * 13) % 17).distinct.take(2)
-        q = q.where(col[User](_.id).in(vals))
+        base.where(base.col[User](_.id).in(vals))
       case 4 =>
-        q = q.where((col[User](_.age) > lit(10)) && (col[User](_.name) === lit("x")))
+        base.where((base.col[User](_.age) > lit(10)) && (base.col[User](_.name) === lit("x")))
       case 5 =>
-        q = q.where((col[User](_.age) < lit(50)) || (col[User](_.id) === lit(seed % 1000)))
+        base.where((base.col[User](_.age) < lit(50)) || (base.col[User](_.id) === lit(seed % 1000)))
       case 6 =>
-        q = q.where(!(col[User](_.age) > lit(20)))
+        base.where(!(base.col[User](_.age) > lit(20)))
       case 7 =>
-        q = q.where(col[User](_.id).in(Seq.empty[Int]))
+        base.where(base.col[User](_.id).in(Seq.empty[Int]))
     }
+    // additional AND/OR chaining for coverage (lineage keeps q2.Scope = base.Scope)
+    val q3 = if (seed % 11 == 0) q2.where(base.col[User](_.id) > lit(0)) else q2
     // groupBy / having (valid combos)
-    if (seed % 5 == 0) {
-      val groupCol: Expr[?] =
-        if (seed % 2 == 0) col[User](_.name) else col[User](_.age)
-      q = q.groupBy(groupCol)
+    val q4 = if (seed % 5 == 0) {
+      val grouped = if (seed % 2 == 0) q3.groupBy(base.col[User](_.name)) else q3.groupBy(base.col[User](_.age))
       (seed % 4) match {
-        case 0 => q = q.having(count(col[User](_.id)) > lit((seed % 3).toLong))
-        case 1 => q = q.having(sum(col[User](_.salary)) > lit(100.0))
-        case 2 => q = q.having(avg(col[User](_.salary)) > lit(50.0))
-        case 3 => q = q.having(countStar > lit(1L))
+        case 0 => grouped.having(grouped.count(grouped.col[User](_.id)) > lit((seed % 3).toLong))
+        case 1 => grouped.having(grouped.sum(grouped.col[User](_.salary)) > lit(100.0))
+        case 2 => grouped.having(grouped.avg(grouped.col[User](_.salary)) > lit(50.0))
+        case 3 => grouped.having(countStar > lit(1L))
       }
-    }
-    if (seed % 4 == 0) q = q.limit(seed % 10 + 1)
-    if (seed % 6 == 0) q = q.offset(seed % 5)
-    // additional AND/OR chaining for coverage
-    if (seed % 11 == 0) {
-      q = q.where(col[User](_.id) > lit(0))
-    }
-    q
+    } else q3
+    val q5 = if (seed % 4 == 0) q4.limit(seed % 10 + 1) else q4
+    val q6 = if (seed % 6 == 0) q5.offset(seed % 5) else q5
+    q6
   }
+
+  private def buildJoinedInner(seed: Int): SqlQuery[?, ?] = {
+    val base = SqlQuery.from(userTable).innerJoin(userRepoRel)
+    val q2 = (seed % 8) match {
+      case 0 => base
+      case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
+      case 2 => base.where(base.col[User](_.name).like("a%"))
+      case 3 =>
+        val vals = Seq(seed % 5, (seed * 7) % 11, (seed * 13) % 17).distinct.take(2)
+        base.where(base.col[User](_.id).in(vals))
+      case 4 =>
+        base.where((base.col[User](_.age) > lit(10)) && (base.col[User](_.name) === lit("x")))
+      case 5 =>
+        base.where((base.col[User](_.age) < lit(50)) || (base.col[User](_.id) === lit(seed % 1000)))
+      case 6 =>
+        base.where(!(base.col[User](_.age) > lit(20)))
+      case 7 =>
+        base.where(base.col[User](_.id).in(Seq.empty[Int]))
+    }
+    // joined repo predicate
+    val q3 = if (seed % 7 == 0) q2.where(base.col[Repo](_.name) === lit("prop")) else q2
+    val q4 = if (seed % 4 == 0) q3.limit(seed % 10 + 1) else q3
+    val q5 = if (seed % 6 == 0) q4.offset(seed % 5) else q4
+    q5
+  }
+
+  private def buildJoinedLeft(seed: Int): SqlQuery[?, ?] = {
+    val base = SqlQuery.from(userTable).leftJoin(userRepoRel)
+    val q2 = (seed % 8) match {
+      case 0 => base
+      case 1 => base.where(base.col[User](_.age) > lit(seed % 100))
+      case 2 => base.where(base.col[User](_.name).like("a%"))
+      case 3 =>
+        val vals = Seq(seed % 5, (seed * 7) % 11, (seed * 13) % 17).distinct.take(2)
+        base.where(base.col[User](_.id).in(vals))
+      case 4 =>
+        base.where((base.col[User](_.age) > lit(10)) && (base.col[User](_.name) === lit("x")))
+      case 5 =>
+        base.where((base.col[User](_.age) < lit(50)) || (base.col[User](_.id) === lit(seed % 1000)))
+      case 6 =>
+        base.where(!(base.col[User](_.age) > lit(20)))
+      case 7 =>
+        base.where(base.col[User](_.id).in(Seq.empty[Int]))
+    }
+    // joined repo predicate
+    val q3 = if (seed % 7 == 0) q2.where(base.col[Repo](_.name) === lit("prop")) else q2
+    val q4 = if (seed % 4 == 0) q3.limit(seed % 10 + 1) else q3
+    val q5 = if (seed % 6 == 0) q4.offset(seed % 5) else q4
+    q5
+  }
+
+  private def buildQuery(seed: Int): SqlQuery[?, ?] =
+    (seed % 3) match {
+      case 1 => buildJoinedInner(seed)
+      case 2 => buildJoinedLeft(seed)
+      case _ => buildPlain(seed)
+    }
 
   def spec = suite("QueryPropertySpec")(
     test("deterministic 500 query shapes placeholder count equals params for both dialects") {
@@ -103,9 +150,10 @@ object QueryPropertySpec extends ZIOSpecDefault {
       assertTrue(failures.isEmpty, total == 500)
     },
     test("property oracle detects mismatch when perturbed count is compared") {
-      val q         = SqlQuery.from(userTable).where(col[User](_.id) === lit(1)).where(col[User](_.name) === lit("a"))
-      val frag      = q.toFrag(SqlDialect.PostgreSQL)
-      val sql       = frag.sql(SqlDialect.PostgreSQL)
+      val q    = SqlQuery.from(userTable)
+      val q2   = q.where(q.col[User](_.id) === lit(1)).where(q.col[User](_.name) === lit("a"))
+      val frag = q2.toFrag(SqlDialect.PostgreSQL)
+      val sql  = frag.sql(SqlDialect.PostgreSQL)
       val correct   = sql.count(_ == '?')
       val perturbed = correct + 1
       assertTrue(
@@ -116,8 +164,9 @@ object QueryPropertySpec extends ZIOSpecDefault {
       )
     },
     test("negative control: empty IN yields 1=0 with zero params and zero placeholders") {
-      val q    = SqlQuery.from(userTable).where(col[User](_.id).in(Seq.empty[Int]))
-      val frag = q.toFrag(SqlDialect.PostgreSQL)
+      val q    = SqlQuery.from(userTable)
+      val q2   = q.where(q.col[User](_.id).in(Seq.empty[Int]))
+      val frag = q2.toFrag(SqlDialect.PostgreSQL)
       val sql  = frag.sql(SqlDialect.PostgreSQL)
       assertTrue(
         sql == "SELECT t0.\"id\", t0.\"name\", t0.\"age\", t0.\"salary\" FROM \"users\" AS t0 WHERE 1=0",

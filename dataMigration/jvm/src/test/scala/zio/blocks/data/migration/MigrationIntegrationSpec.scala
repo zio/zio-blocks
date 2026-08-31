@@ -55,7 +55,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
   private class SingleConnectionTransactor(conn: java.sql.Connection)
       extends JdbcTransactor(() => conn, SqlDialect.SQLite) {
     override def connect[A](f: DbCon ?=> A): A = {
-      val dbConn       = new JdbcConnection(conn)
+      val dbConn       = new JdbcConnection(conn, SqlDialect.SQLite)
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
         val dialect: SqlDialect      = SqlDialect.SQLite
@@ -64,7 +64,7 @@ object MigrationIntegrationSpec extends ZIOSpecDefault {
       f
     }
     override def transact[A](f: DbTx ?=> A): A = {
-      val dbConn         = new JdbcConnection(conn)
+      val dbConn         = new JdbcConnection(conn, SqlDialect.SQLite)
       val prevAutoCommit = conn.getAutoCommit
       conn.setAutoCommit(false)
       try {

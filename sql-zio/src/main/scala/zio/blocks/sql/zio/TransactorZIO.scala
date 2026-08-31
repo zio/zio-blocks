@@ -88,7 +88,7 @@ class TransactorZIO(
       ZIO
         .acquireRelease(ZIO.attemptBlocking {
           val conn   = connectionFactory()
-          val dbConn = new JdbcConnection(conn)
+          val dbConn = new JdbcConnection(conn, TransactorZIO.this.dialect)
           (conn, dbConn)
         }) { case (_, dbConn) =>
           ZIO.attemptBlocking(dbConn.close()).ignore
@@ -114,7 +114,7 @@ class TransactorZIO(
       ZIO
         .acquireRelease(ZIO.attemptBlocking {
           val conn           = connectionFactory()
-          val dbConn         = new JdbcConnection(conn)
+          val dbConn         = new JdbcConnection(conn, TransactorZIO.this.dialect)
           val prevAutoCommit = conn.getAutoCommit
           conn.setAutoCommit(false)
           (conn, dbConn, prevAutoCommit)

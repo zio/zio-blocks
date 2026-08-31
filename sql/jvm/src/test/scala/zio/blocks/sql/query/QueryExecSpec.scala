@@ -100,7 +100,8 @@ object QueryExecSpec extends ZIOSpecDefault {
             val userTable = Table.derived[User]
             val repoTable = Table.derived[Repo]
             val rel = Rel.manyToOne(repoTable, _.ownerId, userTable, _.id)
-            val q = SqlQuery.from(userTable).innerJoin(rel).select[(Int,String)](col[User](_.name), col[User](_.id))
+            val qBase = SqlQuery.from(userTable).innerJoin(rel)
+            val q     = qBase.select[(Int,String)](qBase.col[User](_.name), qBase.col[User](_.id))
           }"""
         )
         assertTrue(errors.nonEmpty)
@@ -122,7 +123,8 @@ object QueryExecSpec extends ZIOSpecDefault {
               val userTable = Table.derived[User]
               val repoTable = Table.derived[Repo]
               val rel = Rel.manyToOne(repoTable, _.ownerId, userTable, _.id)
-              val q = SqlQuery.from(userTable).innerJoin(rel).select[(Int,String)](col[User](_.id), col[Repo](_.name))
+              val qBase = SqlQuery.from(userTable).innerJoin(rel)
+              val q     = qBase.select[(Int,String)](qBase.col[User](_.id), qBase.col[Repo](_.name))
             }"""
           )
         )
@@ -139,10 +141,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
           sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("repo-a")})".update
           sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(11)}, ${DbValue.DbInt(2)}, ${DbValue.DbString("repo-b")})".update
-          val q = SqlQuery
-            .from(userTable)
-            .innerJoin(userRepoRel)
-            .select[(Int, String)](col[User](_.id), col[Repo](_.name))
+          val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+          val q     = qBase.select[(Int, String)](qBase.col[User](_.id), qBase.col[Repo](_.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run
           assertTrue(
@@ -159,10 +159,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           repoTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
           sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("ra")})".update
-          val q = SqlQuery
-            .from(userTable)
-            .innerJoin(userRepoRel)
-            .select[(Int, String, Int)](col[User](_.id), col[Repo](_.name), col[Repo](_.id))
+          val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+          val q     = qBase.select[(Int, String, Int)](qBase.col[User](_.id), qBase.col[Repo](_.name), qBase.col[Repo](_.id))
           val rows = q.run
           assertTrue(rows == List((1, "ra", 10)))
         }
@@ -172,20 +170,19 @@ object QueryExecSpec extends ZIOSpecDefault {
           Frag.literal("DROP TABLE IF EXISTS w8s").update
           w8Table.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO w8s (v1, v2, v3, v4, v5, v6, v7, v8) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbInt(2)}, ${DbValue.DbInt(3)}, ${DbValue.DbInt(4)}, ${DbValue.DbInt(5)}, ${DbValue.DbInt(6)}, ${DbValue.DbInt(7)}, ${DbValue.DbInt(8)})".update
-          val q = SqlQuery
-            .from(w8Table)
-            .select[(Int, Int, Int, Int, Int, Int, Int, Int)](
-              col[W8](_.v1),
-              col[W8](_.v2),
-              col[W8](_.v3),
-              col[W8](_.v4),
-              col[W8](_.v5),
-              col[W8](_.v6),
-              col[W8](_.v7),
-              col[W8](_.v8)
-            )
-          val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
-          val rows   = q.run
+          val q = SqlQuery.from(w8Table)
+          val qq = q.select[(Int, Int, Int, Int, Int, Int, Int, Int)](
+            q.col[W8](_.v1),
+            q.col[W8](_.v2),
+            q.col[W8](_.v3),
+            q.col[W8](_.v4),
+            q.col[W8](_.v5),
+            q.col[W8](_.v6),
+            q.col[W8](_.v7),
+            q.col[W8](_.v8)
+          )
+          val sqlStr = qq.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
+          val rows   = qq.run
           assertTrue(
             sqlStr == "SELECT t0.\"v1\" AS \"_1\", t0.\"v2\" AS \"_2\", t0.\"v3\" AS \"_3\", t0.\"v4\" AS \"_4\", t0.\"v5\" AS \"_5\", t0.\"v6\" AS \"_6\", t0.\"v7\" AS \"_7\", t0.\"v8\" AS \"_8\" FROM \"w8s\" AS t0",
             rows == List((1, 2, 3, 4, 5, 6, 7, 8))
@@ -193,8 +190,8 @@ object QueryExecSpec extends ZIOSpecDefault {
         }
       },
       test("projection emits only selected columns, not all joined columns") {
-        val q =
-          SqlQuery.from(userTable).innerJoin(userRepoRel).select[(Int, String)](col[User](_.id), col[Repo](_.name))
+        val qProjBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+        val q         = qProjBase.select[(Int, String)](qProjBase.col[User](_.id), qProjBase.col[Repo](_.name))
         val sql      = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val expected =
           "SELECT t0.\"id\" AS \"_1\", t1.\"name\" AS \"_2\" FROM \"users\" AS t0 INNER JOIN \"repos\" AS t1 ON t1.\"owner_id\" = t0.\"id\""
@@ -211,10 +208,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("bob")})".update
           sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("repo-a")})".update
-          val q = SqlQuery
-            .from(userTable)
-            .leftJoin(userRepoRel)
-            .select[(Int, Option[String])](col[User](_.id), col[Repo](_.name).asOption)
+          val leftQ  = SqlQuery.from(userTable).leftJoin(userRepoRel)
+          val q      = leftQ.select[(Int, Option[String])](leftQ.col[User](_.id), leftQ.col[Repo](_.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run.sortBy(_._1)
           assertTrue(
@@ -232,10 +227,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           repoTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})".update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})".update
-          val q = SqlQuery
-            .from(userTable)
-            .leftJoin(userRepoRel)
-            .select[(String, Option[String])](col[User](_.name), col[Repo](_.name).asOption)
+          val leftQ  = SqlQuery.from(userTable).leftJoin(userRepoRel)
+          val q      = leftQ.select[(String, Option[String])](leftQ.col[User](_.name), leftQ.col[Repo](_.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run.sortBy(_._1)
           assertTrue(
@@ -254,10 +247,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           repoTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
           sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
-          val q = SqlQuery
-            .from(userTable)
-            .innerJoin(userRepoRel)
-            .select[UserRepoRow](col[User](_.name), col[Repo](_.name))
+          val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+          val q     = qBase.select[UserRepoRow](qBase.col[User](_.name), qBase.col[Repo](_.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run
           assertTrue(
@@ -271,9 +262,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           Frag.literal("DROP TABLE IF EXISTS outers").update
           outerTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO outers (inner_street, inner_city, label) VALUES (${DbValue.DbString("Main St")}, ${DbValue.DbString("NYC")}, ${DbValue.DbString("office")})".update
-          val q = SqlQuery
-            .from(outerTable)
-            .select[Outer](col[Outer](_.inner.street), col[Outer](_.inner.city), col[Outer](_.label))
+          val qBase = SqlQuery.from(outerTable)
+          val q     = qBase.select[Outer](qBase.col[Outer](_.inner.street), qBase.col[Outer](_.inner.city), qBase.col[Outer](_.label))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run
           assertTrue(
@@ -289,7 +279,9 @@ object QueryExecSpec extends ZIOSpecDefault {
           Frag.literal("DROP TABLE IF EXISTS users").update
           userTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(5)}, ${DbValue.DbString("carol")})".update
-          val q      = SqlQuery.from(userTable).where(col[User](_.id) === lit(5)).select[String](col[User](_.name))
+          val qBase  = SqlQuery.from(userTable)
+          val qBaseW = qBase.where(qBase.col[User](_.id) === lit(5))
+          val q      = qBaseW.select[String](qBaseW.col[User](_.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val result = q.queryOne
           assertTrue(
@@ -302,7 +294,9 @@ object QueryExecSpec extends ZIOSpecDefault {
         transactor.connect {
           Frag.literal("DROP TABLE IF EXISTS users").update
           userTable.createTable(SqlDialect.SQLite).update
-          val q      = SqlQuery.from(userTable).where(col[User](_.id) === lit(999)).select[String](col[User](_.name))
+          val qBase  = SqlQuery.from(userTable)
+          val qBaseW = qBase.where(qBase.col[User](_.id) === lit(999))
+          val q      = qBaseW.select[String](qBaseW.col[User](_.name))
           val result = q.queryOne
           assertTrue(result.isEmpty)
         }
@@ -314,7 +308,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})".update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("b")})".update
           sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(3)}, ${DbValue.DbString("c")})".update
-          val q       = SqlQuery.from(userTable).select[Int](col[User](_.id))
+          val qBase   = SqlQuery.from(userTable)
+          val q       = qBase.select[Int](qBase.col[User](_.id))
           val limited = q.queryLimit(2)
           assertTrue(limited.length == 2)
         }
@@ -326,7 +321,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           (1 to 5).foreach(i =>
             sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(i)}, ${DbValue.DbString(s"u$i")})".update
           )
-          val q          = SqlQuery.from(userTable).select[Int](col[User](_.id))
+          val qBase      = SqlQuery.from(userTable)
+          val q          = qBase.select[Int](qBase.col[User](_.id))
           val viaRun     = q.run.sorted
           val viaStream  = q.queryStream.runCollect.map(_.flatMap(_.toList).sorted)
           val viaChunked = q.queryChunked(2).runCollect.map(_.flatMap(_.toList).sorted)
@@ -342,7 +338,7 @@ object QueryExecSpec extends ZIOSpecDefault {
           val c = java.sql.DriverManager.getConnection("jdbc:sqlite::memory:")
           val t = new JdbcTransactor(() => c, SqlDialect.SQLite) {
             override def connect[A](f: DbCon ?=> A): A = {
-              val dbConn       = new JdbcConnection(c)
+              val dbConn       = new JdbcConnection(c, SqlDialect.SQLite)
               given con: DbCon = new DbCon {
                 val connection: DbConnection = dbConn
                 val dialect: SqlDialect      = SqlDialect.SQLite
@@ -351,7 +347,7 @@ object QueryExecSpec extends ZIOSpecDefault {
               f
             }
             override def transact[A](f: DbTx ?=> A): A = {
-              val dbConn = new JdbcConnection(c)
+              val dbConn = new JdbcConnection(c, SqlDialect.SQLite)
               c.setAutoCommit(false)
               try {
                 given tx: DbTx = new DbTx {
@@ -373,7 +369,10 @@ object QueryExecSpec extends ZIOSpecDefault {
             sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("a")})".update
           }
           val rows = tx.transact {
-            SqlQuery.from(userTable).select[Int](col[User](_.id)).run
+            {
+              val qRunBase = SqlQuery.from(userTable)
+              qRunBase.select[Int](qRunBase.col[User](_.id)).run
+            }
           }
           assertTrue(rows == List(1))
         } finally conn.close()
@@ -402,10 +401,8 @@ object QueryExecSpec extends ZIOSpecDefault {
           employeeTable.createTable(SqlDialect.SQLite).update
           sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("boss")}, ${DbValue.DbNull})".update
           sql"INSERT INTO employee (id, name, manager_id) VALUES (${DbValue.DbInt(2)}, ${DbValue.DbString("alice")}, ${DbValue.DbInt(1)})".update
-          val q = SqlQuery
-            .from(employeeTable)
-            .innerJoin(employeeSelfRel)
-            .select[(String, String)](colAt[Employee]("t0", _.name), colAt[Employee]("t1", _.name))
+          val qBase = SqlQuery.from(employeeTable).innerJoin(employeeSelfRel)
+          val q     = qBase.select[(String, String)](qBase.colAt[Employee]("t0", _.name), qBase.colAt[Employee]("t1", _.name))
           val sqlStr = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
           val rows   = q.run.sortBy(_._1)
           assertTrue(
@@ -415,7 +412,9 @@ object QueryExecSpec extends ZIOSpecDefault {
         }
       },
       test("repeated executions produce identical SQL and fresh params") {
-        val q        = SqlQuery.from(userTable).where(col[User](_.id) > lit(1)).select[Int](col[User](_.id))
+        val qBase   = SqlQuery.from(userTable)
+        val qWhere  = qBase.where(qBase.col[User](_.id) > lit(1))
+        val q       = qWhere.select[Int](qWhere.col[User](_.id))
         val s1       = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val s2       = q.toFrag(SqlDialect.SQLite).sql(SqlDialect.SQLite)
         val expected = "SELECT t0.\"id\" AS \"value\" FROM \"users\" AS t0 WHERE t0.\"id\" > ?"

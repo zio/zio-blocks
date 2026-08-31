@@ -1,35 +1,21 @@
 ---
 id: sql-query-dsl
-title: "Typed Relational Query Guide"
+title: SQL Query DSL
 ---
 
-The `zio.blocks.sql.query` package gives you a typed SQL query builder that goes beyond string-based fragments. You define tables from your domain types, declare foreign key relations, and compose queries where field references, types, and projection shapes are validated at compile time. The renderer produces parameterized `Frag` values ready for execution against any supported dialect.
+# Typed Relational Query Layer
 
-This guide walks through every piece of the API, from table definition to streaming execution.
+The typed query layer builds SQL `SELECT` statements from Scala case classes, relations, and typed expression trees, with compile-time validation of columns, projections, join nullability, and query-bound scoping.
 
-## Prerequisites
+## Tables
 
-```scala
-libraryDependencies += "dev.zio" %% "zio-blocks-sql" % "@VERSION@"
-```
-
-You also need a JDBC driver for your target database. SQLite needs only the `sqlite-jdbc` driver — no external server:
-
-```scala
-libraryDependencies += "org.xerial" % "sqlite-jdbc" % "3.53.2.0"
-```
+`Table.derived[A]` reads column names from the `Schema` metadata at the call site. It validates column names against `SqlIdentifier` rules, so typos in table or column names fail immediately.
 
 ```scala mdoc:silent
 import zio.blocks.sql.query.*
 import zio.blocks.sql.{DbValue, Frag, JdbcTransactor, SqlDialect, Table, sql}
 import zio.blocks.schema.{Modifier, Schema}
-```
 
-## Domain Setup
-
-Every query starts with case classes that describe your tables. The `@Modifier.config("sql.table_name", ...)` annotation controls the SQL table name, overriding the default lowercased class name. Columns are derived from `Schema`, and field names map to snake_case column names automatically.
-
-```scala mdoc:silent
 @Modifier.config("sql.table_name", "users")
 case class User(id: Int, name: String)
 object User { given Schema[User] = Schema.derived }
@@ -47,29 +33,31 @@ val repoTable = Table.derived[Repo]
 val starTable = Table.derived[Star]
 ```
 
-`Table.derived` reads column names from the `Schema` metadata at the call site. It validates column names against `SqlIdentifier` rules, so typos in table or column names fail immediately.
-
 ## Column References
 
-`col[TableType](_.field)` builds a typed column expression. The macro validates the field name against the schema at compile time, so a misspelling like `_.nam` instead of `_.name` produces a compile error naming the invalid field and listing valid alternatives.
+Column expressions are **query-bound**: they are built from a query value with `q.col[TableType](_.field)`, and they carry that query's scope. A column built from one query value cannot be mixed into another query's `select`/`where`/`groupBy`/`having` — that is rejected at compile time.
 
 ```scala mdoc:silent
-val userId: Expr[Int]      = col[User](_.id)
-val userName: Expr[String]  = col[User](_.name)
-val repoOwnerId: Expr[Int] = col[Repo](_.ownerId)
+val q = SqlQuery.from(userTable)
+val userId: Expr[Int, q.type]      = q.col[User](_.id)
+val userName: Expr[String, q.type] = q.col[User](_.name)
 ```
 
-The `Expr[A]` type carries the Scala type of the column, which constrains what comparisons and projections are valid. You can't accidentally compare an `Expr[Int]` to a `lit("hello")`.
+The `Expr[A, Scope]` type carries the Scala type of the column (which constrains what comparisons and projections are valid) and the query scope (which prevents cross-query mixing). You can't accidentally compare an `Expr[Int, _]` to a `lit("hello")`, and you can't use `q1.col[User](_.id)` inside `q2.select(...)`.
+
+The field selector is macro-validated: a misspelling like `_.nam` instead of `_.name` produces a compile error naming the invalid field and listing valid alternatives.
 
 ## Literals
 
-`lit(value)` wraps a Scala value into a parameterized expression. The value becomes a `?` placeholder in the rendered SQL, with the actual value carried in `Frag.params`. `Schema[A]` is required to convert the value to a database-representable form.
+`lit(value)` wraps a Scala value into a scope-neutral expression. The value becomes a `?` placeholder in the rendered SQL, with the actual value carried in `Frag.params`. `Schema[A]` is required to convert the value to a database-representable form.
 
 ```scala mdoc:silent
 val intLit    = lit(42)
 val stringLit = lit("alice")
 val longLit   = lit(100L)
 ```
+
+Literals have scope `Nothing`, so they can be combined with any query's columns (comparisons, arithmetic, `IN`).
 
 ## Relations
 
@@ -90,11 +78,7 @@ val relFromString = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
 
 ## Building Queries
 
-`SqlQuery.from(table)` starts a query from a single table. You chain operations to add joins, filters, groupings, and projections.
-
-### Joins
-
-`innerJoin(rel)` and `leftJoin(rel)` add a JOIN clause using a previously declared `Rel`. Aliases are allocated deterministically: `t0` for the source table, `t1`, `t2`, etc. for each successive join.
+`SqlQuery.from(table)` starts a query from a single table. You chain operations to add joins, filters, groupings, and projections. Name the base query value first — every column expression in the chain is built from that same value, and the whole lineage of the query shares one scope:
 
 ```scala mdoc:silent
 val q2 = SqlQuery
@@ -106,6 +90,10 @@ val q3 = SqlQuery
   .innerJoin(userRepoRel)
   .innerJoin(repoStarRel)
 ```
+
+### Joins
+
+`innerJoin(rel)` and `leftJoin(rel)` add a JOIN clause using a previously declared `Rel`. Aliases are allocated deterministically: `t0` for the source table, `t1`, `t2`, etc. for each successive join.
 
 `join(rel)` is an alias for `innerJoin`, and `joinLeft(rel)` is an alias for `leftJoin`.
 
@@ -122,12 +110,11 @@ SELECT ... FROM "users" AS t0
 `where(expr)` or `filter(expr)` adds a `WHERE` clause. Multiple calls chain with AND.
 
 ```scala mdoc:silent
-val qFiltered = SqlQuery
-  .from(userTable)
-  .where(col[User](_.id) === lit(1))
+val qBaseF = SqlQuery.from(userTable)
+val qFiltered = qBaseF.where(qBaseF.col[User](_.id) === lit(1))
 ```
 
-Available comparison operators on `Expr[A]`:
+Available comparison operators on `Expr[A, Scope]`:
 
 | Operator | Name | Notes |
 |----------|------|-------|
@@ -141,21 +128,22 @@ Available comparison operators on `Expr[A]`:
 Boolean combinators:
 
 ```scala mdoc:silent
-val combined    = (col[User](_.id) > lit(0)) && (col[User](_.name) === lit("alice"))
-val alternative = (col[User](_.id) === lit(1)) || (col[User](_.id) === lit(2))
-val negated     = !(col[User](_.id) === lit(1))
+val qAnd = SqlQuery.from(userTable)
+val combined    = (qAnd.col[User](_.id) > lit(0)) && (qAnd.col[User](_.name) === lit("alice"))
+val alternative = (qAnd.col[User](_.id) === lit(1)) || (qAnd.col[User](_.id) === lit(2))
+val negated     = !(qAnd.col[User](_.id) === lit(1))
 ```
 
 `in(values)` tests membership in a set:
 
 ```scala mdoc:silent
-val membership = col[User](_.id).in(Seq(1, 2, 3))
+val membership = qAnd.col[User](_.id).in(Seq(1, 2, 3))
 ```
 
 `like(pattern)` matches SQL `LIKE`:
 
 ```scala mdoc:silent
-val nameMatch = col[User](_.name).like("alice%")
+val nameMatch = qAnd.col[User](_.name).like("alice%")
 ```
 
 ### Group By and Having
@@ -163,34 +151,40 @@ val nameMatch = col[User](_.name).like("alice%")
 `groupBy(expr, exprs*)` adds a `GROUP BY` clause. `having(expr)` adds a `HAVING` clause.
 
 ```scala mdoc:silent
-val qGrouped = SqlQuery
-  .from(repoTable)
-  .groupBy(col[Repo](_.ownerId))
-  .having(count(col[Repo](_.id)) > lit(1L))
+val qRepo = SqlQuery.from(repoTable)
+val qGrouped = qRepo.groupBy(qRepo.col[Repo](_.ownerId)).having(qRepo.count(qRepo.col[Repo](_.id)) > lit(1L))
 ```
 
 ### Aggregate Functions
 
+Aggregates are query-bound methods on `SqlQuery` so their results carry the query scope and their result types normalize at compile time:
+
 | Function | Signature | Returns |
 |----------|-----------|---------|
-| `count(expr)` | `Expr[A] => Expr[Long]` | Count of non-null values |
-| `countStar` | `Expr[Long]` | `COUNT(*)` |
-| `sum(expr)` | `Expr[A](using IsNumeric[A]) => Expr[A]` | Sum, same type |
-| `avg(expr)` | `Expr[A](using IsNumeric[A]) => Expr[Double]` | Average as `Double` |
-| `min(expr)` | `Expr[A](using Ordering[A]) => Expr[A]` | Minimum, same type |
-| `max(expr)` | `Expr[A](using Ordering[A]) => Expr[A]` | Maximum, same type |
+| `q.count(expr)` | `Expr[A, q.Scope] => Expr[Long, q.Scope]` | Count of non-null values |
+| `countStar` | `Expr[Long, Nothing]` | `COUNT(*)` |
+| `q.sum(expr)` | `Expr[A, q.Scope] => Expr[Option[SumOut[A]], q.Scope]` | Widened sum |
+| `q.avg(expr)` | `Expr[A, q.Scope] => Expr[Option[AvgOut[A]], q.Scope]` | Widened average |
+| `q.min(expr)` | `Expr[A, q.Scope] => Expr[Option[A], q.Scope]` | Minimum, nullable |
+| `q.max(expr)` | `Expr[A, q.Scope] => Expr[Option[A], q.Scope]` | Maximum, nullable |
 
-`avg` always returns `Expr[Double]` because both SQLite and PostgreSQL promote integer division to floating point. This prevents silent truncation: `AVG(10, 11)` returns `10.5`, not `10`.
+Result types are PostgreSQL/SQLite truthful and reduce to concrete types at compile time:
+
+- `SumOut`: `Byte`/`Short`/`Int` → `Long`; `Long`/`BigInt`/`BigDecimal` → `BigDecimal`; `Float`/`Double` → `Double`.
+- `AvgOut`: integral/`BigInt`/`BigDecimal` → `BigDecimal`; `Float`/`Double` → `Double`.
+
+```scala mdoc:silent
+val qStar = SqlQuery.from(starTable)
+val total: Expr[Option[Long], qStar.type]        = qStar.sum(qStar.col[Star](_.id))
+val average: Expr[Option[BigDecimal], qStar.type] = qStar.avg(qStar.col[Star](_.id))
+```
+
+`sum`/`avg` over unsupported types (e.g. `String`) are rejected at compile time.
 
 ### Ordering and Limits
 
 ```scala mdoc:silent
-val qOrdered = SqlQuery
-  .from(userTable)
-  .where(col[User](_.id) > lit(0))
-  .orderBy("id")
-  .limit(10)
-  .offset(20)
+val qOrdered = qBaseF.where(qBaseF.col[User](_.id) > lit(0)).orderBy("id").limit(10).offset(20)
 ```
 
 `SortOrder.Asc` is the default. Pass `SortOrder.Desc` as a second argument to `orderBy`.
@@ -205,17 +199,15 @@ val qOrdered = SqlQuery
 
 ```scala mdoc:silent
 // Two-column tuple projection
-val qProj = SqlQuery
-  .from(userTable)
-  .innerJoin(userRepoRel)
-  .select[(Int, String)](col[User](_.id), col[Repo](_.name))
+val qJoined = SqlQuery.from(userTable).innerJoin(userRepoRel)
+val qProj = qJoined.select[(Int, String)](qJoined.col[User](_.id), qJoined.col[Repo](_.name))
 ```
 
 Swapping the types fails at compile time:
 
 ```scala
 // This does NOT compile:
-// .select[(String, Int)](col[User](_.id), col[Repo](_.name))
+// .select[(String, Int)](q.col[User](_.id), q.col[Repo](_.name))
 // ^ type mismatch: position 0 expects String, got Int
 ```
 
@@ -228,10 +220,7 @@ object UserRepoRow { given Schema[UserRepoRow] = Schema.derived }
 ```
 
 ```scala mdoc:silent
-val qRecord = SqlQuery
-  .from(userTable)
-  .innerJoin(userRepoRel)
-  .select[UserRepoRow](col[User](_.name), col[Repo](_.name))
+val qRecord = qJoined.select[UserRepoRow](qJoined.col[User](_.name), qJoined.col[Repo](_.name))
 ```
 
 This produces:
@@ -243,20 +232,18 @@ FROM "users" AS t0 INNER JOIN "repos" AS t1 ON t1."owner_id" = t0."id"
 
 ### LEFT JOIN Nullable Projections
 
-When using `leftJoin`, columns from the right side can be `NULL`. Use `.asOption` to decode nullable columns as `Option`:
+When using `leftJoin`, columns from the right side can be `NULL`. Query-bound `q.col` derives nullability from the join slot: a LEFT JOIN slot automatically yields `Expr[Option[B], q.Scope]`, so the nullable column decodes as `Option` without any manual wrapper:
 
 ```scala mdoc:silent
-val qLeft = SqlQuery
-  .from(userTable)
-  .leftJoin(userRepoRel)
-  .select[(Int, Option[String])](col[User](_.id), col[Repo](_.name).asOption)
+val qLeftQ = SqlQuery.from(userTable).leftJoin(userRepoRel)
+val qLeft = qLeftQ.select[(Int, Option[String])](qLeftQ.col[User](_.id), qLeftQ.col[Repo](_.name))
 ```
 
-Without `.asOption`, a `LEFT JOIN` column would decode as a required value and fail at runtime when the row has `NULL`. The `.asOption` marker tells the codec to decode null as `None` and non-null as `Some(value)`.
+Source and inner-join slots stay non-optional; selecting a LEFT-joined column as a non-`Option` type fails at compile time.
 
 ### Self-Join Disambiguation
 
-When a table joins to itself (e.g., employee manager lookup), both sides share the same table type. `col[Employee](_.name)` is ambiguous because it could refer to either alias. Use `colAt` to specify which alias you mean:
+When a table joins to itself (e.g., employee manager lookup), both sides share the same table type. An unaliased `q.col[Employee](_.name)` is rejected at compile time because the table occupies more than one slot. Use `q.colAt(alias, _.field)` to specify which alias you mean:
 
 ```scala mdoc:silent
 case class Employee(id: Int, name: String, managerId: Option[Int])
@@ -265,16 +252,14 @@ object Employee { given Schema[Employee] = Schema.derived }
 val employeeTable = Table.derived[Employee]
 val empSelfRel = Rel.manyToOne(employeeTable, _.managerId, employeeTable, _.id)
 
-val qSelf = SqlQuery
-  .from(employeeTable)
-  .innerJoin(empSelfRel)
-  .select[(String, String)](
-    colAt[Employee]("t0", _.name),
-    colAt[Employee]("t1", _.name)
-  )
+val qSelfQ = SqlQuery.from(employeeTable).innerJoin(empSelfRel)
+val qSelf = qSelfQ.select[(String, String)](
+  qSelfQ.colAt[Employee]("t0", _.name),
+  qSelfQ.colAt[Employee]("t1", _.name)
+)
 ```
 
-Here `"t0"` is the employee and `"t1"` is their manager. The field selector in `colAt` is compile-checked (field name validated against schema). The alias string is a runtime value validated when the query is rendered — `QueryRenderer` checks that each alias exists in the query's join list and belongs to the correct table, throwing `IllegalArgumentException` if not.
+Here `"t0"` is the employee and `"t1"` is their manager. The alias is resolved positionally against the query's slot list at compile time: the slot must exist and its table must match the selector, and nullability is derived from the slot (LEFT JOIN slots yield `Option`).
 
 ## Nested Fields
 
@@ -292,13 +277,12 @@ val outerTable = Table.derived[Outer]
 ```
 
 ```scala mdoc:silent
-val qNested = SqlQuery
-  .from(outerTable)
-  .select[Outer](
-    col[Outer](_.inner.street),
-    col[Outer](_.inner.city),
-    col[Outer](_.label)
-  )
+val qOuter = SqlQuery.from(outerTable)
+val qNested = qOuter.select[Outer](
+  qOuter.col[Outer](_.inner.street),
+  qOuter.col[Outer](_.inner.city),
+  qOuter.col[Outer](_.label)
+)
 ```
 
 The `_.inner.street` selector maps to column `"inner_street"` (snake-joined), and `_.label` maps to `"label"`. The result decodes as `Outer(Inner("Main St", "NYC"), "office")`.
@@ -308,10 +292,7 @@ The `_.inner.street` selector maps to column `"inner_street"` (snake-joined), an
 You can render the SQL text and inspect parameters without a database connection:
 
 ```scala mdoc:silent
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(userRepoRel)
-  .select[(Int, String)](col[User](_.id), col[Repo](_.name))
+val qRender = qJoined.select[(Int, String)](qJoined.col[User](_.id), qJoined.col[Repo](_.name))
 ```
 
 The rendered SQL:
@@ -322,7 +303,7 @@ FROM "users" AS t0
   INNER JOIN "repos" AS t1 ON t1."owner_id" = t0."id"
 ```
 
-`q.sql(SqlDialect.SQLite)` returns the SQL string. `q.toFrag(SqlDialect.SQLite).params` returns any bound parameters.
+`qRender.sql(SqlDialect.SQLite)` returns the SQL string. `qRender.toFrag(SqlDialect.SQLite).params` returns any bound parameters.
 
 ## Execution
 
@@ -343,7 +324,7 @@ val rows: List[(Int, String)] = transactor.connect {
   repoTable.createTable(SqlDialect.SQLite).update
   sql"INSERT INTO users (id, name) VALUES (${DbValue.DbInt(1)}, ${DbValue.DbString("alice")})".update
   sql"INSERT INTO repos (id, owner_id, name) VALUES (${DbValue.DbInt(10)}, ${DbValue.DbInt(1)}, ${DbValue.DbString("r1")})".update
-  q.run
+  qRender.run
 }
 ```
 
@@ -388,11 +369,9 @@ val userRepoRel2 = Rel.manyToOne(rTable, _.ownerId, uTable, _.id)
 Class.forName("org.sqlite.JDBC")
 val tx2 = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-// Build query
-val q2 = SqlQuery
-  .from(uTable)
-  .innerJoin(userRepoRel2)
-  .select[(Int, String)](col[U](_.id), col[R](_.name))
+// Build query — name the base query value, then project with its columns
+val q2Base = SqlQuery.from(uTable).innerJoin(userRepoRel2)
+val q2 = q2Base.select[(Int, String)](q2Base.col[U](_.id), q2Base.col[R](_.name))
 ```
 
 Execute inside a `connect` block and verify the rows:
@@ -433,8 +412,9 @@ case class U2(id: Int, name: String)
 object U2 { given Schema[U2] = Schema.derived }
 val uTable2 = Table.derived[U2]
 
-val doubled = col[U2](_.id) + col[U2](_.id)
-val offset  = col[U2](_.id) - lit(1)
+val qArith = SqlQuery.from(uTable2)
+val doubled = qArith.col[U2](_.id) + qArith.col[U2](_.id)
+val offset  = qArith.col[U2](_.id) - lit(1)
 ```
 
 ## LIKE Pattern Matching
@@ -442,7 +422,7 @@ val offset  = col[U2](_.id) - lit(1)
 `like` translates to SQL `LIKE` with `%` and `_` wildcards:
 
 ```scala mdoc:silent
-val namePrefix = col[U2](_.name).like("a%")
+val namePrefix = qArith.col[U2](_.name).like("a%")
 ```
 
 Note that `like` uses SQL-style patterns (`%` wildcards), not regex patterns.
@@ -452,16 +432,16 @@ Note that `like` uses SQL-style patterns (`%` wildcards), not regex patterns.
 The typed query API validates several things at compile time:
 
 **Checked at compile time:**
-- `col[A](_.field)`: field name exists in schema `A`, column type matches.
-- `colAt[A](alias, _.field)`: field selector is compile-checked (same as `col`); the alias string is a plain `String` value, not compile-validated.
+- `q.col[A](_.field)`: field name exists in schema `A`, column type matches, the table is part of the query (a table not in the query is rejected), and the query-bound scope is carried into every expression.
+- `q.colAt[A](alias, _.field)`: field selector is compile-checked (same as `col`); the alias is resolved positionally against the query's slot list — the slot must exist and its table must match the selector.
+- Cross-query mixing: expressions built from one query value cannot be used in another query's `select`/`where`/`groupBy`/`having`.
 - `select[T](exprs*)`: expression count matches `T` arity, each expression type matches the corresponding position in `T`.
 - `Rel.manyToOne(from, fkSelector, to, pkSelector)`: field selectors resolve to column names via macro.
 - `in(values)`: schema constraint on element type.
-- Aggregates: `sum`/`avg` require `IsNumeric`, `min`/`max` require `Ordering`, ordering comparisons reject `Boolean`.
+- Aggregates: `sum`/`avg` require supported numeric types (result types normalized via `SumOut`/`AvgOut`), `min`/`max` require `Ordering`, ordering comparisons reject `Boolean`.
 
 **Checked at runtime (construction/render time):**
 - `Rel` validates FK and PK column names exist in their respective `Table.columns` after construction.
-- `colAt` alias strings are validated in `QueryRenderer` when the query is rendered or executed — it checks alias existence and table compatibility, throwing `IllegalArgumentException` for unknown aliases.
 - `SqlQuery` methods validate string column names against `SqlIdentifier` rules.
 - `Table.derived[A]` reads metadata from `Schema[A]`; a malformed or missing `Schema` fails here.
 - `select[T]` verifies column count matches projection size (macro check) and codec column count matches (runtime backstop).

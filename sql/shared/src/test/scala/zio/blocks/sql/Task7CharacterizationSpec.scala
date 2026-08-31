@@ -18,7 +18,7 @@ package zio.blocks.sql
 
 import zio.test._
 import zio.blocks.schema.Schema
-import zio.blocks.sql.query.{SqlQuery => Qry, Rel, col, lit}
+import zio.blocks.sql.query.{SqlQuery => Qry, Rel, lit}
 import zio.blocks.sql.query.*
 
 object Task7CharacterizationSpec extends ZIOSpecDefault {
@@ -34,7 +34,8 @@ object Task7CharacterizationSpec extends ZIOSpecDefault {
   def spec = suite("Task7CharacterizationSpec")(
     test("unified SqlQuery explain and statement via typed IR") {
       val rel     = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
-      val q       = Qry.from(userTable).innerJoin(rel).where(col[User](_.name) === lit("alice"))
+      val qBase  = Qry.from(userTable).innerJoin(rel)
+      val q      = qBase.where(qBase.col[User](_.name) === lit("alice"))
       val explain = q.explain(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
       val fragSql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
@@ -54,7 +55,7 @@ object Task7CharacterizationSpec extends ZIOSpecDefault {
       val errors = scala.compiletime.testing.typeCheckErrors("""
         import zio.blocks.sql._
         import zio.blocks.sql.query._
-        val _ : SqlQuery[Int] = null.asInstanceOf[SqlQuery[Int]]
+        val _ : SqlQuery[Int, _] = null.asInstanceOf[SqlQuery[Int, _]]
         val _ = SqlQuery.from(null.asInstanceOf[Table[Int]])
       """)
       // After unification only one public SqlQuery remains under zio.blocks.sql.query,

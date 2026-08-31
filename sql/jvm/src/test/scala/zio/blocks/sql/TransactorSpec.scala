@@ -65,7 +65,7 @@ object TransactorSpec extends ZIOSpecDefault {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
     val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
       override def connect[A](f: DbCon ?=> A): A = {
-        val dbConn       = new JdbcConnection(conn)
+        val dbConn       = new JdbcConnection(conn, SqlDialect.SQLite)
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.SQLite
@@ -75,7 +75,7 @@ object TransactorSpec extends ZIOSpecDefault {
       }
 
       override def transact[A](f: DbTx ?=> A): A = {
-        val dbConn = new JdbcConnection(conn)
+        val dbConn = new JdbcConnection(conn, SqlDialect.SQLite)
         conn.setAutoCommit(false)
         try {
           given tx: DbTx = new DbTx {
@@ -105,7 +105,7 @@ object TransactorSpec extends ZIOSpecDefault {
 
   private def loggedCon[A](conn: java.sql.Connection, log: SqlLogger)(f: DbCon ?=> A): A = {
     given con: DbCon = new DbCon {
-      val connection: DbConnection = new JdbcConnection(conn)
+      val connection: DbConnection = new JdbcConnection(conn, SqlDialect.SQLite)
       val dialect: SqlDialect      = SqlDialect.SQLite
       val logger: SqlLogger        = log
     }

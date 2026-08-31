@@ -36,7 +36,7 @@ class JdbcTransactor(
         catch { case ce: Throwable => e.addSuppressed(ce) }
         throw e
     }
-    val dbConn = new JdbcConnection(conn)
+    val dbConn = new JdbcConnection(conn, dialect)
     try {
       if (dialect == SqlDialect.SQLite) {
         try {
@@ -85,7 +85,7 @@ class JdbcTransactor(
         catch { case ce: Throwable => e.addSuppressed(ce) }
         throw e
     }
-    val dbConn = new JdbcConnection(conn)
+    val dbConn = new JdbcConnection(conn, dialect)
     if (dialect == SqlDialect.SQLite) {
       // For SQLite, also handle getAutoCommit/setAutoCommit failures as the
       // non-SQLite path does, even though the transaction uses explicit

@@ -22,50 +22,297 @@ import zio.blocks.sql.{DbValue, Table}
 /**
  * Typed expression tree backed by DynamicSchemaExpr for native cases.
  *
+ * The second type parameter `Sc` is the query-bound scope: expressions built
+ * from `SqlQuery.col`/`colAt` carry the singleton scope of the query value they
+ * were built from, and literals are scope-neutral (`Nothing`). Query methods
+ * (`where`/`select`/`groupBy`/`having` and the aggregate constructors) require
+ * expressions whose scope matches the receiver, so columns from different
+ * query values cannot be mixed.
+ *
+ * Combinators are declared on the trait with a bounded type parameter
+ * `[Sc2 <: Sc]`: the receiver's scope is fixed by its static type (never
+ * inferred, so it is never widened), while the right operand may be a
+ * scope-neutral literal (`Nothing <: Sc`) or another expression of the same
+ * query lineage. This keeps literals usable while rejecting cross-query
+ * combinations.
+ *
  * IN and aggregate are honest SQL-only extensions (DynamicSchemaExpr has no
  * IN/aggregate cases). Native predicate/logical/arithmetic/string cases carry
  * DynamicSchemaExpr and render via the single shared renderDynamic interpreter
  * adapted from docs/guides/query-dsl-sql.md.
  */
-sealed trait Expr[A]
+sealed trait Expr[A, Sc] { self =>
 
-final case class Column[A, B](table: Table[A], column: String, alias: Option[String], dynamic: DynamicSchemaExpr)
-    extends Expr[B]
+  /** Relational comparison of this expression against another of the same value type. */
+  def ===[Sc2 <: Sc](right: Expr[A, Sc2]): Expr[Boolean, Sc] = {
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.Equal)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.Equal, dynOpt)
+  }
 
-final case class Lit[A](value: A, schema: Schema[A], dynamic: DynamicSchemaExpr) extends Expr[A]
+  /** Option-aware comparison: `Expr[Option[A]]` compared to a plain `Expr[A]` (LEFT JOIN columns, aggregates). */
+  @scala.annotation.targetName("eqOptLeft")
+  def ===[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B]): Expr[Boolean, Sc] =
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.Equal,
+      None
+    )
 
-final case class Relational[A](
-  left: Expr[A],
-  right: Expr[A],
+  def =!=[Sc2 <: Sc](right: Expr[A, Sc2]): Expr[Boolean, Sc] = {
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.NotEqual)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.NotEqual, dynOpt)
+  }
+
+  @scala.annotation.targetName("notEqOptLeft")
+  def =!=[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B]): Expr[Boolean, Sc] =
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.NotEqual,
+      None
+    )
+
+  @scala.annotation.nowarn
+  def >[Sc2 <: Sc](right: Expr[A, Sc2])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean, Sc] = {
+    summon[Ordering[A]]
+    summon[scala.util.NotGiven[A =:= Boolean]]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.GreaterThan)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.GreaterThan, dynOpt)
+  }
+
+  @scala.annotation.nowarn
+  @scala.annotation.targetName("gtOptLeft")
+  def >[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B], ord: Ordering[B]): Expr[Boolean, Sc] = {
+    summon[Ordering[B]]
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.GreaterThan,
+      None
+    )
+  }
+
+  @scala.annotation.nowarn
+  def <[Sc2 <: Sc](right: Expr[A, Sc2])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean, Sc] = {
+    summon[Ordering[A]]
+    summon[scala.util.NotGiven[A =:= Boolean]]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.LessThan)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.LessThan, dynOpt)
+  }
+
+  @scala.annotation.nowarn
+  @scala.annotation.targetName("ltOptLeft")
+  def <[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B], ord: Ordering[B]): Expr[Boolean, Sc] = {
+    summon[Ordering[B]]
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.LessThan,
+      None
+    )
+  }
+
+  @scala.annotation.nowarn
+  def >=[Sc2 <: Sc](right: Expr[A, Sc2])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean, Sc] = {
+    summon[Ordering[A]]
+    summon[scala.util.NotGiven[A =:= Boolean]]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual, dynOpt)
+  }
+
+  @scala.annotation.nowarn
+  @scala.annotation.targetName("gteOptLeft")
+  def >=[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B], ord: Ordering[B]): Expr[Boolean, Sc] = {
+    summon[Ordering[B]]
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual,
+      None
+    )
+  }
+
+  @scala.annotation.nowarn
+  def <=[Sc2 <: Sc](right: Expr[A, Sc2])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean, Sc] = {
+    summon[Ordering[A]]
+    summon[scala.util.NotGiven[A =:= Boolean]]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right.asInstanceOf[Expr[A, Sc]])
+    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.LessThanOrEqual)
+    Relational[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.RelationalOperator.LessThanOrEqual, dynOpt)
+  }
+
+  @scala.annotation.nowarn
+  @scala.annotation.targetName("lteOptLeft")
+  def <=[Sc2 <: Sc, B](right: Expr[B, Sc2])(using ev: A =:= Option[B], ord: Ordering[B]): Expr[Boolean, Sc] = {
+    summon[Ordering[B]]
+    Relational[A, Sc](
+      self,
+      right.asInstanceOf[Expr[B, Sc]].asInstanceOf[Expr[A, Sc]],
+      DynamicSchemaExpr.RelationalOperator.LessThanOrEqual,
+      None
+    )
+  }
+
+  /** SQL `IN` over a value list. */
+  def in(values: Seq[A])(using schema: Schema[A]): Expr[Boolean, Sc] =
+    InExpr[A, Sc](self, values, schema)
+
+  /** Option-aware `IN` over plain values: `Expr[Option[A]] IN (?, ?)`. */
+  @scala.annotation.targetName("inOptLeftValues")
+  def in[B](values: Seq[B])(using ev: A =:= Option[B], schema: Schema[B]): Expr[Boolean, Sc] =
+    InExpr[A, Sc](self, values.asInstanceOf[Seq[A]], schema.asInstanceOf[Schema[A]])
+
+  /**
+   * Option-aware `IN` over optional values. `None` entries are rejected with an
+   * exact error instead of being silently dropped: a `NULL IN (...)` predicate
+   * is neither true nor false in SQL, so dropping the value would change
+   * semantics silently.
+   */
+  @scala.annotation.targetName("inOptLeft")
+  def inOpt[B](values: Seq[Option[B]])(using ev: A =:= Option[B], schema: Schema[B]): Expr[Boolean, Sc] = {
+    values.zipWithIndex.foreach {
+      case (None, idx) =>
+        throw new IllegalArgumentException(
+          s"inOpt: value at index $idx is None — a SQL IN predicate over NULL is not well-defined and the None is never silently dropped; pass Some(v) entries or filter them explicitly"
+        )
+      case _ => ()
+    }
+    InExpr[A, Sc](self, values.collect { case Some(v) => v }.asInstanceOf[Seq[A]], schema.asInstanceOf[Schema[A]])
+  }
+
+  /** SQL `LIKE` against an expression pattern. */
+  def like[Sc2 <: Sc](pattern: Expr[String, Sc2])(using ev: A =:= String): Expr[Boolean, Sc] = {
+    val s    = self.asInstanceOf[Expr[String, Sc]]
+    val pat  = pattern.asInstanceOf[Expr[String, Sc]]
+    val dyn  = DynamicSchemaExpr.StringRegexMatch(toDynamic(pat), toDynamic(s))
+    LikeExpr[Sc](s, pat, dyn)
+  }
+
+  /** SQL `LIKE` against a string pattern. */
+  def like(pattern: String)(using ev: A =:= String): Expr[Boolean, Sc] =
+    like(lit(pattern))
+
+  /** Boolean AND. */
+  def &&[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = {
+    val l = self.asInstanceOf[Expr[Boolean, Sc]]
+    val r = right.asInstanceOf[Expr[Boolean, Sc]]
+    val dynOpt = for {
+      a <- toDynamicOpt(l)
+      b <- toDynamicOpt(r)
+    } yield DynamicSchemaExpr.Logical(a, b, DynamicSchemaExpr.LogicalOperator.And)
+    Logical[Sc](l, r, DynamicSchemaExpr.LogicalOperator.And, dynOpt)
+  }
+  def and[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = &&(right)
+
+  /** Boolean OR. */
+  def ||[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = {
+    val l = self.asInstanceOf[Expr[Boolean, Sc]]
+    val r = right.asInstanceOf[Expr[Boolean, Sc]]
+    val dynOpt = for {
+      a <- toDynamicOpt(l)
+      b <- toDynamicOpt(r)
+    } yield DynamicSchemaExpr.Logical(a, b, DynamicSchemaExpr.LogicalOperator.Or)
+    Logical[Sc](l, r, DynamicSchemaExpr.LogicalOperator.Or, dynOpt)
+  }
+  def or[Sc2 <: Sc](right: Expr[Boolean, Sc2])(using ev: A =:= Boolean): Expr[Boolean, Sc] = ||(right)
+
+  /** Boolean negation. */
+  def unary_! (using ev: A =:= Boolean): Expr[Boolean, Sc] = {
+    val l      = self.asInstanceOf[Expr[Boolean, Sc]]
+    val dynOpt = toDynamicOpt(l).map(DynamicSchemaExpr.Not(_))
+    NotExpr[Sc](l, dynOpt)
+  }
+
+  /** Arithmetic addition. */
+  def +[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = {
+    val tag    = ExprInternal.numericTag[A]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right)
+    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Add, tag)
+    Arithmetic[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.ArithmeticOperator.Add, tag, dynOpt)
+  }
+  def plus[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = this.+(right)
+
+  /** Arithmetic subtraction. */
+  def -[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = {
+    val tag    = ExprInternal.numericTag[A]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right)
+    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Subtract, tag)
+    Arithmetic[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.ArithmeticOperator.Subtract, tag, dynOpt)
+  }
+  def minus[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = this.-(right)
+
+  /** Arithmetic multiplication. */
+  def *[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = {
+    val tag    = ExprInternal.numericTag[A]
+    val dynOpt = for {
+      l <- toDynamicOpt(self)
+      r <- toDynamicOpt(right)
+    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Multiply, tag)
+    Arithmetic[A, Sc](self, right.asInstanceOf[Expr[A, Sc]], DynamicSchemaExpr.ArithmeticOperator.Multiply, tag, dynOpt)
+  }
+  def times[Sc2 <: Sc](right: Expr[A, Sc2])(using IsNumeric[A]): Expr[A, Sc] = this.*(right)
+}
+
+final case class Column[A, B, Sc] private[query] (table: Table[A], column: String, alias: Option[String], dynamic: DynamicSchemaExpr)
+    extends Expr[B, Sc]
+
+final case class Lit[A] private[query] (value: A, schema: Schema[A], dynamic: DynamicSchemaExpr) extends Expr[A, Nothing]
+
+final case class Relational[A, Sc] private[query] (
+  left: Expr[A, Sc],
+  right: Expr[A, Sc],
   operator: DynamicSchemaExpr.RelationalOperator,
   dynamic: Option[DynamicSchemaExpr]
-) extends Expr[Boolean]
+) extends Expr[Boolean, Sc]
 
-final case class Logical(
-  left: Expr[Boolean],
-  right: Expr[Boolean],
+final case class Logical[Sc] private[query] (
+  left: Expr[Boolean, Sc],
+  right: Expr[Boolean, Sc],
   operator: DynamicSchemaExpr.LogicalOperator,
   dynamic: Option[DynamicSchemaExpr]
-) extends Expr[Boolean]
+) extends Expr[Boolean, Sc]
 
-final case class NotExpr(expr: Expr[Boolean], dynamic: Option[DynamicSchemaExpr]) extends Expr[Boolean]
+final case class NotExpr[Sc] private[query] (expr: Expr[Boolean, Sc], dynamic: Option[DynamicSchemaExpr]) extends Expr[Boolean, Sc]
 
-final case class Arithmetic[A](
-  left: Expr[A],
-  right: Expr[A],
+final case class Arithmetic[A, Sc] private[query] (
+  left: Expr[A, Sc],
+  right: Expr[A, Sc],
   operator: DynamicSchemaExpr.ArithmeticOperator,
   tag: DynamicSchemaExpr.NumericTypeTag,
   dynamic: Option[DynamicSchemaExpr]
-) extends Expr[A]
+) extends Expr[A, Sc]
 
-final case class LikeExpr(left: Expr[String], pattern: Expr[String], dynamic: DynamicSchemaExpr) extends Expr[Boolean]
+final case class LikeExpr[Sc] private[query] (left: Expr[String, Sc], pattern: Expr[String, Sc], dynamic: DynamicSchemaExpr)
+    extends Expr[Boolean, Sc]
 
 // SQL-only v1 extensions — honest extension nodes, not native DynamicSchemaExpr. They recursively contain native Exprs.
 // IN is SQL's `col IN (?,?,?)`; aggregate is SQL's `COUNT(col)` etc. DynamicSchemaExpr has no IN/aggregate cases, so these remain
 // explicit extension nodes. This is acceptable because native predicate/logical/arithmetic/string cases all render through the single
 // shared renderDynamic interpreter; only IN/aggregate are extensions.
 
-final case class InExpr[A](col: Expr[A], values: Seq[A], schema: Schema[A]) extends Expr[Boolean]
+final case class InExpr[A, Sc] private[query] (col: Expr[A, Sc], values: Seq[A], schema: Schema[A]) extends Expr[Boolean, Sc]
 
 sealed trait AggFunc
 object AggFunc {
@@ -77,10 +324,20 @@ object AggFunc {
   case object CountStar extends AggFunc
 }
 
-final case class Agg[A](func: AggFunc, arg: Expr[_]) extends Expr[A]
-final case class AggStar(func: AggFunc)              extends Expr[Long]
+/**
+ * Aggregate node. `A` is the declared result type (already widened/normalized
+ * by the constructor), `Sc` the query scope. The Option-left comparison
+ * overloads of [[Expr]] apply because aggregate results are nullable.
+ */
+final case class Agg[A, Sc] private[query] (func: AggFunc, arg: Expr[?, ?]) extends Expr[A, Sc]
+final case class AggStar[Sc] private[query] (func: AggFunc)                      extends Expr[Long, Sc]
 
-final case class OptExpr[A](inner: Expr[A]) extends Expr[Option[A]]
+/**
+ * Nullable wrapper for LEFT JOIN columns: the macro returns `OptExpr[B, Sc]`
+ * (an `Expr[Option[B], Sc]`) for right-side slots of LEFT JOINs so projections
+ * and predicates must account for nullability.
+ */
+final case class OptExpr[A, Sc] private[query] (inner: Expr[A, Sc]) extends Expr[Option[A], Sc]
 
 private[query] object ExprInternal {
   def dynamicValueToDbValue(dv: DynamicValue): DbValue = dv match {
@@ -123,33 +380,68 @@ private[query] object ExprInternal {
     }
 }
 
-// Column builders preserving field type B
-
-transparent inline def col[A]: ColumnBuilder[A] = new ColumnBuilder[A]
-
-final class ColumnBuilder[A] {
-  @scala.annotation.nowarn
-  transparent inline def apply[B](inline selector: A => B)(using Schema[A]): Expr[B] =
-    ${ ExprMacros.colImpl[A, B]('selector) }
+/**
+ * Compile-time normalization of SUM result types, truthful for both
+ * PostgreSQL and SQLite:
+ *
+ *   - `SUM(int2/int4)` → `bigint` (PG) / `INTEGER` (SQLite) → `Long`
+ *   - `SUM(int8)` → `numeric` (PG) / `INTEGER` (SQLite Int64) → `BigDecimal`
+ *   - `SUM(numeric/bigint)` → `numeric` (PG) / `REAL`-independent exact (SQLite) → `BigDecimal`
+ *   - `SUM(float4/float8)` → `double precision` (PG) / `REAL` (SQLite) → `Double`
+ *
+ * The match type reduces to a concrete type at compile time (verified by the
+ * select macro via match-type reduction), so `Expr[Option[SumOut[Int]], Scope]`
+ * is exactly `Expr[Option[Long], Scope]`.
+ */
+type SumOut[A] = A match {
+  case Byte | Short | Int         => Long
+  case Long | BigInt | BigDecimal => BigDecimal
+  case Float | Double             => Double
 }
 
-transparent inline def colAt[A]: ColumnAtBuilder[A] = new ColumnAtBuilder[A]
-
-final class ColumnAtBuilder[A] {
-  @scala.annotation.nowarn
-  transparent inline def apply[B](alias: String, inline selector: A => B)(using Schema[A]): Expr[B] =
-    ${ ExprMacros.colAtImpl[A, B]('alias, 'selector) }
+/**
+ * Compile-time normalization of AVG result types:
+ *
+ *   - integral / bigint / numeric → `numeric` (PG). SQLite returns `REAL` for
+ *     AVG over INTEGER columns; `DbCodec[BigDecimal]` decodes that via
+ *     `getBigDecimal`, so the API type is the PG-truthful `BigDecimal` and the
+ *     SQLite side is proven by integration tests.
+ *   - float / double → `double precision` (PG) / `REAL` (SQLite) → `Double`
+ */
+type AvgOut[A] = A match {
+  case Byte | Short | Int | Long | BigInt | BigDecimal => BigDecimal
+  case Float | Double                                  => Double
 }
 
-// Nullable wrapper for LEFT JOIN — renders as underlying column but decodes via Option codec
-extension [A](expr: Expr[A]) {
-  def asOption: Expr[Option[A]] = OptExpr(expr)
-  def opt: Expr[Option[A]]      = asOption
+/** Gate typeclass: types SUM is supported for (the result type comes from [[SumOut]]). */
+sealed trait Summable[A]
+object Summable {
+  given byteSummable: Summable[Byte]         = new Summable[Byte] {}
+  given shortSummable: Summable[Short]       = new Summable[Short] {}
+  given intSummable: Summable[Int]           = new Summable[Int] {}
+  given longSummable: Summable[Long]         = new Summable[Long] {}
+  given floatSummable: Summable[Float]       = new Summable[Float] {}
+  given doubleSummable: Summable[Double]     = new Summable[Double] {}
+  given bigDecimalSummable: Summable[BigDecimal] = new Summable[BigDecimal] {}
+  given bigIntSummable: Summable[BigInt]     = new Summable[BigInt] {}
+}
+
+/** Gate typeclass: types AVG is supported for (the result type comes from [[AvgOut]]). */
+sealed trait Averagable[A]
+object Averagable {
+  given byteAveragable: Averagable[Byte]         = new Averagable[Byte] {}
+  given shortAveragable: Averagable[Short]       = new Averagable[Short] {}
+  given intAveragable: Averagable[Int]           = new Averagable[Int] {}
+  given longAveragable: Averagable[Long]         = new Averagable[Long] {}
+  given floatAveragable: Averagable[Float]       = new Averagable[Float] {}
+  given doubleAveragable: Averagable[Double]     = new Averagable[Double] {}
+  given bigDecimalAveragable: Averagable[BigDecimal] = new Averagable[BigDecimal] {}
+  given bigIntAveragable: Averagable[BigInt]     = new Averagable[BigInt] {}
 }
 
 // Literal helper — requires Schema, rejects unsupported types at runtime via exhaustive mapping
 
-def lit[A](value: A)(using schema: Schema[A]): Expr[A] = {
+def lit[A](value: A)(using schema: Schema[A]): Expr[A, Nothing] = {
   val dv = schema.toDynamicValue(value)
   // Validate immediately so unsupported types like List fail fast
   ExprInternal.dynamicValueToDbValue(dv)
@@ -157,186 +449,46 @@ def lit[A](value: A)(using schema: Schema[A]): Expr[A] = {
   Lit(value, schema, dynamic)
 }
 
-// Aggregate constructors — countStar is COUNT(*)
-//
-// AVG cross-dialect choice: SQLite and PostgreSQL both promote AVG to floating
-// point (SQLite returns REAL/double, PostgreSQL returns numeric/double precision).
-// To avoid silent truncation of integral averages (e.g. AVG(10,11)=10.5 truncated
-// to 10 when decoded as Int), avg always returns Expr[Double] regardless of
-// input numeric type. This is truthful for both dialects and matches PostgreSQL's
-// AVG(int) -> numeric promotion semantics.
+/**
+ * Scope-neutral aggregate constructors for literal-only expressions
+ * (`Expr[A, Nothing]`). Query-bound aggregates are methods on
+ * [[zio.blocks.sql.query.SqlQuery]] (`q.sum(q.col(...))` etc.) so the result
+ * carries the query scope; these global variants exist for literal aggregates.
+ */
+@scala.annotation.nowarn
+def sum[A](col: Expr[A, Nothing])(using Summable[A]): Expr[Option[SumOut[A]], Nothing] =
+  Agg[Option[SumOut[A]], Nothing](AggFunc.Sum, col).asInstanceOf[Expr[Option[SumOut[A]], Nothing]]
 
-def count[A](col: Expr[A]): Expr[Long] = Agg(AggFunc.Count, col)
-val countStar: Expr[Long]              = AggStar(AggFunc.CountStar)
 @scala.annotation.nowarn
-def sum[A: IsNumeric](col: Expr[A]): Expr[A] = Agg(AggFunc.Sum, col)
-@scala.annotation.nowarn
-def avg[A: IsNumeric](col: Expr[A]): Expr[Double] = Agg(AggFunc.Avg, col)
-@scala.annotation.nowarn
-def min[A: Ordering](col: Expr[A]): Expr[A] = Agg(AggFunc.Min, col)
-@scala.annotation.nowarn
-def max[A: Ordering](col: Expr[A]): Expr[A] = Agg(AggFunc.Max, col)
+def avg[A](col: Expr[A, Nothing])(using Averagable[A]): Expr[Option[AvgOut[A]], Nothing] =
+  Agg[Option[AvgOut[A]], Nothing](AggFunc.Avg, col).asInstanceOf[Expr[Option[AvgOut[A]], Nothing]]
 
-def not(expr: Expr[Boolean]): Expr[Boolean] = {
-  val dynOpt = toDynamicOpt(expr).map(DynamicSchemaExpr.Not(_))
-  NotExpr(expr, dynOpt)
+@scala.annotation.nowarn
+def min[A: Ordering](col: Expr[A, Nothing]): Expr[Option[A], Nothing] =
+  Agg[Option[A], Nothing](AggFunc.Min, col).asInstanceOf[Expr[Option[A], Nothing]]
+
+@scala.annotation.nowarn
+def max[A: Ordering](col: Expr[A, Nothing]): Expr[Option[A], Nothing] =
+  Agg[Option[A], Nothing](AggFunc.Max, col).asInstanceOf[Expr[Option[A], Nothing]]
+
+def count[A](col: Expr[A, Nothing]): Expr[Long, Nothing] = Agg[Long, Nothing](AggFunc.Count, col)
+
+/** COUNT(*) — scope-neutral, usable in any query projection/having. */
+val countStar: Expr[Long, Nothing] = AggStar[Nothing](AggFunc.CountStar)
+
+private def toDynamicOpt[A, Sc](expr: Expr[A, Sc]): Option[DynamicSchemaExpr] = expr match {
+  case c: Column[_, _, _] => Some(c.dynamic)
+  case l: Lit[_]          => Some(l.dynamic)
+  case r: Relational[_, _] => r.dynamic
+  case l: Logical[_]      => l.dynamic
+  case n: NotExpr[_]      => n.dynamic
+  case a: Arithmetic[_, _] => a.dynamic
+  case l: LikeExpr[_]     => Some(l.dynamic)
+  case _: InExpr[_, _]    => None
+  case _: Agg[_, _]       => None
+  case _: AggStar[_]      => None
+  case o: OptExpr[_, _]   => toDynamicOpt(o.inner)
 }
 
-private def toDynamicOpt[A](expr: Expr[A]): Option[DynamicSchemaExpr] = expr match {
-  case c: Column[_, _]  => Some(c.dynamic)
-  case l: Lit[_]        => Some(l.dynamic)
-  case r: Relational[_] => r.dynamic
-  case l: Logical       => l.dynamic
-  case n: NotExpr       => n.dynamic
-  case a: Arithmetic[_] => a.dynamic
-  case l: LikeExpr      => Some(l.dynamic)
-  case _: InExpr[_]     => None
-  case _: Agg[_]        => None
-  case _: AggStar       => None
-  case o: OptExpr[_]    => toDynamicOpt(o.inner)
-}
-
-private def toDynamic[A](expr: Expr[A]): DynamicSchemaExpr =
+private def toDynamic[A, Sc](expr: Expr[A, Sc]): DynamicSchemaExpr =
   toDynamicOpt(expr).getOrElse(throw new IllegalArgumentException(s"Expr has no native DynamicSchemaExpr: $expr"))
-
-// Extensions for comparison, boolean, string, in, arithmetic
-
-extension [A](left: Expr[A]) {
-
-  def equalTo(right: Expr[A]): Expr[Boolean] = {
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.Equal)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.Equal, dynOpt)
-  }
-  def ===(right: Expr[A]): Expr[Boolean] = equalTo(right)
-
-  def notEqualTo(right: Expr[A]): Expr[Boolean] = {
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.NotEqual)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.NotEqual, dynOpt)
-  }
-  def =!=(right: Expr[A]): Expr[Boolean] = notEqualTo(right)
-
-  @scala.annotation.nowarn
-  def greaterThan(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = {
-    summon[Ordering[A]]
-    summon[scala.util.NotGiven[A =:= Boolean]]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.GreaterThan)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.GreaterThan, dynOpt)
-  }
-  def >(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = greaterThan(right)
-
-  @scala.annotation.nowarn
-  def lessThan(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = {
-    summon[Ordering[A]]
-    summon[scala.util.NotGiven[A =:= Boolean]]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.LessThan)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.LessThan, dynOpt)
-  }
-  def <(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = lessThan(right)
-
-  @scala.annotation.nowarn
-  def greaterThanOrEqualTo(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = {
-    summon[Ordering[A]]
-    summon[scala.util.NotGiven[A =:= Boolean]]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.GreaterThanOrEqual, dynOpt)
-  }
-  def >=(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = greaterThanOrEqualTo(
-    right
-  )
-
-  @scala.annotation.nowarn
-  def lessThanOrEqualTo(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = {
-    summon[Ordering[A]]
-    summon[scala.util.NotGiven[A =:= Boolean]]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Relational(l, r, DynamicSchemaExpr.RelationalOperator.LessThanOrEqual)
-    Relational(left, right, DynamicSchemaExpr.RelationalOperator.LessThanOrEqual, dynOpt)
-  }
-  def <=(right: Expr[A])(using Ordering[A], scala.util.NotGiven[A =:= Boolean]): Expr[Boolean] = lessThanOrEqualTo(
-    right
-  )
-
-  def in(values: Seq[A])(using schema: Schema[A]): Expr[Boolean] =
-    InExpr(left, values, schema)
-
-  def plus(right: Expr[A])(using IsNumeric[A]): Expr[A] = {
-    val tag    = ExprInternal.numericTag[A]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Add, tag)
-    Arithmetic(left, right, DynamicSchemaExpr.ArithmeticOperator.Add, tag, dynOpt)
-  }
-  def +(right: Expr[A])(using IsNumeric[A]): Expr[A] = plus(right)
-
-  def minus(right: Expr[A])(using IsNumeric[A]): Expr[A] = {
-    val tag    = ExprInternal.numericTag[A]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Subtract, tag)
-    Arithmetic(left, right, DynamicSchemaExpr.ArithmeticOperator.Subtract, tag, dynOpt)
-  }
-  def -(right: Expr[A])(using IsNumeric[A]): Expr[A] = minus(right)
-
-  def times(right: Expr[A])(using IsNumeric[A]): Expr[A] = {
-    val tag    = ExprInternal.numericTag[A]
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Arithmetic(l, r, DynamicSchemaExpr.ArithmeticOperator.Multiply, tag)
-    Arithmetic(left, right, DynamicSchemaExpr.ArithmeticOperator.Multiply, tag, dynOpt)
-  }
-  def *(right: Expr[A])(using IsNumeric[A]): Expr[A] = times(right)
-}
-
-extension (left: Expr[Boolean]) {
-  def and(right: Expr[Boolean]): Expr[Boolean] = {
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Logical(l, r, DynamicSchemaExpr.LogicalOperator.And)
-    Logical(left, right, DynamicSchemaExpr.LogicalOperator.And, dynOpt)
-  }
-  def &&(right: Expr[Boolean]): Expr[Boolean] = and(right)
-
-  def or(right: Expr[Boolean]): Expr[Boolean] = {
-    val dynOpt = for {
-      l <- toDynamicOpt(left)
-      r <- toDynamicOpt(right)
-    } yield DynamicSchemaExpr.Logical(l, r, DynamicSchemaExpr.LogicalOperator.Or)
-    Logical(left, right, DynamicSchemaExpr.LogicalOperator.Or, dynOpt)
-  }
-  def ||(right: Expr[Boolean]): Expr[Boolean] = or(right)
-
-  def unary_! : Expr[Boolean] = not(left)
-}
-
-extension (left: Expr[String]) {
-  def like(pattern: Expr[String]): Expr[Boolean] = {
-    val dyn = DynamicSchemaExpr.StringRegexMatch(toDynamic(pattern), toDynamic(left))
-    LikeExpr(left, pattern, dyn)
-  }
-  def like(pattern: String): Expr[Boolean] = {
-    val patExpr = lit(pattern)
-    val dyn     = DynamicSchemaExpr.StringRegexMatch(toDynamic(patExpr), toDynamic(left))
-    LikeExpr(left, patExpr, dyn)
-  }
-}

@@ -627,7 +627,7 @@ The pattern-match approach above produces raw strings useful for understanding t
 The `explain` method on `zio.blocks.sql.query.SqlQuery` renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
 
 ```scala
-import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
 import zio.blocks.sql.{SqlDialect, Table}
 import zio.blocks.schema.Schema
 
@@ -640,10 +640,8 @@ val userTable = Table.derived[User]
 val repoTable = Table.derived[Repo]
 val userRepo  = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
 
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(userRepo)
-  .where(col[User](_.name) === lit("alice"))
+val qBase = SqlQuery.from(userTable).innerJoin(userRepo)
+val q = qBase.where(qBase.col[User](_.name) === lit("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
 // SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?1
@@ -678,12 +676,10 @@ st.toFrag      // Frag (re-renderable to SQL)
 The typed query IR (`zio.blocks.sql.query.SqlQuery`) provides `sql`/`toFrag`/`explain`/`statement`:
 
 ```scala
-import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
 
-val q = SqlQuery
-  .from(userTable)
-  .innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
-  .where(col[User](_.name) === lit("alice"))
+val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+val q = qBase.where(qBase.col[User](_.name) === lit("alice"))
 
 println(q.sql(SqlDialect.PostgreSQL))
 // SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?
@@ -750,9 +746,9 @@ There are macro entry points in `zio.blocks.sql.Dump` for the typed IR:
 
 ```scala
 import zio.blocks.sql._
-import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
+import zio.blocks.sql.query.{SqlQuery, Rel, lit}
 
-val q = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+val qBase = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
 
 // Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
 Dump.dumpTable(userTable)
