@@ -26,6 +26,7 @@ object ConfigSourceSpec extends ConfigBaseSpec {
     orElseSuite,
     prefixSuite,
     keyMapperSuite,
+    keyMapperNestedSuite,
     envSourceSuite,
     sysPropSourceSuite
   )
@@ -240,6 +241,82 @@ object ConfigSourceSpec extends ConfigBaseSpec {
         result.keySet == Set("databaseUrl", "maxRetries"),
         result("databaseUrl").value == "jdbc:postgres://localhost",
         result("maxRetries").value == "3"
+      )
+    }
+  )
+
+  private val keyMapperNestedSuite = suite("keyMapper nested prefix")(
+    test("all with UpperSnakeCase returns prefix-relative canonical full keys consistently") {
+      val source = ConfigSource.fromMap(
+        Map(
+          "DATABASE_URL_A" -> "1",
+          "DATABASE_URL_B" -> "2",
+          "DATABASE_URL.A" -> "10",
+          "DATABASE_URL.B" -> "20"
+        )
+      )
+      val mapped    = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      val allEmpty  = mapped.all("")
+      val allPrefix = mapped.all("databaseUrl")
+      assertTrue(
+        allEmpty.keySet == Set("databaseUrlA", "databaseUrlB", "databaseUrl.a", "databaseUrl.b"),
+        allPrefix.keySet == Set("databaseUrl.a", "databaseUrl.b"),
+        allPrefix("databaseUrl.a").value == "10",
+        allPrefix("databaseUrl.b").value == "20",
+        !allPrefix.contains("databaseUrlA")
+      )
+    },
+    test("distinguishes mapped prefix, full keys, and relative keys") {
+      val source = ConfigSource.fromMap(
+        Map(
+          "APP_DB.HOST"       -> "localhost",
+          "APP_DB.PORT"       -> "5432",
+          "APP_HTTP.HOST"     -> "0.0.0.0",
+          "APP_DB.HOST_EXTRA" -> "extra"
+        )
+      )
+      val mapped = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase)
+      // mapped prefix "appDb" maps to "APP_DB" and all returns full canonical keys with prefix
+      val dbAll = mapped.all("appDb")
+      // prefix wrapper returns relative keys stripped of the prefix
+      val prefixed = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase).prefix("appDb")
+      val relative = prefixed.all("")
+      assertTrue(
+        dbAll.keySet == Set("appDb.host", "appDb.port", "appDb.hostExtra"),
+        dbAll.contains("appDb.host"),
+        !dbAll.contains("appHttp.host"),
+        relative.keySet == Set("host", "port", "hostExtra"),
+        relative.contains("host"),
+        relative("host").value == "localhost"
+      )
+    },
+    test("nested map decoding through keyFormat with UpperSnakeCase and dot prefix") {
+      val source = ConfigSource
+        .fromMap(Map("DATABASE_URL.A" -> "1", "DATABASE_URL.B" -> "2"))
+        .keyFormat(KeyFormat.UpperSnakeCase)
+      val mappedAll = source.all("databaseUrl")
+      assertTrue(
+        mappedAll.keySet == Set("databaseUrl.a", "databaseUrl.b"),
+        mappedAll("databaseUrl.a").value == "1",
+        mappedAll("databaseUrl.b").value == "2"
+      )
+    },
+    test("prefix and keyMapper compose: all returns prefix-relative canonical keys") {
+      val source = ConfigSource.fromMap(
+        Map(
+          "APP_DB.HOST" -> "localhost",
+          "APP_DB.PORT" -> "5432",
+          "OTHER"       -> "x"
+        )
+      )
+      val composed = source.keyMapper(KeyMapper.default, KeyFormat.UpperSnakeCase).prefix("appDb")
+      val result   = composed.all("")
+      assertTrue(
+        result.keySet == Set("host", "port"),
+        result("host").value == "localhost",
+        result("port").value == "5432",
+        !result.contains("appDb.host"),
+        !result.contains("other")
       )
     }
   )
