@@ -23,64 +23,71 @@ import scala.annotation.nowarn
 
 import zio.test.*
 import zio.blocks.schema.Schema
-import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel}
+import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel, col, colAt, lit}
+import zio.blocks.sql.query.*
 
 // Separate fixture objects ensure distinct dump fileBase per query (owner-derived).
-private object Legacy2JoinFixture {
+private object TwoJoinFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
   case class Star(userId: Int, repoId: Int)
   object Star { implicit val schema: Schema[Star] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  val repoTable                    = Table.derived[Repo]
-  val starTable                    = Table.derived[Star]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  val repoTable               = Table.derived[Repo]
+  val starTable               = Table.derived[Star]
+  val r1                      = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  val r2                      = Rel.manyToOne(starTable, "repo_id", repoTable, "id")
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-      .where(userTable, "name", DbValue.DbString("alice"))
-      .where(repoTable, "name", DbValue.DbString("my-repo"))
+      .innerJoin(r1)
+      .innerJoin(r2)
+      .where(col[User](_.name) === lit("alice"))
+      .where(col[Repo](_.name) === lit("my-repo"))
   Dump.dump(query)
+  Dump.dumpQuery(query)
 }
-private object LegacyFullFixture {
+private object FullFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
   object Repo { implicit val schema: Schema[Repo] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  val repoTable                    = Table.derived[Repo]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  val repoTable               = Table.derived[Repo]
+  val rel                     = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .where(userTable, "name", DbValue.DbString("bob"))
-      .groupBy(userTable, "id")
-      .orderBy(userTable, "id", SqlStatement.OrderDirection.Asc)
-      .orderBy(repoTable, "name", SqlStatement.OrderDirection.Desc)
+      .innerJoin(rel)
+      .where(col[User](_.name) === lit("bob"))
+      .groupBy(col[User](_.id))
+      .orderBy("id", QSortOrder.Asc)
       .limit(10)
       .offset(5)
   Dump.dump(query)
+  Dump.dumpQuery(query)
 }
-private object FourArgFixture {
+private object SingleFilterFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery.from(userTable).where(userTable, "name", "=", DbValue.DbString("alice"))
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry.from(userTable).where(col[User](_.name) === lit("alice"))
   Dump.dump(query)
+  Dump.dumpQuery(query)
 }
 private object InQueryFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
-  val userTable                    = Table.derived[User]
-  inline def query: SqlQuery[User] =
-    SqlQuery
+  val userTable               = Table.derived[User]
+  inline def query: Qry[User] =
+    Qry
       .from(userTable)
-      .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3)))
+      .where(col[User](_.id).in(Seq(1, 2, 3)))
   Dump.dump(query)
+  Dump.dumpQuery(query)
 }
 private object IrFullFixture {
   case class User(id: Int, name: String)
@@ -98,7 +105,7 @@ private object IrFullFixture {
       .innerJoin(Rel(repoTable, "owner_id", userTable, "id"))
       .innerJoin(Rel(starTable, "repo_id", repoTable, "id"))
       .filter(Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("alice"))))
-      .groupBy("name")
+      .groupBy(col[User](_.name))
       .orderBy("name", QSortOrder.Asc)
       .limit(10)
       .offset(5)
@@ -161,16 +168,14 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
     }
 
   def spec = suite("ExplainDumpGoldenSpec")(
-    test("legacy 2-join with filters dump equals explain normalized (macro file)") {
-      val q           = Legacy2JoinFixture.query
+    test("2-join with filters dump equals explain normalized (macro file)") {
+      val q           = TwoJoinFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
         case None =>
-          // No fallback to runtime-only: require dumpDir flag to verify macro emission
           assertTrue(true) // skipped — run with -Dzib.sql.dumpDir=target/sql-dumps to verify macro files
         case Some(_) =>
-          // Find any dump file containing the expected join pattern — proves macro emitted correct SQL, not source-only
           val expected = normalizeSql(fragPg)
           val found    = findDumpContaining(expected)
           assertTrue(found.isDefined) &&
@@ -183,8 +188,8 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("legacy with groupBy, orderBy, limit/offset dump equals explain normalized (macro file)") {
-      val q           = LegacyFullFixture.query
+    test("with groupBy, orderBy, limit/offset dump equals explain normalized (macro file)") {
+      val q           = FullFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
@@ -204,8 +209,8 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("four-arg where (table, column, operator, value) dump equals explain normalized") {
-      val q           = FourArgFixture.query
+    test("single filter dump equals explain normalized") {
+      val q           = SingleFilterFixture.query
       val fragPg      = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val explainBody = normalizeExplainBody(q.explain(SqlDialect.PostgreSQL))
       dumpDirOpt match {
@@ -267,18 +272,25 @@ object ExplainDumpGoldenSpec extends ZIOSpecDefault {
           )
       }
     },
-    test("tableAlias validation rejects invalid alias") {
-      val badRef    = SqlStatement.ColumnRef("bad-alias!", "id")
-      val otherRef  = SqlStatement.ColumnRef("other", "id")
+    test("tableAlias validation rejects invalid alias via colAt") {
+      val rel       = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
       val badResult = try {
-        SqlQuery.from(userTable).where(badRef, "=", DbValue.DbInt(1))
+        Qry
+          .from(userTable)
+          .innerJoin(rel)
+          .where(colAt[User]("bad-alias!", _.name) === lit("a"))
+          .toFrag(SqlDialect.PostgreSQL)
         false
       } catch {
         case _: IllegalArgumentException => true
         case _: Throwable                => false
       }
       val otherResult = try {
-        SqlQuery.from(userTable).where(otherRef, "=", DbValue.DbInt(1))
+        Qry
+          .from(userTable)
+          .innerJoin(rel)
+          .where(colAt[User]("other", _.name) === lit("a"))
+          .toFrag(SqlDialect.PostgreSQL)
         false
       } catch {
         case _: IllegalArgumentException => true

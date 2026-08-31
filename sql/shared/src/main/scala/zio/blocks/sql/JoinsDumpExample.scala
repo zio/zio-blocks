@@ -17,9 +17,16 @@
 package zio.blocks.sql
 
 import zio.blocks.schema.Schema
+import zio.blocks.sql.query.{Rel, SqlQuery => Qry, col, lit}
+import zio.blocks.sql.query.*
 
 /**
- * Canonical User/Repo/Star example for task-4 compile-time dump verification.
+ * Canonical User/Repo/Star example for compile-time dump verification.
+ *
+ * After Task 7 the sole public query builder is
+ * `zio.blocks.sql.query.SqlQuery`; this example uses the typed relational IR
+ * with `Rel` and typed `col`/`lit` predicates. `Dump.dump` and `Dump.dumpQuery`
+ * both consume that IR.
  */
 object JoinsDumpExample {
 
@@ -36,51 +43,46 @@ object JoinsDumpExample {
   val repoTable: Table[Repo] = Table.derived[Repo]
   val starTable: Table[Star] = Table.derived[Star]
 
-  inline def joins: SqlQuery[User] = SqlQuery
+  inline def joins: Qry[User] = Qry
     .from(userTable)
-    .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-    .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-    .where(userTable, "name", DbValue.DbString("alice"))
-    .where(repoTable, "name", DbValue.DbString("my-repo"))
+    .innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+    .innerJoin(Rel.manyToOne(starTable, "repo_id", repoTable, "id"))
+    .where(col[User](_.name) === lit("alice"))
+    .where(col[Repo](_.name) === lit("my-repo"))
 
   // Wire dump for inline query value — direct inlining ensures macro sees the IR
   Dump.dump(
-    SqlQuery
+    Qry
       .from(userTable)
-      .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-      .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-      .where(userTable, "name", DbValue.DbString("alice"))
-      .where(repoTable, "name", DbValue.DbString("my-repo"))
+      .innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+      .innerJoin(Rel.manyToOne(starTable, "repo_id", repoTable, "id"))
+      .where(col[User](_.name) === lit("alice"))
+      .where(col[Repo](_.name) === lit("my-repo"))
   )
 
   // Also keep the named inline def variant for name-derived file coverage
   Dump.dump(joins)
+  Dump.dumpQuery(joins)
 
   // Hook dumpTable
   Dump.dumpTable(userTable)
   Dump.dumpTable(repoTable)
   Dump.dumpTable(starTable)
 
-  // sqlChecked literal — owner-derived name (requires import zio.blocks.sql.*)
-  // val joinsChecked: Frag =
-  //   StringContext("SELECT * FROM user INNER JOIN repo ON user.id = repo.owner_id")
-  //     .sqlChecked(userTable, repoTable)()
-
   val pg: SqlDialect     = SqlDialect.PostgreSQL
   val sqlite: SqlDialect = SqlDialect.SQLite
 
   object QueryLayerExample {
-    import zio.blocks.sql.query.{SqlQuery => Qry}
-
     val userTable2: Table[User] = Table.derived[User]
     val repoTable2: Table[Repo] = Table.derived[Repo]
 
     inline def joinsQ: Qry[User] = {
       val base = Qry.from(userTable2)
-      val rel  = zio.blocks.sql.query.Rel.manyToOne(userTable2, "id", repoTable2, "id")
+      val rel  = Rel.manyToOne(repoTable2, "owner_id", userTable2, "id")
       base.innerJoin(rel)
     }
 
     Dump.dumpQuery(joinsQ)
+    Dump.dump(joinsQ)
   }
 }

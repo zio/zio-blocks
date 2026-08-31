@@ -17,14 +17,15 @@
 package zio.blocks.sql
 
 /**
- * Structured, inspectable representation of a `SqlQuery` for a specific
- * dialect.
+ * Structured, inspectable representation of a `zio.blocks.sql.query.SqlQuery`
+ * for a specific dialect.
  *
- * Produced by [[SqlQuery.statement]] / `SqlQuery#build`; mirrors the same
- * joins, filters, grouping and pagination as the query but decomposed into
- * typed fields. The original [[Frag]] is retained as [[frag]] for re-rendering
- * or execution, and `statement.frag.params` aligns with the `?N` placeholders
- * shown by [[SqlQuery.explain]].
+ * Produced by `zio.blocks.sql.query.SqlQuery#statement`; mirrors the same
+ * joins, grouping and pagination as the query but decomposed into typed fields.
+ * The original [[Frag]] is retained as [[frag]] for re-rendering or execution,
+ * and `statement.frag.params` aligns with the `?N` placeholders shown by
+ * `SqlQuery#explain`. This is the stable inspection view for the typed
+ * relational IR; checked raw SQL uses [[Frag]] directly.
  */
 final case class SqlStatement(
   source: SqlStatement.Source,
@@ -61,7 +62,28 @@ object SqlStatement {
     onRight: ColumnRef
   )
 
-  final case class Filter(column: ColumnRef, operator: String, param: DbValue)
+  /**
+   * Filter inspection that preserves the exact predicate Frag and its
+   * operator/column metadata honestly. `predicate` is the alias-qualified
+   * `Frag` as rendered by `QueryRenderer` (with `?` placeholders and
+   * `predicate.params` carrying the bound values). `column` is populated when
+   * the filter is a simple relational / IN / LIKE on a single column; otherwise
+   * it is `None` and the full predicate must be inspected. `operator` is the
+   * honest SQL operator (e.g. "=", "IN", "LIKE", "AND", "OR").
+   */
+  final case class Filter(predicate: Frag, column: Option[ColumnRef], operator: String) {
+    def params: IndexedSeq[DbValue] = predicate.params
+    def param: Option[DbValue]      = predicate.params.headOption
+  }
+
+  object Filter {
+    def apply(column: ColumnRef, operator: String, param: DbValue): Filter =
+      Filter(
+        Frag(IndexedSeq(s"""${column.tableAlias}."${column.column}" $operator """, ""), IndexedSeq(param)),
+        Some(column),
+        operator
+      )
+  }
 
   final case class GroupBy(columns: Vector[ColumnRef])
 

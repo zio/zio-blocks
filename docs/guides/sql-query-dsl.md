@@ -483,9 +483,7 @@ This is v1 of the typed query layer. The following are not supported yet:
 
 ## What the Production Renderer Does
 
-The query IR renders to SQL through `QueryRenderer`, which builds every clause via `Frag.literal` and `Frag.++` composition. Each column is quoted as `alias."column_name"` and validated through `SqlIdentifier`. Parameters appear as `?` placeholders in the rendered SQL, with actual values carried in `Frag.params`.
-
-This is the same production renderer used by the legacy `SqlQuery` builder in `zio.blocks.sql`. The typed query API in `zio.blocks.sql.query` reuses it, so you get the same dialect-aware rendering (PostgreSQL vs SQLite) and parameter handling.
+The query IR renders to SQL through `QueryRenderer` — the sole query renderer — which builds every clause via `Frag.literal` and `Frag.++` composition. Each column is quoted as `alias."column_name"` and validated through `SqlIdentifier`. Parameters appear as `?` placeholders in the rendered SQL, with actual values carried in `Frag.params`. The former `zio.blocks.sql.SqlQuery` string-based builder and its duplicate renderer have been removed; all inspection (`explain`, `statement`, `Dump`) now derives from this typed IR without a second builder state machine.
 
 If you need to build SQL from `SchemaExpr` expression trees instead of the typed `Expr` API, see [Query DSL with Reified Optics, Part 2: SQL Generation](./query-dsl-sql.md) for the `SchemaExpr`-based approach.
 

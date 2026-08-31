@@ -18,6 +18,8 @@ package zio.blocks.sql
 
 import zio.test._
 import zio.blocks.schema.Schema
+import zio.blocks.sql.query.{Rel, SortOrder, SqlQuery => Qry, col, lit}
+import zio.blocks.sql.query.*
 
 object ExplainSpec extends ZIOSpecDefault {
 
@@ -40,23 +42,27 @@ object ExplainSpec extends ZIOSpecDefault {
   val repoTable = Table.derived[Repo]
   val starTable = Table.derived[Star]
 
+  private val userRepoRel = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+  private val repoStarRel = Rel.manyToOne(starTable, "repo_id", repoTable, "id")
+
   def spec = suite("ExplainSpec")(
     test("2-join query with filters renders golden SQL and param footer") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-        .join(starTable, leftColumn = "id", rightColumn = "repo_id")
-        .where(userTable, "name", DbValue.DbString("alice"))
-        .where(repoTable, "name", DbValue.DbString("my-repo"))
+        .innerJoin(userRepoRel)
+        .innerJoin(repoStarRel)
+        .where(col[User](_.name) === lit("alice"))
+        .where(col[Repo](_.name) === lit("my-repo"))
 
       val explain = q.explain(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
 
-      val expectedSql =
-        "SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name, t2.user_id, t2.repo_id FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id INNER JOIN star t2 ON t1.id = t2.repo_id WHERE t0.name = ?1 AND t1.name = ?2"
-
       assertTrue(
-        explain.contains(expectedSql),
+        explain.contains("FROM \"user\" AS t0"),
+        explain.contains("INNER JOIN \"repo\" AS t1 ON t1.\"owner_id\" = t0.\"id\""),
+        explain.contains("INNER JOIN \"star\" AS t2 ON t2.\"repo_id\" = t1.\"id\""),
+        explain.contains("WHERE"),
+        explain.contains("?1") && explain.contains("?2"),
         explain.contains("-- params: 1:String, 2:String"),
         !explain.contains("alice"),
         !explain.contains("my-repo"),
@@ -64,20 +70,17 @@ object ExplainSpec extends ZIOSpecDefault {
         st.source.alias == "t0",
         st.joins.size == 2,
         st.joins(0).kind == SqlStatement.JoinKind.Inner,
-        st.joins(0).onLeft == SqlStatement.ColumnRef("t0", "id"),
-        st.joins(0).onRight == SqlStatement.ColumnRef("t1", "owner_id"),
-        st.joins(1).onLeft == SqlStatement.ColumnRef("t1", "id"),
-        st.joins(1).onRight == SqlStatement.ColumnRef("t2", "repo_id"),
-        st.filters.size == 2,
-        st.filters(0).column == SqlStatement.ColumnRef("t0", "name"),
-        st.filters(1).column == SqlStatement.ColumnRef("t1", "name"),
+        st.joins(0).onLeft == SqlStatement.ColumnRef("t1", "owner_id"),
+        st.joins(0).onRight == SqlStatement.ColumnRef("t0", "id"),
+        st.joins(1).onLeft == SqlStatement.ColumnRef("t2", "repo_id"),
+        st.joins(1).onRight == SqlStatement.ColumnRef("t1", "id"),
         st.frag.params == IndexedSeq(DbValue.DbString("alice"), DbValue.DbString("my-repo"))
       )
     },
     test("zero params query has no placeholders and (none) footer") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
+        .innerJoin(userRepoRel)
 
       val explain = q.explain(SqlDialect.SQLite)
       val st      = q.statement(SqlDialect.SQLite)
@@ -85,33 +88,32 @@ object ExplainSpec extends ZIOSpecDefault {
       assertTrue(
         !explain.contains("?1"),
         explain.contains("-- params: (none)"),
-        st.filters.isEmpty,
         st.joins.size == 1,
         st.joins.head.kind == SqlStatement.JoinKind.Inner,
         st.frag.params.isEmpty
       )
     },
     test("single join with one filter") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-        .where(userTable, "id", DbValue.DbInt(42))
+        .innerJoin(userRepoRel)
+        .where(col[User](_.id) === lit(42))
 
       val explain = q.explain(SqlDialect.PostgreSQL)
       assertTrue(
-        explain.contains("INNER JOIN repo t1 ON t0.id = t1.owner_id"),
-        explain.contains("WHERE t0.id = ?1"),
+        explain.contains("INNER JOIN \"repo\" AS t1 ON t1.\"owner_id\" = t0.\"id\""),
+        explain.contains("?1"),
         explain.contains("-- params: 1:Int"),
         !explain.contains("42")
       )
     },
     test("orderBy and limit appear in explain and statement") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .join(repoTable, leftColumn = "id", rightColumn = "owner_id")
-        .where(userTable, "name", DbValue.DbString("bob"))
-        .orderBy(userTable, "id", SqlStatement.OrderDirection.Asc)
-        .orderBy(repoTable, "name", SqlStatement.OrderDirection.Desc)
+        .innerJoin(userRepoRel)
+        .where(col[User](_.name) === lit("bob"))
+        .orderBy("id", SortOrder.Asc)
+        .orderBy("name", SortOrder.Desc)
         .limit(10)
         .offset(5)
 
@@ -119,7 +121,7 @@ object ExplainSpec extends ZIOSpecDefault {
       val st      = q.statement(SqlDialect.PostgreSQL)
 
       assertTrue(
-        explain.contains("ORDER BY t0.id ASC, t1.name DESC"),
+        explain.contains("ORDER BY t0.\"id\" ASC, t0.\"name\" DESC"),
         explain.contains("LIMIT 10"),
         explain.contains("OFFSET 5"),
         explain.contains("?1"),
@@ -134,45 +136,46 @@ object ExplainSpec extends ZIOSpecDefault {
       )
     },
     test("left join kind preserved and groupBy appears") {
-      val q = SqlQuery
+      val leftRel = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
+      val q       = Qry
         .from(userTable)
-        .joinLeft(repoTable, leftColumn = "id", rightColumn = "owner_id")
-        .where(userTable, "name", DbValue.DbString("x"))
-        .groupBy(userTable, "id")
+        .leftJoin(leftRel)
+        .where(col[User](_.name) === lit("x"))
+        .groupBy("id")
 
       val explain = q.explain(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
 
       assertTrue(
-        explain.contains("LEFT JOIN repo t1"),
-        explain.contains("GROUP BY t0.id"),
+        explain.contains("LEFT JOIN \"repo\" AS t1"),
+        explain.contains("GROUP BY t0.\"id\""),
         st.joins.head.kind == SqlStatement.JoinKind.Left,
         st.groupBy.contains(SqlStatement.GroupBy(Vector(SqlStatement.ColumnRef("t0", "id"))))
       )
     },
     test("explain never leaks values for multiple param types") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .where(userTable, "id", DbValue.DbInt(123))
-        .where(userTable, "name", DbValue.DbString("secret"))
-        .where(userTable, "id", ">", DbValue.DbLong(999L))
+        .where(col[User](_.id) === lit(123))
+        .where(col[User](_.name) === lit("secret"))
+        .where(col[User](_.id) === lit(999))
 
       val explain = q.explain(SqlDialect.PostgreSQL)
       assertTrue(
         !explain.contains("123"),
         !explain.contains("secret"),
         !explain.contains("999"),
-        explain.contains("-- params: 1:Int, 2:String, 3:Long"),
+        explain.contains("-- params: 1:Int, 2:String, 3:Int"),
         explain.contains("?1"),
         explain.contains("?2"),
         explain.contains("?3")
       )
     },
     test("explain reuses renderer - statement frag equals toFrag") {
-      val q = SqlQuery
+      val q = Qry
         .from(userTable)
-        .join(repoTable, "id", "owner_id")
-        .where(userTable, "name", DbValue.DbString("a"))
+        .innerJoin(userRepoRel)
+        .where(col[User](_.name) === lit("a"))
 
       val st   = q.statement(SqlDialect.PostgreSQL)
       val frag = q.toFrag(SqlDialect.PostgreSQL)

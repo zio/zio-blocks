@@ -620,43 +620,50 @@ val sql: String = pageFrag.sql(SqlDialect.SQLite) // SELECT id, name, email FROM
 
 ## Inspecting SQL
 
-The pattern-match approach above produces raw strings useful for understanding the mapping. For production use, the `sql` module's built-in query builder (`zio.blocks.sql.SqlQuery`) and the typed query IR (`zio.blocks.sql.query.SqlQuery`) render through `QueryRenderer`, which provides richer inspection APIs.
+The pattern-match approach above produces raw strings useful for understanding the mapping. For production use, the typed relational IR (`zio.blocks.sql.query.SqlQuery`) renders through `QueryRenderer` — the sole query renderer — which produces parameterized `Frag` values with alias-qualified columns and dialect-aware placeholders. The former `zio.blocks.sql.SqlQuery` string-based builder has been removed; all inspection (`explain`, `statement`, `Dump`) now derives from the typed IR.
 
 ### explain(dialect): String
 
-The `explain` method renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
+The `explain` method on `zio.blocks.sql.query.SqlQuery` renders the full SQL text with numbered parameter placeholders (`?1`, `?2`, ...) and a trailing comment listing each parameter's position and type:
 
 ```scala
-import zio.blocks.sql._
+import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
+import zio.blocks.sql.{SqlDialect, Table}
+import zio.blocks.schema.Schema
+
+case class User(id: Int, name: String)
+object User { implicit val schema: Schema[User] = Schema.derived }
+case class Repo(id: Int, ownerId: Int, name: String)
+object Repo { implicit val schema: Schema[Repo] = Schema.derived }
 
 val userTable = Table.derived[User]
 val repoTable = Table.derived[Repo]
+val userRepo  = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
 
 val q = SqlQuery
   .from(userTable)
-  .join(repoTable, "id", "owner_id")
-  .where(userTable, "name", DbValue.DbString("alice"))
+  .innerJoin(userRepo)
+  .where(col[User](_.name) === lit("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 
-`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `SqlQuery.build`). The `?N`
+`explain` renders a single-line SQL string with numbered `?N` placeholders (backed by `QueryRenderer` via `SqlQuery#toFrag`). The `?N`
 placeholders correspond one-to-one with the parameter list you can obtain separately via
 `statement(dialect).frag.params`. This makes `explain` useful for logging and visual debugging without touching a
 database.
 
 ### statement(dialect): SqlStatement
 
-The `statement` method returns a structured `SqlStatement` that decomposes the query into its constituent parts:
+The `statement` method on `SqlQuery` returns a structured `SqlStatement` derived from the typed IR (source, joins, groupBy/orderBy/limit/offset, and the underlying `Frag`) that decomposes the query into its constituent parts:
 
 ```scala
 val st = q.statement(SqlDialect.PostgreSQL)
 
 st.source      // Source(table = "user", alias = "t0")
-st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t0","id"), ColumnRef("t1","owner_id")))
-st.filters     // Vector(Filter(ColumnRef("t0","name"), "=", DbValue.DbString("alice")))
+st.joins       // Vector(Join(Inner, "repo", "t1", ColumnRef("t1","owner_id"), ColumnRef("t0","id")))
 st.groupBy     // None
 st.orderBy     // Vector.empty
 st.limit       // None
@@ -668,18 +675,21 @@ st.toFrag      // Frag (re-renderable to SQL)
 
 ### sql(dialect): String (Query IR)
 
-The newer query IR (`zio.blocks.sql.query.SqlQuery`) provides a simpler `sql` method:
+The typed query IR (`zio.blocks.sql.query.SqlQuery`) provides `sql`/`toFrag`/`explain`/`statement`:
 
 ```scala
-import zio.blocks.sql.query._
+import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
 
 val q = SqlQuery
   .from(userTable)
-  .innerJoin(userToRepo)
-  .filter(frag"""t0."name" = ${DbValue.DbString("alice")}""")
+  .innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
+  .where(col[User](_.name) === lit("alice"))
 
 println(q.sql(SqlDialect.PostgreSQL))
-// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t0."id" = t1."owner_id" WHERE t0."name" = $1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" AS t0 INNER JOIN "repo" AS t1 ON t1."owner_id" = t0."id" WHERE t0."name" = ?
+println(q.explain(SqlDialect.PostgreSQL))
+// SELECT t0."id", ... WHERE t0."name" = ?1
+// -- params: 1:String
 ```
 
 ### previewSql() for Migrations
@@ -736,22 +746,23 @@ Both approaches set the property on the sbt process, which is the same JVM that 
 
 ### Entry Points
 
-There are three inline macro entry points, all in `zio.blocks.sql.Dump`:
+There are macro entry points in `zio.blocks.sql.Dump` for the typed IR:
 
 ```scala
 import zio.blocks.sql._
+import zio.blocks.sql.query.{SqlQuery, Rel, col, lit}
+
+val q = SqlQuery.from(userTable).innerJoin(Rel.manyToOne(repoTable, "owner_id", userTable, "id"))
 
 // Dump a Table's CREATE TABLE DDL (both PostgreSQL and SQLite)
 Dump.dumpTable(userTable)
 
-// Dump a SqlQuery's SELECT (legacy builder)
-Dump.dump(userQuery)
-
-// Dump a query IR's SELECT
-Dump.dumpQuery(queryIr)
+// Dump a query IR's SELECT — both names consume the same typed IR
+Dump.dump(q)
+Dump.dumpQuery(q)
 ```
 
-Each call emits one file per dialect (PostgreSQL and SQLite by default).
+`Dump.dump` and `Dump.dumpQuery` both accept `zio.blocks.sql.query.SqlQuery`; they emit one file per dialect (PostgreSQL and SQLite). The former string-based `zio.blocks.sql.SqlQuery` builder has been removed.
 
 ### Naming Scheme
 

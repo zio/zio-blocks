@@ -140,7 +140,7 @@ object QueryRenderer {
     frag
   }
 
-  private def resolveAliasForColumn(
+  private[query] def resolveAliasForColumn(
     colTable: Table[_],
     aliasOpt: Option[String],
     allTables: Vector[(Table[_], String)]
@@ -174,7 +174,7 @@ object QueryRenderer {
 
   // Single shared interpreter for native DynamicSchemaExpr cases, adapted from docs/guides/query-dsl-sql.md.
   // Handles Select (via columnContext alias-qualified), Literal (via DbValue), Relational, Logical, Not, Arithmetic, StringRegexMatch.
-  private def renderDynamic(
+  private[query] def renderDynamic(
     dyn: DynamicSchemaExpr,
     columnContext: Map[DynamicOptic, (Table[_], String, Option[String])],
     allTables: Vector[(Table[_], String)]
@@ -258,7 +258,7 @@ object QueryRenderer {
     case other => throw new IllegalArgumentException(s"unsupported DynamicSchemaExpr for SQL: $other")
   }
 
-  private def collectColumns(expr: Expr[_]): Map[DynamicOptic, (Table[_], String, Option[String])] = {
+  private[query] def collectColumns(expr: Expr[_]): Map[DynamicOptic, (Table[_], String, Option[String])] = {
     def loop(
       e: Expr[_],
       acc: Map[DynamicOptic, (Table[_], String, Option[String])]
@@ -287,7 +287,7 @@ object QueryRenderer {
     loop(expr, Map.empty)
   }
 
-  private def renderExpr(expr: Expr[_], allTables: Vector[(Table[_], String)]): Frag = expr match {
+  private[query] def renderExpr(expr: Expr[_], allTables: Vector[(Table[_], String)]): Frag = expr match {
     // Native cases — delegate to shared renderDynamic
     case c: Column[_, _] =>
       renderDynamic(c.dynamic, collectColumns(c), allTables)
