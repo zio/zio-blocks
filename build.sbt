@@ -918,8 +918,10 @@ lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-yamlJVM; coverage; test; coverageReport`:
+    // Statement 72.22%, Branch 66.67%. Set just below with modest margin.
+    coverageMinimumStmtTotal   := 71,
+    coverageMinimumBranchTotal := 65
   )
 
 lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
@@ -936,8 +938,10 @@ lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-jsonJVM; coverage; test; coverageReport`:
+    // Statement 92.59%, Branch 86.67%. Set just below with modest margin.
+    coverageMinimumStmtTotal   := 91,
+    coverageMinimumBranchTotal := 85
   )
 
 lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
@@ -954,8 +958,10 @@ lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
       "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
     ),
-    coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-hoconJVM; coverage; test; coverageReport`:
+    // Statement 77.58%, Branch 67.84%. Set just below with modest margin.
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 66
   )
 
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)

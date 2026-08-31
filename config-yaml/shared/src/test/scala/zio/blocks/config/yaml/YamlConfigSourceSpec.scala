@@ -101,7 +101,10 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
     test("handles flow sequence value") {
       val yaml   = "key: [a, b, c]"
       val result = YamlConfigSource.fromString(yaml)
-      assertTrue(result.isRight || result.isLeft)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key.0").map(_.value) == Maybe.present("a")) &&
+      assertTrue(result.toOption.get.get("key.1").map(_.value) == Maybe.present("b")) &&
+      assertTrue(result.toOption.get.get("key.2").map(_.value) == Maybe.present("c"))
     },
     test("uses custom sourceId in provenance") {
       val yaml   = "key: value"
@@ -143,7 +146,8 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
     },
     test("malformed YAML treated as scalar value") {
       val result = YamlConfigSource.fromString("key: ]]][[[")
-      assertTrue(result.isRight)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key").map(_.value) == Maybe.present("]]][[["))
     },
     test("triple-nested object keys accessible via dot notation") {
       val yaml = """
