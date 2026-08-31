@@ -28,8 +28,10 @@ import zio.blocks.sql.Frag.*
  * plain `LIMIT` with the write lock held via `IMMEDIATE` (SQLite connections
  * via `JdbcTransactor.fromUrl`/`sqlite` or any pooled/wrapped `DataSource` are
  * configured per-transaction with `busy_timeout=5000` and `IMMEDIATE` via
- * `isWrapperFor`/`unwrap`, so `transact`/`connect` reserve the lock and wait on
- * contention; see PR #1534 discussion_r3863454094).
+ * `isWrapperFor`/`unwrap`, so `transact` reserves the write lock and waits on
+ * contention; `connect` is configured similarly but does not begin a
+ * transaction or reserve the lock — only `transact` issues `BEGIN IMMEDIATE`;
+ * see PR #1534 discussion_r3863454094).
  */
 object QueueTable {
 
