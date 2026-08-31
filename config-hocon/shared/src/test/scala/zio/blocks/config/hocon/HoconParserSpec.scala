@@ -51,7 +51,6 @@ object HoconParserSpec extends ZIOSpecDefault {
       }
     ),
     suite("arrays")(
-      // TODO: fix array parsing bug — tracked in PR #1426 review
       test("parses simple array") {
         val result = parsed("""{ arr = [1, 2, 3] }""")
         assertTrue(
@@ -67,8 +66,7 @@ object HoconParserSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ TestAspect.ignore,
-      // TODO: fix array parsing bug — tracked in PR #1426 review
+      },
       test("parses array of strings") {
         val result = parsed("""{ arr = ["a", "b"] }""")
         assertTrue(
@@ -83,13 +81,11 @@ object HoconParserSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ TestAspect.ignore,
-      // TODO: fix array parsing bug — tracked in PR #1426 review
+      },
       test("parses empty array") {
         val result = parsed("{ arr = [] }")
         assertTrue(result == HoconValue.Obj(Map("arr" -> HoconValue.Arr(Seq.empty))))
-      } @@ TestAspect.ignore,
-      // TODO: fix array parsing bug — tracked in PR #1426 review
+      },
       test("parses newline-separated array elements") {
         val input =
           """{
@@ -113,7 +109,83 @@ object HoconParserSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ TestAspect.ignore
+      }
+    ),
+    suite("arrays edge")(
+      test("parses nested arrays") {
+        val result = parsed("""{ arr = [[1, 2], [3, 4]] }""")
+        assertTrue(
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Arr(Seq(HoconValue.Num(1.0), HoconValue.Num(2.0))),
+                  HoconValue.Arr(Seq(HoconValue.Num(3.0), HoconValue.Num(4.0)))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("parses array after substitution") {
+        val result = parsed(
+          """{
+            |  x = 1
+            |  arr = [${x}, 2]
+            |}""".stripMargin
+        )
+        assertTrue(
+          result == HoconValue.Obj(
+            Map(
+              "x"   -> HoconValue.Num(1.0),
+              "arr" -> HoconValue.Arr(Seq(HoconValue.Num(1.0), HoconValue.Num(2.0)))
+            )
+          )
+        )
+      },
+      test("parses array of objects") {
+        val result = parsed("""{ arr = [{a = 1}, {b = 2}] }""")
+        assertTrue(
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(
+                Seq(
+                  HoconValue.Obj(Map("a" -> HoconValue.Num(1.0))),
+                  HoconValue.Obj(Map("b" -> HoconValue.Num(2.0)))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("parses array followed by object field") {
+        val result = parsed("""{ arr = [1, 2], obj = {x = 1} }""")
+        assertTrue(
+          result == HoconValue.Obj(
+            Map(
+              "arr" -> HoconValue.Arr(Seq(HoconValue.Num(1.0), HoconValue.Num(2.0))),
+              "obj" -> HoconValue.Obj(Map("x" -> HoconValue.Num(1.0)))
+            )
+          )
+        )
+      },
+      test("parses array with trailing comma") {
+        val result = parsed("""{ arr = [1, 2,] }""")
+        assertTrue(
+          result == HoconValue.Obj(
+            Map("arr" -> HoconValue.Arr(Seq(HoconValue.Num(1.0), HoconValue.Num(2.0))))
+          )
+        )
+      },
+      test("fails on unclosed array") {
+        assertTrue(parseFails("{ arr = [1, 2 }"))
+      },
+      test("fails on array with stray closing brace") {
+        assertTrue(parseFails("{ arr = [ }"))
+      },
+      test("fails on array without closing bracket") {
+        assertTrue(parseFails("{ arr = [1, 2 "))
+      }
     ),
     suite("strings")(
       test("parses quoted strings with escapes") {

@@ -259,12 +259,38 @@ object HoconParser {
     private def parseArray(includeResolver: String => Option[IncludedResource]): RawArr = {
       expect('[')
       val buf = new scala.collection.mutable.ArrayBuffer[RawValue]()
+      skipWhitespaceAndComments()
+      if (eof) error("Unterminated array, expected ']'")
+      if (ch == ']') { pos += 1; return RawArr(buf.toSeq) }
       while (true) {
         skipWhitespaceAndComments()
-        if (eof) error("Unexpected end of input in array")
+        if (eof) error("Unterminated array, expected ']'")
         if (ch == ']') { pos += 1; return RawArr(buf.toSeq) }
-        buf += parseValue(includeResolver)
-        skipComma()
+        if (ch == '}') error("Unexpected '}' in array, expected ']'")
+        if (ch == ',') error("Unexpected ',' in array")
+        val before = pos
+        // Use single-value parsing to avoid concatenating whitespace-separated tokens
+        // into a single element; array elements are delimited by ',' or newline.
+        val value = parseSingleValue(includeResolver)
+        if (pos == before) error("Failed to parse array element")
+        buf += value
+        skipWhitespaceAndComments()
+        if (eof) error("Unterminated array, expected ']'")
+        if (ch == ']') { pos += 1; return RawArr(buf.toSeq) }
+        if (ch == '}') error("Unexpected '}' in array, expected ']' or ','")
+        if (ch == ',') {
+          pos += 1
+          skipWhitespaceAndComments()
+          if (eof) error("Unterminated array, expected ']' after ','")
+          if (ch == ']') { pos += 1; return RawArr(buf.toSeq) }
+          // trailing comma handled; otherwise loop to parse next element
+        } else {
+          // No comma: newline/comment separated. `skipWhitespaceAndComments` already
+          // consumed newlines and comments, so if next is ']' we will handle at top.
+          // Otherwise continue to parse next element without explicit separator.
+          // If next char starts a value, the loop will parse it; whitespace-only
+          // separation without comma is permissively allowed.
+        }
       }
       // `while(true)` is intentional here; this return is only present to satisfy
       // the type checker after the early returns above.
