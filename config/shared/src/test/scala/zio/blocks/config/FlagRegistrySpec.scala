@@ -20,7 +20,7 @@ import zio.test._
 
 object FlagRegistrySpec extends ZIOSpecDefault {
 
-  object TopStatic extends StaticFlag[Int](1)
+  object TopStatic  extends StaticFlag[Int](1)
   object TopDynamic extends DynamicFlag[Int](0, "5")
 
   def spec = suite("FlagRegistrySpec")(
@@ -41,30 +41,32 @@ object FlagRegistrySpec extends ZIOSpecDefault {
       } finally Flag.registry.remove("repro.singleton.flag")
     },
     test("anonymous Flag mixins share authoritative registry and dump state") {
-      val mixin1 = new Flag {}
-      val mixin2 = new Flag {}
+      val mixin1                     = new Flag {}
+      val mixin2                     = new Flag {}
       val mixin1DelegatesToSingleton = mixin1.registry eq Flag.registry
       val mixin2DelegatesToSingleton = mixin2.registry eq Flag.registry
       val mixinsShareRegistry        = mixin1.registry eq mixin2.registry
-      val sentinel = new Object()
+      val sentinel                   = new Object()
       mixin1.registry.put("repro.mixin.flag", sentinel)
       try {
-        val flagDump  = Flag.dump()
-        val dump1     = mixin1.dump()
-        val dump2     = mixin2.dump()
-        val viaFlag   = Flag.registry.get("repro.mixin.flag").asInstanceOf[AnyRef] eq sentinel.asInstanceOf[AnyRef]
-        val viaMixin2 = mixin2.registry.get("repro.mixin.flag").asInstanceOf[AnyRef] eq sentinel.asInstanceOf[AnyRef]
+        val flagDump   = Flag.dump()
+        val dump1      = mixin1.dump()
+        val dump2      = mixin2.dump()
+        val viaFlag    = Flag.registry.get("repro.mixin.flag").asInstanceOf[AnyRef] eq sentinel.asInstanceOf[AnyRef]
+        val viaMixin2  = mixin2.registry.get("repro.mixin.flag").asInstanceOf[AnyRef] eq sentinel.asInstanceOf[AnyRef]
         val dumpsEqual = flagDump == dump1 && dump1 == dump2
-        val contains = flagDump.contains("repro.mixin.flag") && dump1.contains("repro.mixin.flag") && dump2.contains(
+        val contains   = flagDump.contains("repro.mixin.flag") && dump1.contains("repro.mixin.flag") && dump2.contains(
           "repro.mixin.flag"
         )
-        val wFlag    = Flag.nearMissWarnings("repro.mixin.flag")
-        val w1       = mixin1.nearMissWarnings("repro.mixin.flag")
-        val w2       = mixin2.nearMissWarnings("repro.mixin.flag")
+        val wFlag         = Flag.nearMissWarnings("repro.mixin.flag")
+        val w1            = mixin1.nearMissWarnings("repro.mixin.flag")
+        val w2            = mixin2.nearMissWarnings("repro.mixin.flag")
         val warningsEqual = wFlag == w1 && w1 == w2
         assertTrue(mixin1DelegatesToSingleton) && assertTrue(mixin2DelegatesToSingleton) && assertTrue(
           mixinsShareRegistry
-        ) && assertTrue(viaFlag) && assertTrue(viaMixin2) && assertTrue(dumpsEqual) && assertTrue(contains) && assertTrue(
+        ) && assertTrue(viaFlag) && assertTrue(viaMixin2) && assertTrue(dumpsEqual) && assertTrue(
+          contains
+        ) && assertTrue(
           warningsEqual
         )
       } finally Flag.registry.remove("repro.mixin.flag")

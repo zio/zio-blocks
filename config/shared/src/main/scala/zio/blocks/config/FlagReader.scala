@@ -164,8 +164,8 @@ object Flag extends Flag {
 
   /**
    * Authoritative global registry of all resolved flag instances (static and
-   * dynamic), keyed by flag name. Stored only here; [[Flag]] trait delegates
-   * to this instance so no separate map can exist.
+   * dynamic), keyed by flag name. Stored only here; [[Flag]] trait delegates to
+   * this instance so no separate map can exist.
    */
   override val registry: ConcurrentHashMap[String, Any] = new ConcurrentHashMap[String, Any]()
 
