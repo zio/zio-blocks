@@ -24,25 +24,7 @@ import zio.blocks.maybe.Maybe
  */
 final case class ProvenanceMap[A](value: A, private val source: ConfigSource) {
 
-  private val sensitiveKeyMarkers = List(
-    "secret",
-    "password",
-    "passwd",
-    "token",
-    "apikey",
-    "api_key",
-    "accesskey",
-    "access_key",
-    "privatekey",
-    "private_key",
-    "credential",
-    "credentials"
-  )
-
-  private def shouldRedact(path: String): Boolean = {
-    val normalized = path.toLowerCase.replace('-', '_')
-    sensitiveKeyMarkers.exists(normalized.contains)
-  }
+  private def shouldRedact(path: String): Boolean = Sensitive.isSensitive(path)
 
   private def displayValue(key: String, rawValue: String): String =
     if (shouldRedact(key)) "<secret>" else rawValue

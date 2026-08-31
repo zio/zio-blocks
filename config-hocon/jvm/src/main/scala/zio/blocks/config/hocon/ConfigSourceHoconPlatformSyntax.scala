@@ -20,11 +20,36 @@ import zio.blocks.config.{ConfigError, ConfigSource}
 
 trait ConfigSourceHoconPlatformSyntax {
   implicit final class ConfigSourceHoconPlatformOps(private val companion: ConfigSource.type) {
+
+    /** Original three-argument API – preserved for binary compatibility. */
     def fromFile(
       path: String,
       allowedBase: Option[java.io.File] = None,
       maxIncludeDepth: Int = 10
     ): Either[ConfigError, ConfigSource] =
       HoconConfigSourcePlatform.fromFile(path, allowedBase, maxIncludeDepth)
+
+    /**
+     * Binary-compatible bridge for the intermediate four-argument signature.
+     */
+    def fromFile(
+      path: String,
+      allowedBase: Option[java.io.File],
+      maxIncludeDepth: Int,
+      maxFileBytes: Long
+    ): Either[ConfigError, ConfigSource] =
+      HoconConfigSourcePlatform.fromFile(path, allowedBase, maxIncludeDepth, maxFileBytes)
+
+    /**
+     * Configurable-limit API with distinct name to avoid overloaded-default
+     * ambiguity.
+     */
+    def fromFileWithLimits(
+      path: String,
+      allowedBase: Option[java.io.File] = None,
+      maxIncludeDepth: Int = 10,
+      maxFileBytes: Long = HoconConfigSourcePlatform.DefaultMaxFileBytes
+    ): Either[ConfigError, ConfigSource] =
+      HoconConfigSourcePlatform.fromFileWithLimits(path, allowedBase, maxIncludeDepth, maxFileBytes)
   }
 }

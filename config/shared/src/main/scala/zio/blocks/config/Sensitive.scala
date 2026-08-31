@@ -16,25 +16,25 @@
 
 package zio.blocks.config
 
-import zio.blocks.schema.Schema
+private[config] object Sensitive {
 
-final class Secret private (private val value: String) {
-  override def toString: String = "<secret>"
+  private val markers = List(
+    "secret",
+    "password",
+    "passwd",
+    "token",
+    "apikey",
+    "api_key",
+    "accesskey",
+    "access_key",
+    "privatekey",
+    "private_key",
+    "credential",
+    "credentials"
+  )
 
-  override def hashCode: Int = value.hashCode
-
-  override def equals(obj: Any): Boolean = obj match {
-    case other: Secret => value == other.value
-    case _             => false
+  def isSensitive(path: String): Boolean = {
+    val normalized = path.toLowerCase.replace('-', '_')
+    markers.exists(normalized.contains)
   }
-}
-
-object Secret {
-  def apply(value: String): Secret = new Secret(value)
-
-  def unwrap(secret: Secret): String = secret.value
-
-  def displayable: Displayable[Secret] = Displayable.instance(_ => "<secret>")
-
-  implicit val schema: Schema[Secret] = Schema[String].transform(Secret.apply, Secret.unwrap)
 }

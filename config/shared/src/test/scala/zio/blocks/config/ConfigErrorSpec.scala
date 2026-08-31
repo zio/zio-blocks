@@ -198,6 +198,116 @@ object ConfigErrorSpec extends ConfigBaseSpec {
             error.message.contains("JDBC URL")
         )
       }
+    ),
+    suite("InvalidValue sensitive redaction")(
+      test("redacts password key") {
+        val err = ConfigError.InvalidValue("db.password", "hunter2", "Int", "src")
+        assertTrue(
+          err.message.contains("<secret>"),
+          !err.message.contains("hunter2"),
+          err.value == "hunter2",
+          err.getMessage.contains("<secret>"),
+          !err.getMessage.contains("hunter2")
+        )
+      },
+      test("redacts token key case-insensitive") {
+        val err = ConfigError.InvalidValue("apiToken", "tok123", "Int", "src")
+        assertTrue(
+          err.message.contains("<secret>"),
+          !err.message.contains("tok123"),
+          err.value == "tok123"
+        )
+      },
+      test("redacts api-key kebab variant") {
+        val err = ConfigError.InvalidValue("api-key", "secret123", "Int", "src")
+        assertTrue(
+          err.message.contains("<secret>"),
+          !err.message.contains("secret123")
+        )
+      },
+      test("redacts private-key underscore and hyphen variants") {
+        val err1 = ConfigError.InvalidValue("private_key", "priv1", "Int", "src")
+        val err2 = ConfigError.InvalidValue("private-key", "priv2", "Int", "src")
+        val err3 = ConfigError.InvalidValue("myPrivateKey", "priv3", "Int", "src")
+        assertTrue(
+          err1.message.contains("<secret>"),
+          !err1.message.contains("priv1"),
+          err2.message.contains("<secret>"),
+          !err2.message.contains("priv2"),
+          err3.message.contains("<secret>"),
+          !err3.message.contains("priv3")
+        )
+      },
+      test("redacts secret and credentials markers") {
+        val err1 = ConfigError.InvalidValue("mySecret", "s1", "Int", "src")
+        val err2 = ConfigError.InvalidValue("db.credentials", "s2", "Int", "src")
+        val err3 = ConfigError.InvalidValue("access_key", "s3", "Int", "src")
+        assertTrue(
+          err1.message.contains("<secret>"),
+          !err1.message.contains("s1"),
+          err2.message.contains("<secret>"),
+          !err2.message.contains("s2"),
+          err3.message.contains("<secret>"),
+          !err3.message.contains("s3")
+        )
+      },
+      test("does not redact non-sensitive value") {
+        val err = ConfigError.InvalidValue("db.host", "not-an-int", "Int", "src")
+        assertTrue(
+          err.message.contains("not-an-int"),
+          !err.message.contains("<secret>"),
+          err.value == "not-an-int"
+        )
+      },
+      test("redacts with cause but still hides value") {
+        val cause = new RuntimeException("cause msg")
+        val err   = ConfigError.InvalidValue("db.password", "hunter2", "Int", "src", Some(cause))
+        assertTrue(
+          err.message.contains("<secret>"),
+          !err.message.contains("hunter2"),
+          !err.message.contains("cause msg"),
+          !err.getMessage.contains("cause msg"),
+          err.value == "hunter2",
+          err.cause.exists(_.getMessage == "cause msg"),
+          err.message == "Invalid value '<secret>' for key 'db.password' (expected Int) in source 'src'",
+          err.getMessage == err.message
+        )
+      },
+      test("redacts cause text that echoes secret") {
+        val cause = new RuntimeException("For input string: \"hunter2\"")
+        val err   = ConfigError.InvalidValue("db.password", "hunter2", "Int", "src", Some(cause))
+        assertTrue(
+          !err.message.contains("hunter2"),
+          !err.getMessage.contains("hunter2"),
+          err.value == "hunter2",
+          err.cause.exists(_.getMessage.contains("hunter2")),
+          err.message == "Invalid value '<secret>' for key 'db.password' (expected Int) in source 'src'",
+          err.getMessage == err.message
+        )
+      },
+      test("Composite with sensitive InvalidValue keeps redaction") {
+        val sensitive    = ConfigError.InvalidValue("db.password", "hunter2", "Int", "src")
+        val nonSensitive = ConfigError.InvalidValue("db.port", "abc", "Int", "src")
+        val composite    = ConfigError.Composite(new ::(sensitive, List(nonSensitive)))
+        assertTrue(
+          composite.message.contains("<secret>"),
+          !composite.message.contains("hunter2"),
+          !composite.getMessage.contains("hunter2"),
+          composite.message.contains("abc")
+        )
+      },
+      test("Composite with sensitive cause does not leak through message") {
+        val cause     = new RuntimeException("For input string: \"hunter2\"")
+        val sensitive = ConfigError.InvalidValue("api.token", "hunter2", "Int", "src", Some(cause))
+        val composite = ConfigError.Composite(new ::(sensitive, Nil))
+        assertTrue(
+          !composite.message.contains("hunter2"),
+          !composite.getMessage.contains("hunter2"),
+          composite.message.contains("<secret>"),
+          sensitive.value == "hunter2",
+          sensitive.cause.exists(_.getMessage.contains("hunter2"))
+        )
+      }
     )
   )
 }

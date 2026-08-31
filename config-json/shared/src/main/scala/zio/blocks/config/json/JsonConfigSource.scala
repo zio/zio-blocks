@@ -40,9 +40,8 @@ private[json] object JsonConfigSource {
       case Right(jsonValue) =>
         val flatMap = flatten(jsonValue, "")
         Right(ConfigSource.fromMap(flatMap, sourceId))
-      case Left(schemaError) =>
-        val excerpt = if (json.length > 100) json.take(100) + "..." else json
-        Left(ConfigError.InvalidValue("", excerpt, "valid JSON", sourceId, Some(schemaError)))
+      case Left(_) =>
+        Left(ConfigError.ParseError("", sourceId, "valid JSON"))
     }
 
   /**

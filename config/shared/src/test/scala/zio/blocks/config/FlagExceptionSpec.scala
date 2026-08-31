@@ -260,6 +260,91 @@ object FlagExceptionSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(result.toOption.get.getCause.isInstanceOf[FlagExpressionParseException])
       }
-    ) @@ TestAspect.sequential
+    ) @@ TestAspect.sequential,
+    suite("FlagValueParseException sensitive redaction")(
+      test("sensitive flag redacts rawValue and cause, retains structured fields") {
+        val secret = "SENTINEL_FLAG_SECRET_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8"
+        val cause  = new RuntimeException(s"For input string: \"$secret\"")
+        val ex     = FlagValueParseException("my.secret.token", secret, "Int", Some(cause))
+        assertTrue(!ex.getMessage.contains(secret)) &&
+        assertTrue(!ex.getMessage.contains("For input string")) &&
+        assertTrue(ex.getMessage.contains("<secret>")) &&
+        assertTrue(ex.getMessage.contains("my.secret.token")) &&
+        assertTrue(ex.getMessage.contains("Int")) &&
+        assertTrue(ex.rawValue == secret) &&
+        assertTrue(ex.cause.exists(_.getMessage.contains(secret))) &&
+        assertTrue(ex.flagName == "my.secret.token")
+      },
+      test("sensitive flag with password marker redacts") {
+        val secret = "SENTINEL_FLAG_PWD_zzz111yyy222xxx333www444vvv555uuu666ttt777sss888"
+        val ex     = FlagValueParseException("db.password", secret, "Int", Some(new RuntimeException(secret)))
+        assertTrue(!ex.getMessage.contains(secret)) &&
+        assertTrue(ex.getMessage.contains("<secret>")) &&
+        assertTrue(ex.rawValue == secret)
+      },
+      test("sensitive flag api-key kebab and credential markers redact") {
+        val s1  = "SENTINEL_FLAG_APIKEY_aaa111bbb222ccc333ddd444"
+        val s2  = "SENTINEL_FLAG_CRED_eee555fff666ggg777hhh888"
+        val ex1 = FlagValueParseException("service.api-key", s1, "Int", Some(new RuntimeException(s"bad $s1")))
+        val ex2 = FlagValueParseException("my.credentials", s2, "Int", Some(new RuntimeException(s2)))
+        assertTrue(!ex1.getMessage.contains(s1)) &&
+        assertTrue(ex1.getMessage.contains("<secret>")) &&
+        assertTrue(ex1.rawValue == s1) &&
+        assertTrue(!ex2.getMessage.contains(s2)) &&
+        assertTrue(ex2.getMessage.contains("<secret>")) &&
+        assertTrue(ex2.rawValue == s2)
+      },
+      test("non-sensitive flag retains rawValue and cause details") {
+        val ex = FlagValueParseException(
+          "service.timeout",
+          "badValue123",
+          "Int",
+          Some(new RuntimeException("For input string: \"badValue123\""))
+        )
+        assertTrue(ex.getMessage.contains("badValue123")) &&
+        assertTrue(ex.getMessage.contains("For input string")) &&
+        assertTrue(!ex.getMessage.contains("<secret>")) &&
+        assertTrue(ex.getMessage.contains("service.timeout")) &&
+        assertTrue(ex.getMessage.contains("Int"))
+      },
+      test("sensitive flag Composite wrapper does not leak") {
+        val secret = "SENTINEL_FLAG_COMP_999888777666555444333222111000aaaabbbbccccdddd"
+        val cause  = new RuntimeException(secret)
+        val ex     = FlagValueParseException("auth.token", secret, "Int", Some(cause))
+        // Flag exceptions are typically wrapped in ExceptionInInitializerError; simulate via Composite-like concatenation
+        val wrapperMsg = new ExceptionInInitializerError(ex).getCause.getMessage
+        assertTrue(!wrapperMsg.contains(secret)) &&
+        assertTrue(wrapperMsg.contains("<secret>")) &&
+        assertTrue(ex.rawValue == secret) &&
+        assertTrue(ex.cause.exists(_.getMessage.contains(secret)))
+      },
+      test("Sensitive.isSensitive covers all markers for flag names") {
+        val secret         = "SENTINEL_GENERIC_abc123"
+        val sensitiveNames = List(
+          "my.secret",
+          "db.password",
+          "svc.passwd",
+          "auth.token",
+          "api.apiKey",
+          "x.api_key",
+          "svc.accessKey",
+          "svc.access_key",
+          "m.privateKey",
+          "m.private_key",
+          "svc.credential",
+          "svc.credentials"
+        )
+        assertTrue(sensitiveNames.forall { name =>
+          val ex = FlagValueParseException(name, secret, "Int", Some(new RuntimeException(secret)))
+          !ex.getMessage.contains(secret) && ex.getMessage.contains("<secret>")
+        })
+      },
+      test("non-sensitive flag with long secret value still shows value") {
+        val raw = "SENTINEL_NON_SENSITIVE_LONG_" + ("x" * 150)
+        val ex  = FlagValueParseException("app.port", raw, "Int", Some(new RuntimeException(raw)))
+        assertTrue(ex.getMessage.contains(raw)) &&
+        assertTrue(ex.rawValue == raw)
+      }
+    )
   )
 }

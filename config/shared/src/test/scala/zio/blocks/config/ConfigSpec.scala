@@ -37,6 +37,16 @@ object ConfigSpec extends ConfigBaseSpec {
 
   final class DbService(val config: Db)
 
+  case class WithSecret(token: Secret, name: String)
+  object WithSecret {
+    implicit val schema: Schema[WithSecret] = Schema.derived[WithSecret]
+  }
+
+  case class NestedSecret(dbPassword: Secret, host: String)
+  object NestedSecret {
+    implicit val schema: Schema[NestedSecret] = Schema.derived[NestedSecret]
+  }
+
   def spec = suite("ConfigSpec")(
     suite("Config.load")(
       test("loads a simple case class from MapSource") {
@@ -177,6 +187,45 @@ object ConfigSpec extends ConfigBaseSpec {
           dumped.contains("db.password"),
           dumped.contains("<secret>"),
           !dumped.contains("super-secret-password")
+        )
+      }
+    ),
+    suite("Secret integration")(
+      test("loads case class containing Secret via Config.load") {
+        val source = ConfigSource.fromMap(Map("token" -> "s3cr3t", "name" -> "myapp"))
+        val result = Config.load[WithSecret](source)
+        assertTrue(
+          result.isRight,
+          result.toOption.get.name == "myapp",
+          Secret.unwrap(result.toOption.get.token) == "s3cr3t",
+          result.toOption.get.token.toString == "<secret>"
+        )
+      },
+      test("loads case class containing Secret via ConfigDecoder") {
+        val source  = ConfigSource.fromMap(Map("token" -> "tok123", "name" -> "svc"))
+        val decoder = ConfigDecoder.derive[WithSecret]
+        val result  = decoder.decode(source, "")
+        assertTrue(
+          result.isRight,
+          Secret.unwrap(result.toOption.get.token) == "tok123"
+        )
+      },
+      test("loads nested Secret field with prefix") {
+        val source = ConfigSource.fromMap(Map("dbPassword" -> "pwd123", "host" -> "localhost"))
+        val result = Config.load[NestedSecret](source)
+        assertTrue(
+          result.isRight,
+          Secret.unwrap(result.toOption.get.dbPassword) == "pwd123",
+          result.toOption.get.host == "localhost"
+        )
+      },
+      test("Secret decoder respects missing key error") {
+        val source = ConfigSource.fromMap(Map("name" -> "myapp"))
+        val result = Config.load[WithSecret](source)
+        assertTrue(
+          result.isLeft,
+          result.swap.toOption.get.head.isInstanceOf[ConfigError.MissingKey] ||
+            result.swap.toOption.get.head.isInstanceOf[ConfigError.Composite]
         )
       }
     )

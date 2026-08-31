@@ -45,9 +45,8 @@ object YamlConfigSource {
       val flatMap = flatten(parsed)
       Right(ConfigSource.MapSource(flatMap, sourceId))
     } catch {
-      case e: Exception =>
-        val excerpt = if (yaml.length > 100) yaml.take(100) + "..." else yaml
-        Left(ConfigError.InvalidValue("", excerpt, "valid YAML", sourceId, Some(e)))
+      case _: Throwable =>
+        Left(ConfigError.ParseError("", sourceId, "valid YAML"))
     }
 
   /**

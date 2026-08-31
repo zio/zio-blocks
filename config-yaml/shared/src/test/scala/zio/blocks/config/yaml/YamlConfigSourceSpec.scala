@@ -16,7 +16,7 @@
 
 package zio.blocks.config.yaml
 
-import zio.blocks.config.ConfigSource
+import zio.blocks.config.{ConfigError, ConfigSource}
 import zio.blocks.maybe.Maybe
 import zio.test._
 
@@ -101,7 +101,10 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
     test("handles flow sequence value") {
       val yaml   = "key: [a, b, c]"
       val result = YamlConfigSource.fromString(yaml)
-      assertTrue(result.isRight || result.isLeft)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key.0").map(_.value) == Maybe.present("a")) &&
+      assertTrue(result.toOption.get.get("key.1").map(_.value) == Maybe.present("b")) &&
+      assertTrue(result.toOption.get.get("key.2").map(_.value) == Maybe.present("c"))
     },
     test("uses custom sourceId in provenance") {
       val yaml   = "key: value"
@@ -143,7 +146,8 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
     },
     test("malformed YAML treated as scalar value") {
       val result = YamlConfigSource.fromString("key: ]]][[[")
-      assertTrue(result.isRight)
+      assertTrue(result.isRight) &&
+      assertTrue(result.toOption.get.get("key").map(_.value) == Maybe.present("]]][[["))
     },
     test("triple-nested object keys accessible via dot notation") {
       val yaml = """
@@ -166,6 +170,58 @@ object YamlConfigSourceSpec extends ZIOSpecDefault {
       val result = YamlConfigSource.fromString(yaml)
       assertTrue(result.isRight) &&
       assertTrue(result.toOption.get.get("count").map(_.value) == Maybe.present("42"))
-    }
+    },
+    suite("parse error redaction")(
+      test("invalid YAML does not leak document excerpt or cause, contains source and expected format") {
+        // `bad: "` triggers StringIndexOutOfBounds via unquoteDouble substring bounds, while secret is in prior line
+        val secret   = "SENTINEL_YAML_SECRET_7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0"
+        val badYaml  = s"secretKey: $secret\nbad: \""
+        val sourceId = "test-yaml-source"
+        val result   = YamlConfigSource.fromString(badYaml, sourceId)
+        assertTrue(result.isLeft) &&
+        assertTrue(result.left.toOption.get.isInstanceOf[ConfigError.ParseError]) &&
+        assertTrue(!result.left.toOption.get.message.contains(secret)) &&
+        assertTrue(!result.left.toOption.get.getMessage.contains(secret)) &&
+        assertTrue(result.left.toOption.get.message.contains(sourceId)) &&
+        assertTrue(result.left.toOption.get.message.contains("valid YAML"))
+      },
+      test("invalid YAML with secret in long document does not leak") {
+        val secret  = "SENTINEL_YAML_LONG_ffffffffeeeeeeeeddddddddccccccccbbbbbbbb111111222222333333444444"
+        val badYaml = s"secretKey: $secret\nbad: \"\n" + ("x" * 120)
+        val result  = YamlConfigSource.fromString(badYaml, "yaml:long")
+        assertTrue(result.isLeft) &&
+        assertTrue(!result.left.toOption.get.message.contains(secret)) &&
+        assertTrue(!result.left.toOption.get.getMessage.contains(secret)) &&
+        assertTrue(result.left.toOption.get.message.contains("valid YAML")) &&
+        assertTrue(result.left.toOption.get.message.contains("yaml:long"))
+      },
+      test("invalid YAML error wrapped in Composite still redacted") {
+        val secret  = "SENTINEL_YAML_COMPOSITE_aaa111bbb222ccc333ddd444eee555fff666ggg777hhh888"
+        val badYaml = s"secretKey: $secret\nbad: \""
+        val result  = YamlConfigSource.fromString(badYaml, "yaml:composite")
+        assertTrue(result.isLeft) &&
+        assertTrue {
+          val composite = ConfigError.Composite(new ::(result.left.toOption.get, Nil))
+          !composite.message.contains(secret) && !composite.getMessage.contains(secret) &&
+          composite.message.contains("valid YAML") && composite.message.contains("yaml:composite")
+        }
+      },
+      test("ParseError with empty path hides cause text even if cause contains secret") {
+        val secret = "SENTINEL_PARSE_CAUSE_YAML_123456abcdef123456abcdef123456abcdef"
+        val cause  = new RuntimeException(s"yaml parse error near '$secret'")
+        val err    = ConfigError.ParseError("", "yaml:string", "valid YAML", Some(cause))
+        assertTrue(!err.message.contains(secret)) &&
+        assertTrue(!err.getMessage.contains(secret)) &&
+        assertTrue(err.message.contains("valid YAML")) &&
+        assertTrue(err.message.contains("yaml:string")) &&
+        assertTrue(err.cause.exists(_.getMessage.contains(secret)))
+      },
+      test("non-empty path ParseError still includes cause for diagnostics") {
+        val cause = new RuntimeException("unexpected end")
+        val err   = ConfigError.ParseError("some.key", "yaml:string", "valid YAML", Some(cause))
+        assertTrue(err.message.contains("unexpected end")) &&
+        assertTrue(err.getMessage.contains("unexpected end"))
+      }
+    )
   )
 }

@@ -64,8 +64,11 @@ object FlagException {
     cause: Option[Throwable] = None
   ) extends FlagException {
     override def getMessage: String = {
-      val base = s"Failed to parse value '$rawValue' for flag '$flagName' (expected $expectedType)"
-      cause.fold(base)(t => s"$base: ${t.getMessage}")
+      val isSensitive = Sensitive.isSensitive(flagName)
+      val display     = if (isSensitive) "<secret>" else rawValue
+      val base        = s"Failed to parse value '$display' for flag '$flagName' (expected $expectedType)"
+      if (isSensitive) base
+      else cause.fold(base)(t => s"$base: ${t.getMessage}")
     }
   }
 
