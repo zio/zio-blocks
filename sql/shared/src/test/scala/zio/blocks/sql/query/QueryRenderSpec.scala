@@ -213,6 +213,62 @@ object QueryRenderSpec extends ZIOSpecDefault {
           sql.contains("JOIN \"repo\" AS t1 ON")
         )
       }
+    ),
+    suite("clean-context regressions")(
+      test("addJoin neither side present fails fast with descriptive message") {
+        case class Extra(id: Int, ref: Int)
+        object Extra { given Schema[Extra] = Schema.derived }
+        val extraTable = Table.derived[Extra]
+        // Rel between repo and extra, neither is source user nor joined
+        val strayRel = Rel(extraTable, "ref", repoTable, "id")
+        val ex       = try {
+          SqlQuery.from(userTable).innerJoin(strayRel)
+          None
+        } catch {
+          case e: IllegalArgumentException => Some(e.getMessage)
+        }
+        assertTrue(
+          ex.isDefined,
+          ex.get.contains("neither side"),
+          ex.get.contains("extra"),
+          ex.get.contains("repo")
+        )
+      },
+      test("mixed legacy Frag filter plus typed filter are both rendered with AND and params preserved") {
+        val legacyFrag = Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("Alice")))
+        val q          = SqlQuery
+          .from(userTable)
+          .filter(legacyFrag)
+          .where(col[User](_.id) > lit(10))
+        val frag = q.toFrag(SqlDialect.PostgreSQL)
+        val sql  = frag.sql(SqlDialect.PostgreSQL)
+        val exp  = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 WHERE t0.\"id\" > ? AND t0.\"name\" = ?"
+        assertTrue(
+          sql == exp,
+          frag.params == IndexedSeq(DbValue.DbInt(10), DbValue.DbString("Alice"))
+        )
+      },
+      test("chained self-join second join binds from latest compatible alias t1->t2") {
+        val q   = SqlQuery.from(employeeTable).innerJoin(employeeSelfRel).innerJoin(employeeSelfRel)
+        val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp =
+          "SELECT t0.\"id\", t0.\"name\", t0.\"manager_id\", t1.\"id\", t1.\"name\", t1.\"manager_id\", t2.\"id\", t2.\"name\", t2.\"manager_id\" FROM \"employee\" AS t0 INNER JOIN \"employee\" AS t1 ON t0.\"manager_id\" = t1.\"id\" INNER JOIN \"employee\" AS t2 ON t1.\"manager_id\" = t2.\"id\""
+        assertTrue(
+          sql == exp,
+          sql.contains("t1.\"manager_id\" = t2.\"id\""),
+          !sql.contains("t0.\"manager_id\" = t2.\"id\"")
+        )
+      },
+      test("explicit alias with invalid identifier fails before lookup") {
+        val q  = SqlQuery.from(userTable).where(colAt[User]("bad-alias!", _.name) === lit("x"))
+        val ex = try {
+          q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+          None
+        } catch {
+          case e: IllegalArgumentException => Some(e.getMessage)
+        }
+        assertTrue(ex.isDefined, ex.get.contains("Invalid SQL alias identifier") || ex.get.contains("bad-alias"))
+      }
     )
   )
 }

@@ -79,13 +79,9 @@ object TransactorSpec extends ZIOSpecDefault {
         conn.setAutoCommit(false)
         try {
           given tx: DbTx = new DbTx {
-            val connection: DbConnection                = dbConn
-            val dialect: SqlDialect                     = SqlDialect.SQLite
-            val logger: SqlLogger                       = SqlLogger.noop
-            override var currentDepth: Int              = 0
-            override def savepoint(name: String): Unit  = dbConn.savepoint(name)
-            override def release(name: String): Unit    = dbConn.release(name)
-            override def rollbackTo(name: String): Unit = dbConn.rollbackTo(name)
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
           }
           val result = f
           conn.commit()
@@ -96,9 +92,6 @@ object TransactorSpec extends ZIOSpecDefault {
             throw e
         } finally conn.setAutoCommit(true)
       }
-
-      override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A =
-        transact(f)
     }
     (tx, conn)
   }

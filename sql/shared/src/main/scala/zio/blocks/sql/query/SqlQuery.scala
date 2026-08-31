@@ -16,7 +16,7 @@
 
 package zio.blocks.sql.query
 
-import zio.blocks.sql.{Frag, SqlDialect, SqlIdentifier, Table}
+import zio.blocks.sql.{DbCodec, Frag, SqlDialect, SqlIdentifier, Table}
 
 /**
  * Immutable query IR starting from a source table.
@@ -34,7 +34,10 @@ final case class SqlQuery[A] private[query] (
   having: Option[Frag],
   orderBy: Vector[OrderBy],
   limit: Option[Int],
-  offset: Option[Int]
+  offset: Option[Int],
+  typedFilters: Vector[Expr[Boolean]] = Vector.empty,
+  typedGroupBy: Vector[Expr[_]] = Vector.empty,
+  typedHaving: Option[Expr[Boolean]] = None
 ) {
 
   def innerJoin[From, To](rel: Rel[From, To]): SqlQuery[A] =
@@ -57,12 +60,13 @@ final case class SqlQuery[A] private[query] (
   private def addJoin[From, To](rel: Rel[From, To], kind: JoinKind): SqlQuery[A] = {
     val nextAlias  = s"t${joins.size + 1}"
     val isSelfJoin = rel.fromTable.name == rel.toTable.name
-    @scala.annotation.nowarn
-    val pair = if (isSelfJoin) {
-      // self-join: t0."fk" = tN."pk"
-      val fk = SqlIdentifier.validate("column", rel.fkColumn)
-      val pk = SqlIdentifier.validate("column", rel.pkColumn)
-      val on = Frag.literal(s"""t0."$fk" = $nextAlias."$pk"""")
+    val pair       = if (isSelfJoin) {
+      val fk                                      = SqlIdentifier.validate("column", rel.fkColumn)
+      val pk                                      = SqlIdentifier.validate("column", rel.pkColumn)
+      val allExisting: Vector[(Table[_], String)] =
+        Vector((source, "t0")) ++ joins.map(j => (j.table, j.alias))
+      val fkAlias = allExisting.reverse.find(_._1.name == rel.fromTable.name).map(_._2).getOrElse("t0")
+      val on      = Frag.literal(s"""$fkAlias."$fk" = $nextAlias."$pk"""")
       (rel.toTable.asInstanceOf[Table[_]], on)
     } else {
       val fromOpt          = aliasOf(rel.fromTable)
@@ -80,33 +84,9 @@ final case class SqlQuery[A] private[query] (
           fkAlias = nextAlias
           pkAlias = ta
         case (None, None) =>
-          // Neither side is yet in query — attach fk side to last alias (or t0) and introduce to side as new.
-          // Prefer treating fromTable as existing (t0/last) and toTable as new when source matches fromTable by name heuristic.
-          // Fallback: attach from side as existing t0, target is toTable.
-          // Determine by checking if source name equals fromTable name -> then from is existing.
-          // Otherwise treat to as existing if source matches toTable.
-          if (source.name == rel.fromTable.name) {
-            target = rel.toTable.asInstanceOf[Table[_]]
-            fkAlias = "t0"
-            pkAlias = nextAlias
-          } else if (source.name == rel.toTable.name) {
-            target = rel.fromTable.asInstanceOf[Table[_]]
-            fkAlias = nextAlias
-            pkAlias = "t0"
-          } else if (joins.nonEmpty && joins.last.table.name == rel.fromTable.name) {
-            target = rel.toTable.asInstanceOf[Table[_]]
-            fkAlias = joins.last.alias
-            pkAlias = nextAlias
-          } else if (joins.nonEmpty && joins.last.table.name == rel.toTable.name) {
-            target = rel.fromTable.asInstanceOf[Table[_]]
-            fkAlias = nextAlias
-            pkAlias = joins.last.alias
-          } else {
-            // default: from is existing (t0), to is new
-            target = rel.toTable.asInstanceOf[Table[_]]
-            fkAlias = "t0"
-            pkAlias = nextAlias
-          }
+          throw new IllegalArgumentException(
+            s"neither side of relation ${rel.fromTable.name}.${rel.fkColumn} = ${rel.toTable.name}.${rel.pkColumn} is present in query; source is '${source.name}' and joins are [${joins.map(j => j.table.name + " as " + j.alias).mkString(", ")}]"
+          )
         case (Some(_), Some(_)) =>
           // Both sides already present — treat as joining duplicate alias for target? Use from as existing and create new alias for target duplicate.
           target = rel.toTable.asInstanceOf[Table[_]]
@@ -124,18 +104,29 @@ final case class SqlQuery[A] private[query] (
     copy(joins = joins :+ node)
   }
 
-  def filter(frag: Frag): SqlQuery[A] =
+  private[sql] def filter(frag: Frag): SqlQuery[A] =
     copy(filters = filters :+ frag)
 
-  def where(frag: Frag): SqlQuery[A] = filter(frag)
+  private[sql] def where(frag: Frag): SqlQuery[A] = filter(frag)
+
+  def filter(expr: Expr[Boolean]): SqlQuery[A] = where(expr)
+
+  def where(expr: Expr[Boolean]): SqlQuery[A] =
+    copy(typedFilters = typedFilters :+ expr)
 
   def groupBy(cols: String*): SqlQuery[A] = {
     cols.foreach(c => SqlIdentifier.validate("column", c))
     copy(groupBy = cols.toVector)
   }
 
-  def having(frag: Frag): SqlQuery[A] =
+  def groupBy(expr: Expr[_], exprs: Expr[?]*): SqlQuery[A] =
+    copy(typedGroupBy = (expr +: exprs).toVector)
+
+  private[sql] def having(frag: Frag): SqlQuery[A] =
     copy(having = Some(frag))
+
+  def having(expr: Expr[Boolean]): SqlQuery[A] =
+    copy(typedHaving = Some(expr))
 
   def orderBy(col: String, dir: SortOrder = SortOrder.Asc): SqlQuery[A] = {
     SqlIdentifier.validate("column", col)
@@ -158,6 +149,9 @@ final case class SqlQuery[A] private[query] (
   def toFrag(dialect: SqlDialect): Frag = QueryRenderer.render(this, dialect)
 
   def sql(dialect: SqlDialect): String = toFrag(dialect).sql(dialect)
+
+  transparent inline def select[T](inline exprs: Expr[?]*)(using codec: DbCodec[T]): TypedQuery[T] =
+    ${ SelectMacros.selectImpl[T]('exprs, 'codec, '{ this }) }
 
   private def aliasOf(table: Table[_]): Option[String] =
     if (table.name == source.name) Some("t0")
