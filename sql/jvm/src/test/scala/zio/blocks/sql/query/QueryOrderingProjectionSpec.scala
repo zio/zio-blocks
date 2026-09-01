@@ -21,13 +21,13 @@ import zio.blocks.sql.{DbCon, DbValue, Frag, JdbcTransactor, SqlDialect, Table, 
 import zio.test.*
 
 /**
- * Task 9: generalized typed ordering and projections.
+ * Generalized typed ordering and projections.
  *
  * Typed `ORDER BY` (joined aliases, aggregates, mixed directions, Option and
  * arithmetic expressions, scope enforcement) and unbounded projection arity via
  * recursive tuple flattening (Tuple9, Tuple22, `*:`-shaped tuples, arity 23).
  */
-object Task9IntegrationSpec extends ZIOSpecDefault {
+object QueryOrderingProjectionSpec extends ZIOSpecDefault {
   private val _ = Class.forName("org.sqlite.JDBC")
 
   @Modifier.config("sql.table_name", "users_t9")
@@ -563,7 +563,7 @@ object Task9IntegrationSpec extends ZIOSpecDefault {
     }
   )
 
-  def spec = suite("Task9IntegrationSpec")(
+  def spec = suite("QueryOrderingProjectionSpec")(
     orderingSuite,
     lineageSuite,
     rejectionSuite,

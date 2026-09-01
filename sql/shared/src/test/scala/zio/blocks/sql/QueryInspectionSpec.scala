@@ -21,7 +21,7 @@ import zio.blocks.schema.Schema
 import zio.blocks.sql.query.{SqlQuery => Qry, Rel, lit}
 import zio.blocks.sql.query.*
 
-object Task7CharacterizationSpec extends ZIOSpecDefault {
+object QueryInspectionSpec extends ZIOSpecDefault {
 
   case class User(id: Int, name: String)
   object User { given Schema[User] = Schema.derived }
@@ -31,7 +31,7 @@ object Task7CharacterizationSpec extends ZIOSpecDefault {
   val userTable = Table.derived[User]
   val repoTable = Table.derived[Repo]
 
-  def spec = suite("Task7CharacterizationSpec")(
+  def spec = suite("QueryInspectionSpec")(
     test("unified SqlQuery explain and statement via typed IR") {
       val rel     = Rel.manyToOne(repoTable, "owner_id", userTable, "id")
       val qBase   = Qry.from(userTable).innerJoin(rel)

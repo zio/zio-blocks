@@ -24,7 +24,7 @@ import zio.blocks.schema.Schema
 import zio.blocks.sql.query.{Rel, SqlQuery => Qry, lit}
 import zio.blocks.sql.query.*
 
-private object Task7DumpFixtureTwoFilters {
+private object DumpFixtureTwoFilters {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
@@ -33,7 +33,7 @@ private object Task7DumpFixtureTwoFilters {
     q0.where(q0.col[User](_.name) === lit("alice")).where(q0.col[User](_.id) === lit(42))
 }
 
-private object Task7DumpFixtureAndOr {
+private object DumpFixtureAndOr {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
@@ -42,7 +42,7 @@ private object Task7DumpFixtureAndOr {
   val orPred                 = q0.where((q0.col[User](_.name) === lit("bob")) || (q0.col[User](_.id) === lit(7)))
 }
 
-private object Task7DumpFixtureLikeIn {
+private object DumpFixtureLikeIn {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   val userTable: Table[User] = Table.derived[User]
@@ -51,7 +51,7 @@ private object Task7DumpFixtureLikeIn {
   val inQ                    = q0.where(q0.col[User](_.id).in(Seq(1, 2, 3)))
 }
 
-private object Task7DumpFixtureJoinCombined {
+private object DumpFixtureJoinCombined {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
   case class Repo(id: Int, ownerId: Int, name: String)
@@ -63,7 +63,7 @@ private object Task7DumpFixtureJoinCombined {
   val combined               = q0.where(q0.col[User](_.name).like("a%")).where(q0.col[Repo](_.name) === lit("my-repo"))
 }
 
-object Task7RepairSpec extends ZIOSpecDefault {
+object DumpIntegrationSpec extends ZIOSpecDefault {
 
   private def deleteRecursively(path: Path): Unit = {
     if (Files.isDirectory(path)) {
@@ -77,7 +77,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
   }
 
   private def withTempDumpDir[A](body: Path => A): A = {
-    val tmp  = Files.createTempDirectory("task7-dump-")
+    val tmp  = Files.createTempDirectory("dump-integration-")
     val orig = Option(System.getProperty("zib.sql.dumpDir"))
     try {
       System.setProperty("zib.sql.dumpDir", tmp.toString)
@@ -97,7 +97,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
     qNorm.replaceAll("\\s+", " ").trim
   }
 
-  def spec = suite("Task7RepairSpec")(
+  def spec = suite("DumpIntegrationSpec")(
     test("typed equality single filter exact sql and statement") {
       case class User(id: Int, name: String)
       object User { implicit val schema: Schema[User] = Schema.derived }
@@ -119,7 +119,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("multiple typed filters preserve order, count, and exact params") {
-      val q       = Task7DumpFixtureTwoFilters.twoFilters
+      val q       = DumpFixtureTwoFilters.twoFilters
       val fragSql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st      = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -139,8 +139,8 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("AND combined predicate vs multiple where have distinct filter inspection") {
-      val qAnd   = Task7DumpFixtureAndOr.andPred
-      val qTwo   = Task7DumpFixtureTwoFilters.twoFilters
+      val qAnd   = DumpFixtureAndOr.andPred
+      val qTwo   = DumpFixtureTwoFilters.twoFilters
       val andSql = qAnd.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val twoSql = qTwo.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val stAnd  = qAnd.statement(SqlDialect.PostgreSQL)
@@ -159,7 +159,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("OR predicate exact inspection and sql") {
-      val q    = Task7DumpFixtureAndOr.orPred
+      val q    = DumpFixtureAndOr.orPred
       val frag = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st   = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -173,7 +173,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("LIKE exact predicate, operator, and sql") {
-      val q    = Task7DumpFixtureLikeIn.likeQ
+      val q    = DumpFixtureLikeIn.likeQ
       val frag = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st   = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -187,7 +187,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("IN exact predicate, operator, placeholder list, and params") {
-      val q    = Task7DumpFixtureLikeIn.inQ
+      val q    = DumpFixtureLikeIn.inQ
       val frag = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st   = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -203,7 +203,7 @@ object Task7RepairSpec extends ZIOSpecDefault {
       )
     },
     test("statement params align with frag params for join+like+relational") {
-      val q    = Task7DumpFixtureJoinCombined.combined
+      val q    = DumpFixtureJoinCombined.combined
       val frag = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
       val st   = q.statement(SqlDialect.PostgreSQL)
       assertTrue(
@@ -304,17 +304,17 @@ object Task7RepairSpec extends ZIOSpecDefault {
     },
     test("generated dump equals runtime QueryRenderer sql via scoped temp dir") {
       withTempDumpDir { dir =>
-        val qTwo  = Task7DumpFixtureTwoFilters.twoFilters
-        val qAnd  = Task7DumpFixtureAndOr.andPred
-        val qIn   = Task7DumpFixtureLikeIn.inQ
-        val qLike = Task7DumpFixtureLikeIn.likeQ
-        val qJoin = Task7DumpFixtureJoinCombined.combined
+        val qTwo  = DumpFixtureTwoFilters.twoFilters
+        val qAnd  = DumpFixtureAndOr.andPred
+        val qIn   = DumpFixtureLikeIn.inQ
+        val qLike = DumpFixtureLikeIn.likeQ
+        val qJoin = DumpFixtureJoinCombined.combined
         val cases = Seq(
-          ("task7_two_filters", qTwo),
-          ("task7_and", qAnd),
-          ("task7_in", qIn),
-          ("task7_like", qLike),
-          ("task7_join", qJoin)
+          ("dump_two_filters", qTwo),
+          ("dump_and", qAnd),
+          ("dump_in", qIn),
+          ("dump_like", qLike),
+          ("dump_join", qJoin)
         )
         for ((base, q) <- cases) {
           val pgSql     = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
@@ -339,8 +339,8 @@ object Task7RepairSpec extends ZIOSpecDefault {
             throw new AssertionError(s"dump contained WHERE ? fallback for $base: $pgRead")
         }
         // also verify exact normalized equality for one case
-        val twoPg     = Task7DumpFixtureTwoFilters.twoFilters.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
-        val pgFileTwo = dir.resolve("task7_two_filters-postgresql.sql")
+        val twoPg     = DumpFixtureTwoFilters.twoFilters.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val pgFileTwo = dir.resolve("dump_two_filters-postgresql.sql")
         val twoRead   = new String(Files.readAllBytes(pgFileTwo), StandardCharsets.UTF_8).trim
         assertTrue(
           normalizeSql(twoRead) == normalizeSql(twoPg),

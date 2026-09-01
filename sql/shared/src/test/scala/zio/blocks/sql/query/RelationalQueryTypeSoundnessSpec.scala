@@ -26,9 +26,9 @@ import zio.test.*
  * scope/nullability/type must type-check, ruling out vacuous failures (e.g.
  * missing imports or broken snippet scaffolding).
  */
-object Task8TypeSoundnessSpec extends ZIOSpecDefault {
+object RelationalQueryTypeSoundnessSpec extends ZIOSpecDefault {
 
-  def spec = suite("Task8TypeSoundnessSpec")(
+  def spec = suite("RelationalQueryTypeSoundnessSpec")(
     suite("query-bound scope identity")(
       test("q1.Scope and q2.Scope are distinct — q1.select(q2.col) fails with the foreign scope") {
         val errors: List[scala.compiletime.testing.Error] = scala.compiletime.testing.typeCheckErrors(

@@ -20,7 +20,7 @@ import zio.blocks.schema.{Modifier, Schema}
 import zio.blocks.sql.{DbValue, DbResultReader, Frag, JdbcTransactor, PgSupport, SqlDialect, Table, sql}
 import zio.test.*
 
-object Task8IntegrationSpec extends ZIOSpecDefault {
+object RelationalQueryIntegrationSpec extends ZIOSpecDefault {
   private val _ = Class.forName("org.sqlite.JDBC")
 
   @Modifier.config("sql.table_name", "users_t8")
@@ -43,7 +43,7 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
 
   private val sqliteTransactor = JdbcTransactor.fromUrl("jdbc:sqlite::memory:", SqlDialect.SQLite)
 
-  private def sqliteSuite = suite("sqlite task8")(
+  private def sqliteSuite = suite("sqlite relational query")(
     test("LEFT JOIN right-side missing row decodes None via query-bound col without asOption") {
       sqliteTransactor.connect {
         Frag.literal("DROP TABLE IF EXISTS repos_t8").update
@@ -191,15 +191,15 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
   private def pgSuite =
     PgSupport.pgGate match {
       case Left(msg) if msg.startsWith("FAIL") =>
-        suite("postgres task8")(
+        suite("postgres relational query")(
           test(msg)(assertTrue(false))
         )
       case Left(msg) =>
-        suite("postgres task8")(
+        suite("postgres relational query")(
           test(msg)(assertTrue(true))
         )
       case Right(tx) =>
-        suite("postgres task8")(
+        suite("postgres relational query")(
           test("LEFT JOIN missing side and aggregate widening on PostgreSQL") {
             try {
               tx.connect {
@@ -257,11 +257,11 @@ object Task8IntegrationSpec extends ZIOSpecDefault {
                     Frag.literal("DROP TABLE IF EXISTS users_t8 CASCADE").update
                   }
                 catch { case _: Throwable => () }
-                throw new RuntimeException(s"PG task8 failed: ${e.getMessage}", e)
+                throw new RuntimeException(s"PG relational query failed: ${e.getMessage}", e)
             }
           }
         )
     }
 
-  def spec = suite("Task8IntegrationSpec")(sqliteSuite, pgSuite) @@ TestAspect.sequential
+  def spec = suite("RelationalQueryIntegrationSpec")(sqliteSuite, pgSuite) @@ TestAspect.sequential
 }
