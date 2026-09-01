@@ -156,8 +156,11 @@ jobs:
       if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
       run: sbt ++${{ matrix.scala }} coverage test${{ matrix.platform }} coverageReport
     - name: Run Scala 3 config adapter coverage (JDK 25, scoped)
-      if: ${{ (startsWith(matrix.scala, '3.')) && (matrix.java >= 25) }}
-      run: sbt ++${{ matrix.scala }} configCoverage
+      if: ${{ (matrix.scala == '3.8.x') && (matrix.java >= 25) }}
+      run: sbt "++3.8.3; configCoverage"
+    - name: Run JWT scoped coverage (JDK 25, Scala 3.8.x)
+      if: ${{ (matrix.scala == '3.8.x') && (matrix.java >= 25) }}
+      run: sbt "++3.8.3; jwtCoverage"
     - name: Verify SQL dump macro emission (dumpDir)
       if: ${{ (matrix.scala == '3.8.x') && (matrix.java == '17') }}
       run: |-

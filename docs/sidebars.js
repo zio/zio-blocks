@@ -206,9 +206,10 @@ const sidebars = {
           "reference/html",
           "reference/smithy",
           "reference/openapi",
+          "reference/jwt",
          {
-           type: "category",
-           label: "Datastar",
+            type: "category",
+            label: "Datastar",
            link: { type: "doc", id: "reference/datastar/index" },
            items: [
              "reference/datastar/signals",

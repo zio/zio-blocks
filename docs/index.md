@@ -114,6 +114,7 @@ JSON support is built into `zio-blocks-schema`; the modules below add further fo
 | [HTMX](./reference/htmx/index.md) | `zio-blocks-http-htmx` | JVM · JS | 3.x | Typed HTMX DSL for compile-time-checked HTMX attributes |
 | [Datastar](./reference/datastar/index.md) | `zio-blocks-datastar` | JVM · JS | 3.x | Typed Datastar attribute and signal DSL, plus the SSE events that patch a live page |
 | [OpenAPI](./reference/openapi.md) | `zio-blocks-openapi` | JVM · JS | 2.13 · 3.x | Type-safe OpenAPI 3.1 specification generation and rendering |
+| [JWT](./reference/jwt.md) | `zio-blocks-jwt` | JVM · JS | 2.13 · 3.x | Zero-dependency JWT signing and verification with HMAC, RSA, ECDSA and EdDSA support |
 
 ### Persistence
 

@@ -147,22 +147,22 @@ addCommandAlias(
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test" +
+    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test" +
+    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test; jwtJS/test"
 
 lazy val testJS1Scala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
@@ -171,42 +171,42 @@ lazy val testJS1Scala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
 
 lazy val testJS2Scala2Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; htmlJS/test"
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; htmlJS/test; jwtJS/test"
 
 lazy val testJS2Scala3Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; jwtJS/test"
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc" +
+    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc; projectionJVM/doc" +
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc; projectionJVM/doc; jwtJVM/doc" +
     whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
 
 lazy val docJSScala2Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; asyncJS/doc"
 
 lazy val docJSScala2Batch2Command =
-  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc; jwtJS/doc"
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc; dataMigrationJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc; dataMigrationJS/doc; jwtJS/doc"
 
 lazy val docJSScala3Batch1Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; asyncJS/doc"
 
 lazy val docJSScala3Batch2Command =
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; jwtJS/doc"
 
 def whenJdkAtLeast(minVersion: Int, command: String): String = {
   val currentVersion = System.getProperty("java.specification.version", "17").toInt
@@ -222,7 +222,7 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
     }
 
     selected.split(';').foldLeft(state) { case (current, command) =>
-      Command.process(command.trim, current)
+      Command.process(command.trim, current, _ => ())
     }
   }
 
@@ -308,6 +308,8 @@ lazy val root = project
     datastar.js,
     htmx.jvm,
     htmx.js,
+    jwt.jvm,
+    jwt.js,
     async.jvm,
     async.js,
     `async-benchmarks`,
@@ -1915,7 +1917,8 @@ lazy val docs = project
     `config-yaml`.jvm,
     `config-json`.jvm,
     `config-hocon`.jvm,
-    projection.jvm
+    projection.jvm,
+    jwt.jvm
   )
   .enablePlugins(WebsitePlugin)
   .settings(docsGenerateReadmeLocal := {
@@ -2250,3 +2253,28 @@ lazy val htmx = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 75
   )
+
+lazy val jwt = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(chunk)
+  .settings(stdSettings("zio-blocks-jwt"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.jwt"))
+  .enablePlugins(BuildInfoPlugin)
+  // JWT is new/unreleased: no prior artifacts exist, so MiMA previousArtifacts is legitimately empty.
+  .jvmSettings(mimaPreviousArtifacts := Set())
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // Measured via `sbt "++3.8.3 jwtCoverage"` (clean): 74.39% stmt / 71.72% branch.
+    coverageMinimumStmtTotal   := 72,
+    coverageMinimumBranchTotal := 70
+  )
+
+// Scoped JWT coverage gate: reliable for crossProject where global scoverage flush is unreliable.
+// Additive: preserves global coverage (root/test coverageReport) unchanged.
+// Usage: sbt jwtCoverage  (runs only jwtJVM with coverage and fails on thresholds above)
+addCommandAlias("jwtCoverage", "; jwtJVM/clean; coverage; jwtJVM/test; jwtJVM/coverageReport")
