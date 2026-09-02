@@ -38,10 +38,12 @@ This separation keeps your domain logic portable and testable while maintaining 
 
 ## Getting Started
 
-Start with the [HTTP Model](./model.md) to understand the core data types and how they compose. Then explore [Schema-Based Typed Access](./schema.md) to learn how to safely extract and validate HTTP parameters and headers.
+Start with the [HTTP Model](./model.md) to understand the core data types and how they compose. [Header](./headers.md) covers the typed header model — the 75 built-in headers, the codec type class behind them, and the parse cache — and [ServerSentEvent](./server-sent-event.md) covers the SSE envelope and its wire format. Then explore [Schema-Based Typed Access](./schema.md) to learn how to safely extract and validate HTTP parameters and headers.
 
 ---
 
 **Modules:**
 - [`zio-http-model`](./model.md) — Core immutable data types for HTTP
+- [`zio-http-model`](./headers.md) — Typed header model and the `Header.Codec` type class
+- [`zio-http-model`](./server-sent-event.md) — Server-Sent Event envelope and payload encoders
 - [`zio-http-model-schema`](./schema.md) — Schema-based typed extraction for query parameters and headers

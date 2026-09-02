@@ -21,6 +21,7 @@ const sidebars = {
                  "reference/schema/binding",
                  "reference/schema/registers",
                  "reference/schema/binding-resolver",
+                 "reference/schema/reflect-transformer",
                  "reference/schema/modifier",
                  "reference/schema/structural-types",
                ]
@@ -42,6 +43,7 @@ const sidebars = {
                  "reference/schema/optics",
                  "reference/schema/dynamic-optic",
                  "reference/schema/path-interpolator",
+                 "reference/schema/schema-search",
                  "reference/schema/schema-expr",
                  "reference/schema/patch",
                ]
@@ -125,10 +127,23 @@ const sidebars = {
              "reference/resource-management/finalizer",
              "reference/resource-management/finalization",
            ]
+          },
+          "reference/combinators",
+          "reference/docs",
+         {
+           type: "category",
+           label: "Config",
+           link: { type: "doc", id: "reference/config/index" },
+           items: [
+             "reference/config/config-source",
+             "reference/config/config-decoder",
+             "reference/config/errors",
+             "reference/config/flags",
+             "reference/config/rollout",
+             "reference/config/formats",
+           ]
          },
-         "reference/combinators",
-         "reference/docs",
-         "reference/media-type",
+          "reference/media-type",
          {
            type: "category",
            label: "Code Generation",
@@ -151,7 +166,10 @@ const sidebars = {
             link: { type: "doc", id: "reference/http-model/index" },
             items: [
               "reference/http-model/model",
+              "reference/http-model/headers",
+              "reference/http-model/server-sent-event",
               "reference/http-model/schema",
+              "reference/http-model/schema-codecs",
             ]
           },
           {
@@ -160,6 +178,7 @@ const sidebars = {
             link: { type: "doc", id: "reference/endpoint/index" },
             items: [
               "reference/endpoint/endpoint",
+              "reference/endpoint/bulk-creation",
               "reference/endpoint/http-codec",
               "reference/endpoint/route-pattern",
               "reference/endpoint/path-codec",
@@ -170,6 +189,7 @@ const sidebars = {
           },
           "reference/chunk",
           "reference/maybe",
+          "reference/async",
           "reference/mux",
           {
             type: "category",
@@ -185,7 +205,19 @@ const sidebars = {
           },
           "reference/html",
           "reference/smithy",
-          "reference/datastar",
+          "reference/openapi",
+          "reference/jwt",
+         {
+            type: "category",
+            label: "Datastar",
+           link: { type: "doc", id: "reference/datastar/index" },
+           items: [
+             "reference/datastar/signals",
+             "reference/datastar/attributes",
+             "reference/datastar/events",
+             "reference/datastar/sse",
+           ]
+         },
           {
             type: "category",
             label: "HTMX",
@@ -199,34 +231,159 @@ const sidebars = {
               "reference/htmx/hx-encoding",
               "reference/htmx/hx-sync",
               "reference/htmx/attribute-values",
+              "reference/htmx/response-headers",
             ]
           },
           {
             type: "category",
-            label: "ZIO Blocks Streams",
+            label: "Streams",
             link: { type: "doc", id: "reference/streams/index" },
             items: [
-             "reference/streams/stream",
-             "reference/streams/pipeline",
-             "reference/streams/sink",
-             "reference/streams/reader",
-             "reference/streams/writer",
-             "reference/streams/concurrent-operators",
-             "reference/streams/zero-boxing",
-           ]
-         },
-      ]
-    },
+              "reference/streams/stream",
+              "reference/streams/pipeline",
+              "reference/streams/sink",
+              "reference/streams/reader",
+              "reference/streams/writer",
+              "reference/streams/concurrent-operators",
+              "reference/streams/zero-boxing",
+              "reference/streams/scala-2-compatibility",
+            ]
+          },
+          {
+            type: "category",
+            label: "SQL",
+            link: { type: "doc", id: "reference/sql/index" },
+            items: [
+              {
+                type: "category",
+                label: "Core Types",
+                collapsed: false,
+                items: [
+                  "reference/sql/db-codec",
+                  "reference/sql/frag",
+                  "reference/sql/table",
+                  "reference/sql/repo",
+                  "reference/sql/transactor",
+                  "reference/sql/db-con",
+                  "reference/sql/db-tx",
+                ],
+              },
+              {
+                type: "category",
+                label: "Supporting Types",
+                collapsed: false,
+                items: [
+                  "reference/sql/db-value",
+                  "reference/sql/db-param",
+                  "reference/sql/sql-dialect",
+                  "reference/sql/sql-logger",
+                  "reference/sql/sql-name-mapper",
+                  "reference/sql/table-metadata",
+                  "reference/sql/ddl",
+                  "reference/sql/db-connection",
+                  "reference/sql/db-result-reader",
+                  "reference/sql/db-param-writer",
+                  "reference/sql/db-codec-deriver",
+                  "reference/sql/transactor-zio",
+                ],
+              },
+            ],
+          },
+          "reference/sql-zio",
+          "reference/data-migration",
+          "reference/projection",
+          {
+            type: "category",
+            label: "Telemetry",
+            link: { type: "doc", id: "reference/telemetry/index" },
+            items: [
+              {
+                type: "category",
+                label: "Tracing",
+                link: { type: "doc", id: "reference/telemetry/tracing/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/tracing/tracer-provider",
+                  "reference/telemetry/tracing/tracer",
+                  "reference/telemetry/tracing/span",
+                  "reference/telemetry/tracing/span-context",
+                  "reference/telemetry/tracing/span-data",
+                  "reference/telemetry/tracing/span-builder",
+                  "reference/telemetry/tracing/span-processor",
+                  "reference/telemetry/tracing/sampler",
+                  "reference/telemetry/tracing/span-kind",
+                  "reference/telemetry/tracing/span-status",
+                ]
+              },
+              {
+                type: "category",
+                label: "Logging",
+                link: { type: "doc", id: "reference/telemetry/logging/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/logging/logger-provider",
+                  "reference/telemetry/logging/logger",
+                  "reference/telemetry/logging/log-record",
+                  "reference/telemetry/logging/log-record-processor",
+                  "reference/telemetry/logging/log-formatter",
+                  "reference/telemetry/logging/log-writer",
+                  "reference/telemetry/logging/severity",
+                  "reference/telemetry/logging/log-enrichment",
+                ]
+              },
+              {
+                type: "category",
+                label: "Metrics",
+                link: { type: "doc", id: "reference/telemetry/metrics/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/metrics/meter-provider",
+                  "reference/telemetry/metrics/meter",
+                  "reference/telemetry/metrics/instruments",
+                  "reference/telemetry/metrics/labeled-instruments",
+                  "reference/telemetry/metrics/metric-data",
+                ]
+              },
+              {
+                type: "category",
+                label: "Common Types",
+                link: { type: "doc", id: "reference/telemetry/common/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/common/attributes",
+                  "reference/telemetry/common/attribute-key",
+                  "reference/telemetry/common/any-value",
+                  "reference/telemetry/common/resource",
+                  "reference/telemetry/common/instrumentation-scope",
+                ]
+              },
+              {
+                type: "category",
+                label: "OTLP Export",
+                link: { type: "doc", id: "reference/telemetry/otel/index" },
+                collapsed: false,
+                items: [
+                  "reference/telemetry/otel/custom-exporter",
+                ]
+              },
+            ]
+          },
+        ]
+      },
     {
       type: "category",
       label: "Guides",
       items: [
+        "guides/async-getting-started",
         "guides/compile-time-resource-safety-with-scope",
-        "guides/zio-schema-migration",
-        "guides/query-dsl-reified-optics",
-        "guides/query-dsl-sql",
+        "guides/getting-started-with-mux",
         "guides/query-dsl-extending",
         "guides/query-dsl-fluent-builder",
+        "guides/query-dsl-reified-optics",
+        "guides/query-dsl-sql",
+        "guides/sql-transactions",
+        "guides/zio-schema-migration",
+        "guides/telemetry-guide",
       ]
     }
   ]

@@ -161,11 +161,16 @@ private[scope] object ScopeMacros {
       q"$sa.asInstanceOf[$t]"
     }
 
+    val scopeClassExpr = q"""
+      if ($self.isInstanceOf[_root_.zio.blocks.scope.Scope.Child[_]]) "Scope.Child"
+      else "Scope.global"
+    """
+
     val closedCheck = q"""
       if ($self.isClosed)
         throw new _root_.java.lang.IllegalStateException(
           _root_.zio.blocks.scope.internal.ErrorMessages
-            .renderUseOnClosedScope($self.scopeDisplayName, color = false)
+            .renderUseOnClosedScope($scopeClassExpr, color = false)
         )
     """
 

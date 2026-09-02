@@ -1,0 +1,98 @@
+Scala 2 macro direct-style `.await` benchmark gate — BASELINE
+=============================================================
+
+Module : async-benchmarks-scala2  (Scala 2.13.18, JVM only)
+Suite  : zio.blocks.async.bench.AsyncScala2MacroBench
+Purpose: prove the GENERATED CODE SHAPE / allocation profile of the Scala 2
+         `Async.async { ... .await ... }` macro (internal.AsyncMacros). This is
+         NOT a cross-runtime throughput comparison (Kyo / Cats Effect are
+         deliberately absent); it compares the macro's output to hand-written
+         `flatMap` controls in the same module, with `-prof gc`.
+
+Host   : Apple M3 Ultra, macOS (Darwin 25.3.0, arm64)
+JDK    : OpenJDK 26.0.1 (Homebrew)
+
+Command (allocation gate):
+  sbt "++2.13.18; async-benchmarks-scala2/Jmh/run -p n=10 -wi 3 -i 3 -f 1 -prof gc \
+       zio.blocks.async.bench.AsyncScala2MacroBench"
+
+Note on settings: `gc.alloc.rate.norm` (bytes/op) is DETERMINISTIC (±0.001 B/op
+across iterations), so a short run pins it exactly; throughput (ops/s) carries
+normal JMH variance and is reported only as an order-of-magnitude sanity check.
+`n` only varies the `while`/`flatMap`-chain rows; the HOF rows use fixed-size
+collections, so a single `n` is representative for them.
+
+RESULTS (n=10)
+--------------
+
+  Benchmark                       ops/s (approx)   gc.alloc.rate.norm (B/op)
+  ---------------------------     --------------   -------------------------
+  -- runtime fast path (no macro) --
+  zb_succeed                      1.80e9           ~0      (1e-5)
+  zb_map1                         1.05e9           ~0      (1e-5)
+  zb_flatMap1                     1.05e9           ~0      (1e-5)
+  zb_flatMapControlN              8.2e7            ~0      (1e-4, fixed)
+  -- direct-style scalar .await (macro) --
+  zb_asyncAwait1                  1.06e9           ~0      (1e-5)
+  zb_asyncAwaitSeqVals            7.4e8            ~0      (1e-5)
+  zb_asyncAwaitWhileVarN          7.1e7            ~0      (1e-4, fixed)
+  -- HOF-closure .await emitters --
+  zb_listMap                      3.8e7            264
+  zb_vectorMap                    5.1e7            312
+  zb_optionMap                    3.4e8            16
+  zb_mapMap                       4.8e7            184
+  zb_foldLeft                     7.6e7            104
+  zb_collect                      3.3e7            208
+  -- Array emitters (newest / highest-risk) --
+  zb_arrayMapPrimitive            1.5e6            864     (*see note 6)
+  zb_arrayFlatMap                 1.5e7            224
+  zb_arrayFilter                  8.7e7            136
+
+INTERPRETATION
+--------------
+
+1. Scalar `.await` is ZERO-ALLOCATION and matches the hand-written control.
+   `zb_asyncAwait1` (≈1e-5 B/op, ~1.06e9 ops/s) is identical to `zb_flatMap1`
+   and `zb_map1`; `zb_asyncAwaitSeqVals` is likewise ≈0. The Scala 2 macro emits
+   a `flatMap` chain that escape analysis folds away exactly like a hand-written
+   one — no hidden continuation or `Pollable` allocation for ready values.
+
+2. A `var` mutated ACROSS `.await` inside a `while` allocates a FIXED, constant-
+   in-`n` ref-cell cost (`zb_asyncAwaitWhileVarN` ≈1e-4 B/op), the same order as
+   the hand-written `zb_flatMapControlN`. This is the inherent CPS cost of
+   threading mutable loop state through a suspension point; it is per-block, not
+   per-link. (Matches the Scala 3 / DCA finding in async-benchmarks/baseline.txt.)
+
+3. HOF emitters allocate only their RESULT collection plus a builder, with no
+   per-element continuation garbage for ready awaits:
+     - option: 16 B/op (a single `Some`).
+     - foldLeft: 104 B/op (no result collection — accumulator threading only).
+     - list/vector/map/collect: 184-312 B/op (cons cells / builder + result).
+     - Array.filter: 136 B/op (`Array.newBuilder` + result array).
+     - Array.flatMap: 224 B/op (builder drain + `ArraySeq.unsafeWrapArray`
+       normalization of the raw-array closure result).
+     - Array.map: 864 B/op — see note 6.
+
+6. Array.map allocation optimization (emitArrayMap). The original eager strategy
+   routed through `collectAll`, materializing an intermediate `List[Async[B]]`
+   AND a `List[B]` before `toArray`. Worse, at `-f 1` its allocation was NOT
+   deterministic: across forks escape analysis sometimes elided the `List`
+   spine (a lucky low fork read ~360 B/op) and sometimes did not, so the true
+   steady-state average measured at `-f 4 -wi 5 -i 5` was ~1826 B/op (range
+   1712-1864 across forks) at ~664k ops/s.
+   The emitter now runs every closure eagerly into a single `Array[Any]` of
+   results (preserving eager semantics: a failing await still runs all prior
+   closures) and then drains them fail-fast straight into an `Array.newBuilder[B]`
+   (preserving the primitive element ClassTag). This removes both intermediate
+   `List`s. Re-measured at `-f 4 -wi 5 -i 5`:
+       throughput  664k -> 1475k ops/s  (+2.22x)
+       alloc       1826 -> 864.005 +/- 0.001 B/op  (-53%, now FULLY deterministic)
+   The 864 B/op is the eager-array floor here: the scratch `Array[Any]` + the
+   result `Array[Long]` + builder + the per-link `flatMap` continuations for the
+   3 awaited elements. It is bounded and per-block, not per-link, and the run is
+   now reproducible (no EA-luck variance).
+
+GATE VERDICT: PASS. The primary criterion — scalar `.await` collapses to the
+hand-written `flatMap` control with zero per-link allocation — is met decisively.
+HOF rows allocate only their designed result; the Array paths (incl. primitive
+element preservation and raw-array flatMap normalization) behave as designed.

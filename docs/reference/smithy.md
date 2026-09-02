@@ -80,8 +80,10 @@ SmithyModel (contains shapes, metadata, traits)
       │       ├─ ServiceShape(operations, resources, errors)
       │       ├─ OperationShape(input, output, errors)
       │       ├─ UnionShape(members: List[MemberDefinition])
-      │       ├─ StringShape, BooleanShape, IntegerShape, etc.
-      │       └─ ... (and other shape subtypes)
+      │       ├─ EnumShape(members: List[EnumMember])
+      │       ├─ ResourceShape(identifiers, create, read, update, delete, list, ...)
+      │       ├─ StringShape, BooleanShape, IntegerShape, and 10 more simple shapes
+      │       └─ ... (20 subtypes in total — see the Shape Catalog below)
       ├─ MemberDefinition(name: String, target: ShapeId, traits: List[TraitApplication])
       ├─ TraitApplication(id: ShapeId, value: Option[NodeValue])
       ├─ ShapeId (namespace + name identifier)
@@ -113,6 +115,352 @@ object SmithyModel {
   def parse(input: String): Either[SmithyError, SmithyModel]
 }
 ```
+
+## Shape Catalog
+
+`Shape` is a sealed trait with 20 subtypes, covering the shape categories the Smithy specification defines. Every shape carries a `Shape#name` and a list of applied `Shape#traits`; the families differ in what else they hold:
+
+```scala
+sealed trait Shape {
+  def name: String
+  def traits: List[TraitApplication]
+}
+```
+
+| Family    | Subtypes | What they add                            |
+| --------- | -------: | ---------------------------------------- |
+| Simple    |       13 | Nothing — name and traits only            |
+| Enum      |        2 | A member list of allowed values           |
+| Aggregate |        4 | Member definitions naming target shapes   |
+| Service   |        3 | `ShapeId` references to other shapes      |
+
+A parsed shape is wrapped in a `ShapeDefinition`, which pairs the name with the shape. `Shape` also carries its own `Shape#name`, so the two agree and either can be read:
+
+```scala
+final case class ShapeDefinition(name: String, shape: Shape)
+```
+
+### Simple Shapes
+
+Thirteen shapes carry no structure beyond their name and traits. They differ only in which IDL keyword produces them and what the target protocol is expected to do with them:
+
+| Type              | IDL keyword  | Represents                        |
+| ----------------- | ------------ | --------------------------------- |
+| `BlobShape`       | `blob`       | Arbitrary binary data              |
+| `BooleanShape`    | `boolean`    | True/false values                  |
+| `StringShape`     | `string`     | UTF-8 text                         |
+| `ByteShape`       | `byte`       | 8-bit signed integer               |
+| `ShortShape`      | `short`      | 16-bit signed integer              |
+| `IntegerShape`    | `integer`    | 32-bit signed integer              |
+| `LongShape`       | `long`       | 64-bit signed integer              |
+| `FloatShape`      | `float`      | Single-precision IEEE 754          |
+| `DoubleShape`     | `double`     | Double-precision IEEE 754          |
+| `BigIntegerShape` | `bigInteger` | Arbitrarily large signed integer   |
+| `BigDecimalShape` | `bigDecimal` | Arbitrary-precision decimal        |
+| `TimestampShape`  | `timestamp`  | A point in time                    |
+| `DocumentShape`   | `document`   | Protocol-agnostic open content     |
+
+Because they share one shape, parsing them produces values that differ only in their type:
+
+```scala mdoc:silent
+import zio.blocks.smithy._
+
+val simpleModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |blob Payload
+    |timestamp CreatedAt
+    |document Metadata
+    |""".stripMargin
+).toOption.get
+```
+
+Each definition names the shape and holds the corresponding subtype:
+
+```scala mdoc
+simpleModel.shapes
+```
+
+`DocumentShape` is the one to reach for when a field's contents are not known at model time — it is the Smithy equivalent of an open JSON value, and no member list constrains it.
+
+### Enum Shapes
+
+`EnumShape` and `IntEnumShape` each hold a fixed set of permitted values. They differ in the value type and in whether the value is optional:
+
+```scala
+final case class EnumShape(
+  name: String,
+  traits: List[TraitApplication] = Nil,
+  members: List[EnumMember] = Nil
+) extends Shape
+
+final case class IntEnumShape(
+  name: String,
+  traits: List[TraitApplication] = Nil,
+  members: List[IntEnumMember] = Nil
+) extends Shape
+```
+
+`EnumMember` carries an `Option[String]`, because the IDL allows a bare member name; `IntEnumMember` carries a required `Int`, because an integer enum has no name to fall back on:
+
+```scala
+final case class EnumMember(name: String, value: Option[String] = None, traits: List[TraitApplication] = Nil)
+final case class IntEnumMember(name: String, value: Int, traits: List[TraitApplication] = Nil)
+```
+
+A string enum with explicit values fills in each `value`:
+
+```scala mdoc:silent
+val colorModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |enum Color {
+    |    RED = "red"
+    |    GREEN = "green"
+    |}
+    |""".stripMargin
+).toOption.get
+```
+
+Each member pairs the declared name with the string it maps to:
+
+```scala mdoc
+colorModel.shapes
+```
+
+Omitting the values leaves `value` absent rather than duplicating the name, so a consumer wanting the effective wire value reads `EnumMember#value` and falls back to `EnumMember#name`:
+
+```scala mdoc:silent
+val suitModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |enum Suit {
+    |    CLUB
+    |    HEART
+    |}
+    |""".stripMargin
+).toOption.get
+```
+
+The distinction survives parsing, which is what lets a round trip reproduce the original document:
+
+```scala mdoc
+suitModel.shapes
+```
+
+An integer enum requires a value for every member, so `IntEnumMember` holds an `Int` rather than an option:
+
+```scala mdoc:silent
+val cardModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |intEnum FaceCard {
+    |    JACK = 11
+    |    QUEEN = 12
+    |}
+    |""".stripMargin
+).toOption.get
+```
+
+Reading the members gives the integers directly:
+
+```scala mdoc
+cardModel.shapes
+```
+
+### Aggregate Shapes
+
+Four shapes compose other shapes, and all of them do it through `MemberDefinition` — a name, the `ShapeId` of the target, and any traits on the member itself:
+
+| Type             | IDL keyword | Members                                              |
+| ---------------- | ----------- | ---------------------------------------------------- |
+| `ListShape`      | `list`      | `member: MemberDefinition`                            |
+| `MapShape`       | `map`       | `key` and `value`, both `MemberDefinition`             |
+| `StructureShape` | `structure` | `members: List[MemberDefinition]`                     |
+| `UnionShape`     | `union`     | `members: List[MemberDefinition]`, one set at a time   |
+
+A structure's members name their targets by `ShapeId`, not by nested shape, so the model stays flat and a member's target is resolved by lookup:
+
+```scala mdoc:silent
+val userModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |structure User {
+    |    @required
+    |    id: String
+    |    tags: TagList
+    |}
+    |list TagList {
+    |    member: String
+    |}
+    |""".stripMargin
+).toOption.get
+```
+
+Both shapes appear at the top level, and the `tags` member of `User` points at `TagList` by reference:
+
+```scala mdoc
+userModel.shapes
+```
+
+:::note[`member` has no default, `traits` does]
+`ListShape` and `MapShape` declare their `Shape#traits` parameter with a default *before* the parameters that have none, so positional construction does not work — `ListShape("TagList", member = m)` compiles while `ListShape("TagList", m)` does not. `StructureShape` and `UnionShape` default their member lists, so both forms work there.
+:::
+
+### Service Shapes
+
+`ServiceShape`, `OperationShape`, and `ResourceShape` describe an API rather than a value, and all of their cross-references are `ShapeId`s:
+
+```scala
+final case class ServiceShape(
+  name: String,
+  traits: List[TraitApplication] = Nil,
+  version: Option[String] = None,
+  operations: List[ShapeId] = Nil,
+  resources: List[ShapeId] = Nil,
+  errors: List[ShapeId] = Nil
+) extends Shape
+
+final case class OperationShape(
+  name: String,
+  traits: List[TraitApplication] = Nil,
+  input: Option[ShapeId] = None,
+  output: Option[ShapeId] = None,
+  errors: List[ShapeId] = Nil
+) extends Shape
+```
+
+`ResourceShape` is the largest shape in the module, because a Smithy resource binds identifiers, five named lifecycle operations, and three further reference lists:
+
+| Field                  | Type                   | Meaning                                           |
+| ---------------------- | ---------------------- | ------------------------------------------------- |
+| `identifiers`          | `Map[String, ShapeId]`  | Identifier names mapped to their target shapes     |
+| `create`               | `Option[ShapeId]`       | Create lifecycle operation                         |
+| `read`                 | `Option[ShapeId]`       | Read lifecycle operation                           |
+| `update`               | `Option[ShapeId]`       | Update lifecycle operation                         |
+| `delete`               | `Option[ShapeId]`       | Delete lifecycle operation                         |
+| `list`                 | `Option[ShapeId]`       | List lifecycle operation                           |
+| `operations`           | `List[ShapeId]`         | Instance operations that are not lifecycle ones     |
+| `collectionOperations` | `List[ShapeId]`         | Operations on the collection rather than one item   |
+| `resources`            | `List[ShapeId]`         | Child resources                                    |
+
+The five lifecycle fields are separate rather than a map, which is what makes "does this resource support deletion?" a field access instead of a lookup:
+
+```scala mdoc:silent
+val resourceModel = SmithyModel.parse(
+  """$version: "2"
+    |namespace com.example
+    |resource FooResource {
+    |    identifiers: {id: FooId}
+    |    read: GetFoo
+    |    list: ListFoos
+    |}
+    |""".stripMargin
+).toOption.get
+```
+
+Unset lifecycle operations stay `None`, so an absent `create` is distinguishable from one bound to an operation:
+
+```scala mdoc
+resourceModel.shapes
+```
+
+### Shape References
+
+Every cross-shape reference is a `ShapeRef`, a sealed trait with exactly two cases:
+
+```scala
+sealed trait ShapeRef
+
+final case class ShapeId(namespace: String, name: String) extends ShapeRef
+
+object ShapeId {
+  final case class Member(shape: ShapeId, memberName: String) extends ShapeRef
+  def parse(s: String): Either[String, ShapeRef]
+}
+```
+
+`ShapeRef` exists to give `ShapeId` and `ShapeId.Member` a common supertype without a Scala 3 union type, so the same signatures compile on 2.13.
+
+Rendering follows the IDL: a shape is `namespace#name`, and a member appends `$` and the member name:
+
+```scala mdoc
+ShapeId("com.example", "User").toString
+ShapeId.Member(ShapeId("com.example", "User"), "id").toString
+```
+
+`ShapeId.parse` reads either form back, choosing the case by whether a `$` is present:
+
+```scala mdoc
+ShapeId.parse("com.example#User")
+ShapeId.parse("com.example#User$id")
+```
+
+Malformed input is reported rather than thrown, and the message names the rule that failed:
+
+```scala mdoc
+ShapeId.parse("User")
+ShapeId.parse("com.example#User$id$extra")
+```
+
+#### Resolving a Reference
+
+A reference names a shape; it does not contain one. Resolving means looking the target up in the model, which `SmithyModel#findShape` does by **name** rather than by `ShapeId`:
+
+```scala
+final case class SmithyModel(...) {
+  def findShape(name: String): Option[ShapeDefinition]
+  def allShapeIds: List[ShapeId]
+}
+```
+
+Following a structure member to its target definition is therefore a lookup on the name inside the `ShapeId`:
+
+```scala mdoc:silent
+val tagsTarget = userModel.shapes
+  .collectFirst { case ShapeDefinition("User", s: StructureShape) => s }
+  .flatMap(_.members.find(_.name == "tags"))
+  .map(_.target)
+```
+
+The member's target resolves to the `list` shape declared alongside it:
+
+```scala mdoc
+tagsTarget
+tagsTarget.flatMap(id => userModel.findShape(id.name))
+```
+
+Looking up by name rather than by `ShapeId` is not a shortcut — it matches what the parser produces. An IDL target written without a namespace prefix becomes a `ShapeId` whose namespace is the **empty string**, not the model's namespace and not `smithy.api`:
+
+```scala mdoc
+userModel.shapes.collect { case ShapeDefinition(_, s: ListShape) => s.member.target }
+resourceModel.shapes.collect { case ShapeDefinition(_, s: ResourceShape) => s.identifiers }
+```
+
+Trait identifiers are the exception: the parser resolves those against the prelude, so `@required` arrives fully qualified:
+
+```scala mdoc
+userModel.shapes
+  .collect { case ShapeDefinition("User", s: StructureShape) => s }
+  .flatMap(_.members.flatMap(_.traits.map(_.id)))
+```
+
+Two consequences follow. A reference to a prelude shape such as `String` has no definition in the parsed model, so resolving it yields nothing — a consumer generating code has to recognize prelude names itself:
+
+```scala mdoc
+userModel.findShape("String")
+```
+
+And a `ShapeId` taken from a parsed model does not necessarily round-trip through `ShapeId.parse`, because the renderer emits the empty namespace as a bare `#` that the parser then rejects:
+
+```scala mdoc
+ShapeId("", "String").toString
+ShapeId.parse(ShapeId("", "String").toString)
+```
+
+:::warning[Namespaces on references are not populated]
+Because unprefixed targets carry an empty namespace, comparing `ShapeId#namespace` on a parsed reference tells you nothing unless the IDL spelled the namespace out. `SmithyModel#findShape` matching on name alone is consistent with that, but it also means a model that uses a `use` statement to import `other.ns#User` while declaring its own `User` cannot distinguish the two by reference alone.
+:::
 
 ## Parsing
 

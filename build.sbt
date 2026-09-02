@@ -1,6 +1,7 @@
 import BuildHelper.*
 import MimaSettings.mimaSettings
 import org.scalajs.linker.interface.ModuleKind
+import zio.sbt.githubactions.{CancelInProgress, Concurrency, Condition}
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -33,8 +34,55 @@ Global / excludeLintKeys ++= Set(
   zioGolemTestAgents / testFrameworks
 )
 
+// CI workflow. The job definitions live in project/CiWorkflow.scala; `sbt ciGenerateGithubWorkflow`
+// renders them to .github/workflows/ci.yml, which is committed and must not be hand-edited.
+inThisBuild(
+  List(
+    ciEnabledBranches := Seq("main"),
+    // JVM flags go through SBT_OPTS rather than JDK_JAVA_OPTIONS: the latter makes `java -version`
+    // print a NOTE containing commas, which breaks cache key validation in setup-sbt and
+    // coursier/cache-action.
+    ciWorkflowEnv := Map(
+      "SBT_OPTS" -> "-XX:+PrintCommandLineFlags -Djava.locale.providers=CLDR,JRE"
+    ),
+    // Cancel superseded pull request runs, but never cancel a push or release run.
+    ciConcurrency := Some(
+      Concurrency(
+        group = "ci-pr-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}",
+        cancelInProgress = CancelInProgress.When(Condition.Expression("github.event_name == 'pull_request'"))
+      )
+    ),
+    ciBuildJobs := Seq(CiWorkflow.buildDocs.value),
+    ciLintJobs  := Seq(CiWorkflow.lint.value),
+    ciTestJobs  := Seq(CiWorkflow.testJVM.value, CiWorkflow.testJS.value, CiWorkflow.testGolem.value),
+    // README.md is generated locally via `sbt docs/generateReadme` and has hand-maintained sections
+    // that the generator would drop, so CI must not regenerate it.
+    ciUpdateReadmeJobs        := Seq.empty,
+    ciReleaseJobs             := Seq(CiWorkflow.release.value),
+    ciPostReleaseJobs         := Seq(CiWorkflow.releaseDocs.value),
+    ciPullRequestApprovalJobs := Seq("lint", "testJVM", "testJS", "testGolem", "buildDocs")
+  )
+)
+
 com.github.sbt.git.SbtGit.useReadableConsoleGit
 
+addCommandAlias(
+  "configCoverage",
+  // Project-scoped coverage for config adapters only. Global `coverage` sets
+  // `ThisBuild / coverageEnabled := true`, which instruments the entire
+  // dependency graph including schema (136 sources) and OOMs at 12GB after a
+  // clean. This alias disables global instrumentation and enables it only for
+  // the three adapter JVM projects, then runs clean/test/report per adapter
+  // so each report is isolated and does not pull in schema instrumentation.
+  "; set ThisBuild / coverageEnabled := false" +
+    "; set LocalProject(\"config-yamlJVM\") / coverageEnabled := true" +
+    "; set LocalProject(\"config-jsonJVM\") / coverageEnabled := true" +
+    "; set LocalProject(\"config-hoconJVM\") / coverageEnabled := true" +
+    "; config-yamlJVM/clean; config-yamlJVM/test; config-yamlJVM/coverageReport" +
+    "; config-jsonJVM/clean; config-jsonJVM/test; config-jsonJVM/coverageReport" +
+    "; config-hoconJVM/clean; config-hoconJVM/test; config-hoconJVM/coverageReport" +
+    "; set ThisBuild / coverageEnabled := false"
+)
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
@@ -98,64 +146,72 @@ addCommandAlias(
 )
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; " +
-    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test"
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
+    "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
     "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
-    "http-model-schemaJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test"
+    "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
+    whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; endpointJS/test; htmlJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test; jwtJS/test"
 
 lazy val testJS1Scala2Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
 
 lazy val testJS1Scala3Command =
-  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test"
+  "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"
 
 lazy val testJS2Scala2Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; htmlJS/test"
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; htmlJS/test; jwtJS/test"
 
 lazy val testJS2Scala3Command =
-  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; endpointJS/test; htmlJS/test; datastarJS/test; htmxJS/test"
+  "openapiJS/test; schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; jwtJS/test"
 
 lazy val docJVMScala2Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; " +
-    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc"
+    "endpointJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; asyncJVM/doc; jwtJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJVMScala3Command =
   "typeidJVM/doc; maybeJVM/doc; chunkJVM/doc; combinatorsJVM/doc; ringbufferJVM/doc; schemaJVM/doc; streamsJVM/doc; schema-toonJVM/doc; schema-messagepackJVM/doc; schema-avro/doc; " +
     "schema-thrift/doc; schema-bson/doc; schema-xmlJVM/doc; schema-yamlJVM/doc; schema-csvJVM/doc; contextJVM/doc; scopeJVM/doc; muxJVM/doc; mediatypeJVM/doc; http-modelJVM/doc; " +
-    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc"
+    "http-model-schemaJVM/doc; openapiJVM/doc; smithy/doc; sqlJVM/doc; sql-zio/doc; codegen/doc; htmlJVM/doc; datastarJVM/doc; htmxJVM/doc; asyncJVM/doc; dataMigrationJVM/doc; projectionJVM/doc; jwtJVM/doc" +
+    whenJdkAtLeast(25, "telemetryJVM/doc; otel/doc")
 
 lazy val docJSScala2Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; endpointJS/doc; htmlJS/doc; asyncJS/doc; jwtJS/doc"
 
 lazy val docJSScala2Batch1Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc"
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; asyncJS/doc"
 
 lazy val docJSScala2Batch2Command =
-  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc"
+  "openapiJS/doc; schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; htmlJS/doc; jwtJS/doc"
 
 lazy val docJSScala3Command =
   "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; " +
-    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc"
+    "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; muxJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; asyncJS/doc; dataMigrationJS/doc; jwtJS/doc"
 
 lazy val docJSScala3Batch1Command =
-  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc"
+  "typeidJS/doc; maybeJS/doc; chunkJS/doc; combinatorsJS/doc; ringbufferJS/doc; schemaJS/doc; streamsJS/doc; schema-toonJS/doc; schema-messagepackJS/doc; openapiJS/doc; asyncJS/doc"
 
 lazy val docJSScala3Batch2Command =
-  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; htmlJS/doc; datastarJS/doc"
+  "schema-xmlJS/doc; schema-yamlJS/doc; schema-csvJS/doc; contextJS/doc; scopeJS/doc; mediatypeJS/doc; http-modelJS/doc; http-model-schemaJS/doc; endpointJS/doc; sqlJS/doc; htmlJS/doc; datastarJS/doc; htmxJS/doc; jwtJS/doc"
 
+def whenJdkAtLeast(minVersion: Int, command: String): String = {
+  val currentVersion = System.getProperty("java.specification.version", "17").toInt
+  if (currentVersion >= minVersion) s"; $command" else ""
+}
 def commandForScalaVersion(name: String, scala2Command: String, scala3Command: String): Command =
   Command.command(name) { state =>
     val extracted = Project.extract(state)
@@ -166,7 +222,7 @@ def commandForScalaVersion(name: String, scala2Command: String, scala3Command: S
     }
 
     selected.split(';').foldLeft(state) { case (current, command) =>
-      Command.process(command.trim, current)
+      Command.process(command.trim, current, _ => ())
     }
   }
 
@@ -180,6 +236,9 @@ commands ++= Seq(
   commandForScalaVersion("docJS2", docJSScala2Batch2Command, docJSScala3Batch2Command),
   commandForScalaVersion("docJS", docJSScala2Command, docJSScala3Command)
 )
+
+lazy val docsGenerateReadmeLocal =
+  taskKey[Unit]("Generate README.md from docs/index.md without website plugin tag lookup")
 
 lazy val root = project
   .in(file("."))
@@ -198,6 +257,9 @@ lazy val root = project
     scope.jvm,
     scope.js,
     `scope-examples`,
+    sql.jvm,
+    sql.js,
+    `sql-zio`,
     schema.jvm,
     schema.js,
     `schema-avro`,
@@ -222,6 +284,14 @@ lazy val root = project
     chunk.js,
     mediatype.jvm,
     mediatype.js,
+    config.jvm,
+    config.js,
+    `config-yaml`.jvm,
+    `config-yaml`.js,
+    `config-json`.jvm,
+    `config-json`.js,
+    `config-hocon`.jvm,
+    `config-hocon`.js,
     `http-model`.jvm,
     `http-model`.js,
     `http-model-schema`.jvm,
@@ -238,6 +308,13 @@ lazy val root = project
     datastar.js,
     htmx.jvm,
     htmx.js,
+    jwt.jvm,
+    jwt.js,
+    async.jvm,
+    async.js,
+    `async-benchmarks`,
+    `async-benchmarks-scala2`,
+    `async-benchmarks-js`,
     `zio-blocks-htmx-examples`,
     zioGolemModel.jvm,
     zioGolemModel.js,
@@ -247,15 +324,27 @@ lazy val root = project
     scalaNextTests.js,
     benchmarks,
     `scope-benchmarks`,
+    `sql-benchmarks`,
     `streams-benchmark`,
     docs,
     `schema-examples`,
     `streams-examples`,
+    `async-examples`,
     ringbuffer.jvm,
     ringbuffer.js,
     ringbufferBenchmarks,
+    mux.jvm,
+    mux.js,
+    `mux-examples`,
     smithy,
-    `smithy-examples`
+    `smithy-examples`,
+    telemetry.jvm,
+    telemetry.js,
+    otel,
+    dataMigration.jvm,
+    dataMigration.js,
+    projection.jvm,
+    `projection-examples`
   )
 
 lazy val ringbuffer = crossProject(JSPlatform, JVMPlatform)
@@ -403,6 +492,112 @@ lazy val scope = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 65
   )
 
+lazy val sql = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema, scope, streams)
+  .settings(stdSettings("zio-blocks-sql", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.sql"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions ++= Seq(
+      "-Wconf:msg=IN placeholder:warning",
+      "-Wconf:msg=IN operator with empty:warning",
+      "-Wconf:msg=compile-time DbArray:warning"
+    ),
+    Test / scalacOptions -= "-Werror"
+  )
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial"     % "sqlite-jdbc" % "3.53.4.0" % Test,
+      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+    )
+  )
+
+lazy val dataMigration = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(sql, schema, maybe)
+  .settings(stdSettings("zio-blocks-data-migration"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.data.migration"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(crossScalaVersions := Seq("3.8.3", "3.3.7"))
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial"     % "sqlite-jdbc" % "3.53.2.0" % Test,
+      "org.postgresql" % "postgresql"  % "42.7.13"  % Test
+    )
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+lazy val projection = crossProject(JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema, sql, scope)
+  .settings(stdSettings("zio-blocks-projection", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.projection"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio"          % "2.1.26",
+      "dev.zio" %%% "zio-streams"  % "2.1.26",
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 75,
+    coverageMinimumBranchTotal := 67
+  )
+  .jvmSettings(
+    libraryDependencies ++= Seq(
+      "org.xerial" % "sqlite-jdbc" % "3.53.2.1" % Test
+    )
+  )
+
+lazy val `projection-examples` = project
+  .in(file("projection-examples"))
+  .settings(stdSettings("zio-blocks-projection-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .dependsOn(projection.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror"
+  )
+
+lazy val `sql-zio` = project
+  .settings(stdSettings("zio-blocks-sql-zio", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .dependsOn(sql.jvm)
+  .settings(buildInfoSettings("zio.blocks.sql.zio"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %% "zio"          % "2.1.26",
+      "dev.zio" %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
 lazy val `scope-examples` = project
   .settings(stdSettings("zio-blocks-scope-examples", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
   .dependsOn(scope.jvm)
@@ -443,6 +638,19 @@ lazy val mux = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 0
   )
 
+lazy val `mux-examples` = project
+  .in(file("mux-examples"))
+  .settings(stdSettings("zio-blocks-mux-examples", Seq(BuildHelper.Scala3)))
+  .dependsOn(mux.jvm)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
@@ -458,7 +666,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC47" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC48" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.26"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.26"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -478,7 +686,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
         )
     })
   )
@@ -490,8 +698,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
       }
     },
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.7.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.7.0",
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -499,9 +707,106 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
         )
     })
+  )
+
+lazy val telemetry = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(context, chunk)
+  .settings(stdSettings("zio-blocks-telemetry"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.telemetry"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 82,
+    coverageMinimumBranchTotal := 72,
+    coverageExcludedFiles      := Seq(
+      ".*PlatformExecutor.*",
+      ".*BuildInfo.*"
+    ).mkString(";"),
+    Compile / scalacOptions ++= {
+      if (scalaVersion.value.startsWith("2."))
+        Seq("-Wconf:cat=unchecked:s")
+      else Nil
+    }
+  )
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // Tests share GlobalLogState (mutable singleton); parallel specs cause race conditions.
+    Test / parallelExecution := false,
+    // Thread.ofVirtual() (used in PlatformExecutor) is a Java 21 API, so this
+    // module raises the default -release. Cap at 21: scalac rejects 25 as a
+    // -java-output-version regardless of the JDK it is running on.
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("21")
+        else Seq(opt)
+      }
+    }
+  )
+  .jsSettings(jsSettings)
+
+lazy val otel = project
+  .in(file("otel"))
+  .settings(stdSettings("zio-blocks-telemetry-otel"))
+  .dependsOn(telemetry.jvm)
+  .settings(buildInfoSettings("zio.blocks.telemetry.otel"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.25" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.25" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      case _ =>
+        Seq()
+    }),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    // The exporter specs create scheduled executors backed by virtual threads and leave retry
+    // workers running past the end of a test. In-process those outlive the suite and have taken
+    // sbt itself down on JDK 25 (silent exit 1 right after "tests passed"). Fork so that any
+    // such crash is confined to the test JVM, and reported instead of killing the build.
+    Test / fork := true
+  )
+  .settings(
+    mimaSettings(failOnProblem = false),
+    Compile / scalacOptions := {
+      val base = (Compile / scalacOptions).value
+      base.zipWithIndex.flatMap { case (opt, i) =>
+        if ((opt == "11" || opt == "17") && i > 0 && base(i - 1) == "-release") Seq("21")
+        else Seq(opt)
+      }
+    }
+  )
+
+lazy val telemetryBenchmarks = project
+  .in(file("telemetry-benchmarks"))
+  .settings(stdSettings("zio-blocks-telemetry-benchmarks", Seq(BuildHelper.Scala3)))
+  .dependsOn(telemetry.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    libraryDependencies ++= Seq(
+      "com.outr" %% "scribe"      % "3.15.3",
+      "com.outr" %% "scribe-file" % "3.15.3"
+    )
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform)
@@ -600,6 +905,113 @@ lazy val mediatype = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumBranchTotal := 93
   )
 
+lazy val config = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(schema, scope, maybe)
+  .settings(stdSettings("zio-blocks-config"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.config"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // Specs share FlagSource.Registry (mutable singleton); parallel specs cause race
+    // conditions. TestAspect.sequential only orders tests within a spec, so it does not
+    // help here. jsSettings already sets this; the JVM inherits `true` from stdSettings.
+    Test / parallelExecution := false
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    coverageMinimumStmtTotal   := 80,
+    coverageMinimumBranchTotal := 70
+  )
+
+lazy val `config-yaml` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(config, `schema-yaml`)
+  .settings(stdSettings("zio-blocks-config-yaml"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.config.yaml"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM is required for scoverage to correctly write measurements after `clean`:
+    // with Test/fork := false the instrumented classes run in sbt's JVM and the
+    // measurements file is not flushed when `clean` is executed in project scope
+    // (e.g. `project config-yamlJVM; clean; coverage; test; coverageReport` reports 0%).
+    Test / fork := true
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // Skipped in global `coverage` aggregate to avoid OOM via schema
+    // instrumentation; `configCoverage` re-enables via `set` and enforces
+    // nonzero thresholds with forked clean tests.
+    coverageEnabled := false,
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-yamlJVM; coverage; test; coverageReport`:
+    // Statement 72.22%, Branch 66.67% (clean 72.22% with fork). Set just below with modest margin.
+    coverageMinimumStmtTotal   := 71,
+    coverageMinimumBranchTotal := 65
+  )
+
+lazy val `config-json` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(config, schema)
+  .settings(stdSettings("zio-blocks-config-json"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.config.json"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM required for clean coverage (see config-yaml comment).
+    Test / fork := true
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
+    coverageEnabled := false,
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-jsonJVM; coverage; test; coverageReport`:
+    // Statement 92.59%, Branch 86.67% (clean 92.59% with fork). Set just below with modest margin.
+    coverageMinimumStmtTotal   := 91,
+    coverageMinimumBranchTotal := 85
+  )
+
+lazy val `config-hocon` = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(config)
+  .settings(stdSettings("zio-blocks-config-hocon"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.config.hocon"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jvmSettings(
+    // Forked JVM required for clean coverage (see config-yaml comment).
+    Test / fork := true
+  )
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // Skipped in global `coverage` aggregate; `configCoverage` re-enables.
+    coverageEnabled := false,
+    // Measured 2026-08-31 Scala 3.8.3 JVM via `project config-hoconJVM; coverage; test; coverageReport`:
+    // Statement 76.30-77.58%, Branch 67.54-67.84% (clean 76.30/67.54 with fork). Set just below with modest margin.
+    coverageMinimumStmtTotal   := 76,
+    coverageMinimumBranchTotal := 66
+  )
+
 lazy val `http-model` = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-http-model"))
@@ -695,7 +1107,13 @@ lazy val `endpoint-examples` = project
     publish / skip             := true,
     mimaPreviousArtifacts      := Set(),
     coverageMinimumStmtTotal   := 0,
-    coverageMinimumBranchTotal := 0
+    coverageMinimumBranchTotal := 0,
+    Compile / unmanagedSourceDirectories ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 7 => Seq(baseDirectory.value / "src" / "main" / "scala-3.7")
+        case _                      => Seq.empty
+      }
+    }
   )
   .dependsOn(endpoint.jvm)
 
@@ -728,7 +1146,7 @@ lazy val `schema-avro` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.avro" % "avro"         % "1.12.1",
+      "org.apache.avro" % "avro"         % "1.12.2",
       "dev.zio"        %% "zio-test"     % "2.1.26" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.26" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -736,7 +1154,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
         )
     }),
     coverageMinimumStmtTotal   := 96,
@@ -763,7 +1181,7 @@ lazy val `schema-thrift` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.thrift"  % "libthrift"              % "0.23.0",
+      "org.apache.thrift"  % "libthrift"              % "0.24.0",
       "jakarta.annotation" % "jakarta.annotation-api" % "3.0.0",
       "dev.zio"           %% "zio-test"               % "2.1.26" % Test,
       "dev.zio"           %% "zio-test-sbt"           % "2.1.26" % Test
@@ -779,7 +1197,7 @@ lazy val `schema-bson` = project
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "org.mongodb" % "bson"         % "5.8.0",
+      "org.mongodb" % "bson"         % "5.11.0",
       "dev.zio"    %% "zio-test"     % "2.1.26" % Test,
       "dev.zio"    %% "zio-test-sbt" % "2.1.26" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
@@ -787,7 +1205,7 @@ lazy val `schema-bson` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
         )
     }),
     coverageMinimumStmtTotal   := 66,
@@ -866,7 +1284,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
         )
     })
   )
@@ -879,7 +1297,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.5.0" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
         )
     })
   )
@@ -1002,13 +1420,13 @@ lazy val benchmarks = project
   .settings(
     libraryDependencies ++= Seq(
       "com.vitthalmirji"                      %% "toon4s-core"           % "0.9.1",
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.14",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.40.1",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.15",
-      "dev.zio"                               %% "zio-json"              % "0.9.2",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.8.2",
-      "dev.zio"                               %% "zio-schema-json"       % "1.8.2",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.2", // the last version that depends on Scala 3.7.x
-      "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
+      "dev.zio"                               %% "zio-json"              % "0.10.0",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.8.6",
+      "dev.zio"                               %% "zio-schema-json"       % "1.8.6",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.6", // the last version that depends on Scala 3.7.x
+      "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.15",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
       "dev.zio"                               %% "zio-test"              % "2.1.26",
@@ -1026,6 +1444,37 @@ lazy val benchmarks = project
     coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
     coverageMinimumStmtTotal   := 30,
     coverageMinimumBranchTotal := 42
+  )
+
+lazy val `sql-benchmarks` = project
+  .in(file("sql-benchmarks"))
+  .settings(stdSettings("zio-blocks-sql-benchmarks", Seq("3.8.3")))
+  .dependsOn(sql.jvm % "compile->compile;test->test")
+  .enablePlugins(JmhPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      // In-memory SQLite table for the decode fixture; sql.jvm only has it as a
+      // Test dep, so the benchmark (main sources) declares it directly.
+      "org.xerial" % "sqlite-jdbc" % "3.53.4.0",
+      // Real-world cross-library comparison: same Postgres server, same data —
+      // zio-blocks via JDBC vs kyo-sql's native wire-protocol driver, plus a
+      // hand-rolled raw-JDBC floor.
+      "org.postgresql" % "postgresql"       % "42.7.13",
+      "io.getkyo"     %% "kyo-sql"          % "1.0.0-RC6",
+      "io.getkyo"     %% "kyo-sql-postgres" % "1.0.0-RC6"
+    ),
+    assembly / assemblyJarName       := "sql-benchmarks.jar",
+    assembly / assemblyMergeStrategy := {
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
+    },
+    assembly / fullClasspath   := (Jmh / fullClasspath).value,
+    assembly / mainClass       := Some("org.openjdk.jmh.Main"),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageEnabled            := coverageEnabled.value && scalaBinaryVersion.value != "2.13",
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
   )
 
 // ---------------------------------------------------------------------------
@@ -1064,13 +1513,15 @@ lazy val zioGolemModel = crossProject(JSPlatform, JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "ujson"                 % "3.1.0",
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.3" % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.6" % Test
     )
   )
   .jsSettings(jsSettings)
   .jsSettings(
-    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
-    scalaVersion := {
+    // Override jsSettings' default Scala 3 filtering: golem modules keep
+    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
+    scalaVersion       := {
       CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
         case Some((3, _)) => BuildHelper.Scala3Golem
         case _            => (ThisBuild / scalaVersion).value
@@ -1085,8 +1536,10 @@ lazy val zioGolemCoreJS = project
   .settings(jsSettings)
   .settings(
     publish / skip := true,
-    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
-    scalaVersion := {
+    // Override jsSettings' default Scala 3 filtering: golem modules keep
+    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
+    scalaVersion       := {
       CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
         case Some((3, _)) => BuildHelper.Scala3Golem
         case _            => (ThisBuild / scalaVersion).value
@@ -1095,8 +1548,8 @@ lazy val zioGolemCoreJS = project
     libraryDependencies ++= Seq(
       "dev.zio"           %%% "zio-test"                   % "2.1.26" % Test,
       "dev.zio"           %%% "zio-test-sbt"               % "2.1.26" % Test,
-      "io.github.cquiroz" %%% "scala-java-time"            % "2.6.0"  % Test,
-      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.6.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-time"            % "2.7.0"  % Test,
+      "io.github.cquiroz" %%% "scala-java-time-tzdb"       % "2.7.0"  % Test,
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4"  % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4"  % Test
     ),
@@ -1135,7 +1588,7 @@ lazy val zioGolemMacros = project
       "dev.zio"     %% "zio-test"              % "2.1.26" % Test,
       "dev.zio"     %% "zio-test-sbt"          % "2.1.26" % Test,
       "com.lihaoyi" %% "ujson"                 % "3.1.0"  % Test,
-      "dev.zio"     %% "zio-schema-derivation" % "1.8.3"  % Test
+      "dev.zio"     %% "zio-schema-derivation" % "1.8.6"  % Test
     )
   )
   .dependsOn(zioGolemModel.jvm)
@@ -1145,8 +1598,10 @@ lazy val zioGolemTestAgents = project
   .settings(stdSettings("zio-golem-examples-js", Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213)))
   .settings(jsSettings)
   .settings(
-    // Override jsSettings' Scala 3.3.7 pin: golem modules use Scala3Golem consistently
-    scalaVersion := {
+    // Override jsSettings' default Scala 3 filtering: golem modules keep
+    // Scala3Golem in crossScalaVersions and use it consistently for 3.x builds.
+    crossScalaVersions := Seq(BuildHelper.Scala3Golem, BuildHelper.Scala213),
+    scalaVersion       := {
       CrossVersion.partialVersion((ThisBuild / scalaVersion).value) match {
         case Some((3, _)) => BuildHelper.Scala3Golem
         case _            => (ThisBuild / scalaVersion).value
@@ -1160,8 +1615,8 @@ lazy val zioGolemTestAgents = project
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
     libraryDependencies ++= Seq(
-      "io.github.cquiroz" %%% "scala-java-time"      % "2.6.0",
-      "io.github.cquiroz" %%% "scala-java-time-tzdb" % "2.6.0",
+      "io.github.cquiroz" %%% "scala-java-time"      % "2.7.0",
+      "io.github.cquiroz" %%% "scala-java-time-tzdb" % "2.7.0",
       "dev.zio"           %%% "zio-http"             % "3.0.1"
     ),
     Test / test := {
@@ -1228,7 +1683,7 @@ lazy val zioGolemBuildCodegen = project
     organization   := "dev.zio",
     scalaVersion   := "2.12.21",
     libraryDependencies ++= Seq(
-      "org.scalameta" %% "scalameta" % "4.17.0",
+      "org.scalameta" %% "scalameta" % "4.17.3",
       "com.lihaoyi"   %% "ujson"     % "3.1.0",
       "org.scalameta" %% "munit"     % "1.1.0" % Test
     ),
@@ -1251,7 +1706,7 @@ lazy val zioGolemSbt = project
     // sbt plugins compile against sbt's Scala (2.12)
     scalaVersion := "2.12.21",
     sbtVersion   := "1.12.0",
-    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.21.0"),
+    addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0"),
     libraryDependencies += "org.scalameta" %% "scalafmt-dynamic" % "3.10.4",
     mimaPreviousArtifacts                  := Set()
   )
@@ -1266,7 +1721,7 @@ lazy val ringbufferBenchmarks = project
     coverageMinimumStmtTotal   := 99,
     coverageMinimumBranchTotal := 99,
     libraryDependencies ++= Seq(
-      "org.jctools" % "jctools-core" % "4.0.6"
+      "org.jctools" % "jctools-core" % "4.0.7"
     )
   )
 
@@ -1296,14 +1751,14 @@ lazy val `streams-benchmark` = project
     libraryDependencies ++= Seq(
       // fs2 — pull-based functional streams (Cats Effect)
       "co.fs2"        %% "fs2-core"    % "3.13.0",
-      "org.typelevel" %% "cats-effect" % "3.7.0",
+      "org.typelevel" %% "cats-effect" % "3.7.1",
       // Apache Pekko Streams (Apache-2.0 fork of Akka Streams)
-      "org.apache.pekko" %% "pekko-stream" % "1.5.0",
+      "org.apache.pekko" %% "pekko-stream" % "1.7.0",
       // Kyo — algebraic effect streams (Scala 3 only)
-      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC2",
-      "io.getkyo" %% "kyo-core"    % "1.0.0-RC2",
+      "io.getkyo" %% "kyo-prelude" % "1.0.0-RC6",
+      "io.getkyo" %% "kyo-core"    % "1.0.0-RC6",
       // Ox — direct-style streaming (SoftwareMill, Scala 3 only)
-      "com.softwaremill.ox" %% "core" % "1.0.5"
+      "com.softwaremill.ox" %% "core" % "1.0.6"
     ),
     assembly / assemblyJarName       := "streams-benchmark.jar",
     assembly / assemblyMergeStrategy := {
@@ -1329,7 +1784,7 @@ lazy val `schema-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.5.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1357,7 +1812,7 @@ lazy val `streams-examples` = project
     coverageMinimumBranchTotal := 0,
     libraryDependencies ++= Seq(
       "com.lihaoyi" %% "sourcecode"     % "0.4.4",
-      "dev.zio"     %% "zio-sbt-source" % "0.5.3"
+      "dev.zio"     %% "zio-sbt-source" % "0.7.2"
     ),
     scalacOptions -= "-Werror",
     scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
@@ -1367,6 +1822,19 @@ lazy val `streams-examples` = project
     chunk.jvm
   )
 
+lazy val `async-examples` = project
+  .in(file("async-examples"))
+  .settings(stdSettings("zio-blocks-async-examples", Seq(BuildHelper.Scala3)))
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    scalacOptions -= "-Werror",
+    scalacOptions += "-Wconf:msg=.*App.*deprecated.*:s"
+  )
+  .dependsOn(async.jvm)
+
 lazy val docs = project
   .in(file("zio-blocks-docs"))
   .settings(
@@ -1374,23 +1842,46 @@ lazy val docs = project
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
     scalacOptions += "-experimental",
-    projectName                                := (ThisBuild / name).value,
+    projectName  := (ThisBuild / name).value,
+    readmeBanner := {
+      val logoBase = "https://raw.githubusercontent.com/zio/zio-blocks/main/assets/logo"
+      // <picture> lets GitHub swap the lockup per theme: the wordmark is near-black ink, which
+      // would be invisible on GitHub's dark canvas without the on-dark variant.
+      s"""|
+          |<picture>
+          |  <source media="(prefers-color-scheme: dark)" srcset="$logoBase/zio-blocks-logo-on-dark.svg">
+          |  <img alt="ZIO Blocks" src="$logoBase/zio-blocks-logo.svg" width="520">
+          |</picture>
+          |""".stripMargin
+    },
     mainModuleName                             := (schema.jvm / moduleName).value,
     projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
     publish / skip                             := true,
     libraryDependencies ++= Seq(
-      "dev.zio" %% "zio-prelude" % "1.0.0-RC47"
+      "dev.zio"   %% "zio-prelude"    % "1.0.0-RC48",
+      "dev.zio"   %% "zio-sbt-source" % "0.7.2",
+      "org.xerial" % "sqlite-jdbc"    % "3.53.2.0"
     ),
-    // Override @PROJECT_BADGES@ to exclude Sonatype Release, Snapshot, and javadoc badges
+    // Override @PROJECT_BADGES@ to exclude the javadoc badge and to anchor the Maven Central /
+    // Sonatype Snapshot badges on the "zio-blocks-config" artifact instead of "zio-blocks-schema".
+    // A malformed "0.017" version was once published for zio-blocks-schema_3 (and several other
+    // modules); Maven Central is immutable, and Maven's version comparator ranks "0.017" (=[0,17])
+    // above every real "0.0.x" release (=[0,0,x]), so any badge keyed off zio-blocks-schema_3 would
+    // show "v0.017" forever. zio-blocks-config_3 was added after that bad publish and was never
+    // poisoned, so it accurately reflects the project's real version (all modules in this monorepo
+    // are released together under one version). Do not repoint these badges back at zio-blocks-schema_3.
     mdocVariables ++= Map(
       "PROJECT_BADGES" -> (
         "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
           "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+          "[![Maven Central](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Maven%20Central)](https://central.sonatype.com/artifact/dev.zio/zio-blocks-config_3) " +
+          "[![Sonatype Snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Sonatype%20Snapshot)](https://central.sonatype.com/repository/maven-snapshots/dev/zio/zio-blocks-config_3/) " +
           "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
       )
     ),
-    mdocOut := (ThisBuild / baseDirectory).value / "website" / "docs"
+    websiteDir := (ThisBuild / baseDirectory).value.toPath.resolve("website"),
+    mdocOut    := (ThisBuild / baseDirectory).value / "website" / "docs"
   )
   .dependsOn(
     schema.jvm,
@@ -1416,9 +1907,100 @@ lazy val docs = project
     html.jvm,
     datastar.jvm,
     smithy,
-    htmx.jvm
+    htmx.jvm,
+    mux.jvm,
+    async.jvm,
+    sql.jvm,
+    telemetry.jvm,
+    otel,
+    config.jvm,
+    `config-yaml`.jvm,
+    `config-json`.jvm,
+    `config-hocon`.jvm,
+    projection.jvm,
+    jwt.jvm
   )
   .enablePlugins(WebsitePlugin)
+  .settings(docsGenerateReadmeLocal := {
+    val rootDir     = (ThisBuild / baseDirectory).value
+    val docsIndex   = rootDir / "docs" / "index.md"
+    val mdocIndex   = mdocOut.value / "index.md"
+    val readmeFile  = rootDir / "README.md"
+    val versionText = version.value
+    val log         = sLog.value
+    // Keep in sync with the PROJECT_BADGES mdocVariable above.
+    val badges =
+      "[![Development](https://img.shields.io/badge/Project%20Stage-Development-green.svg)](https://github.com/zio/zio/wiki/Project-Stages) " +
+        "![CI Badge](https://github.com/zio/zio-blocks/workflows/CI/badge.svg) " +
+        "[![Maven Central](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Frepo1.maven.org%2Fmaven2%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Maven%20Central)](https://central.sonatype.com/artifact/dev.zio/zio-blocks-config_3) " +
+        "[![Sonatype Snapshot](https://img.shields.io/maven-metadata/v?metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fdev%2Fzio%2Fzio-blocks-config_3%2Fmaven-metadata.xml&label=Sonatype%20Snapshot)](https://central.sonatype.com/repository/maven-snapshots/dev/zio/zio-blocks-config_3/) " +
+        "[![ZIO Blocks](https://img.shields.io/github/stars/zio/zio-blocks?style=social)](https://github.com/zio/zio-blocks)"
+
+    // The plugin renders the README from the mdoc output, so use it whenever it is up to date;
+    // that keeps evaluated `scala mdoc` output in the README. Otherwise fall back to the source
+    // page, substituting the mdoc variables and dropping the mdoc fence modifiers by hand so the
+    // README can be regenerated without running mdoc.
+    val (sourceFile, rawBody) =
+      if (mdocIndex.exists && mdocIndex.lastModified >= docsIndex.lastModified) (mdocIndex, IO.read(mdocIndex))
+      else {
+        val substituted = IO
+          .read(docsIndex)
+          .replace("@PROJECT_BADGES@", badges)
+          .replace("@VERSION@", versionText)
+          .replaceAll("(?m)^```scala[ \\t]+mdoc\\S*[ \\t]*$", "```scala")
+        (docsIndex, substituted)
+      }
+
+    def removeYamlHeader(markdown: String): String =
+      markdown.linesIterator.toList match {
+        case "---" :: rest => rest.dropWhile(_ != "---").drop(1).mkString("\n")
+        case _             => markdown
+      }
+
+    // Links in docs/index.md are relative to docs/; the README sits one level up, so every
+    // relative link to a file has to be re-anchored. Mirrors WebsitePlugin.prefixUrlsWith.
+    val relativeFileUrl                                      = """\(((?!http)\S*\.(png|jpg|mdx?|scala|java)\b)\)""".r
+    def prefixUrlsWith(text: String, prefix: String): String =
+      relativeFileUrl.replaceAllIn(
+        text,
+        m => java.util.regex.Matcher.quoteReplacement("(" + prefix + m.group(1) + ")")
+      )
+
+    def section(title: String, content: String): String = {
+      val trimmed = content.trim
+      if (trimmed.isEmpty) "" else "\n## " + title + "\n\n" + trimmed + "\n"
+    }
+
+    val introduction = prefixUrlsWith(removeYamlHeader(rawBody).trim, "docs/").trim
+
+    val header =
+      """[//]: # (This file was autogenerated using `zio-sbt-website` plugin via `sbt generateReadme` command.)
+        |[//]: # (So please do not edit it manually. Instead, change "docs/index.md" file or sbt setting keys)
+        |[//]: # (e.g. "readmeDocumentation" and "readmeSupport".)
+        |""".stripMargin
+
+    // Section order matches WebsiteUtils.generateReadme; empty settings render nothing.
+    //
+    // One deliberate departure from the plugin: no "# ${projectName}" heading. The banner is the
+    // logo lockup, which already carries the wordmark, so the heading would render the project
+    // name twice in a row. The image's alt text supplies the accessible name in its place. Running
+    // the plugin's own `generateReadme` instead of this task would put the heading back.
+    val rendered =
+      header +
+        readmeBanner.value +
+        "\n" + introduction + "\n" +
+        section("Documentation", readmeDocumentation.value) +
+        section("Contributing", readmeContribution.value) +
+        section("Code of Conduct", readmeCodeOfConduct.value) +
+        section("Support", readmeSupport.value) +
+        section("Maintainers", readmeMaintainers.value) +
+        section("Credits", readmeCredits.value) +
+        section("Acknowledgement", readmeAcknowledgement.value) +
+        section("License", readmeLicense.value)
+
+    IO.write(readmeFile, rendered)
+    log.info(s"Wrote ${readmeFile.getAbsolutePath} from ${sourceFile.getAbsolutePath}")
+  })
 
 lazy val html = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
@@ -1470,6 +2052,182 @@ lazy val datastar = crossProject(JSPlatform, JVMPlatform)
     })
   )
 
+lazy val async = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-async"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.async"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(
+    mimaSettings(failOnProblem = false),
+    // DCA direct-style implementation: every Scala 3.x JVM build uses it
+    // (`scala-3-dca` holds the transform, `scala-3-dca-direct` the
+    // AsyncDirect entry point that delegates to it).
+    Compile / unmanagedSourceDirectories ++= {
+      val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) =>
+          Seq(sharedMain / "scala-3-dca", sharedMain / "scala-3-dca-direct")
+        case _ => Seq.empty
+      }
+    }
+  )
+  .jsSettings(
+    jsSettings,
+    // Target ES2017 so Scala.js can emit native async/await (`js.async`/
+    // `js.await`), used by the Scala 3.8+ direct-style implementation.
+    scalaJSLinkerConfig ~= { _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017)) },
+    // The repo-wide `jsSettings` drops the latest Scala (3.8.x) from JS cross
+    // builds; async opts back in because its native `js.async`/`js.await`
+    // backend exists only on 3.8+ and would otherwise never be compiled or
+    // tested.
+    crossScalaVersions += Scala3,
+    // Direct-style implementation selection on JS:
+    //   - Scala 3.8+ → native `js.async`/`js.await` for direct-position
+    //     awaits (faster than DCA on JS), with the shared DCA transform as
+    //     fallback for awaits under lambdas / by-name args / nested methods
+    //     (which `js.await` cannot cross). Needs `scala-3-dca` (the transform
+    //     + CpsMonad) but NOT `scala-3-dca-direct` (it ships its own
+    //     AsyncDirect).
+    //   - Scala 3.x < 3.8 → DCA only (older Scala 3 lacks `js.async`).
+    //   - Scala 2 → the shared `scala-2` def-macro (`internal.AsyncMacros`)
+    //     emits a platform-neutral flatMap chain, so no JS-specific source dir
+    //     is needed; JS behavior is covered by
+    //     `js/src/test/scala-2/.../AsyncJsAwaitSpec`.
+    //
+    // Intentionally validated on the repo default Scala 3.8.3 rather than
+    // bumping BuildHelper.Scala3 to 3.8.4-RC1. 3.8.4 fixes the narrow
+    // `js.await(js.Promise[Unit])` compile bug, but that single case is
+    // explicitly accepted/deferred; a repo-wide RC bump would force ~40
+    // unrelated subprojects onto an RC compiler with much larger blast radius.
+    // Caveat: a direct `Async[Unit].await` expanding to `js.await(Promise[Unit])`
+    // can fail to compile on 3.8.3; revisit when 3.8.4 is stable.
+    Compile / unmanagedSourceDirectories ++= {
+      val sharedMain = baseDirectory.value.getParentFile / "shared" / "src" / "main"
+      val jsMain     = baseDirectory.value / "src" / "main"
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, n)) if n >= 8 => Seq(sharedMain / "scala-3-dca", jsMain / "scala-3.8")
+        case Some((3, _))           => Seq(sharedMain / "scala-3-dca", sharedMain / "scala-3-dca-direct")
+        case _                      => Seq.empty
+      }
+    }
+  )
+  .dependsOn(combinators)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // dotty-cps-async powers the direct-style `Async.async { ... .await ... }`
+    // rewrite on every Scala 3 cell except JS 3.8+ (which uses native
+    // `js.async`/`js.await`). Scala 2 uses a hand-written `scala-reflect` macro
+    // (`internal.AsyncMacros`) and must not pull DCA onto its classpath. The
+    // `_3` artifact (built against 3.3.7) is consumed on 3.8.x via LTS forward
+    // compatibility.
+    libraryDependencies ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((3, _)) => Seq("io.github.dotty-cps-async" %%% "dotty-cps-async" % "1.3.4")
+        case _            => Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
+      }
+    },
+    // JVM scoverage floor (JS coverage is disabled repo-wide in jsSettings).
+    // Measured JVM coverage: Scala 3.8.3 = 93.35% stmt / 91.61% branch,
+    // Scala 2.13.18 = 95.84% / 93.55%. The Scala 3 cell is the floor because it
+    // additionally compiles the dotty-cps-async bridge (`internal/AsyncDirect`,
+    // `AsyncCpsMonad`, `AsyncRuntimeAwait`), whose macro markers / error
+    // messages run at compile time (not runtime-instrumentable) and whose HOF
+    // blocking fallback only fires when DCA has no AsyncShift. The remaining
+    // residual is dead-via-guard defensive branches and Completer CAS-retry
+    // races — see async/COVERAGE_DOCS_AUDIT.md for the per-line classification.
+    coverageMinimumStmtTotal   := 92,
+    coverageMinimumBranchTotal := 89
+  )
+
+lazy val `async-benchmarks` = project
+  .in(file("async-benchmarks"))
+  .settings(stdSettings("zio-blocks-async-benchmarks", Seq("3.8.3")))
+  .dependsOn(async.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      // Cats Effect IO — boxed effect tree
+      "org.typelevel" %% "cats-effect" % "3.7.1",
+      // Kyo — algebraic-effect runtime with raw-value `A < S` (Scala 3 only)
+      "io.getkyo" %% "kyo-core" % "0.19.0"
+    ),
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0,
+    // The `Async.async { ... }` direct-style benchmarks expand (via
+    // dotty-cps-async) into a `cps.async[Async] { ctx ?=> ... }` whose context
+    // parameter DCA leaves unused once every `.await` is rewritten to a flatMap
+    // chain. That unused-parameter warning is DCA-generated code we don't
+    // control; the repo only auto-suppresses unused warnings under `/test/`
+    // paths, so silence it narrowly for the affected benchmark sources here.
+    scalacOptions += "-Wconf:id=E198&src=.*AsyncBlock.*:s"
+  )
+
+// Scala-2-only JMH benchmarks for the direct-style `Async.async { ... .await ... }`
+// macro (`internal.AsyncMacros`). Kept SEPARATE from `async-benchmarks` because
+// that module is Scala-3-only (it depends on Kyo) and because Scala 2 def-macros
+// must be exercised from a DOWNSTREAM compilation unit. The gate here is
+// allocation / generated-code shape (run with `-prof gc`), not cross-runtime
+// throughput, so it deliberately pulls no Kyo / Cats Effect comparison deps.
+lazy val `async-benchmarks-scala2` = project
+  .in(file("async-benchmarks-scala2"))
+  .settings(stdSettings("zio-blocks-async-benchmarks-scala2", Seq(BuildHelper.Scala213)))
+  .dependsOn(async.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip             := true,
+    mimaPreviousArtifacts      := Set(),
+    coverageMinimumStmtTotal   := 0,
+    coverageMinimumBranchTotal := 0
+  )
+
+// JS-native benchmark gate. JMH is JVM-only, so this is a Scala.js main that
+// runs hand-rolled throughput + Node heap-delta allocation measurements (see
+// `AsyncJsBench`). It depends on `async.js`, so selecting the Scala version
+// chooses the cell under test: `++3.8.3; async-benchmarks-js/run` exercises the
+// native `js.async`/`js.await` backend; `++3.3.7; async-benchmarks-js/run`
+// exercises the dotty-cps-async backend. The `jsEnv` passes Node `--expose-gc`
+// so the harness can force a GC between heap reads. No Kyo / Cats Effect deps:
+// JMH-grade cross-runtime throughput comparison is JVM-only (see
+// `async-benchmarks`); this gate is about the JS hot-path allocation profile.
+lazy val `async-benchmarks-js` = project
+  .in(file("async-benchmarks-js"))
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin)
+  .settings(stdSettings("zio-blocks-async-benchmarks-js", Seq(BuildHelper.Scala3, BuildHelper.Scala33)))
+  .settings(jsSettings)
+  .dependsOn(async.js)
+  .settings(
+    publish / skip                  := true,
+    mimaPreviousArtifacts           := Set(),
+    coverageMinimumStmtTotal        := 0,
+    coverageMinimumBranchTotal      := 0,
+    scalaJSUseMainModuleInitializer := true,
+    // Benchmark in production mode (Closure full optimization) so the measured
+    // allocation/throughput reflects what ships, not the dev `fastLinkJS` output.
+    scalaJSStage := FullOptStage,
+    // jsSettings pins JS Scala 3 to 3.3.7; allow the native 3.8.x cell too.
+    scalaVersion       := (ThisBuild / scalaVersion).value,
+    crossScalaVersions := Seq(BuildHelper.Scala3, BuildHelper.Scala33),
+    // ES2017 so the native `js.async`/`js.await` in `async.js` (Scala 3.8+) links.
+    scalaJSLinkerConfig ~= {
+      _.withESFeatures(_.withESVersion(org.scalajs.linker.interface.ESVersion.ES2017))
+    },
+    // Force a full GC between heap reads in the allocation measurement.
+    jsEnv := new org.scalajs.jsenv.nodejs.NodeJSEnv(
+      org.scalajs.jsenv.nodejs.NodeJSEnv.Config().withArgs(List("--expose-gc"))
+    ),
+    // DCA expands `Async.async { ... }` into a `cps.async[Async] { ctx ?=> ... }`
+    // whose context parameter goes unused once every `.await` is rewritten; that
+    // E198 warning is DCA-generated code we don't control (same as in
+    // `async-benchmarks`).
+    scalacOptions += "-Wconf:id=E198&src=.*AsyncJsBench.*:s"
+  )
+
 lazy val htmx = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-http-htmx", Seq(Scala3, Scala33)))
@@ -1495,3 +2253,28 @@ lazy val htmx = crossProject(JSPlatform, JVMPlatform)
     coverageMinimumStmtTotal   := 85,
     coverageMinimumBranchTotal := 75
   )
+
+lazy val jwt = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full)
+  .dependsOn(chunk)
+  .settings(stdSettings("zio-blocks-jwt"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.jwt"))
+  .enablePlugins(BuildInfoPlugin)
+  // JWT is new/unreleased: no prior artifacts exist, so MiMA previousArtifacts is legitimately empty.
+  .jvmSettings(mimaPreviousArtifacts := Set())
+  .jsSettings(jsSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.26" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.26" % Test
+    ),
+    // Measured via `sbt "++3.8.3 jwtCoverage"` (clean): 74.39% stmt / 71.72% branch.
+    coverageMinimumStmtTotal   := 72,
+    coverageMinimumBranchTotal := 70
+  )
+
+// Scoped JWT coverage gate: reliable for crossProject where global scoverage flush is unreliable.
+// Additive: preserves global coverage (root/test coverageReport) unchanged.
+// Usage: sbt jwtCoverage  (runs only jwtJVM with coverage and fails on thresholds above)
+addCommandAlias("jwtCoverage", "; jwtJVM/clean; coverage; jwtJVM/test; jwtJVM/coverageReport")

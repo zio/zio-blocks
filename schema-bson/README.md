@@ -35,8 +35,11 @@ object Person {
   implicit val schema: Schema[Person] = Schema.derived
 }
 
-// Derive the BSON codec
-val codec: BsonCodec[Person] = BsonSchemaCodec.bsonCodec(Person.schema)
+// Derive through the shared type-class derivation framework
+val codec: BsonCodec[Person] = Person.schema.derive(BsonCodecDeriver)
+
+// The compatibility facade delegates to the same deriver:
+val compatibleCodec: BsonCodec[Person] = BsonSchemaCodec.bsonCodec(Person.schema)
 
 // Encode to BSON Value
 val person = Person("Alice", 30)
@@ -49,17 +52,19 @@ val decoded: Person = codec.decoder.fromBsonValueUnsafe(bson, Nil, BsonDecoder.B
 
 ### Configuration
 
-You can customize the codec generation using `BsonSchemaCodec.Config`.
+You can customize the deriver directly:
 
 ```scala
-val config = BsonSchemaCodec.Config
+val deriver = BsonCodecDeriver
   .withIgnoreExtraFields(false)          // Fail on unknown fields
   .withSumTypeHandling(                  // Customize ADT encoding
     BsonSchemaCodec.SumTypeHandling.DiscriminatorField("_type")
   )
 
-val codec = BsonSchemaCodec.bsonCodec(Person.schema, config)
+val codec = Person.schema.derive(deriver)
 ```
+
+`BsonSchemaCodec.Config` remains supported by the compatibility facade. Because BSON implements `Deriver[BsonCodec]`, `Schema.deriving(BsonCodecDeriver)` also supports instance and modifier overrides for exact optics, types, and parent/term names.
 
 #### Available Configuration Options
 
@@ -172,3 +177,6 @@ All ZIO Blocks Schema primitive types are supported and mapped to their BSON equ
 -   `Option` (Null or missing)
 -   `Collections` (BSON Arrays)
 -   `Maps` (BSON Documents)
+-   `zio.blocks.schema.json.Json` (semantic BSON documents, arrays, and scalar values)
+
+Semantic `Json` conversion preserves finite BSON double values except for signed zero, normalizes BSON signed zero to JSON zero, and rejects duplicate object field names that `BsonDocument` cannot represent.

@@ -17,12 +17,38 @@
 package zio.blocks.streams
 
 import zio.blocks.chunk.Chunk
+import zio.blocks.streams.internal.ConcurrentBufferedReader
+import zio.blocks.streams.io.Reader
 import zio.test._
 
 import java.nio.ByteBuffer
 import java.nio.channels.{Channels, ReadableByteChannel}
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.LockSupport
 
 object ReaderJvmSpec extends StreamsBaseSpec {
+
+  /**
+   * Parks until interrupted, then throws — how an interruptible source (e.g.
+   * real blocking I/O) reacts to our stop-signal interrupt.
+   */
+  private final class InterruptibleReader extends Reader[Int] {
+    val enteredRead: AtomicInteger        = new AtomicInteger(0)
+    val closeCount: AtomicInteger         = new AtomicInteger(0)
+    def isClosed: Boolean                 = false
+    def read[A1 >: Int](sentinel: A1): A1 = {
+      enteredRead.incrementAndGet()
+      while (!Thread.currentThread().isInterrupted) LockSupport.parkNanos(100000L)
+      throw new InterruptedException("stopped by shutdown")
+    }
+    def close(): Unit = closeCount.incrementAndGet()
+  }
+
+  private final class FailingReader extends Reader[Int] {
+    def isClosed: Boolean                 = false
+    def read[A1 >: Int](sentinel: A1): A1 = throw new IllegalStateException("boom")
+    def close(): Unit                     = ()
+  }
 
   private def intBuf(ints: Int*): ByteBuffer = {
     val bb = ByteBuffer.allocate(ints.size * 4)
@@ -443,6 +469,77 @@ object ReaderJvmSpec extends StreamsBaseSpec {
           val result = reader.readUpToN[Int](0)
           reader.close()
           assertTrue(result == Chunk.empty)
+        },
+        // ---- BUG regression: close() must not confuse the caller's own
+        // pending interrupt for a producer failure. `Thread.join` throws
+        // InterruptedException based on the *calling* thread's interrupt
+        // status alone, checked before it even looks at the joined thread's
+        // state. Closing a doubly-buffered reader runs this same close() on
+        // the outer producer thread while closing the inner buffer — and
+        // that thread had just interrupted itself to unwind its own loop, so
+        // the leftover flag made this join throw as if the inner producer had
+        // failed, occasionally (flakily) failing "double buffer (buffer then
+        // buffer) works correctly" in StreamConcurrencyJvmSpec. Simulated
+        // here directly, with no nesting or timing required: any caller whose
+        // own interrupt flag is already set when it calls close() must see
+        // that reproduced deterministically, every run.
+        test("close() does not throw when the calling thread already has a pending interrupt") {
+          val reader = Stream.compileToReader(Stream.fromChunk(Chunk(1, 2, 3)).buffer(4))
+          reader.read(-1)
+          Thread.currentThread().interrupt()
+          try {
+            reader.close()
+            // Captured into a val before asserting: the zio-test runtime
+            // itself clears stray Java-level interrupt flags as part of its
+            // own fiber bookkeeping, so reading `Thread.currentThread()
+            // .isInterrupted` lazily inside `assertTrue`'s macro expansion
+            // can observe it already cleared. Reading it immediately here,
+            // in plain synchronous code, captures the true post-close() value.
+            val stillInterrupted = Thread.currentThread().isInterrupted
+            assertTrue(stillInterrupted)
+          } finally Thread.interrupted() // clear before returning the thread to the pool
+        },
+        // ---- BUG regression, nested-buffer variant: closes the actual
+        // .buffer(32).buffer(32) shape from the original CI failure while the
+        // closing thread itself already carries a pending interrupt (h/t
+        // @987Nabil, #1627) — belt-and-braces alongside the single-layer
+        // deterministic test above.
+        test("close() mid-flight on nested buffers does not surface internal interruption") {
+          val reader = Stream.compileToReader(Stream.range(0, 100000).buffer(32).buffer(32))
+          reader.readUpToN[Int](1)
+          Thread.currentThread().interrupt()
+          val closedCleanly = scala.util.Try(reader.close()).isSuccess
+          Thread.interrupted()
+          assertTrue(closedCleanly)
+        },
+        // ---- BUG regression: a different call site than close()'s join.
+        // When `upstream.read()` is itself interruptible (a real blocking I/O
+        // read, not another buffered layer), our own stop-signal interrupt
+        // makes it throw InterruptedException *from the read loop*, one step
+        // earlier than the join hazard above. That must be recognized as
+        // deliberate shutdown, not recorded as a producer failure (h/t
+        // @987Nabil, #1627).
+        test("shutdown-induced interruption of an interruptible upstream is not recorded as an error") {
+          val upstream = new InterruptibleReader
+          val reader   = new ConcurrentBufferedReader[Int](upstream, 8)
+          val deadline = System.nanoTime() + 10L * 1000000000L
+          while (upstream.enteredRead.get() == 0 && System.nanoTime() < deadline) Thread.onSpinWait()
+          val sawProducerReading = upstream.enteredRead.get() > 0
+          val closedCleanly      = scala.util.Try(reader.close()).isSuccess
+          assertTrue(sawProducerReading) &&
+          assertTrue(closedCleanly) &&
+          assertTrue(upstream.closeCount.get() == 1)
+        },
+        // Companion to the above: a genuine (non-interrupt) upstream failure
+        // must still surface through read() unchanged.
+        test("genuine upstream failure still surfaces through read") {
+          val reader = new ConcurrentBufferedReader[Int](new FailingReader, 8)
+          val caught = scala.util.Try {
+            var done = false
+            while (!done) { if (reader.readUpToN[Int](4).isEmpty) done = true }
+            ()
+          }.failed
+          assertTrue(caught.map(_.isInstanceOf[IllegalStateException]).getOrElse(false))
         }
       ),
       suite("ConcurrentMergeReader (JVM)")(

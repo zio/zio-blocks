@@ -129,7 +129,7 @@ import zio.blocks.schema.yaml._
 case class AppConfig(name: String, port: Int, debug: Boolean)
 
 object AppConfig {
-  implicit val schema: Schema[AppConfig] = Schema.derived
+implicit val schema: Schema[AppConfig] = Schema.derived[AppConfig]
 }
 
 val codec = AppConfig.schema.derive(YamlFormat)

@@ -775,6 +775,57 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(Variant.schema.examples(Case1('1')).hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Variant.schema.doc("Variant (updated)"))(not(equalTo(Variant.schema)))
       },
+      test("round-trips implicit Either schemas with primitive payloads") {
+        def eitherSchema[A, B](implicit left: Schema[A], right: Schema[B]): Schema[Either[A, B]] =
+          Schema[Either[A, B]]
+
+        def roundTrips[A](schema: Schema[A], value: A) =
+          assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+
+        val directSchema         = Schema[Either[Int, Long]]
+        val genericSchema        = eitherSchema[Int, Long]
+        val genericPackedSchema  = eitherSchema[Boolean, Byte]
+        val genericMixedSchema   = eitherSchema[String, Int]
+        val genericUnitSchema    = eitherSchema[Unit, String]
+        val genericWrapperSchema = eitherSchema[CategoryId, ProductId]
+        val genericLongFloat     = eitherSchema[Long, Float]
+        val genericDoubleBoolean = eitherSchema[Double, Boolean]
+        val genericByteShort     = eitherSchema[Byte, Short]
+        val genericCharUnit      = eitherSchema[Char, Unit]
+        val genericFloatDouble   = eitherSchema[Float, Double]
+        val genericShortChar     = eitherSchema[Short, Char]
+
+        roundTrips(directSchema, Left(1): Either[Int, Long]) &&
+        roundTrips(directSchema, Right(2L): Either[Int, Long]) &&
+        roundTrips(genericSchema, Left(1): Either[Int, Long]) &&
+        roundTrips(genericSchema, Right(2L): Either[Int, Long]) &&
+        roundTrips(genericPackedSchema, Left(true): Either[Boolean, Byte]) &&
+        roundTrips(genericPackedSchema, Right(1.toByte): Either[Boolean, Byte]) &&
+        roundTrips(genericMixedSchema, Left("error"): Either[String, Int]) &&
+        roundTrips(genericMixedSchema, Right(1): Either[String, Int]) &&
+        roundTrips(genericUnitSchema, Left(()): Either[Unit, String]) &&
+        roundTrips(genericUnitSchema, Right("value"): Either[Unit, String]) &&
+        roundTrips(genericWrapperSchema, Left(CategoryId("category")): Either[CategoryId, ProductId]) &&
+        roundTrips(genericWrapperSchema, Right(ProductId(1L)): Either[CategoryId, ProductId]) &&
+        roundTrips(genericLongFloat, Left(1L): Either[Long, Float]) &&
+        roundTrips(genericLongFloat, Right(2.0f): Either[Long, Float]) &&
+        roundTrips(genericDoubleBoolean, Left(1.0): Either[Double, Boolean]) &&
+        roundTrips(genericDoubleBoolean, Right(true): Either[Double, Boolean]) &&
+        roundTrips(genericByteShort, Left(1.toByte): Either[Byte, Short]) &&
+        roundTrips(genericByteShort, Right(2.toShort): Either[Byte, Short]) &&
+        roundTrips(genericCharUnit, Left('a'): Either[Char, Unit]) &&
+        roundTrips(genericCharUnit, Right(()): Either[Char, Unit]) &&
+        roundTrips(genericFloatDouble, Left(1.0f): Either[Float, Double]) &&
+        roundTrips(genericFloatDouble, Right(2.0): Either[Float, Double]) &&
+        roundTrips(genericShortChar, Left(1.toShort): Either[Short, Char]) &&
+        roundTrips(genericShortChar, Right('a'): Either[Short, Char])
+      },
+      test("uses the same case TypeIds as a macro-derived Either schema") {
+        val implicitCaseTypeIds = Schema[Either[Int, Long]].reflect.asVariant.get.cases.map(_.value.typeId)
+        val derivedCaseTypeIds  = Schema.derived[Either[Int, Long]].reflect.asVariant.get.cases.map(_.value.typeId)
+
+        assert(implicitCaseTypeIds)(equalTo(derivedCaseTypeIds))
+      },
       test("gets and updates variant default value") {
         assert(Variant.schema.getDefaultValue)(isNone) &&
         assert(Variant.schema.defaultValue(Case1('1')).getDefaultValue)(isSome(equalTo(Case1('1'))))
@@ -1685,6 +1736,19 @@ object SchemaSpec extends SchemaBaseSpec {
         assert(fieldValue2.asDynamic)(isNone) &&
         assert(fieldValue2.asSequenceUnknown)(isNone) &&
         assert(fieldValue2.asMapUnknown)(isNone)
+      },
+      test("round-trips recursive data structures through implicit Either schemas") {
+        case class Node(value: Int, next: Either[Unit, Node])
+
+        def recursiveSchema: Schema[Node] = {
+          implicit lazy val schema: Schema[Node] = Schema.derived[Node]
+          schema
+        }
+
+        val value  = Node(1, Right(Node(2, Right(Node(3, Left(()))))))
+        val schema = recursiveSchema
+
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       }
     ),
     suite("Reflect.Wrapper")(
@@ -1972,8 +2036,6 @@ object SchemaSpec extends SchemaBaseSpec {
 
   private[this] def hasError(message: String): Assertion[SchemaError] =
     hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
-
-  implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
 
   case class Record(b: Byte, i: Int)
 
@@ -2301,10 +2363,7 @@ object SchemaSpec extends SchemaBaseSpec {
       assertTypeArgMatches(containerTid, 0, ProductId.customTypeId)
     },
     test("Either left and right use custom TypeIds") {
-      val schema        = Schema[EitherContainer]
-      val record        = schema.reflect.asRecord.get
-      val field         = record.fields.find(_.name == "item").get
-      val eitherReflect = field.value.asVariant.get
+      val eitherReflect = Schema[Either[CategoryId, ProductId]].reflect.asVariant.get
       val leftCase      = eitherReflect.cases.find(_.name == "Left").get
       val rightCase     = eitherReflect.cases.find(_.name == "Right").get
       val leftRecord    = leftCase.value.asRecord.get
@@ -2317,8 +2376,25 @@ object SchemaSpec extends SchemaBaseSpec {
         leftTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
         rightTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
       ) &&
+      assertTypeArgMatches(leftRecord.typeId, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(leftRecord.typeId, 1, ProductId.customTypeId) &&
+      assertTypeArgMatches(rightRecord.typeId, 0, CategoryId.customTypeId) &&
+      assertTypeArgMatches(rightRecord.typeId, 1, ProductId.customTypeId) &&
       assertTypeArgMatches(containerTid, 0, CategoryId.customTypeId) &&
       assertTypeArgMatches(containerTid, 1, ProductId.customTypeId)
+    },
+    test("Either fields in derived records use custom TypeIds") {
+      val record        = Schema[EitherContainer].reflect.asRecord.get
+      val eitherReflect = record.fields.find(_.name == "item").get.value.asVariant.get
+      val leftRecord    = eitherReflect.cases.find(_.name == "Left").get.value.asRecord.get
+      val rightRecord   = eitherReflect.cases.find(_.name == "Right").get.value.asRecord.get
+      val leftTid       = leftRecord.fields.find(_.name == "value").get.value.typeId
+      val rightTid      = rightRecord.fields.find(_.name == "value").get.value.typeId
+
+      assertTrue(
+        leftTid.asInstanceOf[TypeId[Any]] == CategoryId.customTypeId.asInstanceOf[TypeId[Any]],
+        rightTid.asInstanceOf[TypeId[Any]] == ProductId.customTypeId.asInstanceOf[TypeId[Any]]
+      )
     },
     test("Array element uses custom TypeId") {
       val schema       = Schema[ArrayContainer]

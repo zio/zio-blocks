@@ -107,7 +107,7 @@ private[mux] object PlatformMux {
 
     def id: Id = streamId
 
-    def send(msg: In): Either[MuxError, Unit] = {
+    def send(msg: In): Either[MuxError, Unit] =
       if (msg.asInstanceOf[AnyRef] eq null)
         Left(MuxError.ProtocolError("null message"))
       else {
@@ -118,7 +118,6 @@ private[mux] object PlatformMux {
           Right(())
         else Left(MuxError.QueueFull(StreamQueueCapacity))
       }
-    }
 
     def receive(): Either[MuxError, Option[Out]] = {
       val polled = inboundQueue.take()
@@ -130,7 +129,7 @@ private[mux] object PlatformMux {
       }
     }
 
-    def offerInbound(msg: Out): Either[MuxError, Unit] = {
+    def offerInbound(msg: Out): Either[MuxError, Unit] =
       if (msg.asInstanceOf[AnyRef] eq null)
         Left(MuxError.ProtocolError("null message"))
       else {
@@ -141,7 +140,6 @@ private[mux] object PlatformMux {
           Right(())
         else Left(MuxError.QueueFull(StreamQueueCapacity))
       }
-    }
 
     def takeOutbound(): Either[MuxError, Option[In]] = {
       val polled = outboundQueue.take()

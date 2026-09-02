@@ -1,19 +1,3 @@
-/*
- * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package object querydslsql {
 
   import zio.blocks.schema._
@@ -59,7 +43,7 @@ package object querydslsql {
 
   private def toSqlDynamic(expr: DynamicSchemaExpr): String = expr match {
     case DynamicSchemaExpr.Select(path)                => columnName(path)
-    case DynamicSchemaExpr.Literal(value)              => sqlLiteralDV(value)
+    case DynamicSchemaExpr.Literal(value, _)           => sqlLiteralDV(value)
     case DynamicSchemaExpr.Relational(left, right, op) =>
       val sqlOp = op match {
         case DynamicSchemaExpr.RelationalOperator.Equal              => "="
@@ -100,8 +84,8 @@ package object querydslsql {
   def toParameterized[A, B](expr: SchemaExpr[A, B]): SqlQuery = toParameterizedDynamic(expr.dynamic)
 
   private def toParameterizedDynamic(expr: DynamicSchemaExpr): SqlQuery = expr match {
-    case DynamicSchemaExpr.Select(path)   => SqlQuery(columnName(path), Nil)
-    case DynamicSchemaExpr.Literal(value) =>
+    case DynamicSchemaExpr.Select(path)      => SqlQuery(columnName(path), Nil)
+    case DynamicSchemaExpr.Literal(value, _) =>
       val param = value match {
         case DynamicValue.Primitive(pv) =>
           pv match {

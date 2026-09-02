@@ -328,23 +328,26 @@ object YamlReader {
       if (trimmed == "{}") Yaml.Mapping.empty
       else {
         val content = collectFlowContent(trimmed, '{', '}')
-        val inner   = content.substring(1, content.length - 1).trim
-        if (inner.isEmpty) Yaml.Mapping.empty
+        if (content.length < 2) Yaml.Mapping.empty
         else {
-          val entries = ChunkBuilder.make[(Yaml, Yaml)]()
-          val parts   = splitFlowItems(inner)
-          var idx     = 0
-          while (idx < parts.length) {
-            val part     = parts(idx).trim
-            val colonIdx = part.indexOf(':')
-            if (colonIdx > 0) {
-              val k = unquoteScalar(part.substring(0, colonIdx).trim)
-              val v = part.substring(colonIdx + 1).trim
-              entries.addOne((new Yaml.Scalar(k), parseInlineValue(v)))
+          val inner = content.substring(1, content.length - 1).trim
+          if (inner.isEmpty) Yaml.Mapping.empty
+          else {
+            val entries = ChunkBuilder.make[(Yaml, Yaml)]()
+            val parts   = splitFlowItems(inner)
+            var idx     = 0
+            while (idx < parts.length) {
+              val part     = parts(idx).trim
+              val colonIdx = part.indexOf(':')
+              if (colonIdx > 0) {
+                val k = unquoteScalar(part.substring(0, colonIdx).trim)
+                val v = part.substring(colonIdx + 1).trim
+                entries.addOne((new Yaml.Scalar(k), parseInlineValue(v)))
+              }
+              idx += 1
             }
-            idx += 1
+            new Yaml.Mapping(entries.result())
           }
-          new Yaml.Mapping(entries.result())
         }
       }
     }
@@ -356,18 +359,21 @@ object YamlReader {
       if (trimmed == "[]") Yaml.Sequence.empty
       else {
         val content = collectFlowContent(trimmed, '[', ']')
-        val inner   = content.substring(1, content.length - 1).trim
-        if (inner.isEmpty) Yaml.Sequence.empty
+        if (content.length < 2) Yaml.Sequence.empty
         else {
-          val parts    = splitFlowItems(inner)
-          val len      = parts.length
-          val elements = new Array[Yaml](len)
-          var idx      = 0
-          while (idx < len) {
-            elements(idx) = parseInlineValue(parts(idx).trim)
-            idx += 1
+          val inner = content.substring(1, content.length - 1).trim
+          if (inner.isEmpty) Yaml.Sequence.empty
+          else {
+            val parts    = splitFlowItems(inner)
+            val len      = parts.length
+            val elements = new Array[Yaml](len)
+            var idx      = 0
+            while (idx < len) {
+              elements(idx) = parseInlineValue(parts(idx).trim)
+              idx += 1
+            }
+            new Yaml.Sequence(Chunk.fromArray(elements))
           }
-          new Yaml.Sequence(Chunk.fromArray(elements))
         }
       }
     }
@@ -448,6 +454,7 @@ object YamlReader {
 
     private[this] def parseFlowMappingInline(s: String): Yaml =
       if (s == "{}") Yaml.Mapping.empty
+      else if (s.length < 2) Yaml.Mapping.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Mapping.empty
@@ -471,6 +478,7 @@ object YamlReader {
 
     private[this] def parseFlowSequenceInline(s: String): Yaml =
       if (s == "[]") Yaml.Sequence.empty
+      else if (s.length < 2) Yaml.Sequence.empty
       else {
         val inner = s.substring(1, s.length - 1).trim
         if (inner.isEmpty) Yaml.Sequence.empty

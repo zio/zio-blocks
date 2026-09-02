@@ -42,6 +42,8 @@ object Modifier {
    *   - `encodeTransient`: Used to indicate that a field should not be encoded.
    *   - `rename`: Used to specify a new name for a term, typically useful in
    *     serialization scenarios.
+   *   - `id`: Used to explicitly mark a field as the primary key, resolving
+   *     ambiguity when auto-detection would be inconclusive.
    *   - `alias`: Provides an alternative name (alias) for a term.
    *   - `config`: Represents a key-value pair for attaching additional
    *     configuration metadata to terms.
@@ -65,6 +67,13 @@ object Modifier {
    *   The new name to apply to the term.
    */
   @field case class rename(name: String) extends Term
+
+  /**
+   * A modifier that explicitly marks a term as the primary key field. Used by
+   * `Repo.derived` to resolve ambiguity when multiple fields share the same
+   * type or when auto-detection would be inconclusive.
+   */
+  @field case class id() extends Term
 
   /**
    * A modifier representing an alias for a term.
@@ -146,6 +155,18 @@ object Modifier {
           def deconstruct(out: Registers, offset: RegisterOffset, in: rename): Unit =
             out.setObject(offset, in.name)
         }
+      ),
+      modifiers = Chunk.empty
+    )
+  )
+
+  implicit lazy val idSchema: Schema[id] = new Schema(
+    reflect = new Reflect.Record[Binding, id](
+      fields = Chunk.empty,
+      typeId = TypeId.of[id],
+      recordBinding = new Binding.Record(
+        constructor = new ConstantConstructor[id](id()),
+        deconstructor = new ConstantDeconstructor[id]
       ),
       modifiers = Chunk.empty
     )
@@ -278,7 +299,8 @@ object Modifier {
         renameSchema.reflect.asTerm("rename"),
         aliasSchema.reflect.asTerm("alias"),
         configSchema.reflect.asTerm("config"),
-        encodeTransientSchema.reflect.asTerm("encodeTransient")
+        encodeTransientSchema.reflect.asTerm("encodeTransient"),
+        idSchema.reflect.asTerm("id")
       ),
       typeId = TypeId.of[Term],
       variantBinding = new Binding.Variant(
@@ -289,6 +311,7 @@ object Modifier {
             case _: alias           => 2
             case _: config          => 3
             case _: encodeTransient => 4
+            case _: id              => 5
           }
         },
         matchers = Matchers(
@@ -320,6 +343,12 @@ object Modifier {
             def downcastOrNull(a: Any): encodeTransient = a match {
               case x: encodeTransient => x
               case _                  => null.asInstanceOf[encodeTransient]
+            }
+          },
+          new Matcher[id] {
+            def downcastOrNull(a: Any): id = a match {
+              case x: id => x
+              case _     => null.asInstanceOf[id]
             }
           }
         )
@@ -396,7 +425,8 @@ object Modifier {
         discriminatorSchema.reflect.asTerm("discriminator"),
         noExtraFieldsSchema.reflect.asTerm("noExtraFields"),
         fieldNamingSchema.reflect.asTerm("fieldNaming"),
-        caseNamingSchema.reflect.asTerm("caseNaming")
+        caseNamingSchema.reflect.asTerm("caseNaming"),
+        idSchema.reflect.asTerm("id")
       ),
       typeId = TypeId.of[Modifier],
       variantBinding = new Binding.Variant(
@@ -411,6 +441,7 @@ object Modifier {
             case _: noExtraFields   => 6
             case _: fieldNaming     => 7
             case _: caseNaming      => 8
+            case _: id              => 9
           }
         },
         matchers = Matchers(
@@ -466,6 +497,12 @@ object Modifier {
             def downcastOrNull(a: Any): caseNaming = a match {
               case x: caseNaming => x
               case _             => null.asInstanceOf[caseNaming]
+            }
+          },
+          new Matcher[id] {
+            def downcastOrNull(a: Any): id = a match {
+              case x: id => x
+              case _     => null.asInstanceOf[id]
             }
           }
         )

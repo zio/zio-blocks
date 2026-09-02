@@ -635,36 +635,70 @@ val allIds = params.get("id")         // Some(Chunk("1", "2", "3"))
 
 ## Headers
 
-`Headers` is an immutable, case-insensitive collection of HTTP headers with lazy parsing for typed header access:
+`Headers` is an immutable, case-insensitive collection of HTTP header fields. It stores names pre-lowercased and raw values as strings, allows several entries with the same name, and parses a value into a typed `Header` only when a typed read asks for it:
 
 ```scala
-final class Headers private[http] (...)
+final class Headers private[http] (...) {
+  def size: Int
+  def get[A](headerCodec: Header.Codec[A]): Option[A]
+  def rawGet(name: String): Option[String]
+  def add(header: Header): Headers
+  def set(header: Header): Headers
+  def remove(name: String): Headers
+}
 ```
+
+This section covers the collection itself. The 75 built-in typed headers, the codec type class behind them, the parse cache, and the validation rules all live on the [Header](./headers.md) page.
 
 ### Creating Headers
 
-Create header collections:
+`Headers.apply` takes name-value pairs, and `Headers.empty` is the starting point for a builder chain:
 
-```scala mdoc:compile-only
-import zio.http.Headers
-
-val headers1 = Headers("content-type" -> "application/json", "authorization" -> "Bearer token123")
-val headers2 = Headers.empty
-```
-
-### Headers Operations
-
-Access and modify headers:
-
-```scala mdoc:compile-only
+```scala mdoc:silent
 import zio.http.Headers
 
 val headers = Headers("content-type" -> "application/json", "cache-control" -> "no-cache")
-
-// Headers can be queried and modified using methods
-val withAuth = headers.add("authorization", "Bearer token") // Add header
-val asList = headers.toList                                 // All headers as List
 ```
+
+Names are lowercased as they are stored, so the collection reports them in canonical form regardless of how they were written:
+
+```scala mdoc
+Headers("Content-Type" -> "application/json").toList
+```
+
+### Reading Raw Values
+
+Three methods read the stored string without parsing, differing in which entry they pick when a name repeats:
+
+```scala mdoc
+headers.rawGet("Content-Type")
+headers.rawGetAll("cache-control")
+headers.has("content-type")
+```
+
+Lookups are case-insensitive, and `Headers#contains` is an alias for `Headers#has`. For typed reads — `Headers#get`, `Headers#getAll`, and `Headers#getLast`, which decode into a `Header` — see [Header](./headers.md).
+
+### Modifying Headers
+
+`Headers#add` appends and `Headers#set` replaces every entry with the same name, which is the distinction that matters for multi-value headers:
+
+```scala mdoc:silent
+val twice   = headers.add("set-cookie", "a=1").add("set-cookie", "b=2")
+val replaced = twice.set("set-cookie", "c=3")
+```
+
+Appending keeps both cookies while setting collapses them to one:
+
+```scala mdoc
+twice.rawGetAll("set-cookie")
+replaced.rawGetAll("set-cookie")
+```
+
+`Headers#remove` drops every entry with a name, `Headers#++` concatenates two collections without deduplicating, and `Headers#toList` and `Headers#toChunk` expose the pairs for iteration. Every operation returns a new `Headers`.
+
+:::warning[Names and values are validated by throwing]
+A header name must be an HTTP token and a value must not contain CR or LF — the latter is what prevents response splitting. The mutating methods enforce both with `IllegalArgumentException`, so check untrusted input with `Headers.validateName` or `Headers.validateValue` first. See [Header](./headers.md) for the rules and the safe pre-checks.
+:::
 
 ---
 

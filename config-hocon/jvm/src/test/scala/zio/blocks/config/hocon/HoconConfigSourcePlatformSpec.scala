@@ -1,0 +1,389 @@
+/*
+ * Copyright 2024-2026 John A. De Goes and the ZIO Contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package zio.blocks.config.hocon
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path}
+
+import zio.test._
+
+object HoconConfigSourcePlatformSpec extends ZIOSpecDefault {
+
+  private def writeFile(path: Path, content: String): Path = {
+    Files.createDirectories(path.getParent)
+    Files.write(path, content.getBytes(StandardCharsets.UTF_8))
+  }
+
+  private def deleteRecursively(path: Path): Unit =
+    if (Files.exists(path)) {
+      val stream = Files.walk(path)
+      try {
+        val iter = stream.sorted(java.util.Comparator.reverseOrder()).iterator()
+        while (iter.hasNext) Files.deleteIfExists(iter.next())
+      } finally stream.close()
+    }
+
+  def spec: Spec[Any, Any] = suite("HoconConfigSourcePlatformSpec")(
+    test("ConfigSource.fromFile rejects root files outside allowedBase even when the path shares a string prefix") {
+      val root = Files.createTempDirectory("hocon-platform-root-cfgsrc-")
+      try {
+        val allowedBase = root.resolve("foo")
+        val siblingBase = root.resolve("foobar")
+
+        Files.createDirectories(allowedBase)
+        Files.createDirectories(siblingBase)
+
+        val target = writeFile(siblingBase.resolve("app.conf"), "db.host = \"outside\"")
+        val result = zio.blocks.config.ConfigSource.fromFile(target.toString, Some(allowedBase.toFile))
+
+        assertTrue(result.isLeft)
+      } finally deleteRecursively(root)
+    },
+    test("fromFile rejects root files outside allowedBase even when the path shares a string prefix") {
+      val root = Files.createTempDirectory("hocon-platform-root-")
+      try {
+        val allowedBase = root.resolve("foo")
+        val siblingBase = root.resolve("foobar")
+
+        Files.createDirectories(allowedBase)
+        Files.createDirectories(siblingBase)
+
+        val target = writeFile(siblingBase.resolve("app.conf"), "db.host = \"outside\"")
+        val result = HoconConfigSourcePlatform.fromFile(target.toString, Some(allowedBase.toFile))
+
+        assertTrue(result.isLeft)
+      } finally deleteRecursively(root)
+    },
+    test("fromFile rejects included files outside allowedBase even when the path shares a string prefix") {
+      val root = Files.createTempDirectory("hocon-platform-include-base-")
+      try {
+        val allowedBase = root.resolve("foo")
+        val siblingBase = root.resolve("foobar")
+
+        Files.createDirectories(allowedBase)
+        Files.createDirectories(siblingBase)
+
+        val main = writeFile(allowedBase.resolve("app.conf"), "include \"../foobar/secret.conf\"")
+        writeFile(siblingBase.resolve("secret.conf"), "secret.value = \"outside\"")
+
+        val result = HoconConfigSourcePlatform.fromFile(main.toString, Some(allowedBase.toFile))
+
+        assertTrue(result.isLeft)
+      } finally deleteRecursively(root)
+    },
+    test("fromFile counts include nesting depth instead of total sibling includes") {
+      val root = Files.createTempDirectory("hocon-platform-depth-")
+      try {
+        val base = root.resolve("conf")
+
+        Files.createDirectories(base)
+
+        val main = writeFile(
+          base.resolve("application.conf"),
+          """include "first.conf"
+            |include "second.conf"""".stripMargin
+        )
+        writeFile(base.resolve("first.conf"), "first.value = 1")
+        writeFile(base.resolve("second.conf"), "second.value = 2")
+
+        val result = HoconConfigSourcePlatform.fromFile(main.toString, Some(base.toFile), maxIncludeDepth = 1)
+
+        assertTrue(
+          result.toOption.exists { source =>
+            source.get("first.value").exists(_.value == "1") &&
+            source.get("second.value").exists(_.value == "2")
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile resolves nested includes relative to the including file") {
+      val root = Files.createTempDirectory("hocon-platform-nested-relative-")
+      try {
+        val base = root.resolve("conf")
+
+        Files.createDirectories(base.resolve("nested"))
+
+        val main = writeFile(base.resolve("application.conf"), "include \"nested/first.conf\"")
+        writeFile(
+          base.resolve("nested/first.conf"),
+          """include "../second.conf"
+            |first.value = 1""".stripMargin
+        )
+        writeFile(base.resolve("second.conf"), "second.value = 2")
+
+        val result = HoconConfigSourcePlatform.fromFile(main.toString, Some(base.toFile), maxIncludeDepth = 2)
+
+        assertTrue(
+          result.toOption.exists { source =>
+            source.get("first.value").exists(_.value == "1") &&
+            source.get("second.value").exists(_.value == "2")
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile rejects root file exceeding maxFileBytes with typed error without leaking content") {
+      val root = Files.createTempDirectory("hocon-platform-limit-root-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val secretContent = "x" * 2048
+        val largeContent  = s"""db.secret = "$secretContent"""" // > 1k bytes
+        val file          = writeFile(base.resolve("app.conf"), largeContent)
+        val result        =
+          HoconConfigSourcePlatform.fromFileWithLimits(file.toString, Some(base.toFile), maxFileBytes = 1024)
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError =>
+              e.message.contains("exceeds limit") && !e.message.contains(secretContent) &&
+              !e.getMessage.contains(secretContent)
+            case _ => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile rejects included file exceeding maxFileBytes with typed error without leaking content") {
+      val root = Files.createTempDirectory("hocon-platform-limit-include-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val secretContent = "y" * 2048
+        writeFile(base.resolve("large.conf"), s"""secret.value = "$secretContent"""")
+        val main   = writeFile(base.resolve("app.conf"), """include "large.conf"""")
+        val result =
+          HoconConfigSourcePlatform.fromFileWithLimits(main.toString, Some(base.toFile), maxFileBytes = 1024)
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError =>
+              !e.message.contains(secretContent) &&
+              !e.getMessage.contains(secretContent) &&
+              !e.message.contains("exceeds limit") &&
+              !e.getMessage.contains("exceeds limit") &&
+              e.cause.exists {
+                case h: HoconError =>
+                  h.getMessage.contains("exceeds limit") && !h.getMessage.contains(secretContent)
+                case _ => false
+              }
+            case _ => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile accepts file within maxFileBytes") {
+      val root = Files.createTempDirectory("hocon-platform-limit-ok-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val main   = writeFile(base.resolve("app.conf"), "db.host = \"ok\"")
+        val result =
+          HoconConfigSourcePlatform.fromFileWithLimits(main.toString, Some(base.toFile), maxFileBytes = 1024)
+        assertTrue(
+          result.toOption.exists(_.get("db.host").exists(_.value == "ok"))
+        )
+      } finally deleteRecursively(root)
+    },
+    test("ConfigSource.fromFile respects maxFileBytes for root file") {
+      val root = Files.createTempDirectory("hocon-platform-limit-cfgsrc-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val secretContent = "z" * 2048
+        val file          = writeFile(base.resolve("app.conf"), s"""db.secret = "$secretContent"""")
+        val result        = zio.blocks.config.ConfigSource.fromFileWithLimits(
+          file.toString,
+          Some(base.toFile),
+          maxFileBytes = 1024
+        )
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError =>
+              e.message.contains("exceeds limit") && !e.message.contains(secretContent)
+            case _ => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile accepts included file within limit") {
+      val root = Files.createTempDirectory("hocon-platform-limit-include-ok-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        writeFile(base.resolve("small.conf"), "small.value = 1")
+        val main   = writeFile(base.resolve("app.conf"), """include "small.conf"""")
+        val result =
+          HoconConfigSourcePlatform.fromFileWithLimits(main.toString, Some(base.toFile), maxFileBytes = 1024)
+        assertTrue(
+          result.toOption.exists(_.get("small.value").exists(_.value == "1"))
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile returns typed error for non-positive maxFileBytes") {
+      val root = Files.createTempDirectory("hocon-platform-limit-invalid-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val file       = writeFile(base.resolve("app.conf"), "db.host = \"ok\"")
+        val resultZero =
+          HoconConfigSourcePlatform.fromFileWithLimits(file.toString, Some(base.toFile), maxFileBytes = 0)
+        val resultNeg =
+          HoconConfigSourcePlatform.fromFileWithLimits(file.toString, Some(base.toFile), maxFileBytes = -1)
+        assertTrue(
+          resultZero.isLeft,
+          resultNeg.isLeft,
+          resultZero.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError => e.message.contains("maxFileBytes")
+            case _                                           => false
+          },
+          resultNeg.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError => e.message.contains("maxFileBytes")
+            case _                                           => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile returns typed error for negative maxIncludeDepth") {
+      val root = Files.createTempDirectory("hocon-platform-depth-invalid-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val file   = writeFile(base.resolve("app.conf"), "db.host = \"ok\"")
+        val result = HoconConfigSourcePlatform.fromFileWithLimits(
+          file.toString,
+          Some(base.toFile),
+          maxIncludeDepth = -1
+        )
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError => e.message.contains("maxIncludeDepth")
+            case _                                           => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile returns typed error when root path is a directory") {
+      val root = Files.createTempDirectory("hocon-platform-dir-root-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val result = HoconConfigSourcePlatform.fromFile(base.toString, Some(base.toFile))
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError =>
+              e.message.contains("regular file") && !e.message.contains("secret")
+            case _ => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile returns typed error when included path is a directory") {
+      val root = Files.createTempDirectory("hocon-platform-dir-include-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base.resolve("subdir"))
+        val main   = writeFile(base.resolve("app.conf"), """include "subdir"""")
+        val result = HoconConfigSourcePlatform.fromFile(main.toString, Some(base.toFile))
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError =>
+              !e.message.contains("Not a regular file") &&
+              !e.getMessage.contains("Not a regular file") &&
+              !e.message.contains("Failed") &&
+              !e.getMessage.contains("Failed") &&
+              e.cause.exists {
+                case h: HoconError => h.getMessage.contains("Not a regular file")
+                case _             => false
+              }
+            case _ => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("ConfigSource.fromFile returns typed error for non-positive maxFileBytes") {
+      val root = Files.createTempDirectory("hocon-platform-cfgsrc-invalid-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val file   = writeFile(base.resolve("app.conf"), "db.host = \"ok\"")
+        val result =
+          zio.blocks.config.ConfigSource.fromFileWithLimits(file.toString, Some(base.toFile), maxFileBytes = 0)
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError => e.message.contains("maxFileBytes")
+            case _                                           => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("ConfigSource.fromFile returns typed error when root is a directory") {
+      val root = Files.createTempDirectory("hocon-platform-cfgsrc-dir-")
+      try {
+        val base = root.resolve("conf")
+        Files.createDirectories(base)
+        val result = zio.blocks.config.ConfigSource.fromFile(base.toString, Some(base.toFile))
+        assertTrue(
+          result.isLeft,
+          result.left.exists {
+            case e: zio.blocks.config.ConfigError.ParseError => e.message.contains("regular file")
+            case _                                           => false
+          }
+        )
+      } finally deleteRecursively(root)
+    },
+    test("fromFile captures canonicalization failure via NonFatal as typed ParseError without leaking") {
+      val badPath = "invalid\u0000path.conf"
+      val direct  = HoconConfigSourcePlatform.fromFile(badPath)
+      val syntax  = zio.blocks.config.ConfigSource.fromFile(badPath)
+      assertTrue(
+        direct.isLeft,
+        syntax.isLeft,
+        direct.left.exists {
+          case e: zio.blocks.config.ConfigError.ParseError =>
+            e.message.contains("valid HOCON") && e.cause.isDefined
+          case _ => false
+        },
+        syntax.left.exists {
+          case e: zio.blocks.config.ConfigError.ParseError =>
+            e.message.contains("valid HOCON") && e.cause.isDefined
+          case _ => false
+        }
+      )
+    },
+    test("fromFileWithLimits captures canonicalization failure via NonFatal as typed ParseError") {
+      val badPath = "invalid\u0000path.conf"
+      val direct  = HoconConfigSourcePlatform.fromFileWithLimits(badPath, maxFileBytes = 1024)
+      val syntax  = zio.blocks.config.ConfigSource.fromFileWithLimits(badPath, maxFileBytes = 1024)
+      assertTrue(
+        direct.isLeft,
+        syntax.isLeft,
+        direct.left.exists {
+          case e: zio.blocks.config.ConfigError.ParseError => e.cause.isDefined
+          case _                                           => false
+        },
+        syntax.left.exists {
+          case e: zio.blocks.config.ConfigError.ParseError => e.cause.isDefined
+          case _                                           => false
+        }
+      )
+    }
+  )
+}

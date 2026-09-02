@@ -546,3 +546,8 @@ SourceFile.print("schema-examples/src/main/scala/context/ContextModificationExam
 ```bash
 sbt "schema-examples/runMain context.ContextModificationExample"
 ```
+
+## See Also
+
+- [Telemetry Reference](./telemetry/index.md) — Its `OtelContext` bridge snapshots the active `SpanContext` into a `Context[R & OtelContext]`
+- [Telemetry Guide](../guides/telemetry-guide.md) — Architecture and patterns for the telemetry module, including where `Context` fits in

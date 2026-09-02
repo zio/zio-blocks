@@ -925,7 +925,9 @@ class JsonCodecDeriver private[json] (
     defaultValue: Option[A],
     examples: Seq[A]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonCodec[A]] = {
-    if (binding.isInstanceOf[Binding[?, ?]]) {
+    if (binding.isInstanceOf[Binding[?, ?]] && typeId == TypeId.of[Json]) {
+      Lazy(Json.jsonCodec.asInstanceOf[JsonCodec[A]])
+    } else if (binding.isInstanceOf[Binding[?, ?]]) {
       val isOption = typeId.isOption
       if (isOption || typeId.isMaybe) {
         D.instance(cases(1).value.asRecord.get.fields(0).value.metadata).map { codec =>

@@ -198,6 +198,21 @@ object ChunkSpec extends ChunkBaseSpec {
         assert(as.corresponds(bs)(f))(equalTo(as.toList.corresponds(bs.toList)(f)))
       }
     },
+    test("ChunkIterator.fromArray") {
+      assertTrue(
+        Chunk.ChunkIterator.fromArray(Array.empty[Int]).length == 0,
+        Chunk.ChunkIterator.fromArray(Array(1)).nextAt(0) == 1,
+        Chunk.ChunkIterator.fromArray(Array("a", "b")).nextAt(1) == "b",
+        Chunk.ChunkIterator.fromArray(Array(true, false)).nextAt(1) == false,
+        Chunk.ChunkIterator.fromArray(Array[Byte](1, 2)).nextAt(1) == 2,
+        Chunk.ChunkIterator.fromArray(Array('a', 'b')).nextAt(1) == 'b',
+        Chunk.ChunkIterator.fromArray(Array(1.0, 2.0)).nextAt(1) == 2.0,
+        Chunk.ChunkIterator.fromArray(Array(1.0f, 2.0f)).nextAt(1) == 2.0f,
+        Chunk.ChunkIterator.fromArray(Array(1, 2)).nextAt(1) == 2,
+        Chunk.ChunkIterator.fromArray(Array(1L, 2L)).nextAt(1) == 2L,
+        Chunk.ChunkIterator.fromArray(Array[Short](1, 2)).nextAt(1) == 2
+      )
+    },
     test("chunkIterator") {
       def roundTrip[A](c: Chunk[A]): Chunk[A] = {
         val ci      = c.chunkIterator

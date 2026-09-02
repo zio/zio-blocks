@@ -329,6 +329,31 @@ object Schema extends SchemaCompanionVersionSpecific with TypeIdSchemas with Doc
     new Schema(Reflect.chunkMap(key.reflect, value.reflect))
 
   /**
+   * Provides a schema for `Either[A, B]` when schemas for both value types are
+   * available.
+   *
+   * Primitive values and primitive-backed wrappers retain their specialized
+   * register layouts in both branches.
+   *
+   * @param left
+   *   the schema for left values
+   * @param right
+   *   the schema for right values
+   * @tparam A
+   *   the left value type
+   * @tparam B
+   *   the right value type
+   * @return
+   *   a schema for `Either[A, B]`
+   * @example
+   *   {{{
+   * val schema = Schema[Either[String, Int]]
+   *   }}}
+   */
+  implicit def either[A, B](implicit left: Schema[A], right: Schema[B]): Schema[Either[A, B]] =
+    new Schema(Reflect.either(left.reflect, right.reflect))
+
+  /**
    * Construct a Schema[Json] from a JsonSchema. Values are validated against
    * the JsonSchema during construction.
    */

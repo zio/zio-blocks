@@ -4,17 +4,17 @@ title: "Built-in Formats and Codecs"
 sidebar_label: "Built-in Formats and Codecs"
 ---
 
-ZIO Blocks Schema provides codec derivation for multiple serialization formats. Once you have a `Schema[A]` for your data type, you can derive codecs for most formats using the unified `Schema.derive(Format)` pattern. BSON uses a different API: `BsonSchemaCodec.bsonCodec(schema)`. See the [Format documentation](../format.md) for details on how formats work.
+ZIO Blocks Schema provides codec derivation for multiple serialization formats. Once you have a `Schema[A]`, formats can be passed to `Schema.derive`, while BSON is derived with `Schema[A].derive(BsonCodecDeriver)`. The older `BsonSchemaCodec.bsonCodec(schema)` API remains a compatibility facade. See the [Format documentation](../format.md) for details.
 
 ## Built-in Codecs
 
-Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs provide a `BinaryFormat` or `TextFormat` object that can be passed to `derive`. BSON uses a different API (see below). See the dedicated codec documentation for installation, usage examples, and detailed type mappings:
+Here's a summary of the codecs currently supported by ZIO Blocks. Most codecs provide a `BinaryFormat` or `TextFormat`; BSON provides a `Deriver` because it operates on native BSON readers, writers, and values. See the dedicated documentation for details:
 
 | Derivation API      | Codec Type            | MIME Type             | Module                          | Documentation                   |
 |---------------------|-----------------------|-----------------------|---------------------------------|---------------------------------|
 | `JsonFormat`        | `JsonCodec[A]`        | `application/json`    | `zio-blocks-schema`             | [JSON](./json/index.md)         |
 | `AvroFormat`        | `AvroCodec[A]`        | `application/avro`    | `zio-blocks-schema-avro`        | [Avro](./avro.md)               |
-| `BsonSchemaCodec`   | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        | [BSON](./bson.md)               |
+| `BsonCodecDeriver`  | `BsonCodec[A]`        | `application/bson`    | `zio-blocks-schema-bson`        | [BSON](./bson.md)               |
 | `CsvFormat`         | `CsvCodec[A]`         | `text/csv`            | `zio-blocks-schema-csv`         | [CSV](./csv.md)                 |
 | `MessagePackFormat` | `MessagePackCodec[A]` | `application/msgpack` | `zio-blocks-schema-messagepack` | [MessagePack](./messagepack.md) |
 | `ThriftFormat`      | `ThriftCodec[A]`      | `application/thrift`  | `zio-blocks-schema-thrift`      | [Thrift](./thrift.md)           |

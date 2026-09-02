@@ -144,6 +144,32 @@ sealed trait Resource[+A] { self =>
     val b = that.make(scope)
     (a, b)
   })
+
+  /**
+   * Acquires this resource in [[Scope.global]], uses it, and closes it when the
+   * callback returns.
+   *
+   * This provides a lighter-weight entrypoint for application code while
+   * preserving the same finalization semantics as explicit
+   * `Scope.global.scoped { scope => ... }` usage.
+   *
+   * @param f
+   *   callback that uses the acquired value
+   * @tparam B
+   *   result type; must be [[Unscoped]] so only pure data escapes the scope
+   * @return
+   *   the callback result after all finalizers have run
+   *
+   * @example
+   *   {{{
+   *   val serverResource: Resource[HttpServer] = ???
+   *   serverResource.use(_.start())
+   *   }}}
+   */
+  final def use[B](f: A => B)(implicit ev: Unscoped[B]): B =
+    Scope.global.scoped { scope =>
+      f(self.make(scope))
+    }
 }
 
 object Resource extends ResourceCompanionVersionSpecific {

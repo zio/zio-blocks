@@ -442,6 +442,34 @@ object Binding extends BindingCompanionVersionSpecific {
       }
     )
 
+    private[schema] def left[A, B](register: Register[A]): Record[Left[A, B]] =
+      (register match {
+        case _: Register.Int       => leftInt[B]
+        case _: Register.Long      => leftLong[B]
+        case _: Register.Float     => leftFloat[B]
+        case _: Register.Double    => leftDouble[B]
+        case _: Register.Boolean   => leftBoolean[B]
+        case _: Register.Byte      => leftByte[B]
+        case _: Register.Short     => leftShort[B]
+        case _: Register.Char      => leftChar[B]
+        case Register.Unit         => leftUnit[B]
+        case _: Register.Object[?] => left[A, B]
+      }).asInstanceOf[Record[Left[A, B]]]
+
+    private[schema] def right[A, B](register: Register[B]): Record[Right[A, B]] =
+      (register match {
+        case _: Register.Int       => rightInt[A]
+        case _: Register.Long      => rightLong[A]
+        case _: Register.Float     => rightFloat[A]
+        case _: Register.Double    => rightDouble[A]
+        case _: Register.Boolean   => rightBoolean[A]
+        case _: Register.Byte      => rightByte[A]
+        case _: Register.Short     => rightShort[A]
+        case _: Register.Char      => rightChar[A]
+        case Register.Unit         => rightUnit[A]
+        case _: Register.Object[?] => right[A, B]
+      }).asInstanceOf[Record[Right[A, B]]]
+
     def leftInt[B]: Record[Left[Int, B]] = new Record(
       constructor = new Constructor[Left[Int, B]] {
         def usedRegisters: RegisterOffset                                  = RegisterOffset(ints = 1)
@@ -675,6 +703,36 @@ object Binding extends BindingCompanionVersionSpecific {
           override def downcastOrNull(any: Any): Some[A] = any match {
             case x: Some[A] @scala.unchecked => x
             case _                           => null.asInstanceOf[Some[A]]
+          }
+        }
+      )
+    )
+
+    /**
+     * Creates the runtime discriminator and case matchers for `Either[A, B]`.
+     *
+     * @tparam A
+     *   the left value type
+     * @tparam B
+     *   the right value type
+     * @return
+     *   a variant binding whose cases are ordered as `Left`, then `Right`
+     */
+    def either[A, B]: Variant[Either[A, B]] = new Variant(
+      discriminator = new Discriminator[Either[A, B]] {
+        def discriminate(a: Either[A, B]): Int = if (a.isLeft) 0 else 1
+      },
+      matchers = Matchers(
+        new Matcher[Left[A, B]] {
+          override def downcastOrNull(any: Any): Left[A, B] = any match {
+            case x: Left[A, B] @scala.unchecked => x
+            case _                              => null.asInstanceOf[Left[A, B]]
+          }
+        },
+        new Matcher[Right[A, B]] {
+          override def downcastOrNull(any: Any): Right[A, B] = any match {
+            case x: Right[A, B] @scala.unchecked => x
+            case _                               => null.asInstanceOf[Right[A, B]]
           }
         }
       )

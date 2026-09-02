@@ -236,6 +236,12 @@ final class QueryParamsBuilder private (
   def addAll(params: QueryParams): Unit =
     params.toList.foreach { case (k, v) => add(k, v) }
 
+  def reset(): Unit = {
+    java.util.Arrays.fill(keys.asInstanceOf[Array[AnyRef]], 0, len, null)
+    java.util.Arrays.fill(vals.asInstanceOf[Array[AnyRef]], 0, len, null)
+    len = 0
+  }
+
   private def ensureCapacity(): Unit =
     if (len >= keys.length) {
       val newCap  = Math.max(keys.length * 2, 8)

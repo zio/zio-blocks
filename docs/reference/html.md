@@ -20,6 +20,18 @@ sealed trait Dom.Element extends Dom
 case class Dom.Element.Generic(tag: String, attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 case class Dom.Element.Script(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
 case class Dom.Element.Style(attributes: Chunk[Dom.Attribute], children: Chunk[Dom]) extends Dom.Element
+sealed trait Dom.Element.Void extends Dom // void elements (self-closing, no children)
+case class Dom.Element.VoidGeneric(tag: String, attributes: Chunk[Dom.Attribute]) extends Dom.Element.Void
+
+// Sealed content-model markers (implemented by dedicated element classes)
+sealed trait Dom.Element.Li          extends Dom.Element // <li>, child of ul/ol
+sealed trait Dom.Element.Cell        extends Dom.Element // <th> or <td>, child of tr
+sealed trait Dom.Element.Th          extends Dom.Element.Cell
+sealed trait Dom.Element.Td          extends Dom.Element.Cell
+sealed trait Dom.Element.Tr          extends Dom.Element // <tr>, child of table
+sealed trait Dom.Element.SelectChild extends Dom.Element // <option> or <optgroup>, child of select
+sealed trait Dom.Element.Opt         extends Dom.Element.SelectChild
+sealed trait Dom.Element.Optgroup    extends Dom.Element.SelectChild
 
 // Attribute variants
 sealed trait Dom.Attribute
@@ -88,7 +100,7 @@ The module is organized around five core subsystems that compose together:
 ┌─────────────────────────────────────────────────────┐
 │  DSL Functions (div, p, span, ...)                  │
 │  + Attribute Builders (id :=, className +=)         │
-│  └─> Produces: Dom.Element.Generic                  │
+│  └─> Produces: Generic / Void element nodes         │
 │                                                      │
 ├─────────────────────────────────────────────────────┤
 │  String Interpolators (html"", css"", js"")          │
@@ -101,6 +113,7 @@ The module is organized around five core subsystems that compose together:
 │  Dom ADT (sealed trait Dom)                          │
 │  ├─> Dom.Text (HTML-escaped text content)            │
 │  ├─> Dom.Element (Generic, Script, Style)            │
+│  ├─> Dom.Element.Void (void/self-closing elements)   │
 │  ├─> Dom.Doctype (<!DOCTYPE html>)                   │
 │  └─> Dom.Empty (renders to nothing)                  │
 │                                                      │
@@ -131,9 +144,9 @@ The module is organized around five core subsystems that compose together:
 
 The `Dom` sealed trait is the core data model. Everything in the module works with or produces `Dom` nodes.
 
-### The Four Node Types
+### The Five Node Types
 
-A `Dom` tree is composed of four node types:
+A `Dom` tree is composed of five node types:
 
 #### Dom.Text
 
@@ -444,9 +457,28 @@ val card = div(
 ))
 ```
 
-### Void Elements
+### Dom.Element.Void
 
-Void elements (self-closing tags) automatically render with the correct syntax:
+Void HTML elements (`br`, `hr`, `img`, `input`, `meta`, `link`, `area`, `base`, `col`, `embed`, `param`, `source`, `track`, `wbr`) are a **separate type** from `Dom.Element` — they extend `Dom.Element.Void` which extends `Dom` directly (not `Dom.Element`). This means they **structurally cannot have children** — passing a modifier like a string or another element to a void element factory is a **compile-time error**:
+
+```scala mdoc:fail
+import zio.blocks.html._
+
+img("oops")             // ❌ does not compile — Void elements don't accept children
+input(div("child"))     // ❌ does not compile — Void elements don't accept children
+```
+
+Void elements only accept `Dom.Attribute` arguments:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val image = img(src := "photo.jpg", alt := "A photo")   // ✅ compiles — only attributes
+val lineBreak = br                                        // ✅ compiles — no args
+val textField = input(`type` := "text", placeholder := "Enter text")  // ✅ compiles
+```
+
+Void elements render as self-closing tags:
 
 ```scala mdoc:compile-only
 import zio.blocks.html._
@@ -458,6 +490,79 @@ val voidElements = div(
   input(`type` := "text", placeholder := "Enter text")
 )
 ```
+
+## Typed Content Models
+
+Several container elements enforce the HTML content model of their children at
+compile time. Instead of accepting arbitrary modifiers, these factories only
+accept attributes plus children whose type matches the content model:
+
+| Factory | Accepted element children | Marker type |
+|---|---|---|
+| `ul(...)`, `ol(...)` | `<li>` | `Dom.Element.Li` |
+| `tr(...)` | `<th>`, `<td>` | `Dom.Element.Cell` (`Th \| Td`) |
+| `table(...)` | `<tr>` | `Dom.Element.Tr` |
+| `select(...)` | `<option>`, `<optgroup>` | `Dom.Element.SelectChild` (`Opt \| Optgroup`) |
+| `optgroup(...)` | `<option>` | `Dom.Element.Opt` |
+
+Invalid children are rejected by the compiler:
+
+```scala mdoc:fail
+import zio.blocks.html._
+
+ul(div("not a list item"))   // ❌ does not compile — ul only accepts Li children
+tr(p("not a cell"))          // ❌ does not compile — tr only accepts Th/Td cells
+select(div("not an option")) // ❌ does not compile — select only accepts option/optgroup
+```
+
+Attributes are accepted alongside the constrained children:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+
+val list = ul(id := "menu", className := "nav", li("Home"), li("About"))
+val row = tr(className := "header-row", th("Name"), td("Value"))
+val picker = select(id := "color", name := "color", option("Red"), optgroup(option("Light"), option("Dark")))
+```
+
+Each factory has three forms: empty (`ul()`), mixed attributes and children
+(`ul(id := "x", li("a"))`), and collections of children
+(`ul(items.map(item => li(item)))`).
+
+The typed factories produce elements carrying a sealed marker type (`Li`,
+`Cell`, `Tr`, `SelectChild`, ...). The markers are sealed — their
+implementations live inside the module — so a value typed `Dom.Element.Li` is
+guaranteed to render as `<li>`; the DSL factories are the intended
+construction path. Elements with permissive content models (`li`, `th`, `td`,
+`option`) keep accepting any flow content through the regular modifier API.
+
+:::note
+`caption`, `colgroup`, `thead`, `tbody`, and `tfoot` do not have typed markers
+yet, so tables containing them cannot be built with the `table(...)`
+factory. Compose those tables with the `html""` interpolator or generic
+elements.
+:::
+
+### Equality Across Element Classes
+
+Element equality is structural (tag + attributes + children + text-escaping
+semantics), independent of the concrete class. A factory-produced `li(...)`
+equals the structurally identical `Generic("li", ...)`, and vice versa; equal
+elements also have equal hash codes:
+
+```scala mdoc:compile-only
+import zio.blocks.html._
+import zio.blocks.chunk.Chunk
+
+val fromFactory = li("a")
+val generic = Dom.Element.Generic("li", Chunk.empty, Chunk(Dom.Text("a")))
+fromFactory == generic  // true — structural equality across classes
+```
+
+Elements that render differently are never equal, even with identical fields:
+`script`/`style` render their children **unescaped** while `Generic` escapes
+them, so a `Script` never equals an equally-shaped `Generic("script", ...)` —
+equal elements always render identically.
 
 ## String Interpolators
 
@@ -619,8 +724,8 @@ Pseudo-classes match elements by their state, and pseudo-elements create dynamic
 import zio.blocks.html._
 
 val hoverSel = a.hover              // a:hover
-val firstChild = li.firstChild      // li:first-child
-val nthChild = tr.nthChild(2)       // tr:nth-child(2)
+val firstChild = li().firstChild      // li:first-child
+val nthChild = tr().nthChild(2)       // tr:nth-child(2)
 val before = div.before             // div::before
 val after = span.after              // span::after
 ```
@@ -770,6 +875,84 @@ All `Css` subtypes support `.render()` for minified output and `.render(indent: 
 - `Css.Sheet` — collection of rules
 - `Css.Raw` — raw CSS string
 - `Css.Comment` — CSS comment
+
+### Typed Values: Lengths and Colors
+
+A `Css.Declaration` takes its value as a `String`, so nothing stops `"10pixels"` or `"#gggggg"` from reaching a stylesheet. `CssLength` and `CssColor` are the typed alternatives: each validates on construction and renders itself, so an invalid value cannot be built rather than being caught downstream.
+
+`CssLength` pairs a numeric value with a unit, and rejects units outside the CSS set — `px`, `em`, `rem`, `%`, `vh`, `vw`, `ch`, `ex`, `vmin`, `vmax`, `cm`, `mm`, `in`, `pt`, `pc`:
+
+```scala mdoc:silent
+import zio.blocks.html._
+import zio.blocks.html.CssLength._
+```
+
+The second import is what brings the numeric extension methods into scope. They live in `object CssLength` rather than the package, so `import zio.blocks.html._` alone gives you the `CssLength` constructor but not `300.px`.
+
+Writing the constructor directly works, but the extension methods on `Int` and `Double` are shorter and produce the same value:
+
+```scala mdoc
+CssLength(300.0, "px").render
+300.px.render
+1.5.rem.render
+```
+
+`CssLengthIntOps` and `CssLengthDoubleOps` provide `px`, `em`, `rem`, `pct`, `vh`, and `vw` on numeric literals. `pct` is spelled out because `%` is not a legal method name:
+
+```scala mdoc
+50.pct.render
+100.vh.render
+```
+
+A whole-number `Double` renders without its decimal point, so `2.0.em` and `2.em` produce identical CSS:
+
+```scala mdoc
+2.0.em.render
+2.em.render
+```
+
+`CssColor` is a sealed ADT with five cases, covering the notations CSS accepts:
+
+| Case                   | Constructor                       | Renders as              |
+| ---------------------- | --------------------------------- | ----------------------- |
+| `CssColor.Hex`         | `Hex(value)` / `Hex.unsafe(value)` | `#ff0000`               |
+| `CssColor.Rgb`         | `Rgb(r, g, b)`                     | `rgb(255,0,0)`          |
+| `CssColor.Rgba`        | `Rgba(r, g, b, a)`                 | `rgba(255,0,0,0.5)`     |
+| `CssColor.Hsl`         | `Hsl(h, s, l)`                     | `hsl(0,100%,50%)`       |
+| `CssColor.Named`       | `Named(name)`                      | `red`                   |
+
+The numeric cases are plain case classes, so they need no validation step:
+
+```scala mdoc
+CssColor.Rgb(255, 0, 0).render
+CssColor.Rgba(255, 0, 0, 0.5).render
+CssColor.Hsl(0, 100, 50).render
+```
+
+`Hsl` renders its saturation and lightness with percent signs while taking them as bare `Int`s, so pass `100` rather than `1.0` for full saturation.
+
+`CssColor.Hex` and `CssColor.Named` are the two validated cases, and both return an `Option` from `CssColor.Hex.apply` rather than throwing:
+
+```scala mdoc
+CssColor.Hex("ff0000")
+CssColor.Hex("gggggg")
+```
+
+A leading `#` is optional and the value is lowercased, so the same colour written four ways yields one representation:
+
+```scala mdoc
+CssColor.Hex("#FF0000").map(_.render)
+```
+
+`CssColor.Hex.unsafe` skips validation for literals you know are well-formed. It returns a `CssColor` directly rather than an `Option`, which is what makes it convenient inside an interpolator — and what makes it unsuitable for anything user-supplied:
+
+```scala mdoc
+CssColor.Hex.unsafe("ff0000").render
+```
+
+:::warning[`unsafe` renders whatever it is given]
+`CssColor.Hex.unsafe` performs no checking, so `Hex.unsafe("not-a-color")` renders as `#not-a-color` and produces a stylesheet the browser silently ignores. Use it only for compile-time literals; route anything dynamic through `CssColor.Hex.apply` and handle the `None`.
+:::
 
 ### Declarations and Rules
 

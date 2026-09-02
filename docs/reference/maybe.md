@@ -3,31 +3,135 @@ id: maybe
 title: "Maybe"
 ---
 
-`Maybe[A]` is a **low-allocation alternative to `Option[A]`** that uses `null` to represent the absence of a value. It is an opaque type alias for `A | Null`, allowing you to write nullable-like code with the safety and ergonomics of an Option-style API. Core types: `Maybe[A]`.
+`Maybe[A]` is a **low-allocation alternative to `Option[A]`** that uses a top-level `Absent` sentinel object to represent the absence of a value. On Scala 3, it is an opaque type alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence — nested `Maybe`s (`Maybe.present(Maybe.absent)` → `Present(Absent)`) and `null` values (`Maybe.present(null)` → `Present(null)`). On Scala 2.13, it is a sealed trait (`Present[A]` | `Absent`). Core types: `Maybe[A]`, `Present[A]`.
 
 Here's the type definition and basic construction:
 
 ```scala
-opaque type Maybe[+A] = A | Null
+// Scala 3
+final class Present[+A](val value: A) // manual companion: apply + unapply that matches both raw values and wrappers
+object Absent
+opaque type Maybe[+A] = A | Absent.type | Present[A]
 
 val present: Maybe[Int] = Maybe.present(42)
 val absent: Maybe[Int]  = Maybe.absent
+```
+
+## Allocation Profile
+
+The new encoding minimizes allocation by using the raw value when possible:
+
+| Case | Example | Allocations |
+|------|---------|-------------|
+| Flat present | `Maybe.present(42)` | **0** (raw `42`) |
+| Flat apply | `Maybe(42)` | **0** (raw `42`) |
+| Flat fromOption | `Maybe.fromOption(Some(42))` | **0** (raw `42`) |
+| Absent | `Maybe.absent` | **0** (`Absent` singleton) |
+| Present-of-absent | `Maybe.present(Maybe.absent)` | **1** (`Present(Absent)`) |
+| Present null | `Maybe.fromOption(Some(null))` | **1** (`Present(null)`) |
+
+The `Present[A]` wrapper is allocated **only** for present-of-absent cases: wrapping a nested `Maybe` that is itself absent (`Present(Absent)`) and wrapping a `null` value (`Present(null)`). All other flat cases store the value raw with zero allocation overhead.
+
+### Nesting Depth
+
+Nested `Maybe` values reduce wrapper depth by 1 compared to `Option`:
+
+```scala mdoc:compile-only
+import zio.blocks.maybe._
+
+// Option: Some(None) = 2 wrappers
+val optNested: Option[Option[Int]] = Some(None)
+
+// Maybe: Present(Absent) = 1 wrapper (Present) + Absent singleton
+val maybeNested: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+// maybeNested matches Present(Absent), not Absent
+
+// Flattening removes the Present wrapper
+val flat: Maybe[Int] = maybeNested.flatten
+// flat is absent (Absent)
 ```
 
 ## Motivation
 
 When working with optional values, you face a choice: `Option[A]` provides type safety and functional composition but allocates a wrapper object for every value. `Maybe[A]` provides an alternative with different trade-offs depending on your Scala version.
 
-**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and null semantics—every value is either the unwrapped value itself or `null`. This is ideal for performance-critical code where allocations impact throughput or latency. The type is an opaque alias for `A | Null`, giving you a dedicated API (`map`, `flatMap`, `filter`, etc.) with zero runtime wrapper overhead—just null checks.
+**On Scala 3:** `Maybe[A]` eliminates allocation overhead by leveraging union types and a top-level `Absent` sentinel. The type is an opaque alias for `A | Absent.type | Present[A]`, where `Present[A]` is a public wrapper allocated whenever a present value would otherwise be indistinguishable from absence. Flat values (non-nested, non-null) are stored raw with zero allocation; only present-of-absent values allocate a `Present` wrapper (`Maybe.present(Maybe.absent)` → `Present(Absent)`, `Maybe.present(null)` → `Present(null)`). This gives you a dedicated API (`map`, `flatMap`, `filter`, etc.) with minimal runtime overhead. `case Absent` is a stable-identifier pattern that works directly.
 
 **On Scala 2.13:** `Maybe[A]` is implemented as a sealed trait (`Present[A]` | `Absent`). Present values allocate a wrapper, so the allocation savings versus `Option` are less pronounced. However, the unified API and interoperability benefits still apply.
 
 ### Why Maybe over Option?
 
-- **Zero allocation**: Every `Maybe` is either the value itself or `null`—no wrapper objects
+- **Zero allocation (flat case)**: Non-nested `Maybe` values are either the raw value itself or the `Absent` singleton—no wrapper objects
+- **Sound nesting**: Nested `Maybe[Maybe[A]]` is now sound via `Present[A]`, without requiring a compile-time guard
 - **Familiar API**: All your favorite `Option` combinators (`map`, `flatMap`, `fold`, etc.)
 - **Type safety**: The opaque type prevents accidentally mixing nullable and non-nullable values
 - **Interoperable**: Seamless conversion to/from `Option` with `toOption` and `Maybe#fromOption`
+
+## Cross-Version Parity
+
+The API surface is consistent across Scala 2.13 and Scala 3, but the underlying encoding differs:
+
+| Aspect | Scala 3 | Scala 2.13 |
+|--------|---------|------------|
+| Encoding | `opaque type Maybe[+A] = A \| Absent.type \| Present[A]` | Sealed trait `Present[A]` \| `Absent` |
+| Flat allocation | **0** (raw value or `Absent` singleton) | **1** (wrapper object) |
+| Nested allocation | **1** (`Present(Absent)` only) | **1** (wrapper object) |
+| `Present` type | Public `final class Present[+A]` with manual companion (`apply`/`unapply`) | `MaybeValue.Present[A]` (sealed) |
+| Nesting guard | **Removed** (nesting now sound via `Present`) | N/A (never existed) |
+
+### Behavior Differences
+
+- **`Maybe.present(null)`**: On Scala 3, produces `Present(null)` (present-of-absent). On Scala 2.13, produces `MaybeValue.Present(null)` (also present-of-absent). Both are distinguishable from `Maybe.absent`.
+- **`Maybe.fromOption(Some(null))`**: Routes through `present`, so same behavior as above.
+- **Pattern matching**: On Scala 3, `Present(v)` matches both present shapes (a raw value and a `Present(...)` wrapper); absent matches `case Absent` (stable-identifier pattern, no `case _` required inside the package; external two-case matches also compile without exhaustivity warning). On Scala 2.13, `MaybeValue.Present(v)` / `MaybeValue.Absent` are the compiler-checked native patterns.
+
+## Pattern Matching
+
+On Scala 3, a `Maybe[A]` value can take three runtime shapes. The `Present` companion's `unapply` collapses the two present shapes into one pattern; absent is now a real top-level singleton object:
+
+| Shape | Pattern | Meaning |
+|-------|---------|---------|
+| `Absent` object | `case Absent` | absent (stable-identifier pattern) |
+| `Present(v)` wrapper | `case Present(v)` | present-of-absent (a nested `Maybe`) |
+| raw `v` | `case Present(v)` | present, zero allocation |
+
+(Note: the `Present` companion's `unapply` collapses both present shapes — one `Some` allocation per present match.)
+
+```scala mdoc:compile-only
+import zio.blocks.maybe._
+
+val maybe: Maybe[Int] = Maybe.present(42)
+
+val description: String = maybe match {
+  case Present(v) => s"present ($v)"
+  case Absent     => "absent"
+}
+```
+
+`case Absent` is a stable-identifier pattern that works because `Absent` is a plain top-level object (not a case object). The two-case match `case Present(v); case Absent` compiles without exhaustivity warning even from an external package — verified under this build's `-Xfatal-warnings` settings (`WildcardImportSpec`). Note that this is weaker than the sealed-hierarchy guarantee on Scala 2.13 below: exhaustivity here depends on the compiler decomposing the opaque union, so prefer `fold` when you need a guarantee that is independent of compiler behavior. `Present(v)` matches both a raw value and a `Present(...)` wrapper, at the cost of one `Some` allocation per present match (inherent to the `Option`-returning extractor protocol).
+
+For production code, prefer `fold`, which is exhaustive, warning-free, and zero-allocation:
+
+```scala mdoc:compile-only
+import zio.blocks.maybe._
+
+val maybe: Maybe[Int] = Maybe.present(42)
+val description: String = maybe.fold("absent")(v => s"present ($v)")
+```
+
+Scala 2.13 parity: on Scala 2.13, absent is the non-null case object `MaybeValue.Absent`, so it **can** be matched explicitly — the sealed `MaybeValue` trait (`Present` | `Absent`) gives compiler-checked exhaustivity:
+
+```scala
+import zio.blocks.maybe._
+
+val maybe: Maybe[Int] = Maybe.present(42)
+val description: String = maybe match {
+  case MaybeValue.Present(v) => s"present ($v)"
+  case MaybeValue.Absent     => "absent"
+}
+```
+
+So on Scala 2.13 the sealed `MaybeValue` form is the compiler-checked native idiom; on Scala 3 the opaque union with `Absent` object enables `case Absent` while preserving the zero-allocation encoding.
 
 ## Installation
 
@@ -84,7 +188,7 @@ Here are key patterns for working effectively with `Maybe`:
 
 ### Present and Absent States
 
-Every `Maybe` is either present (holds a non-null value) or absent (is `null`). Test the state with predicates:
+Every `Maybe` is either present (holds a value, possibly `null`) or absent (the `Absent` singleton). Test the state with predicates:
 
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
@@ -219,19 +323,27 @@ Wraps a value in `Maybe`, treating `null` as `Maybe.absent`:
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
-val present = Maybe(42)                  // Maybe[Int] containing 42
-val absent: Maybe[String] = Maybe(null)  // Maybe[String] absent
+val present: Maybe[Int]    = Maybe(42)                         // Maybe[Int] containing 42
+val absent: Maybe[String]  = Maybe(null.asInstanceOf[String])  // Maybe.absent (the Absent object)
 ```
+
+> **Note:** `Maybe.apply` collapses `null` to `Maybe.absent`. Use `Maybe.present` when you need to preserve present-ness even for `null` values (e.g., in nested `Maybe`s).
 
 #### Maybe.present
 
-Explicitly wraps a non-null value:
+Explicitly wraps a value, preserving present-ness even for `null`:
 
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
 val value: Maybe[Int] = Maybe.present(100)
+
+// Nested case: present of an absent Maybe produces Present(Absent), not absence
+val nested: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+// nested is Present(Absent), distinguishable from Maybe.absent
 ```
+
+> **Note:** Unlike `Maybe.apply`, `Maybe.present` preserves present-ness even for `null`. A non-null value is returned as-is (zero allocation). A `null` value is wrapped in `Present(null)`, which is distinguishable from `Maybe.absent` (the `Absent` object). This is what makes nested `Maybe`s sound.
 
 #### Maybe.absent
 
@@ -393,9 +505,14 @@ Unwraps a nested `Maybe`:
 ```scala mdoc:compile-only
 import zio.blocks.maybe._
 
-val nested: Maybe[Maybe[Int]] = Maybe.present(Maybe.present(42))
+val nested: Maybe[Maybe[Int]] = Maybe.fromOption(Some(Maybe.fromOption(Some(42))))
 val flat: Maybe[Int]          = nested.flatten
 println(flat.get)  // 42
+
+// Nested present-of-absent flattens to absent
+val nestedAbsent: Maybe[Maybe[Int]] = Maybe.present(Maybe.absent[Int])
+val flatAbsent: Maybe[Int]          = nestedAbsent.flatten
+println(flatAbsent.isAbsent)  // true
 ```
 
 ### Filtering

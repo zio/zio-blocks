@@ -55,6 +55,24 @@ object ResourceSpec extends ZIOSpecDefault {
       }
       assertTrue(url == "test-url")
     },
+    test("Resource.use acquires, uses, and finalizes") {
+      var closed = false
+      class Closeable extends AutoCloseable {
+        def close(): Unit = closed = true
+        def value: String = "ok"
+      }
+
+      val resource = Resource.fromAutoCloseable(new Closeable)
+      val result   = resource.use(_.value)
+
+      assertTrue(result == "ok", closed)
+    },
+    test("Resource.use returns unscoped data") {
+      val resource = Resource(21)
+      val result   = resource.use(_ * 2)
+
+      assertTrue(result == 42)
+    },
     test("Resource.unique creates fresh instances") {
       var counter  = 0
       val resource = Resource.unique[Int] { _ =>

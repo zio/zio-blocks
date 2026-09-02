@@ -42,8 +42,8 @@ object Mux {
  *
  * Each stream is identified by a unique `Id` and has independent
  * inbound/outbound message queues. The multiplexer enforces a maximum number of
-  * concurrent streams (capacity). Attempting to open a stream beyond that limit
-  * returns [[MuxError.CapacityExceeded]].
+ * concurrent streams (capacity). Attempting to open a stream beyond that limit
+ * returns [[MuxError.CapacityExceeded]].
  *
  * '''Invariants:'''
  *   - Stream IDs must be unique among active streams; opening a duplicate
@@ -54,10 +54,10 @@ object Mux {
  *     the supplied error enqueued for any pending receive.
  *
  * '''Thread safety:''' `open`, `get`, `cancel`, `closeAll`, and `activeCount`
- * are safe to call from multiple threads concurrently. Per-stream operations
- * on [[MuxStream]]: `send` and `offerInbound` are multi-thread safe.
- * `receive` and `takeOutbound` must each be called from a single consumer
- * thread at a time (single-consumer contract of the underlying ring buffer).
+ * are safe to call from multiple threads concurrently. Per-stream operations on
+ * [[MuxStream]]: `send` and `offerInbound` are multi-thread safe. `receive` and
+ * `takeOutbound` must each be called from a single consumer thread at a time
+ * (single-consumer contract of the underlying ring buffer).
  *
  * @tparam Id
  *   Stream identifier type (e.g., `Int` for HTTP/2 stream IDs)
@@ -229,11 +229,11 @@ trait MuxStream[Id, In, Out] {
   /**
    * Fully close this stream immediately.
    *
-   * Transitions the stream to CLOSED state and enqueues a terminal error.
-   * After this call:
+   * Transitions the stream to CLOSED state and enqueues a terminal error. After
+   * this call:
    *   - `send()` fails with [[MuxError.StreamClosed]].
-   *   - `receive()` drains any already-buffered inbound messages, then
-   *     returns the terminal error once the buffer is empty.
+   *   - `receive()` drains any already-buffered inbound messages, then returns
+   *     the terminal error once the buffer is empty.
    *   - `offerInbound()` fails with [[MuxError.StreamClosed]].
    */
   def close(): Unit

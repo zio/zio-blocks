@@ -1556,6 +1556,8 @@ object DynamicSchema extends TypeIdSchemas {
                 )
               )
             )
+          case _: Modifier.id =>
+            new DynamicValue.Variant("id", emptyDynamicRecord)
         })
       )
     )
@@ -1708,7 +1710,8 @@ object DynamicSchema extends TypeIdSchemas {
                          s
                        }
             } yield new Modifier.config(key, value)
-          case _ => scala.None
+          case DynamicValue.Variant("id", _) => new Some(Modifier.id())
+          case _                             => scala.None
         }
       case _ => Nil
     }

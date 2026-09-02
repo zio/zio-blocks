@@ -1609,7 +1609,7 @@ final class JsonReader private[json] (
   def skip(): Unit = {
     val b   = nextToken(head)
     var pos = head
-    if (b == '"') pos = skipString(evenBackSlashes = true, pos)
+    if (b == '"') pos = skipString(pos)
     else if ((b >= '0' && b <= '9') || b == '-') pos = skipNumber(pos)
     else if (b == 'n' || b == 't') pos = skipFixedBytes(3, pos)
     else if (b == 'f') pos = skipFixedBytes(4, pos)
@@ -3715,13 +3715,12 @@ final class JsonReader private[json] (
 
   private[this] def toZoneId(k: Key): ZoneId =
     try {
-      val zoneId = ZoneId.of(k.toString)
+      val zoneId           = ZoneId.of(k.toString)
+      val normalizedZoneId = zoneId.normalized
       if (
-        !zoneId.isInstanceOf[ZoneOffset] || // check if totalSeconds is divisible by 900
-        (zoneId.asInstanceOf[ZoneOffset].getTotalSeconds * 37283 & 0x1ff8000) == 0
-      ) {
-        zoneIds.put(k.copy, zoneId)
-      }
+        !normalizedZoneId.isInstanceOf[ZoneOffset] || // check if totalSeconds is divisible by 900
+        (normalizedZoneId.asInstanceOf[ZoneOffset].getTotalSeconds * 37283 & 0x1ff8000) == 0
+      ) zoneIds.put(k.copy, zoneId)
       return zoneId
     } catch {
       case _: DateTimeException => timezoneError()
@@ -4212,7 +4211,7 @@ final class JsonReader private[json] (
     val maxCharBufSize = config.maxCharBufSize
     if (charBufLen == maxCharBufSize) tooLongStringError()
     charBufLen = (-1 >>> Integer.numberOfLeadingZeros(charBufLen | required)) + 1
-    if (Integer.compareUnsigned(charBufLen, maxCharBufSize) > 0) charBufLen = maxCharBufSize
+    if (charBufLen < 0 || charBufLen > maxCharBufSize) charBufLen = maxCharBufSize
     charBuf = java.util.Arrays.copyOf(charBuf, charBufLen)
     charBufLen
   }
@@ -4222,14 +4221,23 @@ final class JsonReader private[json] (
     if (charBuf.length < required) growCharBuf(required): Unit
 
   @tailrec
-  private[this] def skipString(evenBackSlashes: Boolean, pos: Int): Int =
-    if (pos < tail) {
-      if (evenBackSlashes) {
-        val b = buf(pos)
-        if (b == '"') pos + 1
-        else skipString(b != '\\', pos + 1)
-      } else skipString(evenBackSlashes = true, pos + 1)
-    } else skipString(evenBackSlashes, loadMoreOrError(pos))
+  private def skipString(p: Int): Int = {
+    var buf = this.buf
+    var pos = p
+    while (pos < tail) {
+      val b = buf(pos)
+      pos += 1
+      if (b == '"') return pos
+      if (b == '\\') {
+        pos += 1
+        if (pos > tail) {
+          pos = loadMoreOrError(pos - 2)
+          buf = this.buf
+        }
+      }
+    }
+    skipString(loadMoreOrError(pos))
+  }
 
   private[this] def skipNumber(p: Int): Int = {
     var pos = p
@@ -4251,22 +4259,30 @@ final class JsonReader private[json] (
   private[this] def skipObject(level: Int, pos: Int): Int =
     if (pos < tail) {
       val b = buf(pos)
-      if (b == '"') skipObject(level, skipString(evenBackSlashes = true, pos + 1))
-      else if (b == '{') skipObject(level + 1, pos + 1)
-      else if (b != '}') skipObject(level, pos + 1)
-      else if (level != 0) skipObject(level - 1, pos + 1)
-      else pos + 1
+      if (b == '"') skipObject(level, skipString(pos + 1))
+      else
+        skipObject(
+          if (b == '{') level + 1
+          else if (b != '}') level
+          else if (level != 0) level - 1
+          else return pos + 1,
+          pos + 1
+        )
     } else skipObject(level, loadMoreOrError(pos))
 
   @tailrec
   private[this] def skipArray(level: Int, pos: Int): Int =
     if (pos < tail) {
       val b = buf(pos)
-      if (b == '"') skipArray(level, skipString(evenBackSlashes = true, pos + 1))
-      else if (b == '[') skipArray(level + 1, pos + 1)
-      else if (b != ']') skipArray(level, pos + 1)
-      else if (level != 0) skipArray(level - 1, pos + 1)
-      else pos + 1
+      if (b == '"') skipArray(level, skipString(pos + 1))
+      else
+        skipArray(
+          if (b == '[') level + 1
+          else if (b != ']') level
+          else if (level != 0) level - 1
+          else return pos + 1,
+          pos + 1
+        )
     } else skipArray(level, loadMoreOrError(pos))
 
   @tailrec
@@ -4327,7 +4343,7 @@ final class JsonReader private[json] (
     val maxBufSize = config.maxBufSize
     if (bufLen == maxBufSize) tooLongInputError()
     bufLen <<= 1
-    if (Integer.compareUnsigned(bufLen, maxBufSize) > 0) bufLen = maxBufSize
+    if (bufLen < 0 || bufLen > maxBufSize) bufLen = maxBufSize
     buf = java.util.Arrays.copyOf(buf, bufLen)
   }
 
@@ -4496,7 +4512,7 @@ object JsonReader {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
   )
   private final val zoneOffsets: Array[ZoneOffset]          = new Array(145)
-  private final val zoneIds: ConcurrentHashMap[Key, ZoneId] = new ConcurrentHashMap(256)
+  private final val zoneIds: ConcurrentHashMap[Key, ZoneId] = new ConcurrentHashMap(256, 0.5f)
   private final val hexDigits: Array[Char]                  =
     Array('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f')
 
@@ -4554,13 +4570,12 @@ private class Key {
     val off  = from
     val koff = k.fromIndex
     val len  = to - off
-    k.toIndex - koff == len && {
-      val bs  = this.bs
-      val kbs = k.bytes
-      var idx = 0
-      while (idx < len && kbs(koff + idx) == bs(off + idx)) idx += 1
-      idx == len
-    }
+    if (k.toIndex - koff != len) return false
+    val bs  = this.bs
+    val kbs = k.bytes
+    var i   = 0
+    while (i < len && kbs(koff + i) == bs(off + i)) i += 1
+    i == len
   }
 
   @inline

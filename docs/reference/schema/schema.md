@@ -187,6 +187,17 @@ import zio.blocks.schema.Schema
 Schema[Option[A]]  // Generic option for reference types
 ```
 
+### Either Values
+
+An `Either[A, B]` schema is available whenever both branch types have schemas. Primitive values and primitive-backed wrappers use specialized primitive register layouts, while other values use the layouts described by their schemas:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+
+Schema[Either[String, Int]]
+Schema[Either[Int, Long]]
+```
+
 ### Collection Types
 
 ZIO Blocks also provides polymorphic schemas for standard Scala collections. You can summon schemas for collections of any element type `A` (and key/value types `K`/`V` for maps):
@@ -511,6 +522,8 @@ val updated: Option[Schema[Person]] = Schema[Person]
   .updated(Person.address)(_.doc("Mailing address"))
 ```
 
+For the lower-level `Reflect.Updater`/`Term.Updater` callbacks this method builds on — including how `Term.Updater` can rename or delete a field by returning `None` — see [Schema Search and Update](./schema-search.md#updater--rewriting-schema-metadata).
+
 ## Schema Aspects
 
 Schema aspects are a powerful mechanism in ZIO Blocks for transforming schemas. You can think of the schema aspect as a function that takes a reflect and produces a new reflect:
@@ -518,16 +531,20 @@ Schema aspects are a powerful mechanism in ZIO Blocks for transforming schemas. 
 ```scala
 trait SchemaAspect[-Upper, +Lower, F[_, _]] {
   def apply[A >: Lower <: Upper](reflect: Reflect[F, A]): Reflect[F, A]
-  def recursive(implicit ev1: Any <:< Upper, ev2: Lower <:< Nothing): SchemaAspect[Upper, Lower, F]
 }
 ```
 
-The `Schema` data type has a `@@` method used for applying schema aspects:
+The `Schema` data type has a `@@` method that applies schema aspects, and it's a thin wrapper over two `Reflect#aspect` overloads: applying an aspect to a whole schema just calls `aspect(reflect)` directly, and applying one at a path uses [`Reflect#updated`](./reflect-transformer.md) to rewrite the subtree the optic points to:
 
 ```scala
 case class Schema[A](reflect: Reflect.Bound[A]) {
   def @@[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, Binding]): Schema[A] = ???
   def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B, Binding]) = ???
+}
+
+sealed trait Reflect[F[_, _], A] {
+  def aspect[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, F]): Reflect[F, A]
+  def aspect[B, Min >: B, Max <: B](optic: Optic[A, B], aspect: SchemaAspect[Min, Max, F]): Reflect[F, A]
 }
 ```
 
@@ -551,6 +568,8 @@ Currently, ZIO Blocks provides the following built-in schema aspects:
 - `SchemaAspect.identity`: No-op transformation
 - `SchemaAspect.doc`: Attach documentation to schema or field
 - `SchemaAspect.examples`: Attach example values to schema or field
+
+The path-targeted overload doesn't fail on an optic that doesn't resolve against the schema — it falls back to the original schema unchanged, the same behavior [`Reflect#updated`](./reflect-transformer.md) has when a path finds nothing. This matters most when an optic is built by hand rather than through the `optic(_.field)` macro: a lens pointing at a field name that isn't actually on the record silently leaves the schema untouched rather than throwing.
 
 ## Modifiers
 

@@ -1,3 +1,4 @@
+import sbtheader.HeaderPlugin.autoImport.*
 import sbt.Keys.*
 import sbt.{Def, *}
 import sbtbuildinfo.*
@@ -191,7 +192,6 @@ object BuildHelper {
           Seq(
             "-release",
             if (minor < 8) "11" else "17",
-            "-rewrite",
             "-no-indent",
             "-explain",
             "-explain-cyclic",
@@ -206,6 +206,7 @@ object BuildHelper {
             "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s",
             "-Wconf:id=E029:s",                                                      // suppress non-exhaustive pattern match warnings in macro code
             "-Wconf:id=E030:s",                                                      // suppress unreachable case warnings in type pattern matching
+            "-Wconf:id=E198&src=.*SqlMacros.scala:s",                                // quoted $tbl binding triggers false unused on Scala 3.3
             "-Wconf:msg=package scala contains object and package with same name:s", // Scala.js classpath artifact
             "-Werror"
           ) ++ {
@@ -229,6 +230,15 @@ object BuildHelper {
             "-Xfatal-warnings"
           )
       }),
+      // Align javac --release with scalac -release so Java sources (e.g. ByteArrayAccess.java)
+      // produce bytecode compatible with the same JDK target.
+      javacOptions ++= {
+        val javaRelease = CrossVersion.partialVersion(scalaVersion.value) match {
+          case Some((3, minor)) if minor >= 8 => "17"
+          case _                              => "11"
+        }
+        Seq("--release", javaRelease)
+      },
       versionScheme := Some("early-semver"),
       testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
       Test / parallelExecution := true,
@@ -244,7 +254,13 @@ object BuildHelper {
       coverageMinimumStmtTotal   := 95,
       coverageMinimumBranchTotal := 90,
       coverageExcludedFiles      := ".*BuildInfo.*"
-    )
+    ) ++ {
+      // Example projects are embedded verbatim into the documentation via `mdoc:embed`, so they carry
+      // no license header. An empty mapping leaves sbt-header with no file types to process, which
+      // makes both `headerCreate` and `headerCheck` no-ops for these projects.
+      if (prjName.endsWith("-examples")) Seq(headerMappings := Map.empty)
+      else Seq.empty
+    }
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
     crossScalaVersions       := crossScalaVersions.value.filterNot(_ == Scala3),

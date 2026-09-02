@@ -641,24 +641,24 @@ case class CacheService(db: Database)
 case class AuthService(db: Database)
 case class AppService(cache: CacheService, auth: AuthService)
 
-Scope.global.scoped { scope =>
-  import scope._
+// Wire.shared means all dependents get the same instance
+val configWire = Wire(DbConfig("localhost"))
+val dbWire = Wire.shared[Database]
+val cacheWire = Wire.shared[CacheService]
+val authWire = Wire.shared[AuthService]
+val appWire = Wire.shared[AppService]
 
-  // Wire.shared means all dependents get the same instance
-  val configWire = Wire(DbConfig("localhost"))
-  val dbWire = Wire.shared[Database]
-  val cacheWire = Wire.shared[CacheService]
-  val authWire = Wire.shared[AuthService]
-  val appWire = Wire.shared[AppService]
+// Resource.from resolves all wires and returns the root app service
+val appResource = Resource.from[AppService](
+  configWire,
+  dbWire,
+  cacheWire,
+  authWire,
+  appWire
+)
 
-  // Resource.from resolves all wires and returns the root app service
-  val app = allocate(Resource.from[AppService](
-    configWire, dbWire, cacheWire, authWire, appWire
-  ))
-
-  $(app) { a =>
-    println("App service created: " + a.toString())
-  }
+appResource.use { app =>
+  println("App service created: " + app.toString())
 }
 ```
 
@@ -995,3 +995,8 @@ You now understand Scope's core concepts:
 
 For complete API documentation, see the [Scope Reference](../reference/resource-management/scope.md).
 
+## See Also
+
+- [Telemetry Reference](../reference/telemetry/index.md) — `TracerProvider`, `LoggerProvider`, and `MeterProvider` are `AutoCloseable`, so the ownership rules here carry over to their lifetimes
+- [Telemetry Guide](./telemetry-guide.md) — Provider startup and shutdown ordering, done with plain `AutoCloseable` shutdown rather than `Scope`
+- [Async Reference](../reference/async.md) — `Async.Running` extends `AutoCloseable` and integrates with `scala.util.Using` for scoped cancellation; the same resource-ownership mental model used by Scope applies to in-flight async computations

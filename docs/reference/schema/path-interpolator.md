@@ -270,6 +270,8 @@ p"#map(string, int)"                       // Find maps from string to int
 p"#option(Person)"                         // Find optional Person values
 ```
 
+`set(...)` and `vector(...)` work as synonyms for `list(...)` — all three parse to the same `SchemaRepr.Sequence` pattern, since the pattern only cares about the element type, not which collection it comes from.
+
 To match any value regardless of type:
 
 ```scala mdoc:compile-only

@@ -496,11 +496,7 @@ val appResource: Resource[App] = Resource.from[App](
   Wire(AppConfig("jdbc:postgres://localhost/db"))
 )
 
-Scope.global.scoped { scope =>
-  import scope._
-  val app = allocate(appResource)
-  $(app)(_.run())
-}
+appResource.use(_.run())
 ```
 
 When `Resource.from` composes wires, it respects the sharing strategy:
@@ -508,6 +504,8 @@ When `Resource.from` composes wires, it respects the sharing strategy:
 - **Unique wires** → fresh per allocation
 
 The macro detects cycles, duplicate providers, and missing dependencies at compile time.
+
+The `AppConfig` leaf above is hardcoded, which is rarely what a real graph wants. `Config.wire[A]` produces a `Wire.Shared[ConfigSource, A]` that decodes `A` from an injected `ConfigSource`, so configuration becomes a node in the graph rather than something resolved before it — see [Config](../config/index.md).
 
 ## Comparison with Alternatives
 

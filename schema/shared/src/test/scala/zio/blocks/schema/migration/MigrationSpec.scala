@@ -51,8 +51,34 @@ object MigrationSpec extends ZIOSpecDefault {
     implicit val eventV2Schema: Schema[EventV2]   = Schema.derived[EventV2]
   }
 
+  // Color: all-no-field enum.  MixedColor: same "Red" case name, but also has a
+  // data-carrying case.  Both produce DynamicValue.Variant("Red", Record.empty) —
+  // but after the fix DynamicSchemaExpr.Literal carries the schema, so they differ.
+  // MixedColor cases live in a companion to avoid a name clash with Color.Red.
+  object EnumLiteralFixtures {
+    sealed trait Color
+    case object Red  extends Color
+    case object Blue extends Color
+
+    sealed trait MixedColor
+    object MixedColor {
+      case object Red             extends MixedColor
+      case class Dark(shade: Int) extends MixedColor
+    }
+
+    case class TaskV1(name: String)
+    case class TaskV2(name: String, color: Color)
+    case class TaskV3(name: String, color: MixedColor)
+
+    implicit val colorSchema: Schema[Color]           = Schema.derived[Color]
+    implicit val mixedColorSchema: Schema[MixedColor] = Schema.derived[MixedColor]
+    implicit val taskV1Schema: Schema[TaskV1]         = Schema.derived[TaskV1]
+    implicit val taskV2Schema: Schema[TaskV2]         = Schema.derived[TaskV2]
+    implicit val taskV3Schema: Schema[TaskV3]         = Schema.derived[TaskV3]
+  }
+
   private def dynamicLiteral[A: Schema](value: A): DynamicSchemaExpr =
-    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value))
+    DynamicSchemaExpr.Literal(Schema[A].toDynamicValue(value), Schema[A])
 
   private def literal[A: Schema](value: A): SchemaExpr[Any, A] =
     SchemaExpr.literal(value)
@@ -1058,6 +1084,57 @@ object MigrationSpec extends ZIOSpecDefault {
         val result = migration(input)
 
         assertTrue(result == Right(input))
+      }
+    ),
+
+    // DynamicSchemaExpr.Literal now carries Schema[_] alongside DynamicValue.
+    // Two sealed traits whose same-named case produce Variant("Red", Record.empty) are
+    // now distinguishable because the Literal retains the originating schema.
+    suite("Enum case default literal — schema preserved")(
+      // DynamicValue itself is still ambiguous; the fix is in the Literal wrapper.
+      test("all-no-field and mixed enum produce identical DynamicValue for the same case name") {
+        import EnumLiteralFixtures._
+        assertTrue(Schema[Color].toDynamicValue(Red) == Schema[MixedColor].toDynamicValue(MixedColor.Red))
+      },
+      // Schema is preserved at both the SchemaExpr and DynamicSchemaExpr layers.
+      test("SchemaExpr.literal preserves isEnumeration in outputSchema") {
+        import EnumLiteralFixtures._
+        assertTrue(
+          SchemaExpr.literal[Any, Color](Red).outputSchema.reflect.isEnumeration,
+          !SchemaExpr.literal[Any, MixedColor](MixedColor.Red).outputSchema.reflect.isEnumeration
+        )
+      },
+      // Literal carries the schema so the two are now distinguishable.
+      test("DynamicSchemaExpr.Literal is distinct for all-no-field vs mixed enum") {
+        import EnumLiteralFixtures._
+        assertTrue(
+          SchemaExpr.literal[Any, Color](Red).dynamic != SchemaExpr.literal[Any, MixedColor](MixedColor.Red).dynamic
+        )
+      },
+      // Migration representation contract restored — addField produces distinct DynamicMigrations.
+      test("addField for all-no-field vs mixed enum produces distinct DynamicMigrations") {
+        import EnumLiteralFixtures._
+        val migToV2 = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build
+        val migToV3 = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, literal(MixedColor.Red: MixedColor)).build
+        assertTrue(migToV2.dynamicMigration != migToV3.dynamicMigration)
+      },
+      // Schema carried in the Literal lets an interpreter distinguish enum types.
+      // isEnumeration is recoverable from the action's default DynamicSchemaExpr.
+      test("AddField literal schema correctly reports isEnumeration for each sealed trait") {
+        import EnumLiteralFixtures._
+        val migToV2     = Migration.newBuilder[TaskV1, TaskV2].addField(_.color, literal(Red: Color)).build
+        val migToV3     = Migration.newBuilder[TaskV1, TaskV3].addField(_.color, literal(MixedColor.Red: MixedColor)).build
+        val colorIsEnum = migToV2.dynamicMigration.actions.head match {
+          case MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+            schema.reflect.isEnumeration
+          case _ => false
+        }
+        val mixedIsEnum = migToV3.dynamicMigration.actions.head match {
+          case MigrationAction.AddField(_, DynamicSchemaExpr.Literal(_, schema)) =>
+            schema.reflect.isEnumeration
+          case _ => true
+        }
+        assertTrue(colorIsEnum, !mixedIsEnum)
       }
     )
   )

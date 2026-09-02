@@ -604,20 +604,25 @@ import zio.blocks.streams.*
 import zio.blocks.chunk.Chunk
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.nio.file.{Paths, StandardOpenOption}
+import java.nio.file.{Files, StandardOpenOption}
 
 // Write to a ByteBuffer using a typed sink (Int values, zero-boxing)
 val outBuf = ByteBuffer.allocate(1024)
 Stream.range(1, 5).run(NioSinks.fromByteBufferInt(outBuf))
 
 // Write to a WritableByteChannel using a stream of bytes
+val tempPath = Files.createTempFile("zio-blocks-streams-", ".bin")
 val outCh = FileChannel.open(
-  Paths.get("data.bin"),
-  StandardOpenOption.WRITE, StandardOpenOption.CREATE
+  tempPath,
+  StandardOpenOption.WRITE,
+  StandardOpenOption.TRUNCATE_EXISTING
 )
 val bytes = Chunk.fromIterable(List[Byte](1, 2, 3, 4, 5))
-Stream.fromChunk(bytes).run(NioSinks.fromChannel(outCh))
-outCh.close()
+try Stream.fromChunk(bytes).run(NioSinks.fromChannel(outCh))
+finally {
+  outCh.close()
+  Files.deleteIfExists(tempPath)
+}
 ```
 
 ---

@@ -97,7 +97,7 @@ object DynamicSchemaExpr {
 
   // ==================== Leaf Expressions ====================
 
-  final case class Literal(value: DynamicValue) extends DynamicSchemaExpr {
+  final case class Literal(value: DynamicValue, schema: Schema[_]) extends DynamicSchemaExpr {
     def eval(input: DynamicValue): Either[SchemaError, Seq[DynamicValue]] =
       Right(Seq(value))
   }

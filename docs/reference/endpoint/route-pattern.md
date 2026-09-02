@@ -3,7 +3,7 @@ id: route-pattern
 title: "RoutePattern"
 ---
 
-`RoutePattern[A]` pairs an HTTP method with a typed path pattern. It is the primary routing descriptor in `zio-blocks-endpoint`: every `Endpoint` carries a `RoutePattern` that determines which HTTP method and URL path it matches. Its shape is:
+`RoutePattern[A]` pairs an HTTP method with a typed path pattern. It is the primary routing descriptor in `zio-blocks-endpoint`: every `Endpoint` carries a `RoutePattern` that determines which HTTP method and URL path it matches. Like `PathCodec`, it also carries a phantom `PathVars` track that mirrors the ordered path-variable declarations contributed by its path codec. Its shape is:
 
 ```scala
 final case class RoutePattern[A](
@@ -13,11 +13,13 @@ final case class RoutePattern[A](
 )
 ```
 
+The `PathVars` track is not a constructor parameter because it is purely type-level: it has zero runtime footprint and is derived from `pathCodec`. A literal-only route contributes no path-variable markers; a route with dynamic segments preserves them in declaration order.
+
 ## Motivation
 
 HTTP routing requires matching both a method (GET, POST, …) and a path (`/users/42`). `RoutePattern` holds both in a single typed value. The type parameter `A` is the type of values extracted from the dynamic path segments — `Unit` for fully-literal paths, `Int` for a single integer segment, `(String, UUID)` for two dynamic segments, and so on.
 
-Using a typed route pattern means route construction and path extraction are verified at compile time: the type of the extracted path value is always consistent with the path codec definition.
+Using a typed route pattern means route construction and path extraction are verified at compile time: the type of the extracted path value is always consistent with the path codec definition. The phantom `PathVars` track keeps the declared path-variable names and ignored-variable markers available to tooling without changing runtime behavior.
 
 ## Construction
 
@@ -83,6 +85,8 @@ val catchAll: RoutePattern[Path]   = RoutePattern.any
 val getAny: RoutePattern[Path]     = RoutePattern.any(Method.GET)
 ```
 
+These helpers preserve `PathVars = SegmentCodec.NoPathVars`: a trailing catch-all captures a `zio.http.Path` runtime value, but it does not declare any named path variables.
+
 ## Path Composition with `/`
 
 To append additional `PathCodec` segments to a `RoutePattern`, use the `/` method:
@@ -95,7 +99,7 @@ import zio.http.Method
 val route = Method.GET / "users" / PathCodec.int("id") / "posts"
 ```
 
-Each `/` call produces a new `RoutePattern` with a widened type. The type is automatically flattened, eliminating `Unit` components: `Unit / Int / Unit` becomes `Int`, not `((Unit, Int), Unit)`.
+Each `/` call produces a new `RoutePattern` with a widened type. The type is automatically flattened, eliminating `Unit` components: `Unit / Int / Unit` becomes `Int`, not `((Unit, Int), Unit)`. At the same time, the phantom `PathVars` track is concatenated left-to-right, so a route like `Method.GET / PathCodec.int("id") / PathCodec.string("slug")` preserves the declaration order of `"id"` then `"slug"` for downstream tooling.
 
 ## Decoding and Encoding
 
