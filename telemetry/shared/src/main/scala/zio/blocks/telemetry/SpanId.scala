@@ -38,8 +38,17 @@ final class SpanId(val value: Long) extends AnyVal {
   /** Returns `true` when the id is not zero. */
   def isValid: Boolean = value != 0L
 
-  /** Returns the id as 16 lowercase hex digits, with leading zeros. */
-  def toHex: String = String.format("%016x", value)
+  /**
+   * Converts this span ID to a 16-character lowercase hexadecimal string.
+   *
+   * Hand-rolled nibble appends (see `Hex`) instead of `String.format`: this
+   * runs per span on the inject/export hot path.
+   */
+  def toHex: String = {
+    val sb = new StringBuilder(16)
+    Hex.appendLong16(sb, value)
+    sb.toString
+  }
 
   /** Returns the id as 8 bytes, most significant first. */
   def toByteArray: Array[Byte] = {

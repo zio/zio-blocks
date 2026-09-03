@@ -71,7 +71,9 @@ private[telemetry] final class StandardLogEmitter(
         severity = severity,
         severityText = severityText,
         body = LogMessage(body),
-        attributes = builder.build,
+        // Zero-copy handoff: the builder is pooled and would be cleared right
+        // after anyway, so hand its arrays to the record instead of copying.
+        attributes = builder.buildAndReset(),
         traceIdHi = traceIdHi,
         traceIdLo = traceIdLo,
         spanId = spanId,
@@ -80,7 +82,6 @@ private[telemetry] final class StandardLogEmitter(
         instrumentationScope = instrumentationScope,
         throwable = throwable
       )
-      builder.clear()
       var i = 0
       while (i < processors.length) {
         try {

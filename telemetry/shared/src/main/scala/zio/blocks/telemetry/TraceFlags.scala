@@ -46,8 +46,17 @@ final class TraceFlags(val byte: Byte) extends AnyVal {
     new TraceFlags(newByte)
   }
 
-  /** Returns the byte as 2 lowercase hex digits. */
-  def toHex: String = String.format("%02x", byte & 0xff)
+  /**
+   * Converts this trace flags to a 2-character lowercase hexadecimal string.
+   *
+   * Hand-rolled nibble appends (see `Hex`) instead of `String.format`: this
+   * runs per span on the inject path.
+   */
+  def toHex: String = {
+    val sb = new StringBuilder(2)
+    Hex.appendByte2(sb, byte & 0xff)
+    sb.toString
+  }
 
   /** Returns the byte, the same as `byte`. */
   def toByte: Byte = byte
