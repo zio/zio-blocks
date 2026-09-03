@@ -19,7 +19,6 @@ package zio.http.datastar
 import zio.blocks.chunk.Chunk
 import zio.blocks.html._
 import zio.blocks.maybe.Maybe
-import zio.http.ServerSentEvent
 
 /**
  * A Datastar SSE event that can be sent to the browser.
@@ -58,15 +57,16 @@ object DatastarEvent {
 
     def renderSSE: String = {
       val sb = new java.lang.StringBuilder(256)
-      selector.toOption.foreach(s => sb.append("selector ").append(s.render).append('\n'))
-      if (mode != ElementPatchMode.Outer) sb.append("mode ").append(mode.render).append('\n')
-      if (useViewTransition) sb.append("useViewTransition true\n")
-      namespace.toOption.foreach(ns => sb.append("namespace ").append(ns).append('\n'))
-      sb.append("elements ").append(elements.renderMinified)
-      val data        = sb.toString
-      val sse         = ServerSentEvent(data, EventType.PatchElements.render)
-      val withEventId = eventId.toOption.fold(sse)(sse.id)
-      retryMillis.toOption.fold(withEventId)(withEventId.retry).render
+      sb.append("event: ").append(EventType.PatchElements.render).append('\n')
+      appendId(sb, eventId)
+      appendRetry(sb, retryMillis)
+      selector.toOption.foreach(s => appendDataLines(sb, "selector ", s.render))
+      if (mode != ElementPatchMode.Outer) appendDataLines(sb, "mode ", mode.render)
+      if (useViewTransition) appendData(sb, "useViewTransition true")
+      namespace.toOption.foreach(ns => appendDataLines(sb, "namespace ", ns))
+      appendDataLines(sb, "elements ", elements.renderMinified)
+      sb.append('\n')
+      sb.toString
     }
   }
 
@@ -79,62 +79,124 @@ object DatastarEvent {
 
     def renderSSE: String = {
       val sb = new java.lang.StringBuilder(128)
-      if (onlyIfMissing) sb.append("onlyIfMissing true\n")
-      sb.append("signals ").append(signalsJson)
-      val data        = sb.toString
-      val sse         = ServerSentEvent(data, EventType.PatchSignals.render)
-      val withEventId = eventId.toOption.fold(sse)(sse.id)
-      retryMillis.toOption.fold(withEventId)(withEventId.retry).render
+      sb.append("event: ").append(EventType.PatchSignals.render).append('\n')
+      appendId(sb, eventId)
+      appendRetry(sb, retryMillis)
+      if (onlyIfMissing) appendData(sb, "onlyIfMissing true")
+      appendDataLines(sb, "signals ", signalsJson)
+      sb.append('\n')
+      sb.toString
     }
   }
 
-  final class PatchElementsBuilder private[DatastarEvent] (
-    private val elements: Dom,
-    private val selector: Maybe[CssSelector],
-    private val mode: ElementPatchMode,
-    private val useViewTransition: Boolean,
-    private val namespace: Maybe[String],
-    private val eventId: Maybe[String],
-    private val retryMillis: Maybe[Long]
+  /**
+   * Appends the SSE `id:` header, validating exactly like the SSE envelope
+   * (`id` must not contain CR or LF).
+   */
+  private def appendId(sb: java.lang.StringBuilder, eventId: Maybe[String]): Unit =
+    eventId.toOption.foreach { id =>
+      if (id.indexOf('\n') >= 0 || id.indexOf('\r') >= 0)
+        throw new IllegalArgumentException("SSE id must not contain CR or LF characters")
+      sb.append("id: ").append(id).append('\n')
+    }
+
+  /**
+   * Appends the SSE `retry:` header, validating exactly like the SSE envelope
+   * (retry must be non-negative).
+   */
+  private def appendRetry(sb: java.lang.StringBuilder, retryMillis: Maybe[Long]): Unit =
+    retryMillis.toOption.foreach { millis =>
+      if (millis < 0)
+        throw new IllegalArgumentException("SSE retry must be non-negative")
+      sb.append("retry: ").append(millis).append('\n')
+    }
+
+  /** Appends a single `data:` line (the value is a protocol constant). */
+  private def appendData(sb: java.lang.StringBuilder, line: String): Unit =
+    sb.append("data: ").append(line).append('\n')
+
+  /**
+   * Appends `prefix + value` split into one `data:` line per line break,
+   * mirroring the SSE encoder's `\r\n`/`\r`/`\n` splitting so multi-line
+   * payloads (e.g. rendered elements) frame identically to the envelope.
+   */
+  private def appendDataLines(sb: java.lang.StringBuilder, prefix: String, value: String): Unit = {
+    var start  = 0
+    var index  = 0
+    val length = value.length
+    var first  = true
+    while (index < length) {
+      val c = value.charAt(index)
+      if (c == '\n' || c == '\r') {
+        appendDataLine(sb, prefix, first, value.substring(start, index))
+        if (c == '\r' && index + 1 < length && value.charAt(index + 1) == '\n')
+          index += 1
+        start = index + 1
+        first = false
+      }
+      index += 1
+    }
+    appendDataLine(sb, prefix, first, value.substring(start, length))
+  }
+
+  private def appendDataLine(
+    sb: java.lang.StringBuilder,
+    prefix: String,
+    first: Boolean,
+    segment: String
+  ): Unit = {
+    sb.append("data: ")
+    if (first) sb.append(prefix)
+    sb.append(segment).append('\n')
+  }
+
+  final case class PatchElementsBuilder private[DatastarEvent] (
+    elements: Dom,
+    selector: Maybe[CssSelector],
+    mode: ElementPatchMode,
+    useViewTransition: Boolean,
+    namespace: Maybe[String],
+    eventId: Maybe[String],
+    retryMillis: Maybe[Long]
   ) {
 
     def selector(s: CssSelector): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, Maybe.present(s), mode, useViewTransition, namespace, eventId, retryMillis)
+      copy(selector = Maybe.present(s))
 
     def mode(m: ElementPatchMode): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, m, useViewTransition, namespace, eventId, retryMillis)
+      copy(mode = m)
 
     def viewTransition: PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, true, namespace, eventId, retryMillis)
+      copy(useViewTransition = true)
 
     def namespace(ns: String): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, Maybe.present(ns), eventId, retryMillis)
+      copy(namespace = Maybe.present(ns))
 
     def eventId(id: String): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, Maybe.present(id), retryMillis)
+      copy(eventId = Maybe.present(id))
 
     def retry(millis: Long): PatchElementsBuilder =
-      new PatchElementsBuilder(elements, selector, mode, useViewTransition, namespace, eventId, Maybe.present(millis))
+      copy(retryMillis = Maybe.present(millis))
 
     def renderSSE: String =
       PatchElements(elements, selector, mode, useViewTransition, namespace, eventId, retryMillis).renderSSE
   }
 
-  final class PatchSignalsBuilder private[DatastarEvent] (
-    private val signalsJson: String,
-    private val emitOnlyIfMissing: Boolean,
-    private val eventId: Maybe[String],
-    private val retryMillis: Maybe[Long]
+  final case class PatchSignalsBuilder private[DatastarEvent] (
+    signalsJson: String,
+    emitOnlyIfMissing: Boolean,
+    eventId: Maybe[String],
+    retryMillis: Maybe[Long]
   ) {
 
     def onlyIfMissing: PatchSignalsBuilder =
-      new PatchSignalsBuilder(signalsJson, true, eventId, retryMillis)
+      copy(emitOnlyIfMissing = true)
 
     def eventId(id: String): PatchSignalsBuilder =
-      new PatchSignalsBuilder(signalsJson, emitOnlyIfMissing, Maybe.present(id), retryMillis)
+      copy(eventId = Maybe.present(id))
 
     def retry(millis: Long): PatchSignalsBuilder =
-      new PatchSignalsBuilder(signalsJson, emitOnlyIfMissing, eventId, Maybe.present(millis))
+      copy(retryMillis = Maybe.present(millis))
 
     def renderSSE: String =
       PatchSignals(signalsJson, emitOnlyIfMissing, eventId, retryMillis).renderSSE
@@ -171,13 +233,13 @@ object DatastarEvent {
   def patchSignalsRaw(json: String): PatchSignalsBuilder =
     new PatchSignalsBuilder(json, false, Maybe.absent, Maybe.absent)
 
-  final class RemoveElementsBuilder private[DatastarEvent] (
-    private val inner: PatchElementsBuilder
+  final case class RemoveElementsBuilder private[DatastarEvent] (
+    inner: PatchElementsBuilder
   ) {
-    def viewTransition: RemoveElementsBuilder        = new RemoveElementsBuilder(inner.viewTransition)
-    def namespace(ns: String): RemoveElementsBuilder = new RemoveElementsBuilder(inner.namespace(ns))
-    def eventId(id: String): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.eventId(id))
-    def retry(millis: Long): RemoveElementsBuilder   = new RemoveElementsBuilder(inner.retry(millis))
+    def viewTransition: RemoveElementsBuilder        = copy(inner = inner.viewTransition)
+    def namespace(ns: String): RemoveElementsBuilder = copy(inner = inner.namespace(ns))
+    def eventId(id: String): RemoveElementsBuilder   = copy(inner = inner.eventId(id))
+    def retry(millis: Long): RemoveElementsBuilder   = copy(inner = inner.retry(millis))
     def renderSSE: String                            = inner.renderSSE
   }
 

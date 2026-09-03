@@ -196,24 +196,46 @@ trait HtmlElements {
   def style(effect: Dom.Attribute | Css, effects: (Dom.Attribute | Css)*): Dom.Element.Style = elStyle(
     effect +: effects
   )
-  val sub: Dom.Element                  = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
-  val summary: Dom.Element              = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
-  val sup: Dom.Element                  = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
-  val svg: Dom.Element                  = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
-  val tbody: Dom.Element                = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
-  val `template`: Dom.Element           = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
-  val templateTag: Dom.Element          = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
-  val textarea: Dom.Element             = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
-  val tfoot: Dom.Element                = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
-  val thead: Dom.Element                = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
-  val time: Dom.Element                 = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
-  val track: Dom.Element.Void           = Dom.Element.VoidGeneric("track", Chunk.empty)
-  val u: Dom.Element                    = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
-  val `var`: Dom.Element                = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
-  val varTag: Dom.Element               = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
-  val video: Dom.Element                = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
-  val wbr: Dom.Element.Void             = Dom.Element.VoidGeneric("wbr", Chunk.empty)
-  def element(tag: String): Dom.Element = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+  val sub: Dom.Element         = Dom.Element.Generic("sub", Chunk.empty, Chunk.empty)
+  val summary: Dom.Element     = Dom.Element.Generic("summary", Chunk.empty, Chunk.empty)
+  val sup: Dom.Element         = Dom.Element.Generic("sup", Chunk.empty, Chunk.empty)
+  val svg: Dom.Element         = Dom.Element.Generic("svg", Chunk.empty, Chunk.empty)
+  val tbody: Dom.Element       = Dom.Element.Generic("tbody", Chunk.empty, Chunk.empty)
+  val `template`: Dom.Element  = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
+  val templateTag: Dom.Element = Dom.Element.Generic("template", Chunk.empty, Chunk.empty)
+  val textarea: Dom.Element    = Dom.Element.Generic("textarea", Chunk.empty, Chunk.empty)
+  val tfoot: Dom.Element       = Dom.Element.Generic("tfoot", Chunk.empty, Chunk.empty)
+  val thead: Dom.Element       = Dom.Element.Generic("thead", Chunk.empty, Chunk.empty)
+  val time: Dom.Element        = Dom.Element.Generic("time", Chunk.empty, Chunk.empty)
+  val track: Dom.Element.Void  = Dom.Element.VoidGeneric("track", Chunk.empty)
+  val u: Dom.Element           = Dom.Element.Generic("u", Chunk.empty, Chunk.empty)
+  val `var`: Dom.Element       = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
+  val varTag: Dom.Element      = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
+  val video: Dom.Element       = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
+  val wbr: Dom.Element.Void    = Dom.Element.VoidGeneric("wbr", Chunk.empty)
+
+  /**
+   * Creates a generic element for a non-void tag.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `tag` is a void element (`br`, `img`, `input`, ...). Void tags cannot
+   *   carry children, so they are rejected here instead of silently discarding
+   *   them at render; use [[voidElement]] for those tags.
+   */
+  def element(tag: String): Dom.Element = {
+    require(
+      !Dom.voidElements.contains(tag),
+      s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
+    )
+    Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+  }
+
+  /**
+   * Creates a generic void element (e.g., `br`, `img`, `input`) that renders
+   * self-closed and rejects children at compile time via [[Dom.Element.Void]].
+   */
+  def voidElement(tag: String): Dom.Element.Void =
+    Dom.Element.VoidGeneric(tag, Chunk.empty)
 
   /** Creates an empty `<li>` element, returning `Li`. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)
