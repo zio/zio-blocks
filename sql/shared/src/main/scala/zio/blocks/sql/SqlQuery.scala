@@ -28,7 +28,20 @@ import zio.blocks.sql.SqlStatement._
  *   - [[statement]] — structured [[SqlStatement]] for programmatic inspection
  *   - [[explain]] — single-line SQL with `?N` placeholders plus
  *     `-- params: ...` footer for logging
+ *
+ * Every identifier is validated and double-quoted at render time (like
+ * `zio.blocks.sql.query.QueryRenderer`), so mixed-case and reserved-word
+ * columns resolve correctly. `LIMIT`/`OFFSET` are literal-by-design (they are
+ * validated `Int`s, matching `QueryRenderer` and `Repo.pageAfter`); only filter
+ * values bind as `?` params.
  */
+@deprecated(
+  "Use zio.blocks.sql.query.SqlQuery for new queries: it validates joins through typed Rels and composes Frag throughout. This builder remains for SqlStatement/explain inspection until the full merge lands.",
+  "0.1.0"
+)
+// Self-references (method return types, `from` constructor call) would warn;
+// external users still get the deprecation warning at their call sites.
+@scala.annotation.nowarn("cat=deprecation")
 final class SqlQuery[A] private (
   private val source: Table[A],
   private val sourceAlias: String,
@@ -249,22 +262,27 @@ final class SqlQuery[A] private (
   }
 
   private def build(@scala.annotation.unused dialect: SqlDialect): (SqlStatement, Frag) = {
+    // `dialect` is currently informational: both dialects render `?`
+    // placeholders (see `Frag.renderSql`), so rendering is dialect-identical
+    // today. The parameter is kept (rather than removed) so a future `$N`-style
+    // dialect can thread through `toFrag`/`statement`/`explain` without an API
+    // break; revisit if such a dialect lands.
     val allTables: Vector[(String, IndexedSeq[String], String)] =
       Vector((source.name, columnsByAlias(sourceAlias), sourceAlias)) ++
         joins.map(j => (j.table, columnsByAlias.getOrElse(j.alias, IndexedSeq.empty), j.alias))
 
     val selectList = allTables.flatMap { case (_, cols, alias) =>
-      cols.map(c => s"$alias.$c")
+      cols.map(c => s"""$alias."$c"""")
     }.mkString(", ")
 
     val head = new StringBuilder
-    head.append(s"SELECT $selectList FROM ${source.name} $sourceAlias")
+    head.append(s"""SELECT $selectList FROM "${source.name}" $sourceAlias""")
     for (j <- joins) {
       val kindStr = j.kind match {
         case JoinKind.Inner => "INNER JOIN"
         case JoinKind.Left  => "LEFT JOIN"
       }
-      head.append(s" $kindStr ${j.table} ${j.alias} ON ${j.onLeft.qualified} = ${j.onRight.qualified}")
+      head.append(s""" $kindStr "${j.table}" ${j.alias} ON ${j.onLeft.qualified} = ${j.onRight.qualified}""")
     }
 
     val tailBuilder = new StringBuilder
@@ -320,6 +338,7 @@ final class SqlQuery[A] private (
 
 object SqlQuery {
 
+  @scala.annotation.nowarn("cat=deprecation")
   def from[A](table: Table[A]): SqlQuery[A] =
     new SqlQuery[A](table, "t0", Vector.empty, Vector.empty, None, Vector.empty, None, None, Map("t0" -> table.columns))
 

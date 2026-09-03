@@ -39,6 +39,17 @@ import zio.blocks.maybe.Maybe
  * `Repo` is immutable and safe for concurrent use. Individual operations
  * require a `DbCon` or `DbTx` given context which is not shared across threads
  * unless the caller arranges it.
+ *
+ * ==Empty-input policy==
+ *   - Builders throw on empty input (`require`): [[insertAll]] (empty rows),
+ *     `Frag.values` (empty rows). An empty multi-row VALUES list is invalid
+ *     SQL, so construction fails fast.
+ *   - Executors return `0` (or `List.empty` for reads) on empty input without
+ *     touching the database: [[insertBatch]], [[insertOrUpdateBatch]],
+ *     [[deleteAll]], [[findAll]].
+ *   - [[update]] returns `0` both when no row matches the ID and when the
+ *     entity carries only the ID column (nothing to set) — callers cannot
+ *     distinguish the two cases from the return value alone.
  */
 abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
 
@@ -94,14 +105,20 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
     frag.query[E]
   }
 
-  /** Returns the rows whose primary keys match the given IDs. */
+  /**
+   * Returns the rows whose primary keys match the given IDs.
+   *
+   * Renders one `IN (?, ..., ?)` shape per ID count; the rendered SQL is
+   * memoized per shape, so callers with varying batch sizes should keep arities
+   * stable (or prefer keyset paging via [[pageAfter]]) to avoid churning the
+   * fragment cache.
+   */
   final def findAll(ids: Iterable[ID])(using con: DbCon): List[E] = {
     val idList = ids.toList
     if (idList.isEmpty) List.empty
     else {
       val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
-      val parts     = IndexedSeq(s"SELECT $allCols FROM $tbl WHERE ($validatedIdColumn) IN (") ++
-        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      val parts     = Repo.inListParts(s"SELECT $allCols FROM $tbl WHERE ($validatedIdColumn) IN (", allValues.size)
       Frag(parts, allValues).query[E]
     }
   }
@@ -249,13 +266,20 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   final def insertOrUpdateBatch(entities: Iterable[E])(using con: DbCon): Int = {
     if (entities.isEmpty) return 0
     val sqlStr = Upsert.insertDoUpdate(table, entities.head, validatedIdColumn).sql(con.dialect)
-    val start  = System.nanoTime()
+    // Hoisted once per batch: the upsert shape (columns, conflict target,
+    // assignments) is identical for every row, so per-row work is only
+    // `toDbValues` plus positional assignment projection. Param order matches
+    // `Upsert.insertDoUpdate`: all insert values, then the DO UPDATE SET
+    // assignment values in update-column order.
+    val updateIdx: Array[Int] = table.columns.filter(_ != validatedIdColumn).map(table.columns.indexOf).toArray
+    val start                 = System.nanoTime()
     try {
       val ps = con.connection.prepareStatement(sqlStr)
       try {
         entities.foreach { entity =>
-          val frag = Upsert.insertDoUpdate(table, entity, validatedIdColumn)
-          Frag.writeParams(ps.paramWriter, frag.queryParams)
+          val vals       = table.codec.toDbValues(entity)
+          val assignVals = updateIdx.map(i => vals(i)).toIndexedSeq
+          Frag.writeParams(ps.paramWriter, vals ++ assignVals)
           ps.addBatch()
         }
         val counts = ps.executeBatch()
@@ -329,14 +353,16 @@ abstract class Repo[E, ID] protected (metadata: Repo.Metadata[E, ID]) {
   /**
    * Deletes the rows with the given primary keys. Returns the total affected
    * row count.
+   *
+   * Like [[findAll]], renders one `IN (?, ..., ?)` shape per ID count; keep
+   * batch arities stable to avoid churning the memoized rendered-SQL cache.
    */
   final def deleteAll(ids: Iterable[ID])(using con: DbCon): Int = {
     val idList = ids.toList
     if (idList.isEmpty) 0
     else {
       val allValues = idList.flatMap(id => idCodec.toDbValues(id)).toIndexedSeq
-      val parts     = IndexedSeq(s"DELETE FROM $tbl WHERE ($validatedIdColumn) IN (") ++
-        IndexedSeq.fill(allValues.size - 1)(", ") :+ ")"
+      val parts     = Repo.inListParts(s"DELETE FROM $tbl WHERE ($validatedIdColumn) IN (", allValues.size)
       Frag(parts, allValues).update
     }
   }
@@ -514,11 +540,18 @@ object Repo {
     )
   }
 
-  private[sql] def buildInsertFrag(
-    tableName: String,
-    allColumns: String,
-    values: IndexedSeq[DbValue]
-  ): Frag =
+  /**
+   * Builds the literal parts for `prefix (?, ..., ?)` with `size` bound
+   * parameters: `prefix` followed by `size - 1` `", "` separators and a closing
+   * `")"`. Shared by the `IN`-list executors (`findAll`, `deleteAll`) so every
+   * call site mints the same shape for the same arity.
+   */
+  private[sql] def inListParts(prefix: String, size: Int): IndexedSeq[String] = {
+    require(size >= 1, s"Repo.inListParts: size must be >= 1, got $size")
+    IndexedSeq(prefix) ++ IndexedSeq.fill(size - 1)(", ") :+ ")"
+  }
+
+  private[sql] def buildInsertFrag(tableName: String, allColumns: String, values: IndexedSeq[DbValue]): Frag =
     if (values.isEmpty) Frag.literal(s"INSERT INTO $tableName DEFAULT VALUES")
     else {
       val parts =

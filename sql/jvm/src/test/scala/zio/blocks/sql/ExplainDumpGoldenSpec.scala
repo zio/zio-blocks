@@ -24,6 +24,8 @@ import zio.blocks.schema.Schema
 import zio.blocks.sql.query.{SortOrder => QSortOrder, SqlQuery => Qry, Rel}
 
 // Separate fixture objects ensure distinct dump fileBase per query (owner-derived).
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object Legacy2JoinFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -43,6 +45,8 @@ private object Legacy2JoinFixture {
       .where(repoTable, "name", DbValue.DbString("my-repo"))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object LegacyFullFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -62,6 +66,8 @@ private object LegacyFullFixture {
       .offset(5)
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object FourArgFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -70,6 +76,8 @@ private object FourArgFixture {
     SqlQuery.from(userTable).where(userTable, "name", "=", DbValue.DbString("alice"))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InQueryFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -80,6 +88,8 @@ private object InQueryFixture {
       .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3)))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InSize1Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -88,6 +98,8 @@ private object InSize1Fixture {
     SqlQuery.from(userTable).where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1)))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InSize2Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -98,6 +110,8 @@ private object InSize2Fixture {
       .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2)))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InSize5Fixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -108,6 +122,8 @@ private object InSize5Fixture {
       .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq(1, 2, 3, 4, 5)))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InEmptyFixture {
   case class User(id: Int, name: String)
   object User { implicit val schema: Schema[User] = Schema.derived }
@@ -118,6 +134,8 @@ private object InEmptyFixture {
       .where(SqlStatement.ColumnRef("t0", "id"), "IN", DbValue.DbArray("integer", IndexedSeq.empty[Int]))
   Dump.dump(query)
 }
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 private object InDynamicFixture {
   case class DynUser(id: Int, name: String)
   object DynUser { implicit val schema: Schema[DynUser] = Schema.derived }
@@ -150,6 +168,8 @@ private object IrFullFixture {
   Dump.dumpQuery(query)
 }
 
+// Exercises the deprecated stringly builder (legacy dump goldens).
+@scala.annotation.nowarn("cat=deprecation")
 object ExplainDumpGoldenSpec extends ZIOSpecDefault {
 
   case class User(id: Int, name: String)

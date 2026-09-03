@@ -42,8 +42,8 @@ object PgCodec {
    * `DbCodec` for the blocks-native JSON AST type
    * ([[zio.blocks.schema.json.Json]]), stored as PostgreSQL `jsonb`. Uses
    * `Json.print`/`Json.parseUnsafe` directly as the JSON string codec, since
-   * they already are the canonical serialization for this type (no
-   * `JsonSchemaCodec` round-trip needed).
+   * they already are the canonical serialization for this type (no `JsonCodec`
+   * round-trip needed).
    */
   given jsonCodec: DbCodec[Json] = DbCodec.jsonb[Json](_.print, Json.parseUnsafe)
 
