@@ -524,6 +524,69 @@ object LogFormatterSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("direct builder without code attributes")(
+      test("text format prints every user attribute") {
+        val timestamp = 1719792611123000000L
+        val builder   = Attributes.builder
+          .put("user", "nabil")
+          .put("tries", 3L)
+          .put("ratio", 1.5)
+          .put("active", true)
+
+        val rendered = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+
+        assertTrue(
+          rendered.contains("[] hello {"),
+          rendered.contains("user=\"nabil\""),
+          rendered.contains("tries=3"),
+          rendered.contains("ratio=1.5"),
+          rendered.contains("active=true")
+        )
+      }
+    ),
+    suite("shared render core parity")(
+      test("text format and formatRecord are byte-identical") {
+        val timestamp = 1719792612123000000L
+        val builder   = Attributes.builder
+          .put("code.filepath", "Service.scala")
+          .put("code.namespace", "com.example.Service")
+          .put("code.function", "run")
+          .put("code.lineno", 42L)
+          .put("user.string", "value")
+          .put("user.long", 7L)
+          .put("user.double", 3.5)
+          .put("user.bool", true)
+          .put(AttributeKey.stringSeq("tags"), Seq("a", "b"))
+          .put(AttributeKey.longSeq("nums"), Seq(1L, 2L))
+
+        val viaBuilder = renderText(timestamp, Severity.Info, "INFO", "hello", builder)
+        val viaRecord  =
+          renderTextRecord(logRecord(timestamp, Severity.Info, "INFO", "hello", builder.build))
+
+        assertTrue(viaBuilder == viaRecord)
+      },
+      test("json format and formatRecord are byte-identical") {
+        val timestamp = 1719792613123000000L
+        val traceIdHi = 0x1111222233334444L
+        val traceIdLo = 0x5555666677778888L
+        val spanId    = 0x9999aaaabbbbccccL
+        val builder   = Attributes.builder
+          .put("code.namespace", "com.example.Service")
+          .put("user.string", "value")
+          .put("user.long", 11L)
+          .put("user.double", 4.25)
+          .put("user.bool", true)
+
+        val viaBuilder =
+          renderJson(timestamp, Severity.Warn, "WARN", "json message", builder, traceIdHi, traceIdLo, spanId)
+        val viaRecord =
+          renderJsonRecord(
+            logRecord(timestamp, Severity.Warn, "WARN", "json message", builder.build, traceIdHi, traceIdLo, spanId)
+          )
+
+        assertTrue(viaBuilder == viaRecord)
+      }
+    ),
     suite("JsonLogFormatter.writeJsonStringContent")(
       test("escapes quotes, slashes, control chars, surrogates, and preserves normal text") {
         val input = "\"\\\n\r\t\b\f" + 1.toChar + 31.toChar + "\ud83d\ude00plain"

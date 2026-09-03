@@ -121,10 +121,14 @@ final class Logger private[telemetry] (
     log(Severity.Fatal, body, attrs)
 
   private def log(severity: Severity, body: String, attrs: Seq[(String, AttributeValue)]): Unit = {
+    // Cheap gate first: below the minimum level of every processor, skip the
+    // clock read, builder work, and record allocation entirely (mirrors the
+    // macro path's globalMinLevel pre-check).
+    if (severity.number < processorMinLevel) return
     val now        = EpochClock.epochNanos()
     val spanCtxOpt = contextStorage.get()
 
-    val attrBuilder = Attributes.builder
+    val attrBuilder = AttributeBuilderPool.get()
     attrs.foreach { case (k, v) =>
       v match {
         case AttributeValue.StringValue(s)     => attrBuilder.put(k, s)
@@ -151,7 +155,8 @@ final class Logger private[telemetry] (
       severity = severity,
       severityText = severity.text,
       body = LogMessage(body),
-      attributes = attrBuilder.build,
+      // Zero-copy handoff from the pooled builder (see StandardLogEmitter).
+      attributes = attrBuilder.buildAndReset(),
       traceIdHi = tidHi,
       traceIdLo = tidLo,
       spanId = sid,
