@@ -21,6 +21,7 @@ import zio.blocks.endpoint.RoutePattern.*
 import zio.http.Method
 import zio.http.Path
 import zio.test.*
+import scala.annotation.nowarn
 import scala.language.implicitConversions
 import scala.compiletime.testing.typeCheckErrors
 
@@ -40,7 +41,7 @@ object EndpointGroupSpec extends ZIOSpecDefault {
       },
       test("empty block returns NamedTuple[EmptyTuple, EmptyTuple]") {
         val group = endpoints {}
-        assertTrue(group.isInstanceOf[scala.NamedTuple.NamedTuple[EmptyTuple, EmptyTuple]])
+        assertTrue(group == NamedTuple(EmptyTuple))
       },
       test("single val block returns 1-member NamedTuple") {
         val group = endpoints {
@@ -311,7 +312,7 @@ val _ = endpoints { "not an endpoint" }
         val gBool = endpoints { val a = Endpoint(Method.GET / PathCodec.bool("b")) }
         val gLong = endpoints { val a = Endpoint(Method.GET / PathCodec.long("l")) }
         val gUuid = endpoints { val a = Endpoint(Method.GET / PathCodec.uuid("u")) }
-        val uuid  = java.util.UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val uuid  = java.util.UUID.randomUUID()
         assertTrue(
           gStr.a.route.decode(Method.GET, Path("/hello")) == Right("hello"),
           gBool.a.route.decode(Method.GET, Path("/true")) == Right(true),
@@ -355,35 +356,58 @@ val _ = endpoints { "not an endpoint" }
       }
     ),
     suite("endpoints macro external refs")(
-      test("external PathCodec can be referenced inside endpoints") {
-        val extCodec = PathCodec.int("extId")
-        val group    = endpoints {
-          val a = Endpoint(Method.GET / extCodec / "items")
-        }
-        assertTrue(group.a.route.render == "GET /{extId}/items")
+      test("bare external ref val x = Endpoint(GET / outside); endpoints { x } -> member .x") {
+        val x = Endpoint(Method.GET / "outside")
+        val g = endpoints { x }
+        assertTrue(g.x.route.render == "GET /outside")
       },
-      test("external PathCodec as prefix via /") {
-        val myCodec = PathCodec.int("myId")
-        val group   = myCodec / endpoints {
-          val a = Endpoint(Method.GET / "items")
-        }
-        assertTrue(group.a.route.render == "GET /{myId}/items")
+      test("alias val y = x inside block") {
+        val x = Endpoint(Method.GET / "outside")
+        val g = endpoints { val y = x }
+        assertTrue(g.y.route.render == "GET /outside")
       },
-      test("external codecs and schemas can be referenced together") {
-        import zio.blocks.schema.Schema
-        val ext   = PathCodec.string("ext")
-        val group = endpoints {
-          val a = Endpoint(Method.GET / ext).query("q", Schema.int)
-        }
-        assertTrue(group.a.route.render == "GET /{ext}")
+      test("multiple external refs endpoints { x; y } with different routes") {
+        val x = Endpoint(Method.GET / "outside")
+        val y = Endpoint(Method.POST / "other")
+        @nowarn("msg=pure expression")
+        val g = endpoints { x; y }
+        assertTrue(
+          g.x.route.render == "GET /outside",
+          g.y.route.render == "POST /other"
+        )
       },
-      test("external val config referenced in endpoint query") {
-        import zio.blocks.schema.Schema
-        val limitSchema = Schema.int
-        val group       = endpoints {
-          val a = Endpoint(Method.GET / "paged").query("limit", limitSchema)
+      test("prefix composition \"api\" / endpoints { x } -> GET /api/outside") {
+        val x = Endpoint(Method.GET / "outside")
+        val g = "api" / endpoints { x }
+        assertTrue(g.x.route.render == "GET /api/outside")
+      },
+      test("capturing prefix PathCodec.int(\"id\") / endpoints { x } -> GET /{id}/orders + static PathInput widening") {
+        val x   = Endpoint(Method.GET / "orders")
+        val g   = PathCodec.int("id") / endpoints { x }
+        val _: RoutePattern[Int] = g.x.route
+        assertTrue(g.x.route.render == "GET /{id}/orders")
+      },
+      test("nested \"api\" / endpoints { PathCodec.int(\"id\") / endpoints { x } }") {
+        val x = Endpoint(Method.GET / "orders")
+        val g = "api" / endpoints {
+          PathCodec.int("id") / endpoints { x }
         }
-        assertTrue(group.a.route.render == "GET /paged")
+        assertTrue(g.id.x.route.render == "GET /api/{id}/orders")
+      },
+      test("duplicate detection endpoints { x; x } should fail with typeCheckErrors") {
+        val errors = typeCheckErrors("""
+import zio.blocks.endpoint.*
+import zio.blocks.endpoint.RoutePattern.*
+import zio.http.Method
+val x = Endpoint(Method.GET / "outside")
+val _ = endpoints { x; x }
+""")
+        assertTrue(errors.nonEmpty && errors.exists(_.message.contains("duplicate")))
+      },
+      test("qualified Select Outer.x -> .x") {
+        object Outer { val x = Endpoint(Method.GET / "outside") }
+        val g = endpoints { Outer.x }
+        assertTrue(g.x.route.render == "GET /outside")
       }
     ),
     suite("endpoints macro intra-group rejection")(
