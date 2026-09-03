@@ -38,6 +38,7 @@ object PipelineSpec extends StreamsBaseSpec {
     andThenSuite,
     viaApplyToStreamSuite,
     andThenSinkSuite,
+    fusionSuite,
     jvmTypeSuite,
     sinkSpecializationSuite,
     regressionSuite
@@ -454,6 +455,41 @@ object PipelineSpec extends StreamsBaseSpec {
       check(genIntStream, genIntPipeline) { (s, p) =>
         assert(collect(p.applyToStream(s)))(equalTo(collect(s.via(p))))
       }
+    }
+  )
+
+  // =========================================================================
+  //  sink fusion (fused applyToSink == unfused applyToStream)
+  // =========================================================================
+
+  val fusionSuite = suite("sink fusion")(
+    test("filter fused == unfused") {
+      val data    = Chunk(1, 2, 3, 4, 5)
+      val pipe    = Pipeline.filter[Int](_ % 2 == 0)
+      val fused   = Stream.fromChunk(data).run(pipe.andThenSink(Sink.collectAll[Int]))
+      val unfused = pipe.applyToStream(Stream.fromChunk(data)).run(Sink.collectAll[Int])
+      assertTrue(fused == unfused, fused == Right(Chunk(2, 4)))
+    },
+    test("drop fused == unfused") {
+      val data    = Chunk(1, 2, 3, 4, 5)
+      val pipe    = Pipeline.drop[Int](2)
+      val fused   = Stream.fromChunk(data).run(pipe.andThenSink(Sink.collectAll[Int]))
+      val unfused = pipe.applyToStream(Stream.fromChunk(data)).run(Sink.collectAll[Int])
+      assertTrue(fused == unfused, fused == Right(Chunk(3, 4, 5)))
+    },
+    test("take fused == unfused") {
+      val data    = Chunk(1, 2, 3, 4, 5)
+      val pipe    = Pipeline.take[Int](3)
+      val fused   = Stream.fromChunk(data).run(pipe.andThenSink(Sink.collectAll[Int]))
+      val unfused = pipe.applyToStream(Stream.fromChunk(data)).run(Sink.collectAll[Int])
+      assertTrue(fused == unfused, fused == Right(Chunk(1, 2, 3)))
+    },
+    test("map fused == unfused (contramap fast path)") {
+      val data    = Chunk(1, 2, 3, 4, 5)
+      val pipe    = Pipeline.map[Int, Int](_ * 2)
+      val fused   = Stream.fromChunk(data).run(pipe.andThenSink(Sink.collectAll[Int]))
+      val unfused = pipe.applyToStream(Stream.fromChunk(data)).run(Sink.collectAll[Int])
+      assertTrue(fused == unfused, fused == Right(Chunk(2, 4, 6, 8, 10)))
     }
   )
 

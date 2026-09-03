@@ -41,42 +41,68 @@ trait TemplateInterpolators {
 
 private[html] object TemplateMacros {
 
+  /**
+   * Shared implicit search for the string-producing template typeclasses. The
+   * css/js/selector interpolators differ only in the typeclass searched and the
+   * conversion method applied, so all three route through here.
+   */
+  private def summonStringArg(
+    c: blackbox.Context
+  )(argExpr: c.Expr[Any], tc: c.Type, method: c.TermName, tcName: String): c.Tree = {
+    import c.universe._
+    val argType  = argExpr.actualType.widen
+    val applied  = appliedType(tc.typeConstructor, argType)
+    val instance = c.inferImplicitValue(applied, silent = true)
+    if (instance == EmptyTree) {
+      c.abort(argExpr.tree.pos, s"No $tcName instance found for type $argType")
+    }
+    q"$instance.$method(${argExpr.tree})"
+  }
+
+  /**
+   * Shared implicit search returning the raw instance tree, for call sites that
+   * wrap the conversion themselves (the html attr/content branches).
+   */
+  private def summonInstance(
+    c: blackbox.Context
+  )(argType: c.Type, tc: c.Type, tcName: String, pos: c.Position): c.Tree = {
+    import c.universe._
+    val applied  = appliedType(tc.typeConstructor, argType)
+    val instance = c.inferImplicitValue(applied, silent = true)
+    if (instance == EmptyTree) {
+      c.abort(pos, s"No $tcName instance found for type $argType")
+    }
+    instance
+  }
+
+  /**
+   * One generic implementation for the css/js/selector interpolators: converts
+   * each argument through the given typeclass and delegates to the given
+   * runtime builder.
+   */
+  private def stringTemplate[R](
+    c: blackbox.Context
+  )(args: Seq[c.Expr[Any]], tc: c.Type, method: c.TermName, tcName: String)(
+    build: (c.Tree, c.Tree) => c.Tree
+  ): c.Expr[R] = {
+    import c.universe._
+    val processedArgs = args.map(argExpr => summonStringArg(c)(argExpr, tc, method, tcName))
+    val scTree        = c.prefix.tree.asInstanceOf[Apply].args.head
+    c.Expr[R](build(scTree, q"_root_.scala.Seq(..$processedArgs)"))
+  }
+
   def cssImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Css] = {
     import c.universe._
-
-    val processedArgs = args.map { argExpr =>
-      val argType   = argExpr.actualType.widen
-      val toCssTc   = typeOf[ToCss[_]].typeConstructor
-      val toCssType = appliedType(toCssTc, argType)
-      val instance  = c.inferImplicitValue(toCssType, silent = true)
-      if (instance == EmptyTree) {
-        c.abort(argExpr.tree.pos, s"No ToCss instance found for type $argType")
-      }
-      q"$instance.toCss(${argExpr.tree})"
+    stringTemplate[Css](c)(args, typeOf[ToCss[_]], TermName("toCss"), "ToCss") { (scTree, argsTree) =>
+      q"_root_.zio.blocks.html.InterpolatorRuntime.buildCss($scTree, $argsTree)"
     }
-
-    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-    val argsExpr = c.Expr[Seq[String]](q"_root_.scala.Seq(..$processedArgs)")
-    reify(InterpolatorRuntime.buildCss(scExpr.splice, argsExpr.splice))
   }
 
   def jsImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Js] = {
     import c.universe._
-
-    val processedArgs = args.map { argExpr =>
-      val argType  = argExpr.actualType.widen
-      val toJsTc   = typeOf[ToJs[_]].typeConstructor
-      val toJsType = appliedType(toJsTc, argType)
-      val instance = c.inferImplicitValue(toJsType, silent = true)
-      if (instance == EmptyTree) {
-        c.abort(argExpr.tree.pos, s"No ToJs instance found for type $argType")
-      }
-      q"$instance.toJs(${argExpr.tree})"
+    stringTemplate[Js](c)(args, typeOf[ToJs[_]], TermName("toJs"), "ToJs") { (scTree, argsTree) =>
+      q"_root_.zio.blocks.html.InterpolatorRuntime.buildJs($scTree, $argsTree)"
     }
-
-    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-    val argsExpr = c.Expr[Seq[String]](q"_root_.scala.Seq(..$processedArgs)")
-    reify(InterpolatorRuntime.buildJs(scExpr.splice, argsExpr.splice))
   }
 
   def htmlImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[Dom] = {
@@ -97,21 +123,11 @@ private[html] object TemplateMacros {
 
       context match {
         case HtmlContext.AttrValue =>
-          val toAttrValueTc   = typeOf[ToAttrValue[_]].typeConstructor
-          val toAttrValueType = appliedType(toAttrValueTc, argType)
-          val instance        = c.inferImplicitValue(toAttrValueType, silent = true)
-          if (instance == EmptyTree) {
-            c.abort(argExpr.tree.pos, s"No ToAttrValue instance found for type $argType")
-          }
+          val instance = summonInstance(c)(argType, typeOf[ToAttrValue[_]], "ToAttrValue", argExpr.tree.pos)
           q"_root_.scala.Left($instance.toAttrValue(${argExpr.tree})): _root_.scala.util.Either[_root_.java.lang.String, _root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.html.Dom]]"
 
         case HtmlContext.Content =>
-          val toElementsTc   = typeOf[ToElements[_]].typeConstructor
-          val toElementsType = appliedType(toElementsTc, argType)
-          val instance       = c.inferImplicitValue(toElementsType, silent = true)
-          if (instance == EmptyTree) {
-            c.abort(argExpr.tree.pos, s"No ToElements instance found for type $argType")
-          }
+          val instance = summonInstance(c)(argType, typeOf[ToElements[_]], "ToElements", argExpr.tree.pos)
           q"_root_.scala.Right($instance.toElements(${argExpr.tree})): _root_.scala.util.Either[_root_.java.lang.String, _root_.zio.blocks.chunk.Chunk[_root_.zio.blocks.html.Dom]]"
       }
     }
@@ -123,21 +139,9 @@ private[html] object TemplateMacros {
 
   def selectorImpl(c: blackbox.Context)(args: c.Expr[Any]*): c.Expr[CssSelector] = {
     import c.universe._
-
-    val processedArgs = args.map { argExpr =>
-      val argType   = argExpr.actualType.widen
-      val toCssTc   = typeOf[ToCss[_]].typeConstructor
-      val toCssType = appliedType(toCssTc, argType)
-      val instance  = c.inferImplicitValue(toCssType, silent = true)
-      if (instance == EmptyTree) {
-        c.abort(argExpr.tree.pos, s"No ToCss instance found for type $argType")
-      }
-      q"$instance.toCss(${argExpr.tree})"
+    stringTemplate[CssSelector](c)(args, typeOf[ToCss[_]], TermName("toCss"), "ToCss") { (scTree, argsTree) =>
+      q"_root_.zio.blocks.html.InterpolatorRuntime.buildSelector($scTree, $argsTree)"
     }
-
-    val scExpr   = c.Expr[StringContext](c.prefix.tree.asInstanceOf[Apply].args.head)
-    val argsExpr = c.Expr[Seq[String]](q"_root_.scala.Seq(..$processedArgs)")
-    reify(InterpolatorRuntime.buildSelector(scExpr.splice, argsExpr.splice))
   }
 
   private sealed trait HtmlContext

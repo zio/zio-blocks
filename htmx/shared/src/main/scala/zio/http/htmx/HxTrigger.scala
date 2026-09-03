@@ -19,7 +19,7 @@ package zio.http.htmx
 import scala.concurrent.duration.FiniteDuration
 
 import _root_.zio.blocks.chunk.Chunk
-import _root_.zio.blocks.html.Js
+import _root_.zio.blocks.html.{CssSelector, Js}
 
 /** Common rendered shape for `hx-trigger` values. */
 sealed trait HxTriggerValue extends Product with Serializable {
@@ -59,14 +59,47 @@ final case class HxTrigger private (
   /** Adds the `changed` modifier. */
   def changed: HxTrigger = withModifier(HxTrigger.Modifier.Changed)
 
-  /** Adds or replaces the `from:` modifier. */
-  def from(selector: String): HxTrigger =
-    withModifier(HxTrigger.Modifier.From(HtmxSupport.requireNonBlank(selector, "HTMX trigger source selector")))
-  def from(target: HxTarget): HxTrigger = from(target.render)
+  /** Adds or replaces the `from:` modifier with a typed CSS selector. */
+  def from(selector: CssSelector): HxTrigger =
+    fromRaw(selector.render)
 
-  /** Adds or replaces the `target:` modifier. */
-  def target(selector: String): HxTrigger =
+  /**
+   * Adds or replaces the `from:` modifier from a raw string.
+   *
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express (e.g. HTMX extended selectors like `closest ...`,
+   * `document`, or `window`).
+   */
+  def fromRaw(selector: String): HxTrigger =
+    withModifier(HxTrigger.Modifier.From(HtmxSupport.requireNonBlank(selector, "HTMX trigger source selector")))
+
+  /**
+   * Adds or replaces the `from:` modifier from a raw string (legacy alias for
+   * [[fromRaw]]).
+   */
+  def from(selector: String): HxTrigger =
+    fromRaw(selector)
+  def from(target: HxTarget): HxTrigger = fromRaw(target.render)
+
+  /** Adds or replaces the `target:` modifier with a typed CSS selector. */
+  def target(selector: CssSelector): HxTrigger =
+    targetRaw(selector.render)
+
+  /**
+   * Adds or replaces the `target:` modifier from a raw string.
+   *
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express.
+   */
+  def targetRaw(selector: String): HxTrigger =
     withModifier(HxTrigger.Modifier.Target(HtmxSupport.requireNonBlank(selector, "HTMX trigger target selector")))
+
+  /**
+   * Adds or replaces the `target:` modifier from a raw string (legacy alias for
+   * [[targetRaw]]).
+   */
+  def target(selector: String): HxTrigger =
+    targetRaw(selector)
 
   /** Adds the `consume` modifier. */
   def consume: HxTrigger = withModifier(HxTrigger.Modifier.Consume)
@@ -77,9 +110,25 @@ final case class HxTrigger private (
   /** Adds or replaces the `threshold:` modifier. */
   def threshold(value: Double): HxTrigger = withModifier(HxTrigger.Modifier.Threshold(value))
 
-  /** Adds or replaces the `root:` modifier. */
-  def root(selector: String): HxTrigger =
+  /** Adds or replaces the `root:` modifier with a typed CSS selector. */
+  def root(selector: CssSelector): HxTrigger =
+    rootRaw(selector.render)
+
+  /**
+   * Adds or replaces the `root:` modifier from a raw string.
+   *
+   * Explicit stringly escape hatch for selectors the typed [[CssSelector]]
+   * surface cannot express.
+   */
+  def rootRaw(selector: String): HxTrigger =
     withModifier(HxTrigger.Modifier.Root(HtmxSupport.requireNonBlank(selector, "HTMX trigger root selector")))
+
+  /**
+   * Adds or replaces the `root:` modifier from a raw string (legacy alias for
+   * [[rootRaw]]).
+   */
+  def root(selector: String): HxTrigger =
+    rootRaw(selector)
 
   /**
    * Replaces the JavaScript filter expression for this trigger.
@@ -149,8 +198,24 @@ object HxTrigger {
       def render: String = "from:" + selector
     }
 
+    object From {
+
+      /**
+       * Typed constructor rendering a [[CssSelector]] (mirrors `HxTarget.css`).
+       */
+      def css(selector: CssSelector): From = From(selector.render)
+    }
+
     final case class Target(selector: String) extends Modifier {
       def render: String = "target:" + selector
+    }
+
+    object Target {
+
+      /**
+       * Typed constructor rendering a [[CssSelector]] (mirrors `HxTarget.css`).
+       */
+      def css(selector: CssSelector): Target = Target(selector.render)
     }
 
     final case class Queue(strategy: QueueStrategy) extends Modifier {
@@ -163,6 +228,14 @@ object HxTrigger {
 
     final case class Root(selector: String) extends Modifier {
       def render: String = "root:" + selector
+    }
+
+    object Root {
+
+      /**
+       * Typed constructor rendering a [[CssSelector]] (mirrors `HxTarget.css`).
+       */
+      def css(selector: CssSelector): Root = Root(selector.render)
     }
 
     case object Once extends Modifier {

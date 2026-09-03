@@ -203,6 +203,19 @@ object DomSpec extends ZIOSpecDefault {
       },
       test("input self-closes") {
         assertTrue(Dom.Element.Generic("input", Chunk.empty, Chunk.empty).render == "<input/>")
+      },
+      test("Generic rejects children on void tags") {
+        assertTrue(
+          scala.util.Try(Dom.Element.Generic("br", Chunk.empty, Chunk(Dom.Text("x")))).isFailure,
+          scala.util.Try(Dom.Element.Generic("img", Chunk.empty, Chunk(Dom.Text("x")))).isFailure
+        )
+      },
+      test("Generic allows empty children on void tags") {
+        assertTrue(Dom.Element.Generic("br", Chunk.empty, Chunk.empty).render == "<br/>")
+      },
+      test("withChildren rejects children on void tags") {
+        val el = Dom.Element.Generic("br", Chunk.empty, Chunk.empty)
+        assertTrue(scala.util.Try(el.withChildren(Chunk(Dom.Text("x")))).isFailure)
       }
     ),
     suite("renderMinified")(
@@ -461,6 +474,70 @@ object DomSpec extends ZIOSpecDefault {
           !Dom.Text("hi").isEmpty,
           !Dom.Element.Generic("div", Chunk.empty, Chunk.empty).isEmpty
         )
+      },
+      test("find returns first match in depth-first order") {
+        val tree = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("first"))),
+            Dom.Element.Generic(
+              "section",
+              Chunk.empty,
+              Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("nested"))))
+            )
+          )
+        )
+        val found = tree.find {
+          case el: Dom.Element => el.tag == "p"
+          case _               => false
+        }
+        assertTrue(found.map(_.render) == Some("<p>first</p>"))
+      },
+      test("filter evaluates the predicate once per node") {
+        var evaluations = 0
+        val tree        = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(
+            Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("a"))),
+            Dom.Element.Generic("span", Chunk.empty, Chunk(Dom.Text("b")))
+          )
+        )
+        val filtered = tree.filter { _ =>
+          evaluations += 1
+          true
+        }
+        assertTrue(filtered.render == "<div><p>a</p><span>b</span></div>", evaluations == 5)
+      },
+      test("identity transform preserves the tree") {
+        val tree = Dom.Element.Generic(
+          "div",
+          Chunk.empty,
+          Chunk(Dom.Element.Generic("p", Chunk.empty, Chunk(Dom.Text("x"))))
+        )
+        assertTrue(tree.transform(identity) == tree)
+      }
+    ),
+    suite("resolved attribute caching")(
+      test("repeated renders with appends are identical") {
+        val a1     = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val a2     = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("b"), Dom.AttributeSeparator.Space)
+        val el     = Dom.Element.Generic("div", Chunk(a1, a2), Chunk(Dom.Text("x")))
+        val first  = el.render
+        val second = el.render
+        assertTrue(first == """<div class="a b">x</div>""", second == first)
+      },
+      test("repeated renders with duplicate names are identical") {
+        val a1 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("one"))
+        val a2 = Dom.Attribute.KeyValue("id", Dom.AttributeValue.StringValue("two"))
+        val el = Dom.Element.Generic("div", Chunk(a1, a2), Chunk.empty)
+        assertTrue(el.render == """<div id="two"></div>""", el.renderMinified == """<div id="two"></div>""")
+      },
+      test("cached resolution matches indented rendering") {
+        val a1 = Dom.Attribute.AppendValue("class", Dom.AttributeValue.StringValue("a"), Dom.AttributeSeparator.Space)
+        val el = Dom.Element.Generic("div", Chunk(a1), Chunk(Dom.Text("x")))
+        assertTrue(el.render(2) == """<div class="a">x</div>""", el.render == """<div class="a">x</div>""")
       }
     ),
     suite("Dom.text and Dom.empty factories")(

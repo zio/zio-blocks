@@ -381,7 +381,29 @@ trait HtmlElements {
   val varTag: Dom.Element                                            = Dom.Element.Generic("var", Chunk.empty, Chunk.empty)
   val video: Dom.Element                                             = Dom.Element.Generic("video", Chunk.empty, Chunk.empty)
   val wbr: Dom.Element.Void                                          = Dom.Element.VoidGeneric("wbr", Chunk.empty)
-  def element(tag: String): Dom.Element                              = Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+
+  /**
+   * Creates a generic element for a non-void tag.
+   *
+   * @throws java.lang.IllegalArgumentException
+   *   if `tag` is a void element (`br`, `img`, `input`, ...). Void tags cannot
+   *   carry children, so they are rejected here instead of silently discarding
+   *   them at render; use [[voidElement]] for those tags.
+   */
+  def element(tag: String): Dom.Element = {
+    require(
+      !Dom.voidElements.contains(tag),
+      s"Void element <$tag> cannot have children. Use voidElement(\"$tag\") for void tags."
+    )
+    Dom.Element.Generic(tag, Chunk.empty, Chunk.empty)
+  }
+
+  /**
+   * Creates a generic void element (e.g., `br`, `img`, `input`) that renders
+   * self-closed and rejects children at compile time via [[Dom.Element.Void]].
+   */
+  def voidElement(tag: String): Dom.Element.Void =
+    Dom.Element.VoidGeneric(tag, Chunk.empty)
 
   /** Creates an empty `<li>` element, returning `Li`. */
   def li(): Dom.Element.Li = Dom.Element.LiElement(Chunk.empty, Chunk.empty)

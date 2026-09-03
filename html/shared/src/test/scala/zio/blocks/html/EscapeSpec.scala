@@ -194,6 +194,30 @@ object EscapeSpec extends ZIOSpecDefault {
       },
       test("allows fragment-only URLs") {
         assertTrue(Escape.sanitizeUrl("#section") == "#section")
+      },
+      test("blocks data:image/svg+xml carrying script") {
+        assertTrue(
+          Escape.sanitizeUrl("data:image/svg+xml,<svg><script>alert(1)</script></svg>") ==
+            "unsafe:data:image/svg+xml,<svg><script>alert(1)</script></svg>"
+        )
+      },
+      test("blocks data:image/svg with mixed case") {
+        assertTrue(
+          Escape.sanitizeUrl("DATA:IMAGE/SVG+XML,<svg></svg>") == "unsafe:DATA:IMAGE/SVG+XML,<svg></svg>"
+        )
+      },
+      test("blocks entity-encoded javascript: scheme") {
+        assertTrue(
+          Escape.sanitizeUrl("&#106;avascript:alert(1)") == "unsafe:&#106;avascript:alert(1)"
+        )
+      },
+      test("blocks hex entity and colon entity scheme smuggling") {
+        assertTrue(
+          Escape.sanitizeUrl("&#x6A;avascript&colon;alert(1)") == "unsafe:&#x6A;avascript&colon;alert(1)"
+        )
+      },
+      test("allows data:image bitmap types") {
+        assertTrue(Escape.sanitizeUrl("data:image/jpeg;base64,abc") == "data:image/jpeg;base64,abc")
       }
     )
   )
