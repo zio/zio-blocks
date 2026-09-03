@@ -101,7 +101,10 @@ object JsonSchemaOfficialTestSuiteSpec extends SchemaBaseSpec {
     "a's and b's are valid",
     "when if is false and has unevaluated properties",
     "numbers are unique if mathematically unequal",
-    "string is only an annotation by default"
+    "string is only an annotation by default",
+    // Upstream data bytes are precomposed, identical to the enum member,
+    // so no implementation can report them as different.
+    "character looks the same but uses combining marks"
   )
 
   private def isFailingTestGroup(description: String): Boolean =
