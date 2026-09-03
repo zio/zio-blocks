@@ -21,16 +21,27 @@ import zio.blocks.scope.internal.{ErrorMessages, Finalizers}
 /**
  * A scope that manages resource lifecycle with compile-time verified safety.
  *
- * ==Closed-scope safety==
+ * ==Closed-scope behavior==
  *
- * The operations `allocate`, `open`, and `$` throw
- * [[java.lang.IllegalStateException]] if called on a scope that has already
- * closed. The exception message explains what went wrong and how to fix it.
- * This prevents silent use-after-free bugs where a scope reference escapes its
- * `scoped { }` block and a resource is accessed after its finalizers have run.
+ * Once a scope has closed, its finalizers have already run. Every operation
+ * below keeps that invariant — but they signal it differently:
  *
- * `defer` on a closed scope is silently ignored (no-op), and `scoped` on a
- * closed scope creates a born-closed child.
+ * {{{
+ * Operation              On a closed scope
+ * ---------------------  ------------------------------------------------
+ * `allocate`             Throws [[java.lang.IllegalStateException]]
+ * `open`                 Throws [[java.lang.IllegalStateException]]
+ * `$` (apply)            Throws [[java.lang.IllegalStateException]]
+ * `defer`                Silently ignored: returns `DeferHandle.Noop`
+ * `scoped`               Creates a born-closed child
+ * }}}
+ *
+ * In particular, `defer` on a closed scope drops the finalizer without running
+ * it. If the cleanup must happen, check [[isClosed]] first or keep the
+ * registration inside the scope's lifetime — a typo'd `defer` after close loses
+ * cleanup silently. `allocate`, `open`, and `$` throw instead so
+ * use-after-close of values fails loudly. The exception messages explain what
+ * went wrong and how to fix it.
  */
 sealed abstract class Scope extends Finalizer with ScopeVersionSpecific { self =>
 

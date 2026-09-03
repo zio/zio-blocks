@@ -36,8 +36,15 @@ final class SpanId(val value: Long) extends AnyVal {
 
   /**
    * Converts this span ID to a 16-character lowercase hexadecimal string.
+   *
+   * Hand-rolled nibble appends (see `Hex`) instead of `String.format`: this
+   * runs per span on the inject/export hot path.
    */
-  def toHex: String = String.format("%016x", value)
+  def toHex: String = {
+    val sb = new StringBuilder(16)
+    Hex.appendLong16(sb, value)
+    sb.toString
+  }
 
   /**
    * Converts this span ID to an 8-byte big-endian array.

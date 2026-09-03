@@ -29,6 +29,12 @@ import java.util.concurrent.atomic.AtomicReference
  * Resources are lazy—they describe ''what'' to do, not ''when''. Creation only
  * happens when passed to a scope via `scope.allocate(resource)`.
  *
+ * Note: this is the lifecycle resource (''how a value is acquired and released
+ * in a scope''). It is not the same as `zio.blocks.telemetry.Resource` (the
+ * OpenTelemetry resource: data identity, ''what produced this telemetry''). The
+ * names collide across modules (which cannot link to each other here); they
+ * share nothing else.
+ *
  * ==Creating Resources==
  *
  *   - `Resource(=> a)`: By-name value; auto-registers `close()` if

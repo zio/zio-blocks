@@ -16,12 +16,33 @@
 
 package zio.blocks.config
 
+/**
+ * Decides whether a config/flag key path names a secret, so error messages,
+ * provenance dumps, and exporter headers can redact the value.
+ *
+ * Matching is case-insensitive substring matching over the path with `-`
+ * normalized to `_` (so `apiKey` lowercases to `apikey` and matches). The
+ * marker list below errs toward redaction:
+ *
+ *   - Covered: secret, password, passwd, pwd, passphrase, auth, token,
+ *     apikey/api_key, accesskey/access_key, privatekey/private_key,
+ *     credential(s).
+ *   - Known false positives: ordinary words containing a marker (e.g.
+ *     `tokenizer` contains `token`) redact too. That is the safe direction — an
+ *     error string shows `<secret>` instead of a value that might be sensitive.
+ *
+ * `Secret` itself always redacts; this list only guards paths that carry raw
+ * strings (parse errors, dumps, headers).
+ */
 private[config] object Sensitive {
 
   private val markers = List(
     "secret",
     "password",
     "passwd",
+    "pwd",
+    "passphrase",
+    "auth",
     "token",
     "apikey",
     "api_key",
