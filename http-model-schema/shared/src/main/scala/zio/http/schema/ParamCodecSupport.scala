@@ -17,8 +17,8 @@
 package zio.http.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding.{HasBinding, SeqConstructor}
-import zio.blocks.schema.{PrimitiveType, Reflect, SchemaError}
+import zio.blocks.schema.binding.{Binding, HasBinding, SeqConstructor}
+import zio.blocks.schema.{DynamicOptic, PrimitiveType, Reflect, Schema, SchemaError}
 
 import java.util.UUID
 import scala.reflect.ClassTag
@@ -119,7 +119,8 @@ private[schema] object ParamCodecSupport {
       inner.decodeAny(fieldName, rawValues, errorFactory).flatMap { value =>
         try Right(wrap(value.asInstanceOf[B]))
         catch {
-          case NonFatal(error) => Left(SchemaError.conversionFailed(Nil, error.getMessage))
+          case NonFatal(error) =>
+            Left(SchemaError.conversionFailed(List(DynamicOptic.Node.Field(fieldName)), error.getMessage))
         }
       }
   }
@@ -203,8 +204,26 @@ private[schema] object ParamCodecSupport {
     errorFactory: DecodeErrorFactory
   ): Either[SchemaError, A] =
     decodePrimitiveString(raw, primitiveType).left.map(cause =>
-      SchemaError.conversionFailed(Nil, errorFactory.malformed(fieldName, raw, cause))
+      SchemaError.conversionFailed(
+        List(DynamicOptic.Node.Field(fieldName)),
+        errorFactory.malformed(fieldName, raw, cause)
+      )
     )
+
+  /**
+   * Decodes a single raw string against a primitive-only schema.
+   *
+   * This is the one shared string-to-primitive entry point for the
+   * `QueryParamsSchemaOps` / `HeadersSchemaOps` extension methods; the derivers
+   * reach the same parser through [[ParamCodecSupport.decodePrimitiveString]].
+   */
+  def decode[T](raw: String, schema: Schema[T]): Either[String, T] =
+    schema.reflect match {
+      case p: Reflect.Primitive[Binding, T] @unchecked =>
+        decodePrimitiveString(raw, p.primitiveType)
+      case _ =>
+        Left("Unsupported schema type for string decoding")
+    }
 
   def decodePrimitiveString[A](raw: String, primitiveType: PrimitiveType[A]): Either[String, A] =
     try {
@@ -226,8 +245,10 @@ private[schema] object ParamCodecSupport {
         case _ => Left("Unsupported primitive type for string decoding")
       }
     } catch {
-      case _: NumberFormatException    => Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
-      case _: IllegalArgumentException => Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
+      case _: NumberFormatException =>
+        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
+      case _: IllegalArgumentException =>
+        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
     }
 
   private def renderPrimitive[A](value: A, primitiveType: PrimitiveType[A]): String = primitiveType match {
@@ -246,19 +267,19 @@ private[schema] object ParamCodecSupport {
     case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
   }
 
-  private def typeName[A](primitiveType: PrimitiveType[A]): String = primitiveType match {
-    case _: PrimitiveType.String     => "String"
-    case _: PrimitiveType.Int        => "Int"
-    case _: PrimitiveType.Long       => "Long"
-    case _: PrimitiveType.Boolean    => "Boolean"
-    case _: PrimitiveType.Double     => "Double"
-    case _: PrimitiveType.Float      => "Float"
-    case _: PrimitiveType.Short      => "Short"
-    case _: PrimitiveType.Byte       => "Byte"
-    case _: PrimitiveType.BigInt     => "BigInt"
-    case _: PrimitiveType.BigDecimal => "BigDecimal"
-    case _: PrimitiveType.UUID       => "UUID"
-    case _: PrimitiveType.Char       => "Char"
-    case _                           => "Unknown"
+  /**
+   * Runs one encode against a thread-local builder, sharing the
+   * get/reset/use/build dance between the query and header codecs so the
+   * ordering cannot drift between the two call sites.
+   */
+  def withBuilder[Builder, Result](
+    local: ThreadLocal[Builder],
+    reset: Builder => Unit,
+    build: Builder => Result
+  )(use: Builder => Unit): Result = {
+    val builder = local.get()
+    reset(builder)
+    use(builder)
+    build(builder)
   }
 }
