@@ -30,9 +30,33 @@ package zio.blocks.mux
  *   Message type received on streams
  */
 object Mux {
-  def apply[Id, In, Out](capacity: Int): Mux[Id, In, Out] = {
+
+  /** Default per-stream queue depth (inbound and outbound). */
+  val DefaultStreamQueueCapacity: Int = 256
+
+  /**
+   * Creates a multiplexer holding at most `capacity` concurrent streams.
+   *
+   * @param capacity
+   *   maximum number of concurrent streams
+   * @param streamQueueCapacity
+   *   depth of each stream's inbound and outbound queues (must be a positive
+   *   power of two; the JVM backend stores each queue in a fixed ring buffer).
+   *   Sizing guidance: each stream carries two queues of this depth, so the
+   *   worst-case retained memory per stream is roughly twice
+   *   `streamQueueCapacity` message references. Size it at or above the maximum
+   *   number of messages you expect to be in flight on one stream between
+   *   polls. When a queue is full, `send`/`offerInbound` return
+   *   [[MuxError.QueueFull]] instead of blocking (non-blocking contract) —
+   *   callers should retry, shed load, or open fewer streams rather than spin.
+   */
+  def apply[Id, In, Out](capacity: Int, streamQueueCapacity: Int = DefaultStreamQueueCapacity): Mux[Id, In, Out] = {
     require(capacity > 0, s"Mux capacity must be positive, got $capacity")
-    PlatformMux.create[Id, In, Out](capacity)
+    require(
+      streamQueueCapacity > 0 && (streamQueueCapacity & (streamQueueCapacity - 1)) == 0,
+      s"Mux stream queue capacity must be a positive power of two, got $streamQueueCapacity"
+    )
+    PlatformMux.create[Id, In, Out](capacity, streamQueueCapacity)
   }
 }
 
@@ -162,11 +186,21 @@ trait MuxStream[Id, In, Out] {
    * Returns the next available inbound message, or None if no message is
    * available yet. Returns Left(error) if the stream is closed.
    *
+   * Drain-before-error: already-buffered messages are returned first; the
+   * terminal error surfaces only once the buffer is empty, so no message is
+   * lost on close. [[receiveStrict]] is an alias kept for discoverability.
+   *
    * @return
    *   Right(Some(msg)) if a message is available, Right(None) if no message
    *   yet, Left(error) if closed
    */
   def receive(): Either[MuxError, Option[Out]]
+
+  /**
+   * Alias for [[receive]] kept for discoverability: like `receive`, it drains
+   * already-buffered messages before surfacing the terminal error.
+   */
+  def receiveStrict(): Either[MuxError, Option[Out]] = receive()
 
   /**
    * Deliver a message to this stream's inbound queue.
