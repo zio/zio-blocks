@@ -97,11 +97,11 @@ object HeaderCodecSpec extends ZIOSpecDefault {
       val wrapperCodec = Schema[UserId].derive(DefaultHeaderFormat)
 
       assertTrue(
-        intCodec.encodeToHeaders(42).rawGet("Value").contains("42"),
+        intCodec.encodeToHeaders(42).rawGet("value").contains("42"),
         intCodec.decode(Headers("value" -> "42")) == Right(42),
-        listCodec.encodeToHeaders(List(1, 2)).rawGetAll("Value") == zio.blocks.chunk.Chunk("1", "2"),
+        listCodec.encodeToHeaders(List(1, 2)).rawGetAll("value") == zio.blocks.chunk.Chunk("1", "2"),
         listCodec.decode(Headers("value" -> "1", "value" -> "2")) == Right(List(1, 2)),
-        wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("Value").contains("wrapped"),
+        wrapperCodec.encodeToHeaders(UserId("wrapped")).rawGet("value").contains("wrapped"),
         wrapperCodec.decode(Headers("value" -> "wrapped")) == Right(UserId("wrapped"))
       )
     },

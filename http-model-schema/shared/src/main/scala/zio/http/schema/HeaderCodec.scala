@@ -27,16 +27,12 @@ import zio.http.{Headers, HeadersBuilder}
  * derivation framework.
  */
 abstract class HeaderCodec[A] extends Codec[Headers, HeadersBuilder, A] {
-  final def encodeToHeaders(value: A): Headers = {
-    val builder = HeaderCodec.threadLocalBuilder.get()
-    builder.reset()
-    encode(value, builder)
-    builder.build()
-  }
+  final def encodeToHeaders(value: A): Headers =
+    ParamCodecSupport.withBuilder(HeaderCodec.threadLocalBuilder, _.reset(), _.build())(encode(value, _))
 }
 
 object HeaderCodec {
-  private val threadLocalBuilder: ThreadLocal[HeadersBuilder] =
+  private[schema] val threadLocalBuilder: ThreadLocal[HeadersBuilder] =
     new ThreadLocal[HeadersBuilder] {
       override def initialValue(): HeadersBuilder = HeadersBuilder.make()
     }
