@@ -1143,7 +1143,7 @@ abstract class Stream[+E, +A] {
  *   - '''Advanced''': [[Stream.fromReader fromReader]],
  *     [[Stream.suspend suspend]], [[Stream.flattenAll flattenAll]]
  */
-object Stream {
+object Stream extends StreamCompanionPlatformSpecific {
 
   /** Creates a stream from the given elements. */
   def apply[A](as: A*)(implicit jt: JvmType.Infer[A]): Stream[Nothing, A] = {
