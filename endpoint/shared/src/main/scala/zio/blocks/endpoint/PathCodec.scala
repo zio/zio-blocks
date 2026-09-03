@@ -16,6 +16,7 @@
 
 package zio.blocks.endpoint
 
+import scala.annotation.implicitNotFound
 import scala.language.implicitConversions
 
 import zio.blocks.combinators.Tuples
@@ -26,16 +27,22 @@ import zio.http.Path
  * alternatives with `orElse`. Use `decode` / `format` for bidirectional path
  * conversion, and `alternatives` to expand `orElse` branches for routing-trie
  * insertion.
+ *
+ * Path variables (the names declared by `int`/`long`/`string`/`bool`/`uuid`)
+ * are tracked twice: once as runtime values of type `A`, once as phantom
+ * [[zio.blocks.endpoint.SegmentCodec.PathVars SegmentCodec.PathVars]] markers.
+ * See that member for the value-track-vs-phantom-track table; this trait only
+ * repeats the punchline — the phantom track never affects `A` and costs nothing
+ * at runtime.
  */
 sealed trait PathCodec[A] {
 
   /**
    * Ordered, purely phantom registry of [[PathVar]] markers contributed by this
    * path (the concatenation, in order, of every captured segment's own
-   * `SegmentCodec.PathVars`). This is a second, parallel type track: it never
-   * affects `A` (the existing runtime-extracted value type) and has zero
-   * runtime footprint. Left unbounded (mirrors `SegmentCodec.PathVars` -
-   * `scala.Tuple` does not exist as a cross-version supertype on Scala 2.13).
+   * `SegmentCodec.PathVars`). Zero runtime footprint; see
+   * [[zio.blocks.endpoint.SegmentCodec.PathVars SegmentCodec.PathVars]] for the
+   * full table (value track vs phantom track vs runtime cost).
    */
   type PathVars
 }
@@ -55,13 +62,22 @@ object PathCodec {
   /**
    * Compile-time evidence that combines two `PathVars` tracks (`PV` and `PV2`)
    * into `PVC`, exactly like `Tuples.Tuples.WithOut` and driving `PVC`'s
-   * inference for `PathCodecOps.++`/`/`. It exists as a thin `PathCodec`-owned
-   * wrapper so that this companion object is part of the implicit search scope
-   * for the combiner, letting [[PathVarsCombiner.noPathVarsBoth]] disambiguate
-   * the otherwise-ambiguous `NoPathVars` + `NoPathVars` case on Scala 3 (where
+   * inference for `PathCodecOps.++`/`/` and `RoutePatternOps./`. This is the
+   * ONE combiner for the phantom track: `RoutePatternOps./` reuses it directly
+   * (it used to take a duplicate `RoutePathVarsCombiner` that deferred to
+   * `Tuples` identically). It exists as a thin `PathCodec`-owned wrapper so
+   * that this companion object is part of the implicit search scope for the
+   * combiner, letting [[PathVarsCombiner.noPathVarsBoth]] disambiguate the
+   * otherwise-ambiguous `NoPathVars` + `NoPathVars` case on Scala 3 (where
    * `NoPathVars = EmptyTuple` matches both `leftEmptyTuple` and
    * `rightEmptyTuple` givens equally).
    */
+  @implicitNotFound(
+    "Cannot combine the captured path variables of these two patterns (${PV} with ${PV2}). " +
+      "Combine concrete patterns built from PathCodec.literal/int/long/string/bool/uuid/trailing " +
+      "(via PathCodecOps.++ or /, SegmentCodec.~, or RoutePatternOps./) so both sides carry a concrete " +
+      "PathVars track; abstract PathVars (for example a bare PathCodec[A] method parameter) cannot be combined."
+  )
   sealed trait PathVarsCombiner[PV, PV2, PVC]
 
   object PathVarsCombiner extends PathVarsCombinerLowPriority {
@@ -83,22 +99,18 @@ object PathCodec {
     }
   }
 
-  sealed trait RoutePathVarsCombiner[PV, PV2, PVC]
+  /**
+   * Backwards-compatible alias for [[PathVarsCombiner]]. `RoutePatternOps./`
+   * used to require its own duplicate `RoutePathVarsCombiner`, which deferred
+   * to `Tuples.Tuples.WithOut` identically to `PathVarsCombiner`; there is now
+   * exactly one combiner and `RoutePatternOps./` takes it directly. Kept (with
+   * both the type and the term alias) so existing call sites keep compiling.
+   */
+  @deprecated("Use PathCodec.PathVarsCombiner instead — the two combiners were identical", "0.1.0")
+  type RoutePathVarsCombiner[PV, PV2, PVC] = PathVarsCombiner[PV, PV2, PVC]
 
-  object RoutePathVarsCombiner extends RoutePathVarsCombinerLowPriority {
-    implicit val noPathVarsBoth
-      : RoutePathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] =
-      new RoutePathVarsCombiner[SegmentCodec.NoPathVars, SegmentCodec.NoPathVars, SegmentCodec.NoPathVars] {}
-  }
-
-  trait RoutePathVarsCombinerLowPriority {
-    implicit def fromTuples[PV, PV2, PVC](implicit
-      combiner: Tuples.Tuples.WithOut[PV, PV2, PVC]
-    ): RoutePathVarsCombiner[PV, PV2, PVC] = {
-      val _ = combiner
-      new RoutePathVarsCombiner[PV, PV2, PVC] {}
-    }
-  }
+  @deprecated("Use PathCodec.PathVarsCombiner instead — the two combiners were identical", "0.1.0")
+  val RoutePathVarsCombiner: PathVarsCombiner.type = PathVarsCombiner
 
   implicit final class PathCodecOps[A, PV](private val self: PathCodec[A] { type PathVars = PV }) extends AnyVal {
     def ++[B, PV2, C, PVC](that: PathCodec[B] { type PathVars = PV2 })(implicit
@@ -133,21 +145,40 @@ object PathCodec {
     }
 
     def alternatives: List[PathCodec[A]] =
-      PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]]
+      PathCodecRuntime.expand(self).asInstanceOf[List[PathCodec[A]]].distinct
 
+    /**
+     * Decodes `path`, naming the furthest segment reached on failure (for
+     * example `failed at segment 1 ('abc')`). The position is message-level
+     * context only — errors stay `Either[String, A]`; a full
+     * `Either[SchemaError, A]` migration composing positions à la
+     * `SchemaError.atField`/`atIndex` remains future work.
+     */
     def decode(path: Path): Either[String, A] =
       PathCodecRuntime
         .decodeCodec(self, path.segments, 0)
         .collectFirst {
           case (value, end) if end == path.segments.length => value.asInstanceOf[A]
         }
-        .toRight(s"Path ${path.encode} did not match ${PathCodec.render(self)}")
+        .toRight {
+          val segments = path.segments
+          val furthest = PathCodecRuntime.furthestIndex(self, segments, 0)
+          val where    =
+            if (furthest < segments.length) s"failed at segment $furthest ('${segments(furthest)}')"
+            else s"matched $furthest of ${segments.length} segments without a complete match"
+          s"Path ${path.encode} did not match ${PathCodec.render(self)}: $where"
+        }
 
     def format(value: A): Either[String, Path] =
       PathCodecRuntime.formatCodec(self, value.asInstanceOf[Any]).map(_.addLeadingSlash)
 
+    /**
+     * Boolean fast path: equivalent to `decode(path).isRight` without building
+     * any decoded values or candidate lists (see
+     * `PathCodecRuntime.matchesCodec`).
+     */
     def matches(path: Path): Boolean =
-      decode(path).isRight
+      PathCodecRuntime.matchesCodec(self, path.segments)
 
     def render: String = PathCodec.render(codec = self)
 
@@ -234,6 +265,18 @@ object PathCodec {
     else if (right == empty) left.asInstanceOf[PathCodec[C]]
     else Concat(left, right, combiner)
 
+  /**
+   * Builds a literal-only path from a raw string (for example
+   * `PathCodec("users/42")`).
+   *
+   * Encoding trio, documented once here: `Path.apply` does NOT percent-decode
+   * (a raw `%20` stays a literal `%20` segment), so neither does this
+   * constructor — `Path.fromEncoded` is the decoding counterpart (both live in
+   * `http-model`). Encoded literals cannot be expressed at all: a literal
+   * carrying `/` or characters requiring URL encoding is rejected by
+   * `SegmentCodec.validateLiteralValue`. `RoutePattern.apply(method,
+   * pathString)` funnels through this same constructor.
+   */
   def apply(value: String): PathCodec[Unit] { type PathVars = SegmentCodec.NoPathVars } = {
     val path                   = Path(value)
     val built: PathCodec[Unit] =
@@ -264,13 +307,9 @@ object PathCodec {
     right: PathCodec[B],
     combiner: Tuples.Tuples.WithOut[A, B, C]
   ) extends PathCodec[C] {
-    // Ordered concatenation of left.PathVars and right.PathVars - a best-effort placeholder for
-    // the same reason as SegmentCodec.Combined's own PathVars declaration (see that type's
-    // scaladoc): `left`/`right` are typed as the plain, unrefined PathCodec[A]/PathCodec[B], so no
-    // expression here can be more precise. The REAL, precisely-computed, flat, ordered
-    // concatenation is carried by PathCodecOps.++`/`/`'s own refined return type (via
-    // `Tuples.Tuples.WithOut`), which IS externally observable and is what every acceptance test
-    // asserts against.
+    // Best-effort placeholder, same reason as `SegmentCodec.Combined` (see `SegmentCodec.PathVars`
+    // for the phantom-track table). The REAL flat ordered concatenation is carried by
+    // `PathCodecOps.++`/`/`'s own refined return type (via `Tuples.Tuples.WithOut`).
     type PathVars = (left.PathVars, right.PathVars)
   }
   final case class Transform[A, B](
