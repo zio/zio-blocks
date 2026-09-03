@@ -610,6 +610,7 @@ object Dump {
    * source-only fallback. For full joins/filters use `inline val`/`inline def`
    * or construct the query directly at the call site.
    */
+  @scala.annotation.nowarn("cat=deprecation")
   inline def dump(inline query: SqlQuery[?]): Unit =
     ${ dumpQueryImpl('query) }
 
@@ -658,6 +659,7 @@ object Dump {
     }
   }
 
+  @scala.annotation.nowarn("cat=deprecation")
   def dumpQueryImpl(query: Expr[SqlQuery[?]])(using Quotes): Expr[Unit] = {
     import quotes.reflect._
     val dirProp = System.getProperty("zib.sql.dumpDir")
