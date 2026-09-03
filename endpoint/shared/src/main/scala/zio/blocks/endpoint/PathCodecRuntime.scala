@@ -133,7 +133,7 @@ private[endpoint] object PathCodecRuntime {
         if (index >= segments.length) Nil
         else {
           val segment = segments(index)
-          SegmentCodec.decodeCombined(transformed, segment, 0).collect {
+          SegmentCodec.decodeComplete(transformed, segment).collect {
             case (value, end) if end == segment.length => (value, index + 1)
           }
         }
@@ -141,10 +141,79 @@ private[endpoint] object PathCodecRuntime {
         if (index >= segments.length) Nil
         else {
           val segment = segments(index)
-          SegmentCodec.decodeCombined(combined, segment, 0).collect {
+          SegmentCodec.decodeComplete(combined, segment).collect {
             case (value, end) if end == segment.length => (value, index + 1)
           }
         }
+    }
+
+  /**
+   * Allocation-free boolean fast path for whole-path matching: mirrors
+   * [[decodeCodec]] structurally but returns the end index (`-1` for no match)
+   * instead of building `(value, end)` candidate lists, so `matches` never
+   * allocates per segment or per combinator. `Fallback` keeps the longest
+   * branch end — every `expand`-valid alternative is a single literal, so
+   * overlapping branches agree and routing is unaffected. Path-level
+   * `Transform` is the one node that needs its decoded value, and falls back to
+   * [[decodeCodec]] (rare on the path level; segment-level transforms go
+   * through `SegmentCodec.matchesComplete` and never allocate).
+   */
+  def matchesCodec(codec: PathCodec[_], segments: Chunk[String]): Boolean =
+    matchEnd(codec, segments, 0) == segments.length
+
+  private def matchEnd(codec: PathCodec[_], segments: Chunk[String], index: Int): Int =
+    codec match {
+      case PathCodec.Segment(segment)       => matchSegmentEnd(segment, segments, index)
+      case PathCodec.Concat(left, right, _) =>
+        val mid = matchEnd(left, segments, index)
+        if (mid < 0) -1 else matchEnd(right, segments, mid)
+      case PathCodec.Fallback(left, right) =>
+        math.max(matchEnd(left, segments, index), matchEnd(right, segments, index))
+      case transformed: PathCodec.Transform[_, _] =>
+        decodeCodec(transformed, segments, index).foldLeft(-1) { case (best, (_, end)) => math.max(best, end) }
+    }
+
+  private def matchSegmentEnd(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
+    codec match {
+      case SegmentCodec.Empty    => index
+      case SegmentCodec.Trailing => segments.length
+      case _                     =>
+        if (index >= segments.length) -1
+        else if (SegmentCodec.matchesComplete(codec, segments(index))) index + 1
+        else -1
+    }
+
+  /**
+   * Diagnostic pass computing how far `codec` gets into `segments` (number of
+   * segments consumed along the best partial match). Runs ONLY on the decode
+   * failure path to thread segment position into error messages, so its
+   * [[decodeCodec]] allocations never touch the hot path. A full
+   * `Either[SchemaError, A]` migration (composing positions à la
+   * `SchemaError.atField`) remains future work; this message-level context is
+   * the deliberate stopgap.
+   */
+  def furthestIndex(codec: PathCodec[_], segments: Chunk[String], index: Int): Int =
+    codec match {
+      case PathCodec.Segment(segment)       => furthestSegment(segment, segments, index)
+      case PathCodec.Concat(left, right, _) =>
+        val leftEnds = decodeCodec(left, segments, index).map(_._2)
+        if (leftEnds.isEmpty) furthestIndex(left, segments, index)
+        else leftEnds.map(end => furthestIndex(right, segments, end)).max
+      case transformed: PathCodec.Transform[_, _] =>
+        furthestIndex(transformed.codec, segments, index)
+      case PathCodec.Fallback(left, right) =>
+        math.max(furthestIndex(left, segments, index), furthestIndex(right, segments, index))
+    }
+
+  private def furthestSegment(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
+    codec match {
+      case SegmentCodec.Trailing                     => segments.length
+      case transformed: SegmentCodec.Transform[_, _] =>
+        furthestSegment(transformed.codec, segments, index)
+      case _ =>
+        if (index >= segments.length) index
+        else if (SegmentCodec.matchesComplete(codec, segments(index))) index + 1
+        else index
     }
 
   def formatCodec(codec: PathCodec[_], value: Any): Either[String, Path] =

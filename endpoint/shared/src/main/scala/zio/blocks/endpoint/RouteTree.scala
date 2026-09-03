@@ -26,6 +26,15 @@ import zio.http.{Method, Path}
  * matched first, then dynamic segments in priority order (int > long > uuid >
  * bool > string > combined > trailing). HEAD requests fall back to GET
  * handlers. Merge prefers right-hand-side values on conflict.
+ *
+ * Trailing fallback: when the path segments are exhausted at a level with no
+ * exact value, lookup falls through to a `Trailing` branch below that level —
+ * so a trailing route also matches its own prefix path (a `/assets/...` route
+ * matches `/assets`), and it shadows a missing exact match at that level. This
+ * is intentional (a trailing route is a prefix catch-all by design): register
+ * exact routes alongside trailing ones when both must coexist. Literals are
+ * still tried first at every level that has segments left, and per-branch
+ * matching itself never allocates (see `SegmentCodec.matches`).
  */
 final case class RouteTree[A](
   roots: Map[Method, SegmentSubtree[A]]
@@ -86,6 +95,14 @@ final case class SegmentSubtree[A](
   value: Option[A]
 ) { self =>
 
+  /**
+   * Looks up `segments` from `index`. Literals win over dynamic branches at
+   * every level; an exhausted path falls back to a `Trailing` branch below (see
+   * [[RouteTree]]). Each dynamic branch is probed with the allocation-free
+   * `SegmentCodec.matches` — the match-then-decode double parse this implies is
+   * accepted deliberately (trie probing runs per branch, the handler decodes
+   * the matched path once).
+   */
   def get(segments: Chunk[String], index: Int): Option[A] =
     if (index >= segments.length) {
       value.orElse(others.get(SegmentCodec.Key.Trailing).flatMap(_._2.value))

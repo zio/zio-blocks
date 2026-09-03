@@ -16,6 +16,7 @@
 
 package zio.blocks.endpoint
 
+import zio.blocks.chunk.Chunk
 import zio.blocks.docs.Doc
 import zio.blocks.combinators.Eithers
 import zio.blocks.combinators.Tuples
@@ -28,6 +29,28 @@ import zio.http.{Header, Status}
  * input/output/error HTTP codecs, authentication, and documentation.
  *
  * Pure data — no `implement*` methods, no `Invocation`, no codec errors.
+ *
+ * Choosing an `out` overload — pick the row matching what the response needs:
+ *
+ * {{{
+ * | want status?          | want media-type? | call                                 |
+ * |-----------------------|------------------|--------------------------------------|
+ * | no (defaults to 200)  | no               | out(schema)                          |
+ * | no (defaults to 200)  | no (+ docs)      | out(schema, doc)                     |
+ * | yes                   | no               | out(status, schema)                  |
+ * | no (defaults to 200)  | yes              | out(mediaType, schema)               |
+ * | yes (+ docs)          | no (+ docs)      | out(status, schema, doc)             |
+ * | no (defaults to 200)  | yes (+ docs)     | out(mediaType, schema, doc)          |
+ * | yes                   | yes              | out(status, mediaType, schema)       |
+ * | yes (+ docs)          | yes (+ docs)     | out(status, mediaType, schema, doc)  |
+ * | (already a codec)     | (already a codec)| out(codec)                           |
+ * }}}
+ *
+ * Only the `out(schema)` / `out(schema, doc)` / `out(mediaType, ...)` rows
+ * default the status to 200 `Ok`; every overload that takes an explicit
+ * `status` uses exactly that status. The `outError` / `orOutError` overloads
+ * mirror these rows but always require an explicit `status` (errors never
+ * default to `Ok`).
  */
 final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   route: RoutePattern[PathInput],
@@ -95,67 +118,120 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
   ): Endpoint[PathInput, Input, Err, O3, Auth] =
     copy(output = codec | output)
 
+  /**
+   * Builds the `(body, status)` codec pair shared by every `out(schema, ...)`
+   * overload. `status = None` pairs the body with [[HttpCodec.Ok]] (200), while
+   * `Some(status)` pairs it with exactly that status. The pair is returned
+   * uncombined so each call site keeps its own `++` / `|` implicit resolution,
+   * identical to the previous inline expressions.
+   */
+  private def bodyOut[O2](
+    status: Option[Status],
+    mediaType: Option[MediaType],
+    schema: Schema[O2],
+    doc: Doc
+  ): (HttpCodec[CodecKind.Response, O2], HttpCodec[CodecKind.Response, Unit]) = {
+    val body        = HttpCodec.responseBody(schema, mediaTypes = mediaTypesOf(mediaType), doc = doc)
+    val statusCodec = status.fold[HttpCodec[CodecKind.Response, Unit]](HttpCodec.Ok)(HttpCodec.status(_, doc))
+    (body, statusCodec)
+  }
+
+  private def mediaTypesOf(mediaType: Option[MediaType]): Chunk[MediaType] =
+    mediaType.fold(Chunk.empty[MediaType])(Chunk.single(_))
+
+  /**
+   * Adds a response body described by `schema`, defaulting the expected status
+   * to 200 `Ok` (via [[HttpCodec.Ok]]). This default applies ONLY to the
+   * overloads without an explicit `status` — `out(status, schema)` uses exactly
+   * the status given and nothing else. See the decision table on [[Endpoint]]
+   * for which overload to pick.
+   */
   def out[O2, O3](schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(output = (HttpCodec.responseBody(schema) ++ HttpCodec.Ok) | output)
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, status) = bodyOut(None, None, schema, Doc.empty)
+    copy(output = (body ++ status) | output)
+  }
 
+  /**
+   * Like `out(schema)`, plus documentation — the expected status still defaults
+   * to 200 `Ok` (via [[HttpCodec.Ok]]).
+   */
   def out[O2, O3](schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(output = (HttpCodec.responseBody(schema, doc = doc) ++ HttpCodec.Ok) | output)
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, status) = bodyOut(None, None, schema, doc)
+    copy(output = (body ++ status) | output)
+  }
 
   def out[O2, O3](status: Status, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(output = (HttpCodec.responseBody(schema) ++ HttpCodec.status(status)) | output)
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, statusCodec) = bodyOut(Some(status), None, schema, Doc.empty)
+    copy(output = (body ++ statusCodec) | output)
+  }
 
   def out[O2, O3](mediaType: MediaType, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(output =
-      (HttpCodec.responseBody(schema, mediaTypes = zio.blocks.chunk.Chunk.single(mediaType)) ++ HttpCodec.Ok) | output
-    )
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, status) = bodyOut(None, Some(mediaType), schema, Doc.empty)
+    copy(output = (body ++ status) | output)
+  }
 
   def out[O2, O3](status: Status, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(output = (HttpCodec.responseBody(schema, doc = doc) ++ HttpCodec.status(status, doc)) | output)
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, statusCodec) = bodyOut(Some(status), None, schema, doc)
+    copy(output = (body ++ statusCodec) | output)
+  }
 
   def out[O2, O3](mediaType: MediaType, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(
-      output = (HttpCodec.responseBody(
-        schema,
-        mediaTypes = zio.blocks.chunk.Chunk.single(mediaType),
-        doc = doc
-      ) ++ HttpCodec.Ok) | output
-    )
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, status) = bodyOut(None, Some(mediaType), schema, doc)
+    copy(output = (body ++ status) | output)
+  }
 
   def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2])(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(
-      output =
-        (HttpCodec.responseBody(schema, mediaTypes = zio.blocks.chunk.Chunk.single(mediaType)) ++ HttpCodec.status(
-          status
-        )) | output
-    )
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, statusCodec) = bodyOut(Some(status), Some(mediaType), schema, Doc.empty)
+    copy(output = (body ++ statusCodec) | output)
+  }
 
   def out[O2, O3](status: Status, mediaType: MediaType, schema: Schema[O2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[O2, Output, O3]
-  ): Endpoint[PathInput, Input, Err, O3, Auth] =
-    copy(
-      output =
-        (HttpCodec.responseBody(schema, mediaTypes = zio.blocks.chunk.Chunk.single(mediaType), doc = doc) ++ HttpCodec
-          .status(status, doc)) | output
-    )
+  ): Endpoint[PathInput, Input, Err, O3, Auth] = {
+    val (body, statusCodec) = bodyOut(Some(status), Some(mediaType), schema, doc)
+    copy(output = (body ++ statusCodec) | output)
+  }
 
   def outError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
   ): Endpoint[PathInput, Input, E3, Output, Auth] =
     copy(error = codec | error)
+
+  /**
+   * Builds the `(body, status)` codec pair shared by every
+   * `outError(status, ...)` / `orOutError(status, ...)` overload. Unlike
+   * `bodyOut`, the status is always explicit — error bodies never default to
+   * `Ok`. Returned uncombined so each call site keeps its own `++` / `|`
+   * implicit resolution, identical to the previous inline expressions.
+   */
+  private def errorOut[E2](
+    status: Status,
+    mediaType: Option[MediaType],
+    schema: Schema[E2],
+    doc: Doc
+  ): (HttpCodec[CodecKind.Response, E2], HttpCodec[CodecKind.Response, Unit]) = {
+    val body = HttpCodec.responseBody(
+      schema,
+      mediaTypes = mediaTypesOf(mediaType),
+      name = Some("error-response"),
+      doc = doc
+    )
+    (body, HttpCodec.status(status, doc))
+  }
 
   def orOutError[E2, E3](codec: HttpCodec[CodecKind.Response, E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
@@ -164,74 +240,59 @@ final case class Endpoint[PathInput, Input, Err, Output, Auth <: AuthType](
 
   def outError[E2, E3](status: Status, schema: Schema[E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    copy(error = (HttpCodec.responseBody(schema, name = Some("error-response")) ++ HttpCodec.status(status)) | error)
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, None, schema, Doc.empty)
+    copy(error = (body ++ statusCodec) | error)
+  }
 
   def orOutError[E2, E3](status: Status, schema: Schema[E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    orOutError(HttpCodec.responseBody(schema, name = Some("error-response")) ++ HttpCodec.status(status))
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, None, schema, Doc.empty)
+    orOutError(body ++ statusCodec)
+  }
 
   def outError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    copy(error =
-      ((HttpCodec.responseBody(schema, name = Some("error-response"), doc = doc) ++ HttpCodec
-        .status(status, doc))) | error
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, None, schema, doc)
+    copy(error = (body ++ statusCodec) | error)
+  }
 
   def orOutError[E2, E3](status: Status, schema: Schema[E2], doc: Doc)(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    orOutError(
-      HttpCodec.responseBody(schema, name = Some("error-response"), doc = doc) ++ HttpCodec.status(status, doc)
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, None, schema, doc)
+    orOutError(body ++ statusCodec)
+  }
 
   def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    copy(
-      error = ((HttpCodec.responseBody(
-        schema,
-        mediaTypes = zio.blocks.chunk.Chunk.single(mediaType),
-        name = Some("error-response")
-      ) ++ HttpCodec.status(status))) | error
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, Some(mediaType), schema, Doc.empty)
+    copy(error = (body ++ statusCodec) | error)
+  }
 
   def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2])(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    orOutError(
-      HttpCodec.responseBody(
-        schema,
-        mediaTypes = zio.blocks.chunk.Chunk.single(mediaType),
-        name = Some("error-response")
-      ) ++ HttpCodec.status(status)
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, Some(mediaType), schema, Doc.empty)
+    orOutError(body ++ statusCodec)
+  }
 
   def outError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(implicit
     alternator: Eithers.Eithers.WithOut[E2, Err, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    copy(
-      error = ((HttpCodec.responseBody(
-        schema,
-        mediaTypes = zio.blocks.chunk.Chunk.single(mediaType),
-        name = Some("error-response"),
-        doc = doc
-      ) ++ HttpCodec.status(status, doc))) | error
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, Some(mediaType), schema, doc)
+    copy(error = (body ++ statusCodec) | error)
+  }
 
   def orOutError[E2, E3](status: Status, mediaType: MediaType, schema: Schema[E2], doc: Doc)(implicit
     builder: EndpointUnionErrorBuilder.ErrorBuilder.WithOut[Err, E2, E3]
-  ): Endpoint[PathInput, Input, E3, Output, Auth] =
-    orOutError(
-      HttpCodec.responseBody(
-        schema,
-        mediaTypes = zio.blocks.chunk.Chunk.single(mediaType),
-        name = Some("error-response"),
-        doc = doc
-      ) ++ HttpCodec.status(status, doc)
-    )
+  ): Endpoint[PathInput, Input, E3, Output, Auth] = {
+    val (body, statusCodec) = errorOut(status, Some(mediaType), schema, doc)
+    orOutError(body ++ statusCodec)
+  }
 
   def outHeader[O2, O3](codec: HttpCodec.Header[CodecKind.Response, O2])(implicit
     combiner: Tuples.Tuples.WithOut[Output, O2, O3]

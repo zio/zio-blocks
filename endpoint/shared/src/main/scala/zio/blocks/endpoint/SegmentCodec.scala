@@ -35,14 +35,25 @@ sealed trait SegmentCodec[A] { self =>
   /**
    * Ordered, purely phantom registry of [[PathVar]] markers contributed by this
    * segment - one marker per captured segment, zero markers for non-capturing
-   * segments (`Empty`/`Literal`/`Trailing`). This is a separate, parallel type
-   * track: it never affects `A` (the existing runtime-extracted value type) and
-   * has zero runtime footprint. Left unbounded here (rather than `<: Tuple`,
-   * which does not exist as a cross-version supertype on Scala 2.13) so this
-   * single declaration compiles identically under both Scala 2.13 and Scala 3.
-   * A single captured segment carries the BARE `PathVar[..]` leaf directly;
-   * multiple captured segments are combined into a flat tuple by
+   * segments (`Empty`/`Literal`/`Trailing`). The phantom track parallels the
+   * value track:
+   *
+   * {{{
+   * | Track         | Carries                                              | Runtime cost |
+   * |---------------|------------------------------------------------------|--------------|
+   * | Value (`A`)   | the decoded segment value (`Int`, `String`, ...)  | real         |
+   * | Phantom       | `PathVar[Name, Type]` markers, one per capture      | zero         |
+   * }}}
+   *
+   * A single captured segment carries the BARE `PathVar[..]` leaf directly
+   * (mirroring how the value track carries the bare decoded type); multiple
+   * captured segments are combined into a flat tuple by
    * `zio.blocks.combinators.Tuples`, exactly as the value track is combined.
+   * The single [[zio.blocks.endpoint.PathCodec.PathVarsCombiner combiner]] for
+   * this track defers to `Tuples.WithOut` identically, so the two tracks can
+   * never drift apart. Left unbounded here (rather than `<: Tuple`, which does
+   * not exist as a cross-version supertype on Scala 2.13) so this single
+   * declaration compiles identically under both Scala 2.13 and Scala 3.
    */
   type PathVars
 
@@ -136,6 +147,11 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
 
   private[endpoint] def literalValidated(value: String): Literal = Literal(value)
 
+  /**
+   * Rejects empty literals and literals carrying `/` or characters requiring
+   * URL encoding (see the encoding trio on `PathCodec.apply(String)`): such
+   * literals cannot be expressed — use a capturing segment instead.
+   */
   private[endpoint] def validateLiteralValue(value: String): Unit = {
     val path          = Path(s"/$value")
     val singleSegment = path.segments.length == 1 && path.segments.headOption.contains(value)
@@ -272,13 +288,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type PathVars = PathVar[N, Int]
 
     /**
-     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
-     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
-     * `PathVar[N, Int]` to `PathVar.Ignored[N, Int]`, marking this captured
-     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
-     * distinction means to downstream consumers). Zero runtime cost:
-     * implemented as a same-instance type ascription, exactly like every other
-     * phantom-type refinement in this file.
+     * Pure type-level relabeling of `PathVars` from `PathVar[N, Int]` to
+     * `PathVar.Ignored[N, Int]` — same mechanics as [[BoolSeg.unused]] (zero
+     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
      */
     def unused: WithBoundaries[Int, BoundaryTag.Int, BoundaryTag.Int] {
       type PathVars = PathVar.Ignored[N, Int]
@@ -297,13 +309,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type PathVars = PathVar[N, Long]
 
     /**
-     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
-     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
-     * `PathVar[N, Long]` to `PathVar.Ignored[N, Long]`, marking this captured
-     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
-     * distinction means to downstream consumers). Zero runtime cost:
-     * implemented as a same-instance type ascription, exactly like every other
-     * phantom-type refinement in this file.
+     * Pure type-level relabeling of `PathVars` from `PathVar[N, Long]` to
+     * `PathVar.Ignored[N, Long]` — same mechanics as [[BoolSeg.unused]] (zero
+     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
      */
     def unused: WithBoundaries[Long, BoundaryTag.Long, BoundaryTag.Long] {
       type PathVars = PathVar.Ignored[N, Long]
@@ -325,13 +333,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type PathVars = PathVar[N, String]
 
     /**
-     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
-     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
-     * `PathVar[N, String]` to `PathVar.Ignored[N, String]`, marking this
-     * captured segment as intentionally unused (see [[PathVar.Ignored]] for
-     * what that distinction means to downstream consumers). Zero runtime cost:
-     * implemented as a same-instance type ascription, exactly like every other
-     * phantom-type refinement in this file.
+     * Pure type-level relabeling of `PathVars` from `PathVar[N, String]` to
+     * `PathVar.Ignored[N, String]` — same mechanics as [[BoolSeg.unused]] (zero
+     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
      */
     def unused: WithBoundaries[String, BoundaryTag.String, BoundaryTag.String] {
       type PathVars = PathVar.Ignored[N, String]
@@ -353,13 +357,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     type PathVars = PathVar[N, java.util.UUID]
 
     /**
-     * Same codec as `this` (identical `A`/`Prefix`/`Suffix`, identical
-     * encode/decode behavior) - a pure type-level relabeling of `PathVars` from
-     * `PathVar[N, UUID]` to `PathVar.Ignored[N, UUID]`, marking this captured
-     * segment as intentionally unused (see [[PathVar.Ignored]] for what that
-     * distinction means to downstream consumers). Zero runtime cost:
-     * implemented as a same-instance type ascription, exactly like every other
-     * phantom-type refinement in this file.
+     * Pure type-level relabeling of `PathVars` from `PathVar[N, UUID]` to
+     * `PathVar.Ignored[N, UUID]` — same mechanics as [[BoolSeg.unused]] (zero
+     * runtime cost; see [[PathVar.Ignored]] for what the tag means).
      */
     def unused: WithBoundaries[java.util.UUID, BoundaryTag.UUID, BoundaryTag.UUID] {
       type PathVars = PathVar.Ignored[N, java.util.UUID]
@@ -378,13 +378,9 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
   ) extends SegmentCodec[C] {
     type Prefix = left.Prefix
     type Suffix = right.Suffix
-    // Ordered concatenation of left.PathVars and right.PathVars. This class-body declaration is a
-    // best-effort placeholder: `left`/`right` are typed as the plain, unrefined
-    // SegmentCodec[A]/SegmentCodec[B], so no expression here can be more precise, and
-    // `combinators.Tuples` has no class-body-usable concat type alias on Scala 2.13. The REAL,
-    // precisely-computed, flat, ordered concatenation is carried by the `~` extension method's own
-    // refined return type (via `Tuples.Tuples.WithOut`), which IS externally observable and is what
-    // every acceptance test asserts against.
+    // Best-effort placeholder (see `PathVars` above for the phantom-track table): `left`/`right`
+    // are unrefined, so no expression here can be precise. The REAL flat ordered concatenation is
+    // carried by the `~` extension method's own refined return type (via `Tuples.Tuples.WithOut`).
     type PathVars = (left.PathVars, right.PathVars)
     val doc: Doc                     = left.doc ++ right.doc
     val examples: Chunk[(String, C)] = Chunk.empty
@@ -432,41 +428,168 @@ object SegmentCodec extends SegmentCodecPlatformSpecific {
     if (out.isEmpty) "/" else s"/${out.result()}"
   }
 
+  /**
+   * Returns how many segments `codec` consumes at `index` (`-1` for no match).
+   *
+   * This is the boolean fast path for routing: `Literal` is a single `==`,
+   * `IntSeg`/`LongSeg` a single `toIntOption`/`toLongOption`, `UUIDSeg` a
+   * hand-rolled shape check (no exceptions thrown), and `Combined`/`Transform`
+   * go through the longest-match-only `matchesWindow` below. Candidate lists
+   * are never built here (unlike [[decodeCombined]]), so per-request trie
+   * lookups pay no per-candidate tuple or substring-enumeration cost. The
+   * subsequent handler `decode` re-parses the matched segment once — that
+   * match-then-decode double parse is accepted deliberately (decode happens
+   * once per matched request, while `matches` runs per dynamic branch).
+   */
   def matches(codec: SegmentCodec[_], segments: Chunk[String], index: Int): Int =
     if (index < 0 || index > segments.length) -1
     else
       codec match {
-        case Empty                => 0
-        case Literal(value, _, _) => if (index < segments.length && segments(index) == value) 1 else -1
-        case BoolSeg(_, _, _)     =>
-          if (index < segments.length && (segments(index) == "true" || segments(index) == "false")) 1 else -1
-        case IntSeg(_, _, _)    => if (index < segments.length && segments(index).toIntOption.isDefined) 1 else -1
-        case LongSeg(_, _, _)   => if (index < segments.length && segments(index).toLongOption.isDefined) 1 else -1
-        case StringSeg(_, _, _) => if (index < segments.length) 1 else -1
-        case UUIDSeg(_, _, _)   =>
+        case Empty    => 0
+        case Trailing => (segments.length - index).max(0)
+        case _        =>
           if (index >= segments.length) -1
-          else {
-            try {
-              java.util.UUID.fromString(segments(index))
-              1
-            } catch {
-              case _: IllegalArgumentException => -1
-            }
+          else if (matchesComplete(codec, segments(index))) 1
+          else -1
+      }
+
+  /**
+   * Boolean fast path for a whole segment: does `codec` match `segment` exactly
+   * (longest match only)? Never builds candidate lists — `StringSeg` is a
+   * constant-time accept, numerics parse the whole window once (a single
+   * substring only when matching strictly inside a segment), `UUIDSeg` is
+   * validated without exceptions. Used by [[matches]] and
+   * `PathCodecRuntime.matchesCodec`; the allocating [[decodeCombined]] remains
+   * for callers that need decoded values at every split.
+   */
+  def matchesComplete(codec: SegmentCodec[_], segment: String): Boolean =
+    matchesWindow(codec, segment, 0, segment.length)
+
+  /**
+   * Value-carrying counterpart to [[matchesComplete]]: like
+   * `decodeCombined(codec, segment, 0)` but keeps longest matches only (`end ==
+   * segment.length`), so `StringSeg` materializes one substring instead of O(n)
+   * and numerics parse once instead of per prefix. Correct wherever callers
+   * already filter `end == segment.length` (segment-level
+   * `Transform`/`Combined` decode); nested splits inside a `Combined` go
+   * through `decodeBounded` with the split point as the bound.
+   */
+  def decodeComplete(codec: SegmentCodec[_], segment: String): List[(Any, Int)] =
+    decodeBounded(codec, segment, 0, segment.length)
+
+  private def matchesWindow(codec: SegmentCodec[_], segment: String, from: Int, end: Int): Boolean =
+    if (from < 0 || end > segment.length || from > end) false
+    else
+      codec match {
+        case Empty                        => from == end
+        case Literal(value, _, _)         => end - from == value.length && segment.startsWith(value, from)
+        case BoolSeg(_, _, _)             => parseBoolWindow(segment, from, end).isDefined
+        case IntSeg(_, _, _)              => parseIntWindow(segment, from, end).isDefined
+        case LongSeg(_, _, _)             => parseLongWindow(segment, from, end).isDefined
+        case StringSeg(_, _, _)           => true
+        case UUIDSeg(_, _, _)             => isUuidWindow(segment, from, end)
+        case Trailing                     => true
+        case transformed: Transform[_, _] =>
+          // `decode` needs the decoded value, so this one node type falls back to the bounded
+          // decode and checks acceptance only (intra-segment `Transform` is rare).
+          val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
+          val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
+          decodeBounded(inner, segment, from, end).exists { case (value, _) => decode(value).isRight }
+        case combined: Combined[_, _, _] =>
+          var mid     = from
+          var matched = false
+          while (!matched && mid <= end) {
+            matched = matchesWindow(combined.left, segment, from, mid) &&
+              matchesWindow(combined.right, segment, mid, end)
+            mid += 1
           }
+          matched
+      }
+
+  /**
+   * Bounded variant of [[decodeCombined]] keeping only `(value, end)` pairs
+   * whose end equals the `end` bound. Every leaf yields at most one pair, so no
+   * garbage candidates are ever built; `Combined` tries each split point once
+   * with both sides bounded. Per-pattern memoization was considered and
+   * skipped: patterns are immutable descriptors shared across requests, but
+   * results depend on the input segment, so a cache keyed by input would grow
+   * without bound for negligible gain on short segments.
+   */
+  private[endpoint] def decodeBounded(
+    codec: SegmentCodec[_],
+    segment: String,
+    from: Int,
+    end: Int
+  ): List[(Any, Int)] =
+    if (from < 0 || end > segment.length || from > end) Nil
+    else
+      codec match {
+        case Empty                => if (from == end) List(((), from)) else Nil
+        case Literal(value, _, _) =>
+          if (end - from == value.length && segment.startsWith(value, from)) List(((), end)) else Nil
+        case BoolSeg(_, _, _)   => parseBoolWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
+        case IntSeg(_, _, _)    => parseIntWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
+        case LongSeg(_, _, _)   => parseLongWindow(segment, from, end).map(value => List((value, end))).getOrElse(Nil)
+        case StringSeg(_, _, _) => List((segment.substring(from, end), end))
+        case UUIDSeg(_, _, _)   =>
+          if (!isUuidWindow(segment, from, end)) Nil
+          else
+            try List((java.util.UUID.fromString(segment.substring(from, end)), end))
+            catch { case _: IllegalArgumentException => Nil }
+        case Trailing                     => List((Path(segment.substring(from)).addLeadingSlash, segment.length))
         case transformed: Transform[_, _] =>
           val inner  = transformed.codec.asInstanceOf[SegmentCodec[Any]]
           val decode = transformed.decode.asInstanceOf[Any => Either[DecodeError, Any]]
-          if (index >= segments.length) -1
-          else
-            decodeCombined(inner, segments(index), 0).exists { case (value, end) =>
-              end == segments(index).length && decode(value).isRight
-            }.compare(false)
-        case Trailing                    => (segments.length - index).max(0)
+          decodeBounded(inner, segment, from, end).flatMap { case (value, _) =>
+            decode(value).toOption.map(_ -> end)
+          }
         case combined: Combined[_, _, _] =>
-          if (index >= segments.length) -1
-          else if (decodeCombined(combined, segments(index), 0).exists(_._2 == segments(index).length)) 1
-          else -1
+          val results = List.newBuilder[(Any, Int)]
+          var mid     = from
+          while (mid <= end) {
+            decodeBounded(combined.left, segment, from, mid).foreach { case (leftValue, _) =>
+              decodeBounded(combined.right, segment, mid, end).foreach { case (rightValue, _) =>
+                val typed = combined.combiner.asInstanceOf[Tuples.Tuples.WithOut[Any, Any, Any]]
+                results += ((typed.combine(leftValue, rightValue), end))
+              }
+            }
+            mid += 1
+          }
+          results.result()
       }
+
+  private def parseBoolWindow(segment: String, from: Int, end: Int): Option[Boolean] = {
+    val length = end - from
+    if (length == 4 && segment.startsWith("true", from)) Some(true)
+    else if (length == 5 && segment.startsWith("false", from)) Some(false)
+    else None
+  }
+
+  private def parseIntWindow(segment: String, from: Int, end: Int): Option[Int] =
+    if (from == 0 && end == segment.length) segment.toIntOption
+    else segment.substring(from, end).toIntOption
+
+  private def parseLongWindow(segment: String, from: Int, end: Int): Option[Long] =
+    if (from == 0 && end == segment.length) segment.toLongOption
+    else segment.substring(from, end).toLongOption
+
+  private def isUuidWindow(segment: String, from: Int, end: Int): Boolean = {
+    def isHex(char: Char): Boolean =
+      (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')
+
+    if (end - from != 36) false
+    else {
+      var i     = 0
+      var valid = true
+      while (valid && i < 36) {
+        val char = segment.charAt(from + i)
+        if (i == 8 || i == 13 || i == 18 || i == 23) { if (char != '-') valid = false }
+        else if (!isHex(char)) valid = false
+        i += 1
+      }
+      valid
+    }
+  }
 
   def decodeCombined(codec: SegmentCodec[_], segment: String, from: Int): List[(Any, Int)] =
     codec match {
