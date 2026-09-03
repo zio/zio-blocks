@@ -55,7 +55,8 @@ object MuxSpec extends ZIOSpecDefault {
     backpressureSuite,
     closeAllSuite,
     edgeCasesSuite,
-    capacityValidationSuite
+    capacityValidationSuite,
+    streamQueueCapacitySuite
   )
 
   private val basicOperationsSuite = suite("basic operations")(
@@ -350,6 +351,66 @@ object MuxSpec extends ZIOSpecDefault {
           case _: IllegalArgumentException => true
         }
       )
+    },
+    test("Mux rejects non-power-of-two stream queue capacity") {
+      assertTrue(
+        try {
+          Mux[Int, String, String](10, 100)
+          false
+        } catch {
+          case _: IllegalArgumentException => true
+        }
+      )
+    },
+    test("Mux rejects non-positive stream queue capacity") {
+      assertTrue(
+        try {
+          Mux[Int, String, String](10, 0)
+          false
+        } catch {
+          case _: IllegalArgumentException => true
+        }
+      )
+    }
+  )
+
+  private val streamQueueCapacitySuite = suite("stream queue capacity")(
+    test("default queues hold 256 messages") {
+      val mux    = makeMux()
+      val stream = openStream(mux, 1)
+      (0 until 256).foreach(i => stream.offerInbound(s"msg-$i"))
+      assertTrue(stream.offerInbound("overflow") == MuxError.QueueFull(256))
+    },
+    test("custom capacity tunes per-stream queues") {
+      val mux    = Mux[Int, String, String](10, 8)
+      val stream = openStream(mux, 1)
+      (0 until 8).foreach(i => stream.offerInbound(s"msg-$i"))
+      val full = stream.offerInbound("overflow")
+      // drained messages free space again under the same capacity
+      val first = stream.receive()
+      val after = stream.offerInbound("again")
+      assertTrue(full == MuxError.QueueFull(8), first == Some("msg-0"), after == ())
+    },
+    test("custom capacity applies to the outbound queue") {
+      val mux    = Mux[Int, String, String](10, 8)
+      val stream = openStream(mux, 1)
+      (0 until 8).foreach(i => stream.send(s"msg-$i"))
+      assertTrue(stream.send("overflow") == MuxError.QueueFull(8))
+    },
+    test("receiveStrict drains buffered messages before the terminal error") {
+      val mux    = makeMux()
+      val stream = openStream(mux, 1)
+      stream.offerInbound("hello")
+      stream.close()
+      val first  = stream.receiveStrict()
+      val second = stream.receiveStrict()
+      assertTrue(first == Some("hello"), isMuxError(second))
+    },
+    test("receiveStrict matches receive on an open stream") {
+      val mux    = makeMux()
+      val stream = openStream(mux, 1)
+      stream.offerInbound("hello")
+      assertTrue(stream.receiveStrict() == Some("hello"), stream.receiveStrict() == None)
     }
   )
 

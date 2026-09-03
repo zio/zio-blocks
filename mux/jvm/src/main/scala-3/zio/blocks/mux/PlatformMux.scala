@@ -23,12 +23,12 @@ import java.util.concurrent.locks.ReentrantLock
 import zio.blocks.ringbuffer.MpscRingBuffer
 
 private[mux] object PlatformMux {
-  private val StreamQueueCapacity = 256
+  private val DefaultStreamQueueCapacity = 256
 
-  def create[Id, In, Out](capacity: Int): Mux[Id, In, Out] =
-    new JvmMux[Id, In, Out](capacity)
+  def create[Id, In, Out](capacity: Int, streamQueueCapacity: Int = DefaultStreamQueueCapacity): Mux[Id, In, Out] =
+    new JvmMux[Id, In, Out](capacity, streamQueueCapacity)
 
-  private final class JvmMux[Id, In, Out](capacity: Int) extends Mux[Id, In, Out] {
+  private final class JvmMux[Id, In, Out](capacity: Int, streamQueueCapacity: Int) extends Mux[Id, In, Out] {
     private val streams                   = new ConcurrentHashMap[Id, JvmMuxStream[Id, In, Out]]()
     private val lock                      = new ReentrantLock()
     @volatile private var closed: Boolean = false
@@ -39,7 +39,7 @@ private[mux] object PlatformMux {
         if (closed) return MuxError.MuxClosed
         if (streams.containsKey(id)) return MuxError.ProtocolError(s"Stream $id already exists")
         if (streams.size() >= capacity) return MuxError.CapacityExceeded(capacity)
-        val stream = new JvmMuxStream[Id, In, Out](id, this)
+        val stream = new JvmMuxStream[Id, In, Out](id, this, streamQueueCapacity)
         streams.put(id, stream)
         stream
       } finally lock.unlock()
@@ -99,11 +99,12 @@ private[mux] object PlatformMux {
 
   private final class JvmMuxStream[Id, In, Out](
     streamId: Id,
-    mux: JvmMux[Id, In, Out]
+    mux: JvmMux[Id, In, Out],
+    streamQueueCapacity: Int
   ) extends JvmMuxStreamFields
       with MuxStream[Id, In, Out] {
-    private val inboundQueue  = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
-    private val outboundQueue = new MpscRingBuffer[AnyRef](StreamQueueCapacity)
+    private val inboundQueue  = new MpscRingBuffer[AnyRef](streamQueueCapacity)
+    private val outboundQueue = new MpscRingBuffer[AnyRef](streamQueueCapacity)
 
     def id: Id = streamId
 
@@ -116,7 +117,7 @@ private[mux] object PlatformMux {
           MuxError.StreamClosed(streamId)
         else if (outboundQueue.offer(msg.asInstanceOf[AnyRef]))
           ()
-        else MuxError.QueueFull(StreamQueueCapacity)
+        else MuxError.QueueFull(streamQueueCapacity)
       }
 
     def receive(): Option[Out] | MuxError = {
@@ -138,7 +139,7 @@ private[mux] object PlatformMux {
           MuxError.StreamClosed(streamId)
         else if (inboundQueue.offer(msg.asInstanceOf[AnyRef]))
           ()
-        else MuxError.QueueFull(StreamQueueCapacity)
+        else MuxError.QueueFull(streamQueueCapacity)
       }
 
     def takeOutbound(): Option[In] | MuxError = {
