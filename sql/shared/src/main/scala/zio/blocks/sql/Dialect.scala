@@ -22,9 +22,10 @@ package zio.blocks.sql
  * All identifier parameters (`table`, `col`, `shadowName`, `sourceTable`,
  * `sourceIdColumn`, `queueKeyColumn`) must be bare, pre-validated SQL
  * identifiers — never user input, never schema-qualified, never quoted. Valid
- * identifiers match `[A-Za-z_][A-Za-z0-9_]*`; callers must enforce this
- * whitelist before passing values in. Implementations interpolate them into
- * DDL/DML as-is.
+ * identifiers match `[A-Za-z_][A-Za-z0-9_]*`. Each method enforces this
+ * whitelist up front via [[SqlIdentifier.validate]] (same package, no new API)
+ * so the documented contract holds mechanically rather than by convention.
+ * Implementations interpolate the validated identifiers into DDL/DML as-is.
  */
 trait SqlMigration {
 
@@ -76,14 +77,23 @@ object Dialect {
     val sqlDialect: SqlDialect = SqlDialect.PostgreSQL
     val supportsSkipLocked     = true
 
-    def createQueueTableDDL(table: String, col: String): String =
-      s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
+    def createQueueTableDDL(table: String, col: String): String = {
+      val t = SqlIdentifier.validate("table", table)
+      val c = SqlIdentifier.validate("column", col)
+      s"CREATE TABLE IF NOT EXISTS $t (\n  $c TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
+    }
 
-    def dequeueSQL(table: String, col: String, batchSize: Int): String =
-      s"SELECT $col FROM $table ORDER BY $col LIMIT $batchSize FOR UPDATE SKIP LOCKED"
+    def dequeueSQL(table: String, col: String, batchSize: Int): String = {
+      val t = SqlIdentifier.validate("table", table)
+      val c = SqlIdentifier.validate("column", col)
+      s"SELECT $c FROM $t ORDER BY $c LIMIT $batchSize FOR UPDATE SKIP LOCKED"
+    }
 
-    def createShadowTableDDL(shadowName: String, sourceTable: String): String =
-      s"CREATE TABLE IF NOT EXISTS $shadowName (LIKE $sourceTable INCLUDING ALL)"
+    def createShadowTableDDL(shadowName: String, sourceTable: String): String = {
+      val shadow = SqlIdentifier.validate("table", shadowName)
+      val source = SqlIdentifier.validate("table", sourceTable)
+      s"CREATE TABLE IF NOT EXISTS $shadow (LIKE $source INCLUDING ALL)"
+    }
 
     def createTriggerDDL(
       queueTable: String,
@@ -91,7 +101,11 @@ object Dialect {
       sourceIdColumn: String,
       queueKeyColumn: String
     ): List[String] = {
-      val funcName = s"${queueTable}_notify"
+      val queue    = SqlIdentifier.validate("table", queueTable)
+      val source   = SqlIdentifier.validate("table", sourceTable)
+      val idCol    = SqlIdentifier.validate("column", sourceIdColumn)
+      val keyCol   = SqlIdentifier.validate("column", queueKeyColumn)
+      val funcName = s"${queue}_notify"
       // s-interpolator renders $$ as one $, so build plpgsql dollar-quotes from a named value.
       val dollarQuote = "$$"
       val func        =
@@ -99,18 +113,18 @@ object Dialect {
            |RETURNS TRIGGER AS $dollarQuote
            |BEGIN
            |  IF TG_OP = 'DELETE' THEN
-           |    INSERT INTO $queueTable ($queueKeyColumn, op, payload) VALUES (OLD.$sourceIdColumn, 'D', row_to_json(OLD)::text) ON CONFLICT ($queueKeyColumn) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
+           |    INSERT INTO $queue ($keyCol, op, payload) VALUES (OLD.$idCol, 'D', row_to_json(OLD)::text) ON CONFLICT ($keyCol) DO UPDATE SET op = 'D', payload = EXCLUDED.payload;
            |  ELSIF TG_OP = 'INSERT' THEN
-           |    INSERT INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'I') ON CONFLICT ($queueKeyColumn) DO NOTHING;
+           |    INSERT INTO $queue ($keyCol, op) VALUES (NEW.$idCol, 'I') ON CONFLICT ($keyCol) DO NOTHING;
            |  ELSIF TG_OP = 'UPDATE' THEN
-           |    INSERT INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'U') ON CONFLICT ($queueKeyColumn) DO NOTHING;
+           |    INSERT INTO $queue ($keyCol, op) VALUES (NEW.$idCol, 'U') ON CONFLICT ($keyCol) DO NOTHING;
            |  END IF;
            |  RETURN NULL;
            |END;
            |$dollarQuote LANGUAGE plpgsql;""".stripMargin
       // CREATE OR REPLACE TRIGGER keeps re-running installTriggers idempotent (PG 14+).
       val trigger =
-        s"CREATE OR REPLACE TRIGGER trg_${queueTable}_mod AFTER INSERT OR UPDATE OR DELETE ON $sourceTable FOR EACH ROW EXECUTE FUNCTION $funcName();"
+        s"CREATE OR REPLACE TRIGGER trg_${queue}_mod AFTER INSERT OR UPDATE OR DELETE ON $source FOR EACH ROW EXECUTE FUNCTION $funcName();"
       List(func, trigger)
     }
   }
@@ -119,11 +133,17 @@ object Dialect {
     val sqlDialect: SqlDialect = SqlDialect.SQLite
     val supportsSkipLocked     = false
 
-    def createQueueTableDDL(table: String, col: String): String =
-      s"CREATE TABLE IF NOT EXISTS $table (\n  $col TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
+    def createQueueTableDDL(table: String, col: String): String = {
+      val t = SqlIdentifier.validate("table", table)
+      val c = SqlIdentifier.validate("column", col)
+      s"CREATE TABLE IF NOT EXISTS $t (\n  $c TEXT NOT NULL PRIMARY KEY,\n  op TEXT NOT NULL DEFAULT 'I',\n  payload TEXT\n)"
+    }
 
-    def dequeueSQL(table: String, col: String, batchSize: Int): String =
-      s"SELECT $col FROM $table ORDER BY $col LIMIT $batchSize"
+    def dequeueSQL(table: String, col: String, batchSize: Int): String = {
+      val t = SqlIdentifier.validate("table", table)
+      val c = SqlIdentifier.validate("column", col)
+      s"SELECT $c FROM $t ORDER BY $c LIMIT $batchSize"
+    }
 
     def createShadowTableDDL(shadowName: String, sourceTable: String): String =
       throw new UnsupportedOperationException(
@@ -136,11 +156,16 @@ object Dialect {
       sourceTable: String,
       sourceIdColumn: String,
       queueKeyColumn: String
-    ): List[String] =
+    ): List[String] = {
+      val queue  = SqlIdentifier.validate("table", queueTable)
+      val source = SqlIdentifier.validate("table", sourceTable)
+      val idCol  = SqlIdentifier.validate("column", sourceIdColumn)
+      val keyCol = SqlIdentifier.validate("column", queueKeyColumn)
       List(
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_insert AFTER INSERT ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'I'); END;",
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_update AFTER UPDATE ON $sourceTable BEGIN INSERT OR IGNORE INTO $queueTable ($queueKeyColumn, op) VALUES (NEW.$sourceIdColumn, 'U'); END;",
-        s"CREATE TRIGGER IF NOT EXISTS trg_${queueTable}_delete AFTER DELETE ON $sourceTable BEGIN INSERT OR REPLACE INTO $queueTable ($queueKeyColumn, op) VALUES (OLD.$sourceIdColumn, 'D'); END;"
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queue}_insert AFTER INSERT ON $source BEGIN INSERT OR IGNORE INTO $queue ($keyCol, op) VALUES (NEW.$idCol, 'I'); END;",
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queue}_update AFTER UPDATE ON $source BEGIN INSERT OR IGNORE INTO $queue ($keyCol, op) VALUES (NEW.$idCol, 'U'); END;",
+        s"CREATE TRIGGER IF NOT EXISTS trg_${queue}_delete AFTER DELETE ON $source BEGIN INSERT OR REPLACE INTO $queue ($keyCol, op) VALUES (OLD.$idCol, 'D'); END;"
       )
+    }
   }
 }

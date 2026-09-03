@@ -104,6 +104,11 @@ object SqlDialectSpec extends ZIOSpecDefault {
           ) == "UUID"
         )
       },
+      test("DbArray -> TEXT[] (row-7: array columns no longer throw MatchError)") {
+        assertTrue(
+          SqlDialect.PostgreSQL.typeName(DbValue.DbArray("varchar", IndexedSeq("a"))) == "TEXT[]"
+        )
+      },
       test("paramPlaceholder(1) -> ?") {
         assertTrue(SqlDialect.PostgreSQL.paramPlaceholder(1) == "?")
       },
@@ -186,6 +191,11 @@ object SqlDialectSpec extends ZIOSpecDefault {
       test("DbUUID -> TEXT") {
         assertTrue(
           SqlDialect.SQLite.typeName(DbValue.DbUUID(UUID.fromString("550e8400-e29b-41d4-a716-446655440000"))) == "TEXT"
+        )
+      },
+      test("DbArray -> TEXT (row-7: array columns no longer throw MatchError)") {
+        assertTrue(
+          SqlDialect.SQLite.typeName(DbValue.DbArray("varchar", IndexedSeq("a"))) == "TEXT"
         )
       },
       test("paramPlaceholder(1) -> ?") {

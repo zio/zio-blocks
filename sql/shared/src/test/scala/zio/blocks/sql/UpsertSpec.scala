@@ -214,6 +214,59 @@ object UpsertSpec extends ZIOSpecDefault {
       test("assignment containing conflict column throws") {
         val result = scala.util.Try(Upsert.insertDoUpdate(userTable, User(1, "A", "a@b"), "id", Seq("id", "email")))
         assertTrue(result.isFailure, result.failed.get.getMessage.contains("conflict"))
+      },
+      test("duplicate assignment columns throw instead of collapsing silently") {
+        val result = scala.util.Try(
+          Upsert.insertDoUpdate(userTable, User(1, "A", "a@b"), "id", Seq("email", "email"))
+        )
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("uplicate")
+        )
+      },
+      test("duplicate columns in a hand-built Table fail fast at construction") {
+        val codec  = Table.derived[User].codec
+        val result = scala.util.Try(
+          Table(
+            "user",
+            codec,
+            IndexedSeq(
+              ColumnMeta("id", DbValue.DbInt(0), nullable = false),
+              ColumnMeta("id", DbValue.DbInt(0), nullable = false)
+            )
+          )
+        )
+        assertTrue(
+          result.isFailure,
+          result.failed.get.isInstanceOf[IllegalArgumentException],
+          result.failed.get.getMessage.contains("uplicate")
+        )
+      }
+    ),
+    suite("batch shape stability (F4)")(
+      test("insertDoUpdate renders identical SQL for different entities") {
+        val first  = Upsert.insertDoUpdate(userTable, User(1, "Alice", "alice@example.com"), "id")
+        val second = Upsert.insertDoUpdate(userTable, User(2, "Bob", "bob@test.com"), "id")
+        assertTrue(
+          first.sql(SqlDialect.SQLite) == second.sql(SqlDialect.SQLite),
+          first.sql(SqlDialect.PostgreSQL) ==
+            """INSERT INTO user (id, name, email) VALUES (?, ?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?, "email" = ?""",
+          first.queryParams == IndexedSeq(
+            DbValue.DbInt(1),
+            DbValue.DbString("Alice"),
+            DbValue.DbString("alice@example.com"),
+            DbValue.DbString("Alice"),
+            DbValue.DbString("alice@example.com")
+          ),
+          second.queryParams == IndexedSeq(
+            DbValue.DbInt(2),
+            DbValue.DbString("Bob"),
+            DbValue.DbString("bob@test.com"),
+            DbValue.DbString("Bob"),
+            DbValue.DbString("bob@test.com")
+          )
+        )
       }
     )
   )

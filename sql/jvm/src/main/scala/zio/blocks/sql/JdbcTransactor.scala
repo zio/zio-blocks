@@ -27,16 +27,7 @@ class JdbcTransactor(
 ) extends Transactor {
 
   def connect[A](f: DbCon ?=> A): A = {
-    val conn = connectionFactory()
-    try {
-      if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
-    } catch {
-      case e: Throwable =>
-        try conn.close()
-        catch { case ce: Throwable => e.addSuppressed(ce) }
-        throw e
-    }
-    val dbConn = new JdbcConnection(conn)
+    val dbConn = JdbcTransactor.openConnection(connectionFactory, dialect)
     try {
       given con: DbCon = new DbCon {
         val connection: DbConnection = dbConn
@@ -73,16 +64,8 @@ class JdbcTransactor(
    * connection.
    */
   override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A = {
-    val conn = connectionFactory()
-    try {
-      if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
-    } catch {
-      case e: Throwable =>
-        try conn.close()
-        catch { case ce: Throwable => e.addSuppressed(ce) }
-        throw e
-    }
-    val dbConn         = new JdbcConnection(conn)
+    val dbConn         = JdbcTransactor.openConnection(connectionFactory, dialect)
+    val conn           = dbConn.underlying
     val prevAutoCommit =
       try conn.getAutoCommit
       catch {
@@ -168,16 +151,8 @@ class JdbcTransactor(
    * SQLite is single-consumer.
    */
   override def transact[A](f: DbTx ?=> A): A = {
-    val conn = connectionFactory()
-    try {
-      if (dialect == SqlDialect.SQLite) JdbcTransactor.configureSQLiteConnection(conn)
-    } catch {
-      case e: Throwable =>
-        try conn.close()
-        catch { case ce: Throwable => e.addSuppressed(ce) }
-        throw e
-    }
-    val dbConn         = new JdbcConnection(conn)
+    val dbConn         = JdbcTransactor.openConnection(connectionFactory, dialect)
+    val conn           = dbConn.underlying
     val prevAutoCommit =
       try conn.getAutoCommit
       catch {
@@ -221,6 +196,29 @@ class JdbcTransactor(
 }
 
 object JdbcTransactor {
+
+  /**
+   * Opens a raw connection, applies the per-dialect configuration (SQLite
+   * busy-timeout + IMMEDIATE), and wraps it in a [[JdbcConnection]].
+   * Configuration failures close the raw connection with the original error
+   * carrying any close failure as suppressed — shared by `connect` and both
+   * `transact` overloads so the setup/teardown sequence lives in one place.
+   */
+  private[sql] def openConnection(
+    connectionFactory: () => Connection,
+    dialect: SqlDialect
+  ): JdbcConnection = {
+    val conn = connectionFactory()
+    try {
+      if (dialect == SqlDialect.SQLite) configureSQLiteConnection(conn)
+    } catch {
+      case e: Throwable =>
+        try conn.close()
+        catch { case ce: Throwable => e.addSuppressed(ce) }
+        throw e
+    }
+    new JdbcConnection(conn)
+  }
 
   def fromUrl(url: String, dialect: SqlDialect): JdbcTransactor =
     if (dialect == SqlDialect.SQLite) {

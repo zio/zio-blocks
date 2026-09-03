@@ -21,6 +21,74 @@ import zio.blocks.schema._
 
 object RepoSpec extends ZIOSpecDefault {
 
+  /**
+   * Records every `setX` call by 1-based index for batch equivalence checks.
+   */
+  private final class RecordingWriter extends DbParamWriter {
+    private val slots                                                = scala.collection.mutable.Map.empty[Int, DbValue]
+    private def record(index: Int, value: DbValue): Unit             = slots(index) = value
+    def setInt(index: Int, value: Int): Unit                         = record(index, DbValue.DbInt(value))
+    def setLong(index: Int, value: Long): Unit                       = record(index, DbValue.DbLong(value))
+    def setDouble(index: Int, value: Double): Unit                   = record(index, DbValue.DbDouble(value))
+    def setFloat(index: Int, value: Float): Unit                     = record(index, DbValue.DbFloat(value))
+    def setBoolean(index: Int, value: Boolean): Unit                 = record(index, DbValue.DbBoolean(value))
+    def setString(index: Int, value: String): Unit                   = record(index, DbValue.DbString(value))
+    def setBigDecimal(index: Int, value: java.math.BigDecimal): Unit =
+      record(index, DbValue.DbBigDecimal(scala.BigDecimal(value)))
+    def setBytes(index: Int, value: Array[Byte]): Unit                     = record(index, DbValue.DbBytes(value))
+    def setShort(index: Int, value: Short): Unit                           = record(index, DbValue.DbShort(value))
+    def setByte(index: Int, value: Byte): Unit                             = record(index, DbValue.DbByte(value))
+    def setLocalDate(index: Int, value: java.time.LocalDate): Unit         = record(index, DbValue.DbLocalDate(value))
+    def setLocalDateTime(index: Int, value: java.time.LocalDateTime): Unit =
+      record(index, DbValue.DbLocalDateTime(value))
+    def setLocalTime(index: Int, value: java.time.LocalTime): Unit                 = record(index, DbValue.DbLocalTime(value))
+    def setInstant(index: Int, value: java.time.Instant): Unit                     = record(index, DbValue.DbInstant(value))
+    def setDuration(index: Int, value: java.time.Duration): Unit                   = record(index, DbValue.DbDuration(value))
+    def setUUID(index: Int, value: java.util.UUID): Unit                           = record(index, DbValue.DbUUID(value))
+    def setNull(index: Int, sqlType: Int): Unit                                    = record(index, DbValue.DbNull)
+    def setArray(index: Int, elementType: String, elements: IndexedSeq[Any]): Unit =
+      record(index, DbValue.DbArray(elementType, elements))
+    def snapshot: IndexedSeq[DbValue] =
+      slots.toIndexedSeq.sortBy(_._1).map(_._2)
+    def clear(): Unit = slots.clear()
+  }
+
+  /** Captures prepared SQL and per-row param snapshots for batch tests. */
+  private final class RecordingConnection(
+    preparedSql: scala.collection.mutable.ListBuffer[String],
+    rowValues: scala.collection.mutable.ListBuffer[IndexedSeq[DbValue]]
+  ) extends DbConnection {
+    private val writer    = new RecordingWriter
+    private val statement = new DbPreparedStatement {
+      def executeQuery(): DbResultSet               = throw new AssertionError("no queries expected")
+      def executeUpdate(): Int                      = throw new AssertionError("no updates expected")
+      def executeUpdateReturningKeys(): DbResultSet = throw new AssertionError("no keys expected")
+      def close(): Unit                             = ()
+      def paramWriter: DbParamWriter                = writer
+      def addBatch(): Unit                          = {
+        rowValues += writer.snapshot
+        writer.clear()
+      }
+      def executeBatch(): Array[Int] = Array.fill(rowValues.size)(1)
+    }
+    def prepareStatement(sql: String): DbPreparedStatement = {
+      preparedSql += sql
+      writer.clear()
+      statement
+    }
+    def prepareStatementReturningKeys(sql: String): DbPreparedStatement =
+      throw new AssertionError(s"prepareStatementReturningKeys should not be called: $sql")
+    def close(): Unit                            = ()
+    def isClosed: Boolean                        = false
+    def setAutoCommit(autoCommit: Boolean): Unit = ()
+    def getAutoCommit: Boolean                   = true
+    def commit(): Unit                           = ()
+    def rollback(): Unit                         = ()
+    override def savepoint(name: String): Unit   = ()
+    override def release(name: String): Unit     = ()
+    override def rollbackTo(name: String): Unit  = ()
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("RepoSpec")(
     suite("buildInsertFrag")(
       test("builds correct INSERT Frag for 3 values") {
@@ -250,6 +318,61 @@ object RepoSpec extends ZIOSpecDefault {
         }
 
         assertTrue(repo.update(IdOnly(1)) == 0)
+      }
+    ),
+    suite("insertOrUpdateBatch uses one SQL shape (F4)")(
+      test("batch prepares a single statement and writes insert ++ assignment params per row") {
+        case class User(id: Int, name: String)
+        object User {
+          implicit val schema: Schema[User] = Schema.derived
+        }
+        val repo        = Repo.derived[User, Int]
+        val preparedSql = scala.collection.mutable.ListBuffer.empty[String]
+        val rowValues   = scala.collection.mutable.ListBuffer.empty[IndexedSeq[DbValue]]
+        given DbCon     = new DbCon {
+          val connection: DbConnection = new RecordingConnection(preparedSql, rowValues)
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        val total = repo.insertOrUpdateBatch(List(User(1, "Alice"), User(2, "Bob")))
+        assertTrue(
+          total == 2,
+          preparedSql.size == 1,
+          preparedSql.head ==
+            """INSERT INTO user (id, name) VALUES (?, ?) ON CONFLICT ("id") DO UPDATE SET "name" = ?""",
+          rowValues.size == 2,
+          rowValues(0) == IndexedSeq(DbValue.DbInt(1), DbValue.DbString("Alice"), DbValue.DbString("Alice")),
+          rowValues(1) == IndexedSeq(DbValue.DbInt(2), DbValue.DbString("Bob"), DbValue.DbString("Bob"))
+        )
+      },
+      test("batch params match Upsert.insertDoUpdate params for the same entity") {
+        case class User(id: Int, name: String)
+        object User {
+          implicit val schema: Schema[User] = Schema.derived
+        }
+        val repo        = Repo.derived[User, Int]
+        val preparedSql = scala.collection.mutable.ListBuffer.empty[String]
+        val rowValues   = scala.collection.mutable.ListBuffer.empty[IndexedSeq[DbValue]]
+        given DbCon     = new DbCon {
+          val connection: DbConnection = new RecordingConnection(preparedSql, rowValues)
+          val dialect: SqlDialect      = SqlDialect.SQLite
+          val logger: SqlLogger        = SqlLogger.noop
+        }
+        repo.insertOrUpdateBatch(List(User(9, "Zed")))
+        val expected = Upsert.insertDoUpdate(repo.table, User(9, "Zed"), "id")
+        assertTrue(
+          preparedSql.head == expected.sql(SqlDialect.SQLite),
+          rowValues.head == expected.queryParams
+        )
+      }
+    ),
+    suite("inListParts (S8)")(
+      test("builds one placeholder group per element") {
+        assertTrue(
+          Repo.inListParts("SELECT a FROM t WHERE (id) IN (", 1) == IndexedSeq("SELECT a FROM t WHERE (id) IN (", ")"),
+          Repo.inListParts("SELECT a FROM t WHERE (id) IN (", 3) ==
+            IndexedSeq("SELECT a FROM t WHERE (id) IN (", ", ", ", ", ")")
+        )
       }
     )
   )
