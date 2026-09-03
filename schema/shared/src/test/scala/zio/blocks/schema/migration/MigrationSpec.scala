@@ -358,12 +358,23 @@ object MigrationSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(Enabled: StatusV2))
       },
-      test("renameCase does not affect other cases") {
+      test("renameCase fails on non-matching case") {
         import RenameCaseFixtures._
 
         val migration = Migration
           .newBuilder[StatusV1, StatusV2]
           .renameCase("Pending", "Enabled")
+          .build
+
+        val result = migration(Active: StatusV1)
+
+        assertTrue(result.isLeft)
+      },
+      test("renameCase renames the matching case") {
+        import RenameCaseFixtures._
+
+        val migration = Migration
+          .newBuilder[StatusV1, StatusV2]
           .renameCase("Active", "ActiveV2")
           .build
 

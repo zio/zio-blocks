@@ -19,6 +19,7 @@ package zio.blocks.schema
 import zio.blocks.docs.Doc
 import zio.blocks.schema.binding._
 import zio.blocks.typeid.TypeId
+import scala.util.control.NoStackTrace
 
 /**
  * A [[ReflectTransformer]] that rebinds an unbound reflect structure using
@@ -235,3 +236,4 @@ final class RebindException(
 ) extends RuntimeException(
       s"Missing $expectedKind binding for type ${typeId.fullName} at path: $path"
     )
+    with NoStackTrace

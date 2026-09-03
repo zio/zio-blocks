@@ -17,7 +17,6 @@
 package zio.blocks.schema
 
 import zio.blocks.chunk.Chunk
-import scala.annotation.tailrec
 
 /**
  * Provides matching logic for SchemaRepr patterns against DynamicValue
@@ -44,13 +43,18 @@ import scala.annotation.tailrec
  *     key and value types (empty map always matches)
  *   - '''Optional(inner)''': Matches DynamicValue.Null always, otherwise checks
  *     inner pattern
- *   - '''Nominal(name)''': Returns false (requires schema context not available
- *     in DynamicValue)
+ *   - '''Nominal(name)''': indeterminate without schema context (see
+ *     `matchesOption` — `matches` treats it as `false`)
  */
 object SchemaMatch {
 
   /**
    * Tests whether a DynamicValue matches a SchemaRepr pattern.
+   *
+   * A `Nominal` pattern (or a pattern containing one nested inside) cannot be
+   * decided from the `DynamicValue` alone and is treated as `false`. Use
+   * `matchesOption` to distinguish "does not match" (`Some(false)`) from
+   * "cannot be decided" (`None`).
    *
    * @param pattern
    *   the schema pattern to match against
@@ -59,38 +63,53 @@ object SchemaMatch {
    * @return
    *   true if the value matches the pattern, false otherwise
    */
-  @tailrec
-  def matches(pattern: SchemaRepr, value: DynamicValue): Boolean = pattern match {
-    case _: SchemaRepr.Wildcard.type => true
+  def matches(pattern: SchemaRepr, value: DynamicValue): Boolean =
+    matchesOption(pattern, value).getOrElse(false)
+
+  /**
+   * Tests whether a DynamicValue matches a SchemaRepr pattern, preserving
+   * indeterminacy.
+   *
+   * @param pattern
+   *   the schema pattern to match against
+   * @param value
+   *   the dynamic value to check
+   * @return
+   *   `Some(true)` / `Some(false)` when the pattern can be decided, `None` when
+   *   the pattern is (or contains) a `Nominal` reference that requires schema
+   *   context not available in `DynamicValue`
+   */
+  def matchesOption(pattern: SchemaRepr, value: DynamicValue): Option[Boolean] = pattern match {
+    case _: SchemaRepr.Wildcard.type => new Some(true)
     case p: SchemaRepr.Primitive     =>
       value match {
-        case dv: DynamicValue.Primitive => primitiveTypeMatches(p.name, dv.value)
-        case _                          => false
+        case dv: DynamicValue.Primitive => new Some(primitiveTypeMatches(p.name, dv.value))
+        case _                          => new Some(false)
       }
     case r: SchemaRepr.Record =>
       value match {
-        case dv: DynamicValue.Record => recordMatches(r.fields, dv.fields)
-        case _                       => false
+        case dv: DynamicValue.Record => recordMatchesOption(r.fields, dv.fields)
+        case _                       => new Some(false)
       }
     case v: SchemaRepr.Variant =>
       value match {
-        case dv: DynamicValue.Variant => variantMatches(v.cases, dv.caseNameValue, dv.value)
-        case _                        => false
+        case dv: DynamicValue.Variant => variantMatchesOption(v.cases, dv.caseNameValue, dv.value)
+        case _                        => new Some(false)
       }
     case s: SchemaRepr.Sequence =>
       value match {
-        case dv: DynamicValue.Sequence => sequenceMatches(s.element, dv.elements)
-        case _                         => false
+        case dv: DynamicValue.Sequence => sequenceMatchesOption(s.element, dv.elements)
+        case _                         => new Some(false)
       }
     case m: SchemaRepr.Map =>
       value match {
-        case dv: DynamicValue.Map => mapMatches(m.key, m.value, dv.entries)
-        case _                    => false
+        case dv: DynamicValue.Map => mapMatchesOption(m.key, m.value, dv.entries)
+        case _                    => new Some(false)
       }
     case o: SchemaRepr.Optional =>
-      if (value eq DynamicValue.Null) true
-      else matches(o.inner, value)
-    case _ => false
+      if (value eq DynamicValue.Null) new Some(true)
+      else matchesOption(o.inner, value)
+    case _ => None
   }
 
   /**
@@ -134,48 +153,110 @@ object SchemaMatch {
    * Tests whether a DynamicValue.Record matches a Record pattern using subset
    * matching. All fields specified in the pattern must exist in the actual
    * record with matching types. The actual record may have additional fields
-   * that are not in the pattern.
+   * that are not in the pattern. Returns `None` when any nested pattern is
+   * indeterminate (see `matchesOption`).
    */
-  private[this] def recordMatches(
+  private[this] def recordMatchesOption(
     patternFields: IndexedSeq[(String, SchemaRepr)],
     actualFields: Chunk[(String, DynamicValue)]
-  ): Boolean =
-    patternFields.forall { case (patternName, patternRepr) =>
-      actualFields.exists { case (actualName, actualValue) =>
-        actualName == patternName && matches(patternRepr, actualValue)
+  ): Option[Boolean] = {
+    var result = true
+    val it     = patternFields.iterator
+    while (result && it.hasNext) {
+      val (patternName, patternRepr) = it.next()
+      var found                      = false
+      var unknown                    = false
+      val jt                         = actualFields.iterator
+      while (!found && !unknown && jt.hasNext) {
+        val (actualName, actualValue) = jt.next()
+        if (actualName == patternName) {
+          matchesOption(patternRepr, actualValue) match {
+            case Some(matched) => found = matched
+            case None          => unknown = true
+          }
+        }
       }
+      if (unknown) return None
+      if (!found) result = false
     }
+    new Some(result)
+  }
 
   /**
    * Tests whether a DynamicValue.Variant matches a Variant pattern. The
    * variant's case name must match one of the pattern's cases, and the payload
-   * must match that case's pattern.
+   * must match that case's pattern. Returns `None` when the matching case
+   * payload is indeterminate (see `matchesOption`).
    */
-  private[this] def variantMatches(
+  private[this] def variantMatchesOption(
     patternCases: IndexedSeq[(String, SchemaRepr)],
     caseName: String,
     payload: DynamicValue
-  ): Boolean =
-    patternCases.exists { case (patternCaseName, patternRepr) =>
-      patternCaseName == caseName && matches(patternRepr, payload)
+  ): Option[Boolean] = {
+    var result  = false
+    var unknown = false
+    val it      = patternCases.iterator
+    while (!result && !unknown && it.hasNext) {
+      val (patternCaseName, patternRepr) = it.next()
+      if (patternCaseName == caseName) {
+        matchesOption(patternRepr, payload) match {
+          case Some(matched) => result = matched
+          case None          => unknown = true
+        }
+      }
     }
+    if (unknown) None else new Some(result)
+  }
 
   /**
    * Tests whether a DynamicValue.Sequence matches a Sequence pattern. Empty
    * sequences always match. For non-empty sequences, all elements must match
-   * the element pattern.
+   * the element pattern. Returns `None` when any element is indeterminate (see
+   * `matchesOption`).
    */
-  private[this] def sequenceMatches(elemPattern: SchemaRepr, elements: Chunk[DynamicValue]): Boolean =
-    elements.forall(elem => matches(elemPattern, elem))
+  private[this] def sequenceMatchesOption(
+    elemPattern: SchemaRepr,
+    elements: Chunk[DynamicValue]
+  ): Option[Boolean] = {
+    var result  = true
+    var unknown = false
+    val it      = elements.iterator
+    while (result && !unknown && it.hasNext) {
+      matchesOption(elemPattern, it.next()) match {
+        case Some(matched) => result = matched
+        case None          => unknown = true
+      }
+    }
+    if (unknown) None else new Some(result)
+  }
 
   /**
    * Tests whether a DynamicValue.Map matches a Map pattern. Empty maps always
    * match. For non-empty maps, all entries must have keys matching the key
-   * pattern and values matching the value pattern.
+   * pattern and values matching the value pattern. Returns `None` when any
+   * entry is indeterminate (see `matchesOption`).
    */
-  private[this] def mapMatches(
+  private[this] def mapMatchesOption(
     keyPattern: SchemaRepr,
     valuePattern: SchemaRepr,
     entries: Chunk[(DynamicValue, DynamicValue)]
-  ): Boolean = entries.forall { case (k, v) => matches(keyPattern, k) && matches(valuePattern, v) }
+  ): Option[Boolean] = {
+    var result  = true
+    var unknown = false
+    val it      = entries.iterator
+    while (result && !unknown && it.hasNext) {
+      val (k, v) = it.next()
+      matchesOption(keyPattern, k) match {
+        case Some(matched) => result = matched
+        case None          => unknown = true
+      }
+      if (result && !unknown) {
+        matchesOption(valuePattern, v) match {
+          case Some(matched) => result = matched
+          case None          => unknown = true
+        }
+      }
+    }
+    if (unknown) None else new Some(result)
+  }
 }
