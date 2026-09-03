@@ -19,6 +19,16 @@ package zio.blocks.schema
 import scala.collection.Factory
 
 trait Into[-A, +B] {
+
+  /**
+   * Converts a value of type `A` into a value of type `B`.
+   *
+   * Conversion-failure semantics: widening conversions always succeed, while
+   * narrowing conversions return `Left(SchemaError.conversionFailed(...))` when
+   * the input is out of range for `B` or cannot be represented exactly in `B`
+   * (no silent truncation or saturation — out-of-range inputs such as `2^31f`
+   * for `Int` are rejected, not saturated).
+   */
   def into(a: A): Either[SchemaError, B]
 }
 
@@ -110,28 +120,41 @@ trait IntoPrimitiveInstances {
     if (a >= -Float.MaxValue && a <= Float.MaxValue) new Right(a.toFloat)
     else new Left(SchemaError.conversionFailed(Nil, s"Value $a is out of range for Float"))
 
+  // Float/Double boundary guards use exact power-of-two bound constants with a
+  // strict `<` on the top side: `Int.MaxValue.toFloat` rounds UP to 2^31, so
+  // comparing against `Int.MaxValue` (widened) would admit 2^31f, which then
+  // saturates in `toInt` and passes the round-trip check. The same applies to
+  // Long at 2^63 for both Float and Double.
   implicit val floatToInt: Into[Float, Int] = (a: Float) =>
-    if (a >= Int.MinValue && a <= Int.MaxValue && a == a.toInt.toFloat) new Right(a.toInt)
-    else new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Int"))
+    if (a < -2147483648.0f || a >= 2147483648.0f || a != a.toInt.toFloat)
+      new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Int"))
+    else new Right(a.toInt)
 
   implicit val floatToLong: Into[Float, Long] = (a: Float) =>
-    if (a >= Long.MinValue && a <= Long.MaxValue && a == a.toLong.toFloat) new Right(a.toLong)
-    else new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Long"))
+    if (a < -9223372036854775808.0f || a >= 9223372036854775808.0f || a != a.toLong.toFloat)
+      new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Long"))
+    else new Right(a.toLong)
 
   implicit val doubleToInt: Into[Double, Int] = (a: Double) =>
-    if (a >= Int.MinValue && a <= Int.MaxValue && a == a.toInt.toDouble) new Right(a.toInt)
-    else new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Int"))
+    if (a < -2147483648.0 || a >= 2147483648.0 || a != a.toInt.toDouble)
+      new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Int"))
+    else new Right(a.toInt)
 
   implicit val doubleToLong: Into[Double, Long] = (a: Double) =>
-    if (a >= Long.MinValue && a <= Long.MaxValue && a == a.toLong.toDouble) new Right(a.toLong)
-    else new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Long"))
+    if (a < -9223372036854775808.0 || a >= 9223372036854775808.0 || a != a.toLong.toDouble)
+      new Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Long"))
+    else new Right(a.toLong)
 }
 
 trait IntoContainerInstances {
 
   implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]] = {
-    case Some(value) => into.into(value).map(new Some(_))
-    case None        => new Right(None)
+    case Some(value) =>
+      into.into(value) match {
+        case Right(b)    => new Right(new Some(b))
+        case l @ Left(_) => l.asInstanceOf[Either[SchemaError, Option[B]]]
+      }
+    case None => new Right(None)
   }
 
   implicit def eitherInto[L1, R1, L2, R2](implicit
@@ -142,57 +165,99 @@ trait IntoContainerInstances {
     case Right(r) => rightInto.into(r).map(new Right(_))
   }
 
+  // Collection converters fuse the per-element conversion and the error
+  // accumulation into a single `while` loop over the iterator: successes go
+  // straight into the result builder, failures accumulate via `++`. No
+  // intermediate `List[Either]` and no per-call closures. Errors accumulate
+  // via `++`, matching the previous `sequence`-based behavior.
   implicit def mapInto[K1, V1, K2, V2](implicit
     keyInto: Into[K1, K2],
     valueInto: Into[V1, V2]
   ): Into[Map[K1, V1], Map[K2, V2]] = { (a: Map[K1, V1]) =>
-    val results = a.toList.map { case (k, v) =>
-      for {
-        k2 <- keyInto.into(k)
-        v2 <- valueInto.into(v)
-      } yield (k2, v2)
+    val ok               = Map.newBuilder[K2, V2]
+    var err: SchemaError = null
+    val it               = a.iterator
+    while (it.hasNext) {
+      val (k, v) = it.next()
+      keyInto.into(k) match {
+        case Right(k2) =>
+          valueInto.into(v) match {
+            case Right(v2) => ok += ((k2, v2))
+            case Left(e)   => err = if (err eq null) e else err ++ e
+          }
+        case Left(e) => err = if (err eq null) e else err ++ e
+      }
     }
-    sequence(results).map(_.toMap)
+    if (err eq null) new Right(ok.result())
+    else new Left(err)
   }
 
   implicit def iterableInto[A, B, F1[X] <: Iterable[X], F2[_]](implicit
     intoAB: Into[A, B],
     factory: Factory[B, F2[B]]
   ): Into[F1[A], F2[B]] = { (a: F1[A]) =>
-    val results = a.map(intoAB.into).toList
-    sequence(results).map { list =>
-      val builder = factory.newBuilder
-      builder ++= list
-      builder.result()
+    val ok               = factory.newBuilder
+    var err: SchemaError = null
+    val it               = a.iterator
+    while (it.hasNext) {
+      intoAB.into(it.next()) match {
+        case Right(b) => ok += b
+        case Left(e)  => err = if (err eq null) e else err ++ e
+      }
     }
+    if (err eq null) new Right(ok.result())
+    else new Left(err)
   }
 
   implicit def arrayToIterable[A, B, F[_]](implicit
     intoAB: Into[A, B],
     factory: Factory[B, F[B]]
   ): Into[Array[A], F[B]] = { (a: Array[A]) =>
-    val results = a.map(intoAB.into).toList
-    sequence(results).map { list =>
-      val builder = factory.newBuilder
-      builder ++= list
-      builder.result()
+    val ok               = factory.newBuilder
+    var err: SchemaError = null
+    val it               = a.iterator
+    while (it.hasNext) {
+      intoAB.into(it.next()) match {
+        case Right(b) => ok += b
+        case Left(e)  => err = if (err eq null) e else err ++ e
+      }
     }
+    if (err eq null) new Right(ok.result())
+    else new Left(err)
   }
 
   implicit def iterableToArray[A, B, F[X] <: Iterable[X]](implicit
     intoAB: Into[A, B],
     ct: scala.reflect.ClassTag[B]
   ): Into[F[A], Array[B]] = { (a: F[A]) =>
-    val results = a.map(intoAB.into).toList
-    sequence(results).map(_.toArray)
+    val ok               = Array.newBuilder[B]
+    var err: SchemaError = null
+    val it               = a.iterator
+    while (it.hasNext) {
+      intoAB.into(it.next()) match {
+        case Right(b) => ok += b
+        case Left(e)  => err = if (err eq null) e else err ++ e
+      }
+    }
+    if (err eq null) new Right(ok.result())
+    else new Left(err)
   }
 
   implicit def arrayToArray[A, B](implicit
     intoAB: Into[A, B],
     ct: scala.reflect.ClassTag[B]
   ): Into[Array[A], Array[B]] = { (a: Array[A]) =>
-    val results = a.map(intoAB.into).toList
-    sequence(results).map(_.toArray)
+    val ok               = Array.newBuilder[B]
+    var err: SchemaError = null
+    val it               = a.iterator
+    while (it.hasNext) {
+      intoAB.into(it.next()) match {
+        case Right(b) => ok += b
+        case Left(e)  => err = if (err eq null) e else err ++ e
+      }
+    }
+    if (err eq null) new Right(ok.result())
+    else new Left(err)
   }
 
   protected def sequence[A](list: List[Either[SchemaError, A]]): Either[SchemaError, List[A]] = {

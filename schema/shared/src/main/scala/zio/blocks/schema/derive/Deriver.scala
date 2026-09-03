@@ -149,7 +149,8 @@ trait Deriver[TC[_]] { self =>
    * @param termName
    *   the name of the field (or variant case) to override. If no field with
    *   this name exists in the target type, the override is silently ignored
-   *   during derivation (matching `DerivationBuilder.instance` behaviour).
+   *   during derivation (matching `DerivationBuilder.instance` behaviour). Use
+   *   `withInstanceChecked` to fail fast on such mistakes.
    * @param instance
    *   the custom type-class instance for the field (evaluated lazily)
    * @return
@@ -161,6 +162,33 @@ trait Deriver[TC[_]] { self =>
       Chunk(new InstanceOverrideByTypeAndTermName[TC, A, B](typeId, termName, Lazy(instance))),
       Chunk.empty
     )
+
+  /**
+   * Checked variant of `withInstance(typeId, termName, instance)`: validates
+   * the override against `schema` and returns `Left` with a diagnostic when no
+   * term with the given name exists in the parent type, instead of registering
+   * an override that derivation would silently ignore. Returns `Right` with the
+   * updated deriver otherwise.
+   */
+  final def withInstanceChecked[A, B](
+    schema: Schema[A]
+  )(typeId: TypeId[A], termName: String, instance: => TC[B]): Either[String, Deriver[TC]] = {
+    val updated: Deriver[TC] = new DeriverWithOverrides[TC](
+      self,
+      Chunk(new InstanceOverrideByTypeAndTermName[TC, A, B](typeId, termName, Lazy(instance))),
+      Chunk.empty
+    )
+    val report = DerivationReport.forSchema(schema, updated.instanceOverrides, updated.modifierOverrides)
+    if (
+      report.ignoredInstanceTerms.exists { case (id, name) =>
+        id.fullName == typeId.fullName && name == termName
+      }
+    )
+      new Left(
+        s"Instance override for term '$termName' in type ${typeId.fullName} did not match any field or case"
+      )
+    else new Right(updated)
+  }
 
   /**
    * Returns a new deriver that pre-registers a reflect-level modifier override.
@@ -194,7 +222,8 @@ trait Deriver[TC[_]] { self =>
    *   identifier for `A`
    * @param termName
    *   the name of the field (or variant case) to modify. If no field with this
-   *   name exists in the target type, the override is silently ignored.
+   *   name exists in the target type, the override is silently ignored. Use
+   *   `withModifierChecked` to fail fast on such mistakes.
    * @param modifier
    *   the term-level modifier to apply
    * @return
@@ -206,4 +235,31 @@ trait Deriver[TC[_]] { self =>
       Chunk.empty,
       Chunk(new ModifierTermOverrideByType[A](typeId, termName, modifier))
     )
+
+  /**
+   * Checked variant of `withModifier(typeId, termName, modifier)`: validates
+   * the override against `schema` and returns `Left` with a diagnostic when no
+   * term with the given name exists in the parent type, instead of registering
+   * a modifier that derivation would silently ignore. Returns `Right` with the
+   * updated deriver otherwise.
+   */
+  final def withModifierChecked[A](
+    schema: Schema[A]
+  )(typeId: TypeId[A], termName: String, modifier: Modifier.Term): Either[String, Deriver[TC]] = {
+    val updated: Deriver[TC] = new DeriverWithOverrides[TC](
+      self,
+      Chunk.empty,
+      Chunk(new ModifierTermOverrideByType[A](typeId, termName, modifier))
+    )
+    val report = DerivationReport.forSchema(schema, updated.instanceOverrides, updated.modifierOverrides)
+    if (
+      report.ignoredModifierTerms.exists { case (id, name) =>
+        id.fullName == typeId.fullName && name == termName
+      }
+    )
+      new Left(
+        s"Modifier override for term '$termName' in type ${typeId.fullName} did not match any field or case"
+      )
+    else new Right(updated)
+  }
 }

@@ -70,12 +70,38 @@ final case class DerivationBuilder[TC[_], A](
    * The `typeId` refers to the parent record/variant type, not the field type.
    * The field type `B` is not statically checked against the actual term type.
    * If no term with the given name exists in the parent type, the override is
-   * silently ignored.
+   * silently ignored. Use [[instanceChecked]] or [[derivationReport]] to detect
+   * such mistakes.
    */
   def instance[P, B](typeId: TypeId[P], termName: String, instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides =
       instanceOverrides.appended(new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance)))
     )
+
+  /**
+   * Checked variant of `instance(typeId, termName, instance)`: returns `Left`
+   * with a diagnostic instead of registering an override that derivation would
+   * silently ignore when no term with the given name exists in the parent type.
+   * Returns `Right` with the updated builder otherwise.
+   */
+  def instanceChecked[P, B](
+    typeId: TypeId[P],
+    termName: String,
+    instance: => TC[B]
+  ): Either[String, DerivationBuilder[TC, A]] = {
+    val updated = copy(instanceOverrides =
+      instanceOverrides.appended(new InstanceOverrideByTypeAndTermName(typeId, termName, Lazy(instance)))
+    )
+    if (
+      updated.derivationReport.ignoredInstanceTerms.exists { case (id, name) =>
+        id.fullName == typeId.fullName && name == termName
+      }
+    )
+      new Left(
+        s"Instance override for term '$termName' in type ${typeId.fullName} did not match any field or case"
+      )
+    else new Right(updated)
+  }
 
   /**
    * Adds a reflect-level modifier for every occurrence of the type identified
@@ -116,10 +142,49 @@ final case class DerivationBuilder[TC[_], A](
    * `termName` inside a parent type identified by `typeId`. The `typeId` refers
    * to the parent record/variant type that owns the term, not the term's own
    * type. If no term with the given name exists in the parent type, the
-   * modifier is silently ignored.
+   * modifier is silently ignored. Use [[modifierChecked]] or
+   * [[derivationReport]] to detect such mistakes.
    */
   def modifier[B](typeId: TypeId[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides.appended(new ModifierTermOverrideByType(typeId, termName, modifier)))
+
+  /**
+   * Checked variant of `modifier(typeId, termName, modifier)`: returns `Left`
+   * with a diagnostic instead of registering a modifier that derivation would
+   * silently ignore when no term with the given name exists in the parent type.
+   * Returns `Right` with the updated builder otherwise.
+   */
+  def modifierChecked[B](
+    typeId: TypeId[B],
+    termName: String,
+    modifier: Modifier.Term
+  ): Either[String, DerivationBuilder[TC, A]] = {
+    val updated =
+      copy(modifierOverrides = modifierOverrides.appended(new ModifierTermOverrideByType(typeId, termName, modifier)))
+    if (
+      updated.derivationReport.ignoredModifierTerms.exists { case (id, name) =>
+        id.fullName == typeId.fullName && name == termName
+      }
+    )
+      new Left(
+        s"Modifier override for term '$termName' in type ${typeId.fullName} did not match any field or case"
+      )
+    else new Right(updated)
+  }
+
+  /**
+   * Reports term-level instance/modifier overrides registered on this builder
+   * (including deriver-level ones) that match no term in `schema`. Derivation
+   * itself keeps the historical lenient behavior — unknown terms are ignored —
+   * so consult this report (or use the `*Checked` variants) to catch typo'd
+   * override names.
+   */
+  def derivationReport: DerivationReport =
+    DerivationReport.forSchema(
+      schema,
+      instanceOverrides ++ deriver.instanceOverrides,
+      modifierOverrides ++ deriver.modifierOverrides
+    )
 
   lazy val derive: TC[A] = Reflect.withTransformCache {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides

@@ -60,17 +60,17 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("passes through non-Option value unchanged") {
+      test("fails on non-Option value instead of passing through") {
         val input = DynamicValue.Record(
           "status" -> DynamicValue.Primitive(PrimitiveValue.Int(10))
         )
         val migration = DynamicMigration.single(
           MigrationAction.MandateField(root.field("status"), dynamicLiteral(0))
         )
+        val result = migration(input)
         assertTrue(
-          migration(input) == Right(
-            DynamicValue.Record("status" -> DynamicValue.Primitive(PrimitiveValue.Int(10)))
-          )
+          result.isLeft &&
+            result.fold(_.message.contains("Type mismatch"), _ => false)
         )
       }
     ),
@@ -147,12 +147,16 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
         )
         assertTrue(migration(input) == Right(DynamicValue.Variant("Enabled", DynamicValue.Record())))
       },
-      test("leaves non-matching case unchanged") {
+      test("fails on non-matching case instead of passing through") {
         val input     = DynamicValue.Variant("Inactive", DynamicValue.Record())
         val migration = DynamicMigration.single(
           MigrationAction.RenameCase(root, "Active", "Enabled")
         )
-        assertTrue(migration(input) == Right(input))
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.fold(_.message.contains("Case 'Active' not found"), _ => false)
+        )
       },
       test("fails on non-Variant value") {
         val migration = DynamicMigration.single(
@@ -185,6 +189,121 @@ object DynamicMigrationSpec extends ZIOSpecDefault {
           MigrationAction.TransformCase(root, "User", zio.blocks.chunk.Chunk.empty)
         )
         assertTrue(migration(DynamicValue.Primitive(PrimitiveValue.Int(1))).isLeft)
+      }
+    ),
+    suite("PR1 nested-case paths")(
+      test("TransformCase navigates doubly-nested case paths") {
+        val input = DynamicValue.Record(
+          "u" -> DynamicValue.Variant(
+            "A",
+            DynamicValue.Record(
+              "x" -> DynamicValue.Variant("B", DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            )
+          )
+        )
+        val at        = root.field("u").caseOf("A").field("x").caseOf("B")
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformCase(
+            at,
+            "B",
+            zio.blocks.chunk.Chunk(
+              MigrationAction.TransformField(DynamicOptic.root, dynamicLiteral(42))
+            )
+          )
+        )
+        assertTrue(
+          migration(input) == Right(
+            DynamicValue.Record(
+              "u" -> DynamicValue.Variant(
+                "A",
+                DynamicValue.Record(
+                  "x" -> DynamicValue.Variant("B", DynamicValue.Primitive(PrimitiveValue.Int(42)))
+                )
+              )
+            )
+          )
+        )
+      },
+      test("TransformCase.reverse with multiple Case nodes is Irreversible") {
+        val at     = root.field("u").caseOf("A").field("x").caseOf("B")
+        val action = MigrationAction.TransformCase(
+          at,
+          "B",
+          zio.blocks.chunk.Chunk(
+            MigrationAction.TransformField(DynamicOptic.root, dynamicLiteral(42))
+          )
+        )
+        assertTrue(action.reverse == MigrationAction.Irreversible(at, "TransformCase"))
+      },
+      test("TransformCase.reverse with a single Case node stays structural") {
+        val action = MigrationAction.TransformCase(
+          root.caseOf("A"),
+          "B",
+          zio.blocks.chunk.Chunk.empty
+        )
+        assertTrue(
+          action.reverse == MigrationAction.TransformCase(
+            root.caseOf("B"),
+            "A",
+            zio.blocks.chunk.Chunk.empty
+          )
+        )
+      }
+    ),
+    suite("PR1 lazy per-element error paths")(
+      test("TransformElements failure carries the failing element index") {
+        import SchemaExpr.ConversionType._
+        val input = DynamicValue.Sequence(
+          zio.blocks.chunk.Chunk(
+            DynamicValue.Primitive(PrimitiveValue.Float(1.0f)),
+            DynamicValue.Primitive(PrimitiveValue.Float(1.5f))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformElements(
+            root,
+            DynamicSchemaExpr.PrimitiveConversion(FloatToInt)
+          )
+        )
+        val result = migration(input)
+        assertTrue(
+          result.isLeft &&
+            result.fold(
+              err =>
+                err.errors.head.source.nodes.contains(
+                  DynamicOptic.Node.AtIndex(1)
+                ),
+              _ => false
+            )
+        )
+      },
+      test("TransformValues replaces all values (fused loop)") {
+        val input = DynamicValue.Map(
+          zio.blocks.chunk.Chunk(
+            (DynamicValue.Primitive(PrimitiveValue.String("a")), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+            (DynamicValue.Primitive(PrimitiveValue.String("b")), DynamicValue.Primitive(PrimitiveValue.Int(2)))
+          )
+        )
+        val migration = DynamicMigration.single(
+          MigrationAction.TransformValues(root, dynamicLiteral(0))
+        )
+        val result = migration(input)
+        assertTrue(
+          result == Right(
+            DynamicValue.Map(
+              zio.blocks.chunk.Chunk(
+                (
+                  DynamicValue.Primitive(PrimitiveValue.String("a")),
+                  DynamicValue.Primitive(PrimitiveValue.Int(0))
+                ),
+                (
+                  DynamicValue.Primitive(PrimitiveValue.String("b")),
+                  DynamicValue.Primitive(PrimitiveValue.Int(0))
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Irreversible")(
