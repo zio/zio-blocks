@@ -167,6 +167,43 @@ object HtmxAttributesSpec extends ZIOSpecDefault {
         result == """<div hx-trigger="click throttle:2s target:#second threshold:0.75 root:#two once changed consume"></div>"""
       )
     },
+    test("hxTrigger from/target/root accept typed CssSelector") {
+      val typed =
+        div(
+          hxTrigger := HxTrigger.click
+            .from(CssSelector.id("source"))
+            .target(CssSelector.`class`("save"))
+            .root(CssSelector.element("main"))
+        ).render
+      val raw =
+        div(
+          hxTrigger := HxTrigger.click
+            .fromRaw("#source")
+            .targetRaw(".save")
+            .rootRaw("main")
+        ).render
+      assertTrue(
+        typed == """<div hx-trigger="click from:#source target:.save root:main"></div>""",
+        raw == typed
+      )
+    },
+    test("hxTrigger raw hatches cover extended selectors") {
+      val result =
+        div(
+          hxTrigger := HxTrigger.click
+            .fromRaw("document")
+            .targetRaw("closest form")
+            .rootRaw("window")
+        ).render
+      assertTrue(result == """<div hx-trigger="click from:document target:closest form root:window"></div>""")
+    },
+    test("hxTrigger modifier css constructors render typed selectors") {
+      assertTrue(
+        HxTrigger.Modifier.From.css(CssSelector.id("a")).render == "from:#a",
+        HxTrigger.Modifier.Target.css(CssSelector.`class`("b")).render == "target:.b",
+        HxTrigger.Modifier.Root.css(CssSelector.element("main")).render == "root:main"
+      )
+    },
     test("hxTarget renders extended selectors") {
       val result = div(hxTarget := HxTarget.closest("div")).render
       assertTrue(result == """<div hx-target="closest div"></div>""")
