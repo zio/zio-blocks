@@ -42,6 +42,12 @@ final case class Response(
   def contentType: Option[ContentType] =
     header(Header.ContentType).map(_.value).orElse(Some(body.contentType))
 
+  /**
+   * Returns this response's cookies, parsed from the `Set-Cookie` headers.
+   *
+   * Headers that fail `Cookie.parseResponse` are skipped (a wrong-typed
+   * `Set-Cookie` value reads as absent, mirroring the lenient [[Headers.get]]).
+   */
   def cookies: zio.blocks.chunk.Chunk[ResponseCookie] = {
     val raw     = headers.getAll(Header.SetCookieHeader)
     val builder = zio.blocks.chunk.Chunk.newBuilder[ResponseCookie]
@@ -105,12 +111,10 @@ object Response {
   def json(body: String): Response =
     json(Status.Ok, body)
 
-  def json(status: Status, body: String): Response =
-    Response(
-      status,
-      Headers("content-type" -> "application/json"),
-      Body.fromArray(body.getBytes("UTF-8"), ContentType.`application/json`)
-    )
+  def json(status: Status, body: String): Response = {
+    val responseBody = Body.fromArray(body.getBytes(Charset.UTF8.name), ContentType.`application/json`)
+    Response(status, Headers("content-type" -> responseBody.contentType.render), responseBody)
+  }
 
   def redirect(location: String, isPermanent: Boolean = false): Response =
     Response(

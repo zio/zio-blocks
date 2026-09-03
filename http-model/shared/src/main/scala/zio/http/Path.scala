@@ -22,8 +22,23 @@ import zio.blocks.chunk.Chunk
  * Decoded URL path, stored as individual decoded segments.
  *
  * Segments are stored without percent-encoding; use `encode` to produce a
- * percent-encoded path string and `render` for the decoded form. Parse
- * already-encoded paths with `Path.fromEncoded`.
+ * percent-encoded path string and `render` for the decoded form.
+ *
+ * Constructor contract (three ways to build a `Path`):
+ *   - `Path(segments, hasLeadingSlash, trailingSlash)` (the case-class apply)
+ *     stores the segments verbatim. By convention they are already decoded; no
+ *     encoding work happens here.
+ *   - `Path(raw)` splits a raw path string on `/` and stores the segments
+ *     as-is, WITHOUT percent-decoding: `Path("/a%20b").segments` is
+ *     `Chunk("a%20b")`. Use this for paths that are known to be unencoded.
+ *   - `Path.fromEncoded(raw)` splits and then percent-decodes each segment:
+ *     `Path.fromEncoded("/a%20b").segments` is `Chunk("a b")`. Use this for
+ *     paths arriving percent-encoded (request-target lines, `Location` values,
+ *     browser address bars).
+ *
+ * Latently-encoded values only round-trip through the matching pair:
+ * `Path.fromEncoded(p.encode) == p` for decoded `p`, while `Path(p.encode)`
+ * double-encodes on the next `encode` call.
  */
 final case class Path(segments: Chunk[String], hasLeadingSlash: Boolean, trailingSlash: Boolean) {
 
@@ -86,6 +101,12 @@ object Path {
   val empty: Path = Path(Chunk.empty, hasLeadingSlash = false, trailingSlash = false)
   val root: Path  = Path(Chunk.empty, hasLeadingSlash = true, trailingSlash = false)
 
+  /**
+   * Builds a path from a raw (unencoded) string.
+   *
+   * Segments are stored WITHOUT percent-decoding; see the constructor contract
+   * on [[Path]] and use [[fromEncoded]] for encoded input.
+   */
   def apply(raw: String): Path = {
     if (raw.isEmpty) return empty
     val leading  = raw.startsWith("/")
@@ -100,6 +121,12 @@ object Path {
     }
   }
 
+  /**
+   * Builds a path from a percent-encoded string, decoding each segment.
+   *
+   * This is the inverse of [[Path.encode]] for decoded paths; see the
+   * constructor contract on [[Path]].
+   */
   def fromEncoded(raw: String): Path = {
     if (raw.isEmpty) return empty
     val leading  = raw.startsWith("/")
