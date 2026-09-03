@@ -65,7 +65,7 @@ object TransactorSpec extends ZIOSpecDefault {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
     val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
       override def connect[A](f: DbCon ?=> A): A = {
-        val dbConn       = new JdbcConnection(conn)
+        val dbConn       = new JdbcConnection(conn, SqlDialect.SQLite)
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.SQLite
@@ -75,17 +75,13 @@ object TransactorSpec extends ZIOSpecDefault {
       }
 
       override def transact[A](f: DbTx ?=> A): A = {
-        val dbConn = new JdbcConnection(conn)
+        val dbConn = new JdbcConnection(conn, SqlDialect.SQLite)
         conn.setAutoCommit(false)
         try {
           given tx: DbTx = new DbTx {
-            val connection: DbConnection                = dbConn
-            val dialect: SqlDialect                     = SqlDialect.SQLite
-            val logger: SqlLogger                       = SqlLogger.noop
-            override var currentDepth: Int              = 0
-            override def savepoint(name: String): Unit  = dbConn.savepoint(name)
-            override def release(name: String): Unit    = dbConn.release(name)
-            override def rollbackTo(name: String): Unit = dbConn.rollbackTo(name)
+            val connection: DbConnection = dbConn
+            val dialect: SqlDialect      = SqlDialect.SQLite
+            val logger: SqlLogger        = SqlLogger.noop
           }
           val result = f
           conn.commit()
@@ -96,9 +92,6 @@ object TransactorSpec extends ZIOSpecDefault {
             throw e
         } finally conn.setAutoCommit(true)
       }
-
-      override def transact[A](isolation: TransactionIsolation, readOnly: Boolean)(f: DbTx ?=> A): A =
-        transact(f)
     }
     (tx, conn)
   }
@@ -112,7 +105,7 @@ object TransactorSpec extends ZIOSpecDefault {
 
   private def loggedCon[A](conn: java.sql.Connection, log: SqlLogger)(f: DbCon ?=> A): A = {
     given con: DbCon = new DbCon {
-      val connection: DbConnection = new JdbcConnection(conn)
+      val connection: DbConnection = new JdbcConnection(conn, SqlDialect.SQLite)
       val dialect: SqlDialect      = SqlDialect.SQLite
       val logger: SqlLogger        = log
     }

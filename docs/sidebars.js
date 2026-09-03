@@ -381,7 +381,9 @@ const sidebars = {
         "guides/query-dsl-fluent-builder",
         "guides/query-dsl-reified-optics",
         "guides/query-dsl-sql",
-        "guides/sql-transactions",
+        "guides/sql-checked-interpolation",
+        "guides/sql-query-dsl",
+        "guides/transactions",
         "guides/zio-schema-migration",
         "guides/telemetry-guide",
       ]

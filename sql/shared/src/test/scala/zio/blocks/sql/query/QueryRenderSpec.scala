@@ -99,18 +99,27 @@ object QueryRenderSpec extends ZIOSpecDefault {
     ),
     suite("order/limit/offset")(
       test("order by single column") {
-        val q   = SqlQuery.from(userTable).orderBy("name", SortOrder.Asc)
-        val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
-        val exp = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC"
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase.orderBy(qBase.col[User](_.name), SortOrder.Asc)
+        val sql   = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp   = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC"
         assertTrue(sql == exp)
       },
       test("order by multiple columns with mixed directions") {
-        val q = SqlQuery
-          .from(userTable)
-          .orderBy("name", SortOrder.Asc)
-          .orderBy("id", SortOrder.Desc)
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase
+          .orderBy(qBase.col[User](_.name), SortOrder.Asc)
+          .orderBy(qBase.col[User](_.id), SortOrder.Desc)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
         val exp = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 ORDER BY t0.\"name\" ASC, t0.\"id\" DESC"
+        assertTrue(sql == exp)
+      },
+      test("order by joined alias qualifies the joined table") {
+        val qBase = SqlQuery.from(userTable).innerJoin(userRepoRel)
+        val q     = qBase.orderBy(qBase.colAt[Repo]("t1", _.name), SortOrder.Asc)
+        val sql   = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp   =
+          "SELECT t0.\"id\", t0.\"name\", t1.\"id\", t1.\"owner_id\", t1.\"name\" FROM \"user\" AS t0 INNER JOIN \"repo\" AS t1 ON t1.\"owner_id\" = t0.\"id\" ORDER BY t1.\"name\" ASC"
         assertTrue(sql == exp)
       },
       test("limit only") {
@@ -126,9 +135,9 @@ object QueryRenderSpec extends ZIOSpecDefault {
         assertTrue(sql == exp)
       },
       test("order + limit + offset combo") {
-        val q = SqlQuery
-          .from(userTable)
-          .orderBy("name", SortOrder.Asc)
+        val qBase = SqlQuery.from(userTable)
+        val q     = qBase
+          .orderBy(qBase.col[User](_.name), SortOrder.Asc)
           .limit(20)
           .offset(10)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
@@ -196,11 +205,12 @@ object QueryRenderSpec extends ZIOSpecDefault {
     suite("Frag composition invariants")(
       test("renderer uses Frag.++ and.SqlIdentifier — every column is alias qualified") {
         val filterFrag = Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("x")))
-        val q          = SqlQuery
+        val qBase      = SqlQuery
           .from(userTable)
           .innerJoin(userRepoRel)
+        val q = qBase
           .filter(filterFrag)
-          .orderBy("id", SortOrder.Desc)
+          .orderBy(qBase.col[User](_.id), SortOrder.Desc)
           .limit(5)
         val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
         assertTrue(
@@ -212,6 +222,65 @@ object QueryRenderSpec extends ZIOSpecDefault {
           sql.contains("FROM \"user\" AS t0"),
           sql.contains("JOIN \"repo\" AS t1 ON")
         )
+      }
+    ),
+    suite("clean-context regressions")(
+      test("addJoin neither side present fails fast with descriptive message") {
+        case class Extra(id: Int, ref: Int)
+        object Extra { given Schema[Extra] = Schema.derived }
+        val extraTable = Table.derived[Extra]
+        // Rel between repo and extra, neither is source user nor joined
+        val strayRel = Rel(extraTable, "ref", repoTable, "id")
+        val ex       = try {
+          SqlQuery.from(userTable).innerJoin(strayRel)
+          None
+        } catch {
+          case e: IllegalArgumentException => Some(e.getMessage)
+        }
+        assertTrue(
+          ex.isDefined,
+          ex.get.contains("neither side"),
+          ex.get.contains("extra"),
+          ex.get.contains("repo")
+        )
+      },
+      test("mixed legacy Frag filter plus typed filter are both rendered with AND and params preserved") {
+        val legacyFrag = Frag(IndexedSeq("t0.\"name\" = ", ""), IndexedSeq(DbValue.DbString("Alice")))
+        val qBase      = SqlQuery.from(userTable)
+        val q          = qBase.filter(legacyFrag).where(qBase.col[User](_.id) > lit(10))
+        val frag       = q.toFrag(SqlDialect.PostgreSQL)
+        val sql        = frag.sql(SqlDialect.PostgreSQL)
+        val exp        = "SELECT t0.\"id\", t0.\"name\" FROM \"user\" AS t0 WHERE t0.\"id\" > ? AND t0.\"name\" = ?"
+        assertTrue(
+          sql == exp,
+          frag.params == IndexedSeq(DbValue.DbInt(10), DbValue.DbString("Alice"))
+        )
+      },
+      test("chained self-join second join binds from latest compatible alias t1->t2") {
+        val q   = SqlQuery.from(employeeTable).innerJoin(employeeSelfRel).innerJoin(employeeSelfRel)
+        val sql = q.toFrag(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL)
+        val exp =
+          "SELECT t0.\"id\", t0.\"name\", t0.\"manager_id\", t1.\"id\", t1.\"name\", t1.\"manager_id\", t2.\"id\", t2.\"name\", t2.\"manager_id\" FROM \"employee\" AS t0 INNER JOIN \"employee\" AS t1 ON t0.\"manager_id\" = t1.\"id\" INNER JOIN \"employee\" AS t2 ON t1.\"manager_id\" = t2.\"id\""
+        assertTrue(
+          sql == exp,
+          sql.contains("t1.\"manager_id\" = t2.\"id\""),
+          !sql.contains("t0.\"manager_id\" = t2.\"id\"")
+        )
+      },
+      test("explicit alias with invalid identifier fails at compile time") {
+        val errors = scala.compiletime.testing.typeCheckErrors(
+          """{
+            import zio.blocks.sql.query.*
+            import zio.blocks.schema.Schema
+            import zio.blocks.sql.Table
+            case class User(id: Int, name: String)
+            object User { given Schema[User] = Schema.derived }
+            val userTable: Table[User] = Table.derived[User]
+            val q = SqlQuery.from(userTable)
+            q.where(q.colAt[User]("bad-alias!", _.name) === lit("x"))
+          }"""
+        )
+        assertTrue(errors.nonEmpty)
       }
     )
   )

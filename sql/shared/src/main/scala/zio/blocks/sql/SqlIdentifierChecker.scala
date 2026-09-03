@@ -264,6 +264,10 @@ object SqlIdentifierChecker {
 
   def validate(parts: Seq[String], knownTables: Set[String], knownColumns: Set[String]): List[Diagnostic] =
     validate(parts, knownTables, knownColumns, DefaultAllowlist)
+  def validate(parts: Seq[String], knownNames: Set[String], allowlist: Set[String], dummy: Unit): List[Diagnostic] = {
+    val _ = dummy
+    validate(parts, knownNames, Set.empty, allowlist)
+  }
 
   def validate(
     parts: Seq[String],
@@ -301,12 +305,6 @@ object SqlIdentifierChecker {
     val knownTables  = tables.map(_.name).toSet
     val knownColumns = tables.flatMap(_.columns).toSet
     validate(parts, knownTables, knownColumns, allowlist)
-  }
-
-  // Alternate signature requested: Set-based knownNames
-  def validate(parts: Seq[String], knownNames: Set[String], allowlist: Set[String], dummy: Unit): List[Diagnostic] = {
-    val _ = dummy
-    validate(parts, knownNames, Set.empty, allowlist)
   }
 
   private def validateTokens(
@@ -409,8 +407,8 @@ object SqlIdentifierChecker {
           // Split by dot inside quoted? shouldn't happen: "T"."c" produces two tokens separately
           // Here ident is inside one pair of quotes; if it contains dot, treat before/after as separate?
           // Actually dot outside quotes separates identifiers. Inside quotes dot is not separator.
-          // So keep as one token if non-empty and identifier-like; position points to first char inside quotes
-          if (ident.nonEmpty) tokens += Token(ident, start + 1)
+          // So keep as one token if non-empty and identifier-like
+          if (ident.nonEmpty) tokens += Token(ident, start)
           i = j
         } else {
           i = len

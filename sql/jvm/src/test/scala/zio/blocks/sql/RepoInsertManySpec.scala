@@ -37,7 +37,7 @@ object RepoInsertManySpec extends ZIOSpecDefault {
     val conn = DriverManager.getConnection("jdbc:sqlite::memory:")
     val tx   = new JdbcTransactor(() => conn, SqlDialect.SQLite) {
       override def connect[B](f: DbCon ?=> B): B = {
-        val dbConn       = new JdbcConnection(conn)
+        val dbConn       = new JdbcConnection(conn, SqlDialect.SQLite)
         given con: DbCon = new DbCon {
           val connection: DbConnection = dbConn
           val dialect: SqlDialect      = SqlDialect.SQLite

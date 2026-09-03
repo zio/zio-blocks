@@ -107,11 +107,6 @@ object DbCodec extends DbCodecOpaquePriority {
       case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
     }
 
-  private def unexpectedNull(typeName: String): Nothing =
-    throw new IllegalStateException(
-      s"Encountered SQL NULL while decoding non-optional $typeName. Use Option[$typeName] or Maybe[$typeName] for nullable columns."
-    )
-
   private def requireSingleColumnNullable[A](wrapperType: String, inner: DbCodec[A]): Unit =
     if (inner.columnCount != 1)
       throw new UnsupportedOperationException(
@@ -297,7 +292,9 @@ object DbCodec extends DbCodecOpaquePriority {
     val columns: IndexedSeq[String]                                                     = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): BigDecimal = {
       val jbd = reader.getBigDecimal(columnLabels.head)
-      if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
+      // NULL decodes to 0 with wasNull recorded, consistent with the Int/Long/Double
+      // codecs; Option/Maybe wrappers convert the recorded NULL to None.
+      if (jbd != null) scala.BigDecimal(jbd) else scala.BigDecimal(0)
     }
     def writeValue(writer: DbParamWriter, startIndex: Int, value: BigDecimal): Unit =
       writer.setBigDecimal(startIndex, value.bigDecimal)

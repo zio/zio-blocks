@@ -136,17 +136,39 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
     v
   }
 
-  def getBigDecimal(index: Int): java.math.BigDecimal = {
-    val v = underlying.getBigDecimal(index)
-    recordWasNull(index)
-    v
-  }
+  def getBigDecimal(index: Int): java.math.BigDecimal =
+    try {
+      val v = underlying.getBigDecimal(index)
+      // Record NULL for a normal null return, matching the other getters.
+      recordWasNull(index)
+      v
+    } catch {
+      case e: java.sql.SQLException if isSqliteNullBigDecimalRead(e) =>
+        // The SQLite JDBC driver throws instead of returning null for a NULL column.
+        nullBitmap.set(index)
+        null
+    }
 
-  def getBigDecimal(label: String): java.math.BigDecimal = {
-    val v = underlying.getBigDecimal(label)
-    recordLabelWasNull(label)
-    v
-  }
+  def getBigDecimal(label: String): java.math.BigDecimal =
+    try {
+      val v = underlying.getBigDecimal(label)
+      // Record NULL for a normal null return, matching the other getters.
+      recordLabelWasNull(label)
+      v
+    } catch {
+      case e: java.sql.SQLException if isSqliteNullBigDecimalRead(e) =>
+        // The SQLite JDBC driver throws instead of returning null for a NULL column.
+        nullLabels.add(label)
+        null
+    }
+
+  /**
+   * The SQLite JDBC driver throws `SQLException: column -1 out of bounds`
+   * instead of returning `null` when a NULL column is read via `getBigDecimal`.
+   * Treat that driver quirk as a NULL read.
+   */
+  private def isSqliteNullBigDecimalRead(e: java.sql.SQLException): Boolean =
+    e.getMessage != null && e.getMessage.contains("out of bounds")
 
   def getBytes(index: Int): Array[Byte] = {
     val v = underlying.getBytes(index)
@@ -278,7 +300,14 @@ private[sql] class JdbcResultReader(val underlying: ResultSet) extends DbResultR
 
   def hasColumn(label: String): Boolean = availableColumns.contains(label)
 
-  def wasNull: Boolean = underlying.wasNull()
+  def wasNull: Boolean =
+    try underlying.wasNull()
+    catch {
+      case e: java.sql.SQLException if isSqliteNullBigDecimalRead(e) =>
+        // After a NULL getBigDecimal the SQLite driver's wasNull also throws;
+        // the NULL was already recorded by the getBigDecimal fallback.
+        true
+    }
 
   override def isNull(index: Int): Boolean = nullBitmap.get(index)
 
