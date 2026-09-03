@@ -17,7 +17,7 @@
 package zio.blocks.sql
 
 import zio.blocks.maybe.Maybe
-import zio.blocks.schema.{As, Schema}
+import zio.blocks.schema.{As, Schema, SchemaError}
 import zio.blocks.schema.derive.DerivationBuilder
 import zio.blocks.schema.json.{JsonCodec => JsonSchemaCodec}
 
@@ -102,10 +102,35 @@ object DbCodec extends DbCodecOpaquePriority {
   private val SqlNullType = 0
 
   private def decodeJsonb[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): A =
-    jsonCodec.decode(input) match {
+    decodeJsonbEither[A](input) match {
       case Right(value) => value
       case Left(err)    => throw new RuntimeException(s"JSONB decode error: $err")
     }
+
+  /**
+   * Either-returning JSONB decode step. Prefer this over [[decodeJsonb]] when
+   * the caller can propagate the failure as a value: a single bad JSONB row no
+   * longer aborts the whole `Frag.query` list decode with an unactionable
+   * `RuntimeException`.
+   */
+  def decodeJsonbEither[A](input: String)(using jsonCodec: JsonSchemaCodec[A]): Either[SchemaError, A] =
+    jsonCodec.decode(input)
+
+  /**
+   * Either-returning `As` decode step used by [[dbCodecFromAs]]. Exposed so
+   * callers that can handle failure as a value do not have to go through the
+   * throwing given.
+   */
+  def decodeViaAs[A, B](conv: As[A, B], decoded: A): Either[SchemaError, B] =
+    conv.into(decoded)
+
+  /**
+   * Either-returning `As` encode step used by [[dbCodecFromAs]]. Exposed so
+   * callers that can handle failure as a value do not have to go through the
+   * throwing given.
+   */
+  def encodeViaAs[A, B](conv: As[A, B], value: B): Either[SchemaError, A] =
+    conv.from(value)
 
   private def unexpectedNull(typeName: String): Nothing =
     throw new IllegalStateException(
@@ -237,6 +262,7 @@ object DbCodec extends DbCodecOpaquePriority {
   given intCodec: DbCodec[Int] = new DbCodec[Int] {
     val columns: IndexedSeq[String]                                              = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Int = reader.getInt(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Int         = reader.getInt(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Int): Unit     = writer.setInt(startIndex, value)
     def toDbValues(value: Int): IndexedSeq[DbValue]                              = IndexedSeq(DbValue.DbInt(value))
   }
@@ -244,6 +270,7 @@ object DbCodec extends DbCodecOpaquePriority {
   given longCodec: DbCodec[Long] = new DbCodec[Long] {
     val columns: IndexedSeq[String]                                               = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Long = reader.getLong(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Long         = reader.getLong(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Long): Unit     = writer.setLong(startIndex, value)
     def toDbValues(value: Long): IndexedSeq[DbValue]                              = IndexedSeq(DbValue.DbLong(value))
   }
@@ -252,6 +279,8 @@ object DbCodec extends DbCodecOpaquePriority {
     val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): String =
       reader.getString(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): String =
+      reader.getString(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: String): Unit = writer.setString(startIndex, value)
     def toDbValues(value: String): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbString(value))
   }
@@ -260,6 +289,8 @@ object DbCodec extends DbCodecOpaquePriority {
     val columns: IndexedSeq[String]                                                  = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Boolean =
       reader.getBoolean(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Boolean =
+      reader.getBoolean(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Boolean): Unit = writer.setBoolean(startIndex, value)
     def toDbValues(value: Boolean): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbBoolean(value))
   }
@@ -268,6 +299,8 @@ object DbCodec extends DbCodecOpaquePriority {
     val columns: IndexedSeq[String]                                                 = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Double =
       reader.getDouble(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Double =
+      reader.getDouble(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Double): Unit = writer.setDouble(startIndex, value)
     def toDbValues(value: Double): IndexedSeq[DbValue]                          = IndexedSeq(DbValue.DbDouble(value))
   }
@@ -275,6 +308,7 @@ object DbCodec extends DbCodecOpaquePriority {
   given floatCodec: DbCodec[Float] = new DbCodec[Float] {
     val columns: IndexedSeq[String]                                                = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Float = reader.getFloat(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Float         = reader.getFloat(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Float): Unit     = writer.setFloat(startIndex, value)
     def toDbValues(value: Float): IndexedSeq[DbValue]                              = IndexedSeq(DbValue.DbFloat(value))
   }
@@ -282,6 +316,7 @@ object DbCodec extends DbCodecOpaquePriority {
   given shortCodec: DbCodec[Short] = new DbCodec[Short] {
     val columns: IndexedSeq[String]                                                = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Short = reader.getShort(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Short         = reader.getShort(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Short): Unit     = writer.setShort(startIndex, value)
     def toDbValues(value: Short): IndexedSeq[DbValue]                              = IndexedSeq(DbValue.DbShort(value))
   }
@@ -289,6 +324,7 @@ object DbCodec extends DbCodecOpaquePriority {
   given byteCodec: DbCodec[Byte] = new DbCodec[Byte] {
     val columns: IndexedSeq[String]                                               = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): Byte = reader.getByte(columnLabels.head)
+    override def readValue(reader: DbResultReader, startIndex: Int): Byte         = reader.getByte(startIndex)
     def writeValue(writer: DbParamWriter, startIndex: Int, value: Byte): Unit     = writer.setByte(startIndex, value)
     def toDbValues(value: Byte): IndexedSeq[DbValue]                              = IndexedSeq(DbValue.DbByte(value))
   }
@@ -297,6 +333,10 @@ object DbCodec extends DbCodecOpaquePriority {
     val columns: IndexedSeq[String]                                                     = IndexedSeq("value")
     def readValue(reader: DbResultReader, columnLabels: IndexedSeq[String]): BigDecimal = {
       val jbd = reader.getBigDecimal(columnLabels.head)
+      if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
+    }
+    override def readValue(reader: DbResultReader, startIndex: Int): BigDecimal = {
+      val jbd = reader.getBigDecimal(startIndex)
       if (jbd != null) scala.BigDecimal(jbd) else unexpectedNull("BigDecimal")
     }
     def writeValue(writer: DbParamWriter, startIndex: Int, value: BigDecimal): Unit =
@@ -337,12 +377,12 @@ object DbCodec extends DbCodecOpaquePriority {
    */
   given dbCodecFromAs[A, B](using conv: As[A, B], base: DbCodec[A]): DbCodec[B] =
     base.transform(decoded =>
-      conv.into(decoded) match {
+      decodeViaAs(conv, decoded) match {
         case Right(b) => b
         case Left(e)  => throw new IllegalStateException(s"DbCodec decode via As failed: $e")
       }
     )(value =>
-      conv.from(value) match {
+      encodeViaAs(conv, value) match {
         case Right(a) => a
         case Left(e)  => throw new IllegalStateException(s"DbCodec encode via As failed: $e")
       }
