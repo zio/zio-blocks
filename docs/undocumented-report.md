@@ -28,15 +28,15 @@ Every figure in this revision, including those four, is restated under the priva
 | Declarations found (`class` / `trait` / `object` / `enum`) | 2,662 |
 | — of which public | 1,811 |
 | — of which private or nested in a private scope | 864 |
-| Public types never named anywhere in `docs/` | **325** |
-| Public types with no prose or heading reference | **637** |
-| Name-mention coverage | **82%** |
-| Explained-type coverage | **65%** |
+| Public types never named anywhere in `docs/` | **294** |
+| Public types with no prose or heading reference | **615** |
+| Name-mention coverage | **84%** |
+| Explained-type coverage | **66%** |
 
 Two coverage numbers are reported because they answer different questions.
 
-- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 325 types — is entirely absent from the documentation.
-- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 637 types — additionally captures the 312 types that appear only as tokens inside examples and are never explained.
+- **Name-mention coverage** counts a type as covered if its name appears anywhere in `docs/`, including inside an example code block. Its complement — 294 types — is entirely absent from the documentation.
+- **Explained-type coverage** is stricter: it requires the name in prose (inline code) or in a heading. Its complement — 615 types — additionally captures the 321 types that appear only as tokens inside examples and are never explained.
 
 Only **public** types are counted. A type is public when neither it nor any enclosing declaration is `private` or `protected` — 864 declarations fail that test and are excluded, which is roughly a third of everything declared. Earlier revisions of this report counted many of them as API and mis-scoped work as a result; see *Methodology*.
 
@@ -51,7 +51,7 @@ This report file is excluded from the scan, so listing a type here does not make
 | Module | public | internal | absent | unexpl | cov | srcLOC | docLOC | ratio |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | mediatype | 16 | 2 | 2 | 11 | 31% | 12,676 | 460 | 0.04 |
-| **html** | 110 | 13 | 40 | 68 | **38%** | 5,591 | 1,300 | 0.23 |
+| html | 110 | 13 | 9 | 47 | 57% | 5,591 | 1,570 | 0.28 |
 | maybe | 10 | 0 | 6 | 6 | 40% | 595 | 943 | 1.58 |
 | context | 2 | 7 | 1 | 1 | 50% | 865 | 553 | 0.64 |
 | **typeid** | 90 | 14 | 26 | 43 | **52%** | 6,493 | 2,124 | 0.33 |
@@ -317,15 +317,16 @@ Actions:
 
 ### 12. Smaller module gaps
 
-- **`html`** (68 unexplained, 40 absent) — **the rank-1 justification in the table above was wrong and is corrected here.** An earlier revision of this entry claimed the typed content model was "entirely unnamed"; it is not. `html.md` has had a `## Typed Content Models` section since #1536 landed, naming every marker type (`Dom.Element.Li`, `Cell`, `Tr`, `SelectChild`, `Opt`, `Optgroup`), demonstrating compile-time rejection with an `mdoc:fail` block, and documenting structural equality across element classes and the `caption`/`thead` limitation. The 40 absent types break down as follows, and only two groups are conceptual gaps:
-  - **Real: CSS values — resolved.** `CssLength`'s unit set and numeric extension methods, and four of `CssColor`'s five cases, had no mention anywhere. The page's one example used the verbose `CssLength(300.0, "px")` while `300.px` existed unmentioned, so the docs actively steered readers to the clunkier API. A `### Typed Values: Lengths and Colors` section now covers the 15 valid units, `CssLengthIntOps`/`CssLengthDoubleOps` and the second import they require, all five `CssColor` cases, and the `Hex` versus `Hex.unsafe` validation split.
-  - **Real: the Scala 2 argument encoding.** `ListArg` ✗, `CellArg` ✗, `RowArg` ✗, `SelectArg` ✗, `OptgroupArg` ✗, `ScriptArg` ✗, and `StyleArg` ✗ are how the content model is expressed on 2.13 — sealed traits plus implicit conversions, where Scala 3 uses union types (`Dom.Attribute | Dom.Element.Li`). The content-model table writes the Scala 3 form only, and no page mentions that the encodings differ. This needs tabbed examples per the writing-style rule on version-specific syntax.
-  - **Real: extension points.** `DomModifier` ✗ and its four cases (`AddAttr` ✗, `AddChild` ✗, `AddChildren` ✗, `AddEffects` ✗), plus the `ToDom` ✗ and `ToText` ✗ conversion type classes. `ToModifier` is named in the page; these are not.
-  - **Naming only: selector ADT nodes.** `Descendant` ✗, `AdjacentSibling` ✗, `GeneralSibling` ✗, `AttributeMatch` ✗, `StartsWith` ✗, `EndsWith` ✗, `WhitespaceContains` ✗, `HyphenPrefix` ✗, `PseudoClass` ✗, `PseudoElement` ✗. Every one is reachable and demonstrated through the DSL (`div >> span`, `a.hover`, `input.withAttributeStarting(...)`); only the resulting node types are unnamed. Worth a short table for readers pattern matching on a built selector, not a section.
-  - **Naming only: concrete element classes.** `LiElement` ✗, `ThElement` ✗, `TdElement` ✗, `TrElement` ✗, `OptElement` ✗, `OptgroupElement` ✗ — the implementations behind the documented marker traits.
-  - **Skip: interpolator plumbing.** `CssStringContext` ✗, `HtmlStringContext` ✗, `JsStringContext` ✗, `SelectorStringContext` ✗, `TemplateInterpolators` ✗, `InterpolatorRuntime` ✗, `HtmlElements` ✗, `DomModifierConversions` ✗, `LowPriorityToJs` ✗, `JsValue` ✗. These match the naming patterns in *Deliberately Undocumented*; the interpolator syntax is documented, its machinery should not be.
-  - [ ] Add an ADT reference section naming the selector, colour, and modifier types behind the DSL
-- **`datastar`** (28 unexplained) — same shape: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
+- **`html`** — **RESOLVED.** An earlier revision of this entry claimed the typed content model was "entirely unnamed"; it was not, and checking that before writing changed the scope. `html.md` has had a `## Typed Content Models` section since #1536 landed, naming every marker type and demonstrating compile-time rejection with an `mdoc:fail` block. The genuine gaps were elsewhere, and all four are now closed:
+  - **CSS values.** `### Typed Values: Lengths and Colors` covers the 15 valid `CssLength` units, `CssLengthIntOps`/`CssLengthDoubleOps` and the second import they require, all five `CssColor` cases, and the `Hex` versus `Hex.unsafe` validation split.
+  - **The Scala 2 argument encoding.** `### How the Constraint Is Encoded` shows the sealed argument traits (`ListArg`, `CellArg`, `RowArg`, `SelectArg`, `OptgroupArg`, `ScriptArg`, `StyleArg`) beside the Scala 3 unions in tabs, and the forwarding function where the difference actually surfaces.
+  - **The selector ADT.** `### The Selector ADT` maps every DSL operator to the node it constructs and documents the six `AttributeMatch` matchers, including that `WhitespaceContains` and `HyphenPrefix` have no builder method.
+  - **Modifiers and conversions.** `### DomModifier and the Conversion Type Classes` covers the four `DomModifier` cases, `applyTo` versus the batched `buildFromEffects`, and the `ToDom`/`ToText` instance sets — including that a multi-element `Iterable` is wrapped in a `<span>`, which is invalid inside `ul`, `table`, and `select`.
+
+  Also documented: the concrete `*Element` classes, and that equality is structural across classes while the *types* are disjoint — matching a factory-produced `li` against `Generic` is rejected by the compiler as unreachable, not merely unmatched.
+
+  The module went from 46 absent at 32% to **9 absent at 57%**. All nine remaining are interpolator plumbing — `CssStringContext` ✗, `HtmlStringContext` ✗, `JsStringContext` ✗, `SelectorStringContext` ✗, `TemplateInterpolators` ✗, `InterpolatorRuntime` ✗, `HtmlElements` ✗, `LowPriorityToJs` ✗, `JsValue` ✗ — which match the patterns in *Deliberately Undocumented*. The interpolator syntax is documented; its machinery should not be.
+- **`datastar`** (28 unexplained) — a type-naming gap of the same kind html had: `EventModifier` ✗, `CaseModifier` ✗, `InitModifier` ✗, `IntersectModifier` ✗, `OnIntervalModifier` ✗, `OnSignalPatchModifier` ✗, `DataOn` ✗, `PatchSignals` ✗, `PatchElements` ✗, `DatastarAttributes` ✗, `DatastarAttrKey` ✗, `ToDatastarExpr` ✗, `DataSignalsBuilder` ✗, `EventType` ✗. The 0.18 ratio is the bigger problem: 346 lines for 1,881 source lines.
   - [ ] Expand `datastar.md` — each SSE event type needs a worked example; add an attribute-DSL type reference
 - **`schema-xml`** (15 unexplained) — `XmlCodecError` ✗, `XmlWriter` ✗, `XmlCodecDeriver` ✗ (657 lines), `SetAttribute` ✗, `RemoveAttribute` ✗, `ElementBuilder` ✗
   - [ ] Add error-handling and deriver/customization sections to `built-in-codecs/xml.md`
@@ -401,14 +402,14 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 
 | Rank | Module | absent / public | cov | Why |
 | ---- | ------ | --------------- | ---- | --- |
-| 1 | `html` | 40 / 110 | **38%** | Selector and modifier ADTs unnamed, and the Scala 2 argument encoding is undocumented |
-| 2 | `maybe` | 6 / 10 | 40% | Small surface, but more than half of it unnamed |
-| 3 | `typeid` | 26 / 90 | 52% | `Member` ADT and owner segments |
-| 4 | `schema-xml` | 9 / 38 | 53% | Error types and the deriver |
-| 5 | `schema` | 156 / 466 | 56% | Largest absolute, but six separable subsystems remain |
+| 1 | `typeid` | 26 / 90 | **52%** | `Member` ADT and owner segments |
+| 2 | `schema-xml` | 9 / 38 | **53%** | Error types and the deriver |
+| 3 | `schema` | 156 / 466 | 56% | Largest absolute, but six separable subsystems remain |
+| 4 | `scope` | 6 / 23 | 61% | `WireInfo`, `WireKind` |
+| 5 | `codegen` | 6 / 46 | 63% | Import forms, `ExtensionBlock`, `NestedType` |
 | 6 | `endpoint` | 18 / 60 | 67% | `Alternator`, `CanCombine`, segment shortcuts |
 
-`smithy` has left the list — the shape catalog took it from 24% to 86% with no absent types. `streams` and `async` drop out entirely once internal declarations are excluded. `htmx` and `datastar` left earlier: #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
+`smithy` and `html` have both left the list — the shape catalog took `smithy` from 24% to 86% with no absent types, and the CSS-value, selector-ADT, argument-encoding, and modifier sections took `html` from 32% to 57% with 9 absent types, all of them interpolator plumbing that is deliberately undocumented. `maybe` stays off the list as permanently skippable. `streams` and `async` drop out entirely once internal declarations are excluded. `htmx` and `datastar` left earlier: #1619 took `htmx` to 77%, and the five-page datastar split took it to 98%.
 
 `html` grew from 100 public types to 110 between revisions while its documentation did not, which is the one row where waiting makes the work larger.
 
@@ -447,7 +448,7 @@ Ordered by user impact per unit of writing effort. The ranking below predates th
 25. - [ ] Expand `datastar.md` (ratio 0.18)
 26. - [ ] Expand `async.md` (ratio 0.20) — the user-facing direct-style surface, not the CPS internals
 27. - [x] Expand `smithy.md` — **done**: ratio 0.21 → 0.34 (533 → 881 lines)
-28. - [ ] Expand `html.md` with the Scala 2 argument encoding, the `DomModifier`/`ToDom`/`ToText` extension points, and a selector-node table — CSS values done
+28. - [x] Expand `html.md` — **done**: CSS values, the Scala 2 argument encoding in tabs, the selector ADT with its attribute matchers, and the `DomModifier`/`ToDom`/`ToText` extension points; module went from 32% to 57% with only interpolator plumbing absent
 
 **Tier 4 — conceptual documents**
 
