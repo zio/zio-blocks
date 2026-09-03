@@ -30,7 +30,7 @@ import zio.sbt.githubactions._
  */
 object CiWorkflow {
 
-  private val Scalas = List("2.13.x", "3.3.x", "3.8.x")
+  private val Scalas = List("2.13.x", "3.3.x", "3.9.x")
 
   // Locale data must be installed before sbt starts, or tests that format dates disagree with the
   // expectations recorded on developer machines.
@@ -190,7 +190,7 @@ object CiWorkflow {
         ),
         SingleStep(
           name = "Lint code",
-          run = Some("""sbt "++2.13; check; headerCheckAll; ++3.8; check; headerCheckAll"""")
+          run = Some("""sbt "++2.13; check; headerCheckAll; ++3.9; check; headerCheckAll"""")
         )
       )
     )
@@ -208,7 +208,7 @@ object CiWorkflow {
    * backs the sql modules and carries a health check so steps cannot start
    * before it accepts connections.
    *
-   * The timeout is sized for the JDK 25 / 3.8.x cell, the only one that runs
+   * The timeout is sized for the JDK 25 / 3.9.x cell, the only one that runs
    * instrumented tests, the Scala Next suite and the example compile in
    * sequence. The coverage step alone has measured anywhere from 10 to 20
    * minutes on unchanged sources, because only dependencies are cached and
@@ -267,32 +267,32 @@ object CiWorkflow {
         ),
         SingleStep(
           name = "Run Scala 3 config adapter coverage (JDK 25, scoped)",
-          condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java >= 25")),
-          run = Some("sbt \"++3.8.3; configCoverage\"")
+          condition = Some(expr("matrix.scala == '3.9.x'") && expr("matrix.java >= 25")),
+          run = Some("sbt \"++3.9.0; configCoverage\"")
         ),
         SingleStep(
-          name = "Run JWT scoped coverage (JDK 25, Scala 3.8.x)",
-          condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java >= 25")),
-          run = Some("sbt \"++3.8.3; jwtCoverage\"")
+          name = "Run JWT scoped coverage (JDK 25, Scala 3.9.x)",
+          condition = Some(expr("matrix.scala == '3.9.x'") && expr("matrix.java >= 25")),
+          run = Some("sbt \"++3.9.0; jwtCoverage\"")
         ),
         SingleStep(
           name = "Verify SQL dump macro emission (dumpDir)",
-          condition = Some(expr("matrix.scala == '3.8.x'") && expr("matrix.java == '17'")),
+          condition = Some(expr("matrix.scala == '3.9.x'") && expr("matrix.java == '17'")),
           run = Some(
             """rm -rf target/sql-dumps
-              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/Test/clean; sqlJVM/Test/compile"
+              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/Test/clean; sqlJVM/Test/compile"
               |test -d target/sql-dumps && ls -R target/sql-dumps
-              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.8.3; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"""".stripMargin
+              |sbt -Dzib.sql.dumpDir=target/sql-dumps "++3.9.0; sqlJVM/testOnly zio.blocks.sql.ExplainDumpGoldenSpec"""".stripMargin
           )
         ),
         SingleStep(
           name = "Run Scala Next tests",
-          condition = Some(expr("matrix.scala == '3.8.x'")),
-          run = Some("sbt ++3.8.3 scalaNextTests${{ matrix.platform }}/test benchmarks/test")
+          condition = Some(expr("matrix.scala == '3.9.x'")),
+          run = Some("sbt ++3.9.0 scalaNextTests${{ matrix.platform }}/test benchmarks/test")
         ),
         SingleStep(
           name = "Compile example project",
-          condition = Some(expr("matrix.scala == '3.8.x'")),
+          condition = Some(expr("matrix.scala == '3.9.x'")),
           run = Some("sbt ++${{ matrix.scala }} schema-examples/compile")
         )
       )
