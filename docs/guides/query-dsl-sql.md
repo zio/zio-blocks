@@ -984,7 +984,7 @@ val q = SqlQuery
   .where(userTable, "name", DbValue.DbString("alice"))
 
 println(q.explain(SqlDialect.PostgreSQL))
-// SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id WHERE t0.name = ?1
+// SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name" FROM "user" t0 INNER JOIN "repo" t1 ON t0."id" = t1."owner_id" WHERE t0."name" = ?1
 // -- params: 1:String
 ```
 

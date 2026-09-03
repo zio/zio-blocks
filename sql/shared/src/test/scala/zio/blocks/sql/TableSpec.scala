@@ -172,6 +172,35 @@ object TableSpec extends ZIOSpecDefault {
           case e: IllegalArgumentException => e
         }
         assertTrue(error.getMessage.contains("Invalid SQL column identifier"))
+      },
+      test("manual tables reject duplicate columns when constructed") {
+        val error = try {
+          Table(
+            "users",
+            DbCodec.stringCodec,
+            IndexedSeq(
+              ColumnMeta("id", DbValue.DbInt(0), false),
+              ColumnMeta("id", DbValue.DbInt(0), false)
+            )
+          )
+          throw new AssertionError("Expected IllegalArgumentException")
+        } catch {
+          case e: IllegalArgumentException => e
+        }
+        assertTrue(error.getMessage.contains("uplicate"))
+      },
+      test("array columns render without MatchError (row-7)") {
+        val table = Table(
+          "docs",
+          DbCodec.stringCodec,
+          IndexedSeq(ColumnMeta("tags", DbValue.DbArray("varchar", IndexedSeq.empty), true))
+        )
+        assertTrue(
+          table.createTable(SqlDialect.PostgreSQL).sql(SqlDialect.PostgreSQL) ==
+            "CREATE TABLE IF NOT EXISTS docs (\n  tags TEXT[]\n)",
+          table.createTable(SqlDialect.SQLite).sql(SqlDialect.SQLite) ==
+            "CREATE TABLE IF NOT EXISTS docs (\n  tags TEXT\n)"
+        )
       }
     )
   )

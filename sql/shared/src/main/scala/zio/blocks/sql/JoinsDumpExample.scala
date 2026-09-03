@@ -20,7 +20,11 @@ import zio.blocks.schema.Schema
 
 /**
  * Canonical User/Repo/Star example for task-4 compile-time dump verification.
+ *
+ * Uses the deprecated stringly builder intentionally (legacy dump coverage);
+ * new code should prefer `zio.blocks.sql.query.SqlQuery`.
  */
+@scala.annotation.nowarn("cat=deprecation")
 object JoinsDumpExample {
 
   case class User(id: Int, name: String)

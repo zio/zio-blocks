@@ -151,6 +151,167 @@ object DbCodecSpec extends ZIOSpecDefault {
     implicit val schema: Schema[WithCustomLines] = Schema.derived
   }
 
+  case class WithChar(c: Char)
+  object WithChar {
+    implicit val schema: Schema[WithChar] = Schema.derived
+  }
+
+  /**
+   * Row-varying fake reader: every positional getter answers from the current
+   * `row` (1-based), so two simulated rows decode to different values. Label
+   * getters throw — any codec routing through labels on the positional path
+   * fails loudly — and `columnLabel` counts calls (each one hits result-set
+   * metadata on a real JDBC reader).
+   */
+  private final class RowReader extends DbResultReader {
+    var row: Int                                   = 1
+    var columnLabelCalls: Int                      = 0
+    private def unsupported(name: String): Nothing =
+      throw new UnsupportedOperationException(s"positional path must not call $name")
+    def getInt(index: Int): Int                                  = row * 100 + index
+    def getInt(label: String): Int                               = unsupported("getInt(label)")
+    def getLong(index: Int): Long                                = row * 100L + index
+    def getLong(label: String): Long                             = unsupported("getLong(label)")
+    def getDouble(index: Int): Double                            = row * 100.0 + index
+    def getDouble(label: String): Double                         = unsupported("getDouble(label)")
+    def getFloat(index: Int): Float                              = (row * 100 + index).toFloat
+    def getFloat(label: String): Float                           = unsupported("getFloat(label)")
+    def getBoolean(index: Int): Boolean                          = ((row + index) & 1) == 0
+    def getBoolean(label: String): Boolean                       = unsupported("getBoolean(label)")
+    def getString(index: Int): String                            = s"r${row}c$index"
+    def getString(label: String): String                         = unsupported("getString(label)")
+    def getBigDecimal(index: Int): java.math.BigDecimal          = java.math.BigDecimal.valueOf(row * 100L + index)
+    def getBigDecimal(label: String): java.math.BigDecimal       = unsupported("getBigDecimal(label)")
+    def getBytes(index: Int): Array[Byte]                        = unsupported("getBytes(index)")
+    def getBytes(label: String): Array[Byte]                     = unsupported("getBytes(label)")
+    def getShort(index: Int): Short                              = (row * 100 + index).toShort
+    def getShort(label: String): Short                           = unsupported("getShort(label)")
+    def getByte(index: Int): Byte                                = (row * 100 + index).toByte
+    def getByte(label: String): Byte                             = unsupported("getByte(label)")
+    def getLocalDate(index: Int): java.time.LocalDate            = unsupported("getLocalDate(index)")
+    def getLocalDate(label: String): java.time.LocalDate         = unsupported("getLocalDate(label)")
+    def getLocalDateTime(index: Int): java.time.LocalDateTime    = unsupported("getLocalDateTime(index)")
+    def getLocalDateTime(label: String): java.time.LocalDateTime = unsupported("getLocalDateTime(label)")
+    def getLocalTime(index: Int): java.time.LocalTime            = unsupported("getLocalTime(index)")
+    def getLocalTime(label: String): java.time.LocalTime         = unsupported("getLocalTime(label)")
+    def getInstant(index: Int): java.time.Instant                = unsupported("getInstant(index)")
+    def getInstant(label: String): java.time.Instant             = unsupported("getInstant(label)")
+    def getDuration(index: Int): java.time.Duration              = unsupported("getDuration(index)")
+    def getDuration(label: String): java.time.Duration           = unsupported("getDuration(label)")
+    def getUUID(index: Int): java.util.UUID                      = unsupported("getUUID(index)")
+    def getUUID(label: String): java.util.UUID                   = unsupported("getUUID(label)")
+    def columnLabel(index: Int): String                          = {
+      columnLabelCalls += 1
+      s"c$index"
+    }
+    def hasColumn(label: String): Boolean = true
+    def wasNull: Boolean                  = false
+  }
+
+  /**
+   * Label-driven fake reader backed by a value map plus the result set's column
+   * order. Positional getters resolve through `resultOrder`, label getters
+   * through `byLabel` — a codec taking the wrong path still decodes, but
+   * misalignment assertions (columnLabel/hasColumn) steer record codecs onto
+   * the intended path.
+   */
+  private final class LabelReader(
+    byLabel: Map[String, Any],
+    resultOrder: IndexedSeq[String]
+  ) extends DbResultReader {
+    private def at(index: Int): Any                              = byLabel(resultOrder(index - 1))
+    private def atLabel(label: String): Any                      = byLabel(label)
+    def getInt(index: Int): Int                                  = at(index).asInstanceOf[Int]
+    def getInt(label: String): Int                               = atLabel(label).asInstanceOf[Int]
+    def getLong(index: Int): Long                                = at(index).asInstanceOf[Long]
+    def getLong(label: String): Long                             = atLabel(label).asInstanceOf[Long]
+    def getDouble(index: Int): Double                            = at(index).asInstanceOf[Double]
+    def getDouble(label: String): Double                         = atLabel(label).asInstanceOf[Double]
+    def getFloat(index: Int): Float                              = at(index).asInstanceOf[Float]
+    def getFloat(label: String): Float                           = atLabel(label).asInstanceOf[Float]
+    def getBoolean(index: Int): Boolean                          = at(index).asInstanceOf[Boolean]
+    def getBoolean(label: String): Boolean                       = atLabel(label).asInstanceOf[Boolean]
+    def getString(index: Int): String                            = at(index).asInstanceOf[String]
+    def getString(label: String): String                         = atLabel(label).asInstanceOf[String]
+    def getBigDecimal(index: Int): java.math.BigDecimal          = at(index).asInstanceOf[java.math.BigDecimal]
+    def getBigDecimal(label: String): java.math.BigDecimal       = atLabel(label).asInstanceOf[java.math.BigDecimal]
+    def getBytes(index: Int): Array[Byte]                        = at(index).asInstanceOf[Array[Byte]]
+    def getBytes(label: String): Array[Byte]                     = atLabel(label).asInstanceOf[Array[Byte]]
+    def getShort(index: Int): Short                              = at(index).asInstanceOf[Short]
+    def getShort(label: String): Short                           = atLabel(label).asInstanceOf[Short]
+    def getByte(index: Int): Byte                                = at(index).asInstanceOf[Byte]
+    def getByte(label: String): Byte                             = atLabel(label).asInstanceOf[Byte]
+    def getLocalDate(index: Int): java.time.LocalDate            = at(index).asInstanceOf[java.time.LocalDate]
+    def getLocalDate(label: String): java.time.LocalDate         = atLabel(label).asInstanceOf[java.time.LocalDate]
+    def getLocalDateTime(index: Int): java.time.LocalDateTime    = at(index).asInstanceOf[java.time.LocalDateTime]
+    def getLocalDateTime(label: String): java.time.LocalDateTime =
+      atLabel(label).asInstanceOf[java.time.LocalDateTime]
+    def getLocalTime(index: Int): java.time.LocalTime    = at(index).asInstanceOf[java.time.LocalTime]
+    def getLocalTime(label: String): java.time.LocalTime = atLabel(label).asInstanceOf[java.time.LocalTime]
+    def getInstant(index: Int): java.time.Instant        = at(index).asInstanceOf[java.time.Instant]
+    def getInstant(label: String): java.time.Instant     = atLabel(label).asInstanceOf[java.time.Instant]
+    def getDuration(index: Int): java.time.Duration      = at(index).asInstanceOf[java.time.Duration]
+    def getDuration(label: String): java.time.Duration   = atLabel(label).asInstanceOf[java.time.Duration]
+    def getUUID(index: Int): java.util.UUID              = at(index).asInstanceOf[java.util.UUID]
+    def getUUID(label: String): java.util.UUID           = atLabel(label).asInstanceOf[java.util.UUID]
+    def columnLabel(index: Int): String                  = resultOrder(index - 1)
+    def hasColumn(label: String): Boolean                = byLabel.contains(label)
+    def wasNull: Boolean                                 = false
+  }
+
+  /** Fixed-string reader for char edge cases (null/empty/single-char). */
+  private final class ConstStringReader(value: String) extends DbResultReader {
+    private def unsupported(name: String): Nothing =
+      throw new UnsupportedOperationException(s"char path must not call $name")
+    def getInt(index: Int): Int                                  = unsupported("getInt(index)")
+    def getInt(label: String): Int                               = unsupported("getInt(label)")
+    def getLong(index: Int): Long                                = unsupported("getLong(index)")
+    def getLong(label: String): Long                             = unsupported("getLong(label)")
+    def getDouble(index: Int): Double                            = unsupported("getDouble(index)")
+    def getDouble(label: String): Double                         = unsupported("getDouble(label)")
+    def getFloat(index: Int): Float                              = unsupported("getFloat(index)")
+    def getFloat(label: String): Float                           = unsupported("getFloat(label)")
+    def getBoolean(index: Int): Boolean                          = unsupported("getBoolean(index)")
+    def getBoolean(label: String): Boolean                       = unsupported("getBoolean(label)")
+    def getString(index: Int): String                            = value
+    def getString(label: String): String                         = value
+    def getBigDecimal(index: Int): java.math.BigDecimal          = unsupported("getBigDecimal(index)")
+    def getBigDecimal(label: String): java.math.BigDecimal       = unsupported("getBigDecimal(label)")
+    def getBytes(index: Int): Array[Byte]                        = unsupported("getBytes(index)")
+    def getBytes(label: String): Array[Byte]                     = unsupported("getBytes(label)")
+    def getShort(index: Int): Short                              = unsupported("getShort(index)")
+    def getShort(label: String): Short                           = unsupported("getShort(label)")
+    def getByte(index: Int): Byte                                = unsupported("getByte(index)")
+    def getByte(label: String): Byte                             = unsupported("getByte(label)")
+    def getLocalDate(index: Int): java.time.LocalDate            = unsupported("getLocalDate(index)")
+    def getLocalDate(label: String): java.time.LocalDate         = unsupported("getLocalDate(label)")
+    def getLocalDateTime(index: Int): java.time.LocalDateTime    = unsupported("getLocalDateTime(index)")
+    def getLocalDateTime(label: String): java.time.LocalDateTime = unsupported("getLocalDateTime(label)")
+    def getLocalTime(index: Int): java.time.LocalTime            = unsupported("getLocalTime(index)")
+    def getLocalTime(label: String): java.time.LocalTime         = unsupported("getLocalTime(label)")
+    def getInstant(index: Int): java.time.Instant                = unsupported("getInstant(index)")
+    def getInstant(label: String): java.time.Instant             = unsupported("getInstant(label)")
+    def getDuration(index: Int): java.time.Duration              = unsupported("getDuration(index)")
+    def getDuration(label: String): java.time.Duration           = unsupported("getDuration(label)")
+    def getUUID(index: Int): java.util.UUID                      = unsupported("getUUID(index)")
+    def getUUID(label: String): java.util.UUID                   = unsupported("getUUID(label)")
+    def columnLabel(index: Int): String                          = "c"
+    def hasColumn(label: String): Boolean                        = label == "c"
+    def wasNull: Boolean                                         = false
+  }
+
+  /** Labels wrapper counting `slice` calls to lock the F2b hoist. */
+  private final class CountingLabels(underlying: IndexedSeq[String]) extends IndexedSeq[String] {
+    var sliceCalls: Int                                           = 0
+    def apply(i: Int): String                                     = underlying(i)
+    def length: Int                                               = underlying.length
+    override def iterator: Iterator[String]                       = underlying.iterator
+    override def slice(from: Int, until: Int): IndexedSeq[String] = {
+      sliceCalls += 1
+      underlying.slice(from, until)
+    }
+  }
+
   sealed trait Shape
   object Shape {
     case class Circle(radius: Double)     extends Shape
@@ -994,6 +1155,115 @@ object DbCodecSpec extends ZIOSpecDefault {
         val mcodec = summon[DbCodec[Maybe[String]]]
         val values = mcodec.toDbValues(Maybe.present(null))
         assertTrue(values == IndexedSeq(DbValue.DbNull))
+      }
+    ),
+    suite("positional decode avoids per-row metadata (F2)")(
+      test("all single-column primitives decode 2 rows with zero columnLabel calls") {
+        val reader = new RowReader
+        // Row 1 at indexes 1-9
+        val (i1, l1, s1, b1, d1, f1, sh1, by1, bd1) = (
+          DbCodec.intCodec.readValue(reader, 1),
+          DbCodec.longCodec.readValue(reader, 2),
+          DbCodec.stringCodec.readValue(reader, 3),
+          DbCodec.booleanCodec.readValue(reader, 4),
+          DbCodec.doubleCodec.readValue(reader, 5),
+          DbCodec.floatCodec.readValue(reader, 6),
+          DbCodec.shortCodec.readValue(reader, 7),
+          DbCodec.byteCodec.readValue(reader, 8),
+          DbCodec.bigDecimalCodec.readValue(reader, 9)
+        )
+        reader.row = 2
+        // Row 2 at the same indexes
+        val (i2, l2, s2, b2, d2, f2, sh2, by2, bd2) = (
+          DbCodec.intCodec.readValue(reader, 1),
+          DbCodec.longCodec.readValue(reader, 2),
+          DbCodec.stringCodec.readValue(reader, 3),
+          DbCodec.booleanCodec.readValue(reader, 4),
+          DbCodec.doubleCodec.readValue(reader, 5),
+          DbCodec.floatCodec.readValue(reader, 6),
+          DbCodec.shortCodec.readValue(reader, 7),
+          DbCodec.byteCodec.readValue(reader, 8),
+          DbCodec.bigDecimalCodec.readValue(reader, 9)
+        )
+        assertTrue(
+          (i1, l1, s1, b1, d1, f1, sh1, by1) == (101, 102L, "r1c3", false, 105.0, 106.0f, 107.toShort, 108.toByte),
+          bd1.toString == "109",
+          (i2, l2, s2, b2, d2, f2, sh2, by2) == (201, 202L, "r2c3", true, 205.0, 206.0f, 207.toShort, 208.toByte),
+          bd2.toString == "209",
+          reader.columnLabelCalls == 0
+        )
+      }
+    ),
+    suite("record label-path slice hoist (F2b)")(
+      test("reordered labels slice once per statement, not once per field per row") {
+        val codec  = deriveCodec[SimpleRecord]
+        val labels = new CountingLabels(IndexedSeq("name", "age"))
+        // Result set exposes a different first column, forcing the codec onto
+        // the label fallback path for every row.
+        val reader = new LabelReader(Map[String, Any]("name" -> "Alice", "age" -> 3), IndexedSeq("other", "age"))
+        val first  = codec.readValue(reader, labels)
+        val second = codec.readValue(reader, labels)
+        assertTrue(
+          first == SimpleRecord("Alice", 3),
+          second == SimpleRecord("Alice", 3),
+          labels.sliceCalls == 2
+        )
+      }
+    ),
+    suite("char decoding rejects null and empty (F5)")(
+      test("SQL NULL char fails fast on both overloads") {
+        val codec = deriveCodec[WithChar]
+        // Two labels forces the record codec onto the label fallback path,
+        // exercising the char codec's label overload directly; the single
+        // label takes the aligned positional path.
+        val viaLabels   = scala.util.Try(codec.readValue(new ConstStringReader(null), IndexedSeq("c", "extra")))
+        val viaPosition = scala.util.Try(codec.readValue(new ConstStringReader(null), 1))
+        assertTrue(
+          viaLabels.isFailure,
+          viaLabels.failed.get.isInstanceOf[IllegalStateException],
+          viaLabels.failed.get.getMessage.contains("NULL"),
+          viaPosition.isFailure,
+          viaPosition.failed.get.isInstanceOf[IllegalStateException]
+        )
+      },
+      test("empty string char fails fast on both overloads") {
+        val codec       = deriveCodec[WithChar]
+        val viaLabels   = scala.util.Try(codec.readValue(new ConstStringReader(""), IndexedSeq("c", "extra")))
+        val viaPosition = scala.util.Try(codec.readValue(new ConstStringReader(""), 1))
+        assertTrue(
+          viaLabels.isFailure,
+          viaLabels.failed.get.isInstanceOf[IllegalStateException],
+          viaLabels.failed.get.getMessage.contains("empty"),
+          viaPosition.isFailure,
+          viaPosition.failed.get.isInstanceOf[IllegalStateException]
+        )
+      },
+      test("single-char string still decodes") {
+        val codec  = deriveCodec[WithChar]
+        val reader = new LabelReader(Map[String, Any]("c" -> "Z"), IndexedSeq("c"))
+        assertTrue(codec.readValue(reader, IndexedSeq("c")) == WithChar('Z'))
+      }
+    ),
+    suite("As Either helpers (F10)")(
+      test("decodeViaAs/encodeViaAs preserve success and failure as values") {
+        val conv = new As[String, Int] {
+          def into(s: String): Either[SchemaError, Int] =
+            scala.util.Try(s.toInt).toEither.left.map(_ => SchemaError(s"not an int: $s"))
+          def from(i: Int): Either[SchemaError, String] = Right(i.toString)
+        }
+        assertTrue(
+          DbCodec.decodeViaAs(conv, "42") == Right(42),
+          DbCodec.decodeViaAs(conv, "nope").isLeft,
+          DbCodec.encodeViaAs(conv, 7) == Right("7")
+        )
+      },
+      test("decodeJsonbEither round-trips success and surfaces bad JSON as Left") {
+        implicit val jsonCodec: JsonCodec[JsonPayload] = JsonPayload.jsonCodec
+        assertTrue(
+          DbCodec.decodeJsonbEither[JsonPayload]("{\"message\":\"hello\",\"count\":2}") ==
+            Right(JsonPayload("hello", 2)),
+          DbCodec.decodeJsonbEither[JsonPayload]("not json").isLeft
+        )
       }
     )
   )

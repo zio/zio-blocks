@@ -17,10 +17,12 @@
 package zio.blocks.sql
 
 import zio.test._
-import zio.blocks.schema.Schema
+import zio.blocks.schema._
 
+// Uses the deprecated stringly SqlQuery for its SqlStatement/explain inspection
+// coverage; silences the F1 deprecation accordingly.
+@scala.annotation.nowarn("cat=deprecation")
 object ExplainSpec extends ZIOSpecDefault {
-
   case class User(id: Int, name: String)
   object User {
     implicit val schema: Schema[User] = Schema.derived
@@ -53,7 +55,7 @@ object ExplainSpec extends ZIOSpecDefault {
       val st      = q.statement(SqlDialect.PostgreSQL)
 
       val expectedSql =
-        "SELECT t0.id, t0.name, t1.id, t1.owner_id, t1.name, t2.user_id, t2.repo_id FROM user t0 INNER JOIN repo t1 ON t0.id = t1.owner_id INNER JOIN star t2 ON t1.id = t2.repo_id WHERE t0.name = ?1 AND t1.name = ?2"
+        """SELECT t0."id", t0."name", t1."id", t1."owner_id", t1."name", t2."user_id", t2."repo_id" FROM "user" t0 INNER JOIN "repo" t1 ON t0."id" = t1."owner_id" INNER JOIN "star" t2 ON t1."id" = t2."repo_id" WHERE t0."name" = ?1 AND t1."name" = ?2"""
 
       assertTrue(
         explain.contains(expectedSql),
@@ -99,8 +101,8 @@ object ExplainSpec extends ZIOSpecDefault {
 
       val explain = q.explain(SqlDialect.PostgreSQL)
       assertTrue(
-        explain.contains("INNER JOIN repo t1 ON t0.id = t1.owner_id"),
-        explain.contains("WHERE t0.id = ?1"),
+        explain.contains("""INNER JOIN "repo" t1 ON t0."id" = t1."owner_id""""),
+        explain.contains("""WHERE t0."id" = ?1"""),
         explain.contains("-- params: 1:Int"),
         !explain.contains("42")
       )
@@ -119,7 +121,7 @@ object ExplainSpec extends ZIOSpecDefault {
       val st      = q.statement(SqlDialect.PostgreSQL)
 
       assertTrue(
-        explain.contains("ORDER BY t0.id ASC, t1.name DESC"),
+        explain.contains("""ORDER BY t0."id" ASC, t1."name" DESC"""),
         explain.contains("LIMIT 10"),
         explain.contains("OFFSET 5"),
         explain.contains("?1"),
@@ -144,8 +146,8 @@ object ExplainSpec extends ZIOSpecDefault {
       val st      = q.statement(SqlDialect.PostgreSQL)
 
       assertTrue(
-        explain.contains("LEFT JOIN repo t1"),
-        explain.contains("GROUP BY t0.id"),
+        explain.contains("""LEFT JOIN "repo" t1"""),
+        explain.contains("""GROUP BY t0."id""""),
         st.joins.head.kind == SqlStatement.JoinKind.Left,
         st.groupBy.contains(SqlStatement.GroupBy(Vector(SqlStatement.ColumnRef("t0", "id"))))
       )
@@ -177,6 +179,18 @@ object ExplainSpec extends ZIOSpecDefault {
       val st   = q.statement(SqlDialect.PostgreSQL)
       val frag = q.toFrag(SqlDialect.PostgreSQL)
       assertTrue(st.frag == frag)
+    },
+    test("reserved and mixed-case columns render double-quoted (F3)") {
+      case class Weird(@Modifier.rename("order") ord: Int, @Modifier.rename("MixedCase") mixed: String)
+      object Weird {
+        implicit val schema: Schema[Weird] = Schema.derived
+      }
+      val table   = Table.derived[Weird]
+      val explain = SqlQuery.from(table).where(table, "order", DbValue.DbInt(1)).explain(SqlDialect.PostgreSQL)
+      assertTrue(
+        explain.contains("""SELECT t0."order", t0."MixedCase" FROM "weird" t0"""),
+        explain.contains("""WHERE t0."order" = ?1""")
+      )
     }
   )
 }
