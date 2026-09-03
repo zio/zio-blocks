@@ -28,6 +28,12 @@ import zio.blocks.chunk.Chunk
  * array is populated lazily on typed `get` calls. The cache is an optimization
  * only: duplicate benign parses are possible if the same `Headers` is read
  * concurrently.
+ *
+ * Typed reads come in two flavors. The lenient [[get]] / [[getAll]] skip
+ * entries that fail to parse and continue scanning, so a wrong-typed header
+ * reads as absent (`None` / empty). Use the strict [[getStrict]] /
+ * [[getAllStrict]] when you need to distinguish "header absent" from "header
+ * present but unparseable": they return the parse error as `Left`.
  */
 final class Headers private[http] (
   private val names: Array[String],
@@ -48,6 +54,10 @@ final class Headers private[http] (
    * Matching is case-insensitive by header name. Parsed values are cached per
    * header entry and codec instance so different codecs with the same name do
    * not reuse each other's cached values.
+   *
+   * This is the lenient read: entries that fail to parse are skipped and
+   * scanning continues, so a present-but-wrong-typed header reads as absent
+   * (`None`). See [[getStrict]] for the error-reporting variant.
    */
   def get[A](headerCodec: Header.Codec[A]): Option[A] = {
     val target = headerCodec.name.toLowerCase(Locale.ROOT)
@@ -69,6 +79,40 @@ final class Headers private[http] (
       i += 1
     }
     None
+  }
+
+  /**
+   * Strict variant of [[get]]: distinguishes "header absent" from "header
+   * present but unparseable".
+   *
+   * Returns `Right(Some(value))` for the first entry that parses, `Right(None)`
+   * when no entry matches the codec name, and `Left(error)` with the first
+   * parse error when entries match but none parses. Like [[get]], scanning
+   * continues past unparseable entries while a later entry may still parse; the
+   * error is reported only when nothing parseable is found.
+   */
+  def getStrict[A](headerCodec: Header.Codec[A]): Either[String, Option[A]] = {
+    val target             = headerCodec.name.toLowerCase(Locale.ROOT)
+    var i                  = 0
+    var firstError: String = null
+    while (i < size) {
+      if (names(i) == target) {
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            return Right(Some(cached.value.asInstanceOf[A]))
+          case _ =>
+        }
+        headerCodec.parse(rawValues(i)) match {
+          case Right(value) =>
+            parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+            return Right(Some(value))
+          case Left(err) =>
+            if (firstError == null) firstError = err
+        }
+      }
+      i += 1
+    }
+    if (firstError == null) Right(None) else Left(firstError)
   }
 
   def rawGet(name: String): Option[String] = {
@@ -110,7 +154,8 @@ final class Headers private[http] (
    *
    * Values are returned in header order. Entries that fail to parse for the
    * requested codec are skipped, and cached values are reused only when they
-   * were produced by the same codec instance.
+   * were produced by the same codec instance. See [[getAllStrict]] for the
+   * fail-fast variant.
    */
   def getAll[A](headerCodec: Header.Codec[A]): Chunk[A] = {
     val target  = headerCodec.name.toLowerCase(Locale.ROOT)
@@ -135,6 +180,33 @@ final class Headers private[http] (
     builder.result()
   }
 
+  /**
+   * Strict variant of [[getAll]]: fails fast with the first parse error instead
+   * of skipping unparseable entries.
+   */
+  def getAllStrict[A](headerCodec: Header.Codec[A]): Either[String, Chunk[A]] = {
+    val target  = headerCodec.name.toLowerCase(Locale.ROOT)
+    val builder = Chunk.newBuilder[A]
+    var i       = 0
+    while (i < size) {
+      if (names(i) == target) {
+        parsed(i) match {
+          case cached: Headers.ParsedValue if sameCodec(cached.codec, headerCodec) =>
+            builder += cached.value.asInstanceOf[A]
+          case _ =>
+            headerCodec.parse(rawValues(i)) match {
+              case Right(value) =>
+                parsed(i) = new Headers.ParsedValue(headerCodec, value.asInstanceOf[AnyRef])
+                builder += value
+              case Left(err) => return Left(err)
+            }
+        }
+      }
+      i += 1
+    }
+    Right(builder.result())
+  }
+
   def getLast[H <: Header](headerType: Header.Typed[H]): Option[H] = {
     val all = getAll(headerType)
     if (all.isEmpty) None else Some(all(all.length - 1))
@@ -142,6 +214,13 @@ final class Headers private[http] (
 
   def add(header: Header): Headers = add(header.headerName, header.renderedValue)
 
+  /**
+   * Returns a copy with one header appended.
+   *
+   * Each `add` copies the backing arrays, so appending `n` headers one by one
+   * costs O(n²). For multi-add loops prefer [[HeadersBuilder]] (see
+   * [[Headers.apply]]) and call `build()` once.
+   */
   def add(name: String, value: String): Headers = {
     Headers.validateNameOrThrow(name)
     Headers.validateValueOrThrow(value)

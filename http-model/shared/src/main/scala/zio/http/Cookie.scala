@@ -74,8 +74,26 @@ object CookiePriority {
   case object High extends CookiePriority
 }
 
+/**
+ * Cookie request/response parsing and rendering (RFC 6265).
+ *
+ * Unknown-attribute policy: `parseResponse` ignores attributes it does not
+ * recognize and falls back to defaults for attributes it cannot interpret (a
+ * non-numeric `Max-Age`, an unknown `SameSite` or `Priority` value). This
+ * mirrors RFC 6265 section 5.2, which requires user agents to ignore
+ * unrecognized attributes rather than reject the cookie. `parseRequest` drops
+ * `name`-less parts (segments without `=`) silently for the same reason.
+ * Callers that need to tell "attribute absent" from "attribute malformed"
+ * should inspect the raw `Cookie` / `Set-Cookie` header values directly.
+ */
 object Cookie {
 
+  /**
+   * Parses a `Cookie` request header value into name/value pairs.
+   *
+   * Empty parts and parts without a `name=` prefix are dropped silently (see
+   * the unknown-attribute policy on [[Cookie]]).
+   */
   def parseRequest(s: String): Chunk[RequestCookie] = {
     if (s.isEmpty) return Chunk.empty[RequestCookie]
     val parts   = s.split(';')
@@ -96,6 +114,13 @@ object Cookie {
     builder.result()
   }
 
+  /**
+   * Parses a `Set-Cookie` response header value.
+   *
+   * Structural problems (empty input, missing name) are reported as `Left`.
+   * Unknown attributes and uninterpretable `Max-Age` / `SameSite` / `Priority`
+   * values are ignored per the policy documented on [[Cookie]].
+   */
   def parseResponse(s: String): Either[String, ResponseCookie] = {
     if (s.isEmpty) return Left("Empty cookie string")
 

@@ -54,6 +54,13 @@ final class QueryParams private[http] (
     false
   }
 
+  /**
+   * Returns a copy with one entry appended.
+   *
+   * Each `add` copies via a temporary builder, so appending `n` entries one by
+   * one costs O(n²). For multi-add loops prefer [[QueryParamsBuilder]] and call
+   * `build()` once.
+   */
   def add(key: String, value: String): QueryParams = {
     val builder = QueryParamsBuilder.make(size + 1)
     builder.addAll(this)
@@ -155,6 +162,14 @@ final class QueryParams private[http] (
     builder.result()
   }
 
+  private[http] def forEachEntry(f: (String, Chunk[String]) => Unit): Unit = {
+    var i = 0
+    while (i < size) {
+      f(keys(i), vals(i))
+      i += 1
+    }
+  }
+
   def filter(f: (String, Chunk[String]) => Boolean): QueryParams = {
     val builder = QueryParamsBuilder.make(size)
     var i       = 0
@@ -205,25 +220,56 @@ object QueryParams {
   }
 }
 
+/**
+ * Amortized multi-add builder for [[QueryParams]].
+ *
+ * `add` scans the accumulated keys linearly up to a small size threshold
+ * ([[QueryParamsBuilder.IndexThreshold]]), past which a `HashMap` key-to-index
+ * table keeps lookups O(1). Prefer this over chained [[QueryParams.add]] calls
+ * when adding more than a couple of entries.
+ */
 final class QueryParamsBuilder private (
   private var keys: Array[String],
   private var vals: Array[Chunk[String]],
   private var len: Int
 ) {
+  private var index: java.util.HashMap[String, Integer] = null
 
   def add(key: String, value: String): Unit = {
-    var i = 0
-    while (i < len) {
-      if (keys(i) == key) {
-        vals(i) = vals(i) :+ value
-        return
-      }
-      i += 1
+    val found = findKey(key)
+    if (found >= 0) {
+      vals(found) = vals(found) :+ value
+      return
     }
     ensureCapacity()
     keys(len) = key
     vals(len) = Chunk.single(value)
     len += 1
+    if (index != null) index.put(key, Integer.valueOf(len - 1))
+    else if (len >= QueryParamsBuilder.IndexThreshold) rebuildIndex()
+  }
+
+  private def findKey(key: String): Int =
+    if (index != null) {
+      val found = index.get(key)
+      if (found == null) -1 else found.intValue()
+    } else {
+      var i = 0
+      while (i < len) {
+        if (keys(i) == key) return i
+        i += 1
+      }
+      -1
+    }
+
+  private def rebuildIndex(): Unit = {
+    val table = new java.util.HashMap[String, Integer](Math.max(len * 2, 16))
+    var i     = 0
+    while (i < len) {
+      table.put(keys(i), Integer.valueOf(i))
+      i += 1
+    }
+    index = table
   }
 
   private[http] def addEntry(key: String, values: Chunk[String]): Unit = {
@@ -231,15 +277,24 @@ final class QueryParamsBuilder private (
     keys(len) = key
     vals(len) = values
     len += 1
+    if (index != null) index.put(key, Integer.valueOf(len - 1))
+    else if (len >= QueryParamsBuilder.IndexThreshold) rebuildIndex()
   }
 
   def addAll(params: QueryParams): Unit =
-    params.toList.foreach { case (k, v) => add(k, v) }
+    params.forEachEntry { case (k, vs) =>
+      var j = 0
+      while (j < vs.length) {
+        add(k, vs(j))
+        j += 1
+      }
+    }
 
   def reset(): Unit = {
     java.util.Arrays.fill(keys.asInstanceOf[Array[AnyRef]], 0, len, null)
     java.util.Arrays.fill(vals.asInstanceOf[Array[AnyRef]], 0, len, null)
     len = 0
+    index = null
   }
 
   private def ensureCapacity(): Unit =
@@ -263,6 +318,8 @@ final class QueryParamsBuilder private (
 }
 
 object QueryParamsBuilder {
+  private val IndexThreshold: Int = 8
+
   def make(initialCapacity: Int = 8): QueryParamsBuilder = {
     val cap = Math.max(initialCapacity, 4)
     new QueryParamsBuilder(new Array[String](cap), new Array[Chunk[String]](cap), 0)

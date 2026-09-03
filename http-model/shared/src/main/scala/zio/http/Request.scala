@@ -49,6 +49,12 @@ final case class Request(
 
   def queryParams: QueryParams = url.queryParams
 
+  /**
+   * Returns this request's cookies, parsed from the `Cookie` header.
+   *
+   * Name-less header parts are dropped by `Cookie.parseRequest` (see the policy
+   * on [[Cookie]]); a missing `Cookie` header yields an empty chunk.
+   */
   def cookies: zio.blocks.chunk.Chunk[RequestCookie] =
     header(Header.CookieHeader).map(header => Cookie.parseRequest(header.value)).getOrElse(zio.blocks.chunk.Chunk.empty)
 

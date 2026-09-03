@@ -27,6 +27,13 @@ import zio.blocks.streams.Stream
  * All optimization intelligence (known chunk, known length) lives in the
  * underlying `Stream` via its `knownChunk` and `knownLength` metadata APIs.
  *
+ * Equality is chunk-known only: two bodies are equal when their content types
+ * match and both streams expose a known chunk with equal bytes. Two identical
+ * streaming bodies without a known chunk compare as `false`, and their
+ * `hashCode` falls back to the stream's identity hash — so almost-equal
+ * streaming bodies hash differently per run. (The `equals`/`hashCode` contract
+ * still holds: equal bodies share a hash.)
+ *
  * @param stream
  *   the underlying byte stream
  * @param contentType
@@ -34,6 +41,10 @@ import zio.blocks.streams.Stream
  */
 final class Body private (val stream: Stream[Nothing, Byte], val contentType: ContentType) {
 
+  /**
+   * Chunk-known-only equality: identical streaming bodies without a known chunk
+   * compare as `false` (see the class note).
+   */
   override def equals(that: Any): Boolean = that match {
     case b: Body =>
       (this eq b) || (contentType == b.contentType && {
@@ -45,6 +56,9 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
     case _ => false
   }
 
+  /**
+   * Streams without a known chunk hash by stream identity (see the class note).
+   */
   override def hashCode: Int = {
     val dataHash = stream.knownChunk.map(_.hashCode).getOrElse(System.identityHashCode(stream))
     dataHash * 31 + contentType.hashCode
@@ -57,13 +71,20 @@ final class Body private (val stream: Stream[Nothing, Byte], val contentType: Co
    * Materializes the entire stream into a `Chunk[Byte]`.
    *
    * If the stream has a known chunk (e.g. created via `Stream.fromChunk`), this
-   * returns it directly without running the stream. Otherwise, the stream is
-   * collected.
+   * returns it directly without running the stream. Otherwise the stream is
+   * collected by running its effects synchronously on the calling thread; a
+   * failed collection yields an empty chunk. Never call this on an infinite
+   * stream.
    */
   def toChunk: Chunk[Byte] =
     stream.knownChunk.getOrElse(stream.runCollect.getOrElse(Chunk.empty))
 
-  /** Materializes the entire stream into a fresh `Array[Byte]`. */
+  /**
+   * Materializes the entire stream into an `Array[Byte]`.
+   *
+   * Unlike [[Body.fromArray]], which aliases its input, this always returns a
+   * freshly allocated array: mutating the result never affects the body.
+   */
   def toArray: Array[Byte] = toChunk.toArray
 
   /**
@@ -122,7 +143,8 @@ object Body {
    *
    * The resulting body aliases the supplied mutable array. Mutating the array
    * after calling this method mutates the body contents too. Use this only when
-   * ownership of the array has been transferred to the body.
+   * ownership of the array has been transferred to the body. (The reverse
+   * direction is safe: [[Body.toArray]] always returns a fresh copy.)
    */
   def fromArray(bytes: Array[Byte], contentType: ContentType = ContentType.`application/octet-stream`): Body =
     new Body(Stream.fromChunk(Chunk.fromArray(bytes)), contentType)
