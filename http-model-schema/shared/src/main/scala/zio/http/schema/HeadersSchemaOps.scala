@@ -74,7 +74,7 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
   def header[T](name: String)(implicit schema: Schema[T]): Either[HeaderError, T] =
     headers.rawGet(name) match {
       case None      => Left(HeaderError.Missing(name))
-      case Some(raw) => StringDecoder.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
+      case Some(raw) => ParamCodecSupport.decode(raw, schema).left.map(e => HeaderError.Malformed(name, raw, e))
     }
 
   /**
@@ -106,7 +106,7 @@ final class HeadersSchemaOps(private val headers: Headers) extends AnyVal {
       val builder = Chunk.newBuilder[T]
       var i       = 0
       while (i < values.length) {
-        StringDecoder.decode(values(i), schema) match {
+        ParamCodecSupport.decode(values(i), schema) match {
           case Right(v) => builder += v
           case Left(e)  => return Left(HeaderError.Malformed(name, values(i), e))
         }

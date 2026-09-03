@@ -67,17 +67,13 @@ abstract class HeaderCodec[A] extends Codec[Headers, HeadersBuilder, A] {
    * codec was writing and leaves its own entries there. Inside `encode`, write
    * to the `output` builder instead.
    */
-  final def encodeToHeaders(value: A): Headers = {
-    val builder = HeaderCodec.threadLocalBuilder.get()
-    builder.reset()
-    encode(value, builder)
-    builder.build()
-  }
+  final def encodeToHeaders(value: A): Headers =
+    ParamCodecSupport.withBuilder(HeaderCodec.threadLocalBuilder, _.reset(), _.build())(encode(value, _))
 }
 
 /** Holds the per-thread builder that `encodeToHeaders` reuses. */
 object HeaderCodec {
-  private val threadLocalBuilder: ThreadLocal[HeadersBuilder] =
+  private[schema] val threadLocalBuilder: ThreadLocal[HeadersBuilder] =
     new ThreadLocal[HeadersBuilder] {
       override def initialValue(): HeadersBuilder = HeadersBuilder.make()
     }

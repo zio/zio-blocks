@@ -17,8 +17,8 @@
 package zio.http.schema
 
 import zio.blocks.chunk.Chunk
-import zio.blocks.schema.binding.{HasBinding, SeqConstructor}
-import zio.blocks.schema.{PrimitiveType, Reflect, SchemaError}
+import zio.blocks.schema.binding.{Binding, HasBinding, SeqConstructor}
+import zio.blocks.schema.{DynamicOptic, PrimitiveType, Reflect, Schema, SchemaError}
 
 import java.util.UUID
 import scala.reflect.ClassTag
@@ -141,7 +141,8 @@ private[schema] object ParamCodecSupport {
       inner.decodeAny(fieldName, rawValues, errorFactory).flatMap { value =>
         try Right(wrap(value.asInstanceOf[B]))
         catch {
-          case NonFatal(error) => Left(SchemaError.conversionFailed(Nil, error.getMessage))
+          case NonFatal(error) =>
+            Left(SchemaError.conversionFailed(List(DynamicOptic.Node.Field(fieldName)), error.getMessage))
         }
       }
   }
@@ -235,13 +236,62 @@ private[schema] object ParamCodecSupport {
     errorFactory: DecodeErrorFactory
   ): Either[SchemaError, A] =
     decodePrimitiveString(raw, primitiveType).left.map(cause =>
-      SchemaError.conversionFailed(Nil, errorFactory.malformed(fieldName, raw, cause))
+      SchemaError.conversionFailed(
+        List(DynamicOptic.Node.Field(fieldName)),
+        errorFactory.malformed(fieldName, raw, cause)
+      )
     )
 
   /**
    * Parses `raw` as the given primitive type, with the rules and messages of
-   * the `query` and `header` extension methods.
+   * the `query` and `header` extension methods. Decodes `raw` as a `T`, or
+   * returns the reason it cannot, when `schema` is one of the supported
+   * primitives.
+   *
+   * This is the one shared string-to-primitive entry point for the
+   * `QueryParamsSchemaOps` / `HeadersSchemaOps` extension methods; the derivers
+   * reach the same parser through [[ParamCodecSupport.decodePrimitiveString]].
+   * It supports primitive schemas of 12 types, each parsed with the Scala or
+   * JDK parser of that type: `String` (the value as is), `Boolean` (`true` or
+   * `false`, any letter case), `Char` (exactly one character), `Byte`, `Short`,
+   * `Int`, `Long`, `Float`, `Double`, `BigInt`, `BigDecimal` and
+   * `java.util.UUID`. A failure is a `Left` with the reason,
+   * `Cannot parse 'abc' as Int` or, for `Char`,
+   * `Expected single character but got 'abc'`; the callers wrap it in
+   * `Malformed`.
+   *
+   * Every other schema fails on every value: a primitive type such as
+   * `java.time.Instant` or `Unit` gives "Unsupported primitive type for string
+   * decoding", and an `Option`, a collection, a wrapper or a record gives
+   * "Unsupported schema type for string decoding". The schema's `Validation`
+   * is never checked.
+   *
+   * {{{
+   * import zio.http.QueryParams
+   * import zio.http.schema._
+   *
+   * val params = QueryParams(
+   *   "order"   -> "550e8400-e29b-41d4-a716-446655440000",
+   *   "express" -> "TRUE",
+   *   "qty"     -> "",
+   *   "grade"   -> "AB"
+   * )
+   *
+   * params.query[java.util.UUID]("order") // Right(550e8400-e29b-41d4-a716-446655440000)
+   * params.query[Boolean]("express")      // Right(true)
+   * params.query[Int]("qty")              // Left(Malformed(qty,,Cannot parse '' as Int))
+   * params.query[Char]("grade")           // Left(Malformed(grade,AB,Expected single character but got 'AB'))
+   * params.query[Option[Int]]("qty")      // Left(Malformed(qty,,Unsupported schema type for string decoding))
+   * }}}
    */
+  def decode[T](raw: String, schema: Schema[T]): Either[String, T] =
+    schema.reflect match {
+      case p: Reflect.Primitive[Binding, T] @unchecked =>
+        decodePrimitiveString(raw, p.primitiveType)
+      case _ =>
+        Left("Unsupported schema type for string decoding")
+    }
+
   def decodePrimitiveString[A](raw: String, primitiveType: PrimitiveType[A]): Either[String, A] =
     try {
       primitiveType match {
@@ -262,8 +312,10 @@ private[schema] object ParamCodecSupport {
         case _ => Left("Unsupported primitive type for string decoding")
       }
     } catch {
-      case _: NumberFormatException    => Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
-      case _: IllegalArgumentException => Left(s"Cannot parse '$raw' as ${typeName(primitiveType)}")
+      case _: NumberFormatException =>
+        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
+      case _: IllegalArgumentException =>
+        Left(s"Cannot parse '$raw' as ${PrimitiveTypeNames.typeName(primitiveType)}")
     }
 
   private def renderPrimitive[A](value: A, primitiveType: PrimitiveType[A]): String = primitiveType match {
@@ -282,19 +334,19 @@ private[schema] object ParamCodecSupport {
     case _                           => throw new UnsupportedOperationException(s"Unsupported primitive type: $primitiveType")
   }
 
-  private def typeName[A](primitiveType: PrimitiveType[A]): String = primitiveType match {
-    case _: PrimitiveType.String     => "String"
-    case _: PrimitiveType.Int        => "Int"
-    case _: PrimitiveType.Long       => "Long"
-    case _: PrimitiveType.Boolean    => "Boolean"
-    case _: PrimitiveType.Double     => "Double"
-    case _: PrimitiveType.Float      => "Float"
-    case _: PrimitiveType.Short      => "Short"
-    case _: PrimitiveType.Byte       => "Byte"
-    case _: PrimitiveType.BigInt     => "BigInt"
-    case _: PrimitiveType.BigDecimal => "BigDecimal"
-    case _: PrimitiveType.UUID       => "UUID"
-    case _: PrimitiveType.Char       => "Char"
-    case _                           => "Unknown"
+  /**
+   * Runs one encode against a thread-local builder, sharing the
+   * get/reset/use/build dance between the query and header codecs so the
+   * ordering cannot drift between the two call sites.
+   */
+  def withBuilder[Builder, Result](
+    local: ThreadLocal[Builder],
+    reset: Builder => Unit,
+    build: Builder => Result
+  )(use: Builder => Unit): Result = {
+    val builder = local.get()
+    reset(builder)
+    use(builder)
+    build(builder)
   }
 }

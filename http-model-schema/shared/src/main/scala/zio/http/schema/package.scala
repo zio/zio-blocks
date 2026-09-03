@@ -31,7 +31,24 @@ import zio.http.{Headers, QueryParams, Request, Response}
  *
  * To read or write a whole case class at once, derive a [[QueryCodec]] with
  * `Schema[A].derive(DefaultQueryFormat)` or a [[HeaderCodec]] with
- * `Schema[A].derive(DefaultHeaderFormat)`.
+ * `Schema[A].derive(DefaultHeaderFormat)`. That derivation chooses between the
+ * three parallel query/header modelings in this codebase:
+ *
+ *   - Typed [[zio.http.Header.Codec]]: one hand-written header value with
+ *     custom parse/render logic. Reaches for this when a single header needs
+ *     bespoke validation that a primitive schema cannot express; decoded via
+ *     the `HeadersSchemaOps.header(codec)` overloads.
+ *   - Schema-based `zio.blocks.endpoint.HttpCodec` atoms (in the `endpoint/`
+ *     module, documented here only): endpoint descriptors that model query,
+ *     header, body, and status parts of an API operation for routing and
+ *     documentation. Reaches for this when describing a whole endpoint, not
+ *     when reading values out of a request.
+ *   - Derived [[zio.http.schema.QueryCodec]] / [[zio.http.schema.HeaderCodec]]
+ *     (this module): a whole case class mapped onto a collection of query
+ *     parameters or headers through `Schema` derivation
+ *     (`Schema[A].derive(DefaultQueryFormat)` /
+ *     `Schema[A].derive(DefaultHeaderFormat)`). Reaches for this when a
+ *     record's fields each become one parameter or header.
  *
  * @see
  *   [[https://zioblocks.com/reference/http-model/schema/ Schema-Based Typed Access]]
