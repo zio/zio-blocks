@@ -686,7 +686,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.2" % Test
         )
     })
   )
@@ -707,7 +707,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.2" % Test
         )
     })
   )
@@ -1154,7 +1154,7 @@ lazy val `schema-avro` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.2" % Test
         )
     }),
     coverageMinimumStmtTotal   := 96,
@@ -1205,7 +1205,7 @@ lazy val `schema-bson` = project
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.2" % Test
         )
     }),
     coverageMinimumStmtTotal   := 66,
@@ -1284,7 +1284,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %%% "neotype" % "0.7.2" % Test
         )
     })
   )
@@ -1297,7 +1297,7 @@ lazy val `schema-toon` = crossProject(JSPlatform, JVMPlatform)
         Seq()
       case _ =>
         Seq(
-          "io.github.kitlangton" %% "neotype" % "0.7.1" % Test
+          "io.github.kitlangton" %% "neotype" % "0.7.2" % Test
         )
     })
   )
