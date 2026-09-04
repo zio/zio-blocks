@@ -146,23 +146,23 @@ addCommandAlias(
 )
 lazy val testJVMScala2Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; markdownJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; mediatypeJVM/test; " +
     "endpointJVM/test; openapiJVM/test; smithy/test; codegen/test; htmlJVM/test; asyncJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJVMScala3Command =
   "typeidJVM/test; maybeJVM/test; chunkJVM/test; combinatorsJVM/test; ringbufferJVM/test; schemaJVM/test; streamsJVM/test; schema-toonJVM/test; schema-messagepackJVM/test; schema-avro/test; " +
-    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
+    "schema-thrift/test; schema-bson/test; schema-xmlJVM/test; schema-yamlJVM/test; schema-csvJVM/test; contextJVM/test; scopeJVM/test; muxJVM/test; markdownJVM/test; mediatypeJVM/test; http-modelJVM/test; " +
     "http-model-schemaJVM/test; configJVM/test; config-yamlJVM/test; config-jsonJVM/test; config-hoconJVM/test; endpointJVM/test; openapiJVM/test; smithy/test; sqlJVM/test; sql-zio/test; codegen/test; htmlJVM/test; datastarJVM/test; htmxJVM/test; asyncJVM/test; dataMigrationJVM/test; projectionJVM/test; jwtJVM/test" +
     whenJdkAtLeast(25, "telemetryJVM/test; otel/test")
 
 lazy val testJSScala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; markdownJS/test; mediatypeJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; htmlJS/test; asyncJS/test; jwtJS/test"
 
 lazy val testJSScala3Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; openapiJS/test; " +
-    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test; jwtJS/test"
+    "schema-xmlJS/test; schema-yamlJS/test; schema-csvJS/test; contextJS/test; scopeJS/test; muxJS/test; markdownJS/test; mediatypeJS/test; http-modelJS/test; http-model-schemaJS/test; configJS/test; config-yamlJS/test; config-jsonJS/test; config-hoconJS/test; endpointJS/test; sqlJS/test; htmlJS/test; datastarJS/test; htmxJS/test; asyncJS/test; dataMigrationJS/test; jwtJS/test"
 
 lazy val testJS1Scala2Command =
   "typeidJS/test; maybeJS/test; chunkJS/test; combinatorsJS/test; ringbufferJS/test; schemaJS/test; streamsJS/test; schema-toonJS/test; schema-messagepackJS/test; asyncJS/test"

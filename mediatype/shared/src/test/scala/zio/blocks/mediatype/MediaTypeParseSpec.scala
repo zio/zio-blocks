@@ -104,6 +104,47 @@ object MediaTypeParseSpec extends MediaTypeBaseSpec {
         val result = scala.util.Try(MediaType.unsafeFromString("invalid"))
         assertTrue(result.isFailure)
       }
+    ),
+    suite("quoted parameters")(
+      test("strips one quote layer from parameter values") {
+        val result = MediaType.parse("text/html; charset=\"utf-8\"")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("charset" -> "utf-8")
+        )
+      },
+      test("strips quotes while keeping other parameters intact") {
+        val result = MediaType.parse("text/html; charset=\"utf-8\"; level=1")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("charset" -> "utf-8", "level" -> "1")
+        )
+      },
+      test("keeps unbalanced quotes as is") {
+        val result = MediaType.parse("text/html; title=\"abc")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("title" -> "\"abc")
+        )
+      },
+      test("documents the semicolon-in-quotes limitation") {
+        // Quoted values must not contain ';': it still splits parameters, and
+        // the fragment without '=' is dropped.
+        val result = MediaType.parse("text/html; title=\"a;b\"")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.parameters == Map("title" -> "\"a")
+        )
+      },
+      test("unknown types keep their original case with unquoted params") {
+        val result = MediaType.parse("Custom/Unknown; note=\"x\"")
+        assertTrue(
+          result.isRight,
+          result.toOption.get.mainType == "Custom",
+          result.toOption.get.subType == "Unknown",
+          result.toOption.get.parameters == Map("note" -> "x")
+        )
+      }
     )
   )
 }

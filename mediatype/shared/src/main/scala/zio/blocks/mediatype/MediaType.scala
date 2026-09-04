@@ -63,6 +63,14 @@ object MediaType {
     if (normalized.isEmpty) None else extensionMap.get(normalized)
   }
 
+  /**
+   * Parses a media type string such as `text/html; charset=utf-8`.
+   *
+   * Parameter values may be single-quoted (`charset="utf-8"` parses to
+   * `utf-8`); one surrounding quote layer is stripped. Limitation: a `;` inside
+   * a quoted value still splits parameters, so quoted values must not contain
+   * `;`. Unknown types keep their original case.
+   */
   def parse(s: String): Either[String, MediaType] = {
     if (s.isEmpty) return Left("Invalid media type: cannot be empty")
 
@@ -98,8 +106,16 @@ object MediaType {
       .filter(_.nonEmpty)
       .flatMap { param =>
         param.split("=", 2) match {
-          case Array(key, value) => Some(key.trim.toLowerCase -> value.trim)
-          case _                 => None
+          // Strip one layer of surrounding quotes: charset="utf-8" -> utf-8.
+          // A ';' inside quotes still splits (documented limitation of parse).
+          case Array(key, value) =>
+            val trimmed  = value.trim
+            val unquoted =
+              if (trimmed.length >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\""))
+                trimmed.substring(1, trimmed.length - 1)
+              else trimmed
+            Some(key.trim.toLowerCase -> unquoted)
+          case _ => None
         }
       }
       .toMap

@@ -205,6 +205,35 @@ object ReferenceSpec extends SchemaBaseSpec {
         }
         assertTrue(refIsRef, valueIsValue)
       }
+    ),
+    suite("OpenAPIGen symbolic refs")(
+      test("schema returns a symbolic ref plus matching definitions") {
+        case class Widget(name: String)
+        object Widget {
+          implicit val schema: Schema[Widget] = Schema.derived
+        }
+
+        val (ref, defs) = OpenAPIGen.schema[Widget]
+        ref match {
+          case ReferenceOr.Ref(reference) =>
+            assertTrue(
+              reference.`$ref` == "#/components/schemas/Widget",
+              defs.contains("Widget")
+            )
+          case _ => assertTrue(false)
+        }
+      },
+      test("resolveRefs marks the downstream-resolution boundary") {
+        case class Widget(name: String)
+        object Widget {
+          implicit val schema: Schema[Widget] = Schema.derived
+        }
+
+        val (_, defs) = OpenAPIGen.schema[Widget]
+        val api       = OpenAPI(openapi = "3.1.0", info = Info(title = "t", version = "1"))
+        val thrown    = scala.util.Try(OpenAPIGen.resolveRefs(api, defs)).failed.toOption
+        assertTrue(thrown.exists(_.isInstanceOf[UnsupportedOperationException]))
+      }
     )
   )
 }

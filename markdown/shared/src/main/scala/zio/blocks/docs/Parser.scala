@@ -38,7 +38,8 @@ import zio.blocks.chunk.Chunk
  *   - HTML blocks and inline HTML
  *
  * ==Not Supported==
- *   - YAML frontmatter (causes parse error)
+ *   - YAML frontmatter in strict `parse` (causes parse error; use
+ *     `parseWithFrontmatter` to accept and read it instead)
  *   - Setext headings (use ATX style)
  *   - Indented code blocks (use fenced)
  *   - Link reference definitions
@@ -61,6 +62,60 @@ object Parser {
   def parse(input: String): Either[ParseError, Doc] = {
     val state = new ParserState(input)
     state.parseDocument()
+  }
+
+  /**
+   * Parses a markdown string that may carry YAML frontmatter.
+   *
+   * Frontmatter is a leading `---` fence with `key: value` lines and a closing
+   * `---` fence. The pairs are returned as a `Map` alongside the parsed [[Doc]]
+   * (which also carries them in its metadata). Inputs without frontmatter parse
+   * exactly like `parse`; strict `parse` is unchanged and still rejects
+   * frontmatter.
+   *
+   * @param input
+   *   The markdown string to parse
+   * @return
+   *   Either a [[ParseError]], or the frontmatter pairs with the parsed [[Doc]]
+   */
+  def parseWithFrontmatter(input: String): Either[ParseError, (Map[String, String], Doc)] = {
+    val (meta, rest) = stripFrontmatter(input)
+    parse(rest).map(doc => (meta, doc.copy(metadata = doc.metadata ++ meta)))
+  }
+
+  /**
+   * Splits leading YAML frontmatter off a markdown string.
+   *
+   * Returns the `key: value` pairs between the opening and closing `---` fences
+   * plus the remaining document. Inputs without a well-formed leading fence
+   * return an empty map and the input unchanged.
+   *
+   * @param input
+   *   The markdown string to strip
+   * @return
+   *   The frontmatter pairs and the remaining document
+   */
+  def stripFrontmatter(input: String): (Map[String, String], String) = {
+    val lines = input.split("\n", -1)
+    if (lines.nonEmpty && lines(0) == "---") {
+      var i        = 1
+      var foundEnd = false
+      while (i < lines.length && !foundEnd) {
+        if (lines(i) == "---") foundEnd = true
+        i += 1
+      }
+      if (foundEnd && i > 2) {
+        val meta = lines
+          .slice(1, i - 1)
+          .flatMap { line =>
+            val sep = line.indexOf(':')
+            if (sep > 0) Some(line.substring(0, sep).trim -> line.substring(sep + 1).trim)
+            else None
+          }
+          .toMap
+        (meta, lines.drop(i).mkString("\n"))
+      } else (Map.empty, input)
+    } else (Map.empty, input)
   }
 
   private class ParserState(input: String) {
