@@ -20,6 +20,17 @@ import zio.blocks.schema.Schema
 
 object OpenAPIGen {
 
+  /**
+   * Builds the OpenAPI schema for `A` as a symbolic reference plus its
+   * component definitions.
+   *
+   * ==Refs in / refs out==
+   *   - References are preserved symbolically: the returned schema is always a
+   *     `ReferenceOr.Ref` pointing at `#/components/schemas/<name>`, and the
+   *     definitions map holds the inline `SchemaObject`. No resolution or
+   *     dereferencing pass runs here; resolving refs against a document is
+   *     downstream work (see `resolveRefs`).
+   */
   def schema[A](implicit s: Schema[A]): (ReferenceOr[SchemaObject], Map[String, SchemaObject]) = {
     val name = s.reflect.typeId.name
     val obj  = s.toOpenAPISchema
@@ -29,4 +40,21 @@ object OpenAPIGen {
 
   def schemas(ss: Schema[_]*): Map[String, SchemaObject] =
     ss.map(s => s.reflect.typeId.name -> SchemaObject.fromJsonSchema(s.toJsonSchema)).toMap
+
+  /**
+   * Resolves the local `#/components/schemas/...` references of a document
+   * against the given component definitions.
+   *
+   * Currently a documented extension point: reference resolution lives
+   * downstream, so this stub throws instead of silently returning a partially
+   * resolved document. References produced by `schema`/`schemas` round-trip
+   * unchanged until resolution is implemented.
+   *
+   * @throws java.lang.UnsupportedOperationException
+   *   always (resolution is not implemented yet)
+   */
+  def resolveRefs(document: OpenAPI, schemas: Map[String, SchemaObject]): OpenAPI =
+    throw new UnsupportedOperationException(
+      "OpenAPIGen.resolveRefs is not implemented: references stay symbolic; resolve them downstream"
+    )
 }

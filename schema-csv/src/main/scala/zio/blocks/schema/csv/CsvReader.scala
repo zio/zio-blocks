@@ -46,12 +46,21 @@ object CsvReader {
    *   the character position to start parsing from
    * @param config
    *   the CSV configuration controlling delimiter and quoting
+   * @param initialRow
+   *   the 1-based number of the row starting at `offset` (used for absolute
+   *   error positions when parsing a document piece by piece; defaults to 1,
+   *   i.e. positions relative to `offset`)
    * @return
    *   `Right((fields, newOffset))` on success where `fields` contains the
    *   parsed field values and `newOffset` is the position after the consumed
    *   row, or `Left(CsvError.ParseError(...))` on malformed input
    */
-  def readRow(input: String, offset: Int, config: CsvConfig): Either[CsvError, (IndexedSeq[String], Int)] = {
+  def readRow(
+    input: String,
+    offset: Int,
+    config: CsvConfig,
+    initialRow: Int = 1
+  ): Either[CsvError, (IndexedSeq[String], Int)] = {
     val len       = input.length
     val delimiter = config.delimiter
     val quoteChar = config.quoteChar
@@ -62,7 +71,7 @@ object CsvReader {
     val sb     = new java.lang.StringBuilder
     var state  = FieldStart
     var pos    = offset
-    var row    = 1
+    var row    = initialRow
     var col    = 1
     var done   = false
 
@@ -103,11 +112,15 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
+              row += 1
+              col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
+              row += 1
+              col = 1
               done = true
             } else {
               sb.append(c)
@@ -128,11 +141,15 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
+              row += 1
+              col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
+              row += 1
+              col = 1
               done = true
             } else {
               sb.append(c)
@@ -182,11 +199,15 @@ object CsvReader {
               sb.setLength(0)
               pos += 1
               if (pos < len && input.charAt(pos) == '\n') pos += 1
+              row += 1
+              col = 1
               done = true
             } else if (c == '\n') {
               fields += sb.toString
               sb.setLength(0)
               pos += 1
+              row += 1
+              col = 1
               done = true
             } else {
               return Left(CsvError.ParseError(s"Unexpected character '${c}' after closing quote", row, col))
@@ -233,10 +254,12 @@ object CsvReader {
     }
 
     var offset                     = 0
+    var currentRow                 = 1
     val header: IndexedSeq[String] = if (config.hasHeader) {
-      readRow(input, offset, config) match {
+      readRow(input, offset, config, currentRow) match {
         case Left(err)               => return Left(err)
         case Right((fields, newOff)) =>
+          currentRow += countLineBreaks(input, offset, newOff)
           offset = newOff
           fields
       }
@@ -246,7 +269,7 @@ object CsvReader {
 
     val rows = Vector.newBuilder[IndexedSeq[String]]
     while (offset < input.length) {
-      readRow(input, offset, config) match {
+      readRow(input, offset, config, currentRow) match {
         case Left(err)               => return Left(err)
         case Right((fields, newOff)) =>
           // Skip trailing empty rows (e.g. trailing newline producing empty row)
@@ -255,6 +278,7 @@ object CsvReader {
             if (fields.length > 1 || (fields.length == 1 && fields(0).nonEmpty) || newOff < input.length) {
               rows += fields
             }
+            currentRow += countLineBreaks(input, offset, newOff)
             offset = newOff
           } else {
             // Safety: no progress made, break to avoid infinite loop
@@ -264,5 +288,25 @@ object CsvReader {
     }
 
     Right((header, rows.result()))
+  }
+
+  /**
+   * Counts physical line breaks (`\n`, `\r`, `\r\n` each count once) in `input`
+   * over the half-open range `[from, until)`.
+   */
+  private def countLineBreaks(input: String, from: Int, until: Int): Int = {
+    var count = 0
+    var idx   = from
+    while (idx < until) {
+      val c = input.charAt(idx)
+      if (c == '\r') {
+        count += 1
+        if (idx + 1 < until && input.charAt(idx + 1) == '\n') idx += 1
+      } else if (c == '\n') {
+        count += 1
+      }
+      idx += 1
+    }
+    count
   }
 }
