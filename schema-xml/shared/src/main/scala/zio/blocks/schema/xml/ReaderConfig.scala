@@ -19,6 +19,11 @@ package zio.blocks.schema.xml
 /**
  * Configuration for XML reader behavior and limits.
  *
+ * Entity handling needs no separate expansion cap: the reader only recognizes
+ * the five predefined entities plus numeric character references (see
+ * `XmlReader`), rejects every other entity, and never touches DTDs or external
+ * entities, so exponential entity expansion is impossible by construction.
+ *
  * @param maxDepth
  *   Maximum nesting depth for XML elements (prevents stack overflow attacks)
  * @param maxAttributes

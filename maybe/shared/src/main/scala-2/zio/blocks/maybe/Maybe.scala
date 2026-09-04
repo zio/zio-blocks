@@ -232,5 +232,5 @@ object Maybe {
    * into Maybe.
    */
   private[blocks] def unsafeWrap[A](x: Any): Maybe[A] =
-    if (x == null) MaybeValue.Absent else MaybeValue.Present(x.asInstanceOf[A])
+    if (x.asInstanceOf[AnyRef] eq null) MaybeValue.Absent else MaybeValue.Present(x.asInstanceOf[A])
 }
