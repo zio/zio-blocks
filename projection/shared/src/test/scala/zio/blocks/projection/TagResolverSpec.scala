@@ -203,12 +203,12 @@ object TagResolverSpec extends ZIOSpecDefault {
         )
       )
     },
-    test("migrateValue leaves unrelated case unchanged") {
+    test("migrateValue fails on unrelated case") {
       val m        = Migration.newBuilder[AppEvent, AppEvent].renameCase("UserLoggedIn", "UserAuthenticated").build
       val info     = TagResolver.resolve[AppEvent](m)
       val dv       = DynamicValue.Variant("OrderCreated", DynamicValue.Record(Chunk("orderId" -> DynamicValue.string("o1"))))
       val migrated = info.migrateValue(dv)
-      assertTrue(migrated == Right(dv))
+      assertTrue(migrated.isLeft)
     },
     test("multiple RenameCase alias map correct") {
       val m = Migration

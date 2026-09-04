@@ -53,12 +53,13 @@ trait As[A, B] extends Into[A, B] {
 
 object As extends AsVersionSpecific with AsLowPriorityImplicits {
 
-  /** Creates an As[A, B] from two Into instances. */
+  /** Builds an As[A, B] from a forward and a backward Into. */
   def apply[A, B](intoAB: Into[A, B], intoBA: Into[B, A]): As[A, B] = new As[A, B] {
     def into(input: A): Either[SchemaError, B] = intoAB.into(input)
     def from(input: B): Either[SchemaError, A] = intoBA.into(input)
   }
 
+  /** Summons the implicit As[A, B] from scope. */
   def apply[A, B](implicit ev: As[A, B]): As[A, B] = ev
 }
 

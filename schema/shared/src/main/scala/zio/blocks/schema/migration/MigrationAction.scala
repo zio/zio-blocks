@@ -208,11 +208,20 @@ object MigrationAction {
     override def reverse: MigrationAction = {
       val sourceCaseName =
         at.nodes.lastOption.collect { case DynamicOptic.Node.Case(name) => name }.getOrElse(targetCaseName)
-      TransformCase(
-        DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Case(targetCaseName)),
-        sourceCaseName,
-        actions.reverse.map(_.reverse)
-      )
+      // Reversing a path with more than one Case node is ambiguous (the inner
+      // migration would run against the wrong subtree), so fall back to
+      // Irreversible instead of silently corrupting the path.
+      val caseCount = at.nodes.count {
+        case _: DynamicOptic.Node.Case => true
+        case _                         => false
+      }
+      if (caseCount > 1) Irreversible(at, "TransformCase")
+      else
+        TransformCase(
+          DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Case(targetCaseName)),
+          sourceCaseName,
+          actions.reverse.map(_.reverse)
+        )
     }
   }
 
