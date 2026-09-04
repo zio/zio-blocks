@@ -62,26 +62,11 @@ object TextLogFormatter extends LogFormatter {
     traceFlags: Byte,
     throwable: Option[Throwable]
   ): Unit = {
-    // Timestamp — manual UTC formatting, cached per second
-    val epochMillis = timestampNanos / 1000000L
-    val epochSecond = epochMillis / 1000L
-    val millis      = (epochMillis % 1000L).toInt
+    renderHead(sb, timestampNanos, severityText)
 
-    if (epochSecond != cachedSecond) {
-      cachedSecond = epochSecond
-      cachedPrefix = formatDateTimePrefix(epochSecond)
-    }
-    sb.append(cachedPrefix)
-    appendPadded(sb, millis, 3)
-    sb.append("Z ")
-
-    // Severity — pad to 5
-    sb.append(severityText)
-    var pad = 5 - severityText.length
-    while (pad > 0) { sb.append(' '); pad -= 1 }
-
-    // Source location from builder arrays
-    sb.append(" [")
+    // Source location — matched by key over all slots. The macro path always
+    // writes the four code.* attributes first, but direct Logger calls never
+    // write them, so position-based matching would misread user attributes.
     val keys    = builder.builderKeys
     val longs   = builder.builderLongs
     val strings = builder.builderStrings
@@ -91,7 +76,7 @@ object TextLogFormatter extends LogFormatter {
     var method    = ""
     var lineNo    = 0L
     var i         = 0
-    while (i < len && i < 4) {
+    while (i < len) {
       keys(i) match {
         case "code.namespace" => if (strings(i) != null) namespace = strings(i)
         case "code.function"  => if (strings(i) != null) method = strings(i)
@@ -100,73 +85,36 @@ object TextLogFormatter extends LogFormatter {
       }
       i += 1
     }
-
-    if (namespace.nonEmpty) {
-      val lastDot = namespace.lastIndexOf('.')
-      if (lastDot >= 0) sb.append(namespace, lastDot + 1, namespace.length)
-      else sb.append(namespace)
-    }
-    if (method.nonEmpty) { sb.append('.'); sb.append(method) }
-    if (lineNo > 0) { sb.append(':'); sb.append(lineNo) }
-    sb.append("] ")
+    renderLocation(sb, namespace, method, lineNo)
 
     // Body
     sb.append(body)
 
-    // User attributes (after source location, index 4+)
+    // User attributes — everything that is not a code.* attribute, in slot
+    // order (same rule as formatRecord).
     val types        = builder.builderTypes
     val seqs         = builder.builderSeqs
     var hasUserAttrs = false
-    i = 4
+    i = 0
     while (i < len) {
-      if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-      else sb.append(", ")
-      sb.append(keys(i)); sb.append('=')
-      (types(i): @scala.annotation.switch) match {
-        case 0 /* STRING */      => sb.append('"'); sb.append(strings(i)); sb.append('"')
-        case 1 /* LONG */        => sb.append(longs(i))
-        case 2 /* DOUBLE */      => sb.append(java.lang.Double.longBitsToDouble(longs(i)))
-        case 3 /* BOOLEAN */     => sb.append(if (longs(i) != 0L) "true" else "false")
-        case 4 /* STRING_SEQ */  => appendStringSeq(sb, seqValueAt(seqs, i))
-        case 5 /* LONG_SEQ */    => appendScalarSeq(sb, seqValueAt(seqs, i))
-        case 6 /* DOUBLE_SEQ */  => appendScalarSeq(sb, seqValueAt(seqs, i))
-        case 7 /* BOOLEAN_SEQ */ => appendScalarSeq(sb, seqValueAt(seqs, i))
-        case _                   => sb.append("?")
+      if (!keys(i).startsWith("code.")) {
+        if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+        else sb.append(", ")
+        sb.append(keys(i)); sb.append('=')
+        val tpe = types(i)
+        renderTextAttrValue(sb, tpe, longs(i), strings(i), if (tpe >= 4) seqValueAt(seqs, i) else null)
       }
       i += 1
     }
     if (hasUserAttrs) sb.append('}')
 
-    // Throwable
-    throwable.foreach { t =>
-      sb.append('\n')
-      val sw = new java.io.StringWriter()
-      t.printStackTrace(new java.io.PrintWriter(sw))
-      sb.append(sw.toString)
-    }
+    renderThrowable(sb, throwable)
   }
 
   override def formatRecord(sb: StringBuilder, record: LogRecord): Unit = {
-    // Timestamp — manual UTC formatting, cached per second
-    val epochMillis = record.timestampNanos / 1000000L
-    val epochSecond = epochMillis / 1000L
-    val millis      = (epochMillis % 1000L).toInt
-
-    if (epochSecond != cachedSecond) {
-      cachedSecond = epochSecond
-      cachedPrefix = formatDateTimePrefix(epochSecond)
-    }
-    sb.append(cachedPrefix)
-    appendPadded(sb, millis, 3)
-    sb.append("Z ")
-
-    // Severity — pad to 5
-    sb.append(record.severityText)
-    var pad = 5 - record.severityText.length
-    while (pad > 0) { sb.append(' '); pad -= 1 }
+    renderHead(sb, record.timestampNanos, record.severityText)
 
     // Source location from record attributes
-    sb.append(" [")
     var namespace = ""
     var method    = ""
     var lineNo    = 0L
@@ -188,7 +136,97 @@ object TextLogFormatter extends LogFormatter {
       override def visitDoubleSeq(key: String, value: Seq[Double]): Unit   = ()
       override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit = ()
     })
+    renderLocation(sb, namespace, method, lineNo)
 
+    // Body
+    sb.append(record.body.value)
+
+    // User attributes (skip code.* attributes)
+    var hasUserAttrs = false
+    record.attributes.accept(new AttributeVisitor {
+      private def nextAttr(key: String): Unit = {
+        if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
+        else sb.append(", ")
+        sb.append(key).append('=')
+      }
+
+      override def visitString(key: String, value: String): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 0, 0L, value, null)
+        }
+
+      override def visitLong(key: String, value: Long): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 1, value, null, null)
+        }
+
+      override def visitDouble(key: String, value: Double): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 2, java.lang.Double.doubleToRawLongBits(value), null, null)
+        }
+
+      override def visitBoolean(key: String, value: Boolean): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 3, if (value) 1L else 0L, null, null)
+        }
+
+      override def visitStringSeq(key: String, value: Seq[String]): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 4, 0L, null, value)
+        }
+
+      override def visitLongSeq(key: String, value: Seq[Long]): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 5, 0L, null, value)
+        }
+
+      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 6, 0L, null, value)
+        }
+
+      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit =
+        if (!key.startsWith("code.")) {
+          nextAttr(key)
+          renderTextAttrValue(sb, 7, 0L, null, value)
+        }
+    })
+    if (hasUserAttrs) sb.append('}')
+
+    renderThrowable(sb, record.throwable)
+  }
+
+  /** Shared head: timestamp plus severity, used by both entry points. */
+  private def renderHead(sb: StringBuilder, timestampNanos: Long, severityText: String): Unit = {
+    // Timestamp — manual UTC formatting, cached per second
+    val epochMillis = timestampNanos / 1000000L
+    val epochSecond = epochMillis / 1000L
+    val millis      = (epochMillis % 1000L).toInt
+
+    if (epochSecond != cachedSecond) {
+      cachedSecond = epochSecond
+      cachedPrefix = formatDateTimePrefix(epochSecond)
+    }
+    sb.append(cachedPrefix)
+    appendPadded(sb, millis, 3)
+    sb.append("Z ")
+
+    // Severity — pad to 5
+    sb.append(severityText)
+    var pad = 5 - severityText.length
+    while (pad > 0) { sb.append(' '); pad -= 1 }
+  }
+
+  /** Shared source-location rendering, used by both entry points. */
+  private def renderLocation(sb: StringBuilder, namespace: String, method: String, lineNo: Long): Unit = {
+    sb.append(" [")
     if (namespace.nonEmpty) {
       val lastDot = namespace.lastIndexOf('.')
       if (lastDot >= 0) sb.append(namespace, lastDot + 1, namespace.length)
@@ -197,83 +235,34 @@ object TextLogFormatter extends LogFormatter {
     if (method.nonEmpty) { sb.append('.'); sb.append(method) }
     if (lineNo > 0) { sb.append(':'); sb.append(lineNo) }
     sb.append("] ")
+  }
 
-    // Body
-    sb.append(record.body.value)
+  /**
+   * Shared attribute-value rendering, used by both entry points. Scalar slots
+   * arrive unboxed (`long`/`str`); `seq` is only consulted for seq-typed
+   * attributes and may be `null` otherwise.
+   */
+  private def renderTextAttrValue(sb: StringBuilder, tpe: Byte, long: Long, str: String, seq: Seq[Any]): Unit =
+    (tpe: @scala.annotation.switch) match {
+      case 0 /* STRING */      => sb.append('"'); sb.append(str); sb.append('"')
+      case 1 /* LONG */        => sb.append(long)
+      case 2 /* DOUBLE */      => sb.append(java.lang.Double.longBitsToDouble(long))
+      case 3 /* BOOLEAN */     => sb.append(if (long != 0L) "true" else "false")
+      case 4 /* STRING_SEQ */  => appendStringSeq(sb, if (seq == null) Seq.empty else seq)
+      case 5 /* LONG_SEQ */    => appendScalarSeq(sb, if (seq == null) Seq.empty else seq)
+      case 6 /* DOUBLE_SEQ */  => appendScalarSeq(sb, if (seq == null) Seq.empty else seq)
+      case 7 /* BOOLEAN_SEQ */ => appendScalarSeq(sb, if (seq == null) Seq.empty else seq)
+      case _                   => sb.append("?")
+    }
 
-    // User attributes (skip code.* attributes)
-    var hasUserAttrs = false
-    record.attributes.accept(new AttributeVisitor {
-      override def visitString(key: String, value: String): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append("=\"").append(value).append('"')
-        }
-
-      override def visitLong(key: String, value: Long): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=').append(value)
-        }
-
-      override def visitDouble(key: String, value: Double): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=').append(value)
-        }
-
-      override def visitBoolean(key: String, value: Boolean): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=').append(value)
-        }
-
-      override def visitStringSeq(key: String, value: Seq[String]): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=')
-          appendStringSeq(sb, value)
-        }
-
-      override def visitLongSeq(key: String, value: Seq[Long]): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=')
-          appendScalarSeq(sb, value)
-        }
-
-      override def visitDoubleSeq(key: String, value: Seq[Double]): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=')
-          appendScalarSeq(sb, value)
-        }
-
-      override def visitBooleanSeq(key: String, value: Seq[Boolean]): Unit =
-        if (!key.startsWith("code.")) {
-          if (!hasUserAttrs) { sb.append(" {"); hasUserAttrs = true }
-          else sb.append(", ")
-          sb.append(key).append('=')
-          appendScalarSeq(sb, value)
-        }
-    })
-    if (hasUserAttrs) sb.append('}')
-
-    // Throwable
-    record.throwable.foreach { t =>
+  /** Shared throwable rendering, used by both entry points. */
+  private def renderThrowable(sb: StringBuilder, throwable: Option[Throwable]): Unit =
+    throwable.foreach { t =>
       sb.append('\n')
       val sw = new java.io.StringWriter()
       t.printStackTrace(new java.io.PrintWriter(sw))
       sb.append(sw.toString)
     }
-  }
 
   private def formatDateTimePrefix(epochSecond: Long): String = {
     // Civil date calculation from epoch seconds (Rata Die / Howard Hinnant algorithm)
@@ -369,19 +358,7 @@ object JsonLogFormatter extends LogFormatter {
     traceFlags: Byte,
     throwable: Option[Throwable]
   ): Unit = {
-    sb.append('{')
-
-    // Timestamp
-    sb.append("\"timeUnixNano\":\""); sb.append(timestampNanos); sb.append('"')
-
-    // Severity
-    sb.append(",\"severityNumber\":"); sb.append(severity.number)
-    sb.append(",\"severityText\":\""); sb.append(severityText); sb.append('"')
-
-    // Body
-    sb.append(",\"body\":{\"stringValue\":\"")
-    writeJsonStringContent(sb, body)
-    sb.append("\"}")
+    renderJsonHead(sb, timestampNanos, severity.number, severityText, body)
 
     var hasAttrs = false
 
@@ -416,49 +393,18 @@ object JsonLogFormatter extends LogFormatter {
     }
 
     // Trace context
-    if (traceIdHi != 0L || traceIdLo != 0L) {
-      sb.append(",\"traceId\":\"")
-      sb.append(TraceId.toHex(traceIdHi, traceIdLo))
-      sb.append('"')
-    }
-    if (spanId != 0L) {
-      sb.append(",\"spanId\":\"")
-      sb.append(String.format("%016x", spanId: java.lang.Long))
-      sb.append('"')
-    }
+    renderJsonTrace(sb, traceIdHi, traceIdLo, spanId)
 
     // Throwable as exception.stacktrace attribute
     throwable.foreach { t =>
-      val sw = new java.io.StringWriter()
-      t.printStackTrace(new java.io.PrintWriter(sw))
-      if (!hasAttrs) {
-        sb.append(",\"attributes\":[")
-        hasAttrs = true
-      } else {
-        sb.setLength(sb.length - 1)
-        sb.append(',')
-      }
-      appendJsonAttribute(sb, "exception.stacktrace", JsonAttrValue.StringValue(sw.toString))
-      sb.append(']')
+      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
     }
 
     sb.append('}')
   }
 
   override def formatRecord(sb: StringBuilder, record: LogRecord): Unit = {
-    sb.append('{')
-
-    // Timestamp
-    sb.append("\"timeUnixNano\":\""); sb.append(record.timestampNanos); sb.append('"')
-
-    // Severity
-    sb.append(",\"severityNumber\":"); sb.append(record.severity.number)
-    sb.append(",\"severityText\":\""); sb.append(record.severityText); sb.append('"')
-
-    // Body
-    sb.append(",\"body\":{\"stringValue\":\"")
-    writeJsonStringContent(sb, record.body.value)
-    sb.append("\"}")
+    renderJsonHead(sb, record.timestampNanos, record.severity.number, record.severityText, record.body.value)
 
     // Attributes from record
     var hasAttrs = record.attributes.size > 0
@@ -518,33 +464,74 @@ object JsonLogFormatter extends LogFormatter {
     }
 
     // Trace context
-    if (record.traceIdHi != 0L || record.traceIdLo != 0L) {
-      sb.append(",\"traceId\":\"")
-      sb.append(TraceId.toHex(record.traceIdHi, record.traceIdLo))
-      sb.append('"')
-    }
-    if (record.spanId != 0L) {
-      sb.append(",\"spanId\":\"")
-      sb.append(String.format("%016x", record.spanId: java.lang.Long))
-      sb.append('"')
-    }
+    renderJsonTrace(sb, record.traceIdHi, record.traceIdLo, record.spanId)
 
     // Throwable as exception.stacktrace attribute
     record.throwable.foreach { t =>
-      val sw = new java.io.StringWriter()
-      t.printStackTrace(new java.io.PrintWriter(sw))
-      if (!hasAttrs) {
-        sb.append(",\"attributes\":[")
-        hasAttrs = true
-      } else {
-        sb.setLength(sb.length - 1)
-        sb.append(',')
-      }
-      appendJsonAttribute(sb, "exception.stacktrace", JsonAttrValue.StringValue(sw.toString))
-      sb.append(']')
+      hasAttrs = renderJsonThrowableAttr(sb, t, hasAttrs)
     }
 
     sb.append('}')
+  }
+
+  /** Shared JSON head: envelope, timestamp, severity, and body. */
+  private def renderJsonHead(
+    sb: StringBuilder,
+    timestampNanos: Long,
+    severityNumber: Int,
+    severityText: String,
+    body: String
+  ): Unit = {
+    sb.append('{')
+
+    // Timestamp
+    sb.append("\"timeUnixNano\":\""); sb.append(timestampNanos); sb.append('"')
+
+    // Severity
+    sb.append(",\"severityNumber\":"); sb.append(severityNumber)
+    sb.append(",\"severityText\":\""); sb.append(severityText); sb.append('"')
+
+    // Body
+    sb.append(",\"body\":{\"stringValue\":\"")
+    writeJsonStringContent(sb, body)
+    sb.append("\"}")
+  }
+
+  /**
+   * Shared JSON trace-correlation block (hand-rolled hex, no String.format).
+   */
+  private def renderJsonTrace(sb: StringBuilder, traceIdHi: Long, traceIdLo: Long, spanId: Long): Unit = {
+    if (traceIdHi != 0L || traceIdLo != 0L) {
+      sb.append(",\"traceId\":\"")
+      sb.append(TraceId.toHex(traceIdHi, traceIdLo))
+      sb.append('"')
+    }
+    if (spanId != 0L) {
+      sb.append(",\"spanId\":\"")
+      Hex.appendLong16(sb, spanId)
+      sb.append('"')
+    }
+  }
+
+  /**
+   * Shared JSON throwable rendering as an `exception.stacktrace` attribute.
+   * Returns the updated `hasAttrs` flag.
+   */
+  private def renderJsonThrowableAttr(sb: StringBuilder, t: Throwable, hasAttrs: Boolean): Boolean = {
+    val sw = new java.io.StringWriter()
+    t.printStackTrace(new java.io.PrintWriter(sw))
+    val updated =
+      if (!hasAttrs) {
+        sb.append(",\"attributes\":[")
+        true
+      } else {
+        sb.setLength(sb.length - 1)
+        sb.append(',')
+        hasAttrs
+      }
+    appendJsonAttribute(sb, "exception.stacktrace", JsonAttrValue.StringValue(sw.toString))
+    sb.append(']')
+    updated
   }
 
   private def appendJsonAttribute(sb: StringBuilder, key: String, value: JsonAttrValue): Unit = {
@@ -631,7 +618,7 @@ object JsonLogFormatter extends LogFormatter {
         case _    =>
           if (c < 0x20 || (c >= 0xd800 && c <= 0xdfff)) {
             sb.append("\\u")
-            sb.append(String.format("%04x", c.toInt))
+            Hex.appendChar4(sb, c.toInt)
           } else {
             sb.append(c)
           }

@@ -36,6 +36,12 @@ private[otel] final class BatchProcessor[A](
   private val queueSize: AtomicInteger        = new AtomicInteger(0)
   private val isShutdown: AtomicBoolean       = new AtomicBoolean(false)
 
+  // Monitor for the retry backoff wait. shutdown() notifies it so a flush
+  // parked in backoff wakes immediately instead of sleeping out the delay —
+  // the scheduler thread is never blocked longer than necessary and shutdown
+  // still flushes promptly.
+  private val retryMonitor = new Object
+
   private val flushTask: Runnable = new Runnable {
     def run(): Unit = doFlush()
   }
@@ -63,6 +69,11 @@ private[otel] final class BatchProcessor[A](
   def shutdown(): Unit =
     if (isShutdown.compareAndSet(false, true)) {
       scheduledFuture.cancel(false)
+      // Wake any flush parked in retry backoff so it stops retrying now;
+      // the doFlush below then drains whatever is left in the queue.
+      retryMonitor.synchronized {
+        retryMonitor.notifyAll()
+      }
       doFlush()
     }
 
@@ -116,15 +127,26 @@ private[otel] final class BatchProcessor[A](
         } else {
           val shift   = math.min(attempt, 30)
           val delayMs = math.min(retryBaseMillis * (1L << shift), 30000L)
-          if (isShutdown.get()) {
+          if (awaitBackoff(delayMs)) exportWithRetry(batch, attempt + 1)
+          else {
             System.err.println(
               "[zio-blocks-telemetry] BatchProcessor shutting down, not retrying. Dropping " + batch.size + " items."
             )
-          } else {
-            try Thread.sleep(delayMs)
-            catch { case _: InterruptedException => Thread.currentThread().interrupt() }
-            exportWithRetry(batch, attempt + 1)
           }
         }
+    }
+
+  /**
+   * Waits out the retry backoff, returning `false` early (without sleeping the
+   * full delay) once shutdown has started.
+   */
+  private def awaitBackoff(delayMs: Long): Boolean =
+    retryMonitor.synchronized {
+      if (isShutdown.get()) false
+      else {
+        try retryMonitor.wait(delayMs)
+        catch { case _: InterruptedException => Thread.currentThread().interrupt() }
+        !isShutdown.get()
+      }
     }
 }

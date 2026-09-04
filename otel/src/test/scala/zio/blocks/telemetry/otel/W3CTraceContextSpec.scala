@@ -85,9 +85,45 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         val result  = propagator.extract(headers, getter)
         assertTrue(result.isEmpty)
       },
-      test("rejects unknown version") {
+      test("accepts a future version with the same shape") {
         val headers = Map(
           "traceparent" -> "01-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(
+          result.isDefined &&
+            result.get.traceIdHex == "4bf92f3577b34da6a3ce929d0e0e4736" &&
+            result.get.spanId.toHex == "00f067aa0ba902b7" &&
+            result.get.traceFlags.isSampled
+        )
+      },
+      test("accepts a future version with trailing fields") {
+        val headers = Map(
+          "traceparent" -> "02-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-deadbeef"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(
+          result.isDefined &&
+            result.get.traceIdHex == "4bf92f3577b34da6a3ce929d0e0e4736"
+        )
+      },
+      test("rejects version ff") {
+        val headers = Map(
+          "traceparent" -> "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(result.isEmpty)
+      },
+      test("rejects a non-hex version") {
+        val headers = Map(
+          "traceparent" -> "zz-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(result.isEmpty)
+      },
+      test("rejects version 00 with trailing data") {
+        val headers = Map(
+          "traceparent" -> "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01-extra"
         )
         val result = propagator.extract(headers, getter)
         assertTrue(result.isEmpty)
@@ -292,6 +328,28 @@ object W3CTraceContextSpec extends ZIOSpecDefault {
         assertTrue(
           result.isDefined &&
             result.get.traceState == "congo=t61rcWkgMzE"
+        )
+      },
+      test("overlong tracestate is dropped but context still extracts") {
+        val headers = Map(
+          "traceparent" -> "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate"  -> ("k=" + ("v" * 600))
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(
+          result.isDefined &&
+            result.get.traceState == ""
+        )
+      },
+      test("malformed tracestate is dropped but context still extracts") {
+        val headers = Map(
+          "traceparent" -> "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate"  -> "not-a-list-member"
+        )
+        val result = propagator.extract(headers, getter)
+        assertTrue(
+          result.isDefined &&
+            result.get.traceState == ""
         )
       },
       test("inject preserves existing carrier entries") {

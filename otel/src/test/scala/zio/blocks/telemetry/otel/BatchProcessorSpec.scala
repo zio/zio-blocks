@@ -273,6 +273,36 @@ object BatchProcessorSpec extends ZIOSpecDefault {
       pe.shutdown()
       val totalAttempts = attempts.get()
       assertTrue(totalAttempts >= 1 && totalAttempts < 100)
+    },
+    test("shutdown during backoff returns without sleeping out the delay") {
+      val pe                                    = PlatformExecutor.create()
+      val attempts                              = new AtomicInteger(0)
+      val exportFn: Seq[String] => ExportResult = { _ =>
+        attempts.incrementAndGet()
+        ExportResult.Failure(retryable = true, message = "always fails")
+      }
+      val processor =
+        new BatchProcessor[String](
+          exportFn,
+          executor = pe.executor,
+          maxRetries = 100,
+          flushIntervalMillis = 600000L,
+          retryBaseMillis = 60000L
+        )
+      processor.enqueue("x")
+      val flushThread = new Thread {
+        override def run(): Unit = processor.forceFlush()
+      }
+      flushThread.start()
+      Thread.sleep(500)
+      val startNanos = System.nanoTime()
+      processor.shutdown()
+      flushThread.join(10000)
+      pe.shutdown()
+      val elapsedMillis = (System.nanoTime() - startNanos) / 1000000L
+      // A 60s backoff (capped at 30s) must not be slept out: shutdown wakes
+      // the waiter and returns promptly with only a couple of attempts made.
+      assertTrue(!flushThread.isAlive, elapsedMillis < 5000L, attempts.get() < 5)
     }
   ) @@ TestAspect.sequential
 }

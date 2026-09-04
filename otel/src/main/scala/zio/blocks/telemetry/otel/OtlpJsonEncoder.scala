@@ -113,7 +113,7 @@ object OtlpJsonEncoder {
         case _    =>
           if (c < 0x20 || (c >= 0xd800 && c <= 0xdfff)) {
             sb.append("\\u")
-            sb.append(String.format("%04x", c.toInt))
+            Hex.appendChar4(sb, c.toInt)
           } else {
             sb.append(c)
           }
@@ -124,9 +124,12 @@ object OtlpJsonEncoder {
   }
 
   private def writeKey(sb: StringBuilder, key: String): Unit = {
-    sb.append('"')
-    sb.append(key) // keys are always safe ASCII
-    sb.append("\":")
+    // Route even fixed protocol keys through the escaper: all current call
+    // sites pass literals, but the cost is one scan and this removes the only
+    // raw-append key path (user-controlled keys already escape via
+    // writeAttributes).
+    writeJsonString(sb, key)
+    sb.append(':')
   }
 
   private def writeKeyString(sb: StringBuilder, key: String, value: String): Unit = {
@@ -518,7 +521,14 @@ object OtlpJsonEncoder {
     // trace correlation
     writeKeyString(sb, "traceId", if (log.hasTraceId) TraceId.toHex(log.traceIdHi, log.traceIdLo) else "")
     sb.append(',')
-    writeKeyString(sb, "spanId", if (log.hasSpanId) String.format("%016x", log.spanId) else "")
+    writeKey(sb, "spanId")
+    if (log.hasSpanId) {
+      sb.append('"')
+      Hex.appendLong16(sb, log.spanId)
+      sb.append('"')
+    } else {
+      sb.append("\"\"")
+    }
     sb.append(',')
     writeKeyInt(sb, "flags", log.traceFlags.toInt & 0xff)
 
