@@ -2132,7 +2132,7 @@ lazy val async = crossProject(JSPlatform, JVMPlatform)
     },
     // JVM scoverage floor (JS coverage is disabled repo-wide in jsSettings).
     // Measured JVM coverage: Scala 3.8.3 = 93.35% stmt / 91.61% branch,
-    // Scala 2.13.18 = 95.84% / 93.55%. The Scala 3 cell is the floor because it
+    // Scala 3.9.0 = 95.84% / 93.55%. The Scala 3 cell is the floor because it
     // additionally compiles the dotty-cps-async bridge (`internal/AsyncDirect`,
     // `AsyncCpsMonad`, `AsyncRuntimeAwait`), whose macro markers / error
     // messages run at compile time (not runtime-instrumentable) and whose HOF

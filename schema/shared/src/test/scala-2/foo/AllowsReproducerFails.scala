@@ -34,7 +34,7 @@ object AllowsReproducerFails extends App {
 
   val x = writeCsv(Seq(Person(42)))
 
-  /* In Scala 2.13.18 I get below compile error, in Scala3 it compiles OK
+  /* In Scala 3.9.0 I get below compile error, in Scala3 it compiles OK
 [warn] sbt 0.13 shell syntax is deprecated; use slash syntax instead: schemaJVM / Test / compile
 [info] compiling 2 Scala sources to /Users/avinder/Workspaces/git/zio-blocks/schema/jvm/target/scala-2.13/test-classes ...
 [error] /Users/avinder/Workspaces/git/zio-blocks/schema/shared/src/test/scala-2/zio/blocks/schema/comptime/AllowsReproducer.scala:19:21: could not find implicit value for parameter ev: zio.blocks.schema.comptime.Allows[foo.AllowsReproducer.Person,zio.blocks.schema.comptime.Allows.Record[zio.blocks.schema.comptime.Allows.Primitive.Int]]
